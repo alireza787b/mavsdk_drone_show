@@ -236,7 +236,7 @@ class TestSwarmTrajectoryPolicyEndpoint:
     """Test Swarm Trajectory runtime policy endpoint."""
 
     def test_returns_runtime_policy_from_params(self, test_client):
-        response = test_client.get("/api/swarm/trajectory/policy")
+        response = test_client.get("/api/v1/swarm-trajectories/policy")
 
         assert response.status_code == 200
         payload = response.json()
@@ -1533,20 +1533,20 @@ class TestSwarmTrajectoryEndpoints:
         route_paths = {route.path for route in app.routes}
 
         expected_paths = {
-            '/api/swarm/leaders',
-            '/api/swarm/trajectory/upload/{leader_id}',
-            '/api/swarm/trajectory/process',
-            '/api/swarm/trajectory/recommendation',
-            '/api/swarm/trajectory/status',
-            '/api/swarm/trajectory/clear-processed',
-            '/api/swarm/trajectory/clear',
-            '/api/swarm/trajectory/clear-leader/{leader_id}',
-            '/api/swarm/trajectory/remove/{leader_id}',
-            '/api/swarm/trajectory/download/{drone_id}',
-            '/api/swarm/trajectory/download-kml/{drone_id}',
-            '/api/swarm/trajectory/download-cluster-kml/{leader_id}',
-            '/api/swarm/trajectory/clear-drone/{drone_id}',
-            '/api/swarm/trajectory/commit',
+            '/api/v1/swarm-trajectories/leaders',
+            '/api/v1/swarm-trajectories/upload/{leader_id}',
+            '/api/v1/swarm-trajectories/process',
+            '/api/v1/swarm-trajectories/recommendation',
+            '/api/v1/swarm-trajectories/status',
+            '/api/v1/swarm-trajectories/clear-processed',
+            '/api/v1/swarm-trajectories/clear',
+            '/api/v1/swarm-trajectories/clear-leader/{leader_id}',
+            '/api/v1/swarm-trajectories/remove/{leader_id}',
+            '/api/v1/swarm-trajectories/download/{drone_id}',
+            '/api/v1/swarm-trajectories/download-kml/{drone_id}',
+            '/api/v1/swarm-trajectories/download-cluster-kml/{leader_id}',
+            '/api/v1/swarm-trajectories/clear-drone/{drone_id}',
+            '/api/v1/swarm-trajectories/commit',
         }
 
         missing_paths = expected_paths - route_paths
@@ -1892,21 +1892,21 @@ class TestAPIV1Aliases:
             "/api/v1/command-reports/execution-result",
             "/git-status",
             "/sync-repos",
-            "/api/swarm/leaders",
-            "/api/swarm/trajectory/upload/{leader_id}",
-            "/api/swarm/trajectory/process",
-            "/api/swarm/trajectory/recommendation",
-            "/api/swarm/trajectory/status",
-            "/api/swarm/trajectory/policy",
-            "/api/swarm/trajectory/clear-processed",
-            "/api/swarm/trajectory/clear",
-            "/api/swarm/trajectory/clear-leader/{leader_id}",
-            "/api/swarm/trajectory/remove/{leader_id}",
-            "/api/swarm/trajectory/download/{drone_id}",
-            "/api/swarm/trajectory/download-kml/{drone_id}",
-            "/api/swarm/trajectory/download-cluster-kml/{leader_id}",
-            "/api/swarm/trajectory/clear-drone/{drone_id}",
-            "/api/swarm/trajectory/commit",
+            "/api/v1/swarm-trajectories/leaders",
+            "/api/v1/swarm-trajectories/upload/{leader_id}",
+            "/api/v1/swarm-trajectories/process",
+            "/api/v1/swarm-trajectories/recommendation",
+            "/api/v1/swarm-trajectories/status",
+            "/api/v1/swarm-trajectories/policy",
+            "/api/v1/swarm-trajectories/clear-processed",
+            "/api/v1/swarm-trajectories/clear",
+            "/api/v1/swarm-trajectories/clear-leader/{leader_id}",
+            "/api/v1/swarm-trajectories/remove/{leader_id}",
+            "/api/v1/swarm-trajectories/download/{drone_id}",
+            "/api/v1/swarm-trajectories/download-kml/{drone_id}",
+            "/api/v1/swarm-trajectories/download-cluster-kml/{leader_id}",
+            "/api/v1/swarm-trajectories/clear-drone/{drone_id}",
+            "/api/v1/swarm-trajectories/commit",
             "/api/logs/sources",
             "/api/logs/sessions",
             "/api/logs/sessions/{session_id}",

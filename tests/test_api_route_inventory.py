@@ -79,13 +79,13 @@ GCS_EXPECTED_HTTP = {
         "/get-heartbeats",
         "/get-network-status",
         "/git-status",
-        "/api/swarm/leaders",
-        "/api/swarm/trajectory/recommendation",
-        "/api/swarm/trajectory/status",
-        "/api/swarm/trajectory/policy",
-        "/api/swarm/trajectory/download/{drone_id}",
-        "/api/swarm/trajectory/download-kml/{drone_id}",
-        "/api/swarm/trajectory/download-cluster-kml/{leader_id}",
+        "/api/v1/swarm-trajectories/leaders",
+        "/api/v1/swarm-trajectories/recommendation",
+        "/api/v1/swarm-trajectories/status",
+        "/api/v1/swarm-trajectories/policy",
+        "/api/v1/swarm-trajectories/download/{drone_id}",
+        "/api/v1/swarm-trajectories/download-kml/{drone_id}",
+        "/api/v1/swarm-trajectories/download-cluster-kml/{leader_id}",
         "/api/v1/swarm-trajectories/plots/{filename}",
         "/api/logs/sources",
         "/api/logs/sessions",
@@ -112,13 +112,13 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/shows/custom/import",
         "/api/v1/shows/skybrush/deployments",
         "/sync-repos",
-        "/api/swarm/trajectory/upload/{leader_id}",
-        "/api/swarm/trajectory/process",
-        "/api/swarm/trajectory/clear-processed",
-        "/api/swarm/trajectory/clear",
-        "/api/swarm/trajectory/clear-leader/{leader_id}",
-        "/api/swarm/trajectory/clear-drone/{drone_id}",
-        "/api/swarm/trajectory/commit",
+        "/api/v1/swarm-trajectories/upload/{leader_id}",
+        "/api/v1/swarm-trajectories/process",
+        "/api/v1/swarm-trajectories/clear-processed",
+        "/api/v1/swarm-trajectories/clear",
+        "/api/v1/swarm-trajectories/clear-leader/{leader_id}",
+        "/api/v1/swarm-trajectories/clear-drone/{drone_id}",
+        "/api/v1/swarm-trajectories/commit",
         "/api/logs/frontend",
         "/api/logs/export",
         "/api/logs/drone/{drone_id}/export",
@@ -137,7 +137,7 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/poi/{poi_id}",
     },
     "DELETE": {
-        "/api/swarm/trajectory/remove/{leader_id}",
+        "/api/v1/swarm-trajectories/remove/{leader_id}",
         "/api/sar/poi/{poi_id}",
     },
     "PUT": {
@@ -329,6 +329,21 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert ("GET", "/get-show-plots") not in route_index
     assert ("GET", "/get-show-plots/{filename}") not in route_index
     assert ("GET", "/get-custom-show-image") not in route_index
+    assert ("GET", "/api/swarm/leaders") not in route_index
+    assert ("POST", "/api/swarm/trajectory/upload/{leader_id}") not in route_index
+    assert ("POST", "/api/swarm/trajectory/process") not in route_index
+    assert ("GET", "/api/swarm/trajectory/recommendation") not in route_index
+    assert ("GET", "/api/swarm/trajectory/status") not in route_index
+    assert ("GET", "/api/swarm/trajectory/policy") not in route_index
+    assert ("POST", "/api/swarm/trajectory/clear-processed") not in route_index
+    assert ("POST", "/api/swarm/trajectory/clear") not in route_index
+    assert ("POST", "/api/swarm/trajectory/clear-leader/{leader_id}") not in route_index
+    assert ("DELETE", "/api/swarm/trajectory/remove/{leader_id}") not in route_index
+    assert ("GET", "/api/swarm/trajectory/download/{drone_id}") not in route_index
+    assert ("GET", "/api/swarm/trajectory/download-kml/{drone_id}") not in route_index
+    assert ("GET", "/api/swarm/trajectory/download-cluster-kml/{leader_id}") not in route_index
+    assert ("POST", "/api/swarm/trajectory/clear-drone/{drone_id}") not in route_index
+    assert ("POST", "/api/swarm/trajectory/commit") not in route_index
 
 
 def test_drone_business_route_inventory(drone_app):

@@ -20,7 +20,7 @@ This document is the source of truth for the API cleanup and migration effort ac
 The current API surface is mixed-generation:
 
 - legacy verb-style routes like `/get-config-data`, `/save-swarm-data`, `/import-show`
-- newer domain routes like `/api/logs/*`, `/api/sar/*`, `/api/swarm/trajectory/*`
+- newer domain routes like `/api/logs/*`, `/api/sar/*`, `/api/v1/swarm-trajectories/*`
 - historically included unprefixed operational routes like `/health`, `/submit_command`, and `/git-status`
 - duplicate or overlapping contracts like `/telemetry` vs `/api/telemetry`, `/heartbeat` vs `/drone-heartbeat`, `/get-network-status` vs `/get-network-info`
 
@@ -73,7 +73,7 @@ Canonical routes will use:
 - stable plural collections where appropriate
 - consistent path structure across GCS and drone services
 
-Legacy routes remain temporarily available as compatibility aliases until the frontend, tooling, and runtime callers have been migrated and verified.
+Legacy routes remain temporarily available only where the active checkpoint notes still list them as compatibility aliases. Once callers, docs, tools, and validation suites are moved, the retired families are removed instead of being kept indefinitely as misleading pseudo-compatibility.
 
 ## Contract Standard
 
@@ -213,8 +213,8 @@ Phase 3 sixth checkpoint on 2026-04-03:
 Phase 3 seventh checkpoint on 2026-04-03:
 
 - extracted the full Swarm Trajectory management surface into `gcs-server/api_routes/swarm_trajectory.py`
-- moved `GET /api/swarm/leaders` plus the 14 `/api/swarm/trajectory/*` routes behind `create_swarm_trajectory_router(...)`, while keeping the live dependency seam request-time-bound to the `app_fastapi` module object so existing patch-driven tests and future auth/MCP wrapping still target one current module surface
-- preserved the current live route names and binary download behavior instead of starting canonical `/api/v1/...` renames in the same slice
+- moved the Swarm Trajectory domain behind `create_swarm_trajectory_router(...)`, while keeping the live dependency seam request-time-bound to the `app_fastapi` module object so existing patch-driven tests and future auth/MCP wrapping still target one current module surface
+- preserved the binary download behavior and live dependency seams while deferring the canonical `/api/v1/swarm-trajectories/*` migration to a dedicated later slice
 - corrected a real route-layer contract bug during extraction: `process` and `commit` now return `400` for malformed JSON or non-object JSON payloads instead of surfacing those client errors as generic `500`s
 - added focused router-level coverage in `tests/test_gcs_swarm_trajectory_routes.py` for route registration, live dependency lookup, runtime policy reads, and the new request-body validation behavior
 - removed the stale unused Flask-era `gcs-server/swarm_trajectory_routes.py` file after confirming it was no longer mounted anywhere in the live FastAPI application, leaving the extracted router as the single current Swarm Trajectory route definition in the repo
@@ -508,6 +508,45 @@ Phase 4 fourteenth checkpoint on 2026-04-03:
 - updated the shared frontend route resolver, request-log classification, operator/developer docs, and route-inventory guardrails so the retired origin aliases no longer linger as pseudo-compatibility
 
 After this checkpoint, the remaining compatibility-retirement work is centered on the versionless Swarm Trajectory legacy family.
+
+Phase 4 fifteenth checkpoint on 2026-04-03:
+
+- retired the versionless Swarm Trajectory routes:
+  - removed `GET /api/swarm/leaders`
+  - removed `POST /api/swarm/trajectory/upload/{leader_id}`
+  - removed `POST /api/swarm/trajectory/process`
+  - removed `GET /api/swarm/trajectory/recommendation`
+  - removed `GET /api/swarm/trajectory/status`
+  - removed `GET /api/swarm/trajectory/policy`
+  - removed `POST /api/swarm/trajectory/clear-processed`
+  - removed `POST /api/swarm/trajectory/clear`
+  - removed `POST /api/swarm/trajectory/clear-leader/{leader_id}`
+  - removed `DELETE /api/swarm/trajectory/remove/{leader_id}`
+  - removed `GET /api/swarm/trajectory/download/{drone_id}`
+  - removed `GET /api/swarm/trajectory/download-kml/{drone_id}`
+  - removed `GET /api/swarm/trajectory/download-cluster-kml/{leader_id}`
+  - removed `POST /api/swarm/trajectory/clear-drone/{drone_id}`
+  - removed `POST /api/swarm/trajectory/commit`
+- kept the canonical Swarm Trajectory surface:
+  - `GET /api/v1/swarm-trajectories/leaders`
+  - `POST /api/v1/swarm-trajectories/upload/{leader_id}`
+  - `POST /api/v1/swarm-trajectories/process`
+  - `GET /api/v1/swarm-trajectories/recommendation`
+  - `GET /api/v1/swarm-trajectories/status`
+  - `GET /api/v1/swarm-trajectories/policy`
+  - `POST /api/v1/swarm-trajectories/clear-processed`
+  - `POST /api/v1/swarm-trajectories/clear`
+  - `POST /api/v1/swarm-trajectories/clear-leader/{leader_id}`
+  - `DELETE /api/v1/swarm-trajectories/remove/{leader_id}`
+  - `GET /api/v1/swarm-trajectories/download/{drone_id}`
+  - `GET /api/v1/swarm-trajectories/download-kml/{drone_id}`
+  - `GET /api/v1/swarm-trajectories/download-cluster-kml/{leader_id}`
+  - `POST /api/v1/swarm-trajectories/clear-drone/{drone_id}`
+  - `POST /api/v1/swarm-trajectories/commit`
+- updated the shared frontend route resolver, runtime validation tooling, operator/developer API docs, and route-inventory guardrails so the retired versionless Swarm Trajectory routes no longer linger as pseudo-compatibility
+- removed a dead block of unused trajectory schema models that still documented non-existent legacy endpoints, keeping `gcs-server/schemas.py` aligned with the live contract instead of preserving stale route metadata
+
+After this checkpoint, no GCS business route family remains in the earlier “canonicalize next” bucket. The remaining API debt is now limited to explicitly retained operational aliases (`/get-heartbeats`, `/get-network-status`, `/heartbeat`, `/drone-heartbeat`, `/git-status`, `/sync-repos`) plus the separately namespaced `/api/logs/*` and `/api/sar/*` domains.
 
 ### Phase 5
 

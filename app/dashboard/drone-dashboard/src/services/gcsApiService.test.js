@@ -69,6 +69,12 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/origin/launch-positions')).toBe(GCS_ROUTE_KEYS.desiredLaunchPositions);
     expect(resolveGcsRouteKey('/api/v1/commands')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryBase);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/status')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryStatus);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/policy')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryPolicy);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/process')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryProcess);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/clear-processed')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryClearProcessed);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
@@ -110,6 +116,12 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/get-position-deviations')).toBeNull();
     expect(resolveGcsRouteKey('/compute-origin')).toBeNull();
     expect(resolveGcsRouteKey('/get-desired-launch-positions')).toBeNull();
+    expect(resolveGcsRouteKey('/api/swarm/leaders')).toBeNull();
+    expect(resolveGcsRouteKey('/api/swarm/trajectory')).toBeNull();
+    expect(resolveGcsRouteKey('/api/swarm/trajectory/status')).toBeNull();
+    expect(resolveGcsRouteKey('/api/swarm/trajectory/policy')).toBeNull();
+    expect(resolveGcsRouteKey('/api/swarm/trajectory/process')).toBeNull();
+    expect(resolveGcsRouteKey('/api/swarm/trajectory/clear-processed')).toBeNull();
   });
 
   it('resolves keyed routes that include query strings', () => {

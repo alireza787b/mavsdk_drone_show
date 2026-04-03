@@ -41,6 +41,10 @@ try:
         calculate_land_disarm_timeout,
         calculate_swarm_rtl_completion_timeout,
     )
+    from src.gcs_api_routes import (
+        GCS_SWARM_TRAJECTORY_PROCESS_ROUTE,
+        GCS_SWARM_TRAJECTORY_STATUS_ROUTE,
+    )
     from src.live_armability_utils import calculate_live_armability_request_timeout
     from src.params import Params
 except Exception:  # pragma: no cover - validator fallback only
@@ -98,6 +102,9 @@ except Exception:  # pragma: no cover - validator fallback only
             float(getattr(params, "LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC", 2.0)),
         )
         return connect_timeout + probe_timeout + http_buffer_sec
+
+    GCS_SWARM_TRAJECTORY_STATUS_ROUTE = "/api/v1/swarm-trajectories/status"
+    GCS_SWARM_TRAJECTORY_PROCESS_ROUTE = "/api/v1/swarm-trajectories/process"
 
 
 SWARM_TRAJECTORY = 4
@@ -1209,18 +1216,18 @@ def main() -> int:
             results["prepared_short_profile_entry_delay_s"] = entry_delay_s
             results["prepared_short_profile_max_horizontal_offset_m"] = max_horizontal_offset
 
-        status_before = client.get_json("/api/swarm/trajectory/status")
+        status_before = client.get_json(GCS_SWARM_TRAJECTORY_STATUS_ROUTE)
         require(status_before.get("success") is True, f"Status unavailable: {status_before}")
         results["status_before"] = status_before["status"]
 
         process_result = client.post_json(
-            "/api/swarm/trajectory/process",
+            GCS_SWARM_TRAJECTORY_PROCESS_ROUTE,
             {"force_clear": False, "auto_reload": True},
         )
         require(process_result.get("success") is True, f"Processing failed: {process_result}")
         results["process_result"] = process_result
 
-        status_after = client.get_json("/api/swarm/trajectory/status")
+        status_after = client.get_json(GCS_SWARM_TRAJECTORY_STATUS_ROUTE)
         require(status_after.get("success") is True, f"Status unavailable after processing: {status_after}")
         require(status_after["status"]["cluster_summary"]["all_clusters_ready"] is True, f"Clusters not ready: {status_after}")
         results["status_after"] = status_after["status"]

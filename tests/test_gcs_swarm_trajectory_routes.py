@@ -85,21 +85,21 @@ def test_swarm_trajectory_router_registers_expected_routes(tmp_path):
 
     routes = {route.path for route in app.routes}
 
-    assert "/api/swarm/leaders" in routes
-    assert "/api/swarm/trajectory/upload/{leader_id}" in routes
-    assert "/api/swarm/trajectory/process" in routes
-    assert "/api/swarm/trajectory/recommendation" in routes
-    assert "/api/swarm/trajectory/status" in routes
-    assert "/api/swarm/trajectory/policy" in routes
-    assert "/api/swarm/trajectory/clear-processed" in routes
-    assert "/api/swarm/trajectory/clear" in routes
-    assert "/api/swarm/trajectory/clear-leader/{leader_id}" in routes
-    assert "/api/swarm/trajectory/remove/{leader_id}" in routes
-    assert "/api/swarm/trajectory/download/{drone_id}" in routes
-    assert "/api/swarm/trajectory/download-kml/{drone_id}" in routes
-    assert "/api/swarm/trajectory/download-cluster-kml/{leader_id}" in routes
-    assert "/api/swarm/trajectory/clear-drone/{drone_id}" in routes
-    assert "/api/swarm/trajectory/commit" in routes
+    assert "/api/v1/swarm-trajectories/leaders" in routes
+    assert "/api/v1/swarm-trajectories/upload/{leader_id}" in routes
+    assert "/api/v1/swarm-trajectories/process" in routes
+    assert "/api/v1/swarm-trajectories/recommendation" in routes
+    assert "/api/v1/swarm-trajectories/status" in routes
+    assert "/api/v1/swarm-trajectories/policy" in routes
+    assert "/api/v1/swarm-trajectories/clear-processed" in routes
+    assert "/api/v1/swarm-trajectories/clear" in routes
+    assert "/api/v1/swarm-trajectories/clear-leader/{leader_id}" in routes
+    assert "/api/v1/swarm-trajectories/remove/{leader_id}" in routes
+    assert "/api/v1/swarm-trajectories/download/{drone_id}" in routes
+    assert "/api/v1/swarm-trajectories/download-kml/{drone_id}" in routes
+    assert "/api/v1/swarm-trajectories/download-cluster-kml/{leader_id}" in routes
+    assert "/api/v1/swarm-trajectories/clear-drone/{drone_id}" in routes
+    assert "/api/v1/swarm-trajectories/commit" in routes
 
 
 def test_swarm_trajectory_router_policy_uses_live_params_after_router_creation(tmp_path):
@@ -111,7 +111,7 @@ def test_swarm_trajectory_router_policy_uses_live_params_after_router_creation(t
     deps.Params.swarm_trajectory_max_speed = 24.5
 
     with TestClient(app) as client:
-        response = client.get("/api/swarm/trajectory/policy")
+        response = client.get("/api/v1/swarm-trajectories/policy")
 
     assert response.status_code == 200
     payload = response.json()
@@ -130,7 +130,7 @@ def test_swarm_trajectory_router_status_uses_live_service_after_router_creation(
     }
 
     with TestClient(app) as client:
-        response = client.get("/api/swarm/trajectory/status")
+        response = client.get("/api/v1/swarm-trajectories/status")
 
     assert response.status_code == 200
     assert response.json()["status"]["processed_trajectories"] == 9
@@ -143,7 +143,7 @@ def test_swarm_trajectory_router_process_rejects_malformed_json(tmp_path):
 
     with TestClient(app) as client:
         response = client.post(
-            "/api/swarm/trajectory/process",
+            "/api/v1/swarm-trajectories/process",
             data="{bad",
             headers={"content-type": "application/json"},
         )
@@ -158,7 +158,7 @@ def test_swarm_trajectory_router_commit_rejects_non_object_json(tmp_path):
     app.include_router(create_swarm_trajectory_router(deps))
 
     with TestClient(app) as client:
-        response = client.post("/api/swarm/trajectory/commit", json=["not", "an", "object"])
+        response = client.post("/api/v1/swarm-trajectories/commit", json=["not", "an", "object"])
 
     assert response.status_code == 400
     assert response.json() == {"success": False, "error": "Request body must be a JSON object"}

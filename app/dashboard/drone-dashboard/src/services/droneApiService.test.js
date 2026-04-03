@@ -58,7 +58,7 @@ describe('droneApiService', () => {
   });
 
   it('uses centralized route building for swarm trajectory uploads', async () => {
-    buildSwarmTrajectoryUrl.mockReturnValue('http://gcs.test:5000/api/swarm/trajectory/upload/1');
+    buildSwarmTrajectoryUrl.mockReturnValue('http://gcs.test:5000/api/v1/swarm-trajectories/upload/1');
     postGcsResource.mockResolvedValue({ data: { success: true } });
 
     const file = new Blob(['hw_id,follow\n1,0\n'], { type: 'text/csv' });
@@ -66,7 +66,7 @@ describe('droneApiService', () => {
 
     expect(buildSwarmTrajectoryUrl).toHaveBeenCalledWith('/upload/1');
     expect(postGcsResource).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/swarm/trajectory/upload/1',
+      'http://gcs.test:5000/api/v1/swarm-trajectories/upload/1',
       expect.any(FormData)
     );
   });

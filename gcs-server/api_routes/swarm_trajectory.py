@@ -79,7 +79,7 @@ async def _parse_optional_json_object(request: Request) -> dict[str, Any]:
 def create_swarm_trajectory_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/api/swarm/leaders", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/leaders", tags=["Swarm Trajectories"])
     async def get_swarm_leaders():
         """Get list of top leaders from swarm configuration."""
         try:
@@ -90,7 +90,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to get swarm leaders: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.post("/api/swarm/trajectory/upload/{leader_id}", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/upload/{leader_id}", tags=["Swarm Trajectories"])
     async def upload_leader_trajectory(
         leader_id: int = PathParam(..., description="Leader drone ID"),
         file: UploadFile = File(...),
@@ -109,7 +109,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to upload swarm trajectory for leader {leader_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.post("/api/swarm/trajectory/process", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/process", tags=["Swarm Trajectories"])
     async def process_trajectories(request: Request):
         """Smart processing with automatic change detection."""
         try:
@@ -135,7 +135,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to process swarm trajectories: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.get("/api/swarm/trajectory/recommendation", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/recommendation", tags=["Swarm Trajectories"])
     async def get_trajectory_recommendation():
         """Get smart processing recommendation based on current state."""
         try:
@@ -156,7 +156,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to get recommendation: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.get("/api/swarm/trajectory/status", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/status", tags=["Swarm Trajectories"])
     async def get_processing_status():
         """Get current processing status and file counts."""
         try:
@@ -167,12 +167,12 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to get swarm trajectory status: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.get("/api/swarm/trajectory/policy", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/policy", tags=["Swarm Trajectories"])
     async def get_swarm_trajectory_policy():
         """Return the operator-facing trajectory planning envelope sourced from Params."""
         return JSONResponse(content=_build_swarm_trajectory_policy_payload(deps.Params))
 
-    @router.post("/api/swarm/trajectory/clear-processed", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/clear-processed", tags=["Swarm Trajectories"])
     async def clear_processed_trajectories():
         """Explicitly clear all processed data and plots."""
         try:
@@ -185,7 +185,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to clear processed swarm trajectories: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.post("/api/swarm/trajectory/clear", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/clear", tags=["Swarm Trajectories"])
     async def clear_all_trajectories():
         """Clear all raw, processed, and generated swarm trajectory artifacts."""
         try:
@@ -198,7 +198,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to clear all swarm trajectories: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.post("/api/swarm/trajectory/clear-leader/{leader_id}", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/clear-leader/{leader_id}", tags=["Swarm Trajectories"])
     async def clear_leader_trajectory(
         leader_id: int = PathParam(..., description="Leader drone ID"),
     ):
@@ -216,7 +216,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to clear leader trajectory for drone {leader_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.delete("/api/swarm/trajectory/remove/{leader_id}", tags=["Swarm Trajectories"])
+    @router.delete("/api/v1/swarm-trajectories/remove/{leader_id}", tags=["Swarm Trajectories"])
     async def remove_leader_trajectory(
         leader_id: int = PathParam(..., description="Leader drone ID"),
     ):
@@ -234,7 +234,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to remove leader trajectory for drone {leader_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.get("/api/swarm/trajectory/download/{drone_id}", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/download/{drone_id}", tags=["Swarm Trajectories"])
     async def download_drone_trajectory(
         drone_id: int = PathParam(..., description="Drone ID"),
     ):
@@ -248,7 +248,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to download trajectory for drone {drone_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.get("/api/swarm/trajectory/download-kml/{drone_id}", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/download-kml/{drone_id}", tags=["Swarm Trajectories"])
     async def download_drone_kml(
         drone_id: int = PathParam(..., description="Drone ID"),
     ):
@@ -270,7 +270,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to generate KML for drone {drone_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.get("/api/swarm/trajectory/download-cluster-kml/{leader_id}", tags=["Swarm Trajectories"])
+    @router.get("/api/v1/swarm-trajectories/download-cluster-kml/{leader_id}", tags=["Swarm Trajectories"])
     async def download_cluster_kml(
         leader_id: int = PathParam(..., description="Leader drone ID"),
     ):
@@ -292,7 +292,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to generate cluster KML for leader {leader_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.post("/api/swarm/trajectory/clear-drone/{drone_id}", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/clear-drone/{drone_id}", tags=["Swarm Trajectories"])
     async def clear_individual_drone(
         drone_id: int = PathParam(..., description="Drone ID"),
     ):
@@ -310,7 +310,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             deps.log_system_error(f"Failed to clear trajectory for drone {drone_id}: {exc}", "swarm")
             return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
-    @router.post("/api/swarm/trajectory/commit", tags=["Swarm Trajectories"])
+    @router.post("/api/v1/swarm-trajectories/commit", tags=["Swarm Trajectories"])
     async def commit_trajectory_changes(request: Request):
         """Commit and push swarm trajectory changes to git."""
         try:

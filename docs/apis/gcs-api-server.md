@@ -786,7 +786,7 @@ together for a single saved assignment.
 }
 ```
 
-#### `GET /api/swarm/leaders`
+#### `GET /api/v1/swarm-trajectories/leaders`
 Get list of top leaders from swarm configuration.
 
 **Response:**
@@ -801,7 +801,7 @@ Get list of top leaders from swarm configuration.
 }
 ```
 
-#### `POST /api/swarm/trajectory/upload/{leader_id}`
+#### `POST /api/v1/swarm-trajectories/upload/{leader_id}`
 Upload CSV trajectory for specific leader.
 
 **Parameters:**
@@ -820,7 +820,7 @@ Upload CSV trajectory for specific leader.
 }
 ```
 
-#### `POST /api/swarm/trajectory/process`
+#### `POST /api/v1/swarm-trajectories/process`
 Smart processing with automatic change detection.
 
 **Request:**
@@ -851,7 +851,7 @@ Smart processing with automatic change detection.
 }
 ```
 
-#### `GET /api/swarm/trajectory/status`
+#### `GET /api/v1/swarm-trajectories/status`
 Get current processing status and file counts.
 
 **Response:**
@@ -892,7 +892,7 @@ Get current processing status and file counts.
 }
 ```
 
-#### `GET /api/swarm/trajectory/policy`
+#### `GET /api/v1/swarm-trajectories/policy`
 Get the operator-facing trajectory planner envelope sourced from backend `Params`.
 
 **Response:**
@@ -929,15 +929,17 @@ Use this endpoint as the frontend source of truth for Swarm Trajectory planner d
 
 Additional active Swarm Trajectory endpoints:
 
-- `GET /api/swarm/trajectory/recommendation`
-- `POST /api/swarm/trajectory/clear`
-- `POST /api/swarm/trajectory/clear-leader/{leader_id}`
-- `DELETE /api/swarm/trajectory/remove/{leader_id}`
-- `POST /api/swarm/trajectory/clear-drone/{drone_id}`
-- `GET /api/swarm/trajectory/download-cluster-kml/{leader_id}`
-- `POST /api/swarm/trajectory/commit`
+- `GET /api/v1/swarm-trajectories/recommendation`
+- `POST /api/v1/swarm-trajectories/clear`
+- `POST /api/v1/swarm-trajectories/clear-leader/{leader_id}`
+- `DELETE /api/v1/swarm-trajectories/remove/{leader_id}`
+- `POST /api/v1/swarm-trajectories/clear-drone/{drone_id}`
+- `GET /api/v1/swarm-trajectories/download-cluster-kml/{leader_id}`
+- `POST /api/v1/swarm-trajectories/commit`
 
-#### `POST /api/swarm/trajectory/clear-processed`
+The older versionless `/api/swarm/...` compatibility routes for this domain are retired.
+
+#### `POST /api/v1/swarm-trajectories/clear-processed`
 Explicitly clear all processed data and plots.
 
 **Response:**

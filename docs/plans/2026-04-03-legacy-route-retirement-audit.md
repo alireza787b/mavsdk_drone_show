@@ -1,5 +1,7 @@
 # 2026-04-03 Legacy Route Retirement Audit
 
+Update later on 2026-04-03: the deferred versionless Swarm Trajectory family was closed in the Phase 4 fifteenth checkpoint after canonicalization to `/api/v1/swarm-trajectories/*`.
+
 ## Goal
 
 Classify the remaining public GCS legacy route families after Phase 4I so retirements happen intentionally instead of opportunistically.

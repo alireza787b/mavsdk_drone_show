@@ -417,57 +417,6 @@ class SwarmTrajectory(BaseModel):
     created_at: Optional[int] = Field(None, description="Creation timestamp (Unix ms)")
 
 
-class TrajectoryListItem(BaseModel):
-    """Trajectory summary for list view"""
-    name: str = Field(..., description="Trajectory name")
-    drone_count: int = Field(..., ge=0, description="Number of drones")
-    duration: float = Field(..., ge=0, description="Duration (seconds)")
-    file_size: int = Field(..., ge=0, description="File size (bytes)")
-    created: Optional[str] = Field(None, description="Creation date (ISO format)")
-    has_preview: bool = Field(..., description="Has plot preview available")
-
-
-class TrajectoryListResponse(BaseModel):
-    """Response for GET /api/swarm/trajectories"""
-    trajectories: List[TrajectoryListItem] = Field(..., description="Available trajectories")
-    total_count: int = Field(..., ge=0, description="Total trajectory count")
-    current_trajectory: Optional[str] = Field(None, description="Currently active trajectory")
-
-
-class TrajectoryUploadResponse(BaseModel):
-    """Response for POST /api/swarm/trajectory/upload"""
-    success: bool = Field(..., description="Upload success status")
-    message: str = Field(..., description="Status message")
-    trajectory_name: str = Field(..., description="Uploaded trajectory name")
-    drone_count: int = Field(..., ge=0, description="Number of drones in trajectory")
-    duration: float = Field(..., ge=0, description="Trajectory duration (s)")
-    preview_url: Optional[str] = Field(None, description="Preview plot URL")
-
-
-class SetActiveTrajectoryRequest(BaseModel):
-    """Request for POST /api/swarm/trajectory/set-active"""
-    trajectory_name: str = Field(..., min_length=1, description="Trajectory name to activate")
-
-
-class SetActiveTrajectoryResponse(BaseModel):
-    """Response for POST /api/swarm/trajectory/set-active"""
-    success: bool = Field(..., description="Activation success status")
-    message: str = Field(..., description="Status message")
-    active_trajectory: str = Field(..., description="Now active trajectory")
-
-
-class TrajectoryDeleteRequest(BaseModel):
-    """Request for DELETE /api/swarm/trajectory/{name}"""
-    confirm: bool = Field(False, description="Confirm deletion")
-
-
-class TrajectoryDeleteResponse(BaseModel):
-    """Response for DELETE /api/swarm/trajectory/{name}"""
-    success: bool = Field(..., description="Deletion success status")
-    message: str = Field(..., description="Status message")
-    deleted_files: List[str] = Field(..., description="Deleted file paths")
-
-
 # ============================================================================
 # Show Control Schemas
 # ============================================================================
