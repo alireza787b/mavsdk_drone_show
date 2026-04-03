@@ -1,5 +1,9 @@
 // src/constants/droneConstants.js
-import { getCustomShowImageURL, getBackendURL } from '../utilities/utilities'; // Import utility functions
+import {
+    buildGcsUrl,
+    buildShowPlotUrl,
+    GCS_ROUTE_KEYS,
+} from '../services/gcsApiService';
 
 export const DRONE_MISSION_TYPES = {
     NONE: 0,
@@ -36,8 +40,8 @@ export const DRONE_ACTION_TYPES = {
 };
 
 export const DRONE_MISSION_IMAGES = {
-    [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: `${getBackendURL()}/get-show-plots/combined_drone_paths.jpg`,
-    [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: `${getCustomShowImageURL()}`, // Use the function to get the custom show image URL
+    [DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV]: buildShowPlotUrl('combined_drone_paths.jpg'),
+    [DRONE_MISSION_TYPES.CUSTOM_CSV_DRONE_SHOW]: buildGcsUrl(GCS_ROUTE_KEYS.customShowImage),
 };
 
 export const DRONE_MISSION_NAMES = {

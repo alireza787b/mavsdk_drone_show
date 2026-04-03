@@ -121,7 +121,7 @@ For a full customer repo decision tree, see [Custom Repo Workflow](custom-repo-w
 - **Architecture:** x86_64 or arm64/aarch64
 - **RAM:** Minimum 2GB, **Recommended 4GB+**
   > ⚠️ Systems with <4GB RAM may encounter npm "JavaScript heap out of memory" errors.
-  > **Solution:** Add swap space or set `export NODE_OPTIONS='--max-old-space-size=1536'`
+  > The dashboard `npm run build` script now sets a 4GB Node heap budget automatically and disables production sourcemaps to keep Hetzner/CI builds stable. Systems with <4GB RAM may still need swap.
 - **Disk Space:** Minimum 5GB free
 - **Network:** Internet access for package downloads
 - **Privileges:** Root or sudo access

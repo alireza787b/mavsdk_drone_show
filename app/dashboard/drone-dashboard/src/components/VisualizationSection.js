@@ -1,7 +1,6 @@
 // src/components/VisualizationSection.js
 
 import React, { useState, useEffect } from 'react';
-import { getBackendURL } from '../utilities/utilities';
 import {
   Alert,
   Box,
@@ -33,6 +32,13 @@ import {
   Assessment as AssessmentIcon
 } from '@mui/icons-material';
 import HeightIcon from '@mui/icons-material/Height';
+import { extractApiErrorMessage } from '../services/apiError';
+import {
+  buildShowPlotUrl,
+  getComprehensiveMetricsResponse,
+  getShowInfoResponse,
+  getShowPlotsResponse,
+} from '../services/gcsApiService';
 
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
@@ -50,28 +56,29 @@ const VisualizationSection = ({ uploadCount }) => {
   const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
   const [showPerDroneData, setShowPerDroneData] = useState(false);
 
-  const backendURL = getBackendURL(); // Uses REACT_APP_GCS_PORT
-
   useEffect(() => {
+    let isActive = true;
+
     const fetchShowData = async () => {
       setLoading(true);
       setError('');
       try {
-        // Fetch plots
-        const plotsResponse = await fetch(`${backendURL}/get-show-plots`);
-        const plotsData = await plotsResponse.json();
+        const [plotsResponse, showInfoResponse] = await Promise.all([
+          getShowPlotsResponse(),
+          getShowInfoResponse(),
+        ]);
 
-        if (!plotsResponse.ok) {
-          throw new Error(plotsData.error || 'Failed to fetch plots');
+        const plotsData = plotsResponse.data || {};
+        const showInfoData = showInfoResponse.data || {};
+        const filenames = plotsData.filenames || [];
+
+        if (!isActive) {
+          return;
         }
 
-        const filenames = plotsData.filenames || [];
         setPlots(filenames);
 
-        // Fetch show info
-        const showInfoResponse = await fetch(`${backendURL}/get-show-info`);
-        const showInfoData = await showInfoResponse.json();
-        if (showInfoResponse.ok && Number(showInfoData?.drone_count || 0) > 0) {
+        if (Number(showInfoData?.drone_count || 0) > 0) {
           setShowDetails({
             droneCount: showInfoData.drone_count,
             duration: {
@@ -90,29 +97,42 @@ const VisualizationSection = ({ uploadCount }) => {
           setComprehensiveMetrics(null);
         }
 
-        // Fetch comprehensive metrics (new endpoint)
         try {
-          const metricsResponse = await fetch(`${backendURL}/get-comprehensive-metrics`);
-          if (showInfoResponse.ok && metricsResponse.ok) {
-            const metricsData = await metricsResponse.json();
+          if (Number(showInfoData?.drone_count || 0) > 0) {
+            const metricsResponse = await getComprehensiveMetricsResponse();
+            const metricsData = metricsResponse.data || null;
+            if (!isActive) {
+              return;
+            }
             setComprehensiveMetrics(metricsData);
-          } else if (!showInfoResponse.ok) {
+          } else if (isActive) {
             setComprehensiveMetrics(null);
           }
-        } catch (metricsError) {
-          setComprehensiveMetrics(null);
+        } catch {
+          if (isActive) {
+            setComprehensiveMetrics(null);
+          }
         }
       } catch (err) {
-        console.error('Error fetching data:', err.message);
-        setError(err.message);
+        if (!isActive) {
+          return;
+        }
+        const message = await extractApiErrorMessage(err, 'Failed to fetch show visualization data');
+        setError(message);
         setPlots([]);
+        setComprehensiveMetrics(null);
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     };
 
     fetchShowData();
-  }, [uploadCount, backendURL]);
+    return () => {
+      isActive = false;
+    };
+  }, [uploadCount]);
 
   // Format duration with no decimal seconds
   const formatDuration = () => {
@@ -746,7 +766,7 @@ const VisualizationSection = ({ uploadCount }) => {
               }}
             >
               <img 
-                src={`${backendURL}/get-show-plots/combined_drone_paths.jpg`} 
+                src={buildShowPlotUrl('combined_drone_paths.jpg')}
                 alt="All Drones Combined Trajectory" 
                 style={{ 
                   width: '100%', 
@@ -779,7 +799,7 @@ const VisualizationSection = ({ uploadCount }) => {
             {plots
               .filter((name) => name !== 'combined_drone_paths.jpg')
               .map((plot, index) => {
-                const plotUrl = `${backendURL}/get-show-plots/${encodeURIComponent(plot)}`;
+                const plotUrl = buildShowPlotUrl(plot);
                 const droneId = plot.match(/drone_(\d+)_path/)?.[1] || index + 1;
                 return (
                   <Paper key={`individual-${index}`} sx={{ p: 1 }}>
@@ -914,7 +934,7 @@ const VisualizationSection = ({ uploadCount }) => {
             {plots.length > 0 && (
               <>
                 <img
-                  src={`${backendURL}/get-show-plots/${encodeURIComponent(plots[currentIndex] || '')}`}
+                  src={buildShowPlotUrl(plots[currentIndex] || '')}
                   alt={`Drone Trajectory Plot ${currentIndex + 1}`}
                   style={{
                     maxWidth: '100%',

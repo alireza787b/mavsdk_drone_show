@@ -6,10 +6,13 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import axios from 'axios';
 import { toast } from 'react-toastify';
-import { getTelemetryURL, getBackendURL } from '../utilities/utilities';
 import * as sarApi from '../services/sarApiService';
+import {
+  getFleetConfigResponse,
+  getFleetTelemetryResponse,
+  unwrapFleetTelemetryPayload,
+} from '../services/gcsApiService';
 
 // SAR components
 import PlanMonitorToggle from '../components/sar/PlanMonitorToggle';
@@ -127,9 +130,10 @@ const QuickScoutPage = () => {
   useEffect(() => {
     const fetchTelemetry = async () => {
       try {
-        const response = await axios.get(getTelemetryURL());
-        const dronesArray = Object.keys(response.data).map((hw_ID) => ({
-          hw_ID, ...response.data[hw_ID],
+        const response = await getFleetTelemetryResponse();
+        const telemetry = unwrapFleetTelemetryPayload(response.data);
+        const dronesArray = Object.keys(telemetry).map((hw_ID) => ({
+          hw_ID, ...telemetry[hw_ID],
         }));
         setDrones(dronesArray);
       } catch (e) {
@@ -145,7 +149,7 @@ const QuickScoutPage = () => {
   useEffect(() => {
     const fetchConfigDrones = async () => {
       try {
-        const response = await axios.get(`${getBackendURL()}/get-config-data`);
+        const response = await getFleetConfigResponse();
         if (Array.isArray(response.data)) {
           setConfigDrones(response.data);
         }

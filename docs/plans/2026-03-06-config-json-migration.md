@@ -958,7 +958,7 @@ git commit -m "feat: SwarmDesign supports JSON swarm format"
 
 **Files:**
 - Modify: Various frontend files with "config.csv" in comments/strings
-- Check: `ImportShow.js`, `QuickScoutPage.js`, `MissionPlanSidebar.js`
+- Check: legacy `ImportShow.js` (removed 2026-04-03), `QuickScoutPage.js`, `MissionPlanSidebar.js`
 
 **Step 1:** Find and replace all "config.csv" references in user-facing text and comments.
 

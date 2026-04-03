@@ -1,18 +1,21 @@
 // src/components/ExportSection.js
 import React from 'react';
-import { getBackendURL } from '../utilities/utilities';
 import { Box, Typography, Button, Paper, Alert } from '@mui/material';
 import useFetch from '../hooks/useFetch';
+import {
+  buildShowDownloadUrl,
+  GCS_ROUTE_KEYS,
+} from '../services/gcsApiService';
 
 const ExportSection = () => {
-  const { data: showInfo } = useFetch('/get-show-info');
+  const { data: showInfo } = useFetch(GCS_ROUTE_KEYS.showInfo);
   const hasImportedShow = Boolean(showInfo && Number(showInfo.drone_count) > 0);
 
   const handleDownload = (type) => {
     if (!hasImportedShow) {
       return;
     }
-    const downloadUrl = `${getBackendURL()}/download-${type}-show`;
+    const downloadUrl = buildShowDownloadUrl(type);
     window.open(downloadUrl, '_blank');
   };
 

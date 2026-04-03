@@ -1,18 +1,22 @@
 // app/dashboard/drone-dashboard/src/services/droneApiService.js
 
-import axios from 'axios';
 import {
-  buildGcsUrl,
+  buildStaticPlotUrl,
+  buildSwarmTrajectoryUrl,
   clearProcessedSwarmTrajectoriesResponse,
+  deleteGcsResource,
+  fetchBlobGcsResource,
   getActiveCommandsResponse,
   getCommandStatusResponse,
   getRecentCommandsResponse,
   getSwarmLeadersResponse,
   getSwarmTrajectoryPolicyResponse,
   getSwarmTrajectoryStatusResponse,
+  postGcsResource,
   processSwarmTrajectoriesResponse,
   submitCommandResponse,
 } from './gcsApiService';
+import { extractApiErrorMessage } from './apiError';
 import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
 
 /**
@@ -85,6 +89,15 @@ export const getSwarmTrajectoryPolicy = async () => {
   }
 };
 
+export const getSwarmLeaders = async () => {
+  try {
+    const response = await getSwarmLeadersResponse();
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
 export const uploadSwarmTrajectory = async (leaderId, file, filename = null) => {
   const formData = new FormData();
 
@@ -95,13 +108,13 @@ export const uploadSwarmTrajectory = async (leaderId, file, filename = null) => 
   }
 
   try {
-    const response = await axios.post(
-      buildGcsUrl(`/api/swarm/trajectory/upload/${leaderId}`),
+    const response = await postGcsResource(
+      buildSwarmTrajectoryUrl(`/upload/${encodeURIComponent(leaderId)}`),
       formData
     );
     return response.data;
   } catch (error) {
-    throw error;
+    throw new Error(await extractApiErrorMessage(error, 'Upload failed'));
   }
 };
 
@@ -209,3 +222,91 @@ export const clearProcessedData = async () => {
     throw error;
   }
 };
+
+export const removeSwarmTrajectoryUpload = async (leaderId) => {
+  try {
+    const response = await deleteGcsResource(
+      buildSwarmTrajectoryUrl(`/remove/${encodeURIComponent(leaderId)}`)
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Remove failed'));
+  }
+};
+
+export const clearAllSwarmTrajectories = async () => {
+  try {
+    const response = await postGcsResource(buildSwarmTrajectoryUrl('/clear'), {});
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Clear failed'));
+  }
+};
+
+export const clearSwarmTrajectoryLeader = async (leaderId) => {
+  try {
+    const response = await postGcsResource(
+      buildSwarmTrajectoryUrl(`/clear-leader/${encodeURIComponent(leaderId)}`),
+      {}
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Clear failed'));
+  }
+};
+
+export const clearSwarmTrajectoryDrone = async (droneId) => {
+  try {
+    const response = await postGcsResource(
+      buildSwarmTrajectoryUrl(`/clear-drone/${encodeURIComponent(droneId)}`),
+      {}
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Delete failed'));
+  }
+};
+
+export const commitSwarmTrajectoryOutputs = async (message) => {
+  try {
+    const response = await postGcsResource(buildSwarmTrajectoryUrl('/commit'), { message });
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Commit failed'));
+  }
+};
+
+export const downloadSwarmTrajectoryCsv = async (droneId) => {
+  try {
+    const response = await fetchBlobGcsResource(
+      buildSwarmTrajectoryUrl(`/download/${encodeURIComponent(droneId)}`)
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Download failed'));
+  }
+};
+
+export const downloadSwarmTrajectoryKml = async (droneId) => {
+  try {
+    const response = await fetchBlobGcsResource(
+      buildSwarmTrajectoryUrl(`/download-kml/${encodeURIComponent(droneId)}`)
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'KML download failed'));
+  }
+};
+
+export const downloadSwarmClusterKml = async (leaderId) => {
+  try {
+    const response = await fetchBlobGcsResource(
+      buildSwarmTrajectoryUrl(`/download-cluster-kml/${encodeURIComponent(leaderId)}`)
+    );
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Cluster KML download failed'));
+  }
+};
+
+export const buildSwarmTrajectoryPlotUrl = (filename) => buildStaticPlotUrl(filename);

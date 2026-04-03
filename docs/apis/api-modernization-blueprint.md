@@ -61,6 +61,8 @@ The target API must be:
 - predictable for future MCP exposure
 - usable by browser UI, desktop clients, automation, and LLM agents
 - backward-compatible during migration
+- ready for authentication and authorization layers even when auth stays disabled in current dev/demo environments
+- backed by one current consumer path per domain instead of multiple parallel legacy frontend surfaces
 
 ## Naming Standard
 
@@ -81,6 +83,20 @@ Canonical v1 routes should follow these rules:
 - mutation routes return explicit operation results with stable identifiers when side effects are asynchronous or multi-step
 - errors should converge toward structured problem responses instead of ad hoc strings
 - streams should converge on a documented event model instead of subsystem-specific one-offs
+
+## Security and Auth Readiness Rules
+
+Auth remains disabled for current development and demo workflows, but the contract must stay ready for future customer deployments that require it.
+
+Canonical routes and service wrappers should therefore:
+
+- keep clear subsystem boundaries so auth policy can be attached by router/domain later without rewriting every caller
+- favor explicit resource IDs, target scopes, and operator intent in request bodies so later policy checks are machine-readable
+- preserve stable response metadata and timestamps so future audit/auth layers do not require a second response redesign
+- avoid page-owned secret handling or direct URL assembly in the frontend
+- document any privileged mutation surfaces clearly so later token/session enforcement can be enabled without guesswork
+
+This work does not enable auth yet. It keeps the API and frontend shape compatible with adding auth cleanly later.
 
 ## MCP and AI-Agent Readiness Rules
 
@@ -117,6 +133,14 @@ Phase 2 core checkpoint on 2026-04-03:
 - added focused frontend service tests and Hetzner-backed production-build validation
 - left dynamic swarm-trajectory management routes, logs/SAR shared services, and show-management/download/static-asset URL builders for the next slice
 
+Phase 2 completion checkpoint on 2026-04-03:
+
+- migrated the remaining active frontend API callers in Drone Show import/export/visualization, Custom Show, QuickScout, Mission Details, and Swarm Trajectory onto shared route/service helpers
+- centralized remaining log and SAR service route composition behind shared builders and dedicated tests
+- removed the dead unrouted `ImportShow` / `FileUpload` path instead of preserving stale frontend compatibility code
+- added a shared API error normalizer for page/service mutation flows
+- hardened the dashboard build script for the Hetzner Node 22 runtime by setting an explicit heap budget and disabling production sourcemaps
+
 ### Phase 3
 
 - extract GCS route domains out of `app_fastapi.py`
@@ -136,6 +160,8 @@ Phase 2 core checkpoint on 2026-04-03:
 ### Phase 6
 
 - remove deprecated legacy routes only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated
+
+Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
 
 ## Phase 1 Canonical Routes
 

@@ -356,7 +356,7 @@ This means hw_id determines network ports. This is fine for small fleets but:
 | `app/.../components/OriginModal.js` | Uses pos_id for origin computation |
 | `app/.../components/DeviationView.js` | Falls back to hw_id if pos_id missing |
 | `app/.../utilities/missionConfigUtilities.js` | CSV parser (strict 6-column), export |
-| `app/.../pages/ImportShow.js` | Trajectory fetch by hw_id |
+| legacy `app/.../pages/ImportShow.js` (removed 2026-04-03) | Historical trajectory fetch by hw_id |
 
 #### SITL
 | File | Role |

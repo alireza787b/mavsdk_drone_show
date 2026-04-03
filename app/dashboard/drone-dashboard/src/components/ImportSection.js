@@ -25,7 +25,8 @@ import {
   Visibility,
 } from '@mui/icons-material';
 
-import { getBackendURL } from '../utilities/utilities';
+import { extractApiErrorMessage } from '../services/apiError';
+import { importShowResponse } from '../services/gcsApiService';
 import '../styles/ImportSection.css';
 
 const PROGRESS_STEPS = [
@@ -294,13 +295,9 @@ const ImportSection = ({ setUploadCount }) => {
     const progressInterval = startProgressSimulation();
 
     try {
-      const response = await fetch(`${getBackendURL()}/import-show`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok || !payload.success) {
+      const response = await importShowResponse(formData);
+      const payload = response.data || {};
+      if (!payload.success) {
         throw new Error(payload.detail || payload.error || payload.message || 'Show import failed');
       }
 
@@ -317,10 +314,11 @@ const ImportSection = ({ setUploadCount }) => {
       setUploadCount((count) => count + 1);
     } catch (error) {
       window.clearInterval(progressInterval);
+      const message = await extractApiErrorMessage(error, 'Unexpected import failure');
       setProcessingProgress({
         overall: 0,
         stage: 'Import failed',
-        details: [{ step: error.message || 'Unexpected import failure', completed: false }],
+        details: [{ step: message, completed: false }],
       });
       setIsProcessingFailed(true);
     } finally {

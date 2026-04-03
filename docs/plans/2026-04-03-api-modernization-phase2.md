@@ -4,6 +4,8 @@ Date: 2026-04-03
 Branch baseline: `60409af7` before this slice
 Scope: core frontend caller centralization and validation
 
+Follow-up: this checkpoint was completed later the same day by `2026-04-03-api-modernization-phase2-completion.md`, which closes the remaining active caller migrations, removes dead legacy frontend surfaces, and hardens the Hetzner build path.
+
 ## Completed In This Phase
 
 - introduced `app/dashboard/drone-dashboard/src/services/gcsApiService.js` as the shared semantic route map and HTTP helper layer for the active GCS dashboard flows

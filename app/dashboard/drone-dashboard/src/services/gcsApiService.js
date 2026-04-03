@@ -1,6 +1,8 @@
 import axios from 'axios';
 import { getBackendURL } from '../config/apiConfig';
 
+const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:\/\//i;
+
 export const GCS_ROUTE_KEYS = Object.freeze({
   systemHealth: 'systemHealth',
   fleetTelemetry: 'fleetTelemetry',
@@ -32,11 +34,16 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   networkInfo: 'networkInfo',
   swarmLeaders: 'swarmLeaders',
   showInfo: 'showInfo',
+  comprehensiveMetrics: 'comprehensiveMetrics',
   customShowInfo: 'customShowInfo',
   importShow: 'importShow',
   importCustomShow: 'importCustomShow',
   showPlots: 'showPlots',
+  rawShowDownload: 'rawShowDownload',
+  processedShowDownload: 'processedShowDownload',
   customShowImage: 'customShowImage',
+  staticPlotsBase: 'staticPlotsBase',
+  swarmTrajectoryBase: 'swarmTrajectoryBase',
   swarmTrajectoryStatus: 'swarmTrajectoryStatus',
   swarmTrajectoryPolicy: 'swarmTrajectoryPolicy',
   swarmTrajectoryProcess: 'swarmTrajectoryProcess',
@@ -76,11 +83,16 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.networkInfo]: '/get-network-info',
   [GCS_ROUTE_KEYS.swarmLeaders]: '/api/swarm/leaders',
   [GCS_ROUTE_KEYS.showInfo]: '/get-show-info',
+  [GCS_ROUTE_KEYS.comprehensiveMetrics]: '/get-comprehensive-metrics',
   [GCS_ROUTE_KEYS.customShowInfo]: '/get-custom-show-info',
   [GCS_ROUTE_KEYS.importShow]: '/import-show',
   [GCS_ROUTE_KEYS.importCustomShow]: '/import-custom-show',
   [GCS_ROUTE_KEYS.showPlots]: '/get-show-plots',
+  [GCS_ROUTE_KEYS.rawShowDownload]: '/download-raw-show',
+  [GCS_ROUTE_KEYS.processedShowDownload]: '/download-processed-show',
   [GCS_ROUTE_KEYS.customShowImage]: '/get-custom-show-image',
+  [GCS_ROUTE_KEYS.staticPlotsBase]: '/static/plots',
+  [GCS_ROUTE_KEYS.swarmTrajectoryBase]: '/api/swarm/trajectory',
   [GCS_ROUTE_KEYS.swarmTrajectoryStatus]: '/api/swarm/trajectory/status',
   [GCS_ROUTE_KEYS.swarmTrajectoryPolicy]: '/api/swarm/trajectory/policy',
   [GCS_ROUTE_KEYS.swarmTrajectoryProcess]: '/api/swarm/trajectory/process',
@@ -125,11 +137,16 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/get-network-info': GCS_ROUTE_KEYS.networkInfo,
   '/api/swarm/leaders': GCS_ROUTE_KEYS.swarmLeaders,
   '/get-show-info': GCS_ROUTE_KEYS.showInfo,
+  '/get-comprehensive-metrics': GCS_ROUTE_KEYS.comprehensiveMetrics,
   '/get-custom-show-info': GCS_ROUTE_KEYS.customShowInfo,
   '/import-show': GCS_ROUTE_KEYS.importShow,
   '/import-custom-show': GCS_ROUTE_KEYS.importCustomShow,
   '/get-show-plots': GCS_ROUTE_KEYS.showPlots,
+  '/download-raw-show': GCS_ROUTE_KEYS.rawShowDownload,
+  '/download-processed-show': GCS_ROUTE_KEYS.processedShowDownload,
   '/get-custom-show-image': GCS_ROUTE_KEYS.customShowImage,
+  '/static/plots': GCS_ROUTE_KEYS.staticPlotsBase,
+  '/api/swarm/trajectory': GCS_ROUTE_KEYS.swarmTrajectoryBase,
   '/api/swarm/trajectory/status': GCS_ROUTE_KEYS.swarmTrajectoryStatus,
   '/api/swarm/trajectory/policy': GCS_ROUTE_KEYS.swarmTrajectoryPolicy,
   '/api/swarm/trajectory/process': GCS_ROUTE_KEYS.swarmTrajectoryProcess,
@@ -141,8 +158,15 @@ export function resolveGcsRoute(routeOrPath) {
     return routeOrPath;
   }
 
-  if (typeof routeOrPath === 'string' && GCS_ROUTES[routeOrPath]) {
-    return GCS_ROUTES[routeOrPath];
+  if (typeof routeOrPath === 'string') {
+    if (GCS_ROUTES[routeOrPath]) {
+      return GCS_ROUTES[routeOrPath];
+    }
+
+    const [base, query = null] = routeOrPath.split('?');
+    if (GCS_ROUTES[base]) {
+      return query !== null ? `${GCS_ROUTES[base]}?${query}` : GCS_ROUTES[base];
+    }
   }
 
   return routeOrPath;
@@ -158,11 +182,17 @@ export function resolveGcsRouteKey(routeOrPath) {
   }
 
   const [path] = routeOrPath.split('?');
+  if (GCS_ROUTES[path]) {
+    return path;
+  }
   return ROUTE_KEY_BY_PATH[path] || null;
 }
 
 export function buildGcsUrl(routeOrPath) {
   const path = resolveGcsRoute(routeOrPath);
+  if (typeof path === 'string' && ABSOLUTE_URL_PATTERN.test(path)) {
+    return path;
+  }
   return `${getBackendURL()}${path}`;
 }
 
@@ -174,6 +204,30 @@ export function buildSarUrl(suffix = '') {
   return buildGcsUrl(`${GCS_ROUTES[GCS_ROUTE_KEYS.sarBase]}${suffix}`);
 }
 
+export function buildShowPlotUrl(filename = '') {
+  if (!filename) {
+    return buildGcsUrl(GCS_ROUTE_KEYS.showPlots);
+  }
+
+  return buildGcsUrl(`${GCS_ROUTES[GCS_ROUTE_KEYS.showPlots]}/${encodeURIComponent(filename)}`);
+}
+
+export function buildShowDownloadUrl(type = 'raw') {
+  return buildGcsUrl(
+    type === 'processed'
+      ? GCS_ROUTE_KEYS.processedShowDownload
+      : GCS_ROUTE_KEYS.rawShowDownload
+  );
+}
+
+export function buildStaticPlotUrl(filename) {
+  return buildGcsUrl(`${GCS_ROUTES[GCS_ROUTE_KEYS.staticPlotsBase]}/${encodeURIComponent(filename)}`);
+}
+
+export function buildSwarmTrajectoryUrl(suffix = '') {
+  return buildGcsUrl(`${GCS_ROUTES[GCS_ROUTE_KEYS.swarmTrajectoryBase]}${suffix}`);
+}
+
 export function unwrapFleetTelemetryPayload(payload) {
   if (payload && typeof payload === 'object' && payload.telemetry && typeof payload.telemetry === 'object') {
     return payload.telemetry;
@@ -183,6 +237,13 @@ export function unwrapFleetTelemetryPayload(payload) {
 
 export async function fetchGcsResource(routeOrPath, config = {}) {
   return axios.get(buildGcsUrl(routeOrPath), config);
+}
+
+export async function fetchBlobGcsResource(routeOrPath, config = {}) {
+  return axios.get(buildGcsUrl(routeOrPath), {
+    ...config,
+    responseType: config.responseType || 'blob',
+  });
 }
 
 export async function postGcsResource(routeOrPath, payload = {}, config = {}) {
@@ -207,6 +268,10 @@ export async function getFleetTelemetryResponse(config = {}) {
 
 export async function getFleetConfigResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.fleetConfig, config);
+}
+
+export async function getFleetHeartbeatsResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.fleetHeartbeats, config);
 }
 
 export async function saveFleetConfigResponse(payload, config = {}) {
@@ -300,6 +365,30 @@ export async function computeOriginResponse(payload, config = {}) {
 
 export async function getSwarmLeadersResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.swarmLeaders, config);
+}
+
+export async function getShowInfoResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.showInfo, config);
+}
+
+export async function getShowPlotsResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.showPlots, config);
+}
+
+export async function getComprehensiveMetricsResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.comprehensiveMetrics, config);
+}
+
+export async function getCustomShowInfoResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.customShowInfo, config);
+}
+
+export async function importShowResponse(payload, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.importShow, payload, config);
+}
+
+export async function importCustomShowResponse(payload, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.importCustomShow, payload, config);
 }
 
 export async function getTrajectoryFirstRowResponse(posId, config = {}) {

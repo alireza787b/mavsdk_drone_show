@@ -12,6 +12,7 @@ import { DRONE_MISSION_IMAGES, DRONE_MISSION_TYPES } from '../constants/droneCon
 import MissionReadinessCard from './MissionReadinessCard';
 import useFetch from '../hooks/useFetch';
 import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
+import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import {
   buildCommandSchedule,
   COMMAND_SCHEDULE_MODES,
@@ -58,7 +59,7 @@ const MissionDetails = ({
   });
   
   // Check origin status for auto global origin correction mode
-  const { data: originData } = useFetch('/get-origin');
+  const { data: originData } = useFetch(GCS_ROUTE_KEYS.origin);
   const isOriginSet = originData && 
     originData.lat !== undefined && 
     originData.lon !== undefined && 
@@ -69,7 +70,7 @@ const MissionDetails = ({
   
   // Fetch deviation data when auto correction is enabled and origin is set
   const shouldFetchDeviations = isOriginSet && autoGlobalOrigin && useGlobalSetpoints;
-  const { data: deviationData } = useFetch('/get-position-deviations', shouldFetchDeviations ? 5000 : null);
+  const { data: deviationData } = useFetch(GCS_ROUTE_KEYS.positionDeviations, shouldFetchDeviations ? 5000 : null);
   
   // Only show hints for DRONE_SHOW_FROM_CSV mission type
   const showModeHints = missionType === DRONE_MISSION_TYPES.DRONE_SHOW_FROM_CSV;
@@ -77,13 +78,13 @@ const MissionDetails = ({
   const smartSwarmHints = missionType === DRONE_MISSION_TYPES.SMART_SWARM;
   const swarmTrajectoryHints = missionType === DRONE_MISSION_TYPES.SWARM_TRAJECTORY;
   const { data: showInfo, error: showInfoError, loading: showInfoLoading } = useFetch(
-    showModeHints ? '/get-show-info' : null
+    showModeHints ? GCS_ROUTE_KEYS.showInfo : null
   );
   const { data: customShowInfo, error: customShowError, loading: customShowLoading } = useFetch(
-    customShowHints ? '/get-custom-show-info' : null
+    customShowHints ? GCS_ROUTE_KEYS.customShowInfo : null
   );
   const { data: smartSwarmInfo, error: smartSwarmError, loading: smartSwarmLoading } = useFetch(
-    smartSwarmHints ? '/api/swarm/leaders' : null
+    smartSwarmHints ? GCS_ROUTE_KEYS.swarmLeaders : null
   );
   const {
     data: swarmTrajectoryStatus,

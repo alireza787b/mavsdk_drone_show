@@ -5,10 +5,22 @@ import { toast } from 'react-toastify';
 import ConfirmationModal from '../components/ConfirmationModal';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import useFetch from '../hooks/useFetch';
-import { getBackendURL } from '../utilities/utilities';
+import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import {
+  buildSwarmTrajectoryPlotUrl,
+  clearAllSwarmTrajectories,
+  clearSwarmTrajectoryDrone,
+  clearSwarmTrajectoryLeader,
   clearProcessedData,
+  commitSwarmTrajectoryOutputs,
+  downloadSwarmClusterKml,
+  downloadSwarmTrajectoryCsv,
+  downloadSwarmTrajectoryKml,
+  getSwarmLeaders,
+  getSwarmTrajectoryStatus,
   processTrajectories,
+  removeSwarmTrajectoryUpload,
+  uploadSwarmTrajectory,
 } from '../services/droneApiService';
 import {
   buildSwarmTrajectoryViewModel,
@@ -38,6 +50,18 @@ const buildConfirmMessage = ({ summary, details = [], warning = '' }) => (
 
 const formatRecommendationTone = (action = '') => action.replace(/_/g, '-');
 
+const triggerBlobDownload = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.URL.revokeObjectURL(url);
+};
+
 const SwarmTrajectory = () => {
   const [leaders, setLeaders] = useState([]);
   const [hierarchies, setHierarchies] = useState({});
@@ -57,7 +81,7 @@ const SwarmTrajectory = () => {
   const [pageError, setPageError] = useState('');
   const [operatorNotice, setOperatorNotice] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const { data: gcsConfig } = useFetch('/get-gcs-config');
+  const { data: gcsConfig } = useFetch(GCS_ROUTE_KEYS.gcsConfig);
 
   useEffect(() => {
     // This screen intentionally boots once, then refreshes from explicit operator actions.
@@ -142,8 +166,7 @@ const SwarmTrajectory = () => {
 
   const fetchLeaders = async () => {
     try {
-      const response = await fetch(`${getBackendURL()}/api/swarm/leaders`);
-      const data = await response.json();
+      const data = await getSwarmLeaders();
 
       if (!data.success) {
         throw new Error(data.error || 'Failed to load swarm configuration');
@@ -162,8 +185,7 @@ const SwarmTrajectory = () => {
 
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/status`);
-      const data = await response.json();
+      const data = await getSwarmTrajectoryStatus();
 
       if (!data.success) {
         throw new Error(data.error || 'Failed to load processing status');
@@ -233,12 +255,7 @@ const SwarmTrajectory = () => {
     formData.append('file', file);
 
     try {
-      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/upload/${leaderId}`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
+      const result = await uploadSwarmTrajectory(leaderId, file, file.name);
 
       if (!result.success) {
         throw new Error(result.error || 'Upload failed');
@@ -395,10 +412,7 @@ const SwarmTrajectory = () => {
       isDanger: true,
       onConfirm: async () => {
         try {
-          const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/remove/${leaderId}`, {
-            method: 'DELETE',
-          });
-          const result = await response.json();
+          const result = await removeSwarmTrajectoryUpload(leaderId);
 
           if (!result.success) {
             throw new Error(result.error || 'Remove failed');
@@ -427,10 +441,7 @@ const SwarmTrajectory = () => {
       isDanger: true,
       onConfirm: async () => {
         try {
-          const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/clear`, {
-            method: 'POST',
-          });
-          const result = await response.json();
+          const result = await clearAllSwarmTrajectories();
 
           if (!result.success) {
             throw new Error(result.error || 'Clear failed');
@@ -449,22 +460,8 @@ const SwarmTrajectory = () => {
 
   const downloadDroneTrajectory = async (droneId) => {
     try {
-      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/download/${droneId}`);
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Download failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `Drone ${droneId}_trajectory.csv`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      window.URL.revokeObjectURL(url);
+      const blob = await downloadSwarmTrajectoryCsv(droneId);
+      triggerBlobDownload(blob, `Drone ${droneId}_trajectory.csv`);
     } catch (error) {
       console.error('Download error:', error);
       notify('error', `Drone ${droneId} CSV download failed`, error.message || 'Unable to download CSV');
@@ -473,22 +470,8 @@ const SwarmTrajectory = () => {
 
   const downloadDroneKML = async (droneId) => {
     try {
-      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/download-kml/${droneId}`);
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'KML download failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `Drone ${droneId}_trajectory.kml`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      window.URL.revokeObjectURL(url);
+      const blob = await downloadSwarmTrajectoryKml(droneId);
+      triggerBlobDownload(blob, `Drone ${droneId}_trajectory.kml`);
       notify('success', `Drone ${droneId} KML ready`, 'Open the file in Google Earth or another KML viewer.');
     } catch (error) {
       console.error('KML download error:', error);
@@ -501,25 +484,11 @@ const SwarmTrajectory = () => {
       setDownloadingKML(true);
       setKmlProgress({ step: 'Analyzing cluster formation...', progress: 20 });
 
-      const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/download-cluster-kml/${leaderId}`);
+      const blob = await downloadSwarmClusterKml(leaderId);
 
       setKmlProgress({ step: 'Generating KML file...', progress: 60 });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Cluster KML download failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `Cluster_Leader_${leaderId}.kml`;
-      anchor.style.display = 'none';
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      window.URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, `Cluster_Leader_${leaderId}.kml`);
 
       setKmlProgress({ step: 'Download complete', progress: 100 });
       setTimeout(() => {
@@ -567,16 +536,7 @@ const SwarmTrajectory = () => {
       isDanger: true,
       onConfirm: async () => {
         try {
-          const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/clear-leader/${leaderId}`, {
-            method: 'POST',
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Clear failed');
-          }
-
-          const result = await response.json();
+          const result = await clearSwarmTrajectoryLeader(leaderId);
           setResults(null);
           await refreshOperationalState();
           showNotice('success', `Cluster ${leaderId} cleared`, result.message || 'Cluster outputs removed.');
@@ -598,15 +558,7 @@ const SwarmTrajectory = () => {
       isDanger: true,
       onConfirm: async () => {
         try {
-          const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/clear-drone/${droneId}`, {
-            method: 'POST',
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Delete failed');
-          }
-
+          await clearSwarmTrajectoryDrone(droneId);
           await refreshOperationalState();
           showNotice('success', `Drone ${droneId} output removed`, 'Run processing again to regenerate this output.');
         } catch (error) {
@@ -688,17 +640,9 @@ const SwarmTrajectory = () => {
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
 
-          const response = await fetch(`${getBackendURL()}/api/swarm/trajectory/commit`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              message: `Swarm trajectory update: ${viewModel.processedDroneCount} drones processed - ${new Date().toISOString().split('T')[0]}`,
-            }),
-          });
-
-          const data = await response.json();
+          const data = await commitSwarmTrajectoryOutputs(
+            `Swarm trajectory update: ${viewModel.processedDroneCount} drones processed - ${new Date().toISOString().split('T')[0]}`
+          );
 
           if (!data.success) {
             throw new Error(data.error || 'Commit failed');
@@ -1140,10 +1084,10 @@ const SwarmTrajectory = () => {
                                   </div>
                                   <div
                                     className="cluster-plot clickable"
-                                    onClick={() => openLightbox(`${getBackendURL()}/static/plots/cluster_leader_${leaderId}.jpg`, `Cluster ${leaderId} Formation`)}
+                                    onClick={() => openLightbox(buildSwarmTrajectoryPlotUrl(`cluster_leader_${leaderId}.jpg`), `Cluster ${leaderId} Formation`)}
                                   >
                                     <img
-                                      src={`${getBackendURL()}/static/plots/cluster_leader_${leaderId}.jpg`}
+                                      src={buildSwarmTrajectoryPlotUrl(`cluster_leader_${leaderId}.jpg`)}
                                       alt={`Cluster ${leaderId} formation trajectories`}
                                       onError={(event) => {
                                         event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="%23f8fafc"/><text x="50%" y="50%" font-family="Arial" font-size="16" fill="%23667eea" text-anchor="middle">Cluster Formation Plot</text></svg>';
@@ -1181,10 +1125,10 @@ const SwarmTrajectory = () => {
 
                                     <div
                                       className="preview-plot clickable"
-                                      onClick={() => openLightbox(`${getBackendURL()}/static/plots/drone_${leaderId}_trajectory.jpg`, `Drone ${leaderId} Trajectory`)}
+                                      onClick={() => openLightbox(buildSwarmTrajectoryPlotUrl(`drone_${leaderId}_trajectory.jpg`), `Drone ${leaderId} Trajectory`)}
                                     >
                                       <img
-                                        src={`${getBackendURL()}/static/plots/drone_${leaderId}_trajectory.jpg`}
+                                        src={buildSwarmTrajectoryPlotUrl(`drone_${leaderId}_trajectory.jpg`)}
                                         alt={`Drone ${leaderId} trajectory`}
                                         onError={(event) => {
                                           event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="100%" height="100%" fill="%23f0f0f0"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%23666" text-anchor="middle">Plot Loading...</text></svg>';
@@ -1226,10 +1170,10 @@ const SwarmTrajectory = () => {
 
                                       <div
                                         className="preview-plot clickable"
-                                        onClick={() => openLightbox(`${getBackendURL()}/static/plots/drone_${followerId}_trajectory.jpg`, `Drone ${followerId} Trajectory`)}
+                                        onClick={() => openLightbox(buildSwarmTrajectoryPlotUrl(`drone_${followerId}_trajectory.jpg`), `Drone ${followerId} Trajectory`)}
                                       >
                                         <img
-                                          src={`${getBackendURL()}/static/plots/drone_${followerId}_trajectory.jpg`}
+                                          src={buildSwarmTrajectoryPlotUrl(`drone_${followerId}_trajectory.jpg`)}
                                           alt={`Drone ${followerId} trajectory`}
                                           onError={(event) => {
                                             event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150"><rect width="100%" height="100%" fill="%23f7fafc"/><text x="50%" y="50%" font-family="Arial" font-size="14" fill="%2338a169" text-anchor="middle">Follower Plot</text></svg>';

@@ -2,32 +2,33 @@
 // API service for all /api/logs/* endpoints
 
 import axios from 'axios';
-import { getBackendURL } from '../utilities/utilities';
-
-const logsAPI = () => `${getBackendURL()}/api/logs`;
-const backendAPI = () => getBackendURL();
+import {
+  buildLogsUrl,
+  getFleetConfigResponse,
+  getFleetHeartbeatsResponse,
+} from './gcsApiService';
 
 /** GET /api/logs/sources — registered components */
 export const getSources = async () => {
-  const resp = await axios.get(`${logsAPI()}/sources`);
+  const resp = await axios.get(buildLogsUrl('/sources'));
   return resp.data;
 };
 
 /** GET /get-config-data — configured drone inventory */
 export const getConfiguredDrones = async () => {
-  const resp = await axios.get(`${backendAPI()}/get-config-data`);
+  const resp = await getFleetConfigResponse();
   return resp.data;
 };
 
 /** GET /get-heartbeats — online/offline drone status */
 export const getHeartbeats = async () => {
-  const resp = await axios.get(`${backendAPI()}/get-heartbeats`);
+  const resp = await getFleetHeartbeatsResponse();
   return resp.data;
 };
 
 /** GET /api/logs/sessions — list GCS sessions */
 export const getSessions = async () => {
-  const resp = await axios.get(`${logsAPI()}/sessions`);
+  const resp = await axios.get(buildLogsUrl('/sessions'));
   return resp.data;
 };
 
@@ -39,13 +40,13 @@ export const getSessionContent = async (sessionId, { level, component, limit, of
   if (limit) params.limit = limit;
   if (offset) params.offset = offset;
   if (since) params.since = since;
-  const resp = await axios.get(`${logsAPI()}/sessions/${encodeURIComponent(sessionId)}`, { params });
+  const resp = await axios.get(buildLogsUrl(`/sessions/${encodeURIComponent(sessionId)}`), { params });
   return resp.data;
 };
 
 /** GET /api/logs/drone/:id/sessions — list sessions on a drone */
 export const getDroneSessions = async (droneId) => {
-  const resp = await axios.get(`${logsAPI()}/drone/${droneId}/sessions`);
+  const resp = await axios.get(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions`));
   return resp.data;
 };
 
@@ -58,7 +59,7 @@ export const getDroneSessionContent = async (droneId, sessionId, { level, compon
   if (offset) params.offset = offset;
   if (since) params.since = since;
   const resp = await axios.get(
-    `${logsAPI()}/drone/${droneId}/sessions/${encodeURIComponent(sessionId)}`,
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions/${encodeURIComponent(sessionId)}`),
     { params },
   );
   return resp.data;
@@ -67,8 +68,8 @@ export const getDroneSessionContent = async (droneId, sessionId, { level, compon
 /** POST /api/logs/export — export sessions as JSONL or ZIP */
 export const exportSessions = async (sessionIds, format = 'jsonl', droneId = null) => {
   const endpoint = droneId != null
-    ? `${logsAPI()}/drone/${droneId}/export`
-    : `${logsAPI()}/export`;
+    ? buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/export`)
+    : buildLogsUrl('/export');
   const resp = await axios.post(
     endpoint,
     { session_ids: sessionIds, format },
@@ -79,7 +80,7 @@ export const exportSessions = async (sessionIds, format = 'jsonl', droneId = nul
 
 /** POST /api/logs/frontend — report frontend error */
 export const reportFrontendError = async (level, msg, extra = null) => {
-  const resp = await axios.post(`${logsAPI()}/frontend`, {
+  const resp = await axios.post(buildLogsUrl('/frontend'), {
     level,
     component: 'frontend',
     msg,
@@ -90,7 +91,7 @@ export const reportFrontendError = async (level, msg, extra = null) => {
 
 /** POST /api/logs/config — toggle background pull */
 export const updateLogConfig = async (config) => {
-  const resp = await axios.post(`${logsAPI()}/config`, config);
+  const resp = await axios.post(buildLogsUrl('/config'), config);
   return resp.data;
 };
 
@@ -102,8 +103,8 @@ export const updateLogConfig = async (config) => {
  */
 export const buildStreamURL = (filters = {}, droneId = null) => {
   const base = droneId
-    ? `${logsAPI()}/drone/${droneId}/stream`
-    : `${logsAPI()}/stream`;
+    ? buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/stream`)
+    : buildLogsUrl('/stream');
   const params = new URLSearchParams();
   if (filters.level) params.set('level', filters.level);
   if (filters.component) params.set('component', filters.component);

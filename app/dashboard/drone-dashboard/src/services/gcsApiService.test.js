@@ -2,6 +2,8 @@ import axios from 'axios';
 import {
   buildGcsUrl,
   buildLogsUrl,
+  buildShowDownloadUrl,
+  buildShowPlotUrl,
   buildSarUrl,
   GCS_ROUTE_KEYS,
   getCommandStatusResponse,
@@ -37,11 +39,24 @@ describe('gcsApiService', () => {
     expect(buildSarUrl('/mission/plan')).toBe('http://gcs.test:5000/api/sar/mission/plan');
   });
 
+  it('preserves absolute URLs instead of prefixing them twice', () => {
+    expect(buildGcsUrl('https://example.test/api/v1/health')).toBe('https://example.test/api/v1/health');
+  });
+
   it('maps legacy and canonical paths back to the same route key', () => {
     expect(resolveGcsRouteKey('/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
+  });
+
+  it('resolves keyed routes that include query strings', () => {
+    expect(resolveGcsRoute(`${GCS_ROUTE_KEYS.customShowInfo}?refresh=7`)).toBe('/get-custom-show-info?refresh=7');
+  });
+
+  it('builds encoded plot and download URLs from shared route helpers', () => {
+    expect(buildShowPlotUrl('Drone 1.jpg')).toBe('http://gcs.test:5000/get-show-plots/Drone%201.jpg');
+    expect(buildShowDownloadUrl('processed')).toBe('http://gcs.test:5000/download-processed-show');
   });
 
   it('unwraps typed telemetry envelopes without changing plain telemetry payloads', () => {

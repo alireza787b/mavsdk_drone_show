@@ -22,8 +22,13 @@ import {
   Visibility,
 } from '@mui/icons-material';
 
-import { getBackendURL, getCustomShowImageURL } from '../utilities/utilities';
 import useFetch from '../hooks/useFetch';
+import { extractApiErrorMessage } from '../services/apiError';
+import {
+  buildGcsUrl,
+  GCS_ROUTE_KEYS,
+  importCustomShowResponse,
+} from '../services/gcsApiService';
 import '../styles/CustomShowPage.css';
 
 const CUSTOM_SHOW_DOC_URL = 'https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/features/drone-show.md#custom-csv-operational-note';
@@ -44,7 +49,7 @@ const CustomShowPage = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [uploadWarnings, setUploadWarnings] = useState([]);
 
-  const { data: customShowInfo, error: customShowError } = useFetch(`/get-custom-show-info?refresh=${refreshKey}`);
+  const { data: customShowInfo, error: customShowError } = useFetch(`${GCS_ROUTE_KEYS.customShowInfo}?refresh=${refreshKey}`);
   const hasActiveCustomShow = Boolean(customShowInfo?.exists);
   const previewAvailable = Boolean(customShowInfo?.preview_exists);
   const requiredColumns = customShowInfo?.required_columns?.length
@@ -52,7 +57,11 @@ const CustomShowPage = () => {
     : FALLBACK_REQUIRED_COLUMNS;
 
   const imageSrc = useMemo(
-    () => (previewAvailable ? `${getCustomShowImageURL()}?refresh=${refreshKey}` : null),
+    () => (
+      previewAvailable
+        ? buildGcsUrl(`${GCS_ROUTE_KEYS.customShowImage}?refresh=${refreshKey}`)
+        : null
+    ),
     [previewAvailable, refreshKey],
   );
 
@@ -83,13 +92,10 @@ const CustomShowPage = () => {
     setUploadWarnings([]);
 
     try {
-      const response = await fetch(`${getBackendURL()}/import-custom-show`, {
-        method: 'POST',
-        body: formData,
-      });
-      const payload = await response.json().catch(() => ({}));
+      const response = await importCustomShowResponse(formData);
+      const payload = response.data || {};
 
-      if (!response.ok || !payload.success) {
+      if (!payload.success) {
         throw new Error(payload.detail || payload.message || 'Custom CSV upload failed');
       }
 
@@ -99,7 +105,7 @@ const CustomShowPage = () => {
       setRefreshKey((key) => key + 1);
       toast.success('Custom CSV validated and activated.');
     } catch (error) {
-      toast.error(error.message || 'Failed to upload custom CSV.');
+      toast.error(await extractApiErrorMessage(error, 'Failed to upload custom CSV.'));
     } finally {
       setIsUploading(false);
     }

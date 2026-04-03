@@ -54,7 +54,7 @@
   },
   "scripts": {
     "start": "PORT=3030 react-scripts start",
-    "build": "react-scripts build",
+    "build": "GENERATE_SOURCEMAP=false NODE_OPTIONS=--max-old-space-size=4096 react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

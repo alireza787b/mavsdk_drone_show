@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 API modernization phase 2 completion note documenting the remaining frontend caller migration, dead legacy frontend removal, auth/MCP readiness rules, Hetzner validation results, and the build hardening required for Node 22 on Hetzner
 - a 2026-04-03 API modernization phase 2 checkpoint note documenting the core frontend caller migration onto the centralized GCS service layer, the focused Hetzner validation batch, the production build result, and the remaining route domains for the next slice
 - a 2026-04-03 API contract audit phase 1 note documenting the live GCS/drone route inventory, the main naming and identity inconsistencies, the `/api/v1` migration target, and the staged MCP-ready API cleanup plan
 - a 2026-04-01 dashboard UI hardening checkpoint note covering the live Hetzner mobile/tablet/desktop screenshot pass, the operator-console dashboard shell/theme changes, and the remaining runtime sync caveats before browser handoff
@@ -19,6 +20,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the remaining active Drone Show, Swarm Trajectory, QuickScout, mission-detail, log, and SAR frontend consumers now use the shared GCS route/service layer instead of page-owned backend URLs, so uploads, downloads, static plot URLs, telemetry/config reads, and route-key polling all flow through one contract surface
+- added a shared `apiError` helper and moved upload/import flows onto it, so blob-backed and JSON-backed API failures now resolve through one consistent operator-facing error path instead of each page re-parsing responses differently
+- `buildGcsUrl()` now preserves absolute URLs instead of prefixing them twice, fixing a real service-layer bug exposed by the Swarm Trajectory migration where helper-built absolute URLs could otherwise become invalid request targets
+- removed the dead unrouted `ImportShow` / `FileUpload` frontend path and its stale CSS instead of carrying it forward as misleading compatibility baggage; the live Drone Show workflow is now exclusively `ManageDroneShow` plus its import/visualization/export sections
+- Hetzner frontend validation now includes dedicated `logService` and `sarApiService` regression coverage plus the updated `SwarmTrajectory` page/service mocks, closing the remaining route-centralization gaps in the focused API contract suite
+- the dashboard build script now disables production sourcemaps and sets an explicit Node heap budget, so `npm run build` completes reliably on the Hetzner Node 22 runtime instead of failing with V8 heap exhaustion and third-party sourcemap noise
 - the API modernization phase 2 slice now centralizes the highest-traffic frontend GCS callers behind `src/services/gcsApiService.js`, so Dashboard Overview, Mission Config, Swarm Design, Globe View, Drone Detail, git/sync widgets, origin helpers, mission-config save/validate flows, and command-service reads no longer hardcode backend route strings across pages and hooks
 - added focused dashboard service coverage for the new route layer (`gcsApiService.test.js`) and the migrated command/swarm helpers (`droneApiService.test.js`), giving the API cleanup stream an explicit frontend contract gate instead of relying only on end-to-end browser checks
 - `getSwarmClusterStatus()` now tolerates both raw axios responses and already-unwrapped status payloads, fixing a mixed response-shape bug that could hide processed-cluster state depending on which helper path supplied the data

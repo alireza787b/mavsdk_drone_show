@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
   clearProcessedData,
   getRecentCommands,
@@ -8,18 +7,18 @@ import {
   uploadSwarmTrajectory,
 } from './droneApiService';
 import {
-  buildGcsUrl,
+  buildSwarmTrajectoryUrl,
   clearProcessedSwarmTrajectoriesResponse,
   getRecentCommandsResponse,
   getSwarmLeadersResponse,
   getSwarmTrajectoryStatusResponse,
+  postGcsResource,
   processSwarmTrajectoriesResponse,
   submitCommandResponse,
 } from './gcsApiService';
 
-jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
-  buildGcsUrl: jest.fn(),
+  buildSwarmTrajectoryUrl: jest.fn(),
   clearProcessedSwarmTrajectoriesResponse: jest.fn(),
   getActiveCommandsResponse: jest.fn(),
   getCommandStatusResponse: jest.fn(),
@@ -27,6 +26,7 @@ jest.mock('./gcsApiService', () => ({
   getSwarmLeadersResponse: jest.fn(),
   getSwarmTrajectoryPolicyResponse: jest.fn(),
   getSwarmTrajectoryStatusResponse: jest.fn(),
+  postGcsResource: jest.fn(),
   processSwarmTrajectoriesResponse: jest.fn(),
   submitCommandResponse: jest.fn(),
 }));
@@ -58,14 +58,14 @@ describe('droneApiService', () => {
   });
 
   it('uses centralized route building for swarm trajectory uploads', async () => {
-    buildGcsUrl.mockReturnValue('http://gcs.test:5000/api/swarm/trajectory/upload/1');
-    axios.post.mockResolvedValue({ data: { success: true } });
+    buildSwarmTrajectoryUrl.mockReturnValue('http://gcs.test:5000/api/swarm/trajectory/upload/1');
+    postGcsResource.mockResolvedValue({ data: { success: true } });
 
     const file = new Blob(['hw_id,follow\n1,0\n'], { type: 'text/csv' });
     await uploadSwarmTrajectory('1', file, 'Drone 1.csv');
 
-    expect(buildGcsUrl).toHaveBeenCalledWith('/api/swarm/trajectory/upload/1');
-    expect(axios.post).toHaveBeenCalledWith(
+    expect(buildSwarmTrajectoryUrl).toHaveBeenCalledWith('/upload/1');
+    expect(postGcsResource).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/swarm/trajectory/upload/1',
       expect.any(FormData)
     );
