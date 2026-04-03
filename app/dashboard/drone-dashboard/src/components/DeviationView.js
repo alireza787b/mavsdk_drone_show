@@ -18,7 +18,7 @@ import '../styles/DeviationView.css';
  * - Summary statistics header
  *
  * @param {Array} drones - Drone configuration data
- * @param {Object} deviationData - Deviation data from /get-position-deviations
+ * @param {Object} deviationData - Deviation data from /api/v1/origin/deviations
  * @param {Object} origin - Origin coordinates
  * @param {Function} onDroneClick - Callback when drone is clicked
  * @param {Function} onRefresh - Callback to trigger manual refresh

@@ -79,8 +79,6 @@ GCS_EXPECTED_HTTP = {
         "/get-heartbeats",
         "/get-network-status",
         "/git-status",
-        "/get-origin",
-        "/get-gps-global-origin",
         "/api/swarm/leaders",
         "/api/swarm/trajectory/recommendation",
         "/api/swarm/trajectory/status",
@@ -88,10 +86,6 @@ GCS_EXPECTED_HTTP = {
         "/api/swarm/trajectory/download/{drone_id}",
         "/api/swarm/trajectory/download-kml/{drone_id}",
         "/api/swarm/trajectory/download-cluster-kml/{leader_id}",
-        "/elevation",
-        "/get-origin-for-drone",
-        "/get-position-deviations",
-        "/get-desired-launch-positions",
         "/api/v1/swarm-trajectories/plots/{filename}",
         "/api/logs/sources",
         "/api/logs/sessions",
@@ -118,7 +112,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/shows/custom/import",
         "/api/v1/shows/skybrush/deployments",
         "/sync-repos",
-        "/set-origin",
         "/api/swarm/trajectory/upload/{leader_id}",
         "/api/swarm/trajectory/process",
         "/api/swarm/trajectory/clear-processed",
@@ -126,7 +119,6 @@ GCS_EXPECTED_HTTP = {
         "/api/swarm/trajectory/clear-leader/{leader_id}",
         "/api/swarm/trajectory/clear-drone/{drone_id}",
         "/api/swarm/trajectory/commit",
-        "/compute-origin",
         "/api/logs/frontend",
         "/api/logs/export",
         "/api/logs/drone/{drone_id}/export",
@@ -294,13 +286,6 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("POST", "/heartbeat")].endpoint is route_index[("POST", "/drone-heartbeat")].endpoint
     assert route_index[("GET", "/api/v1/git/status")].endpoint is route_index[("GET", "/git-status")].endpoint
     assert route_index[("POST", "/api/v1/git/sync-operations")].endpoint is route_index[("POST", "/sync-repos")].endpoint
-    assert route_index[("GET", "/api/v1/origin")].endpoint is route_index[("GET", "/get-origin")].endpoint
-    assert route_index[("PUT", "/api/v1/origin")].endpoint is route_index[("POST", "/set-origin")].endpoint
-    assert route_index[("GET", "/api/v1/navigation/global-origin")].endpoint is route_index[("GET", "/get-gps-global-origin")].endpoint
-    assert route_index[("GET", "/api/v1/origin/elevation")].endpoint is route_index[("GET", "/elevation")].endpoint
-    assert route_index[("GET", "/api/v1/origin/deviations")].endpoint is route_index[("GET", "/get-position-deviations")].endpoint
-    assert route_index[("POST", "/api/v1/origin/compute")].endpoint is route_index[("POST", "/compute-origin")].endpoint
-    assert route_index[("GET", "/api/v1/origin/launch-positions")].endpoint is route_index[("GET", "/get-desired-launch-positions")].endpoint
     assert ("GET", "/get-gcs-git-status") not in route_index
     assert ("GET", "/get-drone-git-status/{drone_id}") not in route_index
     assert ("GET", "/get-gcs-config") not in route_index
@@ -315,6 +300,14 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert ("POST", "/command/{command_id}/cancel") not in route_index
     assert ("POST", "/command/execution-start") not in route_index
     assert ("POST", "/command/execution-result") not in route_index
+    assert ("GET", "/get-origin") not in route_index
+    assert ("POST", "/set-origin") not in route_index
+    assert ("GET", "/get-gps-global-origin") not in route_index
+    assert ("GET", "/elevation") not in route_index
+    assert ("GET", "/get-origin-for-drone") not in route_index
+    assert ("GET", "/get-position-deviations") not in route_index
+    assert ("POST", "/compute-origin") not in route_index
+    assert ("GET", "/get-desired-launch-positions") not in route_index
     assert ("GET", "/get-config-data") not in route_index
     assert ("POST", "/save-config-data") not in route_index
     assert ("POST", "/validate-config") not in route_index

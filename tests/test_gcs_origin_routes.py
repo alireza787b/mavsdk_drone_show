@@ -76,21 +76,21 @@ def test_origin_router_registers_expected_routes():
 
     routes = {route.path for route in app.routes}
 
-    assert "/get-origin" in routes
     assert "/api/v1/origin" in routes
-    assert "/set-origin" in routes
     assert "/api/v1/navigation/global-origin" in routes
-    assert "/get-gps-global-origin" in routes
-    assert "/elevation" in routes
     assert "/api/v1/origin/elevation" in routes
     assert "/api/v1/origin/bootstrap" in routes
-    assert "/get-origin-for-drone" in routes
-    assert "/get-position-deviations" in routes
     assert "/api/v1/origin/deviations" in routes
-    assert "/compute-origin" in routes
     assert "/api/v1/origin/compute" in routes
-    assert "/get-desired-launch-positions" in routes
     assert "/api/v1/origin/launch-positions" in routes
+    assert "/get-origin" not in routes
+    assert "/set-origin" not in routes
+    assert "/get-gps-global-origin" not in routes
+    assert "/elevation" not in routes
+    assert "/get-origin-for-drone" not in routes
+    assert "/get-position-deviations" not in routes
+    assert "/compute-origin" not in routes
+    assert "/get-desired-launch-positions" not in routes
 
 
 def test_origin_router_uses_live_load_origin_dependency_after_router_creation():

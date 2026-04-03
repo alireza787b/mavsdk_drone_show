@@ -62,14 +62,17 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/config/swarm')).toBe(GCS_ROUTE_KEYS.swarmConfig);
     expect(resolveGcsRouteKey('/api/v1/git/status')).toBe(GCS_ROUTE_KEYS.gitStatus);
     expect(resolveGcsRouteKey('/api/v1/origin')).toBe(GCS_ROUTE_KEYS.origin);
+    expect(resolveGcsRouteKey('/api/v1/navigation/global-origin')).toBe(GCS_ROUTE_KEYS.globalOrigin);
     expect(resolveGcsRouteKey('/api/v1/origin/bootstrap')).toBe(GCS_ROUTE_KEYS.originForDrone);
     expect(resolveGcsRouteKey('/api/v1/origin/deviations')).toBe(GCS_ROUTE_KEYS.positionDeviations);
+    expect(resolveGcsRouteKey('/api/v1/origin/compute')).toBe(GCS_ROUTE_KEYS.computeOrigin);
+    expect(resolveGcsRouteKey('/api/v1/origin/launch-positions')).toBe(GCS_ROUTE_KEYS.desiredLaunchPositions);
     expect(resolveGcsRouteKey('/api/v1/commands')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
-  it('does not keep retired management/static/config/swarm/show/command legacy paths alive in the shared route resolver', () => {
+  it('does not keep retired management/static/config/swarm/show/command/origin legacy paths alive in the shared route resolver', () => {
     expect(resolveGcsRouteKey('/get-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/save-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/get-network-info')).toBeNull();
@@ -99,6 +102,14 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/commands/recent')).toBeNull();
     expect(resolveGcsRouteKey('/commands/active')).toBeNull();
     expect(resolveGcsRouteKey('/commands/statistics')).toBeNull();
+    expect(resolveGcsRouteKey('/get-origin')).toBeNull();
+    expect(resolveGcsRouteKey('/set-origin')).toBeNull();
+    expect(resolveGcsRouteKey('/get-gps-global-origin')).toBeNull();
+    expect(resolveGcsRouteKey('/elevation')).toBeNull();
+    expect(resolveGcsRouteKey('/get-origin-for-drone')).toBeNull();
+    expect(resolveGcsRouteKey('/get-position-deviations')).toBeNull();
+    expect(resolveGcsRouteKey('/compute-origin')).toBeNull();
+    expect(resolveGcsRouteKey('/get-desired-launch-positions')).toBeNull();
   });
 
   it('resolves keyed routes that include query strings', () => {

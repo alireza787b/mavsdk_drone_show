@@ -548,7 +548,7 @@ class OriginRequest(BaseModel):
 
 
 class OriginResponse(BaseModel):
-    """Response for GET/POST origin endpoints - Flask-compatible format"""
+    """Response for canonical origin read/write endpoints"""
     lat: float = Field(..., description="Origin latitude")
     lon: float = Field(..., description="Origin longitude")
     alt: float = Field(..., description="Origin altitude (m MSL)")
@@ -557,7 +557,7 @@ class OriginResponse(BaseModel):
 
 
 class GPSGlobalOriginResponse(BaseModel):
-    """Response for GET /get-gps-global-origin"""
+    """Response for GET /api/v1/navigation/global-origin"""
     latitude: float = Field(..., description="GPS global origin latitude")
     longitude: float = Field(..., description="GPS global origin longitude")
     altitude: float = Field(..., description="GPS global origin altitude (m MSL)")

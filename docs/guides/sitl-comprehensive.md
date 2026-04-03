@@ -280,7 +280,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - Raw Uvicorn/Gunicorn access logs are disabled by default because MDS already emits structured API request logs. Re-enable them only when you explicitly need that extra layer with `export MDS_GCS_ACCESS_LOGS=true`.
 - The dashboard auto-detects the server IP from the browser URL — no manual IP configuration needed.
 - To override the IP: use `--overwrite-ip "YOUR_SERVER_IP"` or edit the `.env` file.
-- The official stock SITL package now auto-seeds a default launch origin from `data/origin.sitl.default.json` (Azadi Stadium). That gives first-time testers an immediate green Mission Config baseline without a manual `/set-origin`.
+- The official stock SITL package now auto-seeds a default launch origin from `data/origin.sitl.default.json` (Azadi Stadium). That gives first-time testers an immediate green Mission Config baseline without a manual `PUT /api/v1/origin`.
 - If you later change origin from the dashboard or API, MDS writes a local runtime override to `data/origin.json`. That file is intentionally untracked and overrides the packaged SITL default on that server until you replace or remove it.
 - If you want to return a server back to the stock Azadi demo baseline, delete the local `data/origin.json` override and restart the normal SITL flow.
 

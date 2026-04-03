@@ -348,16 +348,7 @@ This route is distinct from `GET /api/v1/fleet/network-status`: it exposes detai
 
 ### Origin Management
 
-Canonical origin routes are exposed under `/api/v1/...`. Legacy compatibility routes remain mounted during the migration:
-
-- `GET /get-origin`
-- `POST /set-origin`
-- `GET /get-origin-for-drone`
-- `GET /get-gps-global-origin`
-- `GET /elevation`
-- `GET /get-position-deviations`
-- `POST /compute-origin`
-- `GET /get-desired-launch-positions`
+Canonical origin routes are exposed under `/api/v1/...`.
 
 #### `GET /api/v1/origin`
 Get current origin coordinates.

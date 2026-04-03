@@ -124,7 +124,7 @@ There are **THREE distinct coordinate systems** in this project:
 > **Current storage model**
 >
 > - `data/origin.sitl.default.json`: tracked stock SITL default (currently Azadi Stadium)
-> - `data/origin.json`: local runtime override created by `POST /set-origin` or related origin-setting workflows
+> - `data/origin.json`: local runtime override created by `PUT /api/v1/origin` or related origin-setting workflows
 >
 > On fresh SITL installs, MDS uses the packaged default only when no runtime override exists. Real hardware workflows should still treat origin as an operator-managed runtime value.
 
@@ -230,7 +230,7 @@ intended_east: parseFloat(drone.y) || 0,   // ✅ y is East
 - Without altitude, calculations assume flat ground at sea level
 - Altitude from drone telemetry is most accurate (GPS-derived)
 
-#### 3. New API Endpoint: `/get-desired-launch-positions`
+#### 3. Canonical API Endpoint: `/api/v1/origin/launch-positions`
 
 **Purpose:** Calculate GPS coordinates for each drone's intended launch position.
 
@@ -289,7 +289,7 @@ launch_lat, launch_lon, launch_alt = pm.ned2geodetic(
 - Handles Earth curvature and ellipsoid corrections
 - WGS84 geodetic standard
 
-#### 4. Refactored Endpoint: `/get-position-deviations`
+#### 4. Canonical Endpoint: `/api/v1/origin/deviations`
 
 **Purpose:** Professional position monitoring with GPS quality and status.
 
@@ -390,13 +390,13 @@ vertical_deviation = abs(expected_alt - current_alt)
 total_3d_deviation = sqrt(north_dev² + east_dev² + vertical_dev²)
 ```
 
-#### 5. Updated Endpoints: `/set-origin` and `/get-origin`
+#### 5. Updated Endpoints: `PUT /api/v1/origin` and `GET /api/v1/origin`
 
 **Both now support altitude field with backwards compatibility.**
 
 **Set Origin:**
 ```python
-POST /set-origin
+PUT /api/v1/origin
 {
   "lat": 37.7749,
   "lon": -122.4194,
@@ -407,7 +407,7 @@ POST /set-origin
 
 **Get Origin:**
 ```python
-GET /get-origin
+GET /api/v1/origin
 Response:
 {
   "lat": 37.7749,
@@ -577,7 +577,7 @@ const handleManualRefresh = () => {
   }
 
   const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
-  axios.get(`${backendURL}/get-position-deviations`)
+  axios.get(`${backendURL}/api/v1/origin/deviations`)
     .then((response) => setDeviationData(response.data))
     .catch((error) => {
       console.error('Error fetching position deviations:', error);
@@ -1159,11 +1159,11 @@ def calculate_expected_position(config_north: float, config_east: float,
 │  └────────────────────────────────────────────────────────────┘ │
 │                            ↓ HTTP API                            │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ GCS Server (Flask Python)                                   │ │
-│  │  ├─ /set-origin: Save formation origin                     │ │
-│  │  ├─ /get-origin: Retrieve formation origin                 │ │
-│  │  ├─ /get-desired-launch-positions: Calculate GPS coords    │ │
-│  │  └─ /get-position-deviations: Monitor deviations           │ │
+│  │ GCS Server (FastAPI Python)                                 │ │
+│  │  ├─ PUT /api/v1/origin: Save formation origin             │ │
+│  │  ├─ GET /api/v1/origin: Retrieve formation origin         │ │
+│  │  ├─ GET /api/v1/origin/launch-positions: Calculate GPS    │ │
+│  │  └─ GET /api/v1/origin/deviations: Monitor deviations     │ │
 │  │                                                              │ │
 │  │  Data Store: origin.json (formation origin)                │ │
 │  │              config.json (drone hw/network config)           │ │
@@ -1359,7 +1359,7 @@ mavsdk_drone_show/
 
 ### Backend Endpoints (Phase 1 Complete)
 
-#### POST /set-origin
+#### PUT /api/v1/origin
 
 Set the formation origin coordinates.
 
@@ -1381,7 +1381,7 @@ Set the formation origin coordinates.
 }
 ```
 
-#### GET /get-origin
+#### GET /api/v1/origin
 
 Retrieve the current formation origin.
 
@@ -1397,7 +1397,7 @@ Retrieve the current formation origin.
 }
 ```
 
-#### GET /get-desired-launch-positions
+#### GET /api/v1/origin/launch-positions
 
 Calculate GPS coordinates for all drone launch positions.
 
@@ -1431,7 +1431,7 @@ Calculate GPS coordinates for all drone launch positions.
 }
 ```
 
-#### GET /get-position-deviations
+#### GET /api/v1/origin/deviations
 
 Monitor real-time position deviations.
 
@@ -1587,8 +1587,8 @@ print(f"10000 conversions: {(end-start)*1000:.2f}ms")
 
 **P-2: API Response Time**
 ```bash
-# Measure /get-position-deviations latency
-time curl http://localhost:5000/get-position-deviations
+# Measure /api/v1/origin/deviations latency
+time curl http://localhost:5000/api/v1/origin/deviations
 
 # Expected: < 500ms for 10 drones
 ```

@@ -180,7 +180,7 @@ Phase 3 fourth checkpoint on 2026-04-03:
 - moved `/get-origin`, `/set-origin`, `/get-gps-global-origin`, `/elevation`, `/get-origin-for-drone`, `/get-position-deviations`, `/compute-origin`, and `/get-desired-launch-positions` behind `create_origin_router(...)`
 - moved the richer origin-domain geometry/report builders into `gcs-server/origin.py`, including the reusable launch-position export payload and deviation-report helpers instead of keeping those calculations embedded in `app_fastapi.py`
 - fixed a latent backend bug in `compute_origin_from_drone(...)` by restoring the missing `pyproj` imports, which previously left the compute-origin path vulnerable to runtime failure when exercised outside mocks
-- corrected the origin contract so `POST /compute-origin` is now a dry-run compute surface that returns the candidate origin without mutating shared origin state; `POST /set-origin` remains the explicit write path
+- corrected the origin contract so `POST /compute-origin` is now a dry-run compute surface that returns the candidate origin without mutating shared origin state; the canonical `PUT /api/v1/origin` route remains the explicit write path
 - corrected the command `auto_global_origin` path so valid `0.0` latitude/longitude origins are preserved instead of being dropped by truthiness checks
 - added focused router-level coverage in `tests/test_gcs_origin_routes.py`, added a broad HTTP test for `/compute-origin`, and added a duplicate-method/path guard to `tests/test_api_route_inventory.py`
 - revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_origin_routes.py`, `test_gcs_git_routes.py`, `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, `test_gcs_api_http.py`, `test_gcs_api_websocket.py`, and `test_api_route_inventory.py`
@@ -303,7 +303,7 @@ Phase 4 fourth checkpoint on 2026-04-03:
   - `GET /api/v1/origin/launch-positions`
 - migrated the shared frontend GCS service layer and the active Drone Show runtime/validation callers touched in this slice onto the canonical origin paths, so current operator tooling no longer reinforces the legacy origin URLs
 - deliberately made the manual-origin write contract truthful instead of brittle: `PUT /api/v1/origin` now accepts omitted altitude and defaults it to `0.0` MSL, matching the dashboard workflow and keeping the canonical persistence path resilient for future MCP/automation callers
-- added a distinct canonical bootstrap resource at `GET /api/v1/origin/bootstrap` instead of implicitly pointing bootstrap consumers at the generic origin-read path, so the origin surface now names that runtime-specific read intent explicitly while the legacy `/get-origin-for-drone` compatibility route remains available
+- added a distinct canonical bootstrap resource at `GET /api/v1/origin/bootstrap` instead of implicitly pointing bootstrap consumers at the generic origin-read path, so the origin surface now names that runtime-specific read intent explicitly
 - extended route-inventory, HTTP, router, dashboard-service, and Drone Show validation coverage to the canonical origin surface and revalidated the slice locally plus on Hetzner with the focused backend batch, shared frontend GCS service Jest slice, and production build
 
 After this checkpoint, the next clean Phase 4 boundary is the remaining git/show-management canonicalization, followed by deliberate legacy-route retirement once active callers, docs, and SITL validation all move onto the canonical surface.
@@ -483,6 +483,31 @@ Phase 4 thirteenth checkpoint on 2026-04-03:
 - updated the shared frontend route resolver, request-log classification, operator/developer docs, and route-inventory guardrails so the retired command aliases no longer linger as pseudo-compatibility
 
 After this checkpoint, the remaining compatibility-retirement work is centered on the still-mounted origin and versionless Swarm Trajectory legacy families.
+
+Phase 4 fourteenth checkpoint on 2026-04-03:
+
+- retired the GCS origin legacy routes:
+  - removed `GET /get-origin`
+  - removed `POST /set-origin`
+  - removed `GET /get-gps-global-origin`
+  - removed `GET /elevation`
+  - removed `GET /get-origin-for-drone`
+  - removed `GET /get-position-deviations`
+  - removed `POST /compute-origin`
+  - removed `GET /get-desired-launch-positions`
+- deliberately treated that family as a safe retirement target only after confirming there were no remaining live dashboard, runtime-tooling, or SITL-helper callers on the old origin URLs; the remaining references were compatibility decorators, route-resolver aliases, request-log classification, and active docs/tests
+- kept the canonical origin surface:
+  - `GET /api/v1/origin`
+  - `PUT /api/v1/origin`
+  - `GET /api/v1/navigation/global-origin`
+  - `GET /api/v1/origin/elevation`
+  - `GET /api/v1/origin/bootstrap`
+  - `GET /api/v1/origin/deviations`
+  - `POST /api/v1/origin/compute`
+  - `GET /api/v1/origin/launch-positions`
+- updated the shared frontend route resolver, request-log classification, operator/developer docs, and route-inventory guardrails so the retired origin aliases no longer linger as pseudo-compatibility
+
+After this checkpoint, the remaining compatibility-retirement work is centered on the versionless Swarm Trajectory legacy family.
 
 ### Phase 5
 

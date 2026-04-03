@@ -51,7 +51,7 @@ The official stock SITL package ships with one tracked demo default origin:
 - `data/origin.sitl.default.json`
 - current location: **Azadi Stadium**
 
-Fresh SITL uses that file only as a fallback seed so first-time testers get a consistent launch-reference baseline without a manual `/set-origin`.
+Fresh SITL uses that file only as a fallback seed so first-time testers get a consistent launch-reference baseline without a manual `PUT /api/v1/origin`.
 
 Important distinction:
 
