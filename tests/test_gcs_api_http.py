@@ -1239,5 +1239,165 @@ class TestErrorHandling:
         assert response.status_code in [400, 422, 500]
 
 
+class TestAPIV1Aliases:
+    """Test canonical v1 aliases for the current GCS API surface."""
+
+    def test_route_inventory_includes_legacy_and_v1_core_surfaces(self, test_client):
+        routes = {route.path for route in test_client.app.routes}
+
+        expected_routes = {
+            "/ping",
+            "/health",
+            "/api/v1/system/health",
+            "/telemetry",
+            "/api/telemetry",
+            "/api/v1/fleet/telemetry",
+            "/heartbeat",
+            "/drone-heartbeat",
+            "/api/v1/fleet/heartbeats",
+            "/get-heartbeats",
+            "/get-network-status",
+            "/api/v1/fleet/network-status",
+            "/get-config-data",
+            "/save-config-data",
+            "/validate-config",
+            "/get-drone-positions",
+            "/get-trajectory-first-row",
+            "/get-swarm-data",
+            "/save-swarm-data",
+            "/submit_command",
+            "/command/{command_id}",
+            "/commands/recent",
+            "/commands/active",
+            "/commands/statistics",
+            "/command/{command_id}/cancel",
+            "/command/execution-start",
+            "/command/execution-result",
+            "/git-status",
+            "/sync-repos",
+            "/get-origin",
+            "/set-origin",
+            "/get-gps-global-origin",
+            "/elevation",
+            "/get-origin-for-drone",
+            "/get-position-deviations",
+            "/compute-origin",
+            "/get-desired-launch-positions",
+            "/import-show",
+            "/download-raw-show",
+            "/download-processed-show",
+            "/get-show-info",
+            "/get-custom-show-info",
+            "/import-custom-show",
+            "/get-comprehensive-metrics",
+            "/get-safety-report",
+            "/validate-trajectory",
+            "/deploy-show",
+            "/get-show-plots/{filename}",
+            "/get-show-plots",
+            "/get-custom-show-image",
+            "/get-gcs-config",
+            "/save-gcs-config",
+            "/get-gcs-git-status",
+            "/get-drone-git-status/{drone_id}",
+            "/get-network-info",
+            "/request-new-leader",
+            "/api/swarm/leaders",
+            "/api/swarm/trajectory/upload/{leader_id}",
+            "/api/swarm/trajectory/process",
+            "/api/swarm/trajectory/recommendation",
+            "/api/swarm/trajectory/status",
+            "/api/swarm/trajectory/policy",
+            "/api/swarm/trajectory/clear-processed",
+            "/api/swarm/trajectory/clear",
+            "/api/swarm/trajectory/clear-leader/{leader_id}",
+            "/api/swarm/trajectory/remove/{leader_id}",
+            "/api/swarm/trajectory/download/{drone_id}",
+            "/api/swarm/trajectory/download-kml/{drone_id}",
+            "/api/swarm/trajectory/download-cluster-kml/{leader_id}",
+            "/api/swarm/trajectory/clear-drone/{drone_id}",
+            "/api/swarm/trajectory/commit",
+            "/api/logs/sources",
+            "/api/logs/sessions",
+            "/api/logs/sessions/{session_id}",
+            "/api/logs/stream",
+            "/api/logs/frontend",
+            "/api/logs/export",
+            "/api/logs/drone/{drone_id}/export",
+            "/api/logs/drone/{drone_id}/sessions",
+            "/api/logs/drone/{drone_id}/sessions/{session_id}",
+            "/api/logs/drone/{drone_id}/stream",
+            "/api/logs/config",
+            "/api/sar/mission/plan",
+            "/api/sar/mission/launch",
+            "/api/sar/mission/{mission_id}/status",
+            "/api/sar/mission/{mission_id}/pause",
+            "/api/sar/mission/{mission_id}/resume",
+            "/api/sar/mission/{mission_id}/abort",
+            "/api/sar/mission/{mission_id}/progress",
+            "/api/sar/poi",
+            "/api/sar/poi/{poi_id}",
+            "/api/sar/elevation/batch",
+            "/ws/telemetry",
+            "/ws/heartbeats",
+            "/ws/git-status",
+        }
+
+        assert expected_routes.issubset(routes)
+
+    def test_v1_health_alias(self, test_client):
+        response = test_client.get("/api/v1/system/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "timestamp" in data
+        assert "version" in data
+
+    def test_v1_fleet_telemetry_alias(self, test_client):
+        response = test_client.get("/api/v1/fleet/telemetry")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "telemetry" in data
+        assert "total_drones" in data
+        assert "online_drones" in data
+
+    def test_v1_fleet_heartbeat_post_alias(self, test_client):
+        payload = {
+            "hw_id": "1",
+            "pos_id": 1,
+            "detected_pos_id": 1,
+            "ip": "192.168.1.101",
+            "timestamp": 1700000000000,
+            "network_info": {},
+        }
+
+        response = test_client.post("/api/v1/fleet/heartbeats", json=payload)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"] == "Heartbeat received"
+
+    def test_v1_fleet_heartbeats_alias(self, test_client):
+        response = test_client.get("/api/v1/fleet/heartbeats")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "heartbeats" in data
+        assert "online_count" in data
+        assert "timestamp" in data
+
+    def test_v1_fleet_network_status_alias(self, test_client):
+        response = test_client.get("/api/v1/fleet/network-status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "network_status" in data
+        assert "reachable_count" in data
+        assert "timestamp" in data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

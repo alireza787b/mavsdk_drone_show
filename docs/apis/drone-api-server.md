@@ -11,6 +11,12 @@
 
 The Drone API Server is a high-performance FastAPI-based server that runs on each drone, providing both HTTP REST endpoints and WebSocket streaming for real-time telemetry. It handles communication with the Ground Control Station (GCS) and serves drone state information, commands, and configuration data.
 
+## API Evolution Note
+
+Beginning with the 2026-04-03 API modernization stream, canonical routes are being introduced under `/api/v1/...` while legacy compatibility routes remain available during migration.
+
+Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.
+
 ### Key Features
 
 - ✅ **HTTP REST API** - 10 endpoints for standard operations

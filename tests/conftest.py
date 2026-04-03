@@ -37,6 +37,14 @@ for _path in [_PROJECT_ROOT, _GCS_SERVER, _SRC_DIR]:
     if _path not in sys.path:
         sys.path.insert(0, _path)
 
+# Some lean local environments used for focused API validation do not have the
+# full MAVSDK gRPC dependency chain installed. Tests stub it at import time so
+# route/contract coverage can still run without a flight runtime.
+try:
+    import aiogrpc  # type: ignore  # noqa: F401
+except ModuleNotFoundError:
+    sys.modules["aiogrpc"] = MagicMock(name="aiogrpc")
+
 from src.drone_api_server import DroneAPIServer
 from src.params import Params
 from src.drone_config import DroneConfig

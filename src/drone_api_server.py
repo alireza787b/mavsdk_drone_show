@@ -114,8 +114,8 @@ class DroneStateResponse(BaseModel):
     velocity_down: float
     yaw: float
     battery_voltage: float
-    follow_mode: Any
-    update_time: Any
+    follow_mode: Any = None
+    update_time: Any = None
     timestamp: int
     server_time: int = 0
     flight_mode: Any
@@ -176,6 +176,12 @@ class LiveArmabilityResponse(BaseModel):
     require_global_position: bool = True
     timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
     probe_error: Optional[str] = None
+
+
+class DroneHealthResponse(BaseModel):
+    status: str
+    timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
+    version: str
 
 
 # ============================================================================
@@ -280,8 +286,9 @@ class DroneAPIServer:
             stderr=subprocess.DEVNULL,
         )
 
-        deadline = time.monotonic() + float(
-            getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)
+        deadline = time.monotonic() + safe_float(
+            getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
+            5.0,
         )
         while time.monotonic() < deadline:
             if process.poll() is not None:
@@ -305,7 +312,10 @@ class DroneAPIServer:
             process.wait(timeout=5)
 
     async def _wait_for_mavsdk_connection(self, drone: System) -> None:
-        connect_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0))
+        connect_timeout = safe_float(
+            getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
+            5.0,
+        )
         deadline = time.monotonic() + connect_timeout
         connection_iter = drone.core.connection_state().__aiter__()
 
@@ -325,8 +335,14 @@ class DroneAPIServer:
                 return
 
     async def _probe_live_armability(self, require_global_position: bool = True) -> Dict[str, Any]:
-        probe_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0))
-        connect_timeout = float(getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0))
+        probe_timeout = safe_float(
+            getattr(self.params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0),
+            6.0,
+        )
+        connect_timeout = safe_float(
+            getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
+            5.0,
+        )
 
         try:
             async with self._live_probe_lock:
@@ -359,11 +375,20 @@ class DroneAPIServer:
                 "probe_error": None,
             }
         except Exception as exc:
+            timed_out = isinstance(exc, (TimeoutError, asyncio.TimeoutError))
             return {
                 "success": False,
                 "ready": False,
-                "summary": f"Live armability probe unavailable: {exc}",
-                "blockers": ["live armability probe unavailable"],
+                "summary": (
+                    f"Timed out waiting for live armability probe: {exc}"
+                    if timed_out
+                    else f"Live armability probe unavailable: {exc}"
+                ),
+                "blockers": (
+                    ["live armability probe timed out"]
+                    if timed_out
+                    else ["live armability probe unavailable"]
+                ),
                 "armable": False,
                 "global_position_ok": False,
                 "home_position_ok": False,
@@ -371,7 +396,7 @@ class DroneAPIServer:
                 "gyro_ok": False,
                 "accel_ok": False,
                 "mag_ok": False,
-                "timed_out": isinstance(exc, TimeoutError),
+                "timed_out": timed_out,
                 "elapsed_sec": 0.0,
                 "require_global_position": require_global_position,
                 "timestamp": int(time.time() * 1000),
@@ -381,6 +406,7 @@ class DroneAPIServer:
     def setup_routes(self):
         """Define all API routes (same as Flask version)"""
 
+        @self.app.get("/api/v1/drone/state", response_model=DroneStateResponse)
         @self.app.get(f"/{Params.get_drone_state_URI}")
         async def get_drone_state():
             """Endpoint to retrieve the current state of the drone."""
@@ -410,12 +436,14 @@ class DroneAPIServer:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"error_in_get_drone_state: {str(e)}")
 
+        @self.app.get("/api/v1/preflight/armability", response_model=LiveArmabilityResponse)
         @self.app.get("/api/live-armability", response_model=LiveArmabilityResponse)
         async def get_live_armability(require_global_position: bool = True):
             """Run an on-demand MAVSDK launch-readiness probe."""
             result = await self._probe_live_armability(require_global_position=require_global_position)
             return LiveArmabilityResponse(**result)
 
+        @self.app.post("/api/v1/drone/commands", response_model=CommandAckResponse)
         @self.app.post(f"/{Params.send_drone_command_URI}", response_model=CommandAckResponse)
         async def send_drone_command(command: CommandRequest) -> CommandAckResponse:
             """
@@ -637,6 +665,7 @@ class DroneAPIServer:
                     timestamp=timestamp
                 )
 
+        @self.app.get('/api/v1/navigation/home')
         @self.app.get('/get-home-pos')
         async def get_home_pos():
             """
@@ -663,6 +692,7 @@ class DroneAPIServer:
                 logger.error(f"Error retrieving home position: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve home position")
 
+        @self.app.get('/api/v1/navigation/global-origin')
         @self.app.get('/get-gps-global-origin')
         async def get_gps_global_origin():
             """
@@ -742,6 +772,11 @@ class DroneAPIServer:
             except subprocess.CalledProcessError as e:
                 raise HTTPException(status_code=500, detail=f"Git command failed: {str(e)}")
 
+        @self.app.get("/api/v1/system/health", response_model=DroneHealthResponse)
+        async def ping_v1():
+            """Canonical v1 health endpoint with timestamp and version metadata."""
+            return DroneHealthResponse(status="ok", version=MDS_VERSION)
+
         @self.app.get('/ping')
         async def ping():
             """Simple endpoint to confirm connectivity."""
@@ -804,6 +839,7 @@ class DroneAPIServer:
                 logger.error(f"Error in get_position_deviation: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
+        @self.app.get("/api/v1/network/status")
         @self.app.get("/get-network-status")
         async def get_network_info():
             """
@@ -822,6 +858,7 @@ class DroneAPIServer:
                 logger.error(f"Error in network-info endpoint: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
+        @self.app.get('/api/v1/swarm/config')
         @self.app.get('/get-swarm-data')
         async def get_swarm():
             """Get swarm configuration data"""
@@ -832,6 +869,7 @@ class DroneAPIServer:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error loading swarm data: {e}")
 
+        @self.app.get('/api/v1/telemetry/local-position')
         @self.app.get('/get-local-position-ned')
         async def get_local_position_ned():
             """

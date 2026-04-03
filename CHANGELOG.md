@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 API contract audit phase 1 note documenting the live GCS/drone route inventory, the main naming and identity inconsistencies, the `/api/v1` migration target, and the staged MCP-ready API cleanup plan
 - a 2026-04-01 dashboard UI hardening checkpoint note covering the live Hetzner mobile/tablet/desktop screenshot pass, the operator-console dashboard shell/theme changes, and the remaining runtime sync caveats before browser handoff
 - a 2026-04-01 frontend audit checkpoint note documenting the recovered context, Hetzner-backed screenshot review, the responsive dashboard/trajectory work completed in this slice, and the explicit QuickScout follow-up todo for the next pass
 - explicit operator documentation for compact identity shorthand `Pn|Hm` across the frontend field naming standard and config/identity guides, so recovered checkpoints and new operators can read dashboard scope labels without guessing
@@ -17,6 +18,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the first API modernization slice now exposes canonical `/api/v1/...` aliases for core GCS health/telemetry/heartbeat/network routes and core drone health/state/command/preflight/navigation/network routes while preserving legacy compatibility paths, giving docs/tests/automation a stable migration target before deeper route extraction and caller migration
+- added machine-enforced route inventory coverage for the full current GCS and drone business API surfaces, including the active HTTP/WebSocket sets, heartbeat/health aliases, and deprecated git compatibility endpoints, so the API cleanup program can proceed against a frozen baseline instead of rediscovering the live contract by hand
 - cluster-scope rails now render drone counts as discrete badges instead of parenthetical suffixes, keeping Dashboard, Mission Config, Swarm Design, and Command Control scope chips denser and easier to scan on mobile
 - Mission Config show-slot status now collapses verbose config/heartbeat/auto prose into one compact verified/pending/review state with short source chips, explicit mismatch accept actions, and simulator-aware wording instead of noisy repeated slot sentences
 - Swarm Design follow-chain guidance now states the graph direction explicitly as leader to follower, so operators do not misread the topology while reviewing cluster propagation

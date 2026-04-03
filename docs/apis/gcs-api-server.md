@@ -31,6 +31,12 @@ The GCS (Ground Control Station) API Server provides comprehensive control and m
 - **File upload/download** support for show management
 - **100% backward compatibility** with original Flask implementation
 
+## API Evolution Note
+
+Beginning with the 2026-04-03 API modernization stream, canonical routes are being introduced under `/api/v1/...` while legacy compatibility routes remain available during migration.
+
+Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.
+
 ---
 
 ## Quick Start
