@@ -80,9 +80,9 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.positionDeviations]: '/api/v1/origin/deviations',
   [GCS_ROUTE_KEYS.computeOrigin]: '/api/v1/origin/compute',
   [GCS_ROUTE_KEYS.desiredLaunchPositions]: '/api/v1/origin/launch-positions',
-  [GCS_ROUTE_KEYS.gcsConfig]: '/get-gcs-config',
-  [GCS_ROUTE_KEYS.saveGcsConfig]: '/save-gcs-config',
-  [GCS_ROUTE_KEYS.networkInfo]: '/get-network-info',
+  [GCS_ROUTE_KEYS.gcsConfig]: '/api/v1/system/gcs-config',
+  [GCS_ROUTE_KEYS.saveGcsConfig]: '/api/v1/system/gcs-config',
+  [GCS_ROUTE_KEYS.networkInfo]: '/api/v1/fleet/network-details',
   [GCS_ROUTE_KEYS.swarmLeaders]: '/api/swarm/leaders',
   [GCS_ROUTE_KEYS.showInfo]: '/api/v1/shows/skybrush',
   [GCS_ROUTE_KEYS.comprehensiveMetrics]: '/api/v1/shows/skybrush/metrics',
@@ -93,7 +93,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.rawShowDownload]: '/api/v1/shows/skybrush/archives/raw',
   [GCS_ROUTE_KEYS.processedShowDownload]: '/api/v1/shows/skybrush/archives/processed',
   [GCS_ROUTE_KEYS.customShowImage]: '/api/v1/shows/custom/preview',
-  [GCS_ROUTE_KEYS.staticPlotsBase]: '/static/plots',
+  [GCS_ROUTE_KEYS.staticPlotsBase]: '/api/v1/swarm-trajectories/plots',
   [GCS_ROUTE_KEYS.swarmTrajectoryBase]: '/api/swarm/trajectory',
   [GCS_ROUTE_KEYS.swarmTrajectoryStatus]: '/api/swarm/trajectory/status',
   [GCS_ROUTE_KEYS.swarmTrajectoryPolicy]: '/api/swarm/trajectory/policy',
@@ -155,7 +155,9 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/compute-origin': GCS_ROUTE_KEYS.computeOrigin,
   '/api/v1/origin/launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
   '/get-desired-launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
+  '/api/v1/system/gcs-config': GCS_ROUTE_KEYS.gcsConfig,
   '/get-gcs-config': GCS_ROUTE_KEYS.gcsConfig,
+  '/api/v1/fleet/network-details': GCS_ROUTE_KEYS.networkInfo,
   '/save-gcs-config': GCS_ROUTE_KEYS.saveGcsConfig,
   '/get-network-info': GCS_ROUTE_KEYS.networkInfo,
   '/api/swarm/leaders': GCS_ROUTE_KEYS.swarmLeaders,
@@ -177,6 +179,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/download-processed-show': GCS_ROUTE_KEYS.processedShowDownload,
   '/api/v1/shows/custom/preview': GCS_ROUTE_KEYS.customShowImage,
   '/get-custom-show-image': GCS_ROUTE_KEYS.customShowImage,
+  '/api/v1/swarm-trajectories/plots': GCS_ROUTE_KEYS.staticPlotsBase,
   '/static/plots': GCS_ROUTE_KEYS.staticPlotsBase,
   '/api/swarm/trajectory': GCS_ROUTE_KEYS.swarmTrajectoryBase,
   '/api/swarm/trajectory/status': GCS_ROUTE_KEYS.swarmTrajectoryStatus,
@@ -401,7 +404,7 @@ export async function getGcsConfigResponse(config = {}) {
 }
 
 export async function saveGcsConfigResponse(payload, config = {}) {
-  return postGcsResource(GCS_ROUTE_KEYS.saveGcsConfig, payload, config);
+  return putGcsResource(GCS_ROUTE_KEYS.saveGcsConfig, payload, config);
 }
 
 export async function computeOriginResponse(payload, config = {}) {

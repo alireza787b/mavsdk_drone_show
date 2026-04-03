@@ -26,7 +26,9 @@ def test_management_router_registers_expected_routes():
 
     routes = {route.path for route in app.routes}
 
+    assert "/api/v1/system/gcs-config" in routes
     assert "/get-gcs-config" in routes
+    assert "/api/v1/fleet/network-details" in routes
     assert "/save-gcs-config" in routes
     assert "/get-network-info" in routes
 
@@ -44,7 +46,7 @@ def test_management_router_get_gcs_config_uses_live_params_after_router_creation
     )
 
     with TestClient(app) as client:
-        response = client.get("/get-gcs-config")
+        response = client.get("/api/v1/system/gcs-config")
 
     assert response.status_code == 200
     assert response.json() == {
@@ -61,7 +63,7 @@ def test_management_router_save_gcs_config_returns_explicit_stub_ack():
     app.include_router(create_management_router(deps))
 
     with TestClient(app) as client:
-        response = client.post("/save-gcs-config", json={"sim_mode": True})
+        response = client.put("/api/v1/system/gcs-config", json={"sim_mode": True})
 
     assert response.status_code == 200
     data = response.json()
@@ -77,7 +79,7 @@ def test_management_router_save_gcs_config_rejects_non_object_payload():
     app.include_router(create_management_router(deps))
 
     with TestClient(app) as client:
-        response = client.post("/save-gcs-config", json=["not", "an", "object"])
+        response = client.put("/api/v1/system/gcs-config", json=["not", "an", "object"])
 
     assert response.status_code == 400
     assert response.json()["detail"] == "GCS configuration payload must be a JSON object"
@@ -92,7 +94,7 @@ def test_management_router_get_network_info_uses_live_dependency_after_router_cr
     deps.get_network_info_from_heartbeats = replacement
 
     with TestClient(app) as client:
-        response = client.get("/get-network-info")
+        response = client.get("/api/v1/fleet/network-details")
 
     assert response.status_code == 200
     replacement.assert_called_once()

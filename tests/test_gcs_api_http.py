@@ -1118,7 +1118,7 @@ class TestGCSManagementEndpoints:
         monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
         monkeypatch.setattr(app_fastapi.Params, 'acceptable_deviation', 4.5, raising=False)
 
-        response = test_client.get('/get-gcs-config')
+        response = test_client.get('/api/v1/system/gcs-config')
 
         assert response.status_code == 200
         assert response.json() == {
@@ -1129,7 +1129,7 @@ class TestGCSManagementEndpoints:
         }
 
     def test_save_gcs_config_returns_explicit_stub_ack(self, test_client):
-        response = test_client.post('/save-gcs-config', json={'sim_mode': True})
+        response = test_client.request('PUT', '/api/v1/system/gcs-config', json={'sim_mode': True})
 
         assert response.status_code == 200
         data = response.json()
@@ -1145,7 +1145,7 @@ class TestGCSManagementEndpoints:
             {'hw_id': '2', 'ethernet': {'interface': 'eth0'}},
         ]
 
-        response = test_client.get('/get-network-info')
+        response = test_client.get('/api/v1/fleet/network-details')
 
         assert response.status_code == 200
         assert response.json()[0]['hw_id'] == '1'
@@ -1165,7 +1165,7 @@ class TestGCSManagementEndpoints:
             lambda: {'plots': str(plots_dir)},
         )
 
-        response = test_client.get('/static/plots/drone_1.jpg')
+        response = test_client.get('/api/v1/swarm-trajectories/plots/drone_1.jpg')
 
         assert response.status_code == 200
         assert response.content == b'jpg'

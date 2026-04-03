@@ -4,7 +4,7 @@
 import { getBackendURL } from '../config/apiConfig';
 import {
   buildGcsUrl,
-  GCS_ROUTE_KEYS,
+  GCS_ROUTE_KEYS
 } from '../services/gcsApiService';
 
 // Re-export for backward compatibility
@@ -19,11 +19,6 @@ export function getElevationURL(lat, lon) {
     return `${buildGcsUrl(GCS_ROUTE_KEYS.elevation)}?lat=${lat}&lon=${lon}`;
 }
 
-// DEPRECATED: Use getUnifiedGitStatusURL() instead — /git-status includes gcs_status field
-export function getGitStatusURL() {
-    return `${getBackendURL()}/get-gcs-git-status`;
-}
-
 export const getUnifiedGitStatusURL = () => buildGcsUrl(GCS_ROUTE_KEYS.gitStatus);
 
 export const getSyncReposURL = () => buildGcsUrl(GCS_ROUTE_KEYS.syncRepos);
@@ -31,10 +26,6 @@ export const getSyncReposURL = () => buildGcsUrl(GCS_ROUTE_KEYS.syncRepos);
 
 export function getCustomShowImageURL() {
     return buildGcsUrl(GCS_ROUTE_KEYS.customShowImage);
-}
-// DEPRECATED: Use getUnifiedGitStatusURL() instead — /git-status includes all drone statuses
-export function getDroneGitStatusURLById(droneID) {
-    return `${getBackendURL()}/get-drone-git-status/${droneID}`;
 }
 
 // Constants for conversions and world setup

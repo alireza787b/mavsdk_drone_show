@@ -23,6 +23,7 @@ def test_static_assets_router_registers_expected_routes():
 
         routes = {route.path for route in app.routes}
 
+        assert "/api/v1/swarm-trajectories/plots/{filename}" in routes
         assert "/static/plots/{filename}" in routes
 
 
@@ -36,7 +37,7 @@ def test_static_assets_router_serves_existing_plot():
         app.include_router(create_static_assets_router(deps))
 
         with TestClient(app) as client:
-            response = client.get("/static/plots/drone_1.jpg")
+            response = client.get("/api/v1/swarm-trajectories/plots/drone_1.jpg")
 
         assert response.status_code == 200
         assert response.content == b"jpg"
@@ -54,7 +55,7 @@ def test_static_assets_router_uses_live_dependency_after_router_creation():
         deps.get_swarm_trajectory_folders = lambda: {"plots": replacement_dir}
 
         with TestClient(app) as client:
-            response = client.get("/static/plots/leader.jpg")
+            response = client.get("/api/v1/swarm-trajectories/plots/leader.jpg")
 
         assert response.status_code == 200
         assert response.content == b"leader"
@@ -67,7 +68,7 @@ def test_static_assets_router_returns_404_when_missing():
         app.include_router(create_static_assets_router(deps))
 
         with TestClient(app) as client:
-            response = client.get("/static/plots/missing.jpg")
+            response = client.get("/api/v1/swarm-trajectories/plots/missing.jpg")
 
         assert response.status_code == 404
         assert response.json()["detail"] == "Plot not found"

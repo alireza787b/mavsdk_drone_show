@@ -356,6 +356,21 @@ Phase 4 seventh checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is explicit classification of the still-mounted GCS compatibility routes into retire-now, keep-temporarily, or canonicalize-next buckets. The highest-value remaining public legacy cluster is the GCS management/static surface plus a few dead frontend compatibility helpers, not the drone runtime/tooling callers.
 
+Phase 4 eighth checkpoint on 2026-04-03:
+
+- introduced canonical v1 routes for the remaining public management/static GCS surface:
+  - `GET /api/v1/system/gcs-config`
+  - `PUT /api/v1/system/gcs-config`
+  - `GET /api/v1/fleet/network-details`
+  - `GET /api/v1/swarm-trajectories/plots/{filename}`
+- deliberately modeled GCS runtime settings as a system resource instead of preserving the older action-style naming, so the canonical write path is `PUT /api/v1/system/gcs-config` while the legacy `POST /save-gcs-config` alias remains mounted during rollout
+- deliberately split detailed fleet network metadata from the higher-level reachability summary: the detailed heartbeat-derived per-drone metadata now has its own canonical path at `GET /api/v1/fleet/network-details`, distinct from `GET /api/v1/fleet/network-status`
+- moved Swarm Trajectory-generated plot assets out of the generic `/static/*` namespace and under `/api/v1/swarm-trajectories/plots/{filename}` so resource ownership is explicit for future auth/MCP policy layers
+- migrated the shared frontend GCS service layer onto the canonical management/static routes and removed dead frontend git compatibility helpers instead of carrying them forward as misleading pseudo-compatibility
+- extended route-inventory, HTTP, router, and shared dashboard GCS service coverage to the canonical management/static surface and revalidated the slice locally plus on Hetzner with focused backend tests, the shared frontend GCS service Jest slice, and the production build
+
+After this checkpoint, the next clean Phase 4 boundary is no longer new alias creation. It is the deliberate public compatibility-retirement pass: classify remaining legacy routes into remove-now, keep-temporarily, or defer-with-reason buckets, then retire the ones that no longer serve live callers, docs, or SITL workflows.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

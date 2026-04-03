@@ -4,14 +4,18 @@ import {
   buildLogsUrl,
   buildShowDownloadUrl,
   buildShowPlotUrl,
+  buildStaticPlotUrl,
   buildSarUrl,
   GCS_ROUTE_KEYS,
+  getGcsConfigResponse,
+  getNetworkInfoResponse,
   getCommandStatusResponse,
   getTrajectoryFirstRowResponse,
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
   importCustomShowResponse,
   importShowResponse,
+  saveGcsConfigResponse,
   saveFleetConfigResponse,
   setOriginResponse,
   syncReposResponse,
@@ -72,6 +76,7 @@ describe('gcsApiService', () => {
   it('builds encoded plot and download URLs from shared route helpers', () => {
     expect(buildShowPlotUrl('Drone 1.jpg')).toBe('http://gcs.test:5000/api/v1/shows/skybrush/plots/Drone%201.jpg');
     expect(buildShowDownloadUrl('processed')).toBe('http://gcs.test:5000/api/v1/shows/skybrush/archives/processed');
+    expect(buildStaticPlotUrl('cluster leader 1.jpg')).toBe('http://gcs.test:5000/api/v1/swarm-trajectories/plots/cluster%20leader%201.jpg');
   });
 
   it('unwraps typed telemetry envelopes without changing plain telemetry payloads', () => {
@@ -199,6 +204,40 @@ describe('gcsApiService', () => {
       'http://gcs.test:5000/api/v1/origin',
       { lat: 35, lon: -120, alt: 12, alt_source: 'manual' },
       { timeout: 2500 }
+    );
+  });
+
+  it('fetches GCS config from the canonical system resource', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+
+    await getGcsConfigResponse({ timeout: 1200 });
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/gcs-config',
+      { timeout: 1200 }
+    );
+  });
+
+  it('saves GCS config through the canonical system resource with PUT', async () => {
+    axios.put.mockResolvedValue({ data: { success: true } });
+
+    await saveGcsConfigResponse({ sim_mode: true }, { timeout: 2100 });
+
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/gcs-config',
+      { sim_mode: true },
+      { timeout: 2100 }
+    );
+  });
+
+  it('fetches detailed fleet network metadata from the canonical network-details route', async () => {
+    axios.get.mockResolvedValue({ data: [] });
+
+    await getNetworkInfoResponse({ timeout: 1800 });
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/fleet/network-details',
+      { timeout: 1800 }
     );
   });
 

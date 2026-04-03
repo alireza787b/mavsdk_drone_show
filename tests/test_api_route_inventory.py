@@ -49,6 +49,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/telemetry",
         "/api/v1/fleet/heartbeats",
         "/api/v1/fleet/network-status",
+        "/api/v1/fleet/network-details",
         "/api/v1/config/fleet",
         "/api/v1/config/fleet/trajectory-start-positions",
         "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
@@ -74,6 +75,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/active",
         "/api/v1/commands/statistics",
         "/api/v1/commands/{command_id}",
+        "/api/v1/system/gcs-config",
         "/get-heartbeats",
         "/get-network-status",
         "/get-config-data",
@@ -111,6 +113,7 @@ GCS_EXPECTED_HTTP = {
         "/get-gcs-git-status",
         "/get-drone-git-status/{drone_id}",
         "/get-network-info",
+        "/api/v1/swarm-trajectories/plots/{filename}",
         "/static/plots/{filename}",
         "/api/logs/sources",
         "/api/logs/sessions",
@@ -184,6 +187,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/config/fleet",
         "/api/v1/config/swarm",
         "/api/v1/origin",
+        "/api/v1/system/gcs-config",
     },
 }
 
@@ -361,6 +365,10 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/shows/skybrush/plots")].endpoint is route_index[("GET", "/get-show-plots")].endpoint
     assert route_index[("GET", "/api/v1/shows/skybrush/plots/{filename}")].endpoint is route_index[("GET", "/get-show-plots/{filename}")].endpoint
     assert route_index[("GET", "/api/v1/shows/custom/preview")].endpoint is route_index[("GET", "/get-custom-show-image")].endpoint
+    assert route_index[("GET", "/api/v1/system/gcs-config")].endpoint is route_index[("GET", "/get-gcs-config")].endpoint
+    assert route_index[("PUT", "/api/v1/system/gcs-config")].endpoint is route_index[("POST", "/save-gcs-config")].endpoint
+    assert route_index[("GET", "/api/v1/fleet/network-details")].endpoint is route_index[("GET", "/get-network-info")].endpoint
+    assert route_index[("GET", "/api/v1/swarm-trajectories/plots/{filename}")].endpoint is route_index[("GET", "/static/plots/{filename}")].endpoint
 
     assert route_index[("GET", "/get-gcs-git-status")].deprecated is True
     assert route_index[("GET", "/get-drone-git-status/{drone_id}")].deprecated is True
