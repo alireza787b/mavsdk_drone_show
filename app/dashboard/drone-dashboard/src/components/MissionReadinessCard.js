@@ -6,6 +6,7 @@ import {
   formatSwarmTrajectoryAltitudeEnvelope,
   formatSwarmTrajectoryPackageTimingSummary,
 } from '../utilities/swarmTrajectoryPackageStats';
+import { buildStaticPlotUrl } from '../services/gcsApiService';
 import '../styles/MissionReadinessCard.css';
 
 const MissionReadinessCard = ({
@@ -95,11 +96,11 @@ const MissionReadinessCard = ({
   };
 
   const getDroneImagePath = (droneId) => {
-    return `/static/plots/drone_${droneId}_trajectory.jpg`;
+    return buildStaticPlotUrl(`drone_${droneId}_trajectory.jpg`);
   };
 
   const getClusterImagePath = (leaderId) => {
-    return `/static/plots/cluster_leader_${leaderId}.jpg`;
+    return buildStaticPlotUrl(`cluster_leader_${leaderId}.jpg`);
   };
 
   // Handle ESC key for lightbox

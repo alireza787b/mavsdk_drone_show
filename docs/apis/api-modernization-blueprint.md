@@ -185,6 +185,16 @@ Phase 3 fourth checkpoint on 2026-04-03:
 - added focused router-level coverage in `tests/test_gcs_origin_routes.py`, added a broad HTTP test for `/compute-origin`, and added a duplicate-method/path guard to `tests/test_api_route_inventory.py`
 - revalidated the combined extracted-router surface locally and on Hetzner with `test_gcs_origin_routes.py`, `test_gcs_git_routes.py`, `test_gcs_configuration_routes.py`, `test_gcs_swarm_routes.py`, `test_gcs_core_routes.py`, `test_gcs_api_http.py`, `test_gcs_api_websocket.py`, and `test_api_route_inventory.py`
 
+Phase 3 fifth checkpoint on 2026-04-03:
+
+- extracted the remaining small GCS management/static compatibility cluster into `gcs-server/api_routes/management.py` and `gcs-server/api_routes/static_assets.py`
+- moved `/get-gcs-config`, `/save-gcs-config`, `/get-network-info`, and `/static/plots/{filename}` behind router factories that still resolve live dependencies from the `app_fastapi` module object at request time
+- corrected the `save-gcs-config` compatibility contract so the endpoint now returns an explicit stub acknowledgement with `success=true`, `persisted=false`, and warnings instead of implying that persistence succeeded
+- hardened static plot serving with bounded path resolution instead of direct path joining, which removes the path-traversal risk from the compatibility file-serving surface
+- moved the frontend `MissionReadinessCard` static-plot consumer onto the shared `buildStaticPlotUrl(...)` helper so route composition stays single-sourced during backend extraction
+- fixed the project test-tooling contract by adding `pytest-timeout` to the `dev` extra and removing the ignored duplicate pytest config from `pyproject.toml`, leaving `pytest.ini` as the single test-config source of truth
+- revalidated the extracted-router surface on Hetzner with a validation-only `.venv` built from `python -m pip install -e ".[dev]"`, then ran the combined backend batch plus the dashboard production build successfully
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes

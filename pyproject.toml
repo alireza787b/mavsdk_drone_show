@@ -16,6 +16,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    "pytest-timeout>=2.3.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -28,10 +29,3 @@ include = ["src*", "functions*", "gcs-server*", "mds_logging*"]
 [tool.setuptools.dynamic]
 version = {file = ["VERSION"]}
 dependencies = {file = ["requirements.txt"]}
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-asyncio_mode = "auto"

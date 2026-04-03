@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 Management and Static Assets router extraction checkpoint note documenting the fifth Phase 3 backend route-domain split, the GCS management/static compatibility surfaces moved out of `app_fastapi.py`, the explicit `save-gcs-config` stub contract, the static plot path-hardening work, the Hetzner validation-venv setup, and the paired backend/frontend validation results
 - a 2026-04-03 Origin router extraction checkpoint note documenting the fourth Phase 3 backend route-domain split, the extracted origin/elevation surface, the compute-origin contract cleanup, the launch-position export behavior, and the combined local/Hetzner validation results
 - a 2026-04-03 Git router extraction checkpoint note documenting the third Phase 3 backend route-domain split, the extracted Git REST/WebSocket surface, the preserved sync-helper seam in `app_fastapi.py`, and the combined local/Hetzner validation results
 - a 2026-04-03 Configuration and Swarm router extraction checkpoint note documenting the second Phase 3 backend route-domain split, the modular config/swarm route move, the shared swarm-cycle validation move, the configuration error-status cleanup, and the combined local/Hetzner validation results across the extracted router suites
@@ -24,6 +25,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the fifth Phase 3 backend extraction now moves `/get-gcs-config`, `/save-gcs-config`, `/get-network-info`, and `/static/plots/{filename}` into `gcs-server/api_routes/management.py` and `gcs-server/api_routes/static_assets.py`, so `app_fastapi.py` no longer owns that compatibility cluster
+- `POST /save-gcs-config` now returns an explicit compatibility stub result with `success=true`, `persisted=false`, and warnings instead of the old ambiguous payload that looked like a real save even though no persistence path exists
+- static plot serving now resolves paths through a bounded project-root check before returning files, closing the traversal risk that existed when arbitrary filenames were joined directly under the plots directory
+- `MissionReadinessCard` now builds static-plot URLs through the shared GCS route helper instead of hardcoding `/static/plots/...`, keeping frontend route composition aligned with the centralized API contract
+- the project `dev` extra now includes `pytest-timeout`, which fixes the mismatch where `pytest.ini` required timeout options but a clean validation environment did not install the plugin
+- removed the redundant ignored `[tool.pytest.ini_options]` block from `pyproject.toml`, leaving `pytest.ini` as the single source of truth for pytest behavior
 - the fourth Phase 3 backend extraction now moves the full Origin domain into `gcs-server/api_routes/origin.py`, so `app_fastapi.py` no longer owns `/get-origin`, `/set-origin`, `/get-gps-global-origin`, `/elevation`, `/get-origin-for-drone`, `/get-position-deviations`, `/compute-origin`, or `/get-desired-launch-positions`
 - origin geometry/reporting helpers now live in `gcs-server/origin.py` instead of being duplicated inside route handlers, including the richer deviation report and desired-launch-position export payload used by the extracted router
 - `POST /compute-origin` now behaves like the frontend/operator workflow already expects: it computes and returns a candidate origin without silently overwriting shared origin state; `POST /set-origin` remains the only explicit write path for origin persistence

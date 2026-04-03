@@ -96,7 +96,9 @@ from sar.routes import router as sar_router
 from api_routes.configuration import create_configuration_router
 from api_routes.core import create_core_router
 from api_routes.git_status import create_git_router
+from api_routes.management import create_management_router
 from api_routes.origin import create_origin_router
+from api_routes.static_assets import create_static_assets_router
 from api_routes.swarm import create_swarm_router
 
 # Import swarm trajectory functions
@@ -576,7 +578,9 @@ app.include_router(sar_router)
 app.include_router(create_core_router(sys.modules[__name__]))
 app.include_router(create_configuration_router(sys.modules[__name__]))
 app.include_router(create_git_router(sys.modules[__name__]))
+app.include_router(create_management_router(sys.modules[__name__]))
 app.include_router(create_origin_router(sys.modules[__name__]))
+app.include_router(create_static_assets_router(sys.modules[__name__]))
 app.include_router(create_swarm_router(sys.modules[__name__]))
 
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
@@ -2175,68 +2179,6 @@ async def get_custom_show_image():
             return FileResponse(image_path, media_type='image/png')
         else:
             raise HTTPException(status_code=404, detail=f'Custom show image not found at {image_path}')
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
-# GCS Configuration & Git Status
-# ============================================================================
-
-@app.get("/get-gcs-config", tags=["GCS Management"])
-async def get_gcs_config():
-    """Get GCS server configuration"""
-    try:
-        # Return Params as dict
-        config = {
-            'sim_mode': Params.sim_mode,
-            'gcs_port': Params.gcs_api_port,
-            'git_auto_push': Params.GIT_AUTO_PUSH,
-            'acceptable_deviation': Params.acceptable_deviation
-        }
-        return JSONResponse(content=config)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/save-gcs-config", tags=["GCS Management"])
-async def save_gcs_config(request: Request):
-    """Save GCS server configuration"""
-    try:
-        data = await request.json()
-        # In production, this would save to params.py or config file
-        # For now, return success
-        return JSONResponse(content={'status': 'success', 'message': 'GCS configuration saved'})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-network-info", tags=["Network"])
-async def get_network_info():
-    """Get network connectivity information"""
-    try:
-        return JSONResponse(content=get_network_info_from_heartbeats())
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
-# Static Files
-# ============================================================================
-
-@app.get("/static/plots/{filename}", tags=["Static Files"])
-async def serve_plot(filename: str):
-    """Serve plot images for trajectory previews"""
-    try:
-        folders = get_swarm_trajectory_folders()
-        file_path = os.path.join(folders['plots'], filename)
-
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Plot not found")
-
-        return FileResponse(file_path)
     except HTTPException:
         raise
     except Exception as e:

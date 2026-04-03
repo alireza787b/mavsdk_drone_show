@@ -1,0 +1,66 @@
+"""GCS management and network helper routes."""
+
+from typing import Any
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+
+from schemas import GCSConfigResponse, GCSConfigSaveResponse
+
+
+def _build_gcs_config_response(deps: Any) -> GCSConfigResponse:
+    return GCSConfigResponse(
+        sim_mode=bool(deps.Params.sim_mode),
+        gcs_port=int(deps.Params.gcs_api_port),
+        git_auto_push=bool(deps.Params.GIT_AUTO_PUSH),
+        acceptable_deviation=float(deps.Params.acceptable_deviation),
+    )
+
+
+def create_management_router(deps: Any) -> APIRouter:
+    router = APIRouter()
+
+    @router.get("/get-gcs-config", response_model=GCSConfigResponse, tags=["GCS Management"])
+    async def get_gcs_config():
+        """Get the current GCS runtime configuration surface exposed to the UI."""
+        try:
+            return _build_gcs_config_response(deps)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.post("/save-gcs-config", response_model=GCSConfigSaveResponse, tags=["GCS Management"])
+    async def save_gcs_config(request: Request):
+        """Compatibility stub for GCS config updates.
+
+        The legacy UI expects an ACK surface here, but the FastAPI runtime does not
+        persist Params mutations yet. Return an explicit compatibility response
+        instead of pretending a durable save occurred.
+        """
+        try:
+            data = await request.json()
+            if not isinstance(data, dict):
+                raise HTTPException(status_code=400, detail="GCS configuration payload must be a JSON object")
+
+            return GCSConfigSaveResponse(
+                success=True,
+                status="success",
+                message="GCS configuration received, but persistence is not implemented in this runtime",
+                persisted=False,
+                warnings=[
+                    "No server-side config file was changed. This endpoint is a compatibility stub until persisted GCS config support is implemented.",
+                ],
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.get("/get-network-info", tags=["Network"])
+    async def get_network_info():
+        """Get per-drone network metadata gathered from heartbeats."""
+        try:
+            return JSONResponse(content=deps.get_network_info_from_heartbeats())
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return router

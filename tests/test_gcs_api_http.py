@@ -801,6 +801,74 @@ class TestShowManagementEndpoints:
 
 
 # ============================================================================
+# GCS Management & Static Asset Tests
+# ============================================================================
+
+class TestGCSManagementEndpoints:
+    """Test GCS management, network, and static asset endpoints."""
+
+    def test_get_gcs_config(self, test_client, monkeypatch):
+        import app_fastapi
+
+        monkeypatch.setattr(app_fastapi.Params, 'sim_mode', True, raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'gcs_api_port', 3030, raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'acceptable_deviation', 4.5, raising=False)
+
+        response = test_client.get('/get-gcs-config')
+
+        assert response.status_code == 200
+        assert response.json() == {
+            'sim_mode': True,
+            'gcs_port': 3030,
+            'git_auto_push': False,
+            'acceptable_deviation': 4.5,
+        }
+
+    def test_save_gcs_config_returns_explicit_stub_ack(self, test_client):
+        response = test_client.post('/save-gcs-config', json={'sim_mode': True})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['success'] is True
+        assert data['status'] == 'success'
+        assert data['persisted'] is False
+        assert data['warnings']
+
+    @patch('app_fastapi.get_network_info_from_heartbeats')
+    def test_get_network_info(self, mock_network_info, test_client):
+        mock_network_info.return_value = [
+            {'hw_id': '1', 'wifi': {'ssid': 'mds-net'}},
+            {'hw_id': '2', 'ethernet': {'interface': 'eth0'}},
+        ]
+
+        response = test_client.get('/get-network-info')
+
+        assert response.status_code == 200
+        assert response.json()[0]['hw_id'] == '1'
+        assert response.json()[1]['ethernet']['interface'] == 'eth0'
+
+    def test_static_plot_serving(self, test_client, monkeypatch, tmp_path):
+        import app_fastapi
+
+        plots_dir = tmp_path / 'plots'
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        plot_file = plots_dir / 'drone_1.jpg'
+        plot_file.write_bytes(b'jpg')
+
+        monkeypatch.setattr(
+            app_fastapi,
+            'get_swarm_trajectory_folders',
+            lambda: {'plots': str(plots_dir)},
+        )
+
+        response = test_client.get('/static/plots/drone_1.jpg')
+
+        assert response.status_code == 200
+        assert response.content == b'jpg'
+
+
+# ============================================================================
 # Git Status Tests
 # ============================================================================
 

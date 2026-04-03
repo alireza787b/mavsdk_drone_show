@@ -563,6 +563,23 @@ class GPSGlobalOriginResponse(BaseModel):
     has_origin: bool = Field(..., description="Origin has been set")
 
 
+class GCSConfigResponse(BaseModel):
+    """Response for GET /get-gcs-config."""
+    sim_mode: bool = Field(..., description="Whether the GCS is running in simulation mode")
+    gcs_port: int = Field(..., ge=1, description="Configured GCS API port")
+    git_auto_push: bool = Field(..., description="Whether git auto-push is enabled")
+    acceptable_deviation: float = Field(..., ge=0, description="Allowed launch-position deviation in meters")
+
+
+class GCSConfigSaveResponse(BaseModel):
+    """Response for POST /save-gcs-config."""
+    success: bool = Field(..., description="Whether the request was accepted")
+    status: str = Field(..., description="Compatibility status string")
+    message: str = Field(..., description="Operator-facing result summary")
+    persisted: bool = Field(..., description="Whether the config was actually written to disk/runtime state")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
+
+
 # ============================================================================
 # Network & System Schemas
 # ============================================================================
