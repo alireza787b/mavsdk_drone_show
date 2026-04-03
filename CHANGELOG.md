@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 SAR router normalization checkpoint note documenting the first Phase 5 API-modernization slice, the QuickScout router-factory cleanup, the removal of the old `sys.path` import hack, and the paired local/Hetzner validation results
 - a 2026-04-03 operational HTTP alias retirement checkpoint note documenting the sixteenth Phase 4 API-modernization slice, the removal of the last versionless heartbeat/network/git HTTP aliases, the runtime default-route cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 Swarm Trajectory v1-retirement checkpoint note documenting the fifteenth Phase 4 API-modernization slice, the retirement of the versionless Swarm Trajectory routes, the runtime-tool/frontend/doc cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 origin legacy-retirement checkpoint note documenting the fourteenth Phase 4 API-modernization slice, the removal of the old origin verb-style aliases, the route-resolver/request-log cleanup, and the paired local/Hetzner validation results
@@ -45,6 +46,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the first Phase 5 API-modernization slice now normalizes the QuickScout SAR backend onto the same dependency-injected router-factory pattern as the rest of the cleaned GCS API, replacing the old module-global router and `sys.path` mutation in `gcs-server/sar/routes.py` without changing the live `/api/sar/*` contract
+- QuickScout route handlers now read `load_config`, telemetry state, and command-dispatch dependencies from the live `app_fastapi` module object at request time, so tests and future auth/MCP wrapping no longer depend on import-time state capture inside the SAR route module
 - the sixteenth Phase 4 API-modernization slice now retires the remaining versionless operational HTTP aliases `POST /heartbeat`, `POST /drone-heartbeat`, `GET /get-heartbeats`, `GET /get-network-status`, `GET /git-status`, and `POST /sync-repos`, leaving the canonical `/api/v1/fleet/heartbeats`, `/api/v1/fleet/network-status`, `/api/v1/git/status`, and `/api/v1/git/sync-operations` routes as the only supported GCS HTTP contract for those operational reads and mutations
 - the default drone heartbeat sender path now comes from the shared canonical route constant `GCS_FLEET_HEARTBEATS_ROUTE` instead of the old `/drone-heartbeat` string, so runtime callbacks no longer keep a removed compatibility alias artificially alive
 - the shared frontend route resolver, request-log classification, route inventory, and active git/heartbeat docs now treat the operational v1 routes as the single current HTTP surface instead of quietly preserving retired alias knowledge

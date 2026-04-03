@@ -61,11 +61,8 @@ def client():
     """Create TestClient with mocked telemetry and config."""
     with patch('app_fastapi.load_config', return_value=MOCK_CONFIG):
         with patch('app_fastapi.telemetry_data_all_drones', MOCK_TELEMETRY):
-            # Also mock telemetry in sar.routes
-            with patch('sar.routes.telemetry_data_all_drones', MOCK_TELEMETRY):
-                with patch('sar.routes.load_config', return_value=MOCK_CONFIG):
-                    from app_fastapi import app
-                    yield TestClient(app)
+            from app_fastapi import app
+            yield TestClient(app)
 
 
 @pytest.fixture(autouse=True)

@@ -576,6 +576,15 @@ After this checkpoint, the remaining GCS API debt is no longer legacy business H
 - decide whether `/api/logs/*` and `/api/sar/*` stay stable as namespaced subsystem roots or move under `/api/v1/...`
 - align the stream/domain choices with future MCP exposure
 
+Phase 5 first checkpoint on 2026-04-03:
+
+- normalized the QuickScout SAR backend onto the same router-factory pattern as the rest of the cleaned GCS API by replacing the old module-global router with `create_sar_router(deps)`
+- removed the ad hoc `sys.path` mutation from `gcs-server/sar/routes.py`, switched the SAR package imports to package-relative imports, and made the route layer read shared runtime dependencies (`load_config`, `telemetry_data_all_drones`, `telemetry_lock`, `send_commands_to_selected`) from the live `app_fastapi` module object at request time
+- deliberately kept the public `/api/sar/*` contract stable in this slice instead of inventing `/api/v1/sar/*` churn while QuickScout itself remains a separately evolving mission subsystem
+- added focused router-level coverage in `tests/test_gcs_sar_routes.py` and revalidated the normalized SAR surface alongside the existing QuickScout API and route-inventory coverage
+
+After this checkpoint, the remaining Phase 5 decisions are contract-shape decisions, not structural cleanup debt inside SAR. The remaining open API-design boundary is the still-unversioned GCS stream surface plus the explicit decision on whether `/api/logs/*` and `/api/sar/*` remain stable subsystem roots or receive canonical `/api/v1/...` aliases later.
+
 ### Phase 6
 
 - remove the remaining deferred or high-risk non-canonical surfaces only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated

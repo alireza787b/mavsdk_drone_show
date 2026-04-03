@@ -87,7 +87,7 @@ from command_tracker import get_command_tracker, init_command_tracker
 from src import __version__ as MDS_VERSION
 
 # Import SAR router
-from sar.routes import router as sar_router
+from sar.routes import create_sar_router
 from api_routes.commands import create_command_router
 from api_routes.configuration import create_configuration_router
 from api_routes.core import create_core_router
@@ -511,7 +511,7 @@ app.add_middleware(
 )
 
 # Register SAR router
-app.include_router(sar_router)
+app.include_router(create_sar_router(sys.modules[__name__]))
 app.include_router(create_command_router(sys.modules[__name__]))
 app.include_router(create_core_router(sys.modules[__name__]))
 app.include_router(create_configuration_router(sys.modules[__name__]))
