@@ -540,10 +540,10 @@ class CommandResponse(BaseModel):
 # ============================================================================
 
 class OriginRequest(BaseModel):
-    """Request for POST /set-origin - Flask-compatible format"""
+    """Request for manual origin persistence."""
     lat: float = Field(..., ge=-90, le=90, description="Origin latitude")
     lon: float = Field(..., ge=-180, le=180, description="Origin longitude")
-    alt: float = Field(..., description="Origin altitude (m MSL)")
+    alt: float = Field(0.0, description="Origin altitude (m MSL)")
     alt_source: Optional[str] = Field('manual', description="Altitude source (manual/drone)")
 
 
@@ -553,6 +553,7 @@ class OriginResponse(BaseModel):
     lon: float = Field(..., description="Origin longitude")
     alt: float = Field(..., description="Origin altitude (m MSL)")
     timestamp: Optional[int] = Field(None, description="Last update timestamp (Unix ms)")
+    source: Optional[str] = Field(None, description="Origin source")
 
 
 class GPSGlobalOriginResponse(BaseModel):

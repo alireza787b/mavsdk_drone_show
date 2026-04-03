@@ -32,6 +32,16 @@ def _validate_origin(origin: dict[str, Any] | None, *, detail: str, status_code:
     return origin
 
 
+def _build_origin_response(origin: dict[str, Any]) -> OriginResponse:
+    return OriginResponse(
+        lat=float(origin.get("lat", 0)),
+        lon=float(origin.get("lon", 0)),
+        alt=float(origin.get("alt", 0)),
+        timestamp=_coerce_origin_timestamp_ms(origin),
+        source=str(origin.get("alt_source", "unknown")),
+    )
+
+
 def _render_launch_positions_csv(payload: dict[str, Any]) -> Response:
     buffer = io.StringIO()
     writer = csv.DictWriter(
@@ -115,6 +125,7 @@ def _render_launch_positions_kml(payload: dict[str, Any]) -> Response:
 def create_origin_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    @router.get("/api/v1/origin", response_model=OriginResponse, tags=["Origin"])
     @router.get("/get-origin", response_model=OriginResponse, tags=["Origin"])
     async def get_origin():
         """Get current origin coordinates."""
@@ -124,26 +135,23 @@ def create_origin_router(deps: Any) -> APIRouter:
                 detail="Origin not set",
                 status_code=404,
             )
-            return OriginResponse(
-                lat=float(origin.get("lat", 0)),
-                lon=float(origin.get("lon", 0)),
-                alt=float(origin.get("alt", 0)),
-                timestamp=_coerce_origin_timestamp_ms(origin),
-            )
+            return _build_origin_response(origin)
         except HTTPException:
             raise
         except Exception as exc:
             deps.log_system_error(f"Error in get-origin: {exc}", "origin")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.put("/api/v1/origin", response_model=OriginResponse, tags=["Origin"])
     @router.post("/set-origin", response_model=OriginResponse, tags=["Origin"])
     async def set_origin(origin_req: OriginRequest):
         """Set origin coordinates manually."""
         try:
+            altitude_msl = float(origin_req.alt if origin_req.alt is not None else 0.0)
             origin_data = {
                 "lat": origin_req.lat,
                 "lon": origin_req.lon,
-                "alt": origin_req.alt,
+                "alt": altitude_msl,
                 "alt_source": origin_req.alt_source,
                 "timestamp": datetime.now().isoformat(),
                 "version": 2,
@@ -153,13 +161,15 @@ def create_origin_router(deps: Any) -> APIRouter:
             return OriginResponse(
                 lat=origin_req.lat,
                 lon=origin_req.lon,
-                alt=origin_req.alt,
+                alt=altitude_msl,
                 timestamp=int(time.time() * 1000),
+                source=origin_req.alt_source,
             )
         except Exception as exc:
             deps.log_system_error(f"Error setting origin: {exc}", "origin")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.get("/api/v1/navigation/global-origin", response_model=GPSGlobalOriginResponse, tags=["Origin"])
     @router.get("/get-gps-global-origin", response_model=GPSGlobalOriginResponse, tags=["Origin"])
     async def get_gps_global_origin():
         """Get GPS global origin."""
@@ -176,6 +186,7 @@ def create_origin_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.get("/api/v1/origin/elevation", tags=["Origin"])
     @router.get("/elevation", tags=["Origin"])
     async def get_elevation_endpoint(
         lat: float = Query(..., description="Latitude"),
@@ -191,6 +202,21 @@ def create_origin_router(deps: Any) -> APIRouter:
             raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.get("/api/v1/origin/bootstrap", response_model=OriginResponse, tags=["Origin"])
+    async def get_origin_bootstrap():
+        """Canonical origin bootstrap payload for flight/runtime consumers."""
+        try:
+            origin = _validate_origin(
+                deps.load_origin(),
+                detail="Origin not set. Use dashboard to set origin.",
+                status_code=404,
+            )
+            return _build_origin_response(origin)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve origin: {exc}") from exc
 
     @router.get("/get-origin-for-drone", tags=["Origin"])
     async def get_origin_for_drone():
@@ -213,6 +239,7 @@ def create_origin_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Failed to retrieve origin: {exc}") from exc
 
+    @router.get("/api/v1/origin/deviations", tags=["Origin"])
     @router.get("/get-position-deviations", tags=["Origin"])
     async def get_position_deviations():
         """Compare expected launch geometry with current telemetry for all configured drones."""
@@ -247,6 +274,7 @@ def create_origin_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.post("/api/v1/origin/compute", tags=["Origin"])
     @router.post("/compute-origin", tags=["Origin"])
     async def compute_origin_endpoint(request: Request):
         """Compute origin coordinates from a drone's current position and assigned launch slot."""
@@ -290,6 +318,7 @@ def create_origin_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @router.get("/api/v1/origin/launch-positions", tags=["Origin"])
     @router.get("/get-desired-launch-positions", tags=["Origin"])
     async def get_desired_launch_positions(
         heading: float = Query(0, ge=0, lt=360, description="Formation heading (degrees)"),

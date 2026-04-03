@@ -350,33 +350,19 @@ Get network connectivity status for all drones.
 
 ### Origin Management
 
-#### `GET /get-origin`
+Canonical origin routes are exposed under `/api/v1/...`. Legacy compatibility routes remain mounted during the migration:
+
+- `GET /get-origin`
+- `POST /set-origin`
+- `GET /get-origin-for-drone`
+- `GET /get-gps-global-origin`
+- `GET /elevation`
+- `GET /get-position-deviations`
+- `POST /compute-origin`
+- `GET /get-desired-launch-positions`
+
+#### `GET /api/v1/origin`
 Get current origin coordinates.
-
-**Response:**
-```json
-{
-  "latitude": 35.123456,
-  "longitude": -120.654321,
-  "altitude": 488.0,
-  "timestamp": 1700000000000
-}
-```
-
-#### `POST /set-origin`
-Set origin coordinates manually.
-
-**Request:**
-```json
-{
-  "latitude": 35.123456,
-  "longitude": -120.654321,
-  "altitude": 488.0
-}
-```
-
-#### `GET /get-origin-for-drone`
-Lightweight endpoint for drones to fetch origin before flight.
 
 **Response:**
 ```json
@@ -384,12 +370,41 @@ Lightweight endpoint for drones to fetch origin before flight.
   "lat": 35.123456,
   "lon": -120.654321,
   "alt": 488.0,
-  "timestamp": "2025-11-22T12:00:00",
+  "timestamp": 1700000000000,
   "source": "manual"
 }
 ```
 
-#### `GET /get-gps-global-origin`
+#### `PUT /api/v1/origin`
+Set origin coordinates manually.
+
+**Request:**
+```json
+{
+  "lat": 35.123456,
+  "lon": -120.654321,
+  "alt": 488.0,
+  "alt_source": "manual"
+}
+```
+
+`alt` is optional on the canonical write path and defaults to `0.0` meters MSL when omitted.
+
+#### `GET /api/v1/origin/bootstrap`
+Canonical origin bootstrap payload for runtime consumers that need origin before flight.
+
+**Response:**
+```json
+{
+  "lat": 35.123456,
+  "lon": -120.654321,
+  "alt": 488.0,
+  "timestamp": 1700000000000,
+  "source": "manual"
+}
+```
+
+#### `GET /api/v1/navigation/global-origin`
 Get GPS global origin.
 
 **Response:**
@@ -402,7 +417,7 @@ Get GPS global origin.
 }
 ```
 
-#### `GET /elevation?lat={lat}&lon={lon}`
+#### `GET /api/v1/origin/elevation?lat={lat}&lon={lon}`
 Get elevation data for coordinates.
 
 **Parameters:**
@@ -417,10 +432,10 @@ Get elevation data for coordinates.
 }
 ```
 
-#### `POST /compute-origin`
+#### `POST /api/v1/origin/compute`
 Compute origin from drone's current position.
 
-This endpoint is compute-only. It returns the candidate origin and does not persist it. Use `POST /set-origin` to save the result explicitly.
+This endpoint is compute-only. It returns the candidate origin and does not persist it. Use `PUT /api/v1/origin` to save the result explicitly.
 
 **Request:**
 ```json
@@ -440,7 +455,7 @@ This endpoint is compute-only. It returns the candidate origin and does not pers
 }
 ```
 
-#### `GET /get-position-deviations`
+#### `GET /api/v1/origin/deviations`
 Calculate position deviations for all drones.
 
 **Response:**
@@ -470,7 +485,7 @@ Calculate position deviations for all drones.
 }
 ```
 
-#### `GET /get-desired-launch-positions?heading={degrees}&format={json|csv|kml}`
+#### `GET /api/v1/origin/launch-positions?heading={degrees}&format={json|csv|kml}`
 Calculate GPS coordinates for each drone's desired launch position.
 
 **Parameters:**

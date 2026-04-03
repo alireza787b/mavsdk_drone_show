@@ -461,6 +461,18 @@ class TestOriginEndpoints:
         assert data['lat'] == 35.123456
         assert data['lon'] == -120.654321
 
+    @patch('app_fastapi.load_origin')
+    def test_get_origin_v1(self, mock_load, test_client, mock_origin):
+        """Test GET /api/v1/origin"""
+        mock_load.return_value = mock_origin
+
+        response = test_client.get("/api/v1/origin")
+        assert response.status_code == 200
+        data = response.json()
+        assert data['lat'] == 35.123456
+        assert data['lon'] == -120.654321
+        assert data['source'] == 'manual'
+
     @patch('app_fastapi.save_origin')
     def test_set_origin(self, mock_save, test_client):
         """Test POST /set-origin"""
@@ -476,12 +488,53 @@ class TestOriginEndpoints:
         data = response.json()
         assert data['lat'] == origin_data['lat']
 
+    @patch('app_fastapi.save_origin')
+    def test_put_origin_v1(self, mock_save, test_client):
+        """Test PUT /api/v1/origin"""
+        origin_data = {
+            'lat': 35.123456,
+            'lon': -120.654321,
+            'alt': 488.0,
+        }
+
+        response = test_client.request("PUT", "/api/v1/origin", json=origin_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data['lat'] == origin_data['lat']
+        assert data['source'] == 'manual'
+
+    @patch('app_fastapi.save_origin')
+    def test_put_origin_v1_defaults_optional_altitude_to_zero(self, mock_save, test_client):
+        """Test PUT /api/v1/origin defaults missing altitude to zero."""
+        origin_data = {
+            'lat': 35.123456,
+            'lon': -120.654321,
+        }
+
+        response = test_client.request("PUT", "/api/v1/origin", json=origin_data)
+        assert response.status_code == 200
+        data = response.json()
+        assert data['alt'] == 0.0
+        mock_save.assert_called_once()
+        saved_origin = mock_save.call_args.args[0]
+        assert saved_origin['alt'] == 0.0
+
     @patch('app_fastapi.load_origin')
     def test_get_gps_global_origin(self, mock_load, test_client, mock_origin):
         """Test GET /get-gps-global-origin"""
         mock_load.return_value = mock_origin
 
         response = test_client.get("/get-gps-global-origin")
+        assert response.status_code == 200
+        data = response.json()
+        assert data['has_origin'] == True
+
+    @patch('app_fastapi.load_origin')
+    def test_get_gps_global_origin_v1(self, mock_load, test_client, mock_origin):
+        """Test GET /api/v1/navigation/global-origin"""
+        mock_load.return_value = mock_origin
+
+        response = test_client.get("/api/v1/navigation/global-origin")
         assert response.status_code == 200
         data = response.json()
         assert data['has_origin'] == True
@@ -496,6 +549,18 @@ class TestOriginEndpoints:
         data = response.json()
         assert data['lat'] == 35.123456
         assert data['source'] == 'manual'
+
+    @patch('app_fastapi.load_origin')
+    def test_get_origin_bootstrap_v1(self, mock_load, test_client, mock_origin):
+        """Test GET /api/v1/origin/bootstrap"""
+        mock_load.return_value = mock_origin
+
+        response = test_client.get("/api/v1/origin/bootstrap")
+        assert response.status_code == 200
+        data = response.json()
+        assert data['lat'] == 35.123456
+        assert data['source'] == 'manual'
+        assert isinstance(data['timestamp'], int)
 
     @patch('app_fastapi.save_origin')
     @patch('app_fastapi.compute_origin_from_drone')
@@ -512,6 +577,35 @@ class TestOriginEndpoints:
         mock_compute_origin.return_value = (35.555, -120.777)
 
         response = test_client.post('/compute-origin', json={
+            'current_lat': 35.123456,
+            'current_lon': -120.654321,
+            'pos_id': 1,
+        })
+
+        assert response.status_code == 200
+        assert response.json() == {
+            'status': 'success',
+            'lat': 35.555,
+            'lon': -120.777,
+        }
+        mock_compute_origin.assert_called_once_with(35.123456, -120.654321, 10.0, 5.0)
+        mock_save_origin.assert_not_called()
+
+    @patch('app_fastapi.save_origin')
+    @patch('app_fastapi.compute_origin_from_drone')
+    @patch('app_fastapi.get_expected_position_from_trajectory')
+    def test_compute_origin_v1(
+        self,
+        mock_get_expected_position,
+        mock_compute_origin,
+        mock_save_origin,
+        test_client,
+    ):
+        """Test POST /api/v1/origin/compute"""
+        mock_get_expected_position.return_value = (10.0, 5.0)
+        mock_compute_origin.return_value = (35.555, -120.777)
+
+        response = test_client.post('/api/v1/origin/compute', json={
             'current_lat': 35.123456,
             'current_lon': -120.654321,
             'pos_id': 1,
@@ -1552,6 +1646,13 @@ class TestAPIV1Aliases:
             "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
             "/api/v1/config/swarm",
             "/api/v1/config/swarm/assignments/{hw_id}",
+            "/api/v1/origin",
+            "/api/v1/navigation/global-origin",
+            "/api/v1/origin/elevation",
+            "/api/v1/origin/bootstrap",
+            "/api/v1/origin/deviations",
+            "/api/v1/origin/compute",
+            "/api/v1/origin/launch-positions",
             "/api/v1/commands",
             "/api/v1/commands/{command_id}",
             "/api/v1/commands/recent",

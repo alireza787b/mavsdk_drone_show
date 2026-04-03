@@ -72,14 +72,14 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.commandStatistics]: '/api/v1/commands/statistics',
   [GCS_ROUTE_KEYS.gitStatus]: '/git-status',
   [GCS_ROUTE_KEYS.syncRepos]: '/sync-repos',
-  [GCS_ROUTE_KEYS.origin]: '/get-origin',
-  [GCS_ROUTE_KEYS.setOrigin]: '/set-origin',
-  [GCS_ROUTE_KEYS.globalOrigin]: '/get-gps-global-origin',
-  [GCS_ROUTE_KEYS.elevation]: '/elevation',
-  [GCS_ROUTE_KEYS.originForDrone]: '/get-origin-for-drone',
-  [GCS_ROUTE_KEYS.positionDeviations]: '/get-position-deviations',
-  [GCS_ROUTE_KEYS.computeOrigin]: '/compute-origin',
-  [GCS_ROUTE_KEYS.desiredLaunchPositions]: '/get-desired-launch-positions',
+  [GCS_ROUTE_KEYS.origin]: '/api/v1/origin',
+  [GCS_ROUTE_KEYS.setOrigin]: '/api/v1/origin',
+  [GCS_ROUTE_KEYS.globalOrigin]: '/api/v1/navigation/global-origin',
+  [GCS_ROUTE_KEYS.elevation]: '/api/v1/origin/elevation',
+  [GCS_ROUTE_KEYS.originForDrone]: '/api/v1/origin/bootstrap',
+  [GCS_ROUTE_KEYS.positionDeviations]: '/api/v1/origin/deviations',
+  [GCS_ROUTE_KEYS.computeOrigin]: '/api/v1/origin/compute',
+  [GCS_ROUTE_KEYS.desiredLaunchPositions]: '/api/v1/origin/launch-positions',
   [GCS_ROUTE_KEYS.gcsConfig]: '/get-gcs-config',
   [GCS_ROUTE_KEYS.saveGcsConfig]: '/save-gcs-config',
   [GCS_ROUTE_KEYS.networkInfo]: '/get-network-info',
@@ -138,13 +138,20 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/commands/statistics': GCS_ROUTE_KEYS.commandStatistics,
   '/git-status': GCS_ROUTE_KEYS.gitStatus,
   '/sync-repos': GCS_ROUTE_KEYS.syncRepos,
+  '/api/v1/origin': GCS_ROUTE_KEYS.origin,
   '/get-origin': GCS_ROUTE_KEYS.origin,
   '/set-origin': GCS_ROUTE_KEYS.setOrigin,
+  '/api/v1/navigation/global-origin': GCS_ROUTE_KEYS.globalOrigin,
   '/get-gps-global-origin': GCS_ROUTE_KEYS.globalOrigin,
+  '/api/v1/origin/elevation': GCS_ROUTE_KEYS.elevation,
+  '/api/v1/origin/bootstrap': GCS_ROUTE_KEYS.originForDrone,
   '/elevation': GCS_ROUTE_KEYS.elevation,
+  '/api/v1/origin/deviations': GCS_ROUTE_KEYS.positionDeviations,
   '/get-origin-for-drone': GCS_ROUTE_KEYS.originForDrone,
   '/get-position-deviations': GCS_ROUTE_KEYS.positionDeviations,
+  '/api/v1/origin/compute': GCS_ROUTE_KEYS.computeOrigin,
   '/compute-origin': GCS_ROUTE_KEYS.computeOrigin,
+  '/api/v1/origin/launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
   '/get-desired-launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
   '/get-gcs-config': GCS_ROUTE_KEYS.gcsConfig,
   '/save-gcs-config': GCS_ROUTE_KEYS.saveGcsConfig,
@@ -363,7 +370,7 @@ export async function getOriginResponse(config = {}) {
 }
 
 export async function setOriginResponse(payload, config = {}) {
-  return postGcsResource(GCS_ROUTE_KEYS.setOrigin, payload, config);
+  return putGcsResource(GCS_ROUTE_KEYS.setOrigin, payload, config);
 }
 
 export async function getPositionDeviationsResponse(config = {}) {

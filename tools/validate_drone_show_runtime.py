@@ -6,7 +6,7 @@ This validator exercises the operator-facing Drone Show workflow:
 
 1. Optional fresh import of the stock SkyBrush show package
 2. Readiness checks for show metadata, custom CSV metadata, and selected-fleet
-   launch geometry from `/get-position-deviations`
+   launch geometry from `/api/v1/origin/deviations`
 3. Standard Drone Show in:
    - GLOBAL auto-origin mode
    - GLOBAL manual mode
@@ -333,7 +333,7 @@ def wait_for_relative_altitude(client: ApiClient, target_id: int, baseline_alt: 
 
 
 def check_deviation_signal(client: ApiClient, ids: list[int]) -> None:
-    payload = client.get_json("/get-position-deviations")
+    payload = client.get_json("/api/v1/origin/deviations")
     deviations = payload.get("deviations", {})
     missing = []
     blocked = []

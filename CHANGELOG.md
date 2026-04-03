@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical origin v1 checkpoint note documenting the fourth Phase 4 GCS route-migration slice, the new `/api/v1/origin*` routes, the bootstrap-resource naming cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical swarm-config v1 checkpoint note documenting the third Phase 4 GCS route-migration slice, the new `/api/v1/config/swarm` and `/api/v1/config/swarm/assignments/{hw_id}` routes, the internal caller migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical fleet-config v1 checkpoint note documenting the second Phase 4 GCS route-migration slice, the new `/api/v1/config/fleet*` aliases, the trajectory-start position contract cleanup, the frontend service migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical command v1 checkpoint note documenting the first Phase 4 GCS route-migration slice, the new `/api/v1/commands` and `/api/v1/command-reports/*` aliases, the frontend service migration, and the paired local/Hetzner validation results
@@ -31,6 +32,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the fourth Phase 4 GCS route-migration slice now introduces canonical origin routes: `GET /api/v1/origin`, `PUT /api/v1/origin`, `GET /api/v1/origin/bootstrap`, `GET /api/v1/navigation/global-origin`, `GET /api/v1/origin/elevation`, `GET /api/v1/origin/deviations`, `POST /api/v1/origin/compute`, and `GET /api/v1/origin/launch-positions`
+- the shared frontend GCS service layer and the Drone Show runtime/validation tooling touched in this slice now use the canonical origin paths instead of reinforcing the older compatibility URLs
+- the canonical origin write contract no longer falsely requires altitude when the dashboard treats it as optional; `PUT /api/v1/origin` now defaults omitted altitude to `0.0` MSL and preserves the explicit `source` field in the typed origin response
+- origin bootstrap consumers now have a distinct canonical route at `GET /api/v1/origin/bootstrap` instead of relying on an implicit mis-mapping to the generic origin-read resource, which keeps the v1 surface semantically explicit for future MCP/automation use
+- origin route inventory, HTTP regressions, router coverage, dashboard-service tests, and the Drone Show validation helper all now cover the canonical origin surface, preventing silent drift between the migration blueprint and live callers
 - the third Phase 4 GCS route-migration slice now introduces canonical swarm-config routes: `GET /api/v1/config/swarm`, `PUT /api/v1/config/swarm`, and `PATCH /api/v1/config/swarm/assignments/{hw_id}`
 - the canonical swarm-config `GET` route now returns the persisted typed resource shape `{version, assignments}` instead of the older raw-list compatibility payload, while the legacy `/get-swarm-data` route remains available during rollout
 - the shared frontend GCS service layer now uses the canonical swarm-config resource path, saves swarm assignments through `PUT /api/v1/config/swarm`, and unwraps canonical swarm envelopes centrally so `Overview`, `Mission Config`, and `Swarm Design` stay aligned on one config contract

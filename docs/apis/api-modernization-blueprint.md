@@ -290,6 +290,24 @@ Phase 4 third checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is origin canonicalization, followed by the remaining git/show-management cleanup and later legacy-route removal once all active callers have been migrated.
 
+Phase 4 fourth checkpoint on 2026-04-03:
+
+- introduced canonical v1 routes for the Origin surface:
+  - `GET /api/v1/origin`
+  - `PUT /api/v1/origin`
+  - `GET /api/v1/origin/bootstrap`
+  - `GET /api/v1/navigation/global-origin`
+  - `GET /api/v1/origin/elevation`
+  - `GET /api/v1/origin/deviations`
+  - `POST /api/v1/origin/compute`
+  - `GET /api/v1/origin/launch-positions`
+- migrated the shared frontend GCS service layer and the active Drone Show runtime/validation callers touched in this slice onto the canonical origin paths, so current operator tooling no longer reinforces the legacy origin URLs
+- deliberately made the manual-origin write contract truthful instead of brittle: `PUT /api/v1/origin` now accepts omitted altitude and defaults it to `0.0` MSL, matching the dashboard workflow and keeping the canonical persistence path resilient for future MCP/automation callers
+- added a distinct canonical bootstrap resource at `GET /api/v1/origin/bootstrap` instead of implicitly pointing bootstrap consumers at the generic origin-read path, so the origin surface now names that runtime-specific read intent explicitly while the legacy `/get-origin-for-drone` compatibility route remains available
+- extended route-inventory, HTTP, router, dashboard-service, and Drone Show validation coverage to the canonical origin surface and revalidated the slice locally plus on Hetzner with the focused backend batch, shared frontend GCS service Jest slice, and production build
+
+After this checkpoint, the next clean Phase 4 boundary is the remaining git/show-management canonicalization, followed by deliberate legacy-route retirement once active callers, docs, and SITL validation all move onto the canonical surface.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

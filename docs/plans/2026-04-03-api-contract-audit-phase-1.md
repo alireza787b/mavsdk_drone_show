@@ -224,6 +224,9 @@ Examples of the intended migration direction:
 - `/git-status` -> `GET /api/v1/git/status`
 - `/sync-repos` -> `POST /api/v1/git/sync-jobs`
 - `/get-origin` and `/set-origin` -> `GET/PUT /api/v1/origin`
+- `/get-origin-for-drone` -> `GET /api/v1/origin/bootstrap`
+- `/elevation` -> `GET /api/v1/origin/elevation`
+- `/get-position-deviations` -> `GET /api/v1/origin/deviations`
 - `/compute-origin` -> `POST /api/v1/origin/compute`
 - `/get-desired-launch-positions` -> `GET /api/v1/origin/launch-positions`
 - `/get_drone_state` -> `GET /api/v1/drone/state`

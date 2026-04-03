@@ -11,6 +11,7 @@ import {
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
   saveFleetConfigResponse,
+  setOriginResponse,
   resolveGcsRoute,
   resolveGcsRouteKey,
   saveSwarmConfigResponse,
@@ -52,6 +53,9 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
     expect(resolveGcsRouteKey('/api/v1/config/fleet')).toBe(GCS_ROUTE_KEYS.fleetConfig);
     expect(resolveGcsRouteKey('/api/v1/config/swarm')).toBe(GCS_ROUTE_KEYS.swarmConfig);
+    expect(resolveGcsRouteKey('/api/v1/origin')).toBe(GCS_ROUTE_KEYS.origin);
+    expect(resolveGcsRouteKey('/api/v1/origin/bootstrap')).toBe(GCS_ROUTE_KEYS.originForDrone);
+    expect(resolveGcsRouteKey('/api/v1/origin/deviations')).toBe(GCS_ROUTE_KEYS.positionDeviations);
     expect(resolveGcsRouteKey('/submit_command')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
@@ -141,6 +145,18 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/config/fleet/trajectory-start-positions/7',
       {}
+    );
+  });
+
+  it('saves origin through the canonical origin resource with PUT', async () => {
+    axios.put.mockResolvedValue({ data: { success: true } });
+
+    await setOriginResponse({ lat: 35, lon: -120, alt: 12, alt_source: 'manual' }, { timeout: 2500 });
+
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/origin',
+      { lat: 35, lon: -120, alt: 12, alt_source: 'manual' },
+      { timeout: 2500 }
     );
   });
 

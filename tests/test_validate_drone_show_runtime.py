@@ -20,7 +20,7 @@ def test_check_deviation_signal_allows_subset_when_unselected_drones_have_no_tel
 
     class _Client:
         def get_json(self, path):
-            assert path == "/get-position-deviations"
+            assert path == "/api/v1/origin/deviations"
             return {
                 "deviations": {
                     "1": {"status": "ok", "current": {"lat": 1}},
@@ -40,7 +40,7 @@ def test_check_deviation_signal_rejects_selected_drone_without_live_telemetry():
 
     class _Client:
         def get_json(self, path):
-            assert path == "/get-position-deviations"
+            assert path == "/api/v1/origin/deviations"
             return {
                 "deviations": {
                     "1": {"status": "ok", "current": {"lat": 1}},
@@ -59,7 +59,7 @@ def test_check_deviation_signal_rejects_selected_launch_blockers():
 
     class _Client:
         def get_json(self, path):
-            assert path == "/get-position-deviations"
+            assert path == "/api/v1/origin/deviations"
             return {
                 "deviations": {
                     "1": {"status": "ok", "current": {"lat": 1}},

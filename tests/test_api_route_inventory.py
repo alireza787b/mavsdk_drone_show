@@ -53,6 +53,12 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/config/fleet/trajectory-start-positions",
         "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
         "/api/v1/config/swarm",
+        "/api/v1/origin",
+        "/api/v1/navigation/global-origin",
+        "/api/v1/origin/elevation",
+        "/api/v1/origin/bootstrap",
+        "/api/v1/origin/deviations",
+        "/api/v1/origin/launch-positions",
         "/api/v1/commands/recent",
         "/api/v1/commands/active",
         "/api/v1/commands/statistics",
@@ -114,6 +120,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/{command_id}/cancel",
         "/api/v1/command-reports/execution-result",
         "/api/v1/command-reports/execution-start",
+        "/api/v1/origin/compute",
         "/save-config-data",
         "/validate-config",
         "/save-swarm-data",
@@ -161,6 +168,7 @@ GCS_EXPECTED_HTTP = {
     "PUT": {
         "/api/v1/config/fleet",
         "/api/v1/config/swarm",
+        "/api/v1/origin",
     },
 }
 
@@ -316,6 +324,13 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/config/swarm")].endpoint is not route_index[("GET", "/get-swarm-data")].endpoint
     assert route_index[("PUT", "/api/v1/config/swarm")].endpoint is not route_index[("POST", "/save-swarm-data")].endpoint
     assert route_index[("PATCH", "/api/v1/config/swarm/assignments/{hw_id}")].endpoint is not route_index[("POST", "/request-new-leader")].endpoint
+    assert route_index[("GET", "/api/v1/origin")].endpoint is route_index[("GET", "/get-origin")].endpoint
+    assert route_index[("PUT", "/api/v1/origin")].endpoint is route_index[("POST", "/set-origin")].endpoint
+    assert route_index[("GET", "/api/v1/navigation/global-origin")].endpoint is route_index[("GET", "/get-gps-global-origin")].endpoint
+    assert route_index[("GET", "/api/v1/origin/elevation")].endpoint is route_index[("GET", "/elevation")].endpoint
+    assert route_index[("GET", "/api/v1/origin/deviations")].endpoint is route_index[("GET", "/get-position-deviations")].endpoint
+    assert route_index[("POST", "/api/v1/origin/compute")].endpoint is route_index[("POST", "/compute-origin")].endpoint
+    assert route_index[("GET", "/api/v1/origin/launch-positions")].endpoint is route_index[("GET", "/get-desired-launch-positions")].endpoint
 
     assert route_index[("GET", "/get-gcs-git-status")].deprecated is True
     assert route_index[("GET", "/get-drone-git-status/{drone_id}")].deprecated is True

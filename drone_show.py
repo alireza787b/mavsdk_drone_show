@@ -1193,7 +1193,7 @@ async def fetch_origin_with_fallback(drone: System):
     # Attempt 2: Fetch from GCS server
     try:
         logger.info("🌍 Fetching drone show origin from GCS...")
-        gcs_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/get-origin-for-drone"
+        gcs_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/api/v1/origin"
         response = await asyncio.to_thread(
             requests.get,
             gcs_url,

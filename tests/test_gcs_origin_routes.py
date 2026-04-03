@@ -77,13 +77,20 @@ def test_origin_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/get-origin" in routes
+    assert "/api/v1/origin" in routes
     assert "/set-origin" in routes
+    assert "/api/v1/navigation/global-origin" in routes
     assert "/get-gps-global-origin" in routes
     assert "/elevation" in routes
+    assert "/api/v1/origin/elevation" in routes
+    assert "/api/v1/origin/bootstrap" in routes
     assert "/get-origin-for-drone" in routes
     assert "/get-position-deviations" in routes
+    assert "/api/v1/origin/deviations" in routes
     assert "/compute-origin" in routes
+    assert "/api/v1/origin/compute" in routes
     assert "/get-desired-launch-positions" in routes
+    assert "/api/v1/origin/launch-positions" in routes
 
 
 def test_origin_router_uses_live_load_origin_dependency_after_router_creation():
@@ -103,7 +110,7 @@ def test_origin_router_uses_live_load_origin_dependency_after_router_creation():
     deps.load_origin = replacement_load_origin
 
     with TestClient(app) as client:
-        response = client.get("/get-origin")
+        response = client.get("/api/v1/origin")
 
     assert response.status_code == 200
     initial_load_origin.assert_not_called()
@@ -122,7 +129,7 @@ def test_origin_router_compute_origin_uses_live_dependency_after_router_creation
     deps.compute_origin_from_drone = replacement_compute
 
     with TestClient(app) as client:
-        response = client.post("/compute-origin", json={
+        response = client.post("/api/v1/origin/compute", json={
             "current_lat": 35.1,
             "current_lon": -120.1,
             "pos_id": 1,
@@ -135,6 +142,23 @@ def test_origin_router_compute_origin_uses_live_dependency_after_router_creation
     deps.save_origin.assert_not_called()
 
 
+def test_origin_router_bootstrap_origin_returns_canonical_payload():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_origin_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/origin/bootstrap")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["lat"] == 35.0
+    assert data["lon"] == -120.0
+    assert data["alt"] == 12.0
+    assert data["source"] == "manual"
+    assert isinstance(data["timestamp"], int)
+
+
 def test_origin_router_desired_launch_positions_applies_heading_rotation():
     deps = _make_deps()
     deps.build_desired_launch_positions_report = build_desired_launch_positions_report
@@ -143,7 +167,7 @@ def test_origin_router_desired_launch_positions_applies_heading_rotation():
     app.include_router(create_origin_router(deps))
 
     with TestClient(app) as client:
-        response = client.get("/get-desired-launch-positions?heading=90")
+        response = client.get("/api/v1/origin/launch-positions?heading=90")
 
     assert response.status_code == 200
     data = response.json()
@@ -164,8 +188,8 @@ def test_origin_router_desired_launch_positions_supports_csv_and_kml_formats():
     app.include_router(create_origin_router(deps))
 
     with TestClient(app) as client:
-        csv_response = client.get("/get-desired-launch-positions?format=csv")
-        kml_response = client.get("/get-desired-launch-positions?format=kml")
+        csv_response = client.get("/api/v1/origin/launch-positions?format=csv")
+        kml_response = client.get("/api/v1/origin/launch-positions?format=kml")
 
     assert csv_response.status_code == 200
     assert "text/csv" in csv_response.headers["content-type"]
