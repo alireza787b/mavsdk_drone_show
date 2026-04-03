@@ -225,6 +225,52 @@ class TestCommands:
         # sample_command is cmd_takeoff() which uses missionType='10' (TAKE_OFF)
         assert call_args['missionType'] == '10'
 
+    @pytest.mark.asyncio
+    async def test_report_pending_command_superseded_uses_canonical_execution_result_route(self, api_server, monkeypatch):
+        captured = {}
+
+        class DummyResponse:
+            status_code = 200
+
+        def fake_post(url, json, timeout):
+            captured['url'] = url
+            captured['json'] = json
+            captured['timeout'] = timeout
+            return DummyResponse()
+
+        monkeypatch.setattr("src.drone_api_server.requests.post", fake_post)
+        api_server.drone_config.drone_setup = None
+
+        await api_server._report_pending_command_superseded("cmd-123", 10)
+
+        assert captured['url'] == "http://172.18.0.1:5000/api/v1/command-reports/execution-result"
+        assert captured['json']['command_id'] == "cmd-123"
+        assert captured['json']['success'] is False
+        assert captured['timeout'] == 5
+
+    def test_get_origin_from_gcs_uses_canonical_bootstrap_route(self, api_server, monkeypatch):
+        captured = {}
+
+        class DummyResponse:
+            status_code = 200
+
+            @staticmethod
+            def json():
+                return {"lat": 35.0, "lon": 51.0, "alt": 1200.0}
+
+        def fake_get(url, timeout):
+            captured['url'] = url
+            captured['timeout'] = timeout
+            return DummyResponse()
+
+        monkeypatch.setattr("src.drone_api_server.requests.get", fake_get)
+
+        origin = api_server._get_origin_from_gcs()
+
+        assert captured['url'] == "http://172.18.0.1:5000/api/v1/origin/bootstrap"
+        assert captured['timeout'] == 5
+        assert origin == {'lat': 35.0, 'lon': 51.0}
+
     def test_send_command_different_mission_types(self, test_client, mock_drone_communicator):
         """Test different mission types with new response format"""
         # Use valid mission type codes that exist in the Mission enum

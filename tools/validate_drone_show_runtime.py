@@ -36,6 +36,12 @@ from typing import Any, Dict, Iterable, List
 
 import requests
 
+from src.gcs_api_routes import (
+    GCS_CUSTOM_SHOW_INFO_ROUTE,
+    GCS_SHOW_IMPORT_ROUTE,
+    GCS_SHOW_INFO_ROUTE,
+)
+
 
 SHOW_MISSION = 1
 CUSTOM_SHOW_MISSION = 3
@@ -236,18 +242,18 @@ def ensure_imported_show(client: ApiClient, source_dir: Path | None, expected_co
     if source_dir is not None:
         archive = build_show_zip(source_dir)
         try:
-            response = client.post_file("/import-show", archive)
+            response = client.post_file(GCS_SHOW_IMPORT_ROUTE, archive)
             log(f"IMPORT SHOW: {response.get('message', 'ok')}")
         finally:
             archive.unlink(missing_ok=True)
 
-    show_info = client.get_json("/get-show-info")
+    show_info = client.get_json(GCS_SHOW_INFO_ROUTE)
     require(show_info.get("drone_count") == expected_count, f"Expected {expected_count} show drones, got {show_info}")
     return show_info
 
 
 def ensure_custom_show_ready(client: ApiClient) -> dict:
-    payload = client.get_json("/get-custom-show-info")
+    payload = client.get_json(GCS_CUSTOM_SHOW_INFO_ROUTE)
     require(payload.get("exists") is True, f"Custom CSV missing: {payload}")
     return payload
 

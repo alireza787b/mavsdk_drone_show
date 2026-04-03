@@ -23,7 +23,7 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            fetch('http://localhost:5000/import-show', {
+            fetch('http://localhost:5000/api/v1/shows/skybrush/import', {
                 method: 'POST',
                 body: formData,
             })

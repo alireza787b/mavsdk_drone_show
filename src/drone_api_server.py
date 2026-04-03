@@ -51,6 +51,10 @@ logger = get_logger("drone_api")
 from src.drone_config import DroneConfig
 from src.constants import NetworkDefaults
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
+from src.gcs_api_routes import (
+    GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
+    GCS_ORIGIN_BOOTSTRAP_ROUTE,
+)
 from src.mission_startup import probe_offboard_armability
 from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, get_trajectory_first_position
@@ -1309,7 +1313,7 @@ class DroneAPIServer:
                 'error_message': f"Superseded by a newer command ({mission_name}) before execution started",
                 'duration_ms': 0,
             }
-            url = f"http://{gcs_ip}:{self.params.gcs_api_port}/command/execution-result"
+            url = f"http://{gcs_ip}:{self.params.gcs_api_port}{GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE}"
             response = await asyncio.to_thread(requests.post, url, json=payload, timeout=5)
             if response.status_code == 200:
                 logger.info(f"Reported superseded pending command {command_id[:8]}...")
@@ -1337,7 +1341,7 @@ class DroneAPIServer:
             gcs_port = self.params.gcs_api_port
             gcs_url = f"http://{gcs_ip}:{gcs_port}"
 
-            response = requests.get(f"{gcs_url}/get-origin", timeout=5)
+            response = requests.get(f"{gcs_url}{GCS_ORIGIN_BOOTSTRAP_ROUTE}", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 if 'lat' in data and 'lon' in data:

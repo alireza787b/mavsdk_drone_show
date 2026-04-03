@@ -14,6 +14,10 @@ import aiohttp
 
 from mds_logging import get_logger
 from src.enums import Mission, State  # Ensure this import contains the necessary Mission and State enums
+from src.gcs_api_routes import (
+    GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
+    GCS_COMMAND_REPORT_EXECUTION_START_ROUTE,
+)
 
 logger = get_logger("drone_setup")
 
@@ -645,7 +649,7 @@ class DroneSetup:
         if not command_id:
             logger.debug("No command_id available for execution-start report")
             return
-        if not self._build_command_report_url("/command/execution-start"):
+        if not self._build_command_report_url(GCS_COMMAND_REPORT_EXECUTION_START_ROUTE):
             logger.warning("GCS_IP not configured, cannot report execution start")
             return
 
@@ -657,14 +661,14 @@ class DroneSetup:
         description = f"execution-start for command {command_id[:8]}"
 
         try:
-            delivered = await self._post_command_report("/command/execution-start", report_data)
+            delivered = await self._post_command_report(GCS_COMMAND_REPORT_EXECUTION_START_ROUTE, report_data)
             if delivered:
                 logger.info("Execution start reported to GCS for command %s...", command_id[:8])
                 return
-            await self._queue_command_report_retry("/command/execution-start", report_data, description)
+            await self._queue_command_report_retry(GCS_COMMAND_REPORT_EXECUTION_START_ROUTE, report_data, description)
         except Exception as e:
             logger.error(f"Unexpected error reporting execution start to GCS: {e}", exc_info=True)
-            await self._queue_command_report_retry("/command/execution-start", report_data, description)
+            await self._queue_command_report_retry(GCS_COMMAND_REPORT_EXECUTION_START_ROUTE, report_data, description)
 
     async def _report_execution_to_gcs(
         self,
@@ -684,7 +688,7 @@ class DroneSetup:
         if not command_id:
             logger.debug("No command_id available for execution report")
             return
-        if not self._build_command_report_url("/command/execution-result"):
+        if not self._build_command_report_url(GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE):
             logger.warning("GCS_IP not configured, cannot report execution result")
             return
 
@@ -700,14 +704,14 @@ class DroneSetup:
         description = f"execution-result for command {command_id[:8]}"
 
         try:
-            delivered = await self._post_command_report("/command/execution-result", report_data)
+            delivered = await self._post_command_report(GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE, report_data)
             if delivered:
                 logger.info("Execution result reported to GCS for command %s...", command_id[:8])
                 return
-            await self._queue_command_report_retry("/command/execution-result", report_data, description)
+            await self._queue_command_report_retry(GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE, report_data, description)
         except Exception as e:
             logger.error(f"Unexpected error reporting execution to GCS: {e}", exc_info=True)
-            await self._queue_command_report_retry("/command/execution-result", report_data, description)
+            await self._queue_command_report_retry(GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE, report_data, description)
 
     async def _fail_pending_command(self, error_message: str) -> tuple:
         """Reset local mission state and report a terminal failure for the pending command."""

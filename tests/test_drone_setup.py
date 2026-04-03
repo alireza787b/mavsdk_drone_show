@@ -1105,7 +1105,7 @@ class TestCommandReportRetry:
 
         assert len(setup.pending_command_reports) == 1
         report = setup.pending_command_reports[0]
-        assert report.endpoint == "/command/execution-result"
+        assert report.endpoint == "/api/v1/command-reports/execution-result"
         assert report.payload["command_id"] == "cmd-123"
         assert report.payload["success"] is True
         assert report.next_attempt_monotonic >= report.first_queued_monotonic + 2.0
@@ -1118,7 +1118,7 @@ class TestCommandReportRetry:
         setup = DroneSetup(self._build_params(), create_mock_drone_config())
         setup.pending_command_reports = [
             PendingCommandReport(
-                endpoint="/command/execution-result",
+                endpoint="/api/v1/command-reports/execution-result",
                 payload={"command_id": "cmd-123"},
                 description="execution-result for command cmd-123",
                 first_queued_monotonic=10.0,
@@ -1139,7 +1139,7 @@ class TestCommandReportRetry:
         setup = DroneSetup(self._build_params(), create_mock_drone_config())
         setup.pending_command_reports = [
             PendingCommandReport(
-                endpoint="/command/execution-start",
+                endpoint="/api/v1/command-reports/execution-start",
                 payload={"command_id": "cmd-456"},
                 description="execution-start for command cmd-456",
                 first_queued_monotonic=100.0,
@@ -1164,14 +1164,14 @@ class TestCommandReportRetry:
         setup._ensure_command_report_retry_worker = AsyncMock()
 
         await setup._queue_command_report_retry(
-            "/command/execution-result",
+            "/api/v1/command-reports/execution-result",
             {"command_id": "cmd-789", "hw_id": "1", "success": False},
             "execution-result for command cmd-789",
         )
         first_report = setup.pending_command_reports[0]
 
         await setup._queue_command_report_retry(
-            "/command/execution-result",
+            "/api/v1/command-reports/execution-result",
             {"command_id": "cmd-789", "hw_id": "1", "success": True},
             "execution-result for command cmd-789",
         )

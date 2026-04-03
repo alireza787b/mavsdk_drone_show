@@ -343,6 +343,19 @@ Phase 4 sixth checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is deliberate compatibility-route retirement planning for the GCS surface, followed by broader SITL regression coverage on the canonical routes and the later drone-side extraction track.
 
+Phase 4 seventh checkpoint on 2026-04-03:
+
+- introduced `src/gcs_api_routes.py` as a shared canonical route constant module for drone-side runtime and validation tooling consumers
+- migrated the remaining real internal callers that still hit legacy GCS compatibility paths onto canonical routes instead of leaving them behind as hidden migration debt:
+  - drone execution callbacks now use `POST /api/v1/command-reports/execution-start` and `POST /api/v1/command-reports/execution-result`
+  - the direct superseded-pending-command fallback path in `src/drone_api_server.py` now also uses the canonical execution-result route
+  - drone bootstrap-origin fetches now use `GET /api/v1/origin/bootstrap`
+  - `tools/validate_drone_show_runtime.py` now uses the canonical SkyBrush/custom show routes
+  - `tools/test_import_show.html` now posts to the canonical SkyBrush import route
+- added focused drone-side regression coverage for the canonical superseded-command callback path and canonical bootstrap-origin fetch, and revalidated the slice locally plus on Hetzner with the shared drone-side `test_drone_setup.py` + `test_drone_api_http.py` batch
+
+After this checkpoint, the next clean Phase 4 boundary is explicit classification of the still-mounted GCS compatibility routes into retire-now, keep-temporarily, or canonicalize-next buckets. The highest-value remaining public legacy cluster is the GCS management/static surface plus a few dead frontend compatibility helpers, not the drone runtime/tooling callers.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

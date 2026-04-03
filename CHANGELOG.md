@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical internal-caller cleanup checkpoint note documenting the seventh Phase 4 API-modernization slice, the shared drone/tool GCS route constants, the drone-side callback/bootstrap migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical show-management v1 checkpoint note documenting the sixth Phase 4 GCS route-migration slice, the new `/api/v1/shows/skybrush/*` and `/api/v1/shows/custom/*` routes, the shared frontend caller migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical git v1 checkpoint note documenting the fifth Phase 4 GCS route-migration slice, the new `/api/v1/git/status` and `/api/v1/git/sync-operations` routes, the request-log classification cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical origin v1 checkpoint note documenting the fourth Phase 4 GCS route-migration slice, the new `/api/v1/origin*` routes, the bootstrap-resource naming cleanup, and the paired local/Hetzner validation results
@@ -39,6 +40,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - canonical show-management naming now reflects the two real operator workflows explicitly: standard SkyBrush processing lives under `/api/v1/shows/skybrush/*`, the specialist shared-CSV flow lives under `/api/v1/shows/custom/*`, and the read-only validation snapshot is modeled as `GET /api/v1/shows/skybrush/validation` even though the legacy compatibility route remains `POST /validate-trajectory`
 - show route inventory, router coverage, HTTP regressions, and shared dashboard GCS service tests now cover the canonical show-management surface so later cleanup cannot silently drift from the mounted routes or active callers
 - the public GCS API docs and Drone Show feature guide now present the canonical show-management surface first while keeping the legacy compatibility routes explicit during rollout
+- the seventh Phase 4 API-modernization slice now moves the remaining real internal GCS callers in drone runtime/tooling onto canonical routes instead of the compatibility aliases
+- drone-side execution callbacks now post to `POST /api/v1/command-reports/execution-start` and `POST /api/v1/command-reports/execution-result`, including the direct fallback path used when a queued command is superseded before runtime launch
+- drone-side bootstrap-origin fetches now use `GET /api/v1/origin/bootstrap`, and the Drone Show validation tooling plus the standalone import test page now use the canonical SkyBrush/custom show routes
+- `src/gcs_api_routes.py` now provides one shared route constant surface for the drone runtime and validation tooling, preventing the same canonical GCS paths from drifting into new hardcoded copies
+- drone-side regression coverage now explicitly checks the canonical superseded-command callback path and canonical bootstrap-origin fetch, and the updated drone-side batch passes locally and on Hetzner with `105` tests
 - the fifth Phase 4 GCS route-migration slice now introduces canonical git routes: `GET /api/v1/git/status` and `POST /api/v1/git/sync-operations`
 - the shared frontend GCS service layer and the remaining active hardcoded dashboard git-status poll now use the canonical git routes instead of reinforcing `/git-status` directly
 - canonical git-sync naming now reflects the real contract: the API performs dispatch plus convergence verification synchronously, so the canonical path is `sync-operations` instead of the earlier provisional `sync-jobs` wording
