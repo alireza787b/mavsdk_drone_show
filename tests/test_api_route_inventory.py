@@ -78,10 +78,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/system/gcs-config",
         "/get-heartbeats",
         "/get-network-status",
-        "/command/{command_id}",
-        "/commands/recent",
-        "/commands/active",
-        "/commands/statistics",
         "/git-status",
         "/get-origin",
         "/get-gps-global-origin",
@@ -121,10 +117,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/shows/skybrush/import",
         "/api/v1/shows/custom/import",
         "/api/v1/shows/skybrush/deployments",
-        "/submit_command",
-        "/command/{command_id}/cancel",
-        "/command/execution-result",
-        "/command/execution-start",
         "/sync-repos",
         "/set-origin",
         "/api/swarm/trajectory/upload/{leader_id}",
@@ -300,14 +292,6 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/fleet/network-status")].endpoint is route_index[("GET", "/get-network-status")].endpoint
     assert route_index[("POST", "/api/v1/fleet/heartbeats")].endpoint is route_index[("POST", "/heartbeat")].endpoint
     assert route_index[("POST", "/heartbeat")].endpoint is route_index[("POST", "/drone-heartbeat")].endpoint
-    assert route_index[("POST", "/api/v1/commands")].endpoint is route_index[("POST", "/submit_command")].endpoint
-    assert route_index[("GET", "/api/v1/commands/{command_id}")].endpoint is route_index[("GET", "/command/{command_id}")].endpoint
-    assert route_index[("GET", "/api/v1/commands/recent")].endpoint is route_index[("GET", "/commands/recent")].endpoint
-    assert route_index[("GET", "/api/v1/commands/active")].endpoint is route_index[("GET", "/commands/active")].endpoint
-    assert route_index[("GET", "/api/v1/commands/statistics")].endpoint is route_index[("GET", "/commands/statistics")].endpoint
-    assert route_index[("POST", "/api/v1/commands/{command_id}/cancel")].endpoint is route_index[("POST", "/command/{command_id}/cancel")].endpoint
-    assert route_index[("POST", "/api/v1/command-reports/execution-start")].endpoint is route_index[("POST", "/command/execution-start")].endpoint
-    assert route_index[("POST", "/api/v1/command-reports/execution-result")].endpoint is route_index[("POST", "/command/execution-result")].endpoint
     assert route_index[("GET", "/api/v1/git/status")].endpoint is route_index[("GET", "/git-status")].endpoint
     assert route_index[("POST", "/api/v1/git/sync-operations")].endpoint is route_index[("POST", "/sync-repos")].endpoint
     assert route_index[("GET", "/api/v1/origin")].endpoint is route_index[("GET", "/get-origin")].endpoint
@@ -323,6 +307,14 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert ("POST", "/save-gcs-config") not in route_index
     assert ("GET", "/get-network-info") not in route_index
     assert ("GET", "/static/plots/{filename}") not in route_index
+    assert ("POST", "/submit_command") not in route_index
+    assert ("GET", "/command/{command_id}") not in route_index
+    assert ("GET", "/commands/recent") not in route_index
+    assert ("GET", "/commands/active") not in route_index
+    assert ("GET", "/commands/statistics") not in route_index
+    assert ("POST", "/command/{command_id}/cancel") not in route_index
+    assert ("POST", "/command/execution-start") not in route_index
+    assert ("POST", "/command/execution-result") not in route_index
     assert ("GET", "/get-config-data") not in route_index
     assert ("POST", "/save-config-data") not in route_index
     assert ("POST", "/validate-config") not in route_index

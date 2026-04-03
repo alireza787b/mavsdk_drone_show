@@ -964,8 +964,6 @@ Explicitly clear all processed data and plots.
 #### `POST /api/v1/commands`
 Submit a command to drones and immediately return ACK tracking information.
 
-Legacy compatibility route: `POST /submit_command`
-
 **Request:**
 ```json
 {
@@ -1012,12 +1010,10 @@ Important semantics:
 - if `triggerTime` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `missionType=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
-- `POST /api/v1/commands/{command_id}/cancel` is intentionally fail-closed for now; use `POST /api/v1/commands` (legacy `POST /submit_command`) with `missionType=0` for live cancellation because that path actually dispatches to drones.
+- `POST /api/v1/commands/{command_id}/cancel` is intentionally fail-closed for now; use `POST /api/v1/commands` with `missionType=0` for live cancellation because that path actually dispatches to drones.
 
 #### `GET /api/v1/commands/{command_id}`
 Retrieve the current lifecycle state for a previously submitted command.
-
-Legacy compatibility route: `GET /command/{command_id}`
 
 **Response:**
 ```json
@@ -1104,8 +1100,6 @@ Important semantics:
 #### `GET /api/v1/commands/recent`
 Retrieve recent tracked commands for persistent operator monitoring surfaces.
 
-Legacy compatibility route: `GET /commands/recent`
-
 **Query parameters:**
 - `limit` (optional): max commands to return, default `50`
 - `status` (optional): filter by terminal or active status name
@@ -1115,8 +1109,6 @@ Use this endpoint for recent command history panels instead of keeping frontend-
 
 #### `GET /api/v1/commands/active`
 Retrieve currently active non-terminal commands.
-
-Legacy compatibility route: `GET /commands/active`
 
 Use this endpoint to rehydrate command monitors after a dashboard refresh/navigation event so operators do not lose in-flight command context when the page remounts.
 

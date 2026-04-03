@@ -110,21 +110,21 @@ def test_command_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/commands" in routes
-    assert "/submit_command" in routes
     assert "/api/v1/commands/{command_id}" in routes
-    assert "/command/{command_id}" in routes
     assert "/api/v1/commands/recent" in routes
-    assert "/commands/recent" in routes
     assert "/api/v1/commands/active" in routes
-    assert "/commands/active" in routes
     assert "/api/v1/commands/statistics" in routes
-    assert "/commands/statistics" in routes
     assert "/api/v1/commands/{command_id}/cancel" in routes
-    assert "/command/{command_id}/cancel" in routes
     assert "/api/v1/command-reports/execution-result" in routes
-    assert "/command/execution-result" in routes
     assert "/api/v1/command-reports/execution-start" in routes
-    assert "/command/execution-start" in routes
+    assert "/submit_command" not in routes
+    assert "/command/{command_id}" not in routes
+    assert "/commands/recent" not in routes
+    assert "/commands/active" not in routes
+    assert "/commands/statistics" not in routes
+    assert "/command/{command_id}/cancel" not in routes
+    assert "/command/execution-result" not in routes
+    assert "/command/execution-start" not in routes
 
 
 def test_command_router_statistics_uses_live_tracker_after_router_creation():
@@ -161,7 +161,7 @@ def test_command_router_submit_rejects_malformed_json():
 
     with TestClient(app) as client:
         response = client.post(
-            "/submit_command",
+            "/api/v1/commands",
             data="{bad",
             headers={"content-type": "application/json"},
         )
@@ -176,7 +176,7 @@ def test_command_router_submit_rejects_non_object_json():
     app.include_router(create_command_router(deps))
 
     with TestClient(app) as client:
-        response = client.post("/submit_command", json=["not", "an", "object"])
+        response = client.post("/api/v1/commands", json=["not", "an", "object"])
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Request body must be a JSON object"
@@ -189,7 +189,7 @@ def test_command_router_submit_rejects_invalid_target_drones_shape():
 
     with TestClient(app) as client:
         response = client.post(
-            "/submit_command",
+            "/api/v1/commands",
             json={"missionType": 10, "triggerTime": 0, "target_drones": "1"},
         )
 
@@ -204,7 +204,7 @@ def test_command_router_submit_rejects_unmatched_target_drones():
 
     with TestClient(app) as client:
         response = client.post(
-            "/submit_command",
+            "/api/v1/commands",
             json={"missionType": 10, "triggerTime": 0, "target_drones": ["99"]},
         )
 

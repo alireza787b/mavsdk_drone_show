@@ -21,7 +21,7 @@ The current API surface is mixed-generation:
 
 - legacy verb-style routes like `/get-config-data`, `/save-swarm-data`, `/import-show`
 - newer domain routes like `/api/logs/*`, `/api/sar/*`, `/api/swarm/trajectory/*`
-- unprefixed operational routes like `/health`, `/submit_command`, `/git-status`
+- historically included unprefixed operational routes like `/health`, `/submit_command`, and `/git-status`
 - duplicate or overlapping contracts like `/telemetry` vs `/api/telemetry`, `/heartbeat` vs `/drone-heartbeat`, `/get-network-status` vs `/get-network-info`
 
 The result is workable but hard to extend cleanly, easy to document incorrectly, and not ideal for future MCP / LLM automation.
@@ -458,6 +458,31 @@ Phase 4 twelfth checkpoint on 2026-04-03:
 - updated the shared frontend route resolver, public show/operator docs, and schema docstrings so the retired show aliases no longer linger as pseudo-compatibility
 
 After this checkpoint, the remaining compatibility-retirement work is centered on the still-mounted origin, command-control, and versionless Swarm Trajectory legacy families.
+
+Phase 4 thirteenth checkpoint on 2026-04-03:
+
+- retired the GCS command-control legacy routes:
+  - removed `POST /submit_command`
+  - removed `GET /command/{command_id}`
+  - removed `GET /commands/recent`
+  - removed `GET /commands/active`
+  - removed `GET /commands/statistics`
+  - removed `POST /command/{command_id}/cancel`
+  - removed `POST /command/execution-start`
+  - removed `POST /command/execution-result`
+- deliberately treated that family as a safe retirement target only after confirming there were no remaining live dashboard, runtime-tooling, or SITL-helper callers on the old command URLs; the remaining references were compatibility decorators, request-log allowances, route-resolver aliases, and docs/tests
+- kept the canonical command-control surface:
+  - `POST /api/v1/commands`
+  - `GET /api/v1/commands/{command_id}`
+  - `GET /api/v1/commands/recent`
+  - `GET /api/v1/commands/active`
+  - `GET /api/v1/commands/statistics`
+  - `POST /api/v1/commands/{command_id}/cancel`
+  - `POST /api/v1/command-reports/execution-start`
+  - `POST /api/v1/command-reports/execution-result`
+- updated the shared frontend route resolver, request-log classification, operator/developer docs, and route-inventory guardrails so the retired command aliases no longer linger as pseudo-compatibility
+
+After this checkpoint, the remaining compatibility-retirement work is centered on the still-mounted origin and versionless Swarm Trajectory legacy families.
 
 ### Phase 5
 

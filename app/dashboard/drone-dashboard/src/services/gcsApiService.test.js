@@ -54,7 +54,7 @@ describe('gcsApiService', () => {
     expect(buildGcsUrl('https://example.test/api/v1/health')).toBe('https://example.test/api/v1/health');
   });
 
-  it('maps legacy and canonical paths back to the same route key', () => {
+  it('maps active canonical and retained compatibility paths back to route keys', () => {
     expect(resolveGcsRouteKey('/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/get-heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
@@ -64,12 +64,12 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/origin')).toBe(GCS_ROUTE_KEYS.origin);
     expect(resolveGcsRouteKey('/api/v1/origin/bootstrap')).toBe(GCS_ROUTE_KEYS.originForDrone);
     expect(resolveGcsRouteKey('/api/v1/origin/deviations')).toBe(GCS_ROUTE_KEYS.positionDeviations);
-    expect(resolveGcsRouteKey('/submit_command')).toBe(GCS_ROUTE_KEYS.commandSubmit);
+    expect(resolveGcsRouteKey('/api/v1/commands')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
-  it('does not keep retired management/static/config/swarm/show legacy paths alive in the shared route resolver', () => {
+  it('does not keep retired management/static/config/swarm/show/command legacy paths alive in the shared route resolver', () => {
     expect(resolveGcsRouteKey('/get-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/save-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/get-network-info')).toBeNull();
@@ -94,6 +94,11 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/deploy-show')).toBeNull();
     expect(resolveGcsRouteKey('/get-show-plots')).toBeNull();
     expect(resolveGcsRouteKey('/get-custom-show-image')).toBeNull();
+    expect(resolveGcsRouteKey('/submit_command')).toBeNull();
+    expect(resolveGcsRouteKey('/command')).toBeNull();
+    expect(resolveGcsRouteKey('/commands/recent')).toBeNull();
+    expect(resolveGcsRouteKey('/commands/active')).toBeNull();
+    expect(resolveGcsRouteKey('/commands/statistics')).toBeNull();
   });
 
   it('resolves keyed routes that include query strings', () => {

@@ -285,7 +285,7 @@ Waypoint 2,35.72774031,51.30590792,1370.00,520.0,8.0,144.7,auto
 - selected-drone dispatch is now **scope-aware** instead of all-or-nothing:
   - a partial launch is allowed when every selected drone has a processed output and the full required leader chain is included in the same target set
   - unrelated incomplete clusters stay visible as review warnings, but no longer block a valid selected-cluster launch
-  - follower-only or broken-chain target sets are rejected in both the dashboard preflight and the backend `/submit_command` API
+  - follower-only or broken-chain target sets are rejected in both the dashboard preflight and the backend `POST /api/v1/commands` API
 - mission frame must stay explicit:
   - the authored route is global latitude/longitude with stored MSL altitude
   - `Target AGL` is an authoring convenience only; it is converted into the stored MSL package before processing

@@ -527,7 +527,7 @@ class CommandRequest(BaseModel):
 
 
 class CommandResponse(BaseModel):
-    """Response for POST /submit_command (GCS endpoint for command submission)"""
+    """Response for POST /api/v1/commands (GCS endpoint for command submission)"""
     success: bool = Field(..., description="Command sent status")
     message: str = Field(..., description="Status message")
     command: str = Field(..., description="Command that was sent")

@@ -1058,8 +1058,8 @@ class TestCommandEndpointIntegration:
     async def test_submit_and_track_command(self, mock_config_data):
         """Test full command submission and tracking flow"""
         # This would test:
-        # 1. POST /submit_command
-        # 2. GET /command/{id}
+        # 1. POST /api/v1/commands
+        # 2. GET /api/v1/commands/{id}
         # 3. Wait for ACKs
         # 4. Verify status progression
         pass

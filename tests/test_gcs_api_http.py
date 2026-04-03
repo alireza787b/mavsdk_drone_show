@@ -1562,7 +1562,7 @@ class TestCommandEndpoints:
 
     def test_submit_command_rejects_malformed_json(self, test_client):
         response = test_client.post(
-            "/submit_command",
+            "/api/v1/commands",
             data="{bad",
             headers={"content-type": "application/json"},
         )
@@ -1574,7 +1574,7 @@ class TestCommandEndpoints:
     @patch('app_fastapi.send_commands_to_all')
     @patch('app_fastapi.load_config')
     def test_submit_command(self, mock_load, mock_send, mock_probe, test_client, mock_config):
-        """Test POST /submit_command - new SubmitCommandResponse format"""
+        """Test POST /api/v1/commands - new SubmitCommandResponse format"""
         mock_load.return_value = mock_config
         mock_probe.return_value = {
             'all_ready': True,
@@ -1597,7 +1597,7 @@ class TestCommandEndpoints:
             'triggerTime': 0
         }
 
-        response = test_client.post("/submit_command", json=command_data)
+        response = test_client.post("/api/v1/commands", json=command_data)
         assert response.status_code == 200
         data = response.json()
 
@@ -1646,7 +1646,7 @@ class TestCommandEndpoints:
             }
         }
 
-        response = test_client.post("/submit_command", json={
+        response = test_client.post("/api/v1/commands", json={
             'missionType': 10,
             'triggerTime': 0,
             'auto_global_origin': True,
@@ -1706,7 +1706,7 @@ class TestCommandEndpoints:
         }
 
         response = test_client.post(
-            "/submit_command",
+            "/api/v1/commands",
             json={
                 'missionType': 4,
                 'triggerTime': 0,
@@ -1721,7 +1721,7 @@ class TestCommandEndpoints:
         mock_send_selected.assert_called_once()
 
     def test_cancel_command_endpoint_fails_closed_until_live_dispatch_is_wired(self, test_client):
-        response = test_client.post("/command/test-command-id/cancel")
+        response = test_client.post("/api/v1/commands/test-command-id/cancel")
 
         assert response.status_code == 409
         assert "missionType=0" in response.json()["detail"]
@@ -1748,7 +1748,7 @@ class TestCommandEndpoints:
         }
 
         response = test_client.post(
-            "/submit_command",
+            "/api/v1/commands",
             json={
                 'missionType': 10,
                 'triggerTime': 0,
@@ -1778,7 +1778,7 @@ class TestCommandEndpoints:
         }
 
         response = test_client.post(
-            "/submit_command",
+            "/api/v1/commands",
             json={
                 'missionType': 4,
                 'triggerTime': 0,
@@ -1800,7 +1800,7 @@ class TestCommandEndpoints:
         mock_load.return_value = mock_config
 
         response = test_client.post(
-            "/submit_command",
+            "/api/v1/commands",
             json={
                 'missionType': 10,
                 'triggerTime': 0,
@@ -1890,14 +1890,6 @@ class TestAPIV1Aliases:
             "/api/v1/commands/{command_id}/cancel",
             "/api/v1/command-reports/execution-start",
             "/api/v1/command-reports/execution-result",
-            "/submit_command",
-            "/command/{command_id}",
-            "/commands/recent",
-            "/commands/active",
-            "/commands/statistics",
-            "/command/{command_id}/cancel",
-            "/command/execution-start",
-            "/command/execution-result",
             "/git-status",
             "/sync-repos",
             "/get-origin",

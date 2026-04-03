@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 command-control legacy-retirement checkpoint note documenting the thirteenth Phase 4 API-modernization slice, the removal of the old command verb-style aliases, the request-log and shared-route cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 show-management legacy-retirement checkpoint note documenting the twelfth Phase 4 API-modernization slice, the removal of the old show import/metrics/plot/deploy aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 config/swarm legacy-retirement checkpoint note documenting the eleventh Phase 4 API-modernization slice, the removal of the GCS configuration/swarm verb-style aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 legacy-route retirement audit note documenting the remaining GCS compatibility buckets as remove-now, keep-temporarily, and defer-with-reason so the remaining API cleanup can proceed deliberately
@@ -41,6 +42,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the thirteenth Phase 4 API-modernization slice now retires the public command-control legacy routes `POST /submit_command`, `GET /command/{command_id}`, `GET /commands/recent`, `GET /commands/active`, `GET /commands/statistics`, `POST /command/{command_id}/cancel`, `POST /command/execution-start`, and `POST /command/execution-result` because they have no remaining live dashboard, runtime-tooling, or SITL-helper callers
+- the shared frontend GCS route resolver and GCS request-log classification no longer keep the retired command aliases alive as pseudo-compatibility, so removed backend routes cannot linger in UI helpers or operational logging heuristics
+- the public GCS API docs, command router coverage, route inventory, and HTTP regression batches now reflect the canonical command-control surface only, instead of continuing to advertise or assert the retired aliases as current behavior
 - the tenth Phase 4 API-modernization slice now retires the public management/static legacy routes `GET /get-gcs-config`, `POST /save-gcs-config`, `GET /get-network-info`, and `GET /static/plots/{filename}` because they have no remaining live dashboard, runtime-tooling, or validation-script callers
 - the shared frontend GCS route resolver no longer recognizes the retired management/static legacy paths, so removed backend routes cannot survive as frontend pseudo-compatibility
 - the public GCS API docs now describe only the canonical management/static surface for GCS config, detailed fleet network metadata, and Swarm Trajectory plots instead of presenting removed aliases as current endpoints

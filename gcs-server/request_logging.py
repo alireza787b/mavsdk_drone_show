@@ -10,7 +10,6 @@ _ROUTINE_SUCCESS_PATHS = {
     "/api/v1/commands/recent",
     "/api/v1/command-reports/execution-result",
     "/api/v1/command-reports/execution-start",
-    "/commands/recent",
     "/drone-heartbeat",
     "/api/v1/config/fleet",
     "/get-heartbeats",
@@ -27,13 +26,7 @@ def is_routine_success_path(path: str) -> bool:
     if path in _ROUTINE_SUCCESS_PATHS:
         return True
 
-    if path == "/command/execution-result":
-        return True
-
     if path.startswith("/api/v1/commands/") and not path.endswith("/cancel") and path != "/api/v1/commands/statistics":
-        return True
-
-    if path.startswith("/command/"):
         return True
 
     if path == "/api/logs/stream":
