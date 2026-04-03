@@ -69,7 +69,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
-  it('does not keep retired management/static/config/swarm legacy paths alive in the shared route resolver', () => {
+  it('does not keep retired management/static/config/swarm/show legacy paths alive in the shared route resolver', () => {
     expect(resolveGcsRouteKey('/get-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/save-gcs-config')).toBeNull();
     expect(resolveGcsRouteKey('/get-network-info')).toBeNull();
@@ -82,6 +82,18 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/get-swarm-data')).toBeNull();
     expect(resolveGcsRouteKey('/save-swarm-data')).toBeNull();
     expect(resolveGcsRouteKey('/request-new-leader')).toBeNull();
+    expect(resolveGcsRouteKey('/import-show')).toBeNull();
+    expect(resolveGcsRouteKey('/download-raw-show')).toBeNull();
+    expect(resolveGcsRouteKey('/download-processed-show')).toBeNull();
+    expect(resolveGcsRouteKey('/get-show-info')).toBeNull();
+    expect(resolveGcsRouteKey('/get-custom-show-info')).toBeNull();
+    expect(resolveGcsRouteKey('/import-custom-show')).toBeNull();
+    expect(resolveGcsRouteKey('/get-comprehensive-metrics')).toBeNull();
+    expect(resolveGcsRouteKey('/get-safety-report')).toBeNull();
+    expect(resolveGcsRouteKey('/validate-trajectory')).toBeNull();
+    expect(resolveGcsRouteKey('/deploy-show')).toBeNull();
+    expect(resolveGcsRouteKey('/get-show-plots')).toBeNull();
+    expect(resolveGcsRouteKey('/get-custom-show-image')).toBeNull();
   });
 
   it('resolves keyed routes that include query strings', () => {

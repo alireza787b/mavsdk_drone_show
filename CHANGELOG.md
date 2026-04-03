@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 show-management legacy-retirement checkpoint note documenting the twelfth Phase 4 API-modernization slice, the removal of the old show import/metrics/plot/deploy aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 config/swarm legacy-retirement checkpoint note documenting the eleventh Phase 4 API-modernization slice, the removal of the GCS configuration/swarm verb-style aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 legacy-route retirement audit note documenting the remaining GCS compatibility buckets as remove-now, keep-temporarily, and defer-with-reason so the remaining API cleanup can proceed deliberately
 - a 2026-04-03 management/static legacy-retirement checkpoint note documenting the tenth Phase 4 API-modernization slice, the removal of the old GCS config/network/static plot aliases, the shared frontend resolver cleanup, and the paired local/Hetzner validation results
@@ -375,6 +376,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- retired the public GCS show-management legacy routes `/import-show`, `/download-raw-show`, `/download-processed-show`, `/get-show-info`, `/get-custom-show-info`, `/import-custom-show`, `/get-comprehensive-metrics`, `/get-safety-report`, `/validate-trajectory`, `/deploy-show`, `/get-show-plots`, `/get-show-plots/{filename}`, and `/get-custom-show-image`, leaving the canonical `/api/v1/shows/skybrush*` and `/api/v1/shows/custom*` surfaces as the only supported GCS contract for show workflows
 - retired the public GCS configuration/swarm legacy routes `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, `/get-trajectory-first-row`, `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader`, leaving the canonical `/api/v1/config/fleet*` and `/api/v1/config/swarm*` surfaces as the only supported GCS contract for those domains
 - `Show Design` / `Custom Show` operator guidance, Mission Details, and the Drone Show guide now reflect the current split between the normal SkyBrush import pipeline and the expert-only Custom CSV override
 - Bootstrap installers now propagate custom repo/branch selections all the way into `mds_gcs_init.sh` / `mds_init.sh`, including explicit `--repo-url` support and correct persistence of custom branch settings in later config/state

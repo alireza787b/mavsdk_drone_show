@@ -60,31 +60,31 @@ def test_show_management_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/shows/skybrush/import" in routes
-    assert "/import-show" in routes
     assert "/api/v1/shows/skybrush/archives/raw" in routes
-    assert "/download-raw-show" in routes
     assert "/api/v1/shows/skybrush/archives/processed" in routes
-    assert "/download-processed-show" in routes
     assert "/api/v1/shows/skybrush" in routes
-    assert "/get-show-info" in routes
     assert "/api/v1/shows/custom" in routes
-    assert "/get-custom-show-info" in routes
     assert "/api/v1/shows/custom/import" in routes
-    assert "/import-custom-show" in routes
     assert "/api/v1/shows/skybrush/metrics" in routes
-    assert "/get-comprehensive-metrics" in routes
     assert "/api/v1/shows/skybrush/safety-report" in routes
-    assert "/get-safety-report" in routes
     assert "/api/v1/shows/skybrush/validation" in routes
-    assert "/validate-trajectory" in routes
     assert "/api/v1/shows/skybrush/deployments" in routes
-    assert "/deploy-show" in routes
     assert "/api/v1/shows/skybrush/plots" in routes
-    assert "/get-show-plots" in routes
     assert "/api/v1/shows/skybrush/plots/{filename}" in routes
-    assert "/get-show-plots/{filename}" in routes
     assert "/api/v1/shows/custom/preview" in routes
-    assert "/get-custom-show-image" in routes
+    assert "/import-show" not in routes
+    assert "/download-raw-show" not in routes
+    assert "/download-processed-show" not in routes
+    assert "/get-show-info" not in routes
+    assert "/get-custom-show-info" not in routes
+    assert "/import-custom-show" not in routes
+    assert "/get-comprehensive-metrics" not in routes
+    assert "/get-safety-report" not in routes
+    assert "/validate-trajectory" not in routes
+    assert "/deploy-show" not in routes
+    assert "/get-show-plots" not in routes
+    assert "/get-show-plots/{filename}" not in routes
+    assert "/get-custom-show-image" not in routes
 
 
 def test_show_management_router_get_show_info_uses_live_directory_after_router_creation(tmp_path):

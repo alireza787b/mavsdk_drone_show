@@ -629,16 +629,16 @@ class TestShowManagementEndpoints:
     """Test show import and management endpoints"""
 
     def test_import_show_rejects_non_zip(self, test_client):
-        """Test POST /import-show rejects non-ZIP uploads early"""
+        """Test POST /api/v1/shows/skybrush/import rejects non-ZIP uploads early"""
         files = {'file': ('bad_show.txt', BytesIO(b'not-a-zip'), 'text/plain')}
 
-        response = test_client.post("/import-show", files=files)
+        response = test_client.post("/api/v1/shows/skybrush/import", files=files)
 
         assert response.status_code == 400
         assert 'ZIP' in response.json()['detail']
 
     def test_import_show_accepts_nested_zip_and_returns_summary(self, test_client, monkeypatch, tmp_path):
-        """Test POST /import-show stages nested CSVs and returns the new summary payload"""
+        """Test POST /api/v1/shows/skybrush/import stages nested CSVs and returns the new summary payload"""
         import app_fastapi
 
         live_skybrush = tmp_path / 'shapes_sitl' / 'swarm' / 'skybrush'
@@ -690,7 +690,7 @@ class TestShowManagementEndpoints:
         zip_buffer.seek(0)
 
         files = {'file': ('test_show.zip', zip_buffer, 'application/zip')}
-        response = test_client.post("/import-show", files=files)
+        response = test_client.post("/api/v1/shows/skybrush/import", files=files)
 
         assert response.status_code == 200
         data = response.json()
@@ -704,7 +704,7 @@ class TestShowManagementEndpoints:
     @patch('os.listdir')
     @patch('os.path.exists', return_value=True)
     def test_get_show_info(self, mock_exists, mock_listdir, test_client):
-        """Test GET /get-show-info"""
+        """Test GET /api/v1/shows/skybrush"""
         mock_listdir.return_value = ['Drone 1.csv', 'Drone 2.csv']
 
         with patch('builtins.open', create=True) as mock_open:
@@ -716,7 +716,7 @@ class TestShowManagementEndpoints:
             ]
             mock_open.return_value = mock_file
 
-            response = test_client.get("/get-show-info")
+            response = test_client.get("/api/v1/shows/skybrush")
 
         assert response.status_code == 200
         data = response.json()
@@ -746,7 +746,7 @@ class TestShowManagementEndpoints:
         assert 'max_altitude' in data
 
     def test_get_custom_show_info(self, test_client, monkeypatch, tmp_path):
-        """Test GET /get-custom-show-info reports active custom CSV metadata."""
+        """Test GET /api/v1/shows/custom reports active custom CSV metadata."""
         import app_fastapi
 
         shapes_dir = tmp_path / 'shapes_sitl'
@@ -761,7 +761,7 @@ class TestShowManagementEndpoints:
 
         monkeypatch.setattr(app_fastapi, 'shapes_dir', str(shapes_dir))
 
-        response = test_client.get('/get-custom-show-info')
+        response = test_client.get('/api/v1/shows/custom')
 
         assert response.status_code == 200
         data = response.json()
@@ -799,7 +799,7 @@ class TestShowManagementEndpoints:
         assert data['preview_exists'] is True
 
     def test_import_custom_show_accepts_valid_protocol_csv(self, test_client, monkeypatch, tmp_path):
-        """Test POST /import-custom-show validates, stages, and activates a custom CSV."""
+        """Test POST /api/v1/shows/custom/import validates, stages, and activates a custom CSV."""
         import app_fastapi
 
         shapes_dir = tmp_path / 'shapes_sitl'
@@ -824,7 +824,7 @@ class TestShowManagementEndpoints:
         )
 
         files = {'file': ('custom_show.csv', csv_buffer, 'text/csv')}
-        response = test_client.post('/import-custom-show', files=files)
+        response = test_client.post('/api/v1/shows/custom/import', files=files)
 
         assert response.status_code == 200
         data = response.json()
@@ -837,7 +837,7 @@ class TestShowManagementEndpoints:
         assert (shapes_dir / 'trajectory_plot.png').exists()
 
     def test_import_custom_show_rejects_missing_protocol_columns(self, test_client, monkeypatch, tmp_path):
-        """Test POST /import-custom-show rejects non-protocol CSV files."""
+        """Test POST /api/v1/shows/custom/import rejects non-protocol CSV files."""
         import app_fastapi
 
         shapes_dir = tmp_path / 'shapes_sitl'
@@ -850,7 +850,7 @@ class TestShowManagementEndpoints:
         monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
 
         files = {'file': ('bad_custom_show.csv', BytesIO(b't,px,py\n0,0,0\n'), 'text/csv')}
-        response = test_client.post('/import-custom-show', files=files)
+        response = test_client.post('/api/v1/shows/custom/import', files=files)
 
         assert response.status_code == 400
         assert 'required protocol columns' in response.json()['detail']
@@ -933,7 +933,7 @@ class TestShowManagementEndpoints:
 
         monkeypatch.setattr(app_fastapi, '_refresh_saved_show_metrics', fake_refresh)
 
-        response = test_client.get('/get-comprehensive-metrics')
+        response = test_client.get('/api/v1/shows/skybrush/metrics')
 
         assert response.status_code == 200
         assert response.json()['basic_metrics']['drone_count'] == 5
@@ -987,7 +987,7 @@ class TestShowManagementEndpoints:
         assert refresh_calls == [None]
 
     def test_validate_trajectory_preserves_fail_status_when_warnings_also_exist(self, test_client, monkeypatch, tmp_path):
-        """A safety FAIL must not be downgraded to WARNING later in the same validation pass."""
+        """GET /api/v1/shows/skybrush/validation must preserve FAIL when warnings also exist."""
         import app_fastapi
 
         class DummyMetricsEngine:
@@ -1015,7 +1015,7 @@ class TestShowManagementEndpoints:
         monkeypatch.setattr(app_fastapi, 'DroneShowMetrics', DummyMetricsEngine)
         monkeypatch.setattr(app_fastapi, 'processed_dir', str(tmp_path / 'processed'))
 
-        response = test_client.post('/validate-trajectory')
+        response = test_client.get('/api/v1/shows/skybrush/validation')
 
         assert response.status_code == 200
         data = response.json()
@@ -1064,7 +1064,7 @@ class TestShowManagementEndpoints:
 
     @patch('app_fastapi.git_operations')
     def test_deploy_show_accepts_json_content_type_with_charset(self, mock_git_operations, test_client):
-        """The deploy route should parse standard JSON content-type variants, not only an exact match."""
+        """POST /api/v1/shows/skybrush/deployments should parse standard JSON content-type variants."""
         mock_git_operations.return_value = {
             'success': True,
             'message': 'ok',
@@ -1072,7 +1072,7 @@ class TestShowManagementEndpoints:
         }
 
         response = test_client.post(
-            '/deploy-show',
+            '/api/v1/shows/skybrush/deployments',
             data=json.dumps({'message': 'Deploy via API'}),
             headers={'content-type': 'application/json; charset=utf-8'},
         )
@@ -1908,19 +1908,6 @@ class TestAPIV1Aliases:
             "/get-position-deviations",
             "/compute-origin",
             "/get-desired-launch-positions",
-            "/import-show",
-            "/download-raw-show",
-            "/download-processed-show",
-            "/get-show-info",
-            "/get-custom-show-info",
-            "/import-custom-show",
-            "/get-comprehensive-metrics",
-            "/get-safety-report",
-            "/validate-trajectory",
-            "/deploy-show",
-            "/get-show-plots/{filename}",
-            "/get-show-plots",
-            "/get-custom-show-image",
             "/api/swarm/leaders",
             "/api/swarm/trajectory/upload/{leader_id}",
             "/api/swarm/trajectory/process",

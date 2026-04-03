@@ -25,7 +25,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
     @router.post("/api/v1/shows/skybrush/import", response_model=ShowImportResponse, tags=["Show Management"])
-    @router.post("/import-show", response_model=ShowImportResponse, tags=["Show Management"])
     async def import_show(file: UploadFile = File(...)):
         """Import and process drone show files from a SkyBrush ZIP package."""
         try:
@@ -59,7 +58,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/shows/skybrush/archives/raw", tags=["Show Management"])
-    @router.get("/download-raw-show", tags=["Show Management"])
     async def download_raw_show():
         """Download raw imported SkyBrush files as a ZIP archive."""
         try:
@@ -69,7 +67,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error creating raw show zip: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush/archives/processed", tags=["Show Management"])
-    @router.get("/download-processed-show", tags=["Show Management"])
     async def download_processed_show():
         """Download processed show trajectories as a ZIP archive."""
         try:
@@ -79,7 +76,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error creating processed show zip: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush", tags=["Show Management"])
-    @router.get("/get-show-info", tags=["Show Management"])
     async def get_show_info():
         """Get high-level processed-show metadata for operator review."""
         try:
@@ -90,7 +86,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error reading show info: {exc}") from exc
 
     @router.get("/api/v1/shows/custom", response_model=CustomShowInfoResponse, tags=["Show Management"])
-    @router.get("/get-custom-show-info", response_model=CustomShowInfoResponse, tags=["Show Management"])
     async def get_custom_show_info():
         """Get metadata for the active custom CSV workflow."""
         try:
@@ -101,7 +96,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error reading custom show info: {exc}") from exc
 
     @router.post("/api/v1/shows/custom/import", response_model=CustomShowImportResponse, tags=["Show Management"])
-    @router.post("/import-custom-show", response_model=CustomShowImportResponse, tags=["Show Management"])
     async def import_custom_show(file: UploadFile = File(...)):
         """Upload, validate, and activate a custom per-drone replay CSV."""
         try:
@@ -128,7 +122,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error importing custom CSV: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush/metrics", tags=["Show Management"])
-    @router.get("/get-comprehensive-metrics", tags=["Show Management"])
     async def get_comprehensive_metrics():
         """Retrieve cached or recalculated comprehensive show metrics."""
         try:
@@ -143,7 +136,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error calculating comprehensive metrics: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush/safety-report", tags=["Show Management"])
-    @router.get("/get-safety-report", tags=["Show Management"])
     async def get_safety_report():
         """Get detailed safety-analysis output for the processed show."""
         try:
@@ -158,7 +150,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error generating safety report: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush/validation", tags=["Show Management"])
-    @router.post("/validate-trajectory", tags=["Show Management"])
     async def validate_trajectory():
         """Run trajectory validation against the processed show package."""
         try:
@@ -173,7 +164,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error validating trajectory: {exc}") from exc
 
     @router.post("/api/v1/shows/skybrush/deployments", tags=["Show Management"])
-    @router.post("/deploy-show", tags=["Show Management"])
     async def deploy_show(request: Request):
         """Commit and push show changes for the fleet."""
         try:
@@ -201,7 +191,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error during deployment: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush/plots/{filename}", tags=["Show Management"])
-    @router.get("/get-show-plots/{filename}", tags=["Show Management"])
     async def get_show_plot_image(filename: str):
         """Get a specific generated show plot image."""
         try:
@@ -215,7 +204,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/shows/skybrush/plots", tags=["Show Management"])
-    @router.get("/get-show-plots", tags=["Show Management"])
     async def get_show_plots_list():
         """List available generated show plot images."""
         try:
@@ -224,7 +212,6 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Failed to list directory: {exc}") from exc
 
     @router.get("/api/v1/shows/custom/preview", tags=["Show Management"])
-    @router.get("/get-custom-show-image", tags=["Show Management"])
     async def get_custom_show_image():
         """Get the preview image for the active custom CSV show."""
         try:

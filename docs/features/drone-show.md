@@ -31,7 +31,7 @@ Do not mix these mentally. The standard Drone Show path is the normal operator w
 
 ## Import Pipeline
 
-`POST /api/v1/shows/skybrush/import` now stages the incoming ZIP before replacing the live show folders. Legacy compatibility remains at `POST /import-show`. That means:
+`POST /api/v1/shows/skybrush/import` now stages the incoming ZIP before replacing the live show folders. That means:
 
 - nested ZIP layouts are accepted
 - duplicate drone CSV basenames are rejected

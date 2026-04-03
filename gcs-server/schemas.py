@@ -473,13 +473,13 @@ class TrajectoryDeleteResponse(BaseModel):
 # ============================================================================
 
 class ShowImportRequest(BaseModel):
-    """Request metadata for POST /import-show"""
+    """Request metadata for POST /api/v1/shows/skybrush/import"""
     show_name: str = Field(..., min_length=1, description="Show name")
     overwrite: bool = Field(False, description="Overwrite existing show")
 
 
 class ShowImportResponse(BaseModel):
-    """Response for POST /import-show"""
+    """Response for POST /api/v1/shows/skybrush/import"""
     success: bool = Field(..., description="Import success status")
     message: str = Field(..., description="Status message")
     show_name: str = Field(..., description="Imported show name")
@@ -493,7 +493,7 @@ class ShowImportResponse(BaseModel):
 
 
 class CustomShowInfoResponse(BaseModel):
-    """Response for GET /get-custom-show-info"""
+    """Response for GET /api/v1/shows/custom"""
     exists: bool = Field(..., description="Whether an active custom CSV exists")
     filename: str = Field(..., description="Active custom CSV filename")
     row_count: int = Field(..., ge=0, description="Number of trajectory rows")
@@ -505,7 +505,7 @@ class CustomShowInfoResponse(BaseModel):
 
 
 class CustomShowImportResponse(BaseModel):
-    """Response for POST /import-custom-show"""
+    """Response for POST /api/v1/shows/custom/import"""
     success: bool = Field(..., description="Import success status")
     message: str = Field(..., description="Status message")
     filename: str = Field(..., description="Uploaded source filename")

@@ -92,15 +92,6 @@ GCS_EXPECTED_HTTP = {
         "/api/swarm/trajectory/download/{drone_id}",
         "/api/swarm/trajectory/download-kml/{drone_id}",
         "/api/swarm/trajectory/download-cluster-kml/{leader_id}",
-        "/download-raw-show",
-        "/download-processed-show",
-        "/get-show-info",
-        "/get-custom-show-info",
-        "/get-comprehensive-metrics",
-        "/get-safety-report",
-        "/get-show-plots/{filename}",
-        "/get-show-plots",
-        "/get-custom-show-image",
         "/elevation",
         "/get-origin-for-drone",
         "/get-position-deviations",
@@ -136,7 +127,6 @@ GCS_EXPECTED_HTTP = {
         "/command/execution-start",
         "/sync-repos",
         "/set-origin",
-        "/import-show",
         "/api/swarm/trajectory/upload/{leader_id}",
         "/api/swarm/trajectory/process",
         "/api/swarm/trajectory/clear-processed",
@@ -144,9 +134,6 @@ GCS_EXPECTED_HTTP = {
         "/api/swarm/trajectory/clear-leader/{leader_id}",
         "/api/swarm/trajectory/clear-drone/{drone_id}",
         "/api/swarm/trajectory/commit",
-        "/import-custom-show",
-        "/validate-trajectory",
-        "/deploy-show",
         "/compute-origin",
         "/api/logs/frontend",
         "/api/logs/export",
@@ -330,19 +317,6 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/origin/deviations")].endpoint is route_index[("GET", "/get-position-deviations")].endpoint
     assert route_index[("POST", "/api/v1/origin/compute")].endpoint is route_index[("POST", "/compute-origin")].endpoint
     assert route_index[("GET", "/api/v1/origin/launch-positions")].endpoint is route_index[("GET", "/get-desired-launch-positions")].endpoint
-    assert route_index[("POST", "/api/v1/shows/skybrush/import")].endpoint is route_index[("POST", "/import-show")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/archives/raw")].endpoint is route_index[("GET", "/download-raw-show")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/archives/processed")].endpoint is route_index[("GET", "/download-processed-show")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush")].endpoint is route_index[("GET", "/get-show-info")].endpoint
-    assert route_index[("GET", "/api/v1/shows/custom")].endpoint is route_index[("GET", "/get-custom-show-info")].endpoint
-    assert route_index[("POST", "/api/v1/shows/custom/import")].endpoint is route_index[("POST", "/import-custom-show")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/metrics")].endpoint is route_index[("GET", "/get-comprehensive-metrics")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/safety-report")].endpoint is route_index[("GET", "/get-safety-report")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/validation")].endpoint is route_index[("POST", "/validate-trajectory")].endpoint
-    assert route_index[("POST", "/api/v1/shows/skybrush/deployments")].endpoint is route_index[("POST", "/deploy-show")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/plots")].endpoint is route_index[("GET", "/get-show-plots")].endpoint
-    assert route_index[("GET", "/api/v1/shows/skybrush/plots/{filename}")].endpoint is route_index[("GET", "/get-show-plots/{filename}")].endpoint
-    assert route_index[("GET", "/api/v1/shows/custom/preview")].endpoint is route_index[("GET", "/get-custom-show-image")].endpoint
     assert ("GET", "/get-gcs-git-status") not in route_index
     assert ("GET", "/get-drone-git-status/{drone_id}") not in route_index
     assert ("GET", "/get-gcs-config") not in route_index
@@ -357,6 +331,19 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert ("GET", "/get-swarm-data") not in route_index
     assert ("POST", "/save-swarm-data") not in route_index
     assert ("POST", "/request-new-leader") not in route_index
+    assert ("POST", "/import-show") not in route_index
+    assert ("GET", "/download-raw-show") not in route_index
+    assert ("GET", "/download-processed-show") not in route_index
+    assert ("GET", "/get-show-info") not in route_index
+    assert ("GET", "/get-custom-show-info") not in route_index
+    assert ("POST", "/import-custom-show") not in route_index
+    assert ("GET", "/get-comprehensive-metrics") not in route_index
+    assert ("GET", "/get-safety-report") not in route_index
+    assert ("POST", "/validate-trajectory") not in route_index
+    assert ("POST", "/deploy-show") not in route_index
+    assert ("GET", "/get-show-plots") not in route_index
+    assert ("GET", "/get-show-plots/{filename}") not in route_index
+    assert ("GET", "/get-custom-show-image") not in route_index
 
 
 def test_drone_business_route_inventory(drone_app):

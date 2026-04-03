@@ -424,6 +424,41 @@ Phase 4 eleventh checkpoint on 2026-04-03:
 
 After this checkpoint, the remaining compatibility-retirement work is centered on the still-mounted origin, show-management, command-control, and versionless Swarm Trajectory legacy families.
 
+Phase 4 twelfth checkpoint on 2026-04-03:
+
+- retired the GCS show-management legacy routes:
+  - removed `POST /import-show`
+  - removed `GET /download-raw-show`
+  - removed `GET /download-processed-show`
+  - removed `GET /get-show-info`
+  - removed `GET /get-custom-show-info`
+  - removed `POST /import-custom-show`
+  - removed `GET /get-comprehensive-metrics`
+  - removed `GET /get-safety-report`
+  - removed `POST /validate-trajectory`
+  - removed `POST /deploy-show`
+  - removed `GET /get-show-plots`
+  - removed `GET /get-show-plots/{filename}`
+  - removed `GET /get-custom-show-image`
+- deliberately treated that family as a safe retirement target because there were no remaining live dashboard, runtime-tooling, or import-helper callers on the old show URLs; only backend compatibility decorators, route-resolver leftovers, and active docs/tests still referenced them
+- kept the canonical show-management surface:
+  - `POST /api/v1/shows/skybrush/import`
+  - `GET /api/v1/shows/skybrush`
+  - `GET /api/v1/shows/skybrush/archives/raw`
+  - `GET /api/v1/shows/skybrush/archives/processed`
+  - `GET /api/v1/shows/skybrush/metrics`
+  - `GET /api/v1/shows/skybrush/safety-report`
+  - `GET /api/v1/shows/skybrush/validation`
+  - `POST /api/v1/shows/skybrush/deployments`
+  - `GET /api/v1/shows/skybrush/plots`
+  - `GET /api/v1/shows/skybrush/plots/{filename}`
+  - `GET /api/v1/shows/custom`
+  - `POST /api/v1/shows/custom/import`
+  - `GET /api/v1/shows/custom/preview`
+- updated the shared frontend route resolver, public show/operator docs, and schema docstrings so the retired show aliases no longer linger as pseudo-compatibility
+
+After this checkpoint, the remaining compatibility-retirement work is centered on the still-mounted origin, command-control, and versionless Swarm Trajectory legacy families.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs
