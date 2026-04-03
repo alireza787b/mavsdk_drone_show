@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 canonical show-management v1 checkpoint note documenting the sixth Phase 4 GCS route-migration slice, the new `/api/v1/shows/skybrush/*` and `/api/v1/shows/custom/*` routes, the shared frontend caller migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical git v1 checkpoint note documenting the fifth Phase 4 GCS route-migration slice, the new `/api/v1/git/status` and `/api/v1/git/sync-operations` routes, the request-log classification cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical origin v1 checkpoint note documenting the fourth Phase 4 GCS route-migration slice, the new `/api/v1/origin*` routes, the bootstrap-resource naming cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical swarm-config v1 checkpoint note documenting the third Phase 4 GCS route-migration slice, the new `/api/v1/config/swarm` and `/api/v1/config/swarm/assignments/{hw_id}` routes, the internal caller migration, and the paired local/Hetzner validation results
@@ -33,6 +34,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the sixth Phase 4 GCS route-migration slice now introduces canonical show-management routes for both live show workflows: `POST /api/v1/shows/skybrush/import`, `GET /api/v1/shows/skybrush`, `GET /api/v1/shows/skybrush/archives/raw`, `GET /api/v1/shows/skybrush/archives/processed`, `GET /api/v1/shows/skybrush/metrics`, `GET /api/v1/shows/skybrush/safety-report`, `GET /api/v1/shows/skybrush/validation`, `POST /api/v1/shows/skybrush/deployments`, `GET /api/v1/shows/skybrush/plots`, `GET /api/v1/shows/skybrush/plots/{filename}`, `GET /api/v1/shows/custom`, `POST /api/v1/shows/custom/import`, and `GET /api/v1/shows/custom/preview`
+- the shared frontend GCS service layer now uses the canonical show-management routes for show metadata, custom-show metadata, SkyBrush/custom imports, processed/raw downloads, plot discovery, and custom preview assets instead of reinforcing the legacy compatibility paths
+- canonical show-management naming now reflects the two real operator workflows explicitly: standard SkyBrush processing lives under `/api/v1/shows/skybrush/*`, the specialist shared-CSV flow lives under `/api/v1/shows/custom/*`, and the read-only validation snapshot is modeled as `GET /api/v1/shows/skybrush/validation` even though the legacy compatibility route remains `POST /validate-trajectory`
+- show route inventory, router coverage, HTTP regressions, and shared dashboard GCS service tests now cover the canonical show-management surface so later cleanup cannot silently drift from the mounted routes or active callers
+- the public GCS API docs and Drone Show feature guide now present the canonical show-management surface first while keeping the legacy compatibility routes explicit during rollout
 - the fifth Phase 4 GCS route-migration slice now introduces canonical git routes: `GET /api/v1/git/status` and `POST /api/v1/git/sync-operations`
 - the shared frontend GCS service layer and the remaining active hardcoded dashboard git-status poll now use the canonical git routes instead of reinforcing `/git-status` directly
 - canonical git-sync naming now reflects the real contract: the API performs dispatch plus convergence verification synchronously, so the canonical path is `sync-operations` instead of the earlier provisional `sync-jobs` wording

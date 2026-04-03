@@ -59,18 +59,31 @@ def test_show_management_router_registers_expected_routes():
 
     routes = {route.path for route in app.routes}
 
+    assert "/api/v1/shows/skybrush/import" in routes
     assert "/import-show" in routes
+    assert "/api/v1/shows/skybrush/archives/raw" in routes
     assert "/download-raw-show" in routes
+    assert "/api/v1/shows/skybrush/archives/processed" in routes
     assert "/download-processed-show" in routes
+    assert "/api/v1/shows/skybrush" in routes
     assert "/get-show-info" in routes
+    assert "/api/v1/shows/custom" in routes
     assert "/get-custom-show-info" in routes
+    assert "/api/v1/shows/custom/import" in routes
     assert "/import-custom-show" in routes
+    assert "/api/v1/shows/skybrush/metrics" in routes
     assert "/get-comprehensive-metrics" in routes
+    assert "/api/v1/shows/skybrush/safety-report" in routes
     assert "/get-safety-report" in routes
+    assert "/api/v1/shows/skybrush/validation" in routes
     assert "/validate-trajectory" in routes
+    assert "/api/v1/shows/skybrush/deployments" in routes
     assert "/deploy-show" in routes
+    assert "/api/v1/shows/skybrush/plots" in routes
     assert "/get-show-plots" in routes
+    assert "/api/v1/shows/skybrush/plots/{filename}" in routes
     assert "/get-show-plots/{filename}" in routes
+    assert "/api/v1/shows/custom/preview" in routes
     assert "/get-custom-show-image" in routes
 
 
@@ -88,7 +101,7 @@ def test_show_management_router_get_show_info_uses_live_directory_after_router_c
     deps.skybrush_dir = str(live_skybrush)
 
     with TestClient(app) as client:
-        response = client.get("/get-show-info")
+        response = client.get("/api/v1/shows/skybrush")
 
     assert response.status_code == 200
     assert response.json()["drone_count"] == 1
@@ -110,7 +123,7 @@ def test_show_management_router_get_custom_show_info_uses_live_directory_after_r
     deps.shapes_dir = str(live_shapes)
 
     with TestClient(app) as client:
-        response = client.get("/get-custom-show-info")
+        response = client.get("/api/v1/shows/custom")
 
     assert response.status_code == 200
     assert response.json()["exists"] is True
@@ -128,7 +141,7 @@ def test_show_management_router_get_show_plot_uses_live_directory_after_router_c
     deps.plots_directory = str(live_plots)
 
     with TestClient(app) as client:
-        response = client.get("/get-show-plots/combined_drone_paths.jpg")
+        response = client.get("/api/v1/shows/skybrush/plots/combined_drone_paths.jpg")
 
     assert response.status_code == 200
     assert response.content == b"jpg"

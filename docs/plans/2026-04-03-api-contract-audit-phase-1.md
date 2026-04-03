@@ -229,6 +229,9 @@ Examples of the intended migration direction:
 - `/get-position-deviations` -> `GET /api/v1/origin/deviations`
 - `/compute-origin` -> `POST /api/v1/origin/compute`
 - `/get-desired-launch-positions` -> `GET /api/v1/origin/launch-positions`
+- `/get-show-info` -> `GET /api/v1/shows/skybrush`
+- `/download-raw-show` -> `GET /api/v1/shows/skybrush/archives/raw`
+- `/download-processed-show` -> `GET /api/v1/shows/skybrush/archives/processed`
 - `/get_drone_state` -> `GET /api/v1/drone/state`
 - `/api/live-armability` -> `GET /api/v1/preflight/armability`
 - `/api/send-command` -> `POST /api/v1/drone/commands`
@@ -238,7 +241,15 @@ Examples of the intended migration direction:
 - `/get-swarm-data` on drone -> `GET /api/v1/swarm/config`
 - `/get-local-position-ned` -> `GET /api/v1/telemetry/local-position`
 - `/import-show` -> `POST /api/v1/shows/skybrush/import`
+- `/get-comprehensive-metrics` -> `GET /api/v1/shows/skybrush/metrics`
+- `/get-safety-report` -> `GET /api/v1/shows/skybrush/safety-report`
+- `/validate-trajectory` -> `GET /api/v1/shows/skybrush/validation`
+- `/deploy-show` -> `POST /api/v1/shows/skybrush/deployments`
+- `/get-show-plots` -> `GET /api/v1/shows/skybrush/plots`
+- `/get-show-plots/{filename}` -> `GET /api/v1/shows/skybrush/plots/{filename}`
+- `/get-custom-show-info` -> `GET /api/v1/shows/custom`
 - `/import-custom-show` -> `POST /api/v1/shows/custom/import`
+- `/get-custom-show-image` -> `GET /api/v1/shows/custom/preview`
 - `/api/swarm/trajectory/*` -> `/api/v1/swarm-trajectories/*`
 
 Notes:

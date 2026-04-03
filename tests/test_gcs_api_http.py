@@ -723,6 +723,28 @@ class TestShowManagementEndpoints:
         assert 'drone_count' in data
         assert 'max_altitude' in data
 
+    @patch('os.listdir')
+    @patch('os.path.exists', return_value=True)
+    def test_get_show_info_v1(self, mock_exists, mock_listdir, test_client):
+        """Test GET /api/v1/shows/skybrush"""
+        mock_listdir.return_value = ['Drone 1.csv', 'Drone 2.csv']
+
+        with patch('builtins.open', create=True) as mock_open:
+            mock_file = MagicMock()
+            mock_file.__enter__.return_value.__iter__.return_value = [
+                't [ms],x [m],y [m],z [m],yaw [deg]\n',
+                '0,0,0,0,0\n',
+                '60000,1.0,1.0,5.0,0\n'
+            ]
+            mock_open.return_value = mock_file
+
+            response = test_client.get("/api/v1/shows/skybrush")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert 'drone_count' in data
+        assert 'max_altitude' in data
+
     def test_get_custom_show_info(self, test_client, monkeypatch, tmp_path):
         """Test GET /get-custom-show-info reports active custom CSV metadata."""
         import app_fastapi
@@ -751,6 +773,30 @@ class TestShowManagementEndpoints:
         assert data['preview_exists'] is True
         assert data['execution_mode'] == 'local per-drone replay'
         assert 't' in data['required_columns']
+
+    def test_get_custom_show_info_v1(self, test_client, monkeypatch, tmp_path):
+        """Test GET /api/v1/shows/custom reports active custom CSV metadata."""
+        import app_fastapi
+
+        shapes_dir = tmp_path / 'shapes_sitl'
+        shapes_dir.mkdir(parents=True, exist_ok=True)
+        (shapes_dir / 'active.csv').write_text(
+            'idx,t,px,py,pz,vx,vy,vz,ax,ay,az,yaw,mode,ledr,ledg,ledb\n'
+            '0,0.0,0.0,0.0,-0.0,0,0,0,0,0,0,0,70,0,0,255\n'
+            '1,2.5,1.0,2.0,-5.0,0,0,0,0,0,0,0,70,0,0,255\n',
+            encoding='utf-8',
+        )
+        (shapes_dir / 'trajectory_plot.png').write_bytes(b'png')
+
+        monkeypatch.setattr(app_fastapi, 'shapes_dir', str(shapes_dir))
+
+        response = test_client.get('/api/v1/shows/custom')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['exists'] is True
+        assert data['filename'] == 'active.csv'
+        assert data['preview_exists'] is True
 
     def test_import_custom_show_accepts_valid_protocol_csv(self, test_client, monkeypatch, tmp_path):
         """Test POST /import-custom-show validates, stages, and activates a custom CSV."""
@@ -893,6 +939,53 @@ class TestShowManagementEndpoints:
         assert response.json()['basic_metrics']['drone_count'] == 5
         assert refresh_calls == [None]
 
+    def test_get_comprehensive_metrics_v1_recalculates_stale_cache(self, test_client, monkeypatch, tmp_path):
+        """Canonical metrics route should ignore stale saved metrics when processed count changes."""
+        import app_fastapi
+
+        swarm_dir = tmp_path / 'shapes_sitl' / 'swarm'
+        processed = swarm_dir / 'processed'
+        processed.mkdir(parents=True, exist_ok=True)
+
+        for drone_id in range(1, 6):
+            (processed / f'Drone {drone_id}.csv').write_text('idx,t,px,py,pz\n0,0,0,0,0\n', encoding='utf-8')
+
+        stale_metrics = {
+            'basic_metrics': {
+                'drone_count': 6,
+                'duration_seconds': 12.0,
+                'max_altitude_m': 9.0,
+            }
+        }
+        metrics_file = swarm_dir / 'comprehensive_metrics.json'
+        metrics_file.write_text(json.dumps(stale_metrics), encoding='utf-8')
+
+        refreshed_metrics = {
+            'basic_metrics': {
+                'drone_count': 5,
+                'duration_seconds': 25.0,
+                'max_altitude_m': 14.0,
+            }
+        }
+        refresh_calls = []
+
+        monkeypatch.setattr(app_fastapi, 'shapes_dir', str(tmp_path / 'shapes_sitl'))
+        monkeypatch.setattr(app_fastapi, 'processed_dir', str(processed))
+        monkeypatch.setattr(app_fastapi, 'METRICS_AVAILABLE', True)
+
+        def fake_refresh(show_filename=None):
+            refresh_calls.append(show_filename)
+            metrics_file.write_text(json.dumps(refreshed_metrics), encoding='utf-8')
+            return refreshed_metrics
+
+        monkeypatch.setattr(app_fastapi, '_refresh_saved_show_metrics', fake_refresh)
+
+        response = test_client.get('/api/v1/shows/skybrush/metrics')
+
+        assert response.status_code == 200
+        assert response.json()['basic_metrics']['drone_count'] == 5
+        assert refresh_calls == [None]
+
     def test_validate_trajectory_preserves_fail_status_when_warnings_also_exist(self, test_client, monkeypatch, tmp_path):
         """A safety FAIL must not be downgraded to WARNING later in the same validation pass."""
         import app_fastapi
@@ -931,6 +1024,44 @@ class TestShowManagementEndpoints:
         assert any('collision warnings' in issue for issue in data['issues'])
         assert any('High velocity' in issue for issue in data['issues'])
 
+    def test_validate_trajectory_v1_preserves_fail_status_when_warnings_also_exist(self, test_client, monkeypatch, tmp_path):
+        """Canonical validation route must preserve FAIL when warnings also exist."""
+        import app_fastapi
+
+        class DummyMetricsEngine:
+            def __init__(self, processed_dir):
+                self.processed_dir = processed_dir
+
+            def load_drone_data(self):
+                return True
+
+            def calculate_comprehensive_metrics(self):
+                return {
+                    'safety_metrics': {
+                        'safety_status': 'UNSAFE',
+                        'collision_warnings_count': 2,
+                    },
+                    'performance_metrics': {
+                        'max_velocity_ms': 18.0,
+                    },
+                    'formation_metrics': {
+                        'formation_quality': 'Degraded',
+                    },
+                }
+
+        monkeypatch.setattr(app_fastapi, 'METRICS_AVAILABLE', True)
+        monkeypatch.setattr(app_fastapi, 'DroneShowMetrics', DummyMetricsEngine)
+        monkeypatch.setattr(app_fastapi, 'processed_dir', str(tmp_path / 'processed'))
+
+        response = test_client.get('/api/v1/shows/skybrush/validation')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['validation_status'] == 'FAIL'
+        assert any('Safety issue' in issue for issue in data['issues'])
+        assert any('collision warnings' in issue for issue in data['issues'])
+        assert any('High velocity' in issue for issue in data['issues'])
+
     @patch('app_fastapi.git_operations')
     def test_deploy_show_accepts_json_content_type_with_charset(self, mock_git_operations, test_client):
         """The deploy route should parse standard JSON content-type variants, not only an exact match."""
@@ -942,6 +1073,26 @@ class TestShowManagementEndpoints:
 
         response = test_client.post(
             '/deploy-show',
+            data=json.dumps({'message': 'Deploy via API'}),
+            headers={'content-type': 'application/json; charset=utf-8'},
+        )
+
+        assert response.status_code == 200
+        assert response.json()['success'] is True
+        mock_git_operations.assert_called_once()
+        assert mock_git_operations.call_args.args[1] == 'Deploy via API'
+
+    @patch('app_fastapi.git_operations')
+    def test_deploy_show_v1_accepts_json_content_type_with_charset(self, mock_git_operations, test_client):
+        """Canonical deployment route should parse standard JSON content-type variants."""
+        mock_git_operations.return_value = {
+            'success': True,
+            'message': 'ok',
+            'commit': 'abc12345',
+        }
+
+        response = test_client.post(
+            '/api/v1/shows/skybrush/deployments',
             data=json.dumps({'message': 'Deploy via API'}),
             headers={'content-type': 'application/json; charset=utf-8'},
         )
@@ -1713,6 +1864,19 @@ class TestAPIV1Aliases:
             "/api/v1/origin/launch-positions",
             "/api/v1/git/status",
             "/api/v1/git/sync-operations",
+            "/api/v1/shows/skybrush",
+            "/api/v1/shows/custom",
+            "/api/v1/shows/skybrush/import",
+            "/api/v1/shows/custom/import",
+            "/api/v1/shows/skybrush/metrics",
+            "/api/v1/shows/skybrush/safety-report",
+            "/api/v1/shows/skybrush/validation",
+            "/api/v1/shows/skybrush/deployments",
+            "/api/v1/shows/skybrush/archives/raw",
+            "/api/v1/shows/skybrush/archives/processed",
+            "/api/v1/shows/skybrush/plots",
+            "/api/v1/shows/skybrush/plots/{filename}",
+            "/api/v1/shows/custom/preview",
             "/api/v1/commands",
             "/api/v1/commands/{command_id}",
             "/api/v1/commands/recent",

@@ -54,6 +54,16 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
         "/api/v1/config/swarm",
         "/api/v1/git/status",
+        "/api/v1/shows/skybrush",
+        "/api/v1/shows/custom",
+        "/api/v1/shows/skybrush/metrics",
+        "/api/v1/shows/skybrush/safety-report",
+        "/api/v1/shows/skybrush/validation",
+        "/api/v1/shows/skybrush/archives/raw",
+        "/api/v1/shows/skybrush/archives/processed",
+        "/api/v1/shows/skybrush/plots",
+        "/api/v1/shows/skybrush/plots/{filename}",
+        "/api/v1/shows/custom/preview",
         "/api/v1/origin",
         "/api/v1/navigation/global-origin",
         "/api/v1/origin/elevation",
@@ -123,6 +133,9 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/command-reports/execution-start",
         "/api/v1/git/sync-operations",
         "/api/v1/origin/compute",
+        "/api/v1/shows/skybrush/import",
+        "/api/v1/shows/custom/import",
+        "/api/v1/shows/skybrush/deployments",
         "/save-config-data",
         "/validate-config",
         "/save-swarm-data",
@@ -335,6 +348,19 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/origin/deviations")].endpoint is route_index[("GET", "/get-position-deviations")].endpoint
     assert route_index[("POST", "/api/v1/origin/compute")].endpoint is route_index[("POST", "/compute-origin")].endpoint
     assert route_index[("GET", "/api/v1/origin/launch-positions")].endpoint is route_index[("GET", "/get-desired-launch-positions")].endpoint
+    assert route_index[("POST", "/api/v1/shows/skybrush/import")].endpoint is route_index[("POST", "/import-show")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/archives/raw")].endpoint is route_index[("GET", "/download-raw-show")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/archives/processed")].endpoint is route_index[("GET", "/download-processed-show")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush")].endpoint is route_index[("GET", "/get-show-info")].endpoint
+    assert route_index[("GET", "/api/v1/shows/custom")].endpoint is route_index[("GET", "/get-custom-show-info")].endpoint
+    assert route_index[("POST", "/api/v1/shows/custom/import")].endpoint is route_index[("POST", "/import-custom-show")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/metrics")].endpoint is route_index[("GET", "/get-comprehensive-metrics")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/safety-report")].endpoint is route_index[("GET", "/get-safety-report")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/validation")].endpoint is route_index[("POST", "/validate-trajectory")].endpoint
+    assert route_index[("POST", "/api/v1/shows/skybrush/deployments")].endpoint is route_index[("POST", "/deploy-show")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/plots")].endpoint is route_index[("GET", "/get-show-plots")].endpoint
+    assert route_index[("GET", "/api/v1/shows/skybrush/plots/{filename}")].endpoint is route_index[("GET", "/get-show-plots/{filename}")].endpoint
+    assert route_index[("GET", "/api/v1/shows/custom/preview")].endpoint is route_index[("GET", "/get-custom-show-image")].endpoint
 
     assert route_index[("GET", "/get-gcs-git-status")].deprecated is True
     assert route_index[("GET", "/get-drone-git-status/{drone_id}")].deprecated is True

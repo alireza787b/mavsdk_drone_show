@@ -10,6 +10,8 @@ import {
   getTrajectoryFirstRowResponse,
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
+  importCustomShowResponse,
+  importShowResponse,
   saveFleetConfigResponse,
   setOriginResponse,
   syncReposResponse,
@@ -64,12 +66,12 @@ describe('gcsApiService', () => {
   });
 
   it('resolves keyed routes that include query strings', () => {
-    expect(resolveGcsRoute(`${GCS_ROUTE_KEYS.customShowInfo}?refresh=7`)).toBe('/get-custom-show-info?refresh=7');
+    expect(resolveGcsRoute(`${GCS_ROUTE_KEYS.customShowInfo}?refresh=7`)).toBe('/api/v1/shows/custom?refresh=7');
   });
 
   it('builds encoded plot and download URLs from shared route helpers', () => {
-    expect(buildShowPlotUrl('Drone 1.jpg')).toBe('http://gcs.test:5000/get-show-plots/Drone%201.jpg');
-    expect(buildShowDownloadUrl('processed')).toBe('http://gcs.test:5000/download-processed-show');
+    expect(buildShowPlotUrl('Drone 1.jpg')).toBe('http://gcs.test:5000/api/v1/shows/skybrush/plots/Drone%201.jpg');
+    expect(buildShowDownloadUrl('processed')).toBe('http://gcs.test:5000/api/v1/shows/skybrush/archives/processed');
   });
 
   it('unwraps typed telemetry envelopes without changing plain telemetry payloads', () => {
@@ -115,6 +117,32 @@ describe('gcsApiService', () => {
       'http://gcs.test:5000/api/v1/git/sync-operations',
       { pos_ids: [1, 2] },
       { timeout: 3000 }
+    );
+  });
+
+  it('uploads SkyBrush archives through the canonical show import route', async () => {
+    const formData = { append: jest.fn() };
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    await importShowResponse(formData, { timeout: 4000 });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/shows/skybrush/import',
+      formData,
+      { timeout: 4000 }
+    );
+  });
+
+  it('uploads custom show CSV files through the canonical custom-show import route', async () => {
+    const formData = { append: jest.fn() };
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    await importCustomShowResponse(formData, { timeout: 4000 });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/shows/custom/import',
+      formData,
+      { timeout: 4000 }
     );
   });
 

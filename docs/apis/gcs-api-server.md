@@ -519,15 +519,17 @@ Calculate GPS coordinates for each drone's desired launch position.
 
 ### Show Management
 
-The show domain currently exposes two separate operator workflows:
+The show domain now exposes canonical v1 routes grouped by workflow:
 
-- standard SkyBrush ZIP import / processing
-- custom per-drone local replay CSV import
+- standard SkyBrush ZIP import / processing under `/api/v1/shows/skybrush/*`
+- custom per-drone local replay CSV import under `/api/v1/shows/custom/*`
 
-Both remain on legacy compatibility routes during Phase 3 extraction. Canonical `/api/v1/...` replacements come later in the modernization plan.
+Legacy compatibility routes remain available during rollout.
 
-#### `POST /import-show`
+#### `POST /api/v1/shows/skybrush/import`
 Import and process drone show files (multipart file upload).
+
+Legacy compatibility route: `POST /import-show`
 
 **Request:**
 - Content-Type: `multipart/form-data`
@@ -552,8 +554,10 @@ Import and process drone show files (multipart file upload).
 }
 ```
 
-#### `GET /get-show-info`
+#### `GET /api/v1/shows/skybrush`
 Get show metadata (drone count, duration, altitude).
+
+Legacy compatibility route: `GET /get-show-info`
 
 **Response:**
 ```json
@@ -566,18 +570,24 @@ Get show metadata (drone count, duration, altitude).
 }
 ```
 
-#### `GET /download-raw-show`
+#### `GET /api/v1/shows/skybrush/archives/raw`
 Download raw show files as ZIP.
 
+Legacy compatibility route: `GET /download-raw-show`
+
 **Response:** ZIP file download
 
-#### `GET /download-processed-show`
+#### `GET /api/v1/shows/skybrush/archives/processed`
 Download processed show files as ZIP.
 
+Legacy compatibility route: `GET /download-processed-show`
+
 **Response:** ZIP file download
 
-#### `GET /get-custom-show-info`
+#### `GET /api/v1/shows/custom`
 Get metadata for the active custom replay CSV.
+
+Legacy compatibility route: `GET /get-custom-show-info`
 
 **Response:**
 ```json
@@ -593,8 +603,10 @@ Get metadata for the active custom replay CSV.
 }
 ```
 
-#### `POST /import-custom-show`
+#### `POST /api/v1/shows/custom/import`
 Upload, validate, and activate a custom replay CSV.
+
+Legacy compatibility route: `POST /import-custom-show`
 
 **Request:**
 - Content-Type: `multipart/form-data`
@@ -621,8 +633,10 @@ Upload, validate, and activate a custom replay CSV.
 }
 ```
 
-#### `GET /get-show-plots`
+#### `GET /api/v1/shows/skybrush/plots`
 Get list of all show plot images.
+
+Legacy compatibility route: `GET /get-show-plots`
 
 **Response:**
 ```json
@@ -634,20 +648,26 @@ Get list of all show plot images.
 
 If the plots directory does not exist yet, the response is an empty list with `"uploadTime": "unknown"` instead of creating the directory as a side effect.
 
-#### `GET /get-show-plots/{filename}`
+#### `GET /api/v1/shows/skybrush/plots/{filename}`
 Get specific show plot image.
+
+Legacy compatibility route: `GET /get-show-plots/{filename}`
 
 **Response:** JPG image file
 
 The server now rejects path traversal attempts and only serves files inside the configured show-plots directory.
 
-#### `GET /get-custom-show-image`
+#### `GET /api/v1/shows/custom/preview`
 Get custom drone show trajectory plot image.
+
+Legacy compatibility route: `GET /get-custom-show-image`
 
 **Response:** PNG image file
 
-#### `GET /get-comprehensive-metrics`
+#### `GET /api/v1/shows/skybrush/metrics`
 Retrieve comprehensive trajectory analysis metrics.
+
+Legacy compatibility route: `GET /get-comprehensive-metrics`
 
 **Response:**
 ```json
@@ -658,8 +678,10 @@ Retrieve comprehensive trajectory analysis metrics.
 }
 ```
 
-#### `GET /get-safety-report`
+#### `GET /api/v1/shows/skybrush/safety-report`
 Get detailed safety analysis report.
+
+Legacy compatibility route: `GET /get-safety-report`
 
 **Response:**
 ```json
@@ -671,8 +693,10 @@ Get detailed safety analysis report.
 }
 ```
 
-#### `POST /validate-trajectory`
-Real-time trajectory validation.
+#### `GET /api/v1/shows/skybrush/validation`
+Get the current validation snapshot for the processed show package.
+
+Legacy compatibility route: `POST /validate-trajectory`
 
 **Response:**
 ```json
@@ -683,8 +707,10 @@ Real-time trajectory validation.
 }
 ```
 
-#### `POST /deploy-show`
+#### `POST /api/v1/shows/skybrush/deployments`
 Deploy show changes to git repository for drone fleet.
+
+Legacy compatibility route: `POST /deploy-show`
 
 **Request:**
 ```json

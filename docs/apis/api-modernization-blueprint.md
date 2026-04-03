@@ -290,18 +290,6 @@ Phase 4 third checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is origin canonicalization, followed by the remaining git/show-management cleanup and later legacy-route removal once all active callers have been migrated.
 
-Phase 4 fifth checkpoint on 2026-04-03:
-
-- introduced canonical v1 routes for the Git surface:
-  - `GET /api/v1/git/status`
-  - `POST /api/v1/git/sync-operations`
-- migrated the shared frontend GCS service layer and the remaining active hardcoded git-status dashboard caller onto the canonical git routes, leaving one current git contract path for UI polling and sync operations
-- deliberately chose `sync-operations` instead of the earlier provisional `sync-jobs` wording, because the live route performs dispatch plus convergence verification synchronously and does not expose a durable background-job resource
-- extended route-inventory, HTTP, router, dashboard-service, and request-log classification coverage to the canonical git surface, and kept the deprecated one-off GCS/drone git endpoints explicitly outside the canonical path
-- revalidated this slice locally and on Hetzner with the focused backend batch, the shared frontend GCS service Jest slice, and the production dashboard build
-
-After this checkpoint, the next clean Phase 4 boundary is show-management canonicalization. That keeps the remaining compatibility cleanup scoped to one domain before we start deliberate legacy-route retirement.
-
 Phase 4 fourth checkpoint on 2026-04-03:
 
 - introduced canonical v1 routes for the Origin surface:
@@ -319,6 +307,41 @@ Phase 4 fourth checkpoint on 2026-04-03:
 - extended route-inventory, HTTP, router, dashboard-service, and Drone Show validation coverage to the canonical origin surface and revalidated the slice locally plus on Hetzner with the focused backend batch, shared frontend GCS service Jest slice, and production build
 
 After this checkpoint, the next clean Phase 4 boundary is the remaining git/show-management canonicalization, followed by deliberate legacy-route retirement once active callers, docs, and SITL validation all move onto the canonical surface.
+
+Phase 4 fifth checkpoint on 2026-04-03:
+
+- introduced canonical v1 routes for the Git surface:
+  - `GET /api/v1/git/status`
+  - `POST /api/v1/git/sync-operations`
+- migrated the shared frontend GCS service layer and the remaining active hardcoded git-status dashboard caller onto the canonical git routes, leaving one current git contract path for UI polling and sync operations
+- deliberately chose `sync-operations` instead of the earlier provisional `sync-jobs` wording, because the live route performs dispatch plus convergence verification synchronously and does not expose a durable background-job resource
+- extended route-inventory, HTTP, router, dashboard-service, and request-log classification coverage to the canonical git surface, and kept the deprecated one-off GCS/drone git endpoints explicitly outside the canonical path
+- revalidated this slice locally and on Hetzner with the focused backend batch, the shared frontend GCS service Jest slice, and the production dashboard build
+
+After this checkpoint, the next clean Phase 4 boundary is show-management canonicalization. That keeps the remaining compatibility cleanup scoped to one domain before we start deliberate legacy-route retirement.
+
+Phase 4 sixth checkpoint on 2026-04-03:
+
+- introduced canonical v1 routes for the Show Management surface:
+  - `POST /api/v1/shows/skybrush/import`
+  - `GET /api/v1/shows/skybrush`
+  - `GET /api/v1/shows/skybrush/archives/raw`
+  - `GET /api/v1/shows/skybrush/archives/processed`
+  - `GET /api/v1/shows/skybrush/metrics`
+  - `GET /api/v1/shows/skybrush/safety-report`
+  - `GET /api/v1/shows/skybrush/validation`
+  - `POST /api/v1/shows/skybrush/deployments`
+  - `GET /api/v1/shows/skybrush/plots`
+  - `GET /api/v1/shows/skybrush/plots/{filename}`
+  - `GET /api/v1/shows/custom`
+  - `POST /api/v1/shows/custom/import`
+  - `GET /api/v1/shows/custom/preview`
+- deliberately split the canonical show-management surface by workflow instead of leaving SkyBrush ZIP processing and shared-CSV custom replay behind one vague generic route family; standard imported shows now live under `/api/v1/shows/skybrush/*`, while the specialist shared-CSV path lives under `/api/v1/shows/custom/*`
+- deliberately modeled canonical validation as `GET /api/v1/shows/skybrush/validation`, because the live route returns a read-only validation snapshot for the current processed show package even though the legacy compatibility route remains `POST /validate-trajectory`
+- migrated the shared frontend GCS service layer onto the canonical show-management routes for imports, metadata reads, plot discovery, archive downloads, and custom preview assets, leaving one current caller path for the active Drone Show dashboard surfaces
+- extended route-inventory, HTTP, router, and dashboard-service coverage to the canonical show-management surface and revalidated the slice locally plus on Hetzner with focused backend tests, the shared frontend GCS service Jest slice, and the production build
+
+After this checkpoint, the next clean Phase 4 boundary is deliberate compatibility-route retirement planning for the GCS surface, followed by broader SITL regression coverage on the canonical routes and the later drone-side extraction track.
 
 ### Phase 5
 
