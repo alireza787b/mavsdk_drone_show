@@ -220,7 +220,22 @@ Phase 3 seventh checkpoint on 2026-04-03:
 - removed the stale unused Flask-era `gcs-server/swarm_trajectory_routes.py` file after confirming it was no longer mounted anywhere in the live FastAPI application, leaving the extracted router as the single current Swarm Trajectory route definition in the repo
 - revalidated the extracted-router surface locally with the focused swarm-trajectory/inventory batch, locally with the full extracted-router backend batch, and on Hetzner with the same backend batch plus the dashboard production build
 
-After this checkpoint, the only substantive business-route domain still inline in `gcs-server/app_fastapi.py` is the Commands surface. That is now the clean next extraction boundary before Phase 4 canonical route migration.
+Phase 3 eighth checkpoint on 2026-04-03:
+
+- extracted the remaining Commands REST surface into `gcs-server/api_routes/commands.py`
+- moved `/submit_command`, `/command/{command_id}`, `/commands/recent`, `/commands/active`, `/commands/statistics`, `/command/{command_id}/cancel`, `/command/execution-result`, and `/command/execution-start` behind `create_command_router(...)`
+- kept the live dependency seam request-time-bound to the `app_fastapi` module object so existing patch-driven tests and future auth/MCP wrapping still resolve one current dependency surface during the extraction
+- moved the command-only target-telemetry and altitude-budget helpers out of `app_fastapi.py` and into the extracted router module so the command domain keeps its own route-local helper logic
+- corrected multiple real command-route contract issues during extraction:
+  - `submit_command` now returns `400` for malformed JSON request bodies
+  - `submit_command` now returns `400` for non-object JSON bodies instead of failing later with generic server errors
+  - `submit_command` now returns `400` when `target_drones` is not an array-like identifier set
+  - `submit_command` now returns `400` when an explicit `target_drones` selection matches no configured drones instead of creating an ambiguous zero-target command record
+- aligned the helper schemas and human-facing command API docs with the live contract, including the normalized hardware-ID `target_drones` response behavior and the legacy-but-ignored ack fields
+- added focused router-level coverage in `tests/test_gcs_command_routes.py` and extended the HTTP regression suite with malformed-JSON and unmatched-target cases
+- revalidated the extracted-router surface locally with a focused command batch, locally with the full extracted-router backend batch, and on Hetzner with the same backend batch plus the dashboard production build
+
+After this checkpoint, `gcs-server/app_fastapi.py` no longer contains any business `@app.*` route handlers. The GCS-side route extraction boundary is now complete. The clean next boundary is Phase 4 canonical `/api/v1/...` migration across the extracted GCS domains, while the drone-side monolith extraction remains a separate later Phase 3 track.
 
 ### Phase 4
 

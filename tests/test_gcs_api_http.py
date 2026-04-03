@@ -1204,6 +1204,16 @@ class TestSwarmTrajectoryEndpoints:
 class TestCommandEndpoints:
     """Test command submission endpoints"""
 
+    def test_submit_command_rejects_malformed_json(self, test_client):
+        response = test_client.post(
+            "/submit_command",
+            data="{bad",
+            headers={"content-type": "application/json"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Malformed JSON request body"
+
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.send_commands_to_all')
     @patch('app_fastapi.load_config')
@@ -1423,6 +1433,27 @@ class TestCommandEndpoints:
         assert response.status_code == 400
         assert 'Unsafe Swarm Trajectory target set' in response.json()['detail']
         mock_send_selected.assert_not_called()
+
+    @patch('app_fastapi.load_config')
+    def test_submit_command_rejects_unmatched_target_drones(
+        self,
+        mock_load,
+        test_client,
+        mock_config,
+    ):
+        mock_load.return_value = mock_config
+
+        response = test_client.post(
+            "/submit_command",
+            json={
+                'missionType': 10,
+                'triggerTime': 0,
+                'target_drones': ['999'],
+            },
+        )
+
+        assert response.status_code == 400
+        assert response.json()['detail'] == 'No configured drones matched target_drones'
 
 
 # ============================================================================

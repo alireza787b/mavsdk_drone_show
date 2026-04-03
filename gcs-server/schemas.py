@@ -816,12 +816,24 @@ class CommandStatisticsResponse(BaseModel):
 
 
 class SubmitCommandRequest(BaseModel):
-    """Request to submit a command to drones"""
+    """Legacy helper schema for submit-command payloads.
+
+    The live route currently accepts raw JSON and prefers `target_drones`.
+    This model remains as an internal/reference schema, so descriptions must
+    stay aligned with the active command contract.
+    """
     model_config = ConfigDict(extra='allow')  # Allow additional fields
 
     missionType: int = Field(..., description="Mission type code")
     triggerTime: Optional[int] = Field(0, ge=0, description="Trigger time (Unix epoch seconds)")
-    pos_ids: Optional[List[int]] = Field(None, description="Target position IDs (None = all drones)")
+    target_drones: Optional[List[Union[int, str]]] = Field(
+        None,
+        description="Preferred explicit targets by hardware ID or position ID (None = all configured drones)",
+    )
+    pos_ids: Optional[List[int]] = Field(
+        None,
+        description="Legacy target position-ID field retained for compatibility/reference only",
+    )
 
     # Optional fields depending on mission type
     takeoff_altitude: Optional[float] = Field(None, gt=0, description="Takeoff altitude (m)")
@@ -830,8 +842,8 @@ class SubmitCommandRequest(BaseModel):
     trajectory_id: Optional[str] = Field(None, description="Trajectory file identifier")
 
     # Control options
-    wait_for_ack: bool = Field(False, description="Wait for all drone ACKs before returning")
-    ack_timeout_ms: int = Field(5000, gt=0, description="ACK wait timeout (ms)")
+    wait_for_ack: bool = Field(False, description="Legacy field currently ignored by the live submit route")
+    ack_timeout_ms: int = Field(5000, gt=0, description="Legacy ACK timeout field currently ignored by the live submit route")
 
 
 class SubmitCommandResponse(BaseModel):
@@ -850,8 +862,10 @@ class SubmitCommandResponse(BaseModel):
         description="Categorized results: {'accepted': N, 'offline': N, 'rejected': N, 'errors': N}"
     )
 
-    # If wait_for_ack=true, these will be populated
-    ack_summary: Optional[AckSummary] = Field(None, description="ACK summary if wait_for_ack=true")
+    ack_summary: Optional[AckSummary] = Field(
+        None,
+        description="Immediate ACK summary recorded during synchronous dispatch/tracker submission",
+    )
     tracking_status: Optional[CommandStatus] = Field(None, description="Legacy tracker status for this command")
     tracking_phase: Optional[CommandPhase] = Field(None, description="Operational phase of command tracking")
     tracking_outcome: Optional[CommandOutcome] = Field(None, description="Terminal tracking outcome once known")

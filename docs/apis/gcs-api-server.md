@@ -920,6 +920,8 @@ Submit a command to drones and immediately return ACK tracking information.
 
 Important semantics:
 - `success=true` means at least one drone accepted the command.
+- `target_drones` may contain hardware IDs or position IDs. The response always normalizes `target_drones` to hardware IDs after the target set is resolved.
+- malformed JSON, non-object JSON bodies, invalid `target_drones` shapes, and explicit target selections that match no configured drones fail fast with `400` instead of creating an ambiguous zero-target command record.
 - `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
 - Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /command/{command_id}` rather than treated as finished at submission time.
 - `tracking_timeout_ms` is the mission-aware lifecycle timeout selected by the backend for this command. It already includes any future trigger delay plus the expected execution/cleanup window, and frontend/background polling should reuse it instead of guessing with a flat client-side timeout.
