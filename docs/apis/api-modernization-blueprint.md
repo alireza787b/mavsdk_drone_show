@@ -210,6 +210,18 @@ Phase 3 sixth checkpoint on 2026-04-03:
 - refreshed the human-facing API doc in `docs/apis/gcs-api-server.md` so the custom-show endpoints and expanded show import response are documented alongside the standard show-management surfaces
 - revalidated the extracted-router surface locally and on Hetzner with the combined backend batch, then reran the Hetzner dashboard production build successfully
 
+Phase 3 seventh checkpoint on 2026-04-03:
+
+- extracted the full Swarm Trajectory management surface into `gcs-server/api_routes/swarm_trajectory.py`
+- moved `GET /api/swarm/leaders` plus the 14 `/api/swarm/trajectory/*` routes behind `create_swarm_trajectory_router(...)`, while keeping the live dependency seam request-time-bound to the `app_fastapi` module object so existing patch-driven tests and future auth/MCP wrapping still target one current module surface
+- preserved the current live route names and binary download behavior instead of starting canonical `/api/v1/...` renames in the same slice
+- corrected a real route-layer contract bug during extraction: `process` and `commit` now return `400` for malformed JSON or non-object JSON payloads instead of surfacing those client errors as generic `500`s
+- added focused router-level coverage in `tests/test_gcs_swarm_trajectory_routes.py` for route registration, live dependency lookup, runtime policy reads, and the new request-body validation behavior
+- removed the stale unused Flask-era `gcs-server/swarm_trajectory_routes.py` file after confirming it was no longer mounted anywhere in the live FastAPI application, leaving the extracted router as the single current Swarm Trajectory route definition in the repo
+- revalidated the extracted-router surface locally with the focused swarm-trajectory/inventory batch, locally with the full extracted-router backend batch, and on Hetzner with the same backend batch plus the dashboard production build
+
+After this checkpoint, the only substantive business-route domain still inline in `gcs-server/app_fastapi.py` is the Commands surface. That is now the clean next extraction boundary before Phase 4 canonical route migration.
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes
