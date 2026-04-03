@@ -25,7 +25,6 @@ def _make_deps():
         _verify_sync_targets=AsyncMock(return_value=([1], [])),
         send_commands_to_all=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
         send_commands_to_selected=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
-        _config_get_drone_git_status=lambda drone_id: {"branch": "main-candidate", "commit": "abc12345"},
         log_system_event=lambda *args, **kwargs: None,
         log_system_error=lambda *args, **kwargs: None,
     )
@@ -43,8 +42,6 @@ def test_git_router_registers_expected_routes():
     assert "/api/v1/git/sync-operations" in routes
     assert "/sync-repos" in routes
     assert "/ws/git-status" in routes
-    assert "/get-gcs-git-status" in routes
-    assert "/get-drone-git-status/{drone_id}" in routes
 
 
 def test_git_router_uses_live_verify_dependency_after_router_creation():

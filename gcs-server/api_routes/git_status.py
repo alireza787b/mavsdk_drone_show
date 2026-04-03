@@ -4,8 +4,7 @@ import asyncio
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from schemas import (
     DroneGitStatus,
@@ -264,26 +263,5 @@ def create_git_router(deps: Any) -> APIRouter:
             deps.log_system_event("Git status WebSocket client disconnected", "INFO", "websocket")
         except Exception as exc:
             deps.log_system_error(f"Git status WebSocket error: {exc}", "websocket")
-
-    @router.get("/get-gcs-git-status", tags=["Git"], deprecated=True)
-    async def get_gcs_git_status():
-        """Deprecated single-resource GCS git-status endpoint."""
-        try:
-            return JSONResponse(content=deps.get_gcs_git_report())
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    @router.get("/get-drone-git-status/{drone_id}", tags=["Git"], deprecated=True)
-    async def get_drone_git_status(drone_id: int):
-        """Deprecated single-drone git-status endpoint."""
-        try:
-            git_status = deps._config_get_drone_git_status(drone_id)
-            if not git_status:
-                raise HTTPException(status_code=404, detail=f"Git status not found for drone {drone_id}")
-            return JSONResponse(content=git_status)
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return router

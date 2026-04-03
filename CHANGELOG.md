@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 git legacy-retirement checkpoint note documenting the ninth Phase 4 API-modernization slice, the removal of the deprecated one-off git detail endpoints, the route-inventory cleanup, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical management/static v1 checkpoint note documenting the eighth Phase 4 GCS route-migration slice, the new `/api/v1/system/gcs-config`, `/api/v1/fleet/network-details`, and `/api/v1/swarm-trajectories/plots/{filename}` routes, the frontend caller migration, dead frontend helper removal, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical internal-caller cleanup checkpoint note documenting the seventh Phase 4 API-modernization slice, the shared drone/tool GCS route constants, the drone-side callback/bootstrap migration, and the paired local/Hetzner validation results
 - a 2026-04-03 canonical show-management v1 checkpoint note documenting the sixth Phase 4 GCS route-migration slice, the new `/api/v1/shows/skybrush/*` and `/api/v1/shows/custom/*` routes, the shared frontend caller migration, and the paired local/Hetzner validation results
@@ -36,6 +37,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the ninth Phase 4 API-modernization slice now retires the deprecated one-off git detail routes `GET /get-gcs-git-status` and `GET /get-drone-git-status/{drone_id}` because they have no remaining live callers and the canonical `GET /api/v1/git/status` surface already carries the same data
+- git route inventory, router coverage, HTTP regressions, and the public git documentation now reflect the retired route set instead of preserving those deprecated endpoints as misleading permanent compatibility debt
 - the eighth Phase 4 GCS route-migration slice now introduces canonical management/static routes: `GET /api/v1/system/gcs-config`, `PUT /api/v1/system/gcs-config`, `GET /api/v1/fleet/network-details`, and `GET /api/v1/swarm-trajectories/plots/{filename}`
 - the shared frontend GCS service layer now uses the canonical management/static routes for GCS configuration reads/writes, detailed fleet network metadata, and Swarm Trajectory plot URLs instead of reinforcing `/get-gcs-config`, `/save-gcs-config`, `/get-network-info`, and `/static/plots/{filename}`
 - the canonical GCS-config write path is now modeled truthfully as `PUT /api/v1/system/gcs-config` while the legacy `POST /save-gcs-config` alias remains mounted during rollout, preventing the canonical resource contract from inheriting the older action-style route shape

@@ -371,6 +371,17 @@ Phase 4 eighth checkpoint on 2026-04-03:
 
 After this checkpoint, the next clean Phase 4 boundary is no longer new alias creation. It is the deliberate public compatibility-retirement pass: classify remaining legacy routes into remove-now, keep-temporarily, or defer-with-reason buckets, then retire the ones that no longer serve live callers, docs, or SITL workflows.
 
+Phase 4 ninth checkpoint on 2026-04-03:
+
+- retired the deprecated one-off git detail routes:
+  - removed `GET /get-gcs-git-status`
+  - removed `GET /get-drone-git-status/{drone_id}`
+- deliberately treated those endpoints as true retirement candidates instead of “deprecated forever” placeholders because the unified canonical `GET /api/v1/git/status` surface already carries both the aggregated drone status data and the embedded `gcs_status` snapshot
+- updated route-inventory, HTTP, and router coverage to assert that those retired endpoints are gone instead of merely marked deprecated
+- updated the public GCS/git documentation so current operator and integrator guidance no longer advertises the retired one-off endpoints
+
+After this checkpoint, the remaining compatibility-retirement work is the still-mounted business alias families that have not yet been explicitly removed. Those need domain-by-domain decisions with caller, SITL, and documentation checks before retirement.
+
 ### Phase 5
 
 - define canonical event-stream contracts for telemetry, command state, git sync, and logs

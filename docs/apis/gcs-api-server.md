@@ -1170,8 +1170,6 @@ Canonical git routes are exposed under `/api/v1/...`. Legacy compatibility route
 
 - `GET /git-status`
 - `POST /sync-repos`
-- `GET /get-gcs-git-status` *(deprecated)*
-- `GET /get-drone-git-status/{drone_id}` *(deprecated)*
 
 #### `GET /api/v1/git/status`
 Get git status from all drones.
@@ -1204,33 +1202,6 @@ Get git status from all drones.
   },
   "sync_in_progress": false,
   "timestamp": 1700000000000
-}
-```
-
-#### `GET /get-gcs-git-status` *(Deprecated)*
-> **Deprecated:** Use `GET /api/v1/git/status` instead — the `gcs_status` field in the unified response contains the same data.
-
-**Response:**
-```json
-{
-  "branch": "main",
-  "status": "clean",
-  "commit": "abc123"
-}
-```
-
-#### `GET /get-drone-git-status/{drone_id}` *(Deprecated)*
-> **Deprecated:** Use `GET /api/v1/git/status` instead — the `git_status` dict contains all drone statuses keyed by `hw_id`.
-
-**Parameters:**
-- `drone_id`: Drone ID
-
-**Response:**
-```json
-{
-  "status": "clean",
-  "branch": "main",
-  "commit": "abc123"
 }
 ```
 

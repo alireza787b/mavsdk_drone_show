@@ -110,8 +110,6 @@ GCS_EXPECTED_HTTP = {
         "/get-position-deviations",
         "/get-desired-launch-positions",
         "/get-gcs-config",
-        "/get-gcs-git-status",
-        "/get-drone-git-status/{drone_id}",
         "/get-network-info",
         "/api/v1/swarm-trajectories/plots/{filename}",
         "/static/plots/{filename}",
@@ -370,8 +368,8 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert route_index[("GET", "/api/v1/fleet/network-details")].endpoint is route_index[("GET", "/get-network-info")].endpoint
     assert route_index[("GET", "/api/v1/swarm-trajectories/plots/{filename}")].endpoint is route_index[("GET", "/static/plots/{filename}")].endpoint
 
-    assert route_index[("GET", "/get-gcs-git-status")].deprecated is True
-    assert route_index[("GET", "/get-drone-git-status/{drone_id}")].deprecated is True
+    assert ("GET", "/get-gcs-git-status") not in route_index
+    assert ("GET", "/get-drone-git-status/{drone_id}") not in route_index
 
 
 def test_drone_business_route_inventory(drone_app):

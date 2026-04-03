@@ -1248,14 +1248,6 @@ class TestGitStatusEndpoints:
         assert data['needs_sync_count'] == 2
         assert data['git_status']['1']['in_sync_with_gcs'] is False
 
-    @patch('app_fastapi.get_gcs_git_report')
-    def test_get_gcs_git_status(self, mock_report, test_client):
-        """Test GET /get-gcs-git-status"""
-        mock_report.return_value = {'branch': 'main', 'status': 'clean'}
-
-        response = test_client.get("/get-gcs-git-status")
-        assert response.status_code == 200
-
     @patch('app_fastapi._verify_sync_targets')
     @patch('app_fastapi.send_commands_to_all')
     @patch('app_fastapi.get_gcs_git_report')
@@ -1925,8 +1917,6 @@ class TestAPIV1Aliases:
             "/get-custom-show-image",
             "/get-gcs-config",
             "/save-gcs-config",
-            "/get-gcs-git-status",
-            "/get-drone-git-status/{drone_id}",
             "/get-network-info",
             "/request-new-leader",
             "/api/swarm/leaders",

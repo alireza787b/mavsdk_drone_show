@@ -111,8 +111,6 @@ This is parsed by `actions.py` for logging and status tracking.
 | `/git-status` | GET | Aggregated drone git status + GCS status |
 | `/sync-repos` | POST | Trigger UPDATE_CODE on drones |
 | `/ws/git-status` | WebSocket | Real-time git status stream |
-| `/get-gcs-git-status` | GET | (Deprecated) Use `/git-status` instead |
-| `/get-drone-git-status/{id}` | GET | (Deprecated) Use `/git-status` instead |
 
 ## Files
 
