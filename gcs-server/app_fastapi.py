@@ -18,17 +18,12 @@ Last Updated: 2025-11-22
 """
 
 import os
-import shutil
 import sys
 import json
 import time
 import asyncio
 import traceback
-import tempfile
-import zipfile
 import threading
-import csv
-from pathlib import Path
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -98,8 +93,18 @@ from api_routes.core import create_core_router
 from api_routes.git_status import create_git_router
 from api_routes.management import create_management_router
 from api_routes.origin import create_origin_router
+from api_routes.show_management import create_show_management_router
 from api_routes.static_assets import create_static_assets_router
 from api_routes.swarm import create_swarm_router
+from show_management import (
+    CUSTOM_SHOW_REQUIRED_COLUMNS,
+    custom_show_csv_path,
+    custom_show_preview_path,
+    generate_custom_show_preview,
+    inspect_custom_show_csv,
+    load_saved_metrics_if_current,
+    refresh_saved_show_metrics,
+)
 
 # Import swarm trajectory functions
 from functions import swarm_trajectory_service
@@ -134,6 +139,35 @@ try:
 except ImportError as e:
     METRICS_AVAILABLE = False
     log_system_warning(f"DroneShowMetrics not available: {e}", "metrics")
+
+
+def _custom_show_csv_path() -> str:
+    return custom_show_csv_path(shapes_dir)
+
+
+def _custom_show_preview_path() -> str:
+    return custom_show_preview_path(shapes_dir)
+
+
+_inspect_custom_show_csv = inspect_custom_show_csv
+_generate_custom_show_preview = generate_custom_show_preview
+
+
+def _load_saved_metrics_if_current() -> Optional[Dict[str, Any]]:
+    return load_saved_metrics_if_current(
+        shapes_dir=shapes_dir,
+        processed_dir=processed_dir,
+        log_warning=log_system_warning,
+    )
+
+
+def _refresh_saved_show_metrics(show_filename: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    return refresh_saved_show_metrics(
+        processed_dir=processed_dir,
+        metrics_available=METRICS_AVAILABLE,
+        metrics_engine_cls=DroneShowMetrics if METRICS_AVAILABLE else None,
+        show_filename=show_filename,
+    )
 
 
 # ============================================================================
@@ -580,6 +614,7 @@ app.include_router(create_configuration_router(sys.modules[__name__]))
 app.include_router(create_git_router(sys.modules[__name__]))
 app.include_router(create_management_router(sys.modules[__name__]))
 app.include_router(create_origin_router(sys.modules[__name__]))
+app.include_router(create_show_management_router(sys.modules[__name__]))
 app.include_router(create_static_assets_router(sys.modules[__name__]))
 app.include_router(create_swarm_router(sys.modules[__name__]))
 
@@ -1202,346 +1237,6 @@ async def _verify_sync_targets(
 
 
 # ============================================================================
-# Show Import Endpoint (File Upload)
-# ============================================================================
-
-def _copy_directory_contents(src_dir: str, dst_dir: str) -> None:
-    os.makedirs(dst_dir, exist_ok=True)
-    for entry in os.listdir(src_dir):
-        src_path = os.path.join(src_dir, entry)
-        dst_path = os.path.join(dst_dir, entry)
-        if os.path.isdir(src_path):
-            shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
-        else:
-            shutil.copy2(src_path, dst_path)
-
-
-def _swarm_directory() -> str:
-    return os.path.join(shapes_dir, 'swarm')
-
-
-def _saved_metrics_path() -> str:
-    return os.path.join(_swarm_directory(), 'comprehensive_metrics.json')
-
-
-def _count_processed_drone_files(directory: str) -> int:
-    if not os.path.exists(directory):
-        return 0
-    return len(
-        [
-            filename for filename in os.listdir(directory)
-            if filename.startswith('Drone ') and filename.endswith('.csv')
-        ]
-    )
-
-
-CUSTOM_SHOW_REQUIRED_COLUMNS = (
-    't', 'px', 'py', 'pz',
-    'vx', 'vy', 'vz',
-    'ax', 'ay', 'az',
-    'yaw', 'mode',
-)
-
-
-def _custom_show_csv_path() -> str:
-    return os.path.join(shapes_dir, 'active.csv')
-
-
-def _custom_show_preview_path() -> str:
-    return os.path.join(shapes_dir, 'trajectory_plot.png')
-
-
-def _inspect_custom_show_csv(csv_path: str) -> Dict[str, Any]:
-    with open(csv_path, 'r', encoding='utf-8-sig', newline='') as csv_file:
-        reader = csv.DictReader(csv_file)
-        fieldnames = reader.fieldnames or []
-        missing_columns = [column for column in CUSTOM_SHOW_REQUIRED_COLUMNS if column not in fieldnames]
-        if missing_columns:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "Custom CSV is missing required protocol columns: "
-                    f"{', '.join(missing_columns)}"
-                ),
-            )
-
-        row_count = 0
-        duration_sec = 0.0
-        max_altitude = 0.0
-        previous_t = None
-        points: List[Dict[str, float]] = []
-
-        for line_no, row in enumerate(reader, start=2):
-            if not any((value or '').strip() for value in row.values()):
-                continue
-
-            try:
-                t_val = float(row['t'])
-                px_val = float(row['px'])
-                py_val = float(row['py'])
-                pz_val = float(row['pz'])
-                vx_val = float(row['vx'])
-                vy_val = float(row['vy'])
-                vz_val = float(row['vz'])
-                ax_val = float(row['ax'])
-                ay_val = float(row['ay'])
-                az_val = float(row['az'])
-                yaw_val = float(row['yaw'])
-                mode_val = int(row['mode'])
-            except (TypeError, ValueError) as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid custom CSV row {line_no}: {exc}",
-                ) from exc
-
-            if t_val < 0:
-                raise HTTPException(status_code=400, detail=f"Invalid custom CSV row {line_no}: time must be non-negative")
-
-            if previous_t is not None and t_val < previous_t:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid custom CSV row {line_no}: time values must be non-decreasing",
-                )
-
-            previous_t = t_val
-            row_count += 1
-            duration_sec = max(duration_sec, t_val)
-            max_altitude = max(max_altitude, -pz_val)
-            points.append({
-                't': t_val,
-                'px': px_val,
-                'py': py_val,
-                'pz': pz_val,
-                'vx': vx_val,
-                'vy': vy_val,
-                'vz': vz_val,
-                'ax': ax_val,
-                'ay': ay_val,
-                'az': az_val,
-                'yaw': yaw_val,
-                'mode': mode_val,
-            })
-
-        if row_count == 0:
-            raise HTTPException(status_code=400, detail="Custom CSV contains no executable trajectory rows")
-
-        return {
-            'row_count': row_count,
-            'duration_sec': round(duration_sec, 2),
-            'max_altitude': round(max_altitude, 2),
-            'points': points,
-        }
-
-
-def _generate_custom_show_preview(points: List[Dict[str, float]], preview_path: str) -> None:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-
-    times = [point['t'] for point in points]
-    north_values = [point['px'] for point in points]
-    east_values = [point['py'] for point in points]
-    altitude_values = [-point['pz'] for point in points]
-
-    fig, (path_ax, altitude_ax) = plt.subplots(1, 2, figsize=(13, 5.5), constrained_layout=True)
-
-    path_ax.plot(east_values, north_values, color='#2563eb', linewidth=2.4)
-    path_ax.scatter(east_values[0], north_values[0], color='#16a34a', s=60, label='Start', zorder=3)
-    path_ax.scatter(east_values[-1], north_values[-1], color='#dc2626', s=60, label='End', zorder=3)
-    path_ax.set_title('Launch-Frame XY Path')
-    path_ax.set_xlabel('East (m)')
-    path_ax.set_ylabel('North (m)')
-    path_ax.grid(alpha=0.25)
-    path_ax.legend(loc='best')
-    path_ax.set_aspect('equal', adjustable='datalim')
-
-    altitude_ax.plot(times, altitude_values, color='#7c3aed', linewidth=2.2)
-    altitude_ax.fill_between(times, altitude_values, color='#c4b5fd', alpha=0.25)
-    altitude_ax.set_title('Altitude Profile')
-    altitude_ax.set_xlabel('Time (s)')
-    altitude_ax.set_ylabel('Altitude above launch (m)')
-    altitude_ax.grid(alpha=0.25)
-
-    fig.suptitle('Custom CSV Preview', fontsize=14, fontweight='bold')
-    fig.savefig(preview_path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-
-
-def _load_saved_metrics_if_current() -> Optional[Dict[str, Any]]:
-    metrics_file = _saved_metrics_path()
-    if not os.path.exists(metrics_file):
-        return None
-
-    try:
-        with open(metrics_file, 'r', encoding='utf-8') as f:
-            metrics_data = json.load(f)
-    except Exception as e:
-        log_system_warning(f"Failed to read saved show metrics, recalculating: {e}", "show")
-        return None
-
-    cached_count = metrics_data.get('basic_metrics', {}).get('drone_count')
-    current_count = _count_processed_drone_files(processed_dir)
-    try:
-        cached_count = int(cached_count)
-    except (TypeError, ValueError):
-        cached_count = None
-
-    if cached_count != current_count:
-        log_system_warning(
-            f"Saved show metrics are stale (cached drones={cached_count}, current drones={current_count}); recalculating.",
-            "show",
-        )
-        return None
-
-    return metrics_data
-
-
-def _refresh_saved_show_metrics(show_filename: Optional[str] = None) -> Optional[Dict[str, Any]]:
-    if not METRICS_AVAILABLE:
-        return None
-
-    metrics_engine = DroneShowMetrics(processed_dir)
-    comprehensive_metrics = metrics_engine.calculate_comprehensive_metrics()
-    metrics_engine.save_metrics_to_file(
-        comprehensive_metrics,
-        show_filename=show_filename,
-        upload_datetime=datetime.now().isoformat(),
-    )
-    return comprehensive_metrics
-
-
-@app.post("/import-show", response_model=ShowImportResponse, tags=["Show Management"])
-async def import_show(file: UploadFile = File(...)):
-    """
-    Import and process drone show files.
-    Handles zip upload, extraction, processing, and git operations.
-    """
-    try:
-        log_system_event(f"📤 Show import requested: {file.filename}", "INFO", "show")
-
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file part or empty filename")
-        if not allowed_file(file.filename):
-            raise HTTPException(status_code=400, detail="Only ZIP archives are supported")
-
-        warnings: List[str] = []
-        git_result: Optional[Dict[str, Any]] = None
-
-        temp_root = os.path.join(BASE_DIR, 'temp')
-        os.makedirs(temp_root, exist_ok=True)
-
-        with tempfile.TemporaryDirectory(prefix="show-import-", dir=temp_root) as staging_root:
-            zip_path = os.path.join(staging_root, 'uploaded.zip')
-            extract_dir = os.path.join(staging_root, 'extracted')
-            staging_skybrush_dir = os.path.join(staging_root, 'skybrush')
-            staging_processed_dir = os.path.join(staging_root, 'processed')
-            staging_plots_dir = os.path.join(staging_root, 'plots')
-
-            os.makedirs(extract_dir, exist_ok=True)
-            os.makedirs(staging_skybrush_dir, exist_ok=True)
-            os.makedirs(staging_processed_dir, exist_ok=True)
-            os.makedirs(staging_plots_dir, exist_ok=True)
-
-            with open(zip_path, 'wb') as f:
-                content = await file.read()
-                f.write(content)
-
-            if not zipfile.is_zipfile(zip_path):
-                raise HTTPException(status_code=400, detail="Uploaded file is not a valid ZIP archive")
-
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(extract_dir)
-
-            extracted_csvs = sorted(path for path in Path(extract_dir).rglob('*.csv') if path.is_file())
-            if not extracted_csvs:
-                raise HTTPException(status_code=400, detail="ZIP archive does not contain any SkyBrush CSV files")
-
-            basename_map: Dict[str, List[Path]] = {}
-            for csv_path in extracted_csvs:
-                basename_map.setdefault(csv_path.name, []).append(csv_path)
-
-            duplicate_names = sorted(name for name, paths in basename_map.items() if len(paths) > 1)
-            if duplicate_names:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "ZIP archive contains duplicate CSV filenames. "
-                        f"Each drone CSV must be uniquely named. Duplicates: {duplicate_names}"
-                    ),
-                )
-
-            nested_csv_count = sum(1 for csv_path in extracted_csvs if csv_path.parent != Path(extract_dir))
-            if nested_csv_count:
-                warnings.append(
-                    f"Detected {nested_csv_count} CSV file(s) in nested archive folders; "
-                    "they were flattened during import."
-                )
-
-            for csv_path in extracted_csvs:
-                shutil.copy2(csv_path, os.path.join(staging_skybrush_dir, csv_path.name))
-
-            log_system_event(f"⚙️ Processing show files from staged import ({len(extracted_csvs)} CSVs)", "INFO", "show")
-            process_result = run_formation_process(
-                BASE_DIR,
-                skybrush_dir=staging_skybrush_dir,
-                processed_dir=staging_processed_dir,
-                plots_dir=staging_plots_dir,
-            )
-            if not process_result.get('success'):
-                raise HTTPException(status_code=400, detail=process_result.get('message', 'Show processing failed'))
-
-            clear_show_directories(BASE_DIR)
-            _copy_directory_contents(staging_skybrush_dir, skybrush_dir)
-            _copy_directory_contents(staging_processed_dir, processed_dir)
-            _copy_directory_contents(staging_plots_dir, plots_directory)
-
-            processed_count = len([f for f in os.listdir(processed_dir) if f.endswith('.csv')])
-            plots_generated = len([f for f in os.listdir(plots_directory) if f.endswith('.jpg')])
-
-            if METRICS_AVAILABLE:
-                try:
-                    _refresh_saved_show_metrics(file.filename)
-                except Exception as metrics_error:
-                    warnings.append(f"Metrics refresh failed: {metrics_error}")
-                    log_system_warning(f"Failed to refresh show metrics after import: {metrics_error}", "show")
-
-            log_system_event(f"✅ Show processing completed: {processed_count} drones", "INFO", "show")
-
-            if Params.GIT_AUTO_PUSH:
-                loop = asyncio.get_event_loop()
-                git_result = await loop.run_in_executor(
-                    None,
-                    git_operations,
-                    BASE_DIR,
-                    f"show: import {file.filename} ({processed_count} drones)"
-                )
-                if not git_result.get('success'):
-                    warnings.append(f"Git auto-push failed: {git_result.get('message', 'unknown error')}")
-
-        return ShowImportResponse(
-            success=True,
-            message="Show imported and processed successfully",
-            show_name=file.filename,
-            files_processed=processed_count,
-            drones_configured=processed_count,
-            raw_files_found=len(extracted_csvs),
-            plots_generated=plots_generated,
-            warnings=warnings,
-            next_steps=[
-                "Review launch positions and origin in Mission Config.",
-                "Confirm telemetry and readiness in Overview before launch.",
-            ],
-            git_info=git_result,
-        )
-
-    except Exception as e:
-        log_system_error(f"Error importing show: {e}", "show")
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
 # Swarm Trajectory Routes
 # ============================================================================
 
@@ -1834,355 +1529,6 @@ async def commit_trajectory_changes(request: Request):
     except Exception as e:
         log_system_error(f"Failed to commit swarm trajectory changes: {e}", "swarm")
         return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
-
-
-# ============================================================================
-# Show Management - Additional Endpoints
-# ============================================================================
-
-@app.get("/download-raw-show", tags=["Show Management"])
-async def download_raw_show():
-    """Download raw show files as zip"""
-    try:
-        zip_file = zip_directory(skybrush_dir, os.path.join(BASE_DIR, 'temp/raw_show'))
-        return FileResponse(zip_file, filename='raw_show.zip', media_type='application/zip')
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating raw show zip: {e}")
-
-
-@app.get("/download-processed-show", tags=["Show Management"])
-async def download_processed_show():
-    """Download processed show files as zip"""
-    try:
-        zip_file = zip_directory(processed_dir, os.path.join(BASE_DIR, 'temp/processed_show'))
-        return FileResponse(zip_file, filename='processed_show.zip', media_type='application/zip')
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error creating processed show zip: {e}")
-
-
-@app.get("/get-show-info", tags=["Show Management"])
-async def get_show_info():
-    """Get show metadata (drone count, duration, altitude)"""
-    try:
-        drone_csv_files = [f for f in os.listdir(skybrush_dir)
-                          if f.startswith('Drone ') and f.endswith('.csv')]
-
-        if not drone_csv_files:
-            raise HTTPException(status_code=404, detail="No drone CSV files found")
-
-        drone_count = len(drone_csv_files)
-        max_duration_ms = 0.0
-        max_altitude = 0.0
-
-        for csv_file in drone_csv_files:
-            csv_path = os.path.join(skybrush_dir, csv_file)
-
-            with open(csv_path, 'r') as file:
-                next(file)  # Skip header
-                lines = file.readlines()
-                if not lines:
-                    continue
-
-                # Last line for time
-                last_line = lines[-1].strip().split(',')
-                duration_ms = float(last_line[0])
-                if duration_ms > max_duration_ms:
-                    max_duration_ms = duration_ms
-
-                # Find max altitude
-                for line in lines:
-                    parts = line.strip().split(',')
-                    if len(parts) < 4:
-                        continue
-                    z_val = float(parts[3])
-                    if z_val > max_altitude:
-                        max_altitude = z_val
-
-        duration_minutes = max_duration_ms / 60000
-        duration_seconds = (max_duration_ms % 60000) / 1000
-
-        return JSONResponse(content={
-            'drone_count': drone_count,
-            'duration_ms': max_duration_ms,
-            'duration_minutes': round(duration_minutes, 2),
-            'duration_seconds': round(duration_seconds, 2),
-            'max_altitude': round(max_altitude, 2)
-        })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading show info: {e}")
-
-
-@app.get("/get-custom-show-info", response_model=CustomShowInfoResponse, tags=["Show Management"])
-async def get_custom_show_info():
-    """Get metadata for the advanced custom CSV workflow."""
-    try:
-        custom_csv_path = _custom_show_csv_path()
-        preview_path = _custom_show_preview_path()
-
-        if not os.path.exists(custom_csv_path):
-            raise HTTPException(status_code=404, detail="Custom CSV not found")
-
-        inspected = _inspect_custom_show_csv(custom_csv_path)
-        return JSONResponse(content={
-            'exists': True,
-            'filename': 'active.csv',
-            'row_count': inspected['row_count'],
-            'duration_sec': inspected['duration_sec'],
-            'max_altitude': inspected['max_altitude'],
-            'preview_exists': os.path.exists(preview_path),
-            'execution_mode': 'local per-drone replay',
-            'required_columns': list(CUSTOM_SHOW_REQUIRED_COLUMNS),
-        })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading custom show info: {e}")
-
-
-@app.post("/import-custom-show", response_model=CustomShowImportResponse, tags=["Show Management"])
-async def import_custom_show(file: UploadFile = File(...)):
-    """Upload a ready-to-execute custom CSV, validate it, and regenerate the preview."""
-    try:
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="No file part or empty filename")
-        if not file.filename.lower().endswith('.csv'):
-            raise HTTPException(status_code=400, detail="Only CSV files are supported for Custom CSV mode")
-
-        warnings: List[str] = []
-        git_result: Optional[Dict[str, Any]] = None
-        temp_root = os.path.join(BASE_DIR, 'temp')
-        os.makedirs(temp_root, exist_ok=True)
-        os.makedirs(shapes_dir, exist_ok=True)
-
-        with tempfile.TemporaryDirectory(prefix="custom-show-import-", dir=temp_root) as staging_root:
-            staged_csv_path = os.path.join(staging_root, 'active.csv')
-            staged_preview_path = os.path.join(staging_root, 'trajectory_plot.png')
-
-            with open(staged_csv_path, 'wb') as staged_csv:
-                content = await file.read()
-                staged_csv.write(content)
-
-            inspected = _inspect_custom_show_csv(staged_csv_path)
-            _generate_custom_show_preview(inspected['points'], staged_preview_path)
-
-            active_csv_path = _custom_show_csv_path()
-            preview_path = _custom_show_preview_path()
-            if os.path.exists(active_csv_path):
-                warnings.append('Existing active custom CSV was replaced.')
-
-            shutil.copy2(staged_csv_path, active_csv_path)
-            shutil.copy2(staged_preview_path, preview_path)
-
-            if Params.GIT_AUTO_PUSH:
-                loop = asyncio.get_event_loop()
-                git_result = await loop.run_in_executor(
-                    None,
-                    git_operations,
-                    BASE_DIR,
-                    f"custom-show: import {file.filename} ({inspected['row_count']} samples)",
-                )
-                if not git_result.get('success'):
-                    warnings.append(f"Git auto-push failed: {git_result.get('message', 'unknown error')}")
-
-            return CustomShowImportResponse(
-                success=True,
-                message='Custom CSV validated and activated successfully',
-                filename=file.filename,
-                stored_as='active.csv',
-                row_count=inspected['row_count'],
-                duration_sec=inspected['duration_sec'],
-                max_altitude=inspected['max_altitude'],
-                preview_generated=True,
-                warnings=warnings,
-                next_steps=[
-                    'Review the generated preview and confirm the path is correct.',
-                    'Remember: every drone will execute the same CSV in its own local launch frame.',
-                    'Use Mission Config and Overview to confirm spacing and readiness before launch.',
-                ],
-                git_info=git_result,
-            )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_system_error(f"Error importing custom show: {e}", "show")
-        raise HTTPException(status_code=500, detail=f"Error importing custom CSV: {e}")
-
-
-@app.get("/get-comprehensive-metrics", tags=["Show Management"])
-async def get_comprehensive_metrics():
-    """Retrieve comprehensive trajectory analysis metrics"""
-    if not METRICS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Enhanced metrics engine not available")
-
-    try:
-        metrics_data = _load_saved_metrics_if_current()
-        if metrics_data is not None:
-            return JSONResponse(content=metrics_data)
-
-        # Calculate on-demand
-        comprehensive_metrics = _refresh_saved_show_metrics()
-
-        return JSONResponse(content=comprehensive_metrics)
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calculating comprehensive metrics: {e}")
-
-
-@app.get("/get-safety-report", tags=["Show Management"])
-async def get_safety_report():
-    """Get detailed safety analysis report"""
-    if not METRICS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Enhanced metrics engine not available")
-
-    try:
-        metrics_engine = DroneShowMetrics(processed_dir)
-        if not metrics_engine.load_drone_data():
-            raise HTTPException(status_code=404, detail="No drone data available for safety analysis")
-
-        safety_metrics = metrics_engine.calculate_safety_metrics()
-
-        return JSONResponse(content={
-            'safety_analysis': safety_metrics,
-            'recommendations': [
-                'Maintain minimum 2m separation between drones',
-                'Ensure ground clearance > 1m at all times',
-                'Monitor collision warnings during flight'
-            ] if safety_metrics.get('collision_warnings_count', 0) > 0 else [
-                'Safety analysis complete - no issues detected',
-                'Formation maintains safe separation distances'
-            ]
-        })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating safety report: {e}")
-
-
-@app.post("/validate-trajectory", tags=["Show Management"])
-async def validate_trajectory():
-    """Real-time trajectory validation"""
-    if not METRICS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Enhanced metrics engine not available")
-
-    try:
-        metrics_engine = DroneShowMetrics(processed_dir)
-        if not metrics_engine.load_drone_data():
-            raise HTTPException(status_code=404, detail="No drone data available for validation")
-
-        all_metrics = metrics_engine.calculate_comprehensive_metrics()
-
-        validation_status = "PASS"
-        issues = []
-
-        if 'safety_metrics' in all_metrics:
-            safety = all_metrics['safety_metrics']
-            if safety.get('safety_status') != 'SAFE':
-                validation_status = "FAIL"
-                issues.append(f"Safety issue: {safety.get('safety_status')}")
-
-            if safety.get('collision_warnings_count', 0) > 0:
-                validation_status = "WARNING"
-                issues.append(f"{safety['collision_warnings_count']} collision warnings")
-
-        if 'performance_metrics' in all_metrics:
-            perf = all_metrics['performance_metrics']
-            if perf.get('max_velocity_ms', 0) > 15:
-                validation_status = "WARNING"
-                issues.append(f"High velocity: {perf['max_velocity_ms']} m/s")
-
-        return JSONResponse(content={
-            'validation_status': validation_status,
-            'issues': issues,
-            'metrics_summary': {
-                'safety_status': all_metrics.get('safety_metrics', {}).get('safety_status', 'Unknown'),
-                'max_velocity': all_metrics.get('performance_metrics', {}).get('max_velocity_ms', 0),
-                'formation_quality': all_metrics.get('formation_metrics', {}).get('formation_quality', 'Unknown')
-            }
-        })
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error validating trajectory: {e}")
-
-
-@app.post("/deploy-show", tags=["Show Management"])
-async def deploy_show(request: Request):
-    """Deploy show changes to git repository for drone fleet"""
-    try:
-        data = await request.json() if request.headers.get('content-type') == 'application/json' else {}
-        commit_message = data.get('message', f"Deploy drone show: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-        loop = asyncio.get_event_loop()
-        git_result = await loop.run_in_executor(None, git_operations, BASE_DIR, commit_message)
-
-        if git_result.get('success'):
-            return JSONResponse(content={
-                'success': True,
-                'message': 'Show deployed successfully to drone fleet',
-                'git_info': git_result
-            })
-        else:
-            raise HTTPException(status_code=500, detail=f"Deployment failed: {git_result.get('message')}")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error during deployment: {e}")
-
-
-@app.get("/get-show-plots/{filename}", tags=["Show Management"])
-async def get_show_plot_image(filename: str):
-    """Get specific show plot image"""
-    try:
-        file_path = os.path.join(plots_directory, filename)
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="Plot image not found")
-        return FileResponse(file_path)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/get-show-plots", tags=["Show Management"])
-async def get_show_plots_list():
-    """Get list of all show plot images"""
-    try:
-        if not os.path.exists(plots_directory):
-            os.makedirs(plots_directory)
-
-        filenames = [f for f in os.listdir(plots_directory) if f.endswith('.jpg')]
-        upload_time = "unknown"
-
-        if 'combined_drone_paths.jpg' in filenames:
-            upload_time = time.ctime(os.path.getctime(os.path.join(plots_directory, 'combined_drone_paths.jpg')))
-
-        return JSONResponse(content={'filenames': filenames, 'uploadTime': upload_time})
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list directory: {e}")
-
-
-@app.get("/get-custom-show-image", tags=["Show Management"])
-async def get_custom_show_image():
-    """Get custom drone show trajectory plot image"""
-    try:
-        image_path = os.path.join(shapes_dir, 'trajectory_plot.png')
-        if os.path.exists(image_path):
-            return FileResponse(image_path, media_type='image/png')
-        else:
-            raise HTTPException(status_code=404, detail=f'Custom show image not found at {image_path}')
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================================

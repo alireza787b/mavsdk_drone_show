@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 Show Management router extraction checkpoint note documenting the sixth Phase 3 backend route-domain split, the extracted Drone Show / Custom Show compatibility surface, the helper move into `gcs-server/show_management.py`, the show-specific contract fixes, and the paired local/Hetzner validation results
 - a 2026-04-03 Management and Static Assets router extraction checkpoint note documenting the fifth Phase 3 backend route-domain split, the GCS management/static compatibility surfaces moved out of `app_fastapi.py`, the explicit `save-gcs-config` stub contract, the static plot path-hardening work, the Hetzner validation-venv setup, and the paired backend/frontend validation results
 - a 2026-04-03 Origin router extraction checkpoint note documenting the fourth Phase 3 backend route-domain split, the extracted origin/elevation surface, the compute-origin contract cleanup, the launch-position export behavior, and the combined local/Hetzner validation results
 - a 2026-04-03 Git router extraction checkpoint note documenting the third Phase 3 backend route-domain split, the extracted Git REST/WebSocket surface, the preserved sync-helper seam in `app_fastapi.py`, and the combined local/Hetzner validation results
@@ -25,6 +26,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the sixth Phase 3 backend extraction now moves the remaining Drone Show / Custom Show routes into `gcs-server/api_routes/show_management.py`, so `app_fastapi.py` no longer owns `/import-show`, `/download-raw-show`, `/download-processed-show`, `/get-show-info`, `/get-custom-show-info`, `/import-custom-show`, `/get-comprehensive-metrics`, `/get-safety-report`, `/validate-trajectory`, `/deploy-show`, `/get-show-plots`, `/get-show-plots/{filename}`, or `/get-custom-show-image`
+- shared Drone Show / Custom Show helper logic now lives in `gcs-server/show_management.py`, while `app_fastapi.py` keeps compatibility wrappers for the patch-driven test seam instead of duplicating domain logic inline
+- `POST /deploy-show` now accepts standard JSON content types with charset parameters instead of only an exact `application/json` header match
+- show trajectory validation now preserves `FAIL` when safety blockers exist, instead of accidentally downgrading that result back to `WARNING` when collision or speed warnings are also present
+- `GET /get-show-plots/{filename}` now resolves files through a bounded path check, closing the traversal risk in the legacy show-plot download surface
+- `GET /get-show-plots` now returns an empty result for a missing plots directory instead of creating directories as a side effect of a read request
+- the GCS API server docs now include the active custom-show endpoints and the expanded show-import response payload, removing the show-domain doc drift that had built up around the extracted routes
 - the fifth Phase 3 backend extraction now moves `/get-gcs-config`, `/save-gcs-config`, `/get-network-info`, and `/static/plots/{filename}` into `gcs-server/api_routes/management.py` and `gcs-server/api_routes/static_assets.py`, so `app_fastapi.py` no longer owns that compatibility cluster
 - `POST /save-gcs-config` now returns an explicit compatibility stub result with `success=true`, `persisted=false`, and warnings instead of the old ambiguous payload that looked like a real save even though no persistence path exists
 - static plot serving now resolves paths through a bounded project-root check before returning files, closing the traversal risk that existed when arbitrary filenames were joined directly under the plots directory

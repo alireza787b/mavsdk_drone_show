@@ -195,6 +195,21 @@ Phase 3 fifth checkpoint on 2026-04-03:
 - fixed the project test-tooling contract by adding `pytest-timeout` to the `dev` extra and removing the ignored duplicate pytest config from `pyproject.toml`, leaving `pytest.ini` as the single test-config source of truth
 - revalidated the extracted-router surface on Hetzner with a validation-only `.venv` built from `python -m pip install -e ".[dev]"`, then ran the combined backend batch plus the dashboard production build successfully
 
+Phase 3 sixth checkpoint on 2026-04-03:
+
+- extracted the remaining Drone Show / Custom Show management routes into `gcs-server/api_routes/show_management.py`
+- moved the supporting show-domain helpers out of `app_fastapi.py` into `gcs-server/show_management.py`, while keeping compatibility wrappers on the `app_fastapi` module object so existing patch-driven tests and future auth/MCP wrapping still target one live dependency surface
+- preserved the existing live show routes: `/import-show`, `/download-raw-show`, `/download-processed-show`, `/get-show-info`, `/get-custom-show-info`, `/import-custom-show`, `/get-comprehensive-metrics`, `/get-safety-report`, `/validate-trajectory`, `/deploy-show`, `/get-show-plots`, `/get-show-plots/{filename}`, and `/get-custom-show-image`
+- corrected multiple show-domain contract issues during extraction:
+  - `deploy-show` now accepts standard JSON content-type variants such as `application/json; charset=utf-8`
+  - trajectory validation no longer downgrades a safety `FAIL` back to `WARNING` later in the same pass
+  - show plot file serving now uses bounded path resolution instead of direct path joins
+  - show plot listing no longer creates directories as a side effect when nothing has been generated yet
+  - async show handlers now use `asyncio.get_running_loop()` instead of `get_event_loop()`
+- added focused router-level coverage in `tests/test_gcs_show_management_routes.py` plus new HTTP regressions for the deploy-header and validation-status fixes
+- refreshed the human-facing API doc in `docs/apis/gcs-api-server.md` so the custom-show endpoints and expanded show import response are documented alongside the standard show-management surfaces
+- revalidated the extracted-router surface locally and on Hetzner with the combined backend batch, then reran the Hetzner dashboard production build successfully
+
 ### Phase 4
 
 - migrate configuration, origin, swarm, git, and show-management domains to canonical v1 routes

@@ -496,6 +496,13 @@ Calculate GPS coordinates for each drone's desired launch position.
 
 ### Show Management
 
+The show domain currently exposes two separate operator workflows:
+
+- standard SkyBrush ZIP import / processing
+- custom per-drone local replay CSV import
+
+Both remain on legacy compatibility routes during Phase 3 extraction. Canonical `/api/v1/...` replacements come later in the modernization plan.
+
 #### `POST /import-show`
 Import and process drone show files (multipart file upload).
 
@@ -510,7 +517,15 @@ Import and process drone show files (multipart file upload).
   "message": "Show imported and processed successfully",
   "show_name": "show.zip",
   "files_processed": 10,
-  "drones_configured": 10
+  "drones_configured": 10,
+  "raw_files_found": 10,
+  "plots_generated": 11,
+  "warnings": [],
+  "next_steps": [
+    "Review launch positions and origin in Mission Config.",
+    "Confirm telemetry and readiness in Overview before launch."
+  ],
+  "git_info": null
 }
 ```
 
@@ -538,6 +553,51 @@ Download processed show files as ZIP.
 
 **Response:** ZIP file download
 
+#### `GET /get-custom-show-info`
+Get metadata for the active custom replay CSV.
+
+**Response:**
+```json
+{
+  "exists": true,
+  "filename": "active.csv",
+  "row_count": 240,
+  "duration_sec": 120.0,
+  "max_altitude": 35.0,
+  "preview_exists": true,
+  "execution_mode": "local per-drone replay",
+  "required_columns": ["t", "px", "py", "pz", "vx", "vy", "vz", "ax", "ay", "az", "yaw", "mode"]
+}
+```
+
+#### `POST /import-custom-show`
+Upload, validate, and activate a custom replay CSV.
+
+**Request:**
+- Content-Type: `multipart/form-data`
+- Field: `file` (CSV file using the custom-show protocol columns)
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Custom CSV validated and activated successfully",
+  "filename": "custom_show.csv",
+  "stored_as": "active.csv",
+  "row_count": 240,
+  "duration_sec": 120.0,
+  "max_altitude": 35.0,
+  "preview_generated": true,
+  "warnings": [],
+  "next_steps": [
+    "Review the generated preview and confirm the path is correct.",
+    "Remember: every drone will execute the same CSV in its own local launch frame.",
+    "Use Mission Config and Overview to confirm spacing and readiness before launch."
+  ],
+  "git_info": null
+}
+```
+
 #### `GET /get-show-plots`
 Get list of all show plot images.
 
@@ -549,10 +609,14 @@ Get list of all show plot images.
 }
 ```
 
+If the plots directory does not exist yet, the response is an empty list with `"uploadTime": "unknown"` instead of creating the directory as a side effect.
+
 #### `GET /get-show-plots/{filename}`
 Get specific show plot image.
 
 **Response:** JPG image file
+
+The server now rejects path traversal attempts and only serves files inside the configured show-plots directory.
 
 #### `GET /get-custom-show-image`
 Get custom drone show trajectory plot image.

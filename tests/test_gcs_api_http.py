@@ -799,6 +799,64 @@ class TestShowManagementEndpoints:
         assert response.json()['basic_metrics']['drone_count'] == 5
         assert refresh_calls == [None]
 
+    def test_validate_trajectory_preserves_fail_status_when_warnings_also_exist(self, test_client, monkeypatch, tmp_path):
+        """A safety FAIL must not be downgraded to WARNING later in the same validation pass."""
+        import app_fastapi
+
+        class DummyMetricsEngine:
+            def __init__(self, processed_dir):
+                self.processed_dir = processed_dir
+
+            def load_drone_data(self):
+                return True
+
+            def calculate_comprehensive_metrics(self):
+                return {
+                    'safety_metrics': {
+                        'safety_status': 'UNSAFE',
+                        'collision_warnings_count': 2,
+                    },
+                    'performance_metrics': {
+                        'max_velocity_ms': 18.0,
+                    },
+                    'formation_metrics': {
+                        'formation_quality': 'Degraded',
+                    },
+                }
+
+        monkeypatch.setattr(app_fastapi, 'METRICS_AVAILABLE', True)
+        monkeypatch.setattr(app_fastapi, 'DroneShowMetrics', DummyMetricsEngine)
+        monkeypatch.setattr(app_fastapi, 'processed_dir', str(tmp_path / 'processed'))
+
+        response = test_client.post('/validate-trajectory')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['validation_status'] == 'FAIL'
+        assert any('Safety issue' in issue for issue in data['issues'])
+        assert any('collision warnings' in issue for issue in data['issues'])
+        assert any('High velocity' in issue for issue in data['issues'])
+
+    @patch('app_fastapi.git_operations')
+    def test_deploy_show_accepts_json_content_type_with_charset(self, mock_git_operations, test_client):
+        """The deploy route should parse standard JSON content-type variants, not only an exact match."""
+        mock_git_operations.return_value = {
+            'success': True,
+            'message': 'ok',
+            'commit': 'abc12345',
+        }
+
+        response = test_client.post(
+            '/deploy-show',
+            data=json.dumps({'message': 'Deploy via API'}),
+            headers={'content-type': 'application/json; charset=utf-8'},
+        )
+
+        assert response.status_code == 200
+        assert response.json()['success'] is True
+        mock_git_operations.assert_called_once()
+        assert mock_git_operations.call_args.args[1] == 'Deploy via API'
+
 
 # ============================================================================
 # GCS Management & Static Asset Tests
