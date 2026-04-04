@@ -13,6 +13,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | I want to... | Start with... |
 |--------------|---------------|
 | get a working SITL demo fast | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
+| run reusable end-to-end SITL regression suites | [SITL Validation Platform](guides/sitl-validation-platform.md) |
 | fly a Drone Show from the dashboard | [Drone Show Guide](features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
@@ -48,6 +49,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 ### Core Secondary Guides
 
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
+- **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
 - **[QuickScout Guide](quickscout.md)** - SAR / recon workflows
 - **[Versioning Guide](VERSIONING.md)** - release flow and version management
 - **[Python Compatibility](guides/python-compatibility.md)** - supported Python versions
@@ -61,6 +63,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | Guide | Description | Audience |
 |-------|-------------|----------|
 | **[SITL Comprehensive](guides/sitl-comprehensive.md)** | Complete SITL setup from scratch | Beginners |
+| **[SITL Validation Platform](guides/sitl-validation-platform.md)** | Reusable end-to-end SITL regression templates, plans, and artifacts | Maintainers / CI / AI agents |
 | **[Custom Repo Workflow](guides/custom-repo-workflow.md)** | Customer repo/branch selection across GCS, drones, and SITL | Advanced users |
 | **[Advanced SITL](guides/advanced-sitl.md)** | Custom configuration, environment variables, production deployments | Advanced users |
 | **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** | Fork maintenance, clean image rebuilds, package/archive distribution | Advanced users |

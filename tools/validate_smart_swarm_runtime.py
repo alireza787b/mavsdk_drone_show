@@ -34,6 +34,15 @@ try:
 except Exception:
     Params = None
 
+from src.gcs_api_routes import (
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
+    GCS_COMMANDS_ROUTE,
+    GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE,
+    GCS_CONFIG_SWARM_ROUTE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
+)
+
 from tools.runtime_validation_support import parse_csv_drone_ids, write_json_report
 
 
@@ -85,12 +94,12 @@ class ApiClient:
             return json.load(response)
 
     def get_telemetry(self):
-        payload = self.get_json("/api/v1/fleet/telemetry")
+        payload = self.get_json(GCS_FLEET_TELEMETRY_ROUTE)
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
     def get_swarm(self):
-        payload = self.get_json("/api/v1/config/swarm")
+        payload = self.get_json(GCS_CONFIG_SWARM_ROUTE)
         if isinstance(payload, dict) and "assignments" in payload:
             payload = payload["assignments"]
         return payload
@@ -102,7 +111,7 @@ class ApiClient:
             "target_drone_ids": [str(target_id) for target_id in target_ids],
             "operator_label": operator_label,
         }
-        response = self.post_json("/api/v1/commands", payload)
+        response = self.post_json(GCS_COMMANDS_ROUTE, payload)
         command_id = response["command_id"]
         log(f"COMMAND {operator_label}: id={command_id} targets={target_ids}")
         return command_id, response
@@ -112,7 +121,7 @@ class ApiClient:
         for key in ("follow", "offset_x", "offset_y", "offset_z", "frame"):
             if key in kwargs and kwargs[key] is not None:
                 payload[key] = kwargs[key]
-        response = self.patch_json(f"/api/v1/config/swarm/assignments/{int(hw_id)}", payload)
+        response = self.patch_json(GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE.format(hw_id=int(hw_id)), payload)
         log(f"SWARM UPDATE hw_id={hw_id}: {response['assignment']}")
         return response["assignment"]
 
@@ -156,7 +165,7 @@ def wait_for(predicate, *, label: str, timeout: int = 90, interval: float = 1.0)
 def wait_api_ready(client: ApiClient, timeout: int = 60):
     def _ready():
         try:
-            return client.get_json("/api/v1/system/health")
+            return client.get_json(GCS_SYSTEM_HEALTH_ROUTE)
         except urllib.error.URLError:
             return False
 
@@ -167,7 +176,7 @@ def wait_for_command(client: ApiClient, command_id: str, *, desired_phase: str |
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
-        status = client.get_json(f"/api/v1/commands/{command_id}")
+        status = client.get_json(GCS_COMMAND_STATUS_ROUTE_TEMPLATE.format(command_id=command_id))
         last = status
         state = status.get("status")
         phase = status.get("phase")
@@ -503,6 +512,17 @@ def wait_idle_reset(client: ApiClient, ids: list[int], timeout: int = 180):
     return wait_for(_ready, label=f"drones {ids} disarmed and reset idle", timeout=timeout, interval=2.0)
 
 
+def cleanup_land(client: ApiClient, ids: list[int], timeout: int = 180):
+    telemetry = client.get_telemetry()
+    armed_ids = [idx for idx in ids if telemetry.get(str(idx), {}).get("is_armed")]
+    if not armed_ids:
+        return None
+    command_id, _ = client.submit_command(LAND, armed_ids, "Smart Swarm Validation Cleanup Land")
+    status = wait_for_command(client, command_id, terminal=True, timeout=timeout)
+    wait_idle_reset(client, ids, timeout=max(timeout, 240))
+    return command_summary(status)
+
+
 def require_full_acceptance(status: dict, expected_targets: int, label: str) -> None:
     accepted = (status.get("acks") or {}).get("accepted")
     if accepted != expected_targets:
@@ -555,130 +575,159 @@ def main() -> int:
         "drone_ids": ids,
         "skip_reassign": bool(args.skip_reassign),
     }
+    original_assignments: dict[int, dict] | None = None
+    exit_code = 0
 
-    results["health"] = wait_api_ready(client, timeout=60)
-    telemetry = wait_fleet_ready(client, ids, timeout=120)
-    results["baseline_telemetry"] = telemetry
-    base_altitudes = {str(idx): telemetry[str(idx)]["position_alt"] for idx in ids}
-    log(f"BASE ALTITUDES: {base_altitudes}")
-    results["base_altitudes"] = base_altitudes
+    try:
+        results["health"] = wait_api_ready(client, timeout=60)
+        telemetry = wait_fleet_ready(client, ids, timeout=120)
+        results["baseline_telemetry"] = telemetry
+        base_altitudes = {str(idx): telemetry[str(idx)]["position_alt"] for idx in ids}
+        log(f"BASE ALTITUDES: {base_altitudes}")
+        results["base_altitudes"] = base_altitudes
 
-    swarm = client.get_swarm()
-    original_assignments = assignment_snapshot(swarm, ids)
-    results["original_assignments"] = original_assignments
-    clusters = build_clusters(swarm, set(ids))
-    require(clusters, "No Smart Swarm clusters found for the selected drones.")
-    log(f"SMART SWARM CLUSTERS: {clusters}")
-    results["clusters"] = clusters
-    results["cluster_runs"] = []
+        swarm = client.get_swarm()
+        original_assignments = assignment_snapshot(swarm, ids)
+        results["original_assignments"] = original_assignments
+        clusters = build_clusters(swarm, set(ids))
+        require(clusters, "No Smart Swarm clusters found for the selected drones.")
+        log(f"SMART SWARM CLUSTERS: {clusters}")
+        results["clusters"] = clusters
+        results["cluster_runs"] = []
 
-    command_id, _ = client.submit_command(TAKEOFF, ids, "Smart Swarm Validation Takeoff")
-    status = wait_for_command(client, command_id, terminal=True, timeout=150)
-    require(status["status"] == "completed", f"Takeoff command failed: {command_summary(status)}")
-    require_full_acceptance(status, len(ids), "Takeoff")
-    require_full_execution(status, len(ids), "Takeoff")
-    results["takeoff"] = command_summary(status)
-    wait_altitude(client, ids, base_altitudes, args.takeoff_min_gain)
+        command_id, _ = client.submit_command(TAKEOFF, ids, "Smart Swarm Validation Takeoff")
+        status = wait_for_command(client, command_id, terminal=True, timeout=150)
+        require(status["status"] == "completed", f"Takeoff command failed: {command_summary(status)}")
+        require_full_acceptance(status, len(ids), "Takeoff")
+        require_full_execution(status, len(ids), "Takeoff")
+        results["takeoff"] = command_summary(status)
+        wait_altitude(client, ids, base_altitudes, args.takeoff_min_gain)
 
-    for cluster in clusters:
-        command_id, _ = client.submit_command(SMART_SWARM, cluster, f"Start Smart Swarm Cluster {cluster[0]}")
-        status = wait_for_command(client, command_id, desired_phase="in_progress", timeout=60)
-        require_full_acceptance(status, len(cluster), f"Smart Swarm start for cluster {cluster}")
-        wait_mission(client, cluster, SMART_SWARM, timeout=60)
-        assignments = cluster_assignments(client.get_swarm(), cluster)
-        errors = wait_formation(
-            client,
-            assignments,
-            cluster,
-            horizontal_tolerance=args.horizontal_tolerance,
-            altitude_tolerance=args.altitude_tolerance,
-            minimum_timeout=args.formation_min_timeout,
-            stability_samples=args.stability_samples,
-            max_velocity=args.max_smart_swarm_velocity,
-        )
-        log(f"FORMATION CLUSTER {cluster}: {json.dumps(errors, indent=2)}")
-        results["cluster_runs"].append(
-            {
-                "cluster": cluster,
-                "command": command_summary(status),
+        for cluster in clusters:
+            command_id, _ = client.submit_command(SMART_SWARM, cluster, f"Start Smart Swarm Cluster {cluster[0]}")
+            status = wait_for_command(client, command_id, desired_phase="in_progress", timeout=60)
+            require_full_acceptance(status, len(cluster), f"Smart Swarm start for cluster {cluster}")
+            wait_mission(client, cluster, SMART_SWARM, timeout=60)
+            assignments = cluster_assignments(client.get_swarm(), cluster)
+            errors = wait_formation(
+                client,
+                assignments,
+                cluster,
+                horizontal_tolerance=args.horizontal_tolerance,
+                altitude_tolerance=args.altitude_tolerance,
+                minimum_timeout=args.formation_min_timeout,
+                stability_samples=args.stability_samples,
+                max_velocity=args.max_smart_swarm_velocity,
+            )
+            log(f"FORMATION CLUSTER {cluster}: {json.dumps(errors, indent=2)}")
+            results["cluster_runs"].append(
+                {
+                    "cluster": cluster,
+                    "command": command_summary(status),
+                    "formation_errors": errors,
+                }
+            )
+
+        leader_rtl_triggered = False
+        results["reassignment"] = None
+        results["leader_rtl"] = None
+        results["follower_hold"] = None
+
+        if not args.skip_reassign and all(drone_id in ids for drone_id in (1, 2, 3)):
+            client.update_assignment(3, follow=2, offset_x=8.0, offset_y=6.0, offset_z=0.0, frame="body")
+            wait_swarm_update(client, 3, follow=2, frame="body", timeout=20)
+            wait_follow_mode(client, 3, 2, timeout=25)
+            assignments = cluster_assignments(client.get_swarm(), [1, 2, 3])
+            errors = wait_formation(
+                client,
+                assignments,
+                [1, 2, 3],
+                horizontal_tolerance=args.horizontal_tolerance,
+                altitude_tolerance=args.altitude_tolerance,
+                minimum_timeout=args.formation_min_timeout,
+                stability_samples=args.stability_samples,
+                max_velocity=args.max_smart_swarm_velocity,
+            )
+            log(f"FORMATION AFTER DRONE-3 REASSIGN: {json.dumps(errors, indent=2)}")
+            results["reassignment"] = {
+                "hw_id": 3,
+                "new_follow": 2,
+                "frame": "body",
                 "formation_errors": errors,
             }
-        )
 
-    leader_rtl_triggered = False
-    results["reassignment"] = None
-    results["leader_rtl"] = None
-    results["follower_hold"] = None
+            command_id, _ = client.submit_command(RTL, [1], "Leader 1 RTL override")
+            status = wait_for_command(client, command_id, terminal=True, timeout=120)
+            require_full_acceptance(status, 1, "Leader-only RTL")
+            require_full_execution(status, 1, "Leader-only RTL")
+            leader_rtl_triggered = True
+            results["leader_rtl"] = command_summary(status)
+            time.sleep(10.0)
+            telemetry = snapshot(client, [1, 2, 3])
+            require(telemetry["2"]["mission"] == SMART_SWARM, f"Drone 2 left Smart Swarm unexpectedly: {telemetry['2']}")
+            require(telemetry["3"]["mission"] == SMART_SWARM, f"Drone 3 left Smart Swarm unexpectedly: {telemetry['3']}")
+            log(f"POST-RTL TELEMETRY CLUSTER [1, 2, 3]: {json.dumps(telemetry, indent=2)}")
+            results["post_rtl_cluster_telemetry"] = telemetry
 
-    if not args.skip_reassign and all(drone_id in ids for drone_id in (1, 2, 3)):
-        client.update_assignment(3, follow=2, offset_x=8.0, offset_y=6.0, offset_z=0.0, frame="body")
-        wait_swarm_update(client, 3, follow=2, frame="body", timeout=20)
-        wait_follow_mode(client, 3, 2, timeout=25)
-        assignments = cluster_assignments(client.get_swarm(), [1, 2, 3])
-        errors = wait_formation(
-            client,
-            assignments,
-            [1, 2, 3],
-            horizontal_tolerance=args.horizontal_tolerance,
-            altitude_tolerance=args.altitude_tolerance,
-            minimum_timeout=args.formation_min_timeout,
-            stability_samples=args.stability_samples,
-            max_velocity=args.max_smart_swarm_velocity,
-        )
-        log(f"FORMATION AFTER DRONE-3 REASSIGN: {json.dumps(errors, indent=2)}")
-        results["reassignment"] = {
-            "hw_id": 3,
-            "new_follow": 2,
-            "frame": "body",
-            "formation_errors": errors,
-        }
+            command_id, _ = client.submit_command(HOLD, [2, 3], "Stop Smart Swarm Followers Hold")
+            status = wait_for_command(client, command_id, terminal=True, timeout=120)
+            require(status["status"] == "completed", f"Hold command failed: {command_summary(status)}")
+            require_full_acceptance(status, 2, "Hold")
+            require_full_execution(status, 2, "Hold")
+            results["follower_hold"] = command_summary(status)
 
-        command_id, _ = client.submit_command(RTL, [1], "Leader 1 RTL override")
-        status = wait_for_command(client, command_id, terminal=True, timeout=120)
-        require_full_acceptance(status, 1, "Leader-only RTL")
-        require_full_execution(status, 1, "Leader-only RTL")
-        leader_rtl_triggered = True
-        results["leader_rtl"] = command_summary(status)
-        time.sleep(10.0)
-        telemetry = snapshot(client, [1, 2, 3])
-        require(telemetry["2"]["mission"] == SMART_SWARM, f"Drone 2 left Smart Swarm unexpectedly: {telemetry['2']}")
-        require(telemetry["3"]["mission"] == SMART_SWARM, f"Drone 3 left Smart Swarm unexpectedly: {telemetry['3']}")
-        log(f"POST-RTL TELEMETRY CLUSTER [1, 2, 3]: {json.dumps(telemetry, indent=2)}")
-        results["post_rtl_cluster_telemetry"] = telemetry
+        land_targets = [idx for idx in ids if idx != 1] if leader_rtl_triggered else list(ids)
+        command_id, _ = client.submit_command(LAND, land_targets, "Land Remaining Smart Swarm Drones")
+        status = wait_for_command(client, command_id, terminal=True, timeout=180)
+        require(status["status"] == "completed", f"Land command failed: {command_summary(status)}")
+        require_full_acceptance(status, len(land_targets), "Land")
+        require_full_execution(status, len(land_targets), "Land")
+        results["land"] = command_summary(status)
 
-        command_id, _ = client.submit_command(HOLD, [2, 3], "Stop Smart Swarm Followers Hold")
-        status = wait_for_command(client, command_id, terminal=True, timeout=120)
-        require(status["status"] == "completed", f"Hold command failed: {command_summary(status)}")
-        require_full_acceptance(status, 2, "Hold")
-        require_full_execution(status, 2, "Hold")
-        results["follower_hold"] = command_summary(status)
+        final_telemetry = wait_idle_reset(client, ids, timeout=240)
+        results["final_telemetry"] = final_telemetry
+        log(f"FINAL TELEMETRY: {json.dumps(final_telemetry, indent=2)}")
+        results["result"] = "PASS"
+    except Exception as exc:
+        exit_code = 1
+        results["result"] = "FAIL"
+        results["error"] = str(exc)
+        try:
+            cleanup = cleanup_land(client, ids, timeout=180)
+            results["cleanup"] = {
+                "status": "completed" if cleanup else "noop",
+                "command": cleanup,
+            }
+        except Exception as cleanup_exc:
+            results["cleanup"] = {"status": "failed", "error": str(cleanup_exc)}
+    finally:
+        if original_assignments is not None:
+            try:
+                restored_ids = restore_assignments(client, original_assignments, timeout=30)
+                if restored_ids:
+                    log(f"RESTORED SWARM ASSIGNMENTS: {restored_ids}")
+                results["restored_assignment_ids"] = restored_ids
+                final_assignments = assignment_snapshot(client.get_swarm(), ids)
+                results["final_assignments"] = final_assignments
+                if results.get("result") == "PASS":
+                    require(
+                        final_assignments == original_assignments,
+                        f"Selected swarm assignments were not restored: {json.dumps(final_assignments, indent=2)}",
+                    )
+                    log(f"FINAL SWARM ASSIGNMENTS: {json.dumps(final_assignments, indent=2, sort_keys=True)}")
+            except Exception as restore_exc:
+                if exit_code == 0:
+                    exit_code = 1
+                    results["result"] = "FAIL"
+                    results["error"] = f"Assignment restore failed: {restore_exc}"
+                results["restore_error"] = str(restore_exc)
 
-    land_targets = [idx for idx in ids if idx != 1] if leader_rtl_triggered else list(ids)
-    command_id, _ = client.submit_command(LAND, land_targets, "Land Remaining Smart Swarm Drones")
-    status = wait_for_command(client, command_id, terminal=True, timeout=180)
-    require(status["status"] == "completed", f"Land command failed: {command_summary(status)}")
-    require_full_acceptance(status, len(land_targets), "Land")
-    require_full_execution(status, len(land_targets), "Land")
-    results["land"] = command_summary(status)
+        if exit_code == 0:
+            log("SMART SWARM VALIDATION PASSED")
+        write_json_report(args.json_output, results)
+        print(json.dumps(results, indent=2, sort_keys=True))
 
-    final_telemetry = wait_idle_reset(client, ids, timeout=240)
-    restored_ids = restore_assignments(client, original_assignments, timeout=30)
-    if restored_ids:
-        log(f"RESTORED SWARM ASSIGNMENTS: {restored_ids}")
-    results["restored_assignment_ids"] = restored_ids
-    final_assignments = assignment_snapshot(client.get_swarm(), ids)
-    require(
-        final_assignments == original_assignments,
-        f"Selected swarm assignments were not restored: {json.dumps(final_assignments, indent=2)}",
-    )
-    results["final_telemetry"] = final_telemetry
-    results["final_assignments"] = final_assignments
-    log(f"FINAL TELEMETRY: {json.dumps(final_telemetry, indent=2)}")
-    log(f"FINAL SWARM ASSIGNMENTS: {json.dumps(final_assignments, indent=2, sort_keys=True)}")
-    log("SMART SWARM VALIDATION PASSED")
-    write_json_report(args.json_output, results)
-    print(json.dumps(results, indent=2, sort_keys=True))
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

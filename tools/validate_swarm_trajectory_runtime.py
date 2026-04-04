@@ -21,7 +21,9 @@ import bisect
 import csv
 import json
 import math
+import shutil
 import sys
+import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.error
@@ -43,6 +45,11 @@ try:
     )
     from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
     from src.gcs_api_routes import (
+        GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
+        GCS_COMMANDS_ROUTE,
+        GCS_CONFIG_SWARM_ROUTE,
+        GCS_FLEET_TELEMETRY_ROUTE,
+        GCS_SYSTEM_HEALTH_ROUTE,
         GCS_SWARM_TRAJECTORY_PROCESS_ROUTE,
         GCS_SWARM_TRAJECTORY_STATUS_ROUTE,
     )
@@ -106,6 +113,11 @@ except Exception:  # pragma: no cover - validator fallback only
         )
         return connect_timeout + probe_timeout + http_buffer_sec
 
+    GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
+    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
+    GCS_CONFIG_SWARM_ROUTE = "/api/v1/config/swarm"
+    GCS_COMMANDS_ROUTE = "/api/v1/commands"
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE = "/api/v1/commands/{command_id}"
     GCS_SWARM_TRAJECTORY_STATUS_ROUTE = "/api/v1/swarm-trajectories/status"
     GCS_SWARM_TRAJECTORY_PROCESS_ROUTE = "/api/v1/swarm-trajectories/process"
 
@@ -179,12 +191,12 @@ class ApiClient:
             raise RuntimeError(format_http_error(exc)) from exc
 
     def get_telemetry(self) -> dict[str, dict]:
-        payload = self.get_json("/api/v1/fleet/telemetry")
+        payload = self.get_json(GCS_FLEET_TELEMETRY_ROUTE)
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
     def get_swarm_assignments(self) -> list[dict]:
-        payload = self.get_json("/api/v1/config/swarm")
+        payload = self.get_json(GCS_CONFIG_SWARM_ROUTE)
         if isinstance(payload, dict) and "assignments" in payload:
             payload = payload["assignments"]
         return payload
@@ -205,7 +217,7 @@ class ApiClient:
             "operator_label": operator_label,
             **extra,
         }
-        response = self.post_json("/api/v1/commands", payload)
+        response = self.post_json(GCS_COMMANDS_ROUTE, payload)
         log(f"COMMAND {operator_label}: {response['command_id']} submitted={response.get('submitted_count')}")
         return response
 
@@ -263,7 +275,7 @@ def command_summary(status: dict) -> dict:
 def wait_api_ready(client: ApiClient, timeout: int = 60) -> dict:
     def _ready():
         try:
-            return client.get_json("/api/v1/system/health")
+            return client.get_json(GCS_SYSTEM_HEALTH_ROUTE)
         except urllib.error.URLError:
             return False
 
@@ -467,7 +479,7 @@ def wait_for_command(
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
-        status = client.get_json(f"/api/v1/commands/{command_id}")
+        status = client.get_json(GCS_COMMAND_STATUS_ROUTE_TEMPLATE.format(command_id=command_id))
         last = status
         phase = status.get("phase")
         state = status.get("status")
@@ -846,6 +858,59 @@ def write_short_validation_profiles(
     return prepared
 
 
+def snapshot_raw_profiles(repo_root: Path, leader_ids: Iterable[int]) -> dict[str, Any]:
+    raw_dir = repo_root / "shapes_sitl" / "swarm_trajectory" / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = Path(tempfile.mkdtemp(prefix="mds_swarm_trajectory_raw_backup_"))
+    entries: list[dict[str, Any]] = []
+
+    for leader_id in sorted({int(value) for value in leader_ids}):
+        source_path = raw_dir / f"Drone {leader_id}.csv"
+        backup_path = backup_dir / f"Drone {leader_id}.csv"
+        existed = source_path.exists()
+        if existed:
+            shutil.copy2(source_path, backup_path)
+        entries.append(
+            {
+                "leader_id": leader_id,
+                "source_path": str(source_path),
+                "backup_path": str(backup_path) if existed else None,
+                "original_existed": existed,
+            }
+        )
+
+    return {
+        "backup_dir": str(backup_dir),
+        "entries": entries,
+    }
+
+
+def restore_raw_profiles(snapshot: dict[str, Any]) -> dict[str, Any]:
+    backup_dir = Path(snapshot["backup_dir"])
+    restored: list[int] = []
+    removed_generated: list[int] = []
+
+    try:
+        for entry in snapshot.get("entries", []):
+            leader_id = int(entry["leader_id"])
+            source_path = Path(entry["source_path"])
+            backup_path = entry.get("backup_path")
+            if entry.get("original_existed"):
+                require(backup_path, f"Missing backup path for leader {leader_id}")
+                shutil.copy2(Path(backup_path), source_path)
+                restored.append(leader_id)
+            elif source_path.exists():
+                source_path.unlink()
+                removed_generated.append(leader_id)
+    finally:
+        shutil.rmtree(backup_dir, ignore_errors=True)
+
+    return {
+        "restored": restored,
+        "removed_generated": removed_generated,
+    }
+
+
 def evaluate_formation_snapshot(
     telemetry: dict[str, dict],
     expectations: dict[int, dict[str, Any]],
@@ -1163,7 +1228,7 @@ def main() -> int:
     parser.add_argument(
         "--prepare-short-profile",
         action="store_true",
-        help="Overwrite the selected top-leader raw CSVs with a short deterministic validation route before processing",
+        help="Temporarily replace the selected top-leader raw CSVs with a short deterministic validation route before processing; the validator restores the original files afterward",
     )
     parser.add_argument(
         "--short-profile-altitude-gain",
@@ -1194,6 +1259,8 @@ def main() -> int:
     client = ApiClient(args.base_url)
     results: dict[str, Any] = {}
     command_id: str | None = None
+    profile_snapshot: dict[str, Any] | None = None
+    exit_code = 0
 
     try:
         results["health"] = wait_api_ready(client)
@@ -1215,6 +1282,8 @@ def main() -> int:
                 relative_altitude_m=args.short_profile_altitude_gain,
                 max_horizontal_offset_m=max_horizontal_offset,
             )
+            profile_snapshot = snapshot_raw_profiles(args.repo_root, leader_ids)
+            results["prepared_short_profile_snapshot"] = profile_snapshot
             prepared = write_short_validation_profiles(
                 args.repo_root,
                 baseline,
@@ -1331,20 +1400,31 @@ def main() -> int:
 
         wait_for_idle(client, args.drone_ids, timeout=240)
         results["result"] = "PASS"
+    except Exception as exc:
+        exit_code = 1
+        results["result"] = "FAIL"
+        results["error"] = str(exc)
+        try:
+            cleanup_land(client, args.drone_ids, "Swarm Trajectory Validation Cleanup Land", baselines if "baselines" in locals() else None)
+            results["cleanup"] = {"status": "completed"}
+        except Exception as cleanup_exc:
+            log(f"CLEANUP ERROR: {cleanup_exc}")
+            results["cleanup"] = {"status": "failed", "error": str(cleanup_exc)}
+    finally:
+        if profile_snapshot is not None:
+            try:
+                results["prepared_short_profile_restore"] = restore_raw_profiles(profile_snapshot)
+            except Exception as restore_exc:
+                log(f"PROFILE RESTORE ERROR: {restore_exc}")
+                results["prepared_short_profile_restore"] = {
+                    "status": "failed",
+                    "error": str(restore_exc),
+                }
 
         write_json_report(args.json_output, results)
         print(json.dumps(results, indent=2))
-        return 0
-    except Exception as exc:
-        results["result"] = "FAIL"
-        results["error"] = str(exc)
-        write_json_report(args.json_output, results)
-        print(json.dumps(results, indent=2))
-        try:
-            cleanup_land(client, args.drone_ids, "Swarm Trajectory Validation Cleanup Land", baselines if "baselines" in locals() else None)
-        except Exception as cleanup_exc:
-            log(f"CLEANUP ERROR: {cleanup_exc}")
-        return 1
+
+    return exit_code
 
 
 if __name__ == "__main__":

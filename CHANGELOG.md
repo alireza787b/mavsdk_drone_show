@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 SITL validation-platform checkpoint note documenting the new standalone action validator, the declarative suite templates/plan-file flow, deterministic dry-run/provenance output, explicit QuickScout deferral, and the focused local/Hetzner validation results
 - a 2026-04-04 API closeout checkpoint note documenting the websocket-contract cleanup, the explicit deferred API follow-ups, the standing rules for future API additions, and the focused validation results
 - a 2026-04-04 Swarm Trajectory typed-contract checkpoint note documenting the typed success models, OpenAPI request/response cleanup, operational failure normalization, and the paired local/Hetzner validation results
 - a 2026-04-04 subsystem error-envelope checkpoint note documenting the Swarm Trajectory error-contract cleanup, the QuickScout/Swarm Trajectory OpenAPI response-metadata alignment, and the focused subsystem validation results
@@ -58,6 +59,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the reusable SITL suite is no longer just a hardcoded mission wrapper: it now supports the standalone action-control drill, plan-hash/provenance capture, side-effect-free dry-run, final reset/failure cleanup behavior, and explicit deferred QuickScout tracking for future expansion
+- Swarm Trajectory short-profile preparation no longer leaves shared raw leader CSVs mutated after a validation run; the validator now snapshots the original raw profiles, restores them in a finalization step, and records the restore result in the JSON summary
+- Drone Show and Smart Swarm runtime validators no longer rely on success-only cleanup paths; both now emit structured fail results, attempt runtime cleanup, and still write final JSON summaries after failures
 - `WS /ws/heartbeats` now emits the normalized heartbeat list contract documented in the GCS API instead of the older raw internal heartbeat map, and the old skipped GCS websocket suite was replaced with deterministic route-level contract coverage for telemetry, heartbeat, and git-status streams
 - the GCS and drone websocket API docs now match the live transport contracts more closely: GCS examples reflect the real payload shapes, and drone docs no longer claim bidirectional command transport over `WS /ws/drone-state`
 - the active Swarm Trajectory success surfaces now use typed GCS schema models and `response_model` contracts, so `/docs` and `/openapi.json` describe the real leaders/upload/recommendation/status/policy/process/clear/remove/commit payloads instead of leaving that domain as ad hoc dictionaries

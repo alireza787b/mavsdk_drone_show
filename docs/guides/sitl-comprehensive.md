@@ -564,8 +564,13 @@ If you are chaining multiple mission-family validators on the same SITL fleet, r
 bash multiple_sitl/create_dockers.sh 3
 ```
 
-If you want one reusable acceptance command that runs Drone Show, Smart Swarm,
-and Swarm Trajectory in sequence and writes per-mode JSON reports, use:
+For the reusable operator-grade validation platform, including standalone action
+controls, built-in templates, JSON plan files, deterministic artifacts, and the
+runtime-vs-validator repo split, use:
+
+- [SITL Validation Platform](sitl-validation-platform.md)
+
+If you want the default operator regression suite, use:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
@@ -574,10 +579,17 @@ python3 tools/run_sitl_validation_suite.py \
   --drone-ids 1 2 3
 ```
 
-If the validator tooling is being executed from a temporary checkout but the
-live GCS and SITL runtime are using a different repo path, pass both roots
-explicitly so Swarm Trajectory profile generation and processing hit the same
-runtime tree:
+To run only the mission-family regression without the standalone action drill:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --template mission_regression \
+  --base-url http://127.0.0.1:5000 \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+If the validator tooling is being executed from a temporary checkout but the live GCS and SITL runtime are using a different repo path, pass both roots explicitly so Swarm Trajectory processing and cleanup target the same runtime tree:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
@@ -586,6 +598,9 @@ python3 tools/run_sitl_validation_suite.py \
   --repo-root /root/mavsdk_drone_show_main_candidate_runtime_https \
   --drone-ids 1 2 3
 ```
+
+QuickScout remains intentionally deferred from this reusable SITL gate until the
+mission subsystem itself is more mature.
 
 
 ## Additional Resources

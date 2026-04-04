@@ -103,6 +103,43 @@ def test_max_processed_relative_altitude_uses_processed_peak_over_baseline(tmp_p
     assert validator.max_processed_relative_altitude_m(tmp_path, baselines, drone_ids=[4, 5]) == 1322.0
 
 
+def test_snapshot_and_restore_raw_profiles_restore_original_files(tmp_path):
+    validator = _load_validator_module()
+    raw_dir = tmp_path / "shapes_sitl" / "swarm_trajectory" / "raw"
+    raw_dir.mkdir(parents=True)
+    csv_path = raw_dir / "Drone 1.csv"
+    csv_path.write_text("original\n", encoding="utf-8")
+
+    snapshot = validator.snapshot_raw_profiles(tmp_path, [1])
+    csv_path.write_text("mutated\n", encoding="utf-8")
+
+    restore = validator.restore_raw_profiles(snapshot)
+
+    assert csv_path.read_text(encoding="utf-8") == "original\n"
+    assert restore == {
+        "restored": [1],
+        "removed_generated": [],
+    }
+
+
+def test_snapshot_and_restore_raw_profiles_remove_generated_files_without_original(tmp_path):
+    validator = _load_validator_module()
+    raw_dir = tmp_path / "shapes_sitl" / "swarm_trajectory" / "raw"
+    raw_dir.mkdir(parents=True)
+    csv_path = raw_dir / "Drone 2.csv"
+
+    snapshot = validator.snapshot_raw_profiles(tmp_path, [2])
+    csv_path.write_text("generated\n", encoding="utf-8")
+
+    restore = validator.restore_raw_profiles(snapshot)
+
+    assert csv_path.exists() is False
+    assert restore == {
+        "restored": [],
+        "removed_generated": [2],
+    }
+
+
 def test_follower_expectations_filter_to_selected_active_set():
     validator = _load_validator_module()
 

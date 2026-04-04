@@ -42,7 +42,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
 from src.gcs_api_routes import (
+    GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
+    GCS_COMMANDS_ROUTE,
     GCS_CUSTOM_SHOW_INFO_ROUTE,
+    GCS_FLEET_TELEMETRY_ROUTE,
+    GCS_ORIGIN_DEVIATIONS_ROUTE,
+    GCS_SYSTEM_HEALTH_ROUTE,
     GCS_SHOW_IMPORT_ROUTE,
     GCS_SHOW_INFO_ROUTE,
 )
@@ -117,7 +122,7 @@ class ApiClient:
         return response.json()
 
     def get_telemetry(self) -> dict[str, dict]:
-        payload = self.get_json("/api/v1/fleet/telemetry")
+        payload = self.get_json(GCS_FLEET_TELEMETRY_ROUTE)
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
@@ -137,7 +142,7 @@ class ApiClient:
             "operator_label": operator_label,
             **extra,
         }
-        response = self.post_json("/api/v1/commands", payload)
+        response = self.post_json(GCS_COMMANDS_ROUTE, payload)
         log(f"COMMAND {operator_label}: {response['command_id']} accepted={response.get('submitted_count')}")
         return response
 
@@ -197,7 +202,7 @@ def command_summary(status: dict) -> dict:
 def wait_api_ready(client: ApiClient, timeout: int = 60) -> dict:
     def _ready():
         try:
-            return client.get_json("/api/v1/system/health")
+            return client.get_json(GCS_SYSTEM_HEALTH_ROUTE)
         except requests.RequestException:
             return False
 
@@ -215,7 +220,7 @@ def wait_for_command(
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
-        status = client.get_json(f"/api/v1/commands/{command_id}")
+        status = client.get_json(GCS_COMMAND_STATUS_ROUTE_TEMPLATE.format(command_id=command_id))
         last = status
         phase = status.get("phase")
         state = status.get("status")
@@ -345,7 +350,7 @@ def wait_for_relative_altitude(client: ApiClient, target_id: int, baseline_alt: 
 
 
 def check_deviation_signal(client: ApiClient, ids: list[int]) -> None:
-    payload = client.get_json("/api/v1/origin/deviations")
+    payload = client.get_json(GCS_ORIGIN_DEVIATIONS_ROUTE)
     deviations = payload.get("deviations", {})
     missing = []
     blocked = []
@@ -631,6 +636,17 @@ def run_override_drill(client: ApiClient, ids: list[int], *, label: str) -> dict
     }
 
 
+def cleanup_land(client: ApiClient, ids: list[int], *, label: str, timeout: int = 180) -> dict[str, Any] | None:
+    telemetry = client.get_telemetry()
+    armed_ids = [idx for idx in ids if telemetry.get(str(idx), {}).get("is_armed")]
+    if not armed_ids:
+        return None
+    response = client.submit_command(LAND, armed_ids, label, trigger_time=0)
+    status = wait_for_command(client, response["command_id"], terminal=True, timeout=timeout)
+    wait_for_idle(client, ids, timeout=timeout)
+    return command_summary(status)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate Drone Show runtime behavior against a live GCS API.")
     parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="Base URL of the GCS API")
@@ -677,76 +693,97 @@ def main() -> int:
         "base_url": args.base_url,
         "drone_ids": args.drone_ids,
     }
+    exit_code = 0
 
-    wait_api_ready(client)
-    show_info = ensure_imported_show(client, args.import_source_dir, args.expected_show_count)
-    custom_show = ensure_custom_show_ready(client)
-    wait_for_show_launch_ready(client, args.drone_ids, timeout=120)
+    try:
+        wait_api_ready(client)
+        show_info = ensure_imported_show(client, args.import_source_dir, args.expected_show_count)
+        custom_show = ensure_custom_show_ready(client)
+        wait_for_show_launch_ready(client, args.drone_ids, timeout=120)
 
-    results["show_info"] = show_info
-    results["custom_show_info"] = custom_show
-    results["runs"] = {}
+        results["show_info"] = show_info
+        results["custom_show_info"] = custom_show
+        results["runs"] = {}
 
-    standard_timeout = int(max(360, (float(show_info["duration_ms"]) / 1000.0) + 150))
-    custom_timeout = int(max(240, float(custom_show["duration_sec"]) + 120))
+        standard_timeout = int(max(360, (float(show_info["duration_ms"]) / 1000.0) + 150))
+        custom_timeout = int(max(240, float(custom_show["duration_sec"]) + 120))
 
-    results["runs"]["global_auto"] = command_summary(
-        run_show_mode(
+        results["runs"]["global_auto"] = command_summary(
+            run_show_mode(
+                client,
+                args.drone_ids,
+                label="codex-global_auto",
+                auto_global_origin=True,
+                use_global_setpoints=True,
+                show_timeout=standard_timeout,
+            ).status
+        )
+        if not args.skip_sitl_reset:
+            reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
+        results["runs"]["global_manual"] = command_summary(
+            run_show_mode(
+                client,
+                args.drone_ids,
+                label="codex-global_manual",
+                auto_global_origin=False,
+                use_global_setpoints=True,
+                show_timeout=standard_timeout,
+            ).status
+        )
+        if not args.skip_sitl_reset:
+            reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
+        results["runs"]["local_delayed"] = command_summary(
+            run_show_mode(
+                client,
+                args.drone_ids,
+                label="codex-local_delayed",
+                auto_global_origin=False,
+                use_global_setpoints=False,
+                show_timeout=standard_timeout,
+                trigger_delay=10,
+            ).status
+        )
+        if not args.skip_sitl_reset:
+            reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
+        results["runs"]["custom_csv"] = command_summary(
+            run_custom_show_mode(
+                client,
+                args.drone_ids,
+                label="codex-custom_csv",
+                timeout=custom_timeout,
+            ).status
+        )
+        if not args.skip_sitl_reset:
+            reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
+        results["runs"]["override_drill"] = run_override_drill(
             client,
             args.drone_ids,
-            label="codex-global_auto",
-            auto_global_origin=True,
-            use_global_setpoints=True,
-            show_timeout=standard_timeout,
-        ).status
-    )
-    if not args.skip_sitl_reset:
-        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
-    results["runs"]["global_manual"] = command_summary(
-        run_show_mode(
-            client,
-            args.drone_ids,
-            label="codex-global_manual",
-            auto_global_origin=False,
-            use_global_setpoints=True,
-            show_timeout=standard_timeout,
-        ).status
-    )
-    if not args.skip_sitl_reset:
-        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
-    results["runs"]["local_delayed"] = command_summary(
-        run_show_mode(
-            client,
-            args.drone_ids,
-            label="codex-local_delayed",
-            auto_global_origin=False,
-            use_global_setpoints=False,
-            show_timeout=standard_timeout,
-            trigger_delay=10,
-        ).status
-    )
-    if not args.skip_sitl_reset:
-        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
-    results["runs"]["custom_csv"] = command_summary(
-        run_custom_show_mode(
-            client,
-            args.drone_ids,
-            label="codex-custom_csv",
-            timeout=custom_timeout,
-        ).status
-    )
-    if not args.skip_sitl_reset:
-        reset_sitl_fleet(client, args.repo_root, args.drone_ids, timeout=180)
-    results["runs"]["override_drill"] = run_override_drill(
-        client,
-        args.drone_ids,
-        label="codex-local_with_land_override",
-    )
+            label="codex-local_with_land_override",
+        )
+        results["result"] = "PASS"
+        log("VALIDATION COMPLETE")
+    except Exception as exc:
+        exit_code = 1
+        results["result"] = "FAIL"
+        results["error"] = str(exc)
+        try:
+            cleanup = cleanup_land(
+                client,
+                args.drone_ids,
+                label="Drone Show Validation Cleanup Land",
+                timeout=180,
+            )
+            results["cleanup"] = {
+                "status": "completed" if cleanup else "noop",
+                "command": cleanup,
+            }
+        except Exception as cleanup_exc:
+            results["cleanup"] = {"status": "failed", "error": str(cleanup_exc)}
+    finally:
+        write_json_report(args.json_output, results)
+        print(json.dumps(results, indent=2, sort_keys=True))
 
-    log("VALIDATION COMPLETE")
-    write_json_report(args.json_output, results)
-    print(json.dumps(results, indent=2, sort_keys=True))
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
