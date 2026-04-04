@@ -721,6 +721,7 @@ class CommandProgressSummary(BaseModel):
 class CommandStatusResponse(BaseModel):
     """Detailed command status response"""
     command_id: str = Field(..., description="Command UUID")
+    idempotency_key: Optional[str] = Field(None, description="Client-supplied idempotency key when the command was created via replay-safe submission")
     mission_type: int = Field(..., description="Mission type code")
     mission_name: str = Field(..., description="Human-readable mission name")
     target_drones: List[str] = Field(..., description="Target drone hardware IDs")
@@ -774,6 +775,8 @@ class SubmitCommandResponse(BaseModel):
     """Response for command submission"""
     success: bool = Field(..., description="Whether command was successfully sent to at least one drone")
     command_id: str = Field(..., description="Command tracking UUID")
+    idempotency_key: Optional[str] = Field(None, description="Client-supplied idempotency key when present on submission")
+    replayed: bool = Field(False, description="Whether this response replayed an existing command submission instead of creating a new command")
     status: str = Field(..., description="Submission status ('submitted', 'partial', 'offline', or 'failed')")
     mission_type: int = Field(..., description="Mission type code")
     mission_name: str = Field(..., description="Human-readable mission name")

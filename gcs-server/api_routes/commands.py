@@ -1,5 +1,7 @@
 """Command submission and tracking routes extracted from the GCS FastAPI monolith."""
 
+import hashlib
+import json
 import time
 import traceback
 from typing import Any, Dict, List, Optional
@@ -21,6 +23,7 @@ from schemas import (
     SubmitCommandRequest,
     SubmitCommandResponse,
 )
+from command_tracker import CommandIdempotencyConflictError
 
 
 def _get_telemetry_record_for_hw_id(
@@ -145,6 +148,78 @@ def _derive_submission_status(results: dict[str, Any]) -> str:
     return "failed"
 
 
+def _build_results_summary_from_status(command_status: Dict[str, Any]) -> dict[str, int]:
+    ack_summary = command_status.get("acks") or {}
+    return {
+        "accepted": int(ack_summary.get("accepted", 0) or 0),
+        "offline": int(ack_summary.get("offline", 0) or 0),
+        "rejected": int(ack_summary.get("rejected", 0) or 0),
+        "errors": int(ack_summary.get("errors", 0) or 0),
+    }
+
+
+def _derive_submission_status_from_status(command_status: Dict[str, Any]) -> str:
+    results = _build_results_summary_from_status(command_status)
+    if sum(results.values()) == 0 and command_status.get("phase") != "terminal":
+        return "submitted"
+    return _derive_submission_status(results)
+
+
+def _build_submit_replay_response(command_status: Dict[str, Any]) -> SubmitCommandResponse:
+    results_summary = _build_results_summary_from_status(command_status)
+    phase = command_status.get("phase")
+    target_drones = list(command_status.get("target_drones") or [])
+    progress_message = (command_status.get("progress") or {}).get("message")
+    accepted_count = results_summary["accepted"]
+    in_flight = phase != "terminal"
+    timeout_at = command_status.get("timeout_at")
+    created_at = command_status.get("created_at")
+    tracking_timeout_ms = None
+    if isinstance(timeout_at, int) and isinstance(created_at, int) and timeout_at > created_at:
+        tracking_timeout_ms = timeout_at - created_at
+
+    return SubmitCommandResponse(
+        success=accepted_count > 0 or in_flight,
+        command_id=command_status["command_id"],
+        idempotency_key=command_status.get("idempotency_key"),
+        replayed=True,
+        status=_derive_submission_status_from_status(command_status),
+        mission_type=int(command_status["mission_type"]),
+        mission_name=command_status["mission_name"],
+        target_drones=target_drones,
+        submitted_count=accepted_count if accepted_count > 0 or not in_flight else len(target_drones),
+        message=(
+            f"Replayed existing command submission. {progress_message}"
+            if progress_message
+            else "Replayed existing command submission."
+        ),
+        timestamp=int(time.time() * 1000),
+        results_summary=results_summary,
+        ack_summary=command_status.get("acks"),
+        tracking_status=CommandStatus(command_status["status"]),
+        tracking_phase=CommandPhase(command_status["phase"]),
+        tracking_outcome=(
+            CommandOutcome(command_status["outcome"])
+            if command_status.get("outcome")
+            else None
+        ),
+        tracking_timeout_ms=tracking_timeout_ms,
+    )
+
+
+def _build_submit_request_fingerprint(command: SubmitCommandRequest) -> str:
+    payload = command.model_dump(exclude_none=True)
+    payload.pop("idempotency_key", None)
+    if isinstance(payload.get("target_drone_ids"), list):
+        payload["target_drone_ids"] = sorted(
+            str(value).strip()
+            for value in payload["target_drone_ids"]
+            if value not in (None, "")
+        )
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
 async def _record_command_acknowledgements(tracker: Any, command_id: str, results: dict[str, Any]) -> None:
     for drone_id, result in results.get("results", {}).items():
         category = result.get("category", "error")
@@ -193,8 +268,19 @@ def create_command_router(deps: Any) -> APIRouter:
         GET /api/v1/commands/{command_id} endpoint.
         """
         try:
+            tracker = deps.get_command_tracker()
             command_data = command.model_dump(exclude_none=True)
             dispatch_payload = command.to_drone_payload()
+            request_fingerprint = _build_submit_request_fingerprint(command)
+            idempotency_key = command.idempotency_key
+
+            if idempotency_key:
+                existing_command = await tracker.lookup_command_by_idempotency_key(
+                    idempotency_key,
+                    request_fingerprint=request_fingerprint,
+                )
+                if existing_command is not None:
+                    return _build_submit_replay_response(existing_command)
 
             mission_type = command.mission_type
             trigger_time = command.trigger_time
@@ -317,7 +403,6 @@ def create_command_router(deps: Any) -> APIRouter:
                         detail="Live launch readiness probe failed. " + "; ".join(formatted),
                     )
 
-            tracker = deps.get_command_tracker()
             mission_type_int = resolved_mission.value if resolved_mission else 0
             tracking_skybrush_dir = deps.skybrush_dir
             tracking_processed_dir = deps.processed_dir
@@ -345,7 +430,7 @@ def create_command_router(deps: Any) -> APIRouter:
                 shapes_dir=tracking_shapes_dir,
             )
 
-            command_id = await tracker.create_command(
+            creation_result = await tracker.create_or_replay_command(
                 mission_type=mission_type_int,
                 target_drones=target_hw_ids,
                 params={
@@ -353,11 +438,20 @@ def create_command_router(deps: Any) -> APIRouter:
                     **{
                         k: v
                         for k, v in command_data.items()
-                        if k not in ["mission_type", "trigger_time", "target_drone_ids"]
+                        if k not in ["idempotency_key", "mission_type", "trigger_time", "target_drone_ids"]
                     },
                 },
                 timeout_ms=tracking_timeout_ms,
+                idempotency_key=idempotency_key,
+                request_fingerprint=request_fingerprint,
             )
+            command_id = creation_result.command_id
+
+            if creation_result.replayed:
+                tracked_status = await tracker.get_status(command_id)
+                if tracked_status is None:
+                    raise HTTPException(status_code=500, detail="Replay-safe command lookup lost tracker state")
+                return _build_submit_replay_response(tracked_status)
 
             dispatch_payload["command_id"] = command_id
 
@@ -380,6 +474,8 @@ def create_command_router(deps: Any) -> APIRouter:
             return SubmitCommandResponse(
                 success=results.get("success", 0) > 0,
                 command_id=command_id,
+                idempotency_key=idempotency_key,
+                replayed=False,
                 status=_derive_submission_status(results),
                 mission_type=mission_type_int,
                 mission_name=mission_name,
@@ -398,6 +494,8 @@ def create_command_router(deps: Any) -> APIRouter:
                 ),
                 tracking_timeout_ms=tracking_timeout_ms,
             )
+        except CommandIdempotencyConflictError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         except HTTPException:
             raise
         except Exception as exc:

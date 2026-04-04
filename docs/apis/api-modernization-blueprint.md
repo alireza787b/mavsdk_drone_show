@@ -702,13 +702,32 @@ Phase 6 third checkpoint on 2026-04-04:
 
 After this checkpoint, the main remaining API-modernization debt is no longer command field-name drift. The remaining merge-readiness work is architectural review debt:
 
-- add a true idempotent submit/replay key for command creation instead of relying only on per-drone `command_id` dedupe after GCS submission
 - replace the remaining ad hoc/manual request parsing routes with typed request/response models so OpenAPI is the real contract for more than the cleaned command surface
 - standardize machine-readable error/problem envelopes and add explicit 422/4xx documentation across mutation routes
 - add dormant auth/security metadata and clearer actor/origin seams so customer auth can be enabled later without redesigning the mutation envelope
 - keep tightening telemetry/stream metadata for MCP and agent consumers instead of leaving mixed `Any` payload pockets
 
 Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
+
+Phase 6 fourth checkpoint on 2026-04-04:
+
+- added a canonical replay-safe submit field `idempotency_key` to `src/command_contract.py`, while keeping `idempotencyKey`, `client_command_id`, and `clientCommandId` accepted only at the HTTP validation edge
+- replaced the remaining create-only GCS command-tracker assumption with an explicit replay-safe command-creation path:
+  - `CommandTracker.create_or_replay_command(...)`
+  - tracked `idempotency_key` and normalized request fingerprints on the command record
+  - return `409` when a client reuses an `idempotency_key` with a different normalized payload instead of silently creating a second live command
+- updated `POST /api/v1/commands` so transport retries now return the original tracked command with `replayed=true` and the same `command_id`, instead of dispatching a duplicate command when the first submit already succeeded server-side
+- exposed the replay metadata in the typed GCS schemas so command submit/status responses now carry `idempotency_key`, and submit responses explicitly report `replayed`
+- revalidated the slice locally and on Hetzner with the focused command/GCS/drone/git/timeout regression batch:
+  - local backend batch: `249 passed, 1 skipped`
+  - Hetzner backend batch: `249 passed, 1 skipped`
+
+After this checkpoint, the main remaining merge-readiness debt is narrower and more structural:
+
+- replace the remaining ad hoc/manual request parsing routes with typed request/response models so OpenAPI is the real contract for more than the cleaned command surface
+- standardize machine-readable error/problem envelopes and add explicit 422/4xx documentation across mutation routes
+- add dormant auth/security metadata and clearer actor/origin seams so customer auth can be enabled later without redesigning the mutation envelope
+- keep tightening telemetry/stream metadata for MCP and agent consumers instead of leaving mixed `Any` payload pockets
 
 ## Phase 1 Canonical Routes
 

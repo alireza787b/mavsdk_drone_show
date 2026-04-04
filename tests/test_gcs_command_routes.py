@@ -5,10 +5,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api_routes.commands import _estimate_max_target_relative_altitude_m, create_command_router
+from command_tracker import CommandIdempotencyConflictError, CommandCreationResult
 
 
 class _DummyTracker:
-    def __init__(self, *, statistics=None):
+    def __init__(self, *, statistics=None, replay_command=None, replay_conflict=False):
         self.statistics = statistics or {
             "total_commands": 0,
             "successful_commands": 0,
@@ -20,11 +21,16 @@ class _DummyTracker:
             "tracked_commands": 0,
             "success_rate": 0.0,
         }
+        self.replay_command = replay_command
+        self.replay_conflict = replay_conflict
+        self.create_calls = []
 
     async def get_statistics(self):
         return self.statistics
 
     async def get_status(self, command_id):
+        if self.replay_command and self.replay_command.get("command_id") == command_id:
+            return self.replay_command
         del command_id
         return None
 
@@ -34,6 +40,22 @@ class _DummyTracker:
 
     async def get_active_commands(self):
         return []
+
+    async def lookup_command_by_idempotency_key(self, idempotency_key, *, request_fingerprint=None):
+        del request_fingerprint
+        if self.replay_conflict:
+            raise CommandIdempotencyConflictError(
+                f"idempotency_key '{idempotency_key}' is already bound to a different command payload"
+            )
+        if idempotency_key and self.replay_command:
+            return self.replay_command
+        return None
+
+    async def create_or_replay_command(self, **kwargs):
+        self.create_calls.append(kwargs)
+        if self.replay_conflict:
+            raise CommandIdempotencyConflictError("replay conflict")
+        return CommandCreationResult(command_id="cmd-1", replayed=False)
 
     async def create_command(self, **kwargs):
         del kwargs
@@ -266,6 +288,104 @@ def test_command_router_submit_rejects_unmatched_target_drones():
 
     assert response.status_code == 400
     assert response.json()["detail"] == "No configured drones matched target_drone_ids"
+
+
+def test_command_router_submit_replays_existing_idempotent_command_without_redispatch():
+    replay_command = {
+        "command_id": "cmd-existing",
+        "idempotency_key": "retry-123",
+        "mission_type": 10,
+        "mission_name": "TAKE_OFF",
+        "target_drones": ["1"],
+        "status": "executing",
+        "phase": "pending_execution",
+        "outcome": None,
+        "created_at": 1000,
+        "submitted_at": 1001,
+        "execution_started_at": None,
+        "completed_at": None,
+        "timeout_at": 5000,
+        "updated_at": 1002,
+        "acks": {
+            "expected": 1,
+            "received": 0,
+            "accepted": 0,
+            "offline": 0,
+            "rejected": 0,
+            "errors": 0,
+            "result_summary": "pending",
+            "details": {},
+        },
+        "executions": {
+            "expected": 0,
+            "started": 0,
+            "active": 0,
+            "received": 0,
+            "succeeded": 0,
+            "failed": 0,
+            "details": {},
+        },
+        "late_reports": {
+            "acks": {"received": 0, "accepted": 0, "offline": 0, "rejected": 0, "errors": 0, "details": {}},
+            "execution_starts": {"received": 0, "details": {}},
+            "executions": {"received": 0, "succeeded": 0, "failed": 0, "details": {}},
+        },
+        "progress": {
+            "stage": "pending_execution",
+            "label": "Accepted, waiting for execution start",
+            "message": "Waiting for execution start reports from 1 drone(s).",
+            "ack_pending": 1,
+            "accepted": 0,
+            "execution_pending": 1,
+            "active": 0,
+            "completed": 0,
+            "remaining": 0,
+            "scheduled_trigger_time": None,
+        },
+        "error_summary": None,
+    }
+    deps = _make_deps()
+    deps.current_tracker = _DummyTracker(replay_command=replay_command)
+    deps.send_commands_to_all = lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("dispatch should not run"))
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/commands",
+            json={
+                "mission_type": 10,
+                "trigger_time": 0,
+                "idempotency_key": "retry-123",
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["command_id"] == "cmd-existing"
+    assert body["idempotency_key"] == "retry-123"
+    assert body["replayed"] is True
+    assert body["status"] == "submitted"
+
+
+def test_command_router_submit_rejects_conflicting_idempotency_key_reuse():
+    deps = _make_deps()
+    deps.current_tracker = _DummyTracker(replay_conflict=True)
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/commands",
+            json={
+                "mission_type": 10,
+                "trigger_time": 0,
+                "idempotency_key": "retry-123",
+            },
+        )
+
+    assert response.status_code == 409
+    assert "idempotency_key" in response.json()["detail"]
 
 
 def test_estimate_max_target_relative_altitude_uses_home_altitude_field(monkeypatch):

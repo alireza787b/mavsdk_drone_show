@@ -50,6 +50,8 @@ Usage:
 """
 
 import asyncio
+import hashlib
+import json
 import os
 import sys
 import time
@@ -65,6 +67,18 @@ from enums import CommandOutcome, CommandPhase, CommandStatus, Mission
 from mds_logging import get_logger
 
 logger = get_logger("command_tracker")
+
+
+class CommandIdempotencyConflictError(ValueError):
+    """Raised when an idempotency key is reused with a different command payload."""
+
+
+@dataclass(frozen=True)
+class CommandCreationResult:
+    """Result of an idempotent command-create attempt."""
+
+    command_id: str
+    replayed: bool
 
 
 @dataclass
@@ -95,6 +109,8 @@ class DroneExecution:
 class TrackedCommand:
     """Complete command tracking record"""
     command_id: str
+    idempotency_key: Optional[str]
+    request_fingerprint: Optional[str]
     mission_type: int
     mission_name: str
     target_drones: List[str]
@@ -163,6 +179,7 @@ class CommandTracker:
 
         # Thread-safe storage using OrderedDict for FIFO eviction
         self._commands: OrderedDict[str, TrackedCommand] = OrderedDict()
+        self._idempotency_index: Dict[str, str] = {}
         self._lock = asyncio.Lock()
 
         # Statistics
@@ -242,6 +259,141 @@ class CommandTracker:
                 pass
         return f"MISSION_{mission_type}"
 
+    @staticmethod
+    def build_request_fingerprint(payload: Dict[str, Any]) -> str:
+        """Build a stable fingerprint for an idempotent command request."""
+        normalized = dict(payload)
+        normalized.pop("idempotency_key", None)
+
+        if isinstance(normalized.get("target_drone_ids"), list):
+            normalized["target_drone_ids"] = sorted(
+                str(value).strip()
+                for value in normalized["target_drone_ids"]
+                if value not in (None, "")
+            )
+
+        encoded = json.dumps(
+            normalized,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        )
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _validate_replay_fingerprint(
+        command: TrackedCommand,
+        *,
+        idempotency_key: str,
+        request_fingerprint: Optional[str],
+    ) -> None:
+        if (
+            request_fingerprint
+            and command.request_fingerprint
+            and command.request_fingerprint != request_fingerprint
+        ):
+            raise CommandIdempotencyConflictError(
+                f"idempotency_key '{idempotency_key}' is already bound to a different command payload"
+            )
+
+    def _evict_oldest_command_locked(self) -> None:
+        """Evict the oldest tracked command and its idempotency index entry."""
+        oldest_id = next(iter(self._commands))
+        command = self._commands.pop(oldest_id)
+        if command.idempotency_key:
+            self._idempotency_index.pop(command.idempotency_key, None)
+        logger.debug(f"Evicted old command: {oldest_id}")
+
+    async def lookup_command_by_idempotency_key(
+        self,
+        idempotency_key: Optional[str],
+        *,
+        request_fingerprint: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Return an existing command snapshot for a replay-safe idempotency key."""
+        if not idempotency_key:
+            return None
+
+        async with self._lock:
+            command_id = self._idempotency_index.get(idempotency_key)
+            if not command_id:
+                return None
+
+            command = self._commands.get(command_id)
+            if command is None:
+                self._idempotency_index.pop(idempotency_key, None)
+                return None
+
+            self._validate_replay_fingerprint(
+                command,
+                idempotency_key=idempotency_key,
+                request_fingerprint=request_fingerprint,
+            )
+            return self._command_to_dict(command)
+
+    async def create_or_replay_command(
+        self,
+        mission_type: int,
+        target_drones: List[str],
+        params: Optional[Dict[str, Any]] = None,
+        timeout_ms: Optional[int] = None,
+        *,
+        idempotency_key: Optional[str] = None,
+        request_fingerprint: Optional[str] = None,
+    ) -> CommandCreationResult:
+        """Create a command or return an existing replay-safe command for the same idempotency key."""
+        timestamp = int(time.time() * 1000)
+        timeout = timeout_ms or self.default_timeout_ms
+
+        async with self._lock:
+            if idempotency_key:
+                existing_command_id = self._idempotency_index.get(idempotency_key)
+                if existing_command_id:
+                    existing_command = self._commands.get(existing_command_id)
+                    if existing_command is None:
+                        self._idempotency_index.pop(idempotency_key, None)
+                    else:
+                        self._validate_replay_fingerprint(
+                            existing_command,
+                            idempotency_key=idempotency_key,
+                            request_fingerprint=request_fingerprint,
+                        )
+                        return CommandCreationResult(command_id=existing_command_id, replayed=True)
+
+            command_id = str(uuid.uuid4())
+            command = TrackedCommand(
+                command_id=command_id,
+                idempotency_key=idempotency_key,
+                request_fingerprint=request_fingerprint,
+                mission_type=mission_type,
+                mission_name=self._get_mission_name(mission_type),
+                target_drones=list(target_drones),
+                params=params or {},
+                status=CommandStatus.CREATED,
+                phase=CommandPhase.AWAITING_ACK,
+                outcome=None,
+                created_at=timestamp,
+                updated_at=timestamp,
+                acks_expected=len(target_drones),
+                executions_expected=len(target_drones),
+                timeout_at=timestamp + timeout
+            )
+
+            while len(self._commands) >= self.max_commands:
+                self._evict_oldest_command_locked()
+
+            self._commands[command_id] = command
+            if idempotency_key:
+                self._idempotency_index[idempotency_key] = command_id
+            self._stats['total_commands'] += 1
+
+        logger.info(
+            f"Command created: {command_id[:8]}... "
+            f"({command.mission_name}, {len(target_drones)} drones, timeout={timeout / 1000:.1f}s)"
+        )
+
+        return CommandCreationResult(command_id=command_id, replayed=False)
+
     async def create_command(
         self,
         mission_type: int,
@@ -261,42 +413,13 @@ class CommandTracker:
         Returns:
             Command ID (UUID)
         """
-        command_id = str(uuid.uuid4())
-        timestamp = int(time.time() * 1000)
-        timeout = timeout_ms or self.default_timeout_ms
-
-        command = TrackedCommand(
-            command_id=command_id,
+        result = await self.create_or_replay_command(
             mission_type=mission_type,
-            mission_name=self._get_mission_name(mission_type),
-            target_drones=list(target_drones),
-            params=params or {},
-            status=CommandStatus.CREATED,
-            phase=CommandPhase.AWAITING_ACK,
-            outcome=None,
-            created_at=timestamp,
-            updated_at=timestamp,
-            acks_expected=len(target_drones),
-            executions_expected=len(target_drones),
-            timeout_at=timestamp + timeout
+            target_drones=target_drones,
+            params=params,
+            timeout_ms=timeout_ms,
         )
-
-        async with self._lock:
-            # Evict oldest if at capacity
-            while len(self._commands) >= self.max_commands:
-                oldest_id = next(iter(self._commands))
-                del self._commands[oldest_id]
-                logger.debug(f"Evicted old command: {oldest_id}")
-
-            self._commands[command_id] = command
-            self._stats['total_commands'] += 1
-
-        logger.info(
-            f"Command created: {command_id[:8]}... "
-            f"({command.mission_name}, {len(target_drones)} drones, timeout={timeout / 1000:.1f}s)"
-        )
-
-        return command_id
+        return result.command_id
 
     async def mark_submitted(self, command_id: str) -> bool:
         """Mark command as submitted to drones"""
@@ -1101,6 +1224,7 @@ class CommandTracker:
 
         return {
             'command_id': command.command_id,
+            'idempotency_key': command.idempotency_key,
             'mission_type': command.mission_type,
             'mission_name': command.mission_name,
             'target_drones': list(command.target_drones),  # Copy list too
@@ -1114,6 +1238,7 @@ class CommandTracker:
             'submitted_at': command.submitted_at,
             'execution_started_at': command.execution_started_at,
             'completed_at': command.completed_at,
+            'timeout_at': command.timeout_at,
             'updated_at': command.updated_at,
 
             # ACK summary

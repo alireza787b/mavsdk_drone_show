@@ -133,6 +133,64 @@ class TestCommandTracker:
         assert status['acks']['expected'] == 3
 
     @pytest.mark.asyncio
+    async def test_create_or_replay_command_reuses_existing_command_for_same_idempotency_key(self, tracker):
+        from command_tracker import CommandTracker
+
+        fingerprint = CommandTracker.build_request_fingerprint(
+            {
+                "mission_type": 10,
+                "trigger_time": 0,
+                "target_drone_ids": ["2", "1"],
+            }
+        )
+        first = await tracker.create_or_replay_command(
+            mission_type=10,
+            target_drones=["1", "2"],
+            params={"trigger_time": 0},
+            idempotency_key="retry-123",
+            request_fingerprint=fingerprint,
+        )
+        second = await tracker.create_or_replay_command(
+            mission_type=10,
+            target_drones=["1", "2"],
+            params={"trigger_time": 0},
+            idempotency_key="retry-123",
+            request_fingerprint=fingerprint,
+        )
+
+        assert first.replayed is False
+        assert second.replayed is True
+        assert second.command_id == first.command_id
+
+        status = await tracker.get_status(first.command_id)
+        assert status["idempotency_key"] == "retry-123"
+
+    @pytest.mark.asyncio
+    async def test_create_or_replay_command_rejects_conflicting_payload_for_same_idempotency_key(self, tracker):
+        from command_tracker import CommandIdempotencyConflictError, CommandTracker
+
+        await tracker.create_or_replay_command(
+            mission_type=10,
+            target_drones=["1"],
+            params={"trigger_time": 0},
+            idempotency_key="retry-123",
+            request_fingerprint=CommandTracker.build_request_fingerprint(
+                {"mission_type": 10, "trigger_time": 0}
+            ),
+        )
+
+        with pytest.raises(CommandIdempotencyConflictError):
+            await tracker.create_or_replay_command(
+                mission_type=101,
+                target_drones=["1"],
+                params={"trigger_time": 0},
+                idempotency_key="retry-123",
+                request_fingerprint=CommandTracker.build_request_fingerprint(
+                    {"mission_type": 101, "trigger_time": 0}
+                ),
+            )
+
+    @pytest.mark.asyncio
     async def test_record_ack_accepted(self, tracker):
         """Test recording accepted acknowledgments"""
         command_id = await tracker.create_command(
@@ -958,10 +1016,12 @@ class TestSchemas:
             triggerTime=0,
             target_drones=["1", "2"],
             operatorLabel="Launch now",
+            clientCommandId="retry-123",
         )
         assert legacy_request.mission_type == 10
         assert legacy_request.target_drone_ids == ["1", "2"]
         assert legacy_request.operator_label == "Launch now"
+        assert legacy_request.idempotency_key == "retry-123"
         assert legacy_request.model_dump()["target_drone_ids"] == ["1", "2"]
 
         # Invalid altitude (negative)

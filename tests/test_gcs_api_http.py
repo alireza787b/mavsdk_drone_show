@@ -1562,10 +1562,14 @@ class TestCommandEndpoints:
 
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.get_command_tracker')
     @patch('app_fastapi.load_config')
-    def test_submit_command(self, mock_load, mock_send, mock_probe, test_client, mock_config):
+    def test_submit_command(self, mock_load, mock_get_tracker, mock_send, mock_probe, test_client, mock_config):
         """Test POST /api/v1/commands - new SubmitCommandResponse format"""
+        from command_tracker import CommandTracker
+
         mock_load.return_value = mock_config
+        mock_get_tracker.return_value = CommandTracker(max_commands=20)
         mock_probe.return_value = {
             'all_ready': True,
             'blocked_ids': [],
@@ -1598,21 +1602,27 @@ class TestCommandEndpoints:
         assert 'mission_name' in data
         assert 'target_drones' in data
         assert 'submitted_count' in data
+        assert data['replayed'] is False
         assert data['tracking_phase'] == 'pending_execution'
         assert data['tracking_timeout_ms'] > 0
 
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.send_commands_to_selected')
+    @patch('app_fastapi.get_command_tracker')
     @patch('app_fastapi.load_config')
     def test_submit_command_accepts_snake_case_aliases(
         self,
         mock_load,
+        mock_get_tracker,
         mock_send_selected,
         mock_probe,
         test_client,
         mock_config,
     ):
+        from command_tracker import CommandTracker
+
         mock_load.return_value = mock_config
+        mock_get_tracker.return_value = CommandTracker(max_commands=20)
         mock_probe.return_value = {
             'all_ready': True,
             'blocked_ids': [],
@@ -1637,6 +1647,110 @@ class TestCommandEndpoints:
         data = response.json()
         assert data['mission_type'] == 10
         assert data['target_drones'] == ['1']
+
+    @patch('app_fastapi.probe_live_armability_for_drones')
+    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.get_command_tracker')
+    @patch('app_fastapi.load_config')
+    def test_submit_command_replays_existing_idempotent_submission(
+        self,
+        mock_load,
+        mock_get_tracker,
+        mock_send,
+        mock_probe,
+        test_client,
+        mock_config,
+    ):
+        from command_tracker import CommandTracker
+
+        tracker = CommandTracker(max_commands=20)
+        mock_get_tracker.return_value = tracker
+        mock_load.return_value = mock_config
+        mock_probe.return_value = {
+            'all_ready': True,
+            'blocked_ids': [],
+            'unavailable_ids': [],
+            'results': {},
+        }
+        mock_send.return_value = {
+            'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '2 accepted', 'results': {
+                '1': {'success': True, 'category': 'accepted'},
+                '2': {'success': True, 'category': 'accepted'}
+            }
+        }
+
+        payload = {
+            'mission_type': 10,
+            'trigger_time': 0,
+            'idempotency_key': 'retry-123',
+        }
+
+        first = test_client.post("/api/v1/commands", json=payload)
+        second = test_client.post("/api/v1/commands", json=payload)
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        first_body = first.json()
+        second_body = second.json()
+        assert first_body['replayed'] is False
+        assert second_body['replayed'] is True
+        assert second_body['command_id'] == first_body['command_id']
+        assert second_body['idempotency_key'] == 'retry-123'
+        assert mock_send.call_count == 1
+
+    @patch('app_fastapi.probe_live_armability_for_drones')
+    @patch('app_fastapi.send_commands_to_all')
+    @patch('app_fastapi.get_command_tracker')
+    @patch('app_fastapi.load_config')
+    def test_submit_command_rejects_conflicting_idempotency_key_reuse(
+        self,
+        mock_load,
+        mock_get_tracker,
+        mock_send,
+        mock_probe,
+        test_client,
+        mock_config,
+    ):
+        from command_tracker import CommandTracker
+
+        tracker = CommandTracker(max_commands=20)
+        mock_get_tracker.return_value = tracker
+        mock_load.return_value = mock_config
+        mock_probe.return_value = {
+            'all_ready': True,
+            'blocked_ids': [],
+            'unavailable_ids': [],
+            'results': {},
+        }
+        mock_send.return_value = {
+            'success': 2, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '2 accepted', 'results': {
+                '1': {'success': True, 'category': 'accepted'},
+                '2': {'success': True, 'category': 'accepted'}
+            }
+        }
+
+        first = test_client.post(
+            "/api/v1/commands",
+            json={
+                'mission_type': 10,
+                'trigger_time': 0,
+                'idempotency_key': 'retry-123',
+            },
+        )
+        second = test_client.post(
+            "/api/v1/commands",
+            json={
+                'mission_type': 101,
+                'trigger_time': 0,
+                'idempotency_key': 'retry-123',
+            },
+        )
+
+        assert first.status_code == 200
+        assert second.status_code == 409
+        assert 'idempotency_key' in second.json()['detail']
 
     @patch('app_fastapi.load_origin')
     @patch('app_fastapi.probe_live_armability_for_drones')

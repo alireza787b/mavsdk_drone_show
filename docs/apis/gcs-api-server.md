@@ -944,6 +944,7 @@ Submit a command to drones and immediately return ACK tracking information.
 {
   "mission_type": 10,
   "trigger_time": 0,
+  "idempotency_key": "launch-wave-001",
   "target_drone_ids": ["1", "2"],
   "operator_label": "Launch all",
   "takeoff_altitude": 10
@@ -955,6 +956,8 @@ Submit a command to drones and immediately return ACK tracking information.
 {
   "success": true,
   "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "idempotency_key": "launch-wave-001",
+  "replayed": false,
   "status": "submitted",
   "mission_type": 10,
   "mission_name": "TAKE_OFF",
@@ -977,8 +980,10 @@ Submit a command to drones and immediately return ACK tracking information.
 
 Important semantics:
 - `success=true` means at least one drone accepted the command.
-- canonical request fields are `mission_type`, `trigger_time`, `target_drone_ids`, and `operator_label`.
-- legacy request aliases (`missionType`, `triggerTime`, `target_drones`, `targetDrones`, `operatorLabel`) are still accepted at the HTTP edge, but first-party callers and docs now use the canonical snake_case contract.
+- canonical request fields are `mission_type`, `trigger_time`, `idempotency_key`, `target_drone_ids`, and `operator_label`.
+- `idempotency_key` is the canonical replay-safe client key. Repeating the same submission with the same `idempotency_key` and the same normalized payload returns the existing `command_id` with `replayed=true` instead of creating or dispatching a second command.
+- reusing the same `idempotency_key` with a different normalized payload fails with `409 Conflict`.
+- legacy request aliases (`missionType`, `triggerTime`, `target_drones`, `targetDrones`, `operatorLabel`, `idempotencyKey`, `client_command_id`, `clientCommandId`) are still accepted at the HTTP edge, but first-party callers and docs now use the canonical snake_case contract.
 - `target_drone_ids` may contain hardware IDs or position IDs. The response still normalizes `target_drones` to hardware IDs after the target set is resolved.
 - malformed JSON, non-object JSON bodies, invalid `target_drone_ids` shapes, and explicit target selections that match no configured drones fail fast with `400` instead of creating an ambiguous zero-target command record.
 - `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
@@ -997,6 +1002,7 @@ Retrieve the current lifecycle state for a previously submitted command.
 ```json
 {
   "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
+  "idempotency_key": "launch-wave-001",
   "mission_type": 10,
   "mission_name": "TAKE_OFF",
   "target_drones": ["1", "2"],

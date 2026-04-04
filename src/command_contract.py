@@ -117,6 +117,13 @@ class DroneCommandRequest(BaseModel):
 class SubmitCommandRequest(DroneCommandRequest):
     """Canonical GCS command-submit payload."""
 
+    idempotency_key: Optional[str] = Field(
+        None,
+        validation_alias=AliasChoices("idempotency_key", "idempotencyKey", "client_command_id", "clientCommandId"),
+        min_length=1,
+        max_length=200,
+        description="Client-supplied replay key used to make command submission idempotent across retries",
+    )
     operator_label: Optional[str] = Field(
         None,
         validation_alias=AliasChoices("operator_label", "operatorLabel"),
@@ -144,9 +151,21 @@ class SubmitCommandRequest(DroneCommandRequest):
         ]
         return normalized or None
 
+    @field_validator("idempotency_key", mode="before")
+    @classmethod
+    def _normalize_idempotency_key(cls, value: Any) -> Optional[str]:
+        if value in (None, ""):
+            return None
+
+        normalized = str(value).strip()
+        if not normalized:
+            raise ValueError("idempotency_key must not be blank")
+        return normalized
+
     def to_drone_payload(self, *, command_id: Optional[str] = None) -> Dict[str, Any]:
         """Return the drone-dispatch payload without GCS-only fields."""
         payload = self.model_dump(exclude_none=True)
+        payload.pop("idempotency_key", None)
         payload.pop("target_drone_ids", None)
         payload.pop("operator_label", None)
         if command_id is not None:

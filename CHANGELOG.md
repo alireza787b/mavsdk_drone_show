@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 command-submit idempotency checkpoint note documenting the canonical `idempotency_key` contract, the replay-safe command tracker path, the replay/conflict response semantics, and the paired local/Hetzner validation results
 - a 2026-04-04 command-contract canonicalization checkpoint note documenting the canonical snake_case command envelope, the backend/frontend/runtime caller migration, the refreshed command API docs, the paired local/Hetzner validation results, and the remaining merge-readiness review debt
 - a 2026-04-04 drone canonicalization checkpoint note documenting the shared drone route constants, the canonical `/api/v1/git/status` and `/api/v1/navigation/position-deviation` routes, the retirement of the legacy drone business aliases, the HTTP/WebSocket state serializer alignment, and the paired local/Hetzner validation results
 - a 2026-04-03 API-modernization review audit note documenting why the stream is not yet merge-ready, with the remaining drone-side contract, caller-migration, schema, and documentation slices required before any merge to `main`
@@ -53,6 +54,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- command submission is now replay-safe at the GCS contract boundary: `POST /api/v1/commands` accepts canonical `idempotency_key`, returns `replayed=true` when the same normalized submission is retried, and rejects conflicting reuse of the same key with `409` instead of creating a second live tracked command
+- command submit/status responses now surface `idempotency_key`, so future MCP/tooling layers can correlate transport retries with the long-running tracked command instead of relying on hidden client-side bookkeeping
 - the drone API now treats the canonical `/api/v1/...` contract as the only current public business HTTP surface, adding `GET /api/v1/git/status` and `GET /api/v1/navigation/position-deviation` while retiring the legacy drone business aliases that previously stayed mounted beside the v1 routes
 - first-party runtime/tooling callers now use the shared canonical drone route surface instead of repeating legacy strings such as `/get_drone_state`, `/get-home-pos`, `/get-git-status`, and `/api/live-armability`, so GCS polling, validators, mission runtimes, and local helpers no longer reinforce the retired contract
 - `GET /api/v1/drone/state` and `WS /ws/drone-state` now share one validator-backed serializer, so the live drone state payload stays schema-aligned across HTTP and WebSocket transport instead of drifting by transport path
