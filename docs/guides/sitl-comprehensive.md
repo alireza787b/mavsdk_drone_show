@@ -637,6 +637,16 @@ The validation platform is not tied to one VPS layout. Use:
 Plain synced validator copies are supported. A real git checkout still gives
 better provenance in `suite-summary.json`, but it is not required.
 
+For serious regression runs, the container policy is:
+
+- recreate the fleet at the start
+- let the suite recreate again before any later Drone Show leg that follows a different mission family
+- let the suite recreate again at the end
+
+That is the clean acceptance-grade default. Reusing already-running containers
+is only recommended for narrow local debugging when you intentionally accept the
+inherited runtime state.
+
 QuickScout remains intentionally deferred from this reusable SITL gate until the
 mission subsystem itself is more mature.
 

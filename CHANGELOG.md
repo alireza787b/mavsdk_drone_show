@@ -443,6 +443,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- the SITL validation docs now state the container lifecycle policy explicitly: recreate at suite start, before late Drone Show after other mission families, and after the suite; container reuse remains a narrow debugging convenience rather than the acceptance-grade default
 - the SITL validation suite now supports a checked-in scenario library through `--list-bundled-plans` and `--plan-name`, so maintainers, CI, and AI agents can run named git-tracked scenarios from `tools/sitl_plans/` instead of relying on ad hoc temporary JSON plan files
 - the checked-in SITL plan library now exposes stable named scenarios for configuration round-trip, Drone Show, actions, Smart Swarm, Swarm Trajectory, mission regression, and full operator regression while leaving the harder mixed-mode/fault-injection drills explicitly deferred until they are deterministic enough for routine acceptance
 - the reusable SITL validation platform now treats Mission Config/origin as a first-class deterministic acceptance gate via `tools/validate_configuration_runtime.py`, a safe `config_only` template, and the default `operator_regression` flow `reset -> configuration -> reset_before_drone_show -> Drone Show -> actions -> Smart Swarm -> Swarm Trajectory -> final reset`

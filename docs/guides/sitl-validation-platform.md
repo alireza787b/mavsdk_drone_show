@@ -297,6 +297,30 @@ Default cleanup policy:
 - final reset after the suite ends
 - failure cleanup reset if a step aborts before the final reset
 
+## Container Lifecycle Policy
+
+For routine deterministic regression runs, the clean policy is:
+
+- recreate the selected SITL fleet at the start of the suite
+- recreate again before any late Drone Show step after another mission family
+- recreate again at the end of the suite
+
+This is the default suite behavior and it is the recommended promotion-grade
+path.
+
+Why:
+
+- Drone Show is launch-geometry sensitive
+- Smart Swarm and Swarm Trajectory intentionally leave drones in valid but
+  different post-mission geometry
+- long-lived mutable containers can accumulate runtime state that is irrelevant
+  to the code under test
+
+For fast local inner-loop debugging, reusing an already running fleet is still
+acceptable when you are deliberately testing one narrow validator and you
+understand the state you are inheriting. That is a development convenience, not
+the acceptance-grade default.
+
 ## Recommended Workflow
 
 1. Keep a clean validation checkout for tooling changes.
