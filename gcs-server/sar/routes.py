@@ -10,6 +10,7 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
+from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
     POI, DroneProgressReport,
@@ -26,7 +27,7 @@ logger = get_logger("sar_routes")
 
 def create_sar_router(deps: Any) -> APIRouter:
     """Create the QuickScout SAR router using request-time dependency lookup."""
-    router = APIRouter(prefix="/api/sar", tags=["QuickScout SAR"])
+    router = APIRouter(prefix="/api/sar", tags=["QuickScout SAR"], responses=DEFAULT_ERROR_RESPONSES)
 
     def _resolve_pos_ids_to_hw_ids(pos_ids: Optional[List[int]]) -> Optional[List[str]]:
         """Resolve pos_ids to hw_ids using drone config. None means all drones."""

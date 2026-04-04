@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 subsystem error-envelope checkpoint note documenting the Swarm Trajectory error-contract cleanup, the QuickScout/Swarm Trajectory OpenAPI response-metadata alignment, and the focused subsystem validation results
 - a 2026-04-04 GCS error-envelope and typed-mutation checkpoint note documenting the shared FastAPI error contract, the typed request-model cleanup for fleet/origin/swarm/show-management/GCS-config routes, and the paired local/Hetzner validation results
 - a 2026-04-04 command-submit idempotency checkpoint note documenting the canonical `idempotency_key` contract, the replay-safe command tracker path, the replay/conflict response semantics, and the paired local/Hetzner validation results
 - a 2026-04-04 command-contract canonicalization checkpoint note documenting the canonical snake_case command envelope, the backend/frontend/runtime caller migration, the refreshed command API docs, the paired local/Hetzner validation results, and the remaining merge-readiness review debt
@@ -55,6 +56,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the remaining Swarm Trajectory route-family failures now use the shared GCS `ErrorResponse` envelope instead of route-local `success=false` payloads, so malformed JSON, missing processed assets, and operator-facing git/cluster errors now surface stable `error`, `detail`, `timestamp`, and `path` fields like the rest of the cleaned GCS HTTP surface
+- Swarm Trajectory git commit/push failures now map to explicit operation statuses (`409` for divergence/conflict cases, `502` for network/auth/timeout upstream failures) instead of collapsing every failure into a generic `500` with a custom body
+- QuickScout SAR and Swarm Trajectory router docs/OpenAPI metadata now advertise the shared error-response contract directly at the router boundary, instead of relying on app-level behavior while the subsystem routers looked undocumented in isolation
 - canonical GCS FastAPI HTTP routes now use one shared machine-readable error envelope for request validation, `HTTPException`, and uncaught server failures, so clients receive stable `error`, `detail`, `timestamp`, and `path` fields instead of mixed default FastAPI payloads and raw exception strings
 - the remaining high-value GCS mutation routes no longer hand-parse JSON bodies ad hoc: fleet config, GCS config stub writes, origin compute, swarm config save/patch, and Drone Show deployment now use typed request models with standard `422` validation behavior
 - the canonical swarm-config resource now returns normalized saved assignment objects, including defaulted `offset_x`, `offset_y`, `offset_z`, and `frame` fields, instead of mixed sparse payload shapes between read and write paths

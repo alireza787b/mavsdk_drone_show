@@ -149,7 +149,11 @@ def test_swarm_trajectory_router_process_rejects_malformed_json(tmp_path):
         )
 
     assert response.status_code == 400
-    assert response.json() == {"success": False, "error": "Malformed JSON request body"}
+    payload = response.json()
+    assert payload["error"] == "Bad request"
+    assert payload["detail"] == "Malformed JSON request body"
+    assert payload["path"] == "/api/v1/swarm-trajectories/process"
+    assert isinstance(payload["timestamp"], int)
 
 
 def test_swarm_trajectory_router_commit_rejects_non_object_json(tmp_path):
@@ -161,4 +165,50 @@ def test_swarm_trajectory_router_commit_rejects_non_object_json(tmp_path):
         response = client.post("/api/v1/swarm-trajectories/commit", json=["not", "an", "object"])
 
     assert response.status_code == 400
-    assert response.json() == {"success": False, "error": "Request body must be a JSON object"}
+    payload = response.json()
+    assert payload["error"] == "Bad request"
+    assert payload["detail"] == "Request body must be a JSON object"
+    assert payload["path"] == "/api/v1/swarm-trajectories/commit"
+    assert isinstance(payload["timestamp"], int)
+
+
+def test_swarm_trajectory_router_service_error_uses_shared_problem_envelope(tmp_path):
+    deps = _make_deps(tmp_path)
+
+    def _missing_status():
+        raise _DummySwarmTrajectoryError("Processed outputs not found", 404)
+
+    deps.swarm_trajectory_service.get_processing_status_payload = _missing_status
+
+    app = FastAPI()
+    app.include_router(create_swarm_trajectory_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/swarm-trajectories/status")
+
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["error"] == "Not found"
+    assert payload["detail"] == "Processed outputs not found"
+    assert payload["path"] == "/api/v1/swarm-trajectories/status"
+
+
+def test_swarm_trajectory_router_commit_git_failure_maps_to_operation_error(tmp_path):
+    deps = _make_deps(tmp_path)
+    deps.swarm_trajectory_service.commit_trajectory_changes_payload = lambda message=None: {
+        "success": False,
+        "error": "Git push failed: network error. Check internet connectivity.",
+        "git_info": {"message": "Git push failed: network error. Check internet connectivity."},
+    }
+
+    app = FastAPI()
+    app.include_router(create_swarm_trajectory_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/swarm-trajectories/commit", json={"message": "sync outputs"})
+
+    assert response.status_code == 502
+    payload = response.json()
+    assert payload["error"] == "Bad gateway"
+    assert payload["detail"] == "Git push failed: network error. Check internet connectivity."
+    assert payload["path"] == "/api/v1/swarm-trajectories/commit"

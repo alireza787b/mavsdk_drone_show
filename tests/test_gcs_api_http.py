@@ -1567,6 +1567,37 @@ class TestSwarmTrajectoryEndpoints:
         missing_paths = expected_paths - route_paths
         assert not missing_paths, f"Missing swarm trajectory routes: {sorted(missing_paths)}"
 
+    def test_swarm_trajectory_process_rejects_malformed_json_with_shared_error_envelope(self, test_client):
+        response = test_client.post(
+            "/api/v1/swarm-trajectories/process",
+            data="{bad",
+            headers={"content-type": "application/json"},
+        )
+
+        assert response.status_code == 400
+        payload = response.json()
+        assert payload["error"] == "Bad request"
+        assert payload["detail"] == "Malformed JSON request body"
+        assert payload["path"] == "/api/v1/swarm-trajectories/process"
+
+    @patch("app_fastapi.swarm_trajectory_service.commit_trajectory_changes_payload")
+    def test_swarm_trajectory_commit_surfaces_shared_operation_error(self, mock_commit, test_client):
+        mock_commit.return_value = {
+            "success": False,
+            "error": "Git push failed: network error. Check internet connectivity.",
+        }
+
+        response = test_client.post(
+            "/api/v1/swarm-trajectories/commit",
+            json={"message": "commit outputs"},
+        )
+
+        assert response.status_code == 502
+        payload = response.json()
+        assert payload["error"] == "Bad gateway"
+        assert payload["detail"] == "Git push failed: network error. Check internet connectivity."
+        assert payload["path"] == "/api/v1/swarm-trajectories/commit"
+
 
 # ============================================================================
 # Command Tests

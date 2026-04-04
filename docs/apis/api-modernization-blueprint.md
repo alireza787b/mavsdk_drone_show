@@ -753,6 +753,27 @@ After this checkpoint, the remaining merge-readiness debt is narrower and explic
 - add clearer dormant auth/principal seams and richer actor context around privileged mutations
 - continue the drone-side error-envelope and typed-stream cleanup so the public API is merge-ready end to end
 
+Phase 6 sixth checkpoint on 2026-04-04:
+
+- normalized the remaining Swarm Trajectory route-family failures onto the shared `ErrorResponse` envelope instead of returning route-local `{"success": false, "error": ...}` bodies
+- kept the Swarm Trajectory success payloads stable for the current frontend and validator consumers, so the route family now shares the GCS error contract without forcing a simultaneous success-payload redesign
+- mapped Swarm Trajectory git commit/push failures onto explicit operation HTTP statuses:
+  - `409` for divergence/conflict-style failures
+  - `502` for network/auth/timeout-style upstream git failures
+- added router-level OpenAPI error-response metadata for both:
+  - `gcs-server/api_routes/swarm_trajectory.py`
+  - `gcs-server/sar/routes.py`
+- strengthened app-level and router-level regression coverage so both subsystems now prove the shared problem envelope in practice instead of only in docs
+- revalidated the focused subsystem contract batch locally:
+  - local batch: `114 passed`
+
+After this checkpoint, the remaining merge-readiness debt is narrower again:
+
+- finish typed request/response and OpenAPI cleanup for the larger Swarm Trajectory and QuickScout success-payload surfaces
+- tighten the WebSocket/OpenAPI contract where live stream payloads still drift from documented schemas
+- add clearer dormant auth/principal seams and richer actor context around privileged mutations
+- continue the drone-side error-envelope and typed-stream cleanup so merge readiness is end to end
+
 ## Phase 1 Canonical Routes
 
 The first alias slice introduces these canonical entry points:

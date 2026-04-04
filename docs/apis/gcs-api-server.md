@@ -948,6 +948,11 @@ Additional active Swarm Trajectory endpoints:
 
 The older versionless `/api/swarm/...` compatibility routes for this domain are retired.
 
+Swarm Trajectory failures now use the same shared error envelope as the rest of
+the cleaned GCS HTTP surface. Git sync failures on `commit` are surfaced as
+operation errors with an explicit HTTP status (`409` or `502`) and a readable
+`detail` field instead of route-local `success=false` payloads.
+
 #### `POST /api/v1/swarm-trajectories/clear-processed`
 Explicitly clear all processed data and plots.
 
@@ -1374,10 +1379,9 @@ Currently, no authentication is required. In production deployments, consider ad
 
 ## Error Handling
 
-Canonical FastAPI HTTP routes that use the shared exception path now return one
-consistent error envelope. A few subsystem routes still intentionally use
-specialized operation envelopes until those domains are normalized further
-(`Swarm Trajectory` and `QuickScout / SAR` are the main remaining cases).
+Current GCS HTTP routes now return one consistent error envelope for non-2xx
+failures. Success payloads still vary by subsystem and operation type, but the
+error contract is shared.
 
 **Error Response Format:**
 ```json

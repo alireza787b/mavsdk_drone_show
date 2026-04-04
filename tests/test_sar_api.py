@@ -166,6 +166,9 @@ class TestMissionStatus:
         """GET /status for unknown mission should return 404."""
         resp = client.get("/api/sar/mission/nonexistent/status")
         assert resp.status_code == 404
+        payload = resp.json()
+        assert payload["error"] == "Not found"
+        assert payload["detail"] == "Mission nonexistent not found"
 
 
 class TestMissionLifecycle:
@@ -205,6 +208,9 @@ class TestMissionLifecycle:
         """POST /pause for unknown mission should return 404."""
         resp = client.post("/api/sar/mission/nonexistent/pause")
         assert resp.status_code == 404
+        payload = resp.json()
+        assert payload["error"] == "Not found"
+        assert payload["detail"] == "Mission nonexistent not found"
 
     def test_progress_report(self, client):
         """POST /progress should update drone state."""
