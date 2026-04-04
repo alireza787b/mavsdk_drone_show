@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 SITL validation-platform phase 2 checkpoint note documenting the new Mission Config/origin runtime validator, the `config_only` template, the host-agnostic validator/runtime-root guidance, the full live Hetzner operator-regression pass, and the updated AI-agent/runtime docs
 - a 2026-04-04 SITL clean-image regression checkpoint note documenting the stale mixed-runtime finding, the fully green Hetzner operator-regression run on a rebuilt pinned image, and the post-validation host cleanup
 - a 2026-04-04 SITL validation-platform checkpoint note documenting the new standalone action validator, the declarative suite templates/plan-file flow, deterministic dry-run/provenance output, explicit QuickScout deferral, and the focused local/Hetzner validation results
 - a 2026-04-04 API closeout checkpoint note documenting the websocket-contract cleanup, the explicit deferred API follow-ups, the standing rules for future API additions, and the focused validation results
@@ -441,6 +442,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- the reusable SITL validation platform now treats Mission Config/origin as a first-class deterministic acceptance gate via `tools/validate_configuration_runtime.py`, a safe `config_only` template, and the default `operator_regression` flow `reset -> configuration -> reset_before_drone_show -> Drone Show -> actions -> Smart Swarm -> Swarm Trajectory -> final reset`
+- fleet config persistence now accepts `PUT /api/v1/config/fleet?commit=false`, so live validation and other temporary config workflows can bypass git auto-push safely instead of inheriting the global writable-host policy
+- suite provenance now tolerates non-git validator roots cleanly, so plain synced validator copies remain supported for split-root or remote-host workflows without noisy git stderr leakage
+- the SITL validation docs and AI-agent SITL operating spec now describe the platform as host-agnostic, with explicit same-host, split-root, and remote-`base_url` usage instead of one VPS-specific layout
 - retired the public GCS show-management legacy routes `/import-show`, `/download-raw-show`, `/download-processed-show`, `/get-show-info`, `/get-custom-show-info`, `/import-custom-show`, `/get-comprehensive-metrics`, `/get-safety-report`, `/validate-trajectory`, `/deploy-show`, `/get-show-plots`, `/get-show-plots/{filename}`, and `/get-custom-show-image`, leaving the canonical `/api/v1/shows/skybrush*` and `/api/v1/shows/custom*` surfaces as the only supported GCS contract for show workflows
 - retired the public GCS configuration/swarm legacy routes `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, `/get-trajectory-first-row`, `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader`, leaving the canonical `/api/v1/config/fleet*` and `/api/v1/config/swarm*` surfaces as the only supported GCS contract for those domains
 - `Show Design` / `Custom Show` operator guidance, Mission Details, and the Drone Show guide now reflect the current split between the normal SkyBrush import pipeline and the expert-only Custom CSV override

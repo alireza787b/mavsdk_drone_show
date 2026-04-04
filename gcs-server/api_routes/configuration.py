@@ -3,7 +3,7 @@
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path as PathParam
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query
 from fastapi.responses import JSONResponse
 
 from schemas import ConfigUpdateResponse, FleetConfigEntryPayload
@@ -36,7 +36,10 @@ def create_configuration_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=f"Error loading configuration: {exc}") from exc
 
     @router.put("/api/v1/config/fleet", response_model=ConfigUpdateResponse, tags=["Configuration"])
-    async def save_config_route(config_data: list[FleetConfigEntryPayload]):
+    async def save_config_route(
+        config_data: list[FleetConfigEntryPayload],
+        commit: bool | None = Query(None),
+    ):
         """Validate and save drone configuration."""
         try:
             if not config_data:
@@ -51,8 +54,9 @@ def create_configuration_router(deps: Any) -> APIRouter:
             deps.save_config(report["updated_config"])
             deps.log_system_event("✅ Configuration saved successfully", "INFO", "config")
 
+            should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
             git_result = None
-            if deps.Params.GIT_AUTO_PUSH:
+            if should_commit:
                 drone_count = len(report["updated_config"])
                 loop = asyncio.get_running_loop()
                 git_result = await loop.run_in_executor(

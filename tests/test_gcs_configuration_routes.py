@@ -70,6 +70,19 @@ def test_configuration_router_returns_validation_error_for_invalid_payload_shape
     assert response.json()["detail"][0]["type"] == "list_type"
 
 
+def test_configuration_router_commit_false_skips_git_operations_even_when_auto_push_is_enabled():
+    deps = _make_deps()
+    deps.Params.GIT_AUTO_PUSH = True
+    app = FastAPI()
+    app.include_router(create_configuration_router(deps))
+
+    with TestClient(app) as client:
+        response = client.put("/api/v1/config/fleet?commit=false", json=[{"pos_id": 1, "hw_id": "1"}])
+
+    assert response.status_code == 200
+    deps.git_operations.assert_not_called()
+
+
 def test_configuration_router_get_drone_positions_uses_live_dependency_after_router_creation():
     deps = _make_deps()
     app = FastAPI()

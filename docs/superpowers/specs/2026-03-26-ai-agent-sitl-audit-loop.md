@@ -71,6 +71,7 @@ Load only the docs needed for the task:
 
 - general repo map: `README.md`, `docs/README.md`, `CHANGELOG.md`
 - SITL bootstrap/runtime: `docs/guides/sitl-comprehensive.md`
+- reusable SITL acceptance suites and plan files: `docs/guides/sitl-validation-platform.md`
 - custom images and pinned releases: `docs/guides/advanced-sitl.md`, `docs/guides/sitl-custom-release-workflow.md`
 - Drone Show: `docs/features/drone-show.md`
 - Smart Swarm: `docs/features/smart-swarm.md`
@@ -87,6 +88,7 @@ If docs and code disagree, verify the code path and then fix the docs in the sam
    - identify whether the issue is code, docs, environment, image, data, or operator misunderstanding
 2. Reproduce
    - prefer the smallest reproducible path
+   - prefer the built-in SITL validators or suite templates before inventing ad hoc manual mission loops
    - prefer existing validators before manual ad hoc probing
 3. Inspect evidence
    - unified logs first
@@ -137,7 +139,11 @@ For SITL-backed work:
    - Smart Swarm
    - QuickScout
    - logging/UI/export flow
-6. if the scenario fails:
+6. when using `tools/run_sitl_validation_suite.py`:
+   - keep `--base-url`, `--validator-root`, and `--repo-root` explicit in your notes and artifacts
+   - allow same-host or split-root layouts; do not hardcode a specific VPS hostname or one fixed repo path pattern into reusable docs or wrappers
+   - a plain synced validator copy is acceptable when you only need current tooling, but a real git checkout gives better provenance in `suite-summary.json`
+7. if the scenario fails:
    - capture exact evidence
    - identify the smallest root cause
    - patch

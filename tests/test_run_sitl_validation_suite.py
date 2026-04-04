@@ -24,6 +24,10 @@ def _build_args(suite, tmp_path, **overrides):
         "plan_file": None,
         "modes": None,
         "drone_ids": [1, 2, 3],
+        "config_metadata_suffix": "-CFG",
+        "config_origin_altitude_delta": 0.5,
+        "config_swarm_put_offset_delta": 1.25,
+        "config_swarm_patch_offset_delta": 2.0,
         "import_source_dir": None,
         "expected_show_count": 5,
         "skip_initial_reset": False,
@@ -67,6 +71,8 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
 
     assert [step.name for step in steps] == [
         "reset_before_suite",
+        suite.MODE_CONFIGURATION,
+        "reset_before_drone_show",
         suite.MODE_DRONE_SHOW,
         suite.MODE_ACTIONS,
         suite.MODE_SMART_SWARM,
@@ -74,11 +80,15 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
         "reset_after_suite",
     ]
     assert steps[0].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
-    assert steps[2].validator == suite.MODE_ACTIONS
-    assert steps[2].json_path == tmp_path / "artifacts" / "actions.json"
-    assert "--post-rtl-airborne-gain" in steps[2].command
-    assert "--prepare-short-profile" in steps[4].command
-    assert steps[5].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[1].validator == suite.MODE_CONFIGURATION
+    assert steps[1].json_path == tmp_path / "artifacts" / "configuration.json"
+    assert "--metadata-suffix=-CFG" in steps[1].command
+    assert steps[2].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[4].validator == suite.MODE_ACTIONS
+    assert steps[4].json_path == tmp_path / "artifacts" / "actions.json"
+    assert "--post-rtl-airborne-gain" in steps[4].command
+    assert "--prepare-short-profile" in steps[6].command
+    assert steps[7].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
 
 
 def test_build_suite_steps_inserts_reset_before_late_drone_show_from_modes(tmp_path):
@@ -153,7 +163,9 @@ def test_list_templates_mentions_operator_and_actions_templates():
 
     assert suite.TEMPLATE_OPERATOR_REGRESSION in output
     assert suite.TEMPLATE_ACTIONS_ONLY in output
+    assert suite.TEMPLATE_CONFIG_ONLY in output
     assert suite.MODE_ACTIONS in output
+    assert suite.MODE_CONFIGURATION in output
 
 
 def test_write_suite_summary_skips_side_effects_in_dry_run(tmp_path):
@@ -174,3 +186,16 @@ def test_parse_modes_rejects_unknown_values():
         assert "Unsupported validation mode" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("Expected invalid mode parse to fail")
+
+
+def test_git_metadata_tolerates_non_git_paths(tmp_path):
+    suite = _load_module()
+
+    metadata = suite.git_metadata(tmp_path / "plain-dir")
+
+    assert metadata == {
+        "path": str(tmp_path / "plain-dir"),
+        "head": None,
+        "branch": None,
+        "dirty": None,
+    }

@@ -35,10 +35,12 @@ from tools.runtime_validation_support import build_sitl_reset_command, normalize
 
 
 MODE_DRONE_SHOW = "drone_show"
+MODE_CONFIGURATION = "configuration"
 MODE_ACTIONS = "actions"
 MODE_SMART_SWARM = "smart_swarm"
 MODE_SWARM_TRAJECTORY = "swarm_trajectory"
 VALIDATION_MODES = (
+    MODE_CONFIGURATION,
     MODE_DRONE_SHOW,
     MODE_ACTIONS,
     MODE_SMART_SWARM,
@@ -48,11 +50,13 @@ VALIDATION_MODES = (
 TEMPLATE_OPERATOR_REGRESSION = "operator_regression"
 TEMPLATE_MISSION_REGRESSION = "mission_regression"
 TEMPLATE_ACTIONS_ONLY = "actions_only"
+TEMPLATE_CONFIG_ONLY = "config_only"
 
 TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
     TEMPLATE_OPERATOR_REGRESSION: {
-        "description": "Reset, Drone Show, standalone action controls, Smart Swarm, and Swarm Trajectory.",
+        "description": "Reset, Mission Config/origin, Drone Show, standalone action controls, Smart Swarm, and Swarm Trajectory.",
         "steps": [
+            {"validator": MODE_CONFIGURATION},
             {"validator": MODE_DRONE_SHOW},
             {"validator": MODE_ACTIONS},
             {"validator": MODE_SMART_SWARM},
@@ -71,6 +75,12 @@ TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "Reset plus the standalone action-control validator only.",
         "steps": [
             {"validator": MODE_ACTIONS},
+        ],
+    },
+    TEMPLATE_CONFIG_ONLY: {
+        "description": "Reset plus the Mission Config / swarm / origin runtime validator only.",
+        "steps": [
+            {"validator": MODE_CONFIGURATION},
         ],
     },
 }
@@ -166,6 +176,35 @@ def build_drone_show_command(
         command.extend(["--import-source-dir", str(import_source_dir)])
     if bool(option_value(args, options, "skip_drone_show_internal_reset")):
         command.append("--skip-sitl-reset")
+    return command
+
+
+def build_configuration_command(
+    args: argparse.Namespace,
+    json_path: Path,
+    *,
+    drone_ids: tuple[int, ...],
+    options: dict[str, Any],
+) -> list[str]:
+    command = [
+        args.python,
+        "tools/validate_configuration_runtime.py",
+        "--base-url",
+        args.base_url,
+        "--repo-root",
+        str(args.repo_root),
+        "--json-output",
+        str(json_path),
+        "--drone-ids",
+        *[str(drone_id) for drone_id in drone_ids],
+        f"--metadata-suffix={option_value(args, options, 'config_metadata_suffix')}",
+        "--origin-altitude-delta",
+        str(option_value(args, options, "config_origin_altitude_delta")),
+        "--swarm-put-offset-delta",
+        str(option_value(args, options, "config_swarm_put_offset_delta")),
+        "--swarm-patch-offset-delta",
+        str(option_value(args, options, "config_swarm_patch_offset_delta")),
+    ]
     return command
 
 
@@ -265,6 +304,7 @@ def build_swarm_trajectory_command(
 
 
 VALIDATOR_BUILDERS = {
+    MODE_CONFIGURATION: build_configuration_command,
     MODE_DRONE_SHOW: build_drone_show_command,
     MODE_ACTIONS: build_actions_command,
     MODE_SMART_SWARM: build_smart_swarm_command,
@@ -309,14 +349,17 @@ def git_metadata(repo_root: Path) -> dict[str, Any]:
         metadata["head"] = subprocess.check_output(
             ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
             text=True,
+            stderr=subprocess.DEVNULL,
         ).strip()
         metadata["branch"] = subprocess.check_output(
             ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
             text=True,
+            stderr=subprocess.DEVNULL,
         ).strip()
         dirty_output = subprocess.check_output(
             ["git", "-C", str(repo_root), "status", "--porcelain"],
             text=True,
+            stderr=subprocess.DEVNULL,
         )
         metadata["dirty"] = bool(dirty_output.strip())
     except Exception:
@@ -663,6 +706,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--list-templates", action="store_true", help="List built-in suite templates and exit")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=[1, 2, 3], help="Selected contiguous drone IDs to validate by default")
+    parser.add_argument("--config-metadata-suffix", default="-CFG", help="Suffix appended to temporary validator fleet metadata updates")
+    parser.add_argument("--config-origin-altitude-delta", type=float, default=0.5, help="Temporary origin altitude delta used while validating origin write/read routes")
+    parser.add_argument("--config-swarm-put-offset-delta", type=float, default=1.25, help="Offset delta used for the full swarm-config PUT mutation")
+    parser.add_argument("--config-swarm-patch-offset-delta", type=float, default=2.0, help="Offset delta used for the swarm assignment PATCH mutation")
     parser.add_argument("--import-source-dir", type=Path, default=None, help="Optional SkyBrush source directory for Drone Show import")
     parser.add_argument("--expected-show-count", type=int, default=5, help="Expected show metadata count for the Drone Show validator")
     parser.add_argument("--skip-initial-reset", action="store_true", help="Skip the fresh SITL recreate before the suite starts")

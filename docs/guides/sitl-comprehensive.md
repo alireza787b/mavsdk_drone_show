@@ -568,8 +568,8 @@ bash multiple_sitl/create_dockers.sh 3
 ```
 
 For the reusable operator-grade validation platform, including standalone action
-controls, built-in templates, JSON plan files, deterministic artifacts, and the
-runtime-vs-validator repo split, use:
+controls, Mission Config/origin validation, built-in templates, JSON plan
+files, deterministic artifacts, and the runtime-vs-validator repo split, use:
 
 - [SITL Validation Platform](sitl-validation-platform.md)
 
@@ -578,29 +578,64 @@ If you want the default operator regression suite, use:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
 ```
 
-To run only the mission-family regression without the standalone action drill:
+That default template now includes:
+
+- Mission Config / origin validation
+- a protective reset before Drone Show
+- Drone Show
+- standalone action controls
+- Smart Swarm
+- Swarm Trajectory
+
+To run only the configuration/origin gate:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --template config_only \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+To run only the mission-family regression without the standalone action drill or
+the configuration gate:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template mission_regression \
   --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
 ```
 
-If the validator tooling is being executed from a temporary checkout but the live GCS and SITL runtime are using a different repo path, pass both roots explicitly so Swarm Trajectory processing and cleanup target the same runtime tree:
+If the validator tooling is being executed from a temporary checkout but the
+live GCS and SITL runtime are using a different repo path, pass both roots
+explicitly so Swarm Trajectory processing, configuration cleanup, and final
+reset target the same runtime tree:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --base-url http://127.0.0.1:5000 \
-  --validator-root /tmp/mds_sitl_suite_validation \
-  --repo-root /root/mavsdk_drone_show_main_candidate_runtime_https \
+  --validator-root /root/mavsdk_drone_show_validator_sync \
+  --repo-root /root/mavsdk_drone_show_main_candidate_runtime_live \
   --drone-ids 1 2 3
 ```
+
+The validation platform is not tied to one VPS layout. Use:
+
+- one shared path when the validator tools and live runtime are on the same host
+- split `validator_root` and `repo_root` when you need a temporary tooling checkout
+- a remote `--base-url` when the validator is not running on the same host as the GCS
+
+Plain synced validator copies are supported. A real git checkout still gives
+better provenance in `suite-summary.json`, but it is not required.
 
 QuickScout remains intentionally deferred from this reusable SITL gate until the
 mission subsystem itself is more mature.

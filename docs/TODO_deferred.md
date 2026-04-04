@@ -104,3 +104,25 @@ Each has a corresponding `TODO(deferred)` comment in the code at the referenced 
 - `tools/validate_quickscout_runtime.py` — add dedicated runtime validator
 - `docs/guides/sitl-validation-platform.md` — document the new template and scenario coverage
 - `docs/guides/sitl-comprehensive.md` — link the new QuickScout validation path
+
+---
+
+## TODO 7: Advanced mixed-mode and fault-injection SITL plans
+
+**Priority:** Medium
+**Status:** Deferred — wait until the core reusable operator regression stays stable over more releases
+
+**Problem:** The current SITL validation platform now covers the core deterministic acceptance gate, but it does not yet encode the more advanced operator scenarios we still want later: mixed mission families on one fleet, command supersession under load, delayed triggers across subgroups, and deliberate failure/fallback drills.
+
+**Solution:** Add explicit advanced JSON plan examples and, where needed, new validator helpers for:
+
+- mixed-mode partial-fleet exercises
+- command override and supersession stress cases
+- late-command / delayed-trigger timing checks
+- optional fault-injection drills that remain deterministic enough for repeatable acceptance use
+
+**Files to modify:**
+- `tools/run_sitl_validation_suite.py` — add or document stable advanced plan patterns
+- `tools/validate_*.py` — add bounded helper hooks only when a scenario cannot be expressed cleanly as a plan
+- `docs/guides/sitl-validation-platform.md` — document advanced plan recipes and acceptance boundaries
+- `docs/guides/sitl-comprehensive.md` — link the advanced validation path once it is stable
