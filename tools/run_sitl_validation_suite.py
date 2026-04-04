@@ -33,6 +33,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.runtime_validation_support import build_sitl_reset_command, normalize_drone_ids, write_json_report
 
+BUNDLED_PLAN_DIR = REPO_ROOT / "tools" / "sitl_plans"
+
 
 MODE_DRONE_SHOW = "drone_show"
 MODE_CONFIGURATION = "configuration"
@@ -338,6 +340,57 @@ def compute_plan_hash(plan_steps: list[SuitePlanStep]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def load_json_object_file(path: Path, *, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"{label} not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{label} is not valid JSON: {path}: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"{label} must contain a JSON object: {path}")
+    return payload
+
+
+def bundled_plan_catalog() -> dict[str, dict[str, Any]]:
+    if not BUNDLED_PLAN_DIR.exists():
+        return {}
+
+    catalog: dict[str, dict[str, Any]] = {}
+    for plan_path in sorted(BUNDLED_PLAN_DIR.glob("*.json")):
+        payload = load_json_object_file(plan_path, label="Bundled SITL plan")
+        catalog[plan_path.stem] = {
+            "path": plan_path,
+            "title": str(payload.get("title") or plan_path.stem),
+            "description": str(payload.get("description") or "").strip(),
+            "tags": payload.get("tags") if isinstance(payload.get("tags"), list) else [],
+        }
+    return catalog
+
+
+def list_bundled_plans() -> str:
+    catalog = bundled_plan_catalog()
+    if not catalog:
+        return "No bundled SITL plans available."
+
+    lines = ["Bundled SITL plans:"]
+    for name in sorted(catalog):
+        entry = catalog[name]
+        description = f" - {entry['description']}" if entry["description"] else ""
+        lines.append(f"- {name}: {entry['title']}{description}")
+    return "\n".join(lines)
+
+
+def resolve_bundled_plan_path(plan_name: str) -> Path:
+    catalog = bundled_plan_catalog()
+    entry = catalog.get(plan_name)
+    if entry is None:
+        valid_names = ", ".join(sorted(catalog)) or "(none)"
+        raise RuntimeError(f"Unknown bundled SITL plan '{plan_name}'. Available plans: {valid_names}")
+    return Path(entry["path"])
+
+
 def git_metadata(repo_root: Path) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "path": str(repo_root),
@@ -429,15 +482,7 @@ def build_modes_plan(modes: list[str], default_ids: list[int]) -> list[SuitePlan
 
 
 def load_plan_file(plan_file: Path, default_ids: list[int]) -> list[SuitePlanStep]:
-    try:
-        payload = json.loads(plan_file.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise RuntimeError(f"SITL plan file not found: {plan_file}") from exc
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"SITL plan file is not valid JSON: {plan_file}: {exc}") from exc
-
-    if not isinstance(payload, dict):
-        raise RuntimeError(f"SITL plan file must contain a JSON object: {plan_file}")
+    payload = load_json_object_file(plan_file, label="SITL plan file")
 
     raw_steps = payload.get("steps")
     if not isinstance(raw_steps, list) or not raw_steps:
@@ -672,6 +717,7 @@ def run_failure_cleanup(args: argparse.Namespace, artifact_dir: Path) -> dict[st
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the reusable multi-mode SITL validation suite.")
+    bundled_plan_names = sorted(bundled_plan_catalog())
     parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
     parser.add_argument(
         "--repo-root",
@@ -693,6 +739,12 @@ def parse_args() -> argparse.Namespace:
         help="Named built-in suite template to run when --plan-file and --modes are not supplied",
     )
     parser.add_argument(
+        "--plan-name",
+        choices=bundled_plan_names or None,
+        default=None,
+        help="Named checked-in JSON plan from tools/sitl_plans/",
+    )
+    parser.add_argument(
         "--plan-file",
         type=Path,
         default=None,
@@ -705,6 +757,7 @@ def parse_args() -> argparse.Namespace:
         help="Compatibility shorthand: comma-separated validation modes to run in order",
     )
     parser.add_argument("--list-templates", action="store_true", help="List built-in suite templates and exit")
+    parser.add_argument("--list-bundled-plans", action="store_true", help="List checked-in JSON plans from tools/sitl_plans and exit")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=[1, 2, 3], help="Selected contiguous drone IDs to validate by default")
     parser.add_argument("--config-metadata-suffix", default="-CFG", help="Suffix appended to temporary validator fleet metadata updates")
     parser.add_argument("--config-origin-altitude-delta", type=float, default=0.5, help="Temporary origin altitude delta used while validating origin write/read routes")
@@ -736,9 +789,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifact-dir", type=Path, default=None, help="Directory for suite logs and per-step JSON reports")
     parser.add_argument("--dry-run", action="store_true", help="Print the suite plan without executing it")
     args = parser.parse_args()
+    if args.plan_name and args.plan_file is not None:
+        parser.error("--plan-name and --plan-file are mutually exclusive")
+    if args.plan_name and args.modes is not None:
+        parser.error("--plan-name and --modes are mutually exclusive")
     args.drone_ids = normalize_drone_ids(args.drone_ids)
     args.repo_root = args.repo_root.resolve()
     args.validator_root = args.validator_root.resolve()
+    if args.plan_name:
+        args.plan_file = resolve_bundled_plan_path(args.plan_name)
     args.plan_file = args.plan_file.resolve() if args.plan_file is not None else None
     args.import_source_dir = args.import_source_dir.resolve() if args.import_source_dir is not None else None
     args.artifact_dir = args.artifact_dir or default_artifact_dir(args.validator_root)
@@ -749,6 +808,9 @@ def main() -> int:
     args = parse_args()
     if args.list_templates:
         print(list_templates())
+        return 0
+    if args.list_bundled_plans:
+        print(list_bundled_plans())
         return 0
 
     plan_steps = resolve_plan_steps(args)
@@ -763,6 +825,7 @@ def main() -> int:
         "python": args.python,
         "drone_ids": args.drone_ids,
         "template": None if args.modes is not None or args.plan_file is not None else args.template,
+        "plan_name": args.plan_name,
         "plan_file": str(args.plan_file) if args.plan_file is not None else None,
         "modes": args.modes,
         "artifact_dir": str(args.artifact_dir),

@@ -199,3 +199,94 @@ def test_git_metadata_tolerates_non_git_paths(tmp_path):
         "branch": None,
         "dirty": None,
     }
+
+
+def test_list_bundled_plans_reports_curated_entries(tmp_path):
+    suite = _load_module()
+    bundled_dir = tmp_path / "bundled"
+    bundled_dir.mkdir()
+    (bundled_dir / "actions_core.json").write_text(
+        json.dumps(
+            {
+                "title": "Actions Core",
+                "description": "Takeoff, hold, RTL override, land",
+                "steps": [{"validator": suite.MODE_ACTIONS}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    suite.BUNDLED_PLAN_DIR = bundled_dir
+
+    output = suite.list_bundled_plans()
+
+    assert "actions_core" in output
+    assert "Actions Core" in output
+    assert "Takeoff, hold, RTL override, land" in output
+
+
+def test_parse_args_resolves_plan_name_to_bundled_plan(tmp_path, monkeypatch):
+    suite = _load_module()
+    bundled_dir = tmp_path / "bundled"
+    bundled_dir.mkdir()
+    (bundled_dir / "smart_swarm_runtime.json").write_text(
+        json.dumps(
+            {
+                "title": "Smart Swarm Runtime",
+                "steps": [{"validator": suite.MODE_SMART_SWARM}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    suite.BUNDLED_PLAN_DIR = bundled_dir
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_sitl_validation_suite.py",
+            "--plan-name",
+            "smart_swarm_runtime",
+        ],
+    )
+
+    args = suite.parse_args()
+
+    assert args.plan_name == "smart_swarm_runtime"
+    assert args.plan_file == (bundled_dir / "smart_swarm_runtime.json").resolve()
+
+
+def test_build_suite_steps_uses_bundled_plan_name(tmp_path):
+    suite = _load_module()
+    bundled_dir = tmp_path / "bundled"
+    bundled_dir.mkdir()
+    plan_path = bundled_dir / "config_then_drone_show.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "title": "Config Then Drone Show",
+                "steps": [
+                    {"validator": suite.MODE_CONFIGURATION},
+                    {"validator": suite.MODE_DRONE_SHOW},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    suite.BUNDLED_PLAN_DIR = bundled_dir
+    args = _build_args(
+        suite,
+        tmp_path,
+        template=suite.TEMPLATE_ACTIONS_ONLY,
+        plan_file=plan_path,
+        plan_name="config_then_drone_show",
+    )
+
+    steps = suite.build_suite_steps(args, tmp_path / "artifacts")
+
+    assert [step.name for step in steps] == [
+        "reset_before_suite",
+        suite.MODE_CONFIGURATION,
+        "reset_before_drone_show",
+        suite.MODE_DRONE_SHOW,
+        "reset_after_suite",
+    ]

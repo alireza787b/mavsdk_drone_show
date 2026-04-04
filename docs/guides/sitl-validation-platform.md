@@ -55,6 +55,44 @@ Current templates:
 - `config_only`
   - reset plus the Mission Config / swarm / origin validator only
 
+## Bundled Plan Library
+
+The suite also ships with checked-in JSON plans under:
+
+- `tools/sitl_plans/`
+
+List them:
+
+```bash
+python3 tools/run_sitl_validation_suite.py --list-bundled-plans
+```
+
+Run one by name:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --plan-name operator_regression \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+Current checked-in stable plans:
+
+- `config_roundtrip`
+- `config_then_drone_show`
+- `drone_show_matrix`
+- `actions_core`
+- `smart_swarm_runtime`
+- `swarm_trajectory_short_profile`
+- `mission_regression`
+- `operator_regression`
+
+These plans are meant to be edited, copied, or used as the starting point for
+new scenario files. They are intentionally stored in git so operators, CI, and
+AI agents all use the same scenario definitions.
+
 ## Common Commands
 
 Run the default operator-grade regression suite on a same-host stack where the
@@ -144,6 +182,10 @@ python3 tools/run_sitl_validation_suite.py \
 shared Swarm Trajectory workspace, and reset scripts. They may be the same path
 or different paths.
 
+`--plan-name` resolves one of the checked-in JSON plans from `tools/sitl_plans`.
+Use `--plan-file` only when you intentionally want an external or temporary
+scenario file.
+
 ## Declarative JSON Plans
 
 Use `--plan-file` when you want a reusable custom sequence with step-local drone
@@ -195,6 +237,10 @@ Plan rules:
 - reset steps use `"kind": "reset"`
 - `drone_ids` is optional per step and defaults to the global `--drone-ids`
 - `options` is optional and overrides the corresponding suite CLI defaults for that step only
+
+The plan loader ignores extra top-level metadata fields such as `title`,
+`description`, or `tags`, so checked-in library plans can stay documented
+without affecting execution.
 
 ## Configuration Gate Behavior
 
@@ -261,3 +307,15 @@ Default cleanup policy:
 6. Keep the live GCS checkout on the same API contract generation as the SITL containers; stale pre-modernization GCS trees will reject the new canonical heartbeat/bootstrap routes.
 7. For promotion-grade runs on a persistent host, prefer a freshly rebuilt image plus `MDS_SITL_GIT_SYNC=false` and `MDS_SITL_REQUIREMENTS_SYNC=false`; mixed baked-image content and mutable boot sync can hide or create false runtime failures.
 8. Do not hardcode a specific VPS or hostname into plans, docs, or wrappers; the reusable contract is `base_url + validator_root + repo_root + MDS_*` env, whether the runtime is localhost, a second repo on the same host, or a remote validation server.
+
+## Stable Vs Advanced Scenarios
+
+The current bundled library contains only stable deterministic scenarios. More
+aggressive combined-mode and fault-injection drills are intentionally tracked as
+deferred work until they stay repeatable enough for routine acceptance use.
+
+That boundary matters:
+
+- stable plans should be safe to run after normal code changes
+- advanced combined tests should challenge the system harder, but they should
+  not create flaky routine gates until their acceptance contract is proven

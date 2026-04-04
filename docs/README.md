@@ -51,6 +51,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
+- **`tools/sitl_plans/`** - checked-in named SITL scenario library for maintainers, CI, and AI agents
 - **[QuickScout Guide](quickscout.md)** - SAR / recon workflows
 - **[Versioning Guide](VERSIONING.md)** - release flow and version management
 - **[Python Compatibility](guides/python-compatibility.md)** - supported Python versions

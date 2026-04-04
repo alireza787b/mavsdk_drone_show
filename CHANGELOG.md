@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 SITL plan-library checkpoint note documenting the checked-in `tools/sitl_plans/` scenario library, the named-plan CLI entrypoint, the currently validated scenario coverage, and the deferred advanced combined-mode boundary
 - a 2026-04-04 SITL validation-platform phase 2 checkpoint note documenting the new Mission Config/origin runtime validator, the `config_only` template, the host-agnostic validator/runtime-root guidance, the full live Hetzner operator-regression pass, and the updated AI-agent/runtime docs
 - a 2026-04-04 SITL clean-image regression checkpoint note documenting the stale mixed-runtime finding, the fully green Hetzner operator-regression run on a rebuilt pinned image, and the post-validation host cleanup
 - a 2026-04-04 SITL validation-platform checkpoint note documenting the new standalone action validator, the declarative suite templates/plan-file flow, deterministic dry-run/provenance output, explicit QuickScout deferral, and the focused local/Hetzner validation results
@@ -442,6 +443,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- the SITL validation suite now supports a checked-in scenario library through `--list-bundled-plans` and `--plan-name`, so maintainers, CI, and AI agents can run named git-tracked scenarios from `tools/sitl_plans/` instead of relying on ad hoc temporary JSON plan files
+- the checked-in SITL plan library now exposes stable named scenarios for configuration round-trip, Drone Show, actions, Smart Swarm, Swarm Trajectory, mission regression, and full operator regression while leaving the harder mixed-mode/fault-injection drills explicitly deferred until they are deterministic enough for routine acceptance
 - the reusable SITL validation platform now treats Mission Config/origin as a first-class deterministic acceptance gate via `tools/validate_configuration_runtime.py`, a safe `config_only` template, and the default `operator_regression` flow `reset -> configuration -> reset_before_drone_show -> Drone Show -> actions -> Smart Swarm -> Swarm Trajectory -> final reset`
 - fleet config persistence now accepts `PUT /api/v1/config/fleet?commit=false`, so live validation and other temporary config workflows can bypass git auto-push safely instead of inheriting the global writable-host policy
 - suite provenance now tolerates non-git validator roots cleanly, so plain synced validator copies remain supported for split-root or remote-host workflows without noisy git stderr leakage

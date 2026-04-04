@@ -1,0 +1,10 @@
+{
+  "title": "Smart Swarm Runtime",
+  "description": "Run the Smart Swarm runtime validator: takeoff, settle, reassignment, leader RTL, follower hold, and land.",
+  "tags": ["smart_swarm", "formation"],
+  "steps": [
+    {
+      "validator": "smart_swarm"
+    }
+  ]
+}

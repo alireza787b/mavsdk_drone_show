@@ -1,0 +1,10 @@
+{
+  "title": "Drone Show Matrix",
+  "description": "Run the full Drone Show validator matrix: global auto, global manual, local delayed, custom CSV, and override drill.",
+  "tags": ["drone_show", "matrix"],
+  "steps": [
+    {
+      "validator": "drone_show"
+    }
+  ]
+}

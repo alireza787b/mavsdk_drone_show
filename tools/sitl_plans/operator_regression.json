@@ -1,0 +1,22 @@
+{
+  "title": "Operator Regression",
+  "description": "Run the current full deterministic operator acceptance gate: configuration, Drone Show, actions, Smart Swarm, and Swarm Trajectory.",
+  "tags": ["operator", "regression", "full-suite"],
+  "steps": [
+    {
+      "validator": "configuration"
+    },
+    {
+      "validator": "drone_show"
+    },
+    {
+      "validator": "actions"
+    },
+    {
+      "validator": "smart_swarm"
+    },
+    {
+      "validator": "swarm_trajectory"
+    }
+  ]
+}

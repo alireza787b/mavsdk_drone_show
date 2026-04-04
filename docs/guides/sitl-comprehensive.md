@@ -640,6 +640,40 @@ better provenance in `suite-summary.json`, but it is not required.
 QuickScout remains intentionally deferred from this reusable SITL gate until the
 mission subsystem itself is more mature.
 
+If you want checked-in named scenarios instead of remembering plan-file paths,
+the suite now ships with a bundled plan library under `tools/sitl_plans/`.
+
+List the bundled plans:
+
+```bash
+python3 tools/run_sitl_validation_suite.py --list-bundled-plans
+```
+
+Run one by name:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --plan-name actions_core \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+Current stable bundled scenarios include:
+
+- `config_roundtrip`
+- `config_then_drone_show`
+- `drone_show_matrix`
+- `actions_core`
+- `smart_swarm_runtime`
+- `swarm_trajectory_short_profile`
+- `mission_regression`
+- `operator_regression`
+
+More aggressive combined-mode and fault-injection scenarios are intentionally
+tracked as deferred work until they stay deterministic enough for routine use.
+
 
 ## Additional Resources
 

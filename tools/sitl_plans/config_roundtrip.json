@@ -1,0 +1,10 @@
+{
+  "title": "Configuration Round-Trip",
+  "description": "Mission Config, swarm assignment, and origin round-trip safety gate.",
+  "tags": ["configuration", "origin", "safe-mutation"],
+  "steps": [
+    {
+      "validator": "configuration"
+    }
+  ]
+}

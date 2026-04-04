@@ -1,0 +1,10 @@
+{
+  "title": "Swarm Trajectory Short Profile",
+  "description": "Generate a deterministic short profile, process it, launch, validate follower geometry, and restore the raw leader file.",
+  "tags": ["swarm_trajectory", "trajectory", "short-profile"],
+  "steps": [
+    {
+      "validator": "swarm_trajectory"
+    }
+  ]
+}

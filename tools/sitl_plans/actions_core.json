@@ -1,0 +1,10 @@
+{
+  "title": "Actions Core",
+  "description": "Run the standalone actions drill: TAKEOFF, HOLD, targeted RTL override, and LAND remaining drones.",
+  "tags": ["actions", "command-control"],
+  "steps": [
+    {
+      "validator": "actions"
+    }
+  ]
+}

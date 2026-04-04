@@ -1,0 +1,13 @@
+{
+  "title": "Configuration Then Drone Show",
+  "description": "Validate Mission Config/origin first, then run Drone Show acceptance with the automatic protective reset before launch.",
+  "tags": ["configuration", "drone_show", "operator-flow"],
+  "steps": [
+    {
+      "validator": "configuration"
+    },
+    {
+      "validator": "drone_show"
+    }
+  ]
+}
