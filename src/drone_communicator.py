@@ -201,8 +201,18 @@ class DroneCommunicator:
         logger.info(f"Received command data: {command_data}")
 
         try:
-            mission = int(command_data.get("mission_type", command_data["missionType"]))
-            trigger_time = command_data.get("trigger_time", command_data["triggerTime"])
+            mission_value = (
+                command_data["mission_type"]
+                if "mission_type" in command_data
+                else command_data["missionType"]
+            )
+            trigger_time_value = (
+                command_data["trigger_time"]
+                if "trigger_time" in command_data
+                else command_data["triggerTime"]
+            )
+            mission = int(mission_value)
+            trigger_time = int(trigger_time_value)
 
         except KeyError as e:
             logger.error(f"Missing required field in command data: {e}")

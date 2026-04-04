@@ -590,6 +590,31 @@ class TestDroneCommandReception:
         assert drone_config.mission == Mission.UPDATE_CODE.value
         assert drone_config.state == State.MISSION_READY.value
 
+    def test_process_command_accepts_canonical_snake_case_fields(self):
+        """Canonical GCS dispatch payloads must work without legacy camelCase aliases."""
+        from src.drone_communicator import DroneCommunicator
+
+        params = Mock(
+            enable_udp_telemetry=False,
+            enable_default_subscriptions=False,
+            default_takeoff_alt=10.0,
+            max_takeoff_alt=50.0,
+            reboot_after_params=True,
+        )
+        drone_config = create_mock_drone_config()
+        communicator = DroneCommunicator(drone_config, params, {})
+
+        communicator.process_command({
+            'mission_type': Mission.TAKE_OFF.value,
+            'trigger_time': 0,
+            'takeoff_altitude': 12.5,
+        })
+
+        assert drone_config.mission == Mission.TAKE_OFF.value
+        assert drone_config.trigger_time == 0
+        assert drone_config.takeoff_altitude == 12.5
+        assert drone_config.state == State.MISSION_READY.value
+
     def test_apply_common_params_command_preserves_reboot_flag(self):
         """APPLY_COMMON_PARAMS must preserve reboot_after_params into runtime state."""
         from src.drone_communicator import DroneCommunicator

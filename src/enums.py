@@ -151,9 +151,9 @@ class CommandErrorCode(str, Enum):
     def get_description(cls, code: str) -> str:
         """Get human-readable description for an error code."""
         descriptions = {
-            "E100": "Missing required field: missionType",
+            "E100": "Missing required field: mission_type",
             "E101": "Invalid or unknown mission type",
-            "E102": "Missing required field: triggerTime",
+            "E102": "Missing required field: trigger_time",
             "E103": "Invalid trigger time format",
             "E104": "Invalid altitude value",
             "E105": "Missing origin coordinates",
