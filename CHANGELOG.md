@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 API-modernization review audit note documenting why the stream is not yet merge-ready, with the remaining drone-side contract, caller-migration, schema, and documentation slices required before any merge to `main`
 - a 2026-04-03 GCS telemetry contract-cleanup checkpoint note documenting the retirement of the duplicate GCS telemetry aliases, the removal of the fake command-cancel endpoint, the validator migration onto canonical health/telemetry routes, and the LAND/RTL timeout fallback fix
 - a 2026-04-03 SITL suite runtime-root fix checkpoint note documenting the reusable multi-mode validator, the stale live gunicorn restart on Hetzner, the validator-root/runtime-root split, and the corrected end-to-end live 3-drone suite pass across Drone Show, Smart Swarm, and Swarm Trajectory
 - a 2026-04-03 stream-surface codification checkpoint note documenting the third Phase 5 API-modernization slice, the explicit WebSocket transport-root policy, the shared GCS WebSocket route builders/constants, and the Hetzner Jest/build validation results
