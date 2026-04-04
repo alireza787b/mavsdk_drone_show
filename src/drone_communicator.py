@@ -188,8 +188,8 @@ class DroneCommunicator:
             command_data (Dict[str, Any]): A dictionary containing command information.
 
         Required fields:
-            - missionType (int): The mission code.
-            - triggerTime (str): The time to trigger the mission.
+            - mission_type (int): The mission code.
+            - trigger_time (int): The time to trigger the mission.
 
         Optional fields:
             - hw_id (str): Hardware ID.
@@ -201,8 +201,8 @@ class DroneCommunicator:
         logger.info(f"Received command data: {command_data}")
 
         try:
-            mission = int(command_data["missionType"])
-            trigger_time = command_data["triggerTime"]
+            mission = int(command_data.get("mission_type", command_data["missionType"]))
+            trigger_time = command_data.get("trigger_time", command_data["triggerTime"])
 
         except KeyError as e:
             logger.error(f"Missing required field in command data: {e}")

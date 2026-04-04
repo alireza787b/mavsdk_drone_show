@@ -942,9 +942,10 @@ Submit a command to drones and immediately return ACK tracking information.
 **Request:**
 ```json
 {
-  "missionType": 10,
-  "triggerTime": 0,
-  "target_drones": ["1", "2"],
+  "mission_type": 10,
+  "trigger_time": 0,
+  "target_drone_ids": ["1", "2"],
+  "operator_label": "Launch all",
   "takeoff_altitude": 10
 }
 ```
@@ -976,16 +977,18 @@ Submit a command to drones and immediately return ACK tracking information.
 
 Important semantics:
 - `success=true` means at least one drone accepted the command.
-- `target_drones` may contain hardware IDs or position IDs. The response always normalizes `target_drones` to hardware IDs after the target set is resolved.
-- malformed JSON, non-object JSON bodies, invalid `target_drones` shapes, and explicit target selections that match no configured drones fail fast with `400` instead of creating an ambiguous zero-target command record.
+- canonical request fields are `mission_type`, `trigger_time`, `target_drone_ids`, and `operator_label`.
+- legacy request aliases (`missionType`, `triggerTime`, `target_drones`, `targetDrones`, `operatorLabel`) are still accepted at the HTTP edge, but first-party callers and docs now use the canonical snake_case contract.
+- `target_drone_ids` may contain hardware IDs or position IDs. The response still normalizes `target_drones` to hardware IDs after the target set is resolved.
+- malformed JSON, non-object JSON bodies, invalid `target_drone_ids` shapes, and explicit target selections that match no configured drones fail fast with `400` instead of creating an ambiguous zero-target command record.
 - `tracking_phase=pending_execution` means delivery/ACKs are complete but the drone has not yet reported execution start.
 - Long-running actions such as `TAKE_OFF`, `LAND`, `DRONE_SHOW_FROM_CSV`, `SMART_SWARM`, and `QUICKSCOUT` should be tracked via `GET /api/v1/commands/{command_id}` rather than treated as finished at submission time.
 - `tracking_timeout_ms` is the mission-aware lifecycle timeout selected by the backend for this command. It already includes any future trigger delay plus the expected execution/cleanup window, and frontend/background polling should reuse it instead of guessing with a flat client-side timeout.
 - tracker timeout budgets are mission-aware instead of one flat timeout: short actions use action-specific budgets, while Drone Show, Custom CSV, and Swarm Trajectory derive longer tracking windows from the active mission assets plus cleanup buffers.
-- if `triggerTime` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
+- if `trigger_time` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
-- `missionType=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
-- there is currently no separate command-specific cancel resource. Live cancellation goes through `POST /api/v1/commands` with `missionType=0` so the cancel action is actually dispatched to drones.
+- `mission_type=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
+- there is currently no separate command-specific cancel resource. Live cancellation goes through `POST /api/v1/commands` with `mission_type=0` so the cancel action is actually dispatched to drones.
 
 #### `GET /api/v1/commands/{command_id}`
 Retrieve the current lifecycle state for a previously submitted command.
@@ -1069,7 +1072,7 @@ Important semantics:
 - drone-side execution-start and execution-result callbacks are now retried through a bounded in-memory queue with backoff and per-command coalescing when GCS is temporarily unreachable; duplicate callback delivery is idempotent, so brief network loss should degrade into delayed tracker updates rather than permanently missing terminal state.
 - execution-start and execution-result callbacks also count as authoritative acceptance evidence. If the original GCS->drone HTTP ACK was lost or temporarily marked offline, the tracker upgrades that target to accepted once execution is confirmed.
 - once a command already reached `phase=terminal`, later ACK/execution callbacks no longer rewrite its final outcome. They are exposed under `late_reports` as post-terminal evidence for audit/debugging only.
-- strict synchronized offboard missions (`DRONE_SHOW_FROM_CSV`, `CUSTOM_CSV_DRONE_SHOW`, `SWARM_TRAJECTORY`, `HOVER_TEST`) stop GCS-side retries once the safe queue window before `triggerTime - trigger_sooner_seconds - COMMAND_SYNC_DISPATCH_GUARD_SEC` has passed, and the drone runtime aborts if actual mission start slips beyond `SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC`.
+- strict synchronized offboard missions (`DRONE_SHOW_FROM_CSV`, `CUSTOM_CSV_DRONE_SHOW`, `SWARM_TRAJECTORY`, `HOVER_TEST`) stop GCS-side retries once the safe queue window before `trigger_time - trigger_sooner_seconds - COMMAND_SYNC_DISPATCH_GUARD_SEC` has passed, and the drone runtime aborts if actual mission start slips beyond `SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC`.
 - standalone actions such as `TAKEOFF` are not treated as strict synchronized choreography. Once accepted, they still use bounded drone-local startup retries, but they do not keep rejoining a missed synchronized timeline after the safe window has passed.
 
 #### `GET /api/v1/commands/recent`

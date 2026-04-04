@@ -219,7 +219,7 @@ def mission_requires_strict_sync_dispatch(mission: Mission | None) -> bool:
 
 
 def _extract_trigger_time_seconds(command_payload: Dict[str, Any]) -> float | None:
-    raw_trigger_time = command_payload.get('triggerTime')
+    raw_trigger_time = command_payload.get('trigger_time', command_payload.get('triggerTime'))
     if raw_trigger_time in (None, "", 0, "0"):
         return None
 
@@ -323,7 +323,7 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     """
     drone_id = normalize_drone_id(drone['hw_id'])
     drone_ip = drone['ip'] 
-    raw_command_type = command_data.get('missionType', 'UNKNOWN')
+    raw_command_type = command_data.get('mission_type', command_data.get('missionType', 'UNKNOWN'))
     normalized_mission_type, command_type, mission = normalize_mission_type(raw_command_type)
     
     attempt = 0
@@ -331,12 +331,15 @@ def send_command_to_drone(drone: Dict[str, str], command_data: Dict[str, Any],
     last_error = ""
     last_category = CommandResultCategory.ERROR.value  # Default category for failures
 
-    # Ensure missionType is string for drone API compatibility
     command_payload = command_data.copy()
-    if 'missionType' in command_payload:
-        command_payload['missionType'] = normalized_mission_type
-    if 'triggerTime' in command_payload:
-        command_payload['triggerTime'] = str(command_payload['triggerTime'])
+    if 'mission_type' in command_payload or 'missionType' in command_payload:
+        command_payload['mission_type'] = int(normalized_mission_type)
+        command_payload.pop('missionType', None)
+    if 'trigger_time' in command_payload or 'triggerTime' in command_payload:
+        command_payload['trigger_time'] = int(
+            command_payload.get('trigger_time', command_payload.get('triggerTime', 0))
+        )
+        command_payload.pop('triggerTime', None)
     sync_dispatch_deadline = _get_sync_dispatch_deadline(mission, command_payload)
 
     while attempt < retries:
@@ -539,7 +542,9 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
             'failed': 0, 'total': 0, 'result_summary': 'no drones', 'results': {}
         }
     
-    _, command_type, _ = normalize_mission_type(command_data.get('missionType', 'UNKNOWN'))
+    _, command_type, _ = normalize_mission_type(
+        command_data.get('mission_type', command_data.get('missionType', 'UNKNOWN'))
+    )
     
     # Log command initiation for swarm operations
     _log_command_event(
@@ -760,19 +765,24 @@ def validate_command_data(command_data: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "Command data must be a dictionary"
     
     # Check required fields
-    required_fields = ['missionType']
-    missing_fields = [field for field in required_fields if field not in command_data]
+    required_fields = ['mission_type']
+    legacy_to_canonical = {'missionType': 'mission_type'}
+    normalized_command = {
+        legacy_to_canonical.get(key, key): value
+        for key, value in command_data.items()
+    }
+    missing_fields = [field for field in required_fields if field not in normalized_command]
     
     if missing_fields:
         return False, f"Missing required fields: {', '.join(missing_fields)}"
     
     # Validate mission type
-    mission_type = command_data.get('missionType')
+    mission_type = normalized_command.get('mission_type')
     if not isinstance(mission_type, (int, str)):
-        return False, "missionType must be an integer or string"
+        return False, "mission_type must be an integer or string"
 
     if resolve_mission_type(mission_type) is None:
-        return False, "missionType must be a valid mission code or supported mission name"
+        return False, "mission_type must be a valid mission code or supported mission name"
     
     # Additional validation can be added here for specific command types
     
@@ -872,9 +882,9 @@ if __name__ == "__main__":
     
     # Prepare command data
     command_data = {
-        'missionType': args.command.upper(),
-        'triggerTime': '0',
-        'target_drones': args.drones or []
+        'mission_type': args.command.upper(),
+        'trigger_time': 0,
+        'target_drone_ids': args.drones or []
     }
     
     print(f"Sending {args.command.upper()} command to {'specific' if args.drones else 'all'} drones...")

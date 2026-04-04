@@ -56,11 +56,48 @@ class _DummyTracker:
         return True
 
 
+class _MissionMember:
+    def __init__(self, value, name):
+        self.value = value
+        self.name = name
+
+    def __eq__(self, other):
+        if isinstance(other, _MissionMember):
+            return self.value == other.value
+        return self.value == other
+
+    def __hash__(self):
+        return hash(self.value)
+
+
+class _MissionShim:
+    TAKE_OFF = _MissionMember(10, "TAKE_OFF")
+    SWARM_TRAJECTORY = _MissionMember(4, "SWARM_TRAJECTORY")
+    LAND = _MissionMember(101, "LAND")
+    RETURN_RTL = _MissionMember(102, "RETURN_RTL")
+
+    _by_value = {
+        4: SWARM_TRAJECTORY,
+        10: TAKE_OFF,
+        101: LAND,
+        102: RETURN_RTL,
+    }
+    _by_name = {
+        "SWARM_TRAJECTORY": SWARM_TRAJECTORY,
+        "TAKE_OFF": TAKE_OFF,
+        "LAND": LAND,
+        "RETURN_RTL": RETURN_RTL,
+    }
+
+    def __call__(self, value):
+        return self._by_value[int(value)]
+
+
 def _make_deps():
     deps = SimpleNamespace()
     deps.current_tracker = _DummyTracker()
     deps.get_command_tracker = lambda: deps.current_tracker
-    deps.Mission = SimpleNamespace(SWARM_TRAJECTORY="swarm", LAND="land", RETURN_RTL="rtl")
+    deps.Mission = _MissionShim()
     deps.Params = SimpleNamespace(
         GCS_TELEMETRY_REQUEST_TIMEOUT_SEC=1.0,
         drone_api_port=5001,
@@ -68,7 +105,11 @@ def _make_deps():
     )
     deps.telemetry_lock = nullcontext()
     deps.telemetry_data_all_drones = {}
-    deps.resolve_mission_type = lambda mission_type: None
+    deps.resolve_mission_type = lambda mission_type: (
+        deps.Mission._by_name.get(str(mission_type).upper())
+        if str(mission_type).upper() in deps.Mission._by_name
+        else deps.Mission._by_value.get(int(mission_type))
+    )
     deps.mission_requires_launch_armability_probe = lambda mission: False
     deps.probe_live_armability_for_drones = lambda *args, **kwargs: {
         "all_ready": True,
@@ -165,8 +206,8 @@ def test_command_router_submit_rejects_malformed_json():
             headers={"content-type": "application/json"},
         )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Malformed JSON request body"
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "json_invalid"
 
 
 def test_command_router_submit_rejects_non_object_json():
@@ -177,8 +218,7 @@ def test_command_router_submit_rejects_non_object_json():
     with TestClient(app) as client:
         response = client.post("/api/v1/commands", json=["not", "an", "object"])
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Request body must be a JSON object"
+    assert response.status_code == 422
 
 
 def test_command_router_submit_rejects_invalid_target_drones_shape():
@@ -189,11 +229,28 @@ def test_command_router_submit_rejects_invalid_target_drones_shape():
     with TestClient(app) as client:
         response = client.post(
             "/api/v1/commands",
-            json={"missionType": 10, "triggerTime": 0, "target_drones": "1"},
+            json={"mission_type": 10, "trigger_time": 0, "target_drone_ids": "1"},
         )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "target_drones must be an array of drone identifiers"
+    assert response.status_code == 422
+    assert "target_drone_ids must be an array of drone identifiers" in response.text
+
+
+def test_command_router_submit_accepts_snake_case_aliases():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/commands",
+            json={"mission_type": "TAKE_OFF", "trigger_time": 0, "target_drone_ids": ["1"]},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mission_type"] == 10
+    assert body["target_drones"] == ["1"]
 
 
 def test_command_router_submit_rejects_unmatched_target_drones():
@@ -208,7 +265,7 @@ def test_command_router_submit_rejects_unmatched_target_drones():
         )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "No configured drones matched target_drones"
+    assert response.json()["detail"] == "No configured drones matched target_drone_ids"
 
 
 def test_estimate_max_target_relative_altitude_uses_home_altitude_field(monkeypatch):

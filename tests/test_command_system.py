@@ -584,8 +584,8 @@ class TestGcsCommandDistribution:
         assert success is True
         assert error == ""
         assert category == 'accepted'
-        assert mock_post.call_args.kwargs['json']['missionType'] == str(Mission.RETURN_RTL.value)
-        assert mock_post.call_args.kwargs['json']['triggerTime'] == '0'
+        assert mock_post.call_args.kwargs['json']['mission_type'] == Mission.RETURN_RTL.value
+        assert mock_post.call_args.kwargs['json']['trigger_time'] == 0
 
     def test_send_command_to_drone_aborts_after_sync_dispatch_window_expires(self):
         """Synchronized missions should not be retried once the safe queue window has passed."""
@@ -945,16 +945,29 @@ class TestSchemas:
 
         # Valid request
         request = SubmitCommandRequest(
-            missionType=10,
-            triggerTime=0,
+            mission_type=10,
+            trigger_time=0,
             takeoff_altitude=10.0
         )
-        assert request.missionType == 10
+        assert request.mission_type == 10
+        assert request.model_dump()["mission_type"] == 10
+        assert request.model_dump()["trigger_time"] == 0
+
+        legacy_request = SubmitCommandRequest(
+            missionType="TAKE_OFF",
+            triggerTime=0,
+            target_drones=["1", "2"],
+            operatorLabel="Launch now",
+        )
+        assert legacy_request.mission_type == 10
+        assert legacy_request.target_drone_ids == ["1", "2"]
+        assert legacy_request.operator_label == "Launch now"
+        assert legacy_request.model_dump()["target_drone_ids"] == ["1", "2"]
 
         # Invalid altitude (negative)
         with pytest.raises(Exception):
             SubmitCommandRequest(
-                missionType=10,
+                mission_type=10,
                 takeoff_altitude=-5.0
             )
 

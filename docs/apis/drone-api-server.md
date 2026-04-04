@@ -148,8 +148,8 @@ Readiness fields:
 **Request Body:**
 ```json
 {
-  "missionType": "10",
-  "triggerTime": "1732270300",
+  "mission_type": 10,
+  "trigger_time": 1732270300,
   "command_id": "5c6c136a-0ea2-41ba-a00f-0e632c3c4418",
   "takeoff_altitude": 10
 }
@@ -176,8 +176,9 @@ Readiness fields:
 The drone API returns structured ACKs for both accepted and rejected commands. A rejected command still uses HTTP 200 and places the reason in `status`, `error_code`, and `error_detail`.
 
 Preferred mission encoding:
-- `missionType` should be the numeric mission code as a string when called by the GCS.
-- The GCS accepts some legacy aliases, but drone-to-GCS traffic should stay on the numeric mission codes for consistency.
+- canonical request fields are `mission_type` and `trigger_time`.
+- legacy aliases (`missionType`, `triggerTime`) are still accepted at the HTTP edge, but first-party GCS callers now send the canonical snake_case contract.
+- GCS-to-drone traffic should stay on numeric mission codes for consistency.
 
 ---
 
@@ -565,7 +566,7 @@ curl http://192.168.1.100:7070/api/v1/drone/state
 # Send command
 curl -X POST http://192.168.1.100:7070/api/v1/drone/commands \
   -H "Content-Type: application/json" \
-  -d '{"missionType": "ARM", "triggerTime": "0"}'
+  -d '{"mission_type": 10, "trigger_time": 0}'
 ```
 
 #### 2. Test WebSocket (websocat tool)

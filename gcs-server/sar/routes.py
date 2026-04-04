@@ -52,7 +52,7 @@ def create_sar_router(deps: Any) -> APIRouter:
             return
 
         target_ids = hw_ids or [str(drone.get("hw_id", "")) for drone in drones_config]
-        command_data = {"missionType": mission_type_value}
+        command_data = {"mission_type": mission_type_value}
         for hw_id in target_ids:
             try:
                 deps.send_commands_to_selected(drones_config, command_data, [hw_id])
@@ -163,8 +163,8 @@ def create_sar_router(deps: Any) -> APIRouter:
         for plan in plans:
             waypoints_data = [waypoint.model_dump() for waypoint in plan.waypoints]
             command_data = {
-                "missionType": Mission.QUICKSCOUT.value,
-                "triggerTime": trigger_time,
+                "mission_type": Mission.QUICKSCOUT.value,
+                "trigger_time": trigger_time,
                 "mission_id": mission_id,
                 "waypoints": waypoints_data,
                 "return_behavior": return_behavior,

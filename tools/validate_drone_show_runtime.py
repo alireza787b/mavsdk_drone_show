@@ -131,10 +131,10 @@ class ApiClient:
         **extra: Any,
     ) -> dict:
         payload = {
-            "missionType": str(mission_type),
-            "target_drones": [str(target_id) for target_id in target_ids],
-            "triggerTime": str(trigger_time if trigger_time is not None else 0),
-            "operatorLabel": operator_label,
+            "mission_type": int(mission_type),
+            "target_drone_ids": [str(target_id) for target_id in target_ids],
+            "trigger_time": int(trigger_time if trigger_time is not None else 0),
+            "operator_label": operator_label,
             **extra,
         }
         response = self.post_json("/api/v1/commands", payload)

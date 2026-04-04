@@ -63,7 +63,7 @@ def _extract_future_trigger_delay_ms(command_data: Optional[Dict[str, Any]]) -> 
     if not command_data:
         return 0
 
-    trigger_time = command_data.get("triggerTime")
+    trigger_time = command_data.get("trigger_time", command_data.get("triggerTime"))
     if trigger_time in (None, "", 0, "0"):
         return 0
 

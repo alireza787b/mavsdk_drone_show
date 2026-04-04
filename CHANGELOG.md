@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 command-contract canonicalization checkpoint note documenting the canonical snake_case command envelope, the backend/frontend/runtime caller migration, the refreshed command API docs, the paired local/Hetzner validation results, and the remaining merge-readiness review debt
 - a 2026-04-04 drone canonicalization checkpoint note documenting the shared drone route constants, the canonical `/api/v1/git/status` and `/api/v1/navigation/position-deviation` routes, the retirement of the legacy drone business aliases, the HTTP/WebSocket state serializer alignment, and the paired local/Hetzner validation results
 - a 2026-04-03 API-modernization review audit note documenting why the stream is not yet merge-ready, with the remaining drone-side contract, caller-migration, schema, and documentation slices required before any merge to `main`
 - a 2026-04-03 GCS telemetry contract-cleanup checkpoint note documenting the retirement of the duplicate GCS telemetry aliases, the removal of the fake command-cancel endpoint, the validator migration onto canonical health/telemetry routes, and the LAND/RTL timeout fallback fix

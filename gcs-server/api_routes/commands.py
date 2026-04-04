@@ -1,11 +1,10 @@
 """Command submission and tracking routes extracted from the GCS FastAPI monolith."""
 
-import json
 import time
 import traceback
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Path as PathParam, Query, Request
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query
 from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE
 
 from schemas import (
@@ -19,6 +18,7 @@ from schemas import (
     ExecutionReportResponse,
     ExecutionStartRequest,
     ExecutionStartResponse,
+    SubmitCommandRequest,
     SubmitCommandResponse,
 )
 
@@ -121,43 +121,6 @@ def _estimate_max_target_relative_altitude_m(
     return max_relative_altitude_m
 
 
-async def _parse_required_json_object(request: Request) -> dict[str, Any]:
-    raw_body = await request.body()
-    if not raw_body or not raw_body.strip():
-        raise HTTPException(status_code=400, detail="No command data provided")
-
-    try:
-        payload = json.loads(raw_body)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail="Malformed JSON request body") from exc
-
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=400, detail="Request body must be a JSON object")
-
-    if not payload:
-        raise HTTPException(status_code=400, detail="No command data provided")
-
-    return payload
-
-
-def _normalize_target_drone_ids(raw_target_drones: Any) -> Optional[set[str]]:
-    if raw_target_drones is None:
-        return None
-
-    if isinstance(raw_target_drones, (str, bytes)) or not isinstance(raw_target_drones, (list, tuple, set)):
-        raise HTTPException(status_code=400, detail="target_drones must be an array of drone identifiers")
-
-    if not raw_target_drones:
-        return None
-
-    normalized_target_ids = {
-        str(target_id).strip()
-        for target_id in raw_target_drones
-        if target_id not in (None, "")
-    }
-    return normalized_target_ids or None
-
-
 def _build_results_summary(results: dict[str, Any]) -> dict[str, int]:
     return {
         "accepted": results.get("success", 0),
@@ -222,7 +185,7 @@ def create_command_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
     @router.post("/api/v1/commands", response_model=SubmitCommandResponse, tags=["Commands"])
-    async def submit_command(request: Request):
+    async def submit_command(command: SubmitCommandRequest):
         """
         Submit command to drones with tracking.
 
@@ -230,25 +193,22 @@ def create_command_router(deps: Any) -> APIRouter:
         GET /api/v1/commands/{command_id} endpoint.
         """
         try:
-            command_data = await _parse_required_json_object(request)
+            command_data = command.model_dump(exclude_none=True)
+            dispatch_payload = command.to_drone_payload()
 
-            if "missionType" not in command_data:
-                raise HTTPException(status_code=400, detail="missionType is required")
-
-            mission_type = command_data.get("missionType")
-            trigger_time = command_data.get("triggerTime", "0")
-            operator_label = command_data.get("operatorLabel")
-            log_suffix = f", operatorLabel={operator_label}" if operator_label else ""
+            mission_type = command.mission_type
+            trigger_time = command.trigger_time
+            operator_label = command.operator_label
+            log_suffix = f", operator_label={operator_label}" if operator_label else ""
             deps.log_system_event(
-                f"Command received: missionType={mission_type}, triggerTime={trigger_time}{log_suffix}",
+                f"Command received: mission_type={mission_type}, trigger_time={trigger_time}{log_suffix}",
                 "INFO",
                 "command",
             )
 
-            target_drones = command_data.pop("target_drones", None)
-            normalized_target_ids = _normalize_target_drone_ids(target_drones)
+            normalized_target_ids = set(command.target_drone_ids or [])
 
-            if command_data.get("auto_global_origin", False):
+            if command.auto_global_origin:
                 try:
                     origin = deps.load_origin()
                     if (
@@ -256,13 +216,15 @@ def create_command_router(deps: Any) -> APIRouter:
                         and origin.get("lat") not in ("", None)
                         and origin.get("lon") not in ("", None)
                     ):
-                        command_data["origin"] = {
+                        origin_payload = {
                             "lat": float(origin["lat"]),
                             "lon": float(origin["lon"]),
                             "alt": float(origin.get("alt", 0)),
                             "timestamp": origin.get("timestamp", ""),
                             "source": origin.get("alt_source", "gcs"),
                         }
+                        command_data["origin"] = origin_payload
+                        dispatch_payload["origin"] = origin_payload
                 except Exception as exc:
                     deps.log_system_error(f"Failed to load origin for command: {exc}", "command")
 
@@ -280,7 +242,7 @@ def create_command_router(deps: Any) -> APIRouter:
                 if not actual_targets:
                     raise HTTPException(
                         status_code=400,
-                        detail="No configured drones matched target_drones",
+                        detail="No configured drones matched target_drone_ids",
                     )
             else:
                 actual_targets = drones
@@ -387,18 +349,22 @@ def create_command_router(deps: Any) -> APIRouter:
                 mission_type=mission_type_int,
                 target_drones=target_hw_ids,
                 params={
-                    "triggerTime": trigger_time,
-                    **{k: v for k, v in command_data.items() if k not in ["missionType", "triggerTime"]},
+                    "trigger_time": trigger_time,
+                    **{
+                        k: v
+                        for k, v in command_data.items()
+                        if k not in ["mission_type", "trigger_time", "target_drone_ids"]
+                    },
                 },
                 timeout_ms=tracking_timeout_ms,
             )
 
-            command_data["command_id"] = command_id
+            dispatch_payload["command_id"] = command_id
 
             if normalized_target_ids:
-                results = deps.send_commands_to_selected(drones, command_data, target_hw_ids)
+                results = deps.send_commands_to_selected(drones, dispatch_payload, target_hw_ids)
             else:
-                results = deps.send_commands_to_all(drones, command_data)
+                results = deps.send_commands_to_all(drones, dispatch_payload)
 
             await tracker.mark_submitted(command_id)
             await _record_command_acknowledgements(tracker, command_id, results)

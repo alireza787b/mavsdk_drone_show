@@ -97,10 +97,10 @@ class ApiClient:
 
     def submit_command(self, mission_type: int, target_ids: list[int], operator_label: str):
         payload = {
-            "missionType": str(mission_type),
-            "triggerTime": "0",
-            "target_drones": [str(target_id) for target_id in target_ids],
-            "operatorLabel": operator_label,
+            "mission_type": int(mission_type),
+            "trigger_time": 0,
+            "target_drone_ids": [str(target_id) for target_id in target_ids],
+            "operator_label": operator_label,
         }
         response = self.post_json("/api/v1/commands", payload)
         command_id = response["command_id"]

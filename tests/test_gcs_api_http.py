@@ -1557,8 +1557,8 @@ class TestCommandEndpoints:
             headers={"content-type": "application/json"},
         )
 
-        assert response.status_code == 400
-        assert response.json()["detail"] == "Malformed JSON request body"
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["type"] == "json_invalid"
 
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.send_commands_to_all')
@@ -1581,10 +1581,10 @@ class TestCommandEndpoints:
             }
         }
 
-        # New format requires missionType and triggerTime
+        # Canonical request format uses snake_case field names.
         command_data = {
-            'missionType': 10,  # TAKE_OFF
-            'triggerTime': 0
+            'mission_type': 10,  # TAKE_OFF
+            'trigger_time': 0,
         }
 
         response = test_client.post("/api/v1/commands", json=command_data)
@@ -1600,6 +1600,43 @@ class TestCommandEndpoints:
         assert 'submitted_count' in data
         assert data['tracking_phase'] == 'pending_execution'
         assert data['tracking_timeout_ms'] > 0
+
+    @patch('app_fastapi.probe_live_armability_for_drones')
+    @patch('app_fastapi.send_commands_to_selected')
+    @patch('app_fastapi.load_config')
+    def test_submit_command_accepts_snake_case_aliases(
+        self,
+        mock_load,
+        mock_send_selected,
+        mock_probe,
+        test_client,
+        mock_config,
+    ):
+        mock_load.return_value = mock_config
+        mock_probe.return_value = {
+            'all_ready': True,
+            'blocked_ids': [],
+            'unavailable_ids': [],
+            'results': {},
+        }
+        mock_send_selected.return_value = {
+            'success': 1, 'failed': 0, 'offline': 0, 'rejected': 0, 'errors': 0,
+            'result_summary': '1 accepted', 'results': {
+                '1': {'success': True, 'category': 'accepted'}
+            }
+        }
+
+        response = test_client.post("/api/v1/commands", json={
+            'mission_type': 'TAKE_OFF',
+            'trigger_time': 0,
+            'target_drone_ids': ['1'],
+            'operator_label': 'Takeoff alias',
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['mission_type'] == 10
+        assert data['target_drones'] == ['1']
 
     @patch('app_fastapi.load_origin')
     @patch('app_fastapi.probe_live_armability_for_drones')
@@ -1637,8 +1674,8 @@ class TestCommandEndpoints:
         }
 
         response = test_client.post("/api/v1/commands", json={
-            'missionType': 10,
-            'triggerTime': 0,
+            'mission_type': 10,
+            'trigger_time': 0,
             'auto_global_origin': True,
         })
 
@@ -1698,9 +1735,9 @@ class TestCommandEndpoints:
         response = test_client.post(
             "/api/v1/commands",
             json={
-                'missionType': 4,
-                'triggerTime': 0,
-                'target_drones': ['1'],
+                'mission_type': 4,
+                'trigger_time': 0,
+                'target_drone_ids': ['1'],
             },
         )
 
@@ -1734,8 +1771,8 @@ class TestCommandEndpoints:
         response = test_client.post(
             "/api/v1/commands",
             json={
-                'missionType': 10,
-                'triggerTime': 0,
+                'mission_type': 10,
+                'trigger_time': 0,
             },
         )
 
@@ -1764,9 +1801,9 @@ class TestCommandEndpoints:
         response = test_client.post(
             "/api/v1/commands",
             json={
-                'missionType': 4,
-                'triggerTime': 0,
-                'target_drones': ['2', '3'],
+                'mission_type': 4,
+                'trigger_time': 0,
+                'target_drone_ids': ['2', '3'],
             },
         )
 
@@ -1786,14 +1823,14 @@ class TestCommandEndpoints:
         response = test_client.post(
             "/api/v1/commands",
             json={
-                'missionType': 10,
-                'triggerTime': 0,
-                'target_drones': ['999'],
+                'mission_type': 10,
+                'trigger_time': 0,
+                'target_drone_ids': ['999'],
             },
         )
 
         assert response.status_code == 400
-        assert response.json()['detail'] == 'No configured drones matched target_drones'
+        assert response.json()['detail'] == 'No configured drones matched target_drone_ids'
 
 
 # ============================================================================

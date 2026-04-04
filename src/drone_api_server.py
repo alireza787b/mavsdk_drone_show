@@ -53,6 +53,7 @@ logger = get_logger("drone_api")
 from src.drone_config import DroneConfig
 from src.constants import NetworkDefaults
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
+from src.command_contract import DroneCommandRequest
 from src.drone_api_routes import (
     DRONE_COMMANDS_ROUTE,
     DRONE_GIT_STATUS_ROUTE,
@@ -96,14 +97,6 @@ ERROR_SYMBOL = RED + "❌" + RESET
 # ============================================================================
 # Pydantic Models for Request/Response Validation
 # ============================================================================
-
-class CommandRequest(BaseModel):
-    """Command request from GCS"""
-    model_config = ConfigDict(extra='allow')  # Allow additional fields for flexibility
-
-    missionType: str = Field(..., description="Mission type")
-    triggerTime: Optional[str] = Field("0", description="Trigger time")
-
 
 class ReadinessCheckResponse(BaseModel):
     id: str
@@ -533,7 +526,7 @@ class DroneAPIServer:
             return LiveArmabilityResponse(**result)
 
         @self.app.post(DRONE_COMMANDS_ROUTE, response_model=CommandAckResponse)
-        async def send_drone_command(command: CommandRequest) -> CommandAckResponse:
+        async def send_drone_command(command: DroneCommandRequest) -> CommandAckResponse:
             """
             Endpoint to send a command to the drone.
 
@@ -546,7 +539,7 @@ class DroneAPIServer:
             current_state = int(self.drone_config.state)
 
             try:
-                command_data = command.dict()
+                command_data = command.model_dump(exclude_none=True)
                 command_id = command_data.get('command_id')
 
                 # Validate command structure
@@ -566,8 +559,8 @@ class DroneAPIServer:
                     )
 
                 # Parse mission type for response
-                mission_type = int(command_data['missionType'])
-                trigger_time = int(command_data.get('triggerTime', 0))
+                mission_type = int(command_data["mission_type"])
+                trigger_time = int(command_data.get("trigger_time", 0))
                 known_command = self._find_active_command_by_id(command_id)
                 if known_command is not None:
                     known_mission_type = int(known_command['mission_type'])
@@ -1128,25 +1121,28 @@ class DroneAPIServer:
 
         Returns dict with 'valid', 'message', 'error_code', and optionally 'detail'.
         """
-        # Check required field: missionType
-        if 'missionType' not in command_data:
+        mission_key = 'mission_type' if 'mission_type' in command_data else 'missionType'
+        trigger_key = 'trigger_time' if 'trigger_time' in command_data else 'triggerTime'
+
+        # Check required field: mission_type
+        if mission_key not in command_data:
             return {
                 'valid': False,
-                'message': 'Missing required field: missionType',
+                'message': 'Missing required field: mission_type',
                 'error_code': CommandErrorCode.MISSING_MISSION_TYPE.value
             }
 
-        # Check required field: triggerTime
-        if 'triggerTime' not in command_data:
+        # Check required field: trigger_time
+        if trigger_key not in command_data:
             return {
                 'valid': False,
-                'message': 'Missing required field: triggerTime',
+                'message': 'Missing required field: trigger_time',
                 'error_code': CommandErrorCode.MISSING_TRIGGER_TIME.value
             }
 
-        # Validate missionType format and value
+        # Validate mission_type format and value
         try:
-            mission_type = int(command_data['missionType'])
+            mission_type = int(command_data[mission_key])
             if mission_type not in Mission._value2member_map_:
                 return {
                     'valid': False,
@@ -1157,24 +1153,24 @@ class DroneAPIServer:
         except (ValueError, TypeError) as e:
             return {
                 'valid': False,
-                'message': f'Invalid missionType format: {command_data["missionType"]}',
+                'message': f'Invalid mission_type format: {command_data[mission_key]}',
                 'error_code': CommandErrorCode.INVALID_FORMAT.value,
                 'detail': str(e)
             }
 
-        # Validate triggerTime format
+        # Validate trigger_time format
         try:
-            trigger_time = int(command_data['triggerTime'])
+            trigger_time = int(command_data[trigger_key])
             if trigger_time < 0:
                 return {
                     'valid': False,
-                    'message': 'triggerTime must be non-negative',
+                    'message': 'trigger_time must be non-negative',
                     'error_code': CommandErrorCode.INVALID_TRIGGER_TIME.value
                 }
         except (ValueError, TypeError) as e:
             return {
                 'valid': False,
-                'message': f'Invalid triggerTime format: {command_data["triggerTime"]}',
+                'message': f'Invalid trigger_time format: {command_data[trigger_key]}',
                 'error_code': CommandErrorCode.INVALID_TRIGGER_TIME.value,
                 'detail': str(e)
             }

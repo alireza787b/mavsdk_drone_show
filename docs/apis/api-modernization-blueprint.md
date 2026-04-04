@@ -683,6 +683,31 @@ After this checkpoint, route-shape inconsistency is no longer the main API-moder
 - review OpenAPI/metadata/auth seams from an MCP and agent-consumer perspective before calling the API surface merge-ready
 - run one final merge-readiness review after the typed-contract slice instead of assuming the route cleanup alone is sufficient
 
+Phase 6 third checkpoint on 2026-04-04:
+
+- tightened the shared command contract in `src/command_contract.py` so the canonical request/body field names are now:
+  - `mission_type`
+  - `trigger_time`
+  - `target_drone_ids`
+  - `operator_label`
+- kept legacy command aliases (`missionType`, `triggerTime`, `target_drones`, `targetDrones`, `operatorLabel`) accepted only at the HTTP validation edge instead of continuing to serialize or teach them as the current contract
+- switched the GCS submit route, drone command route, shared frontend GCS API service, validator tooling, git-sync control path, SAR mission launch path, and timeout-policy helpers to emit or consume the canonical snake_case command contract internally
+- normalized the drone-side command installation path so the typed drone request model now serializes canonical snake_case into `drone_communicator.process_command(...)` instead of re-expanding legacy camelCase downstream
+- refreshed the GCS and drone API docs so they now teach the canonical request contract first while documenting the retained edge-only aliases explicitly
+- revalidated the slice locally and on Hetzner with the focused command/GCS/drone/git/timeout regression batch plus the touched frontend service Jest slice and the Hetzner production dashboard build:
+  - local backend batch: `243 passed, 1 skipped`
+  - Hetzner backend batch: `243 passed, 1 skipped`
+  - Hetzner frontend shared-service Jest batch: `25 passed`
+  - Hetzner dashboard production build: passed
+
+After this checkpoint, the main remaining API-modernization debt is no longer command field-name drift. The remaining merge-readiness work is architectural review debt:
+
+- add a true idempotent submit/replay key for command creation instead of relying only on per-drone `command_id` dedupe after GCS submission
+- replace the remaining ad hoc/manual request parsing routes with typed request/response models so OpenAPI is the real contract for more than the cleaned command surface
+- standardize machine-readable error/problem envelopes and add explicit 422/4xx documentation across mutation routes
+- add dormant auth/security metadata and clearer actor/origin seams so customer auth can be enabled later without redesigning the mutation envelope
+- keep tightening telemetry/stream metadata for MCP and agent consumers instead of leaving mixed `Any` payload pockets
+
 Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
 
 ## Phase 1 Canonical Routes

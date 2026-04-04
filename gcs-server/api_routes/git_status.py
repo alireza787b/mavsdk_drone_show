@@ -130,8 +130,8 @@ def create_git_router(deps: Any) -> APIRouter:
             branch = (gcs_status or {}).get("branch") or getattr(deps.Params, "GIT_BRANCH", "main-candidate")
             expected_commit = (gcs_status or {}).get("commit", "")
             command_data = {
-                "missionType": 103,
-                "triggerTime": 0,
+                "mission_type": 103,
+                "trigger_time": 0,
                 "update_branch": branch,
             }
 

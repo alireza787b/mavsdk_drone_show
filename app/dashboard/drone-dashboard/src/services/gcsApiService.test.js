@@ -5,6 +5,7 @@ import {
   buildGcsWebSocketUrl,
   buildHeartbeatWebSocketUrl,
   buildLogsUrl,
+  normalizeCommandSubmitPayload,
   buildShowDownloadUrl,
   buildShowPlotUrl,
   buildStaticPlotUrl,
@@ -22,6 +23,7 @@ import {
   importShowResponse,
   saveGcsConfigResponse,
   saveFleetConfigResponse,
+  submitCommandResponse,
   setOriginResponse,
   syncReposResponse,
   resolveGcsRoute,
@@ -206,6 +208,46 @@ describe('gcsApiService', () => {
       'http://gcs.test:5000/api/v1/git/sync-operations',
       { pos_ids: [1, 2] },
       { timeout: 3000 }
+    );
+  });
+
+  it('normalizes command submit payloads onto the canonical snake_case request contract', async () => {
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    const payload = normalizeCommandSubmitPayload({
+      missionType: '10',
+      triggerTime: '0',
+      target_drones: ['1', '2'],
+      operatorLabel: 'launch-now',
+      takeoff_altitude: 15,
+    });
+
+    expect(payload).toEqual({
+      mission_type: '10',
+      trigger_time: '0',
+      target_drone_ids: ['1', '2'],
+      operator_label: 'launch-now',
+      takeoff_altitude: 15,
+    });
+
+    await submitCommandResponse({
+      missionType: '10',
+      triggerTime: '0',
+      target_drones: ['1', '2'],
+      operatorLabel: 'launch-now',
+      takeoff_altitude: 15,
+    });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/commands',
+      {
+        mission_type: '10',
+        trigger_time: '0',
+        target_drone_ids: ['1', '2'],
+        operator_label: 'launch-now',
+        takeoff_altitude: 15,
+      },
+      {}
     );
   });
 

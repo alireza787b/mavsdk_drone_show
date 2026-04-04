@@ -20,6 +20,7 @@ from enum import Enum
 # Import shared enums from src
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from enums import CommandOutcome, CommandPhase, CommandStatus
+from command_contract import SubmitCommandRequest as SharedSubmitCommandRequest
 
 
 # ============================================================================
@@ -765,35 +766,8 @@ class CommandStatisticsResponse(BaseModel):
     timestamp: int = Field(..., description="Response timestamp (Unix ms)")
 
 
-class SubmitCommandRequest(BaseModel):
-    """Legacy helper schema for submit-command payloads.
-
-    The live route currently accepts raw JSON and prefers `target_drones`.
-    This model remains as an internal/reference schema, so descriptions must
-    stay aligned with the active command contract.
-    """
-    model_config = ConfigDict(extra='allow')  # Allow additional fields
-
-    missionType: int = Field(..., description="Mission type code")
-    triggerTime: Optional[int] = Field(0, ge=0, description="Trigger time (Unix epoch seconds)")
-    target_drones: Optional[List[Union[int, str]]] = Field(
-        None,
-        description="Preferred explicit targets by hardware ID or position ID (None = all configured drones)",
-    )
-    pos_ids: Optional[List[int]] = Field(
-        None,
-        description="Legacy target position-ID field retained for compatibility/reference only",
-    )
-
-    # Optional fields depending on mission type
-    takeoff_altitude: Optional[float] = Field(None, gt=0, description="Takeoff altitude (m)")
-    origin_lat: Optional[float] = Field(None, ge=-90, le=90, description="Origin latitude")
-    origin_lon: Optional[float] = Field(None, ge=-180, le=180, description="Origin longitude")
-    trajectory_id: Optional[str] = Field(None, description="Trajectory file identifier")
-
-    # Control options
-    wait_for_ack: bool = Field(False, description="Legacy field currently ignored by the live submit route")
-    ack_timeout_ms: int = Field(5000, gt=0, description="Legacy ACK timeout field currently ignored by the live submit route")
+class SubmitCommandRequest(SharedSubmitCommandRequest):
+    """Request body for POST /api/v1/commands."""
 
 
 class SubmitCommandResponse(BaseModel):

@@ -222,8 +222,25 @@ class TestCommands:
         # Verify command was processed
         mock_drone_communicator.process_command.assert_called_once()
         call_args = mock_drone_communicator.process_command.call_args[0][0]
-        # sample_command is cmd_takeoff() which uses missionType='10' (TAKE_OFF)
-        assert call_args['missionType'] == '10'
+        assert call_args['mission_type'] == 10
+        assert call_args['trigger_time'] == int(sample_command['triggerTime'])
+
+    def test_send_command_accepts_snake_case_aliases(self, test_client, mock_drone_communicator):
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"mission_type": "TAKE_OFF", "trigger_time": 0, "takeoff_altitude": 12},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert data["mission_type"] == 10
+
+        mock_drone_communicator.process_command.assert_called_once()
+        call_args = mock_drone_communicator.process_command.call_args[0][0]
+        assert call_args["mission_type"] == 10
+        assert call_args["trigger_time"] == 0
+        assert call_args["takeoff_altitude"] == 12.0
 
     @pytest.mark.asyncio
     async def test_report_pending_command_superseded_uses_canonical_execution_result_route(self, api_server, monkeypatch):
@@ -535,12 +552,9 @@ class TestErrorHandling:
 
     def test_invalid_command_data(self, test_client):
         """Test sending invalid command data"""
-        # Send empty dict (missing required fields)
         response = test_client.post("/api/v1/drone/commands", json={})
 
-        # Should still accept it due to extra="allow" in Pydantic model
-        # But we can add validation later if needed
-        assert response.status_code in [200, 422]  # Either success or validation error
+        assert response.status_code == 422
 
 
 class TestDroneRouteSurface:
