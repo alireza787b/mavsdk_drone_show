@@ -177,7 +177,7 @@ class ApiClient:
             raise RuntimeError(format_http_error(exc)) from exc
 
     def get_telemetry(self) -> dict[str, dict]:
-        payload = self.get_json("/api/telemetry")
+        payload = self.get_json("/api/v1/fleet/telemetry")
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
@@ -261,7 +261,7 @@ def command_summary(status: dict) -> dict:
 def wait_api_ready(client: ApiClient, timeout: int = 60) -> dict:
     def _ready():
         try:
-            return client.get_json("/health")
+            return client.get_json("/api/v1/system/health")
         except urllib.error.URLError:
             return False
 

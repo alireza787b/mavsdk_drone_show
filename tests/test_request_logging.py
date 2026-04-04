@@ -27,7 +27,6 @@ def test_routine_success_paths_are_classified_as_debug():
 
 def test_non_routine_success_paths_remain_info():
     assert is_routine_success_path("/api/v1/commands") is False
-    assert is_routine_success_path("/api/v1/commands/cmd-123/cancel") is False
     assert is_routine_success_path("/api/v1/commands/statistics") is False
     assert get_request_log_level("/api/v1/commands", 200) == "INFO"
 

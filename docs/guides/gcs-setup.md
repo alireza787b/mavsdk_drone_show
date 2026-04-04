@@ -510,7 +510,7 @@ tmux kill-session -t MDS-GCS
 After starting:
 - **React Dashboard:** http://YOUR_SERVER_IP:3030
 - **GCS API Server:** http://YOUR_SERVER_IP:5000
-- **API Health Check:** http://YOUR_SERVER_IP:5000/health
+- **API Health Check:** http://YOUR_SERVER_IP:5000/api/v1/system/health
 
 ---
 

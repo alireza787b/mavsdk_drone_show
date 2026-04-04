@@ -257,7 +257,7 @@ export function normalizeDroneData(droneData) {
 /**
  * Normalize telemetry response containing multiple drones
  *
- * @param {Object} telemetryResponse - Response from /telemetry endpoint
+ * @param {Object} telemetryResponse - Drone map from the canonical fleet telemetry payload
  * @returns {Object} Normalized telemetry with all drones using snake_case
  *
  * @example

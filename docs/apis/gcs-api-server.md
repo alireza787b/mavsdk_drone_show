@@ -29,11 +29,16 @@ The GCS (Ground Control Station) API Server provides comprehensive control and m
 - **Type-safe request/response** validation with Pydantic
 - **Background services** for telemetry and git status polling
 - **File upload/download** support for show management
-- **100% backward compatibility** with original Flask implementation
+- **Canonical `/api/v1/...` business routes** plus a small set of intentionally stable operational roots
 
 ## API Evolution Note
 
-Beginning with the 2026-04-03 API modernization stream, canonical routes are being introduced under `/api/v1/...` while legacy compatibility routes remain available during migration.
+As of the 2026-04-03 API modernization checkpoints, the GCS business API source of truth is the canonical `/api/v1/...` surface.
+
+The remaining versionless roots are intentional:
+- `/health` and `/ping` remain stable operational health probes
+- `/ws/*` remains the stable real-time transport surface
+- `/api/logs/*` and `/api/sar/*` remain stable subsystem roots
 
 Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.
 
@@ -80,8 +85,8 @@ Visit `/docs` for Swagger UI or `/redoc` for ReDoc documentation:
 
 ### Health & System
 
-#### `GET /ping`
-Health check endpoint.
+#### `GET /api/v1/system/health`
+Canonical system health endpoint.
 
 **Response:**
 ```json
@@ -93,7 +98,10 @@ Health check endpoint.
 ```
 
 #### `GET /health`
-Same as `/ping`.
+Stable operational alias for quick liveness probes.
+
+#### `GET /ping`
+Stable operational alias for quick liveness probes.
 
 ---
 
@@ -195,36 +203,8 @@ The older query-string compatibility route was retired. Use the path-parameter f
 
 ### Telemetry
 
-#### `GET /telemetry`
-Get telemetry from all drones (legacy endpoint).
-
-**Response:**
-```json
-{
-  "1": {
-    "pos_id": 0,
-    "hw_id": "1",
-    "state": 0,
-    "mission": 0,
-    "last_mission": 0,
-    "battery_voltage": 12.6,
-    "position_lat": 35.123456,
-    "position_long": -120.654321,
-    "position_alt": 488.5,
-    "is_armed": false,
-    "is_ready_to_arm": true,
-    "readiness_status": "ready",
-    "readiness_summary": "Ready to fly",
-    "preflight_blockers": [],
-    "preflight_warnings": [],
-    "status_messages": [],
-    "heartbeat_last_seen": 1700000000000
-  }
-}
-```
-
-#### `GET /api/telemetry`
-Get telemetry with the same live payload shape used by the React dashboard.
+#### `GET /api/v1/fleet/telemetry`
+Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
 
 **Response:**
 ```json
@@ -271,6 +251,8 @@ Get telemetry with the same live payload shape used by the React dashboard.
   "timestamp": 1700000000000
 }
 ```
+
+The older GCS HTTP telemetry aliases were retired on 2026-04-03. Use the canonical route above.
 
 `readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for "Ready to Fly" and live PX4 preflight feedback.
 
@@ -1003,7 +985,7 @@ Important semantics:
 - if `triggerTime` schedules the command in the future, that waiting period is included in `tracking_timeout_ms`; delayed commands should not use a shorter client-side timeout than the server provided.
 - duplicate delivery of the same `command_id` to a drone is treated as idempotent while that command is still queued or executing; the drone returns an accepted ACK rather than re-installing the mission.
 - `missionType=0` is the dedicated cancel/clear path for shared command control. It clears queued or active mission state without launching a normal mission subprocess.
-- `POST /api/v1/commands/{command_id}/cancel` is intentionally fail-closed for now; use `POST /api/v1/commands` with `missionType=0` for live cancellation because that path actually dispatches to drones.
+- there is currently no separate command-specific cancel resource. Live cancellation goes through `POST /api/v1/commands` with `missionType=0` so the cancel action is actually dispatched to drones.
 
 #### `GET /api/v1/commands/{command_id}`
 Retrieve the current lifecycle state for a previously submitted command.
@@ -1376,19 +1358,19 @@ All endpoints return consistent error responses:
 
 ## Migration from Flask
 
-The FastAPI implementation maintains **100% backward compatibility** with the original Flask server:
+The FastAPI implementation replaced the earlier Flask server, but the public contract is no longer a blanket one-for-one Flask mirror.
 
-### URL Compatibility
-All Flask endpoints work identically in FastAPI:
-- Same URLs
-- Same request/response formats
-- Same parameter names
+### Current Contract Policy
+- Canonical business routes live under `/api/v1/...`
+- Stable operational probes remain versionless at `/health` and `/ping`
+- Stable real-time transports remain under `/ws/*`
+- Legacy verb-style GCS business routes that were migrated during the 2026-04-03 cleanup are retired rather than preserved indefinitely
 
 ### Migration Steps
 1. Install dependencies: `pip install fastapi uvicorn pydantic python-multipart`
 2. Start FastAPI server: `uvicorn app_fastapi:app --port 5000`
-3. Update UI to use FastAPI (optional, both servers can run in parallel)
-4. Gradually migrate features to leverage FastAPI advantages
+3. Use the canonical `/api/v1/...` contract for new integrations
+4. Check [api-modernization-blueprint.md](./api-modernization-blueprint.md) before assuming an older route is still supported
 
 ### Advantages of FastAPI
 - **3-5x faster** response times
@@ -1422,6 +1404,6 @@ All Flask endpoints work identically in FastAPI:
 
 ---
 
-**Last Updated:** 2026-03-22
+**Last Updated:** 2026-04-03
 **Version:** 5.0 (FastAPI)
 **Maintainer:** MAVSDK Drone Show Team

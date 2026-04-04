@@ -43,8 +43,6 @@ GCS_EXPECTED_HTTP = {
     "GET": {
         "/ping",
         "/health",
-        "/telemetry",
-        "/api/telemetry",
         "/api/v1/system/health",
         "/api/v1/fleet/telemetry",
         "/api/v1/fleet/heartbeats",
@@ -98,7 +96,6 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/heartbeats",
         "/api/v1/config/fleet/validation",
         "/api/v1/commands",
-        "/api/v1/commands/{command_id}/cancel",
         "/api/v1/command-reports/execution-result",
         "/api/v1/command-reports/execution-start",
         "/api/v1/git/sync-operations",
@@ -273,7 +270,6 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
 
     assert route_index[("GET", "/api/v1/system/health")].endpoint is route_index[("GET", "/health")].endpoint
     assert route_index[("GET", "/ping")].endpoint is route_index[("GET", "/health")].endpoint
-    assert route_index[("GET", "/api/v1/fleet/telemetry")].endpoint is route_index[("GET", "/api/telemetry")].endpoint
     assert ("GET", "/get-heartbeats") not in route_index
     assert ("GET", "/get-network-status") not in route_index
     assert ("POST", "/heartbeat") not in route_index
@@ -292,6 +288,7 @@ def test_gcs_legacy_alias_routes_and_deprecations(gcs_app):
     assert ("GET", "/commands/active") not in route_index
     assert ("GET", "/commands/statistics") not in route_index
     assert ("POST", "/command/{command_id}/cancel") not in route_index
+    assert ("POST", "/api/v1/commands/{command_id}/cancel") not in route_index
     assert ("POST", "/command/execution-start") not in route_index
     assert ("POST", "/command/execution-result") not in route_index
     assert ("GET", "/get-origin") not in route_index

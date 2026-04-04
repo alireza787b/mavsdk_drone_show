@@ -85,7 +85,7 @@ class ApiClient:
             return json.load(response)
 
     def get_telemetry(self):
-        payload = self.get_json("/api/telemetry")
+        payload = self.get_json("/api/v1/fleet/telemetry")
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
@@ -156,7 +156,7 @@ def wait_for(predicate, *, label: str, timeout: int = 90, interval: float = 1.0)
 def wait_api_ready(client: ApiClient, timeout: int = 60):
     def _ready():
         try:
-            return client.get_json("/health")
+            return client.get_json("/api/v1/system/health")
         except urllib.error.URLError:
             return False
 

@@ -138,15 +138,7 @@ def create_core_router(deps: Any) -> APIRouter:
     async def health_check():
         return _build_health_check_response(deps)
 
-    @router.get("/telemetry", tags=["Telemetry"])
-    async def get_telemetry():
-        return JSONResponse(
-            content=deps.telemetry_data_all_drones,
-            headers={"X-MDS-Server-Time": str(int(time.time() * 1000))},
-        )
-
     @router.get("/api/v1/fleet/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
-    @router.get("/api/telemetry", response_model=TelemetryResponse, tags=["Telemetry"])
     async def get_telemetry_typed(response: Response):
         return _build_typed_telemetry_response(deps, response=response)
 

@@ -371,19 +371,9 @@ class TestConfigurationEndpoints:
 class TestTelemetryEndpoints:
     """Test telemetry endpoints"""
 
-    def test_get_telemetry_legacy(self, test_client, mock_telemetry_data):
-        """Test GET /telemetry (legacy endpoint)"""
-        response = test_client.get("/telemetry")
-        assert response.status_code == 200
-        assert 'x-mds-server-time' in response.headers
-        data = response.json()
-        assert isinstance(data, dict)
-        assert '1' in data
-        assert data['1']['battery_voltage'] == 12.6
-
     def test_get_telemetry_typed(self, test_client):
-        """Test GET /api/telemetry (typed endpoint)"""
-        response = test_client.get("/api/telemetry")
+        """Test GET /api/v1/fleet/telemetry (typed endpoint)."""
+        response = test_client.get("/api/v1/fleet/telemetry")
         assert response.status_code == 200
         assert 'x-mds-server-time' in response.headers
         data = response.json()
@@ -1720,12 +1710,6 @@ class TestCommandEndpoints:
         assert data['tracking_phase'] == 'pending_execution'
         mock_send_selected.assert_called_once()
 
-    def test_cancel_command_endpoint_fails_closed_until_live_dispatch_is_wired(self, test_client):
-        response = test_client.post("/api/v1/commands/test-command-id/cancel")
-
-        assert response.status_code == 409
-        assert "missionType=0" in response.json()["detail"]
-
     @patch('app_fastapi.probe_live_armability_for_drones')
     @patch('app_fastapi.load_config')
     def test_submit_command_rejects_takeoff_when_live_probe_fails(
@@ -1845,8 +1829,6 @@ class TestAPIV1Aliases:
             "/ping",
             "/health",
             "/api/v1/system/health",
-            "/telemetry",
-            "/api/telemetry",
             "/api/v1/fleet/telemetry",
             "/api/v1/fleet/heartbeats",
             "/api/v1/fleet/network-status",
@@ -1883,7 +1865,6 @@ class TestAPIV1Aliases:
             "/api/v1/commands/recent",
             "/api/v1/commands/active",
             "/api/v1/commands/statistics",
-            "/api/v1/commands/{command_id}/cancel",
             "/api/v1/command-reports/execution-start",
             "/api/v1/command-reports/execution-result",
             "/api/v1/swarm-trajectories/leaders",

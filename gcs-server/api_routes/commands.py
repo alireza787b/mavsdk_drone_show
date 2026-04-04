@@ -108,7 +108,7 @@ def _estimate_max_target_relative_altitude_m(
                 )
                 response.raise_for_status()
                 payload = response.json()
-                home_altitude_m = float(payload.get("alt"))
+                home_altitude_m = float(payload.get("altitude", payload.get("alt")))
             except Exception:
                 continue
 
@@ -500,27 +500,6 @@ def create_command_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Command {command_id} not found")
 
         return status
-
-    @router.post("/api/v1/commands/{command_id}/cancel", tags=["Commands"])
-    async def cancel_command(
-        command_id: str = PathParam(..., description="Command UUID"),
-        reason: str = Query("User cancelled", description="Cancellation reason"),
-    ):
-        """
-        Cancel endpoint is intentionally fail-closed until it is wired to drone dispatch.
-
-        Live mission/action cancellation must go through `POST /api/v1/commands` with
-        `missionType=0` so the cancel command is actually delivered to the drones
-        instead of only mutating tracker state in memory.
-        """
-        del reason
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"Command cancel endpoint /api/v1/commands/{command_id}/cancel is disabled because it does not dispatch to drones. "
-                "Use POST /api/v1/commands with missionType=0 to cancel live mission execution safely."
-            ),
-        )
 
     @router.post("/api/v1/command-reports/execution-result", response_model=ExecutionReportResponse, tags=["Commands"])
     async def report_execution_result(report: ExecutionReportRequest):

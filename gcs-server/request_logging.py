@@ -5,7 +5,7 @@ from __future__ import annotations
 _ROUTINE_SUCCESS_PATHS = {
     "/api/logs/sources",
     "/api/v1/git/status",
-    "/api/telemetry",
+    "/api/v1/fleet/telemetry",
     "/api/v1/origin",
     "/api/v1/commands/active",
     "/api/v1/commands/recent",
@@ -15,7 +15,6 @@ _ROUTINE_SUCCESS_PATHS = {
     "/api/v1/config/fleet",
     "/health",
     "/ping",
-    "/telemetry",
 }
 
 
@@ -24,7 +23,7 @@ def is_routine_success_path(path: str) -> bool:
     if path in _ROUTINE_SUCCESS_PATHS:
         return True
 
-    if path.startswith("/api/v1/commands/") and not path.endswith("/cancel") and path != "/api/v1/commands/statistics":
+    if path.startswith("/api/v1/commands/") and path != "/api/v1/commands/statistics":
         return True
 
     if path == "/api/logs/stream":

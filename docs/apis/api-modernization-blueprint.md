@@ -611,10 +611,25 @@ After this checkpoint, the GCS API contract surface is explicitly classified end
 - `/api/logs/*` and `/api/sar/*` are intentional stable subsystem roots
 - `/ws/telemetry`, `/ws/heartbeats`, and `/ws/git-status` are intentional canonical transport roots
 
-That means the public GCS API-surface cleanup stream is effectively closed. Remaining work is no longer route-shape ambiguity. It is:
+That means the GCS route-classification policy is explicit end to end. Remaining work is no longer deciding whether Logs, QuickScout, or WebSocket roots are “unfinished.” It is:
 
 - broader SITL and API regression workflow hardening on top of the cleaned contract
-- any later drone-side router extraction as an internal maintainability track, not unresolved public-route debt
+- retirement of any remaining pseudo-canonical or duplicate HTTP surfaces that still contradict the canonical v1 contract
+- drone-side public-contract cleanup and caller migration, which remains unresolved public-route debt until the legacy drone aliases stop being the first-party default story
+
+Phase 5 fourth checkpoint on 2026-04-03:
+
+- retired the duplicate GCS HTTP telemetry aliases `GET /telemetry` and `GET /api/telemetry`, leaving `GET /api/v1/fleet/telemetry` as the single canonical fleet-telemetry snapshot route
+- retired the nonfunctional `POST /api/v1/commands/{command_id}/cancel` pseudo-canonical endpoint instead of continuing to expose a route that always returned `409` and redirected callers to `missionType=0`
+- moved the reusable Drone Show, Smart Swarm, and Swarm Trajectory runtime validators onto the canonical `GET /api/v1/system/health` and `GET /api/v1/fleet/telemetry` routes so automated validation proves the live v1 surface rather than compatibility paths
+- updated request-log classification, route inventory, and the shared dashboard GCS route resolver/docs so the retired telemetry aliases and dead cancel route no longer survive as pseudo-compatibility
+- corrected a real cross-service contract bug in LAND / RTL timeout estimation by reading the drone home-position `altitude` field instead of the nonexistent `alt`, preventing the fallback timeout heuristic from under-budgeting descent tracking when relative-altitude telemetry is unavailable
+
+After this checkpoint, the remaining API-modernization debt is not the GCS telemetry/cancel HTTP surface anymore. The main unresolved boundaries are:
+
+- drone-side canonical route migration and first-party caller adoption
+- stale drone/operator docs that still teach legacy routes as current
+- typed command/input contracts and richer machine-readable stream metadata for future MCP exposure
 
 ### Phase 6
 

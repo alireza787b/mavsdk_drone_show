@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-03 GCS telemetry contract-cleanup checkpoint note documenting the retirement of the duplicate GCS telemetry aliases, the removal of the fake command-cancel endpoint, the validator migration onto canonical health/telemetry routes, and the LAND/RTL timeout fallback fix
 - a 2026-04-03 SITL suite runtime-root fix checkpoint note documenting the reusable multi-mode validator, the stale live gunicorn restart on Hetzner, the validator-root/runtime-root split, and the corrected end-to-end live 3-drone suite pass across Drone Show, Smart Swarm, and Swarm Trajectory
 - a 2026-04-03 stream-surface codification checkpoint note documenting the third Phase 5 API-modernization slice, the explicit WebSocket transport-root policy, the shared GCS WebSocket route builders/constants, and the Hetzner Jest/build validation results
 - a 2026-04-03 logging-domain hardening checkpoint note documenting the second Phase 5 API-modernization slice, the shared session-path validation, typed log-route models, the stable-root policy for `/api/logs/*` and `/api/sar/*`, and the paired local/Hetzner validation results
@@ -49,6 +50,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- duplicate GCS HTTP telemetry aliases `GET /telemetry` and `GET /api/telemetry` are now retired, leaving `GET /api/v1/fleet/telemetry` as the single current fleet-telemetry snapshot route
+- the fake `POST /api/v1/commands/{command_id}/cancel` endpoint has been removed because it never dispatched a live cancel to drones; the only current cancellation contract remains `POST /api/v1/commands` with `missionType=0`
+- reusable live validators, request-log classification, route inventory, and shared frontend/docs guidance now prove and describe the canonical `GET /api/v1/system/health` and `GET /api/v1/fleet/telemetry` routes instead of preserving removed telemetry aliases as pseudo-compatibility
+- LAND / RTL timeout fallback estimation now reads the drone home-position `altitude` field instead of the nonexistent `alt`, preventing under-budgeted tracking windows when relative-altitude telemetry is unavailable
 - the third Phase 5 API-modernization slice now treats `/ws/telemetry`, `/ws/heartbeats`, and `/ws/git-status` as intentional canonical transport roots instead of leaving them as undocumented versionless leftovers, closing the last open GCS route-shape policy gap after the Phase 4 HTTP retirement work
 - shared GCS frontend route helpers now build WebSocket URLs from the configured backend base URL with correct `http`→`ws` and `https`→`wss` protocol mapping while preserving already-absolute WebSocket URLs, so future stream consumers do not reintroduce hardcoded or incorrectly prefixed socket endpoints
 - the second Phase 5 API-modernization slice now hardens the shared logging session layer so session IDs must resolve inside the configured log directory, which closes the path-traversal risk for both GCS and drone-side `/api/logs/*` session access and export flows

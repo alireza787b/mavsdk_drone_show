@@ -133,7 +133,7 @@ const DroneComponent = ({ drone }) => {
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 
 const DroneList = () => {
-  const { data, error, loading } = useNormalizedTelemetry('/telemetry', 1000);
+  const { data, error, loading } = useNormalizedTelemetry('/api/v1/fleet/telemetry', 1000);
 
   if (loading) return <div>Loading...</div>;
 
@@ -170,9 +170,9 @@ All endpoints return snake_case field names:
 
 | Endpoint | Returns | Format |
 |----------|---------|--------|
-| `/telemetry` | All drone telemetry | `{ "1": {...}, "2": {...} }` |
-| `/get-heartbeats` | Heartbeat status | `{ heartbeats: [...] }` |
-| `/git-status` | Git sync status | `{ git_status: {...} }` |
+| `/api/v1/fleet/telemetry` | All drone telemetry | `{ telemetry: {"1": {...}}, total_drones, online_drones }` |
+| `/api/v1/fleet/heartbeats` | Heartbeat status | `{ heartbeats: [...] }` |
+| `/api/v1/git/status` | Git sync status | `{ git_status: {...}, gcs_status: {...} }` |
 
 ---
 

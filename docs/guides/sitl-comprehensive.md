@@ -234,7 +234,7 @@ Notes:
 - This installer now handles headless SSH sessions cleanly. If no interactive TTY is available, it automatically switches to non-interactive defaults instead of trying to read from `/dev/tty`.
 - After the installer finishes and you launch the dashboard, give the backend a few seconds to come up before treating a first `curl` failure as a problem. The quickest readiness check is:
   ```bash
-  curl http://127.0.0.1:5000/health
+  curl http://127.0.0.1:5000/api/v1/system/health
   ```
 
 #### Option B: Manual Setup

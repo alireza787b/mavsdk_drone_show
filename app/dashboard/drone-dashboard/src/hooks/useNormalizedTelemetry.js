@@ -21,14 +21,14 @@ import {
 /**
  * Fetch and normalize telemetry data from GCS server
  *
- * @param {string} endpoint - API endpoint (e.g., '/telemetry', '/api/v1/fleet/heartbeats')
+ * @param {string} endpoint - API endpoint (e.g., '/api/v1/fleet/telemetry', '/api/v1/fleet/heartbeats')
  * @param {number|null} interval - Polling interval in ms (null = fetch once)
  * @param {boolean} normalize - Whether to normalize field names (default: true)
  * @returns {object} { data, error, loading }
  *
  * @example
  * // Fetch telemetry with auto-normalization
- * const { data, error, loading } = useNormalizedTelemetry('/telemetry', 1000);
+ * const { data, error, loading } = useNormalizedTelemetry('/api/v1/fleet/telemetry', 1000);
  *
  * // Access fields using snake_case
  * const drone = data['1'];

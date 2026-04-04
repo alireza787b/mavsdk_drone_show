@@ -114,8 +114,6 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/ping': GCS_ROUTE_KEYS.systemHealth,
   '/health': GCS_ROUTE_KEYS.systemHealth,
   '/api/v1/system/health': GCS_ROUTE_KEYS.systemHealth,
-  '/telemetry': GCS_ROUTE_KEYS.fleetTelemetry,
-  '/api/telemetry': GCS_ROUTE_KEYS.fleetTelemetry,
   '/api/v1/fleet/telemetry': GCS_ROUTE_KEYS.fleetTelemetry,
   '/api/v1/fleet/heartbeats': GCS_ROUTE_KEYS.fleetHeartbeats,
   '/api/v1/fleet/network-status': GCS_ROUTE_KEYS.fleetNetworkStatus,

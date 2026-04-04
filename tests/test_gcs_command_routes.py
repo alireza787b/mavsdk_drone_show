@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api_routes.commands import create_command_router
+from api_routes.commands import _estimate_max_target_relative_altitude_m, create_command_router
 
 
 class _DummyTracker:
@@ -114,7 +114,6 @@ def test_command_router_registers_expected_routes():
     assert "/api/v1/commands/recent" in routes
     assert "/api/v1/commands/active" in routes
     assert "/api/v1/commands/statistics" in routes
-    assert "/api/v1/commands/{command_id}/cancel" in routes
     assert "/api/v1/command-reports/execution-result" in routes
     assert "/api/v1/command-reports/execution-start" in routes
     assert "/submit_command" not in routes
@@ -212,14 +211,31 @@ def test_command_router_submit_rejects_unmatched_target_drones():
     assert response.json()["detail"] == "No configured drones matched target_drones"
 
 
-def test_command_router_cancel_endpoint_stays_fail_closed():
+def test_estimate_max_target_relative_altitude_uses_home_altitude_field(monkeypatch):
     deps = _make_deps()
-    app = FastAPI()
-    app.include_router(create_command_router(deps))
+    deps.telemetry_data_all_drones = {
+        "1": {
+            "position_alt": 512.0,
+        }
+    }
 
-    with TestClient(app) as client:
-        response = client.post("/api/v1/commands/test-command-id/cancel")
+    class _Response:
+        def raise_for_status(self):
+            return None
 
-    assert response.status_code == 409
-    assert "missionType=0" in response.json()["detail"]
-    assert "/api/v1/commands" in response.json()["detail"]
+        def json(self):
+            return {"altitude": 500.0}
+
+    def _fake_get(url, timeout):
+        del url, timeout
+        return _Response()
+
+    monkeypatch.setattr("requests.get", _fake_get)
+
+    value = _estimate_max_target_relative_altitude_m(
+        deps,
+        [{"hw_id": 1, "ip": "127.0.0.1"}],
+        ["1"],
+    )
+
+    assert value == 12.0
