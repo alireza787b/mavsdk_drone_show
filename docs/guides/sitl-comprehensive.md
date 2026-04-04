@@ -164,6 +164,8 @@ rm -f ~/mavsdk-drone-show-sitl-image.tar ~/mavsdk-drone-show-sitl-image.7z
 > **Need a custom release workflow?** See [SITL Custom Release Workflow](sitl-custom-release-workflow.md) for the clean path to maintain your own fork, rebuild a validated image, package it, and redistribute it without relying on ad hoc container edits.
 >
 > **Large-fleet note:** for validated demo/production runs with many containers, prefer a rebuilt image plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false` so startup does not fan out into one remote git fetch or Python re-sync per container.
+>
+> **Regression note:** the reusable all-mode operator regression on Hetzner is now validated in that pinned-image mode. For repeatable acceptance gates on a persistent VPS, rebuild the image for the target commit, recreate the fleet from that image, and keep both boot-sync flags off during the run.
 
 #### Image Features and Components
 
@@ -187,6 +189,7 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - each container can still fetch and hard-reset to the latest configured MDS branch on startup, and that sync now also cleans untracked MDS files while preserving runtime artifacts such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`
 > - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup
 > - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents
+> - for promotion-grade regression runs on a long-lived host, do not mix an older baked image with boot-time repo sync to a newer commit; use a fresh image rebuild plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`
 > - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image
 > - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
 > - runtime file logs are bounded by default so containers stay small, common PX4 `pxh>` prompt noise is reduced in the raw SITL log, and those logs disappear when the container is removed

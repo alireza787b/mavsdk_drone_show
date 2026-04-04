@@ -56,6 +56,21 @@ python3 tools/run_sitl_validation_suite.py \
   --drone-ids 1 2 3
 ```
 
+For deterministic promotion-style validation on a long-lived VPS, pin the
+runtime to a freshly rebuilt image and disable mutable boot-time sync:
+
+```bash
+export MDS_DOCKER_IMAGE=mavsdk-drone-show-sitl:debug-<commit>
+export MDS_SITL_GIT_SYNC=false
+export MDS_SITL_REQUIREMENTS_SYNC=false
+bash multiple_sitl/create_dockers.sh 3
+python3 tools/run_sitl_validation_suite.py \
+  --template operator_regression \
+  --base-url http://127.0.0.1:5000 \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
 Run only the mission-family validators:
 
 ```bash
@@ -192,3 +207,4 @@ Default cleanup policy:
 4. Use JSON plans only for intentional scenario experiments or regression additions.
 5. Keep generated runtime artifacts outside git-tracked paths unless you are deliberately curating a fixture.
 6. Keep the live GCS checkout on the same API contract generation as the SITL containers; stale pre-modernization GCS trees will reject the new canonical heartbeat/bootstrap routes.
+7. For promotion-grade runs on a persistent host, prefer a freshly rebuilt image plus `MDS_SITL_GIT_SYNC=false` and `MDS_SITL_REQUIREMENTS_SYNC=false`; mixed baked-image content and mutable boot sync can hide or create false runtime failures.

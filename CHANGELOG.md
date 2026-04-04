@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 SITL clean-image regression checkpoint note documenting the stale mixed-runtime finding, the fully green Hetzner operator-regression run on a rebuilt pinned image, and the post-validation host cleanup
 - a 2026-04-04 SITL validation-platform checkpoint note documenting the new standalone action validator, the declarative suite templates/plan-file flow, deterministic dry-run/provenance output, explicit QuickScout deferral, and the focused local/Hetzner validation results
 - a 2026-04-04 API closeout checkpoint note documenting the websocket-contract cleanup, the explicit deferred API follow-ups, the standing rules for future API additions, and the focused validation results
 - a 2026-04-04 Swarm Trajectory typed-contract checkpoint note documenting the typed success models, OpenAPI request/response cleanup, operational failure normalization, and the paired local/Hetzner validation results
@@ -59,6 +60,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- Hetzner promotion-style SITL validation is now documented against the mode that actually proved stable in practice: fresh rebuilt image, fresh fleet recreation, and boot-time repo/dependency sync disabled during the regression run
 - the reusable SITL suite is no longer just a hardcoded mission wrapper: it now supports the standalone action-control drill, plan-hash/provenance capture, side-effect-free dry-run, final reset/failure cleanup behavior, and explicit deferred QuickScout tracking for future expansion
 - Swarm Trajectory short-profile preparation no longer leaves shared raw leader CSVs mutated after a validation run; the validator now snapshots the original raw profiles, restores them in a finalization step, and records the restore result in the JSON summary
 - Drone Show and Smart Swarm runtime validators no longer rely on success-only cleanup paths; both now emit structured fail results, attempt runtime cleanup, and still write final JSON summaries after failures
