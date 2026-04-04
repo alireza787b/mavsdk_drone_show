@@ -121,6 +121,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.led_controller import LEDController
 from src.mission_startup import arm_with_preflight_gate
+from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE
 from src.params import Params
 from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
 from src import origin_cache  # Phase 2: Origin caching system
@@ -400,7 +401,7 @@ async def get_current_ned_position(drone: System) -> PositionNedYaw:
         logger.debug("Attempting to get current NED position via local API")
         response = await asyncio.to_thread(
             requests.get,
-            f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
+            f"http://localhost:{Params.drone_api_port}{DRONE_LOCAL_POSITION_ROUTE}",
             timeout=1,
         )
         if response.status_code == 200:
@@ -1561,7 +1562,7 @@ async def compute_position_drift():
         # Request NED data from local API endpoint
         response = await asyncio.to_thread(
             requests.get,
-            f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
+            f"http://localhost:{Params.drone_api_port}{DRONE_LOCAL_POSITION_ROUTE}",
             timeout=2,
         )
 

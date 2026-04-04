@@ -6,6 +6,15 @@ from enum import Enum
 from pathlib import Path
 
 from mds_logging import get_logger
+from src.drone_api_routes import (
+    DRONE_COMMANDS_ROUTE,
+    DRONE_LIVE_ARMABILITY_ROUTE,
+    DRONE_LOCAL_POSITION_ROUTE,
+    DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
+    DRONE_NAVIGATION_HOME_ROUTE,
+    DRONE_POSITION_DEVIATION_ROUTE,
+    DRONE_STATE_ROUTE,
+)
 from src.gcs_api_routes import GCS_FLEET_HEARTBEATS_ROUTE
 
 logger = get_logger("params")
@@ -188,8 +197,8 @@ class Params:
     git_poll_interval = 10                  # GCS git status polling interval in seconds
     GCS_TELEMETRY_REQUEST_TIMEOUT_SEC = 2.0 # Per-request timeout for GCS -> drone telemetry pulls
     GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC = 5.0  # Per-request timeout for GCS -> drone git-status pulls
-    get_drone_state_URI = 'get_drone_state' # URI for getting drone state
-    send_drone_command_URI = 'api/send-command'  # Replace with actual URI
+    get_drone_state_URI = DRONE_STATE_ROUTE.lstrip('/')  # Canonical drone state route
+    send_drone_command_URI = DRONE_COMMANDS_ROUTE.lstrip('/')  # Canonical drone command route
 
     # Professional Logging & Status Reporting Configuration (Ultra-Quiet Mode)
     TELEMETRY_REPORT_INTERVAL = 120         # Report telemetry summary every 2 minutes (was 30s)
@@ -209,8 +218,10 @@ class Params:
     API_ERROR_LOG_THRESHOLD = 400           # Only log API responses >= this status code
     LOG_SUCCESSFUL_COMMANDS = True          # Still log successful command completions
 
-    get_drone_home_URI = 'get-home-pos'     # URI for getting drone home position
-    get_drone_gps_origin_URI = 'get-gps-global-origin'  # URI for getting drone GPS global origin position
+    get_drone_home_URI = DRONE_NAVIGATION_HOME_ROUTE.lstrip('/')  # Canonical drone home route
+    get_drone_gps_origin_URI = DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE.lstrip('/')  # Canonical drone origin route
+    get_live_armability_URI = DRONE_LIVE_ARMABILITY_ROUTE.lstrip('/')  # Canonical drone live-armability route
+    get_drone_local_position_URI = DRONE_LOCAL_POSITION_ROUTE.lstrip('/')  # Canonical LOCAL_POSITION_NED route
 
     # GCS Server Port Configuration (Legacy Aliases)
     GCS_PORT = gcs_api_port                 # DEPRECATED: Use gcs_api_port instead
@@ -218,7 +229,7 @@ class Params:
     flask_telem_socket_port = gcs_api_port  # DEPRECATED: Use gcs_api_port instead
     GCS_FLASK_PORT = gcs_api_port           # DEPRECATED: Use gcs_api_port instead
 
-    get_position_deviation_URI = 'get-position-deviation'
+    get_position_deviation_URI = DRONE_POSITION_DEVIATION_ROUTE.lstrip('/')
     acceptable_deviation = 3.0              # Acceptable deviation in meters
 
     TELEMETRY_POLLING_TIMEOUT = 10  # Threshold in seconds to check for telemetry timeout

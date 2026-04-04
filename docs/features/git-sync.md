@@ -56,7 +56,7 @@ When `MDS_GIT_AUTO_PUSH=false`, the dedicated Swarm Trajectory commit endpoint s
 
 ## Monitoring: Git Status Polling
 
-1. GCS polls each drone's `/get-git-status` endpoint (via `BackgroundServices._poll_git_status()` async task in `app_fastapi.py`)
+1. GCS polls each drone's `GET /api/v1/git/status` endpoint (via `BackgroundServices._poll_git_status()` async task in `app_fastapi.py`)
 2. Results are aggregated and transformed into `DroneGitStatus` objects
 3. Available via:
    - REST: `GET /api/v1/git/status` (includes `gcs_status` field for GCS repo status)
@@ -123,7 +123,7 @@ This is parsed by `actions.py` for logging and status tracking.
 - `functions/git_manager.py` - `get_local_git_report()`, `get_remote_git_status()`
 
 ### Drone Side
-- `src/drone_api_server.py` - `/get-git-status` endpoint
+- `src/drone_api_server.py` - `GET /api/v1/git/status` endpoint
 - `src/drone_communicator.py` - preserves runtime mission fields like `update_branch` and `reboot_after_params` so operator-triggered sync/param actions execute with the intended payload
 - `actions.py` - `update_code()` action handler
 - `tools/update_repo_ssh.sh` - SSH-based git sync script (production)

@@ -65,6 +65,7 @@ from config import (
 )
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
 from params import Params
+from drone_api_routes import DRONE_GIT_STATUS_ROUTE, DRONE_STATE_ROUTE
 from enums import Mission
 from get_elevation import get_elevation
 from origin import (
@@ -253,7 +254,7 @@ class BackgroundServices:
 
                     try:
                         # Run blocking request in thread pool
-                        url = f"http://{ip}:{Params.drone_api_port}/get_drone_state"
+                        url = f"http://{ip}:{Params.drone_api_port}{DRONE_STATE_ROUTE}"
                         response = await loop.run_in_executor(
                             None,
                             lambda u=url: requests.get(u, timeout=Params.GCS_TELEMETRY_REQUEST_TIMEOUT_SEC)
@@ -293,7 +294,7 @@ class BackgroundServices:
                     ip = drone['ip']
 
                     try:
-                        url = f"http://{ip}:{Params.drone_api_port}/get-git-status"
+                        url = f"http://{ip}:{Params.drone_api_port}{DRONE_GIT_STATUS_ROUTE}"
                         response = await loop.run_in_executor(
                             None,
                             lambda u=url: requests.get(u, timeout=Params.GCS_GIT_STATUS_REQUEST_TIMEOUT_SEC)

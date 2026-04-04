@@ -62,6 +62,7 @@ from mavsdk import System, telemetry, action
 from mavsdk.action import ActionError
 from src.drone_config import ConfigLoader
 from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
+from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
 from src.led_controller import LEDController
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
@@ -398,7 +399,7 @@ def _get_local_drone_state_snapshot(timeout: float = 1.0):
     """Read the local drone API state as a fallback readiness signal for this container."""
     try:
         response = requests.get(
-            f"http://127.0.0.1:{Params.drone_api_port}/get_drone_state",
+            f"http://127.0.0.1:{Params.drone_api_port}{DRONE_STATE_ROUTE}",
             timeout=timeout,
         )
         if response.status_code == 200:
@@ -412,7 +413,7 @@ def _get_local_home_position_snapshot(timeout: float = 1.0):
     """Read the local drone API home position as a fallback altitude reference."""
     try:
         response = requests.get(
-            f"http://127.0.0.1:{Params.drone_api_port}/{Params.get_drone_home_URI}",
+            f"http://127.0.0.1:{Params.drone_api_port}{DRONE_NAVIGATION_HOME_ROUTE}",
             timeout=timeout,
         )
         if response.status_code == 200:

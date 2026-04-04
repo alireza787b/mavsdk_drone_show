@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple, Iterable
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+from drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
 from params import Params
 from live_armability_utils import calculate_live_armability_request_timeout
 from enums import CommandResultCategory, Mission
@@ -442,7 +443,7 @@ def probe_live_armability_for_drone(
 
     try:
         response = requests.get(
-            f"http://{drone_ip}:{Params.drone_api_port}/api/live-armability",
+            f"http://{drone_ip}:{Params.drone_api_port}{DRONE_LIVE_ARMABILITY_ROUTE}",
             params={"require_global_position": str(bool(require_global_position)).lower()},
             timeout=request_timeout,
         )

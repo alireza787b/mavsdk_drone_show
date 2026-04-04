@@ -40,6 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
 from src.gcs_api_routes import (
     GCS_CUSTOM_SHOW_INFO_ROUTE,
     GCS_SHOW_IMPORT_ROUTE,
@@ -142,7 +143,7 @@ class ApiClient:
 
     def probe_live_armability(self, drone_ip: str, *, require_global_position: bool = True) -> dict:
         response = requests.get(
-            f"http://{drone_ip}:{DRONE_API_PORT}/api/live-armability",
+            f"http://{drone_ip}:{DRONE_API_PORT}{DRONE_LIVE_ARMABILITY_ROUTE}",
             params={"require_global_position": str(bool(require_global_position)).lower()},
             timeout=20,
         )

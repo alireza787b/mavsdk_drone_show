@@ -27,8 +27,8 @@ class TestDroneState:
     """Test drone state endpoint"""
 
     def test_get_drone_state_success(self, test_client, mock_drone_communicator):
-        """Test /get_drone_state returns valid state"""
-        response = test_client.get("/get_drone_state")
+        """Test canonical drone-state endpoint returns valid state"""
+        response = test_client.get("/api/v1/drone/state")
 
         assert response.status_code == 200
         data = response.json()
@@ -73,7 +73,7 @@ class TestDroneState:
 
         monkeypatch.setattr(DroneAPIServer, "_probe_live_armability", _mock_probe)
 
-        response = test_client.get("/api/live-armability")
+        response = test_client.get("/api/v1/preflight/armability")
 
         assert response.status_code == 200
         data = response.json()
@@ -192,10 +192,10 @@ class TestDroneState:
         wait_mock.assert_not_awaited()
 
     def test_get_drone_state_no_data(self, test_client, mock_drone_communicator):
-        """Test /get_drone_state when no data available"""
+        """Test canonical drone-state endpoint when no data available"""
         mock_drone_communicator.get_drone_state.return_value = None
 
-        response = test_client.get("/get_drone_state")
+        response = test_client.get("/api/v1/drone/state")
 
         assert response.status_code == 404
         assert 'detail' in response.json()
@@ -206,7 +206,7 @@ class TestCommands:
 
     def test_send_command_success(self, test_client, sample_command, mock_drone_communicator):
         """Test sending command to drone - new CommandAckResponse format"""
-        response = test_client.post("/api/send-command", json=sample_command)
+        response = test_client.post("/api/v1/drone/commands", json=sample_command)
 
         assert response.status_code == 200
         data = response.json()
@@ -279,7 +279,7 @@ class TestCommands:
         for mission_type in mission_types:
             mock_drone_communicator.process_command.reset_mock()
             command = {"missionType": str(mission_type), "triggerTime": "0"}
-            response = test_client.post("/api/send-command", json=command)
+            response = test_client.post("/api/v1/drone/commands", json=command)
 
             assert response.status_code == 200
             data = response.json()
@@ -299,7 +299,7 @@ class TestCommands:
         mock_drone_config.current_command_id = "cmd-123"
 
         response = test_client.post(
-            "/api/send-command",
+            "/api/v1/drone/commands",
             json={"missionType": "10", "triggerTime": "12345", "command_id": "cmd-123"},
         )
 
@@ -330,7 +330,7 @@ class TestCommands:
         )
 
         response = test_client.post(
-            "/api/send-command",
+            "/api/v1/drone/commands",
             json={"missionType": "10", "triggerTime": "0", "command_id": "cmd-123"},
         )
 
@@ -358,7 +358,7 @@ class TestCommands:
         monkeypatch.setattr(DroneAPIServer, "_report_pending_command_superseded", supersede_report)
 
         response = test_client.post(
-            "/api/send-command",
+            "/api/v1/drone/commands",
             json={"missionType": "101", "triggerTime": "0", "command_id": "new-cmd"},
         )
 
@@ -381,7 +381,7 @@ class TestCommands:
         mock_drone_config.current_command_id = None
 
         response = test_client.post(
-            "/api/send-command",
+            "/api/v1/drone/commands",
             json={"missionType": "0", "triggerTime": "0", "command_id": "cancel-1"},
         )
 
@@ -397,8 +397,8 @@ class TestPositionData:
     """Test position-related endpoints"""
 
     def test_get_home_position(self, test_client, mock_drone_config):
-        """Test /get-home-pos endpoint"""
-        response = test_client.get("/get-home-pos")
+        """Test canonical home-position endpoint"""
+        response = test_client.get("/api/v1/navigation/home")
 
         assert response.status_code == 200
         data = response.json()
@@ -412,8 +412,8 @@ class TestPositionData:
         assert data['longitude'] == 8.545594
 
     def test_get_gps_global_origin(self, test_client, mock_drone_config):
-        """Test /get-gps-global-origin endpoint"""
-        response = test_client.get("/get-gps-global-origin")
+        """Test canonical GPS global-origin endpoint"""
+        response = test_client.get("/api/v1/navigation/global-origin")
 
         assert response.status_code == 200
         data = response.json()
@@ -425,8 +425,8 @@ class TestPositionData:
         assert 'timestamp' in data
 
     def test_get_local_position_ned(self, test_client, mock_drone_config):
-        """Test /get-local-position-ned endpoint"""
-        response = test_client.get("/get-local-position-ned")
+        """Test canonical LOCAL_POSITION_NED endpoint"""
+        response = test_client.get("/api/v1/telemetry/local-position")
 
         assert response.status_code == 200
         data = response.json()
@@ -446,11 +446,11 @@ class TestPositionData:
         assert data['z'] == -5.2
 
     def test_get_local_position_ned_no_data(self, test_client, mock_drone_config):
-        """Test /get-local-position-ned when no data available"""
+        """Test canonical LOCAL_POSITION_NED endpoint when no data available"""
         # Set time_boot_ms to 0 (indicates no data)
         mock_drone_config.local_position_ned['time_boot_ms'] = 0
 
-        response = test_client.get("/get-local-position-ned")
+        response = test_client.get("/api/v1/telemetry/local-position")
 
         assert response.status_code == 404
         assert 'NED data not available' in response.json()['detail']
@@ -460,7 +460,7 @@ class TestGitStatus:
     """Test git status endpoint"""
 
     def test_get_git_status(self, test_client, monkeypatch):
-        """Test /get-git-status endpoint"""
+        """Test canonical drone git-status endpoint"""
         # Mock git commands
         def mock_execute_git_command(self, command):
             git_responses = {
@@ -480,7 +480,7 @@ class TestGitStatus:
         from src.drone_api_server import DroneAPIServer
         monkeypatch.setattr(DroneAPIServer, '_execute_git_command', mock_execute_git_command)
 
-        response = test_client.get("/get-git-status")
+        response = test_client.get("/api/v1/git/status")
 
         assert response.status_code == 200
         data = response.json()
@@ -495,7 +495,7 @@ class TestNetworkStatus:
     """Test network status endpoint"""
 
     def test_get_network_status(self, test_client, monkeypatch):
-        """Test /get-network-status endpoint"""
+        """Test canonical network-status endpoint"""
         # Mock network info method
         def mock_get_network_info(self):
             return {
@@ -513,7 +513,7 @@ class TestNetworkStatus:
         from src.drone_api_server import DroneAPIServer
         monkeypatch.setattr(DroneAPIServer, '_get_network_info', mock_get_network_info)
 
-        response = test_client.get("/get-network-status")
+        response = test_client.get("/api/v1/network/status")
 
         assert response.status_code == 200
         data = response.json()
@@ -536,39 +536,31 @@ class TestErrorHandling:
     def test_invalid_command_data(self, test_client):
         """Test sending invalid command data"""
         # Send empty dict (missing required fields)
-        response = test_client.post("/api/send-command", json={})
+        response = test_client.post("/api/v1/drone/commands", json={})
 
         # Should still accept it due to extra="allow" in Pydantic model
         # But we can add validation later if needed
         assert response.status_code in [200, 422]  # Either success or validation error
 
 
-class TestAPIV1Aliases:
-    """Test canonical v1 aliases for the current drone API surface."""
+class TestDroneRouteSurface:
+    """Test the current canonical drone API surface."""
 
-    def test_route_inventory_includes_legacy_and_v1_core_surfaces(self, test_client):
+    def test_route_inventory_includes_canonical_core_surfaces(self, test_client):
         routes = {route.path for route in test_client.app.routes}
 
         expected_routes = {
-            "/get_drone_state",
             "/api/v1/drone/state",
-            "/api/live-armability",
             "/api/v1/preflight/armability",
-            "/api/send-command",
             "/api/v1/drone/commands",
-            "/get-home-pos",
             "/api/v1/navigation/home",
-            "/get-gps-global-origin",
             "/api/v1/navigation/global-origin",
-            "/get-git-status",
+            "/api/v1/git/status",
             "/ping",
+            "/api/v1/navigation/position-deviation",
             "/api/v1/system/health",
-            "/get-position-deviation",
-            "/get-network-status",
             "/api/v1/network/status",
-            "/get-swarm-data",
             "/api/v1/swarm/config",
-            "/get-local-position-ned",
             "/api/v1/telemetry/local-position",
             "/ws/drone-state",
             "/api/logs/sessions",
@@ -604,7 +596,7 @@ class TestAPIV1Aliases:
         assert data["status"] in {"accepted", "rejected"}
         assert "timestamp" in data
 
-    def test_v1_live_armability_alias(self, test_client, monkeypatch):
+    def test_v1_live_armability(self, test_client, monkeypatch):
         from src.drone_api_server import DroneAPIServer
 
         async def _mock_probe(self, require_global_position=True):
@@ -634,7 +626,7 @@ class TestAPIV1Aliases:
         assert response.status_code == 200
         assert response.json()["ready"] is True
 
-    def test_v1_navigation_home_alias(self, test_client):
+    def test_v1_navigation_home(self, test_client):
         response = test_client.get("/api/v1/navigation/home")
 
         assert response.status_code == 200
@@ -642,7 +634,7 @@ class TestAPIV1Aliases:
         assert "latitude" in data
         assert "longitude" in data
 
-    def test_v1_navigation_global_origin_alias(self, test_client):
+    def test_v1_navigation_global_origin(self, test_client):
         response = test_client.get("/api/v1/navigation/global-origin")
 
         assert response.status_code == 200
@@ -650,7 +642,7 @@ class TestAPIV1Aliases:
         assert "latitude" in data
         assert "longitude" in data
 
-    def test_v1_network_status_alias(self, test_client, monkeypatch):
+    def test_v1_network_status(self, test_client, monkeypatch):
         def mock_get_network_info(self):
             return {
                 "wifi": {

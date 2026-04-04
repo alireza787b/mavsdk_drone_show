@@ -115,6 +115,7 @@ from src.flight_timeout_utils import (
     calculate_land_disarm_timeout,
     calculate_swarm_rtl_completion_timeout,
 )
+from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE, DRONE_STATE_ROUTE
 from src.mission_startup import arm_with_preflight_gate
 from src.params import Params
 from src.synchronized_start import evaluate_synchronized_start, resolve_requested_start_time
@@ -1452,7 +1453,7 @@ async def compute_position_drift():
         # Request NED data from local API endpoint
         response = await asyncio.to_thread(
             requests.get,
-            f"http://localhost:{Params.drone_api_port}/get-local-position-ned",
+            f"http://localhost:{Params.drone_api_port}{DRONE_LOCAL_POSITION_ROUTE}",
             timeout=2,
         )
 
@@ -1702,7 +1703,7 @@ def _get_local_drone_state_snapshot(timeout: float = 1.0):
     """Read the local drone API state for mode/velocity/home-hover diagnostics."""
     try:
         response = requests.get(
-            f"http://127.0.0.1:{Params.drone_api_port}/{Params.get_drone_state_URI}",
+            f"http://127.0.0.1:{Params.drone_api_port}{DRONE_STATE_ROUTE}",
             timeout=timeout,
         )
         if response.status_code == 200:

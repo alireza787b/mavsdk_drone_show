@@ -11,7 +11,7 @@
 This test suite provides comprehensive testing for both API servers, covering:
 
 **Drone API Server:**
-- ✅ All 10 HTTP REST endpoints
+- ✅ Canonical drone HTTP REST endpoints
 - ✅ WebSocket real-time streaming
 - ✅ Error handling and edge cases
 - ✅ Data format validation
@@ -90,12 +90,12 @@ Provides reusable test fixtures:
 
 ### `test_drone_api_http.py` - HTTP Tests
 Tests all REST endpoints:
-- Health check (`/ping`)
-- Drone state (`/get_drone_state`)
-- Commands (`/api/send-command`)
-- Position data (`/get-home-pos`, `/get-gps-global-origin`, `/get-local-position-ned`)
-- Git status (`/get-git-status`)
-- Network status (`/get-network-status`)
+- Health check (`/ping`, `/api/v1/system/health`)
+- Drone state (`/api/v1/drone/state`)
+- Commands (`/api/v1/drone/commands`)
+- Position data (`/api/v1/navigation/home`, `/api/v1/navigation/global-origin`, `/api/v1/telemetry/local-position`)
+- Git status (`/api/v1/git/status`)
+- Network status (`/api/v1/network/status`)
 - Error handling (404, invalid data)
 
 ### `test_drone_api_websocket.py` - WebSocket Tests

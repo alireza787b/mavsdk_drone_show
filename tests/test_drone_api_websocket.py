@@ -142,7 +142,7 @@ class TestWebSocketDataFormat:
     def test_data_schema_matches_http(self, test_client, mock_drone_communicator):
         """Test WebSocket data matches HTTP endpoint schema"""
         # Get HTTP response
-        http_response = test_client.get("/get_drone_state")
+        http_response = test_client.get("/api/v1/drone/state")
         http_data = http_response.json()
 
         # Get WebSocket data

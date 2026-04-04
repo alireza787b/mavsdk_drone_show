@@ -254,7 +254,7 @@ class TestGetRemoteGitStatus:
         assert result['branch'] == 'main'
         assert result['commit'] == 'abc123'
         mock_get.assert_called_with(
-            'http://192.168.1.100:7070/get-git-status',
+            'http://192.168.1.100:7070/api/v1/git/status',
             timeout=5.0
         )
 

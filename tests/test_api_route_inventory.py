@@ -147,30 +147,22 @@ GCS_EXPECTED_WS = {
 
 DRONE_EXPECTED_HTTP = {
     "GET": {
-        "/get_drone_state",
-        "/api/live-armability",
         "/api/v1/drone/state",
         "/api/v1/preflight/armability",
         "/api/v1/navigation/home",
         "/api/v1/navigation/global-origin",
+        "/api/v1/navigation/position-deviation",
+        "/api/v1/git/status",
         "/api/v1/system/health",
         "/api/v1/network/status",
         "/api/v1/swarm/config",
         "/api/v1/telemetry/local-position",
-        "/get-home-pos",
-        "/get-gps-global-origin",
-        "/get-git-status",
         "/ping",
-        "/get-position-deviation",
-        "/get-network-status",
-        "/get-swarm-data",
-        "/get-local-position-ned",
         "/api/logs/sessions",
         "/api/logs/sessions/{session_id}",
         "/api/logs/stream",
     },
     "POST": {
-        "/api/send-command",
         "/api/v1/drone/commands",
     },
     "PATCH": set(),
@@ -343,12 +335,19 @@ def test_drone_business_route_inventory(drone_app):
 
     assert actual_http == DRONE_EXPECTED_HTTP
     assert actual_ws == DRONE_EXPECTED_WS
+    assert ("GET", "/ping") in route_index
 
-    assert route_index[("GET", "/api/v1/drone/state")].endpoint is route_index[("GET", "/get_drone_state")].endpoint
-    assert route_index[("GET", "/api/v1/preflight/armability")].endpoint is route_index[("GET", "/api/live-armability")].endpoint
-    assert route_index[("POST", "/api/v1/drone/commands")].endpoint is route_index[("POST", "/api/send-command")].endpoint
-    assert route_index[("GET", "/api/v1/navigation/home")].endpoint is route_index[("GET", "/get-home-pos")].endpoint
-    assert route_index[("GET", "/api/v1/navigation/global-origin")].endpoint is route_index[("GET", "/get-gps-global-origin")].endpoint
-    assert route_index[("GET", "/api/v1/network/status")].endpoint is route_index[("GET", "/get-network-status")].endpoint
-    assert route_index[("GET", "/api/v1/swarm/config")].endpoint is route_index[("GET", "/get-swarm-data")].endpoint
-    assert route_index[("GET", "/api/v1/telemetry/local-position")].endpoint is route_index[("GET", "/get-local-position-ned")].endpoint
+
+def test_drone_legacy_alias_routes_retired(drone_app):
+    _, route_index = _collect_http_routes(drone_app)
+
+    assert ("GET", "/get_drone_state") not in route_index
+    assert ("GET", "/api/live-armability") not in route_index
+    assert ("POST", "/api/send-command") not in route_index
+    assert ("GET", "/get-home-pos") not in route_index
+    assert ("GET", "/get-gps-global-origin") not in route_index
+    assert ("GET", "/get-git-status") not in route_index
+    assert ("GET", "/get-position-deviation") not in route_index
+    assert ("GET", "/get-network-status") not in route_index
+    assert ("GET", "/get-swarm-data") not in route_index
+    assert ("GET", "/get-local-position-ned") not in route_index

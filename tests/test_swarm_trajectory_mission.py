@@ -365,7 +365,7 @@ async def test_compute_position_drift_uses_threaded_http(monkeypatch):
 
     async def fake_to_thread(func, *args, **kwargs):
         assert func is stm.requests.get
-        assert args[0] == f"http://localhost:{stm.Params.drone_api_port}/get-local-position-ned"
+        assert args[0] == f"http://localhost:{stm.Params.drone_api_port}/api/v1/telemetry/local-position"
         assert kwargs["timeout"] == 2
         return response
 

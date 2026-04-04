@@ -3,22 +3,24 @@
 Drone API Server - FastAPI Implementation
 ==========================================
 Modern async API server for drone-side HTTP and WebSocket communication.
-Migrated from Flask with 100% backward compatibility + WebSocket streaming.
+Uses canonical `/api/v1/...` HTTP routes plus a dedicated WebSocket stream.
 
 HTTP REST Endpoints:
-- GET  /get_drone_state          - Get current drone state (snapshot)
-- POST /api/send-command          - Receive command from GCS
-- GET  /get-home-pos              - Get home position
-- GET  /get-gps-global-origin     - Get GPS global origin
-- GET  /get-git-status            - Get drone git status
-- GET  /ping                      - Health check
-- GET  /get-position-deviation    - Calculate position deviation
-- GET  /get-network-status        - Get network information
-- GET  /get-swarm-data            - Get swarm configuration
-- GET  /get-local-position-ned    - Get LOCAL_POSITION_NED data
+- GET  /api/v1/drone/state                    - Get current drone state (snapshot)
+- GET  /api/v1/preflight/armability           - Probe live launch readiness
+- POST /api/v1/drone/commands                 - Receive command from GCS
+- GET  /api/v1/navigation/home                - Get home position
+- GET  /api/v1/navigation/global-origin       - Get GPS global origin
+- GET  /api/v1/git/status                     - Get drone git status
+- GET  /api/v1/system/health                  - Versioned health probe
+- GET  /ping                                  - Stable operational health probe
+- GET  /api/v1/navigation/position-deviation  - Calculate position deviation
+- GET  /api/v1/network/status                 - Get network information
+- GET  /api/v1/swarm/config                   - Get swarm configuration
+- GET  /api/v1/telemetry/local-position       - Get LOCAL_POSITION_NED data
 
 WebSocket Endpoints:
-- WS   /ws/drone-state            - Real-time drone state streaming (efficient)
+- WS   /ws/drone-state                          - Real-time drone state streaming
 
 API Documentation:
 - Interactive Docs: http://drone-ip:7070/docs
@@ -51,6 +53,20 @@ logger = get_logger("drone_api")
 from src.drone_config import DroneConfig
 from src.constants import NetworkDefaults
 from src.coordinate_utils import latlon_to_ne, get_expected_position_from_trajectory
+from src.drone_api_routes import (
+    DRONE_COMMANDS_ROUTE,
+    DRONE_GIT_STATUS_ROUTE,
+    DRONE_LIVE_ARMABILITY_ROUTE,
+    DRONE_LOCAL_POSITION_ROUTE,
+    DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
+    DRONE_NAVIGATION_HOME_ROUTE,
+    DRONE_NETWORK_STATUS_ROUTE,
+    DRONE_POSITION_DEVIATION_ROUTE,
+    DRONE_STATE_ROUTE,
+    DRONE_SWARM_CONFIG_ROUTE,
+    DRONE_SYSTEM_HEALTH_ROUTE,
+    DRONE_WS_STATE_ROUTE,
+)
 from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
     GCS_ORIGIN_BOOTSTRAP_ROUTE,
@@ -186,6 +202,70 @@ class DroneHealthResponse(BaseModel):
     status: str
     timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
     version: str
+
+
+class HomePositionResponse(BaseModel):
+    latitude: float
+    longitude: float
+    altitude: float
+    timestamp: int
+
+
+class GPSGlobalOriginResponse(BaseModel):
+    latitude: float
+    longitude: float
+    altitude: float
+    origin_time_usec: Optional[int] = None
+    timestamp: int
+
+
+class DroneGitStatusResponse(BaseModel):
+    branch: str
+    commit: str
+    author_name: str
+    author_email: str
+    commit_date: str
+    commit_message: str
+    remote_url: Optional[str] = None
+    tracking_branch: Optional[str] = None
+    status: str
+    uncommitted_changes: List[str] = Field(default_factory=list)
+    commits_ahead: int = 0
+    commits_behind: int = 0
+
+
+class PositionDeviationResponse(BaseModel):
+    deviation_north: float
+    deviation_east: float
+    total_deviation: float
+    within_acceptable_range: bool
+
+
+class WifiStatusResponse(BaseModel):
+    ssid: str
+    signal_strength_percent: Any
+
+
+class EthernetStatusResponse(BaseModel):
+    interface: str
+    connection_name: str
+
+
+class NetworkStatusResponse(BaseModel):
+    wifi: Optional[WifiStatusResponse] = None
+    ethernet: Optional[EthernetStatusResponse] = None
+    timestamp: int
+
+
+class LocalPositionNEDResponse(BaseModel):
+    time_boot_ms: int
+    x: float
+    y: float
+    z: float
+    vx: float
+    vy: float
+    vz: float
+    timestamp: int
 
 
 # ============================================================================
@@ -407,32 +487,38 @@ class DroneAPIServer:
                 "probe_error": str(exc),
             }
 
+    @staticmethod
+    def _serialize_drone_state_payload(drone_state: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize raw communicator state into the canonical HTTP/WebSocket payload shape."""
+        payload = dict(drone_state)
+        server_time_ms = int(time.time() * 1000)
+        raw_update_time = payload.get('update_time')
+        try:
+            numeric_update_time = float(raw_update_time)
+        except (TypeError, ValueError):
+            numeric_update_time = 0.0
+
+        if numeric_update_time > 0:
+            if numeric_update_time < 1_000_000_000_000:
+                payload['timestamp'] = int(numeric_update_time * 1000)
+            else:
+                payload['timestamp'] = int(numeric_update_time)
+        else:
+            payload['timestamp'] = server_time_ms
+
+        payload['server_time'] = server_time_ms
+        return DroneStateResponse.model_validate(payload).model_dump()
+
     def setup_routes(self):
         """Define all API routes (same as Flask version)"""
 
-        @self.app.get("/api/v1/drone/state", response_model=DroneStateResponse)
-        @self.app.get(f"/{Params.get_drone_state_URI}")
+        @self.app.get(DRONE_STATE_ROUTE, response_model=DroneStateResponse)
         async def get_drone_state():
             """Endpoint to retrieve the current state of the drone."""
             try:
                 drone_state = self.drone_communicator.get_drone_state()
                 if drone_state:
-                    raw_update_time = drone_state.get('update_time')
-                    try:
-                        numeric_update_time = float(raw_update_time)
-                    except (TypeError, ValueError):
-                        numeric_update_time = 0.0
-
-                    if numeric_update_time > 0:
-                        if numeric_update_time < 1_000_000_000_000:
-                            drone_state['timestamp'] = int(numeric_update_time * 1000)
-                        else:
-                            drone_state['timestamp'] = int(numeric_update_time)
-                    else:
-                        drone_state['timestamp'] = 0
-
-                    drone_state['server_time'] = int(time.time() * 1000)
-                    return drone_state
+                    return self._serialize_drone_state_payload(drone_state)
                 else:
                     raise HTTPException(status_code=404, detail="Drone State not found")
             except HTTPException:
@@ -440,15 +526,13 @@ class DroneAPIServer:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"error_in_get_drone_state: {str(e)}")
 
-        @self.app.get("/api/v1/preflight/armability", response_model=LiveArmabilityResponse)
-        @self.app.get("/api/live-armability", response_model=LiveArmabilityResponse)
+        @self.app.get(DRONE_LIVE_ARMABILITY_ROUTE, response_model=LiveArmabilityResponse)
         async def get_live_armability(require_global_position: bool = True):
             """Run an on-demand MAVSDK launch-readiness probe."""
             result = await self._probe_live_armability(require_global_position=require_global_position)
             return LiveArmabilityResponse(**result)
 
-        @self.app.post("/api/v1/drone/commands", response_model=CommandAckResponse)
-        @self.app.post(f"/{Params.send_drone_command_URI}", response_model=CommandAckResponse)
+        @self.app.post(DRONE_COMMANDS_ROUTE, response_model=CommandAckResponse)
         async def send_drone_command(command: CommandRequest) -> CommandAckResponse:
             """
             Endpoint to send a command to the drone.
@@ -669,8 +753,7 @@ class DroneAPIServer:
                     timestamp=timestamp
                 )
 
-        @self.app.get('/api/v1/navigation/home')
-        @self.app.get('/get-home-pos')
+        @self.app.get(DRONE_NAVIGATION_HOME_ROUTE, response_model=HomePositionResponse)
         async def get_home_pos():
             """
             Endpoint to retrieve the home position of the drone.
@@ -696,8 +779,7 @@ class DroneAPIServer:
                 logger.error(f"Error retrieving home position: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve home position")
 
-        @self.app.get('/api/v1/navigation/global-origin')
-        @self.app.get('/get-gps-global-origin')
+        @self.app.get(DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE, response_model=GPSGlobalOriginResponse)
         async def get_gps_global_origin():
             """
             Endpoint to retrieve the GPS global origin from the drone configuration.
@@ -724,7 +806,7 @@ class DroneAPIServer:
                 logger.error(f"Error retrieving GPS global origin: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve GPS global origin")
 
-        @self.app.get('/get-git-status')
+        @self.app.get(DRONE_GIT_STATUS_ROUTE, response_model=DroneGitStatusResponse)
         async def get_git_status():
             """
             Endpoint to retrieve the current Git status of the drone.
@@ -776,7 +858,7 @@ class DroneAPIServer:
             except subprocess.CalledProcessError as e:
                 raise HTTPException(status_code=500, detail=f"Git command failed: {str(e)}")
 
-        @self.app.get("/api/v1/system/health", response_model=DroneHealthResponse)
+        @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)
         async def ping_v1():
             """Canonical v1 health endpoint with timestamp and version metadata."""
             return DroneHealthResponse(status="ok", version=MDS_VERSION)
@@ -786,7 +868,7 @@ class DroneAPIServer:
             """Simple endpoint to confirm connectivity."""
             return {"status": "ok"}
 
-        @self.app.get(f"/{Params.get_position_deviation_URI}")
+        @self.app.get(DRONE_POSITION_DEVIATION_ROUTE, response_model=PositionDeviationResponse)
         async def get_position_deviation():
             """Endpoint to calculate the drone's position deviation from its intended initial position."""
             try:
@@ -843,8 +925,7 @@ class DroneAPIServer:
                 logger.error(f"Error in get_position_deviation: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @self.app.get("/api/v1/network/status")
-        @self.app.get("/get-network-status")
+        @self.app.get(DRONE_NETWORK_STATUS_ROUTE, response_model=NetworkStatusResponse)
         async def get_network_info():
             """
             Endpoint to retrieve current network information.
@@ -862,8 +943,7 @@ class DroneAPIServer:
                 logger.error(f"Error in network-info endpoint: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-        @self.app.get('/api/v1/swarm/config')
-        @self.app.get('/get-swarm-data')
+        @self.app.get(DRONE_SWARM_CONFIG_ROUTE, response_model=List[Dict[str, Any]])
         async def get_swarm():
             """Get swarm configuration data"""
             logger.info("Swarm data requested")
@@ -873,8 +953,7 @@ class DroneAPIServer:
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Error loading swarm data: {e}")
 
-        @self.app.get('/api/v1/telemetry/local-position')
-        @self.app.get('/get-local-position-ned')
+        @self.app.get(DRONE_LOCAL_POSITION_ROUTE, response_model=LocalPositionNEDResponse)
         async def get_local_position_ned():
             """
             Endpoint to retrieve the LOCAL_POSITION_NED data from MAVLink.
@@ -917,7 +996,7 @@ class DroneAPIServer:
         # WebSocket Endpoint for Real-Time Telemetry Streaming
         # ====================================================================
 
-        @self.app.websocket("/ws/drone-state")
+        @self.app.websocket(DRONE_WS_STATE_ROUTE)
         async def websocket_drone_state(websocket: WebSocket):
             """
             WebSocket endpoint for real-time drone state streaming.
@@ -960,11 +1039,8 @@ class DroneAPIServer:
                     drone_state = self.drone_communicator.get_drone_state()
 
                     if drone_state:
-                        # Add timestamp
-                        drone_state['timestamp'] = int(time.time() * 1000)
-
                         # Send state to client
-                        await websocket.send_json(drone_state)
+                        await websocket.send_json(self._serialize_drone_state_payload(drone_state))
                     else:
                         # Send error message if state not available
                         await websocket.send_json({

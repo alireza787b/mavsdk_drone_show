@@ -657,6 +657,32 @@ After this checkpoint, the remaining high-signal API-modernization debt is expli
 - replace raw/legacy command-input handling with stronger typed request models where the live routes still accept open-ended dictionaries
 - refresh the active drone/operator docs so they teach the canonical contract first and stop reinforcing the legacy-first story
 
+Phase 6 second checkpoint on 2026-04-04:
+
+- added `src/drone_api_routes.py` as the shared canonical drone route-constant surface and switched the remaining first-party runtime/tooling callers to canonical `/api/v1/...` drone routes through those constants and the canonicalized `src.params` helpers
+- added the missing canonical drone routes `GET /api/v1/git/status` and `GET /api/v1/navigation/position-deviation`, keeping `GET /ping` as the explicit stable operational probe while retiring the legacy drone business aliases:
+  - `GET /get_drone_state`
+  - `GET /api/live-armability`
+  - `POST /api/send-command`
+  - `GET /get-home-pos`
+  - `GET /get-gps-global-origin`
+  - `GET /get-git-status`
+  - `GET /get-position-deviation`
+  - `GET /get-network-status`
+  - `GET /get-swarm-data`
+  - `GET /get-local-position-ned`
+- updated the active drone/operator docs, route inventory, and runtime validation tooling so the canonical drone contract is the taught and exercised surface instead of the retired aliases
+- unified `GET /api/v1/drone/state` and `WS /ws/drone-state` behind one shared validator-backed serializer in `src/drone_api_server.py`, closing the remaining payload-shape drift between the HTTP and WebSocket state surfaces
+- revalidated the slice with the focused drone/GCS regression batch locally and on Hetzner:
+  - `209 passed` locally
+  - `209 passed` on Hetzner
+
+After this checkpoint, route-shape inconsistency is no longer the main API-modernization debt across the public GCS and drone HTTP surfaces. The remaining high-signal work is:
+
+- tighten typed command/input contracts on both GCS and drone submit paths
+- review OpenAPI/metadata/auth seams from an MCP and agent-consumer perspective before calling the API surface merge-ready
+- run one final merge-readiness review after the typed-contract slice instead of assuming the route cleanup alone is sufficient
+
 Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
 
 ## Phase 1 Canonical Routes
@@ -679,6 +705,8 @@ The first alias slice introduces these canonical entry points:
 - `GET /api/v1/preflight/armability`
 - `GET /api/v1/navigation/home`
 - `GET /api/v1/navigation/global-origin`
+- `GET /api/v1/git/status`
+- `GET /api/v1/navigation/position-deviation`
 - `GET /api/v1/network/status`
 - `GET /api/v1/swarm/config`
 - `GET /api/v1/telemetry/local-position`

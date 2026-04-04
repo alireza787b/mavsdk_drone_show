@@ -13,7 +13,7 @@ The Drone API Server is a high-performance FastAPI-based server that runs on eac
 
 ## API Evolution Note
 
-Beginning with the 2026-04-03 API modernization stream, canonical routes are being introduced under `/api/v1/...` while legacy compatibility routes remain available during migration.
+As of the 2026-04-04 drone-contract cleanup, the supported HTTP contract is the canonical `/api/v1/...` surface. The old verb-style drone routes were retired instead of being kept as misleading compatibility aliases.
 
 Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the planning and migration source of truth.
 
@@ -25,7 +25,7 @@ Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the pl
 - ✅ **Type Validation** - Pydantic models ensure data integrity
 - ✅ **Async/Await** - Non-blocking I/O for better performance
 - ✅ **CORS Enabled** - Accessible from web dashboards
-- ✅ **Backward Compatible** - 100% compatible with previous Flask version
+- ✅ **Canonical Contract** - One current route per domain for UI, runtime tooling, and future MCP layers
 
 ### Performance Metrics
 
@@ -78,7 +78,7 @@ http://drone-ip:7070/openapi.json
 
 ### 1. Get Drone State
 
-**Endpoint:** `GET /get_drone_state`
+**Endpoint:** `GET /api/v1/drone/state`
 
 **Description:** Retrieve current drone state (snapshot)
 
@@ -130,7 +130,7 @@ http://drone-ip:7070/openapi.json
 
 **Use Case:** Get current drone state for polling-based GCS
 
-**Recommended For:** Legacy systems, periodic status checks
+**Recommended For:** GCS polling, validator tooling, and direct operator diagnostics
 
 Readiness fields:
 - `is_ready_to_arm` remains the simple compatibility boolean.
@@ -141,7 +141,7 @@ Readiness fields:
 
 ### 2. Send Command
 
-**Endpoint:** `POST /api/send-command`
+**Endpoint:** `POST /api/v1/drone/commands`
 
 **Description:** Receive command from GCS
 
@@ -183,7 +183,7 @@ Preferred mission encoding:
 
 ### 3. Get Home Position
 
-**Endpoint:** `GET /get-home-pos`
+**Endpoint:** `GET /api/v1/navigation/home`
 
 **Description:** Get drone home position
 
@@ -201,7 +201,7 @@ Preferred mission encoding:
 
 ### 4. Get GPS Global Origin
 
-**Endpoint:** `GET /get-gps-global-origin`
+**Endpoint:** `GET /api/v1/navigation/global-origin`
 
 **Description:** Get GPS global origin from autopilot
 
@@ -220,7 +220,7 @@ Preferred mission encoding:
 
 ### 5. Get Git Status
 
-**Endpoint:** `GET /get-git-status`
+**Endpoint:** `GET /api/v1/git/status`
 
 **Description:** Get current git status of drone repository
 
@@ -242,16 +242,20 @@ Preferred mission encoding:
 
 ---
 
-### 6. Ping
+### 6. Health
 
-**Endpoint:** `GET /ping`
+**Primary Endpoint:** `GET /api/v1/system/health`
+
+**Operational Alias:** `GET /ping`
 
 **Description:** Health check endpoint
 
 **Response:**
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "timestamp": 1732270245000,
+  "version": "5.0.31"
 }
 ```
 
@@ -259,7 +263,7 @@ Preferred mission encoding:
 
 ### 7. Get Position Deviation
 
-**Endpoint:** `GET /get-position-deviation`
+**Endpoint:** `GET /api/v1/navigation/position-deviation`
 
 **Description:** Calculate deviation from expected position
 
@@ -279,7 +283,7 @@ Preferred mission encoding:
 
 ### 8. Get Network Status
 
-**Endpoint:** `GET /get-network-status`
+**Endpoint:** `GET /api/v1/network/status`
 
 **Description:** Get current network connectivity information
 
@@ -302,7 +306,7 @@ Preferred mission encoding:
 
 ### 9. Get Swarm Data
 
-**Endpoint:** `GET /get-swarm-data`
+**Endpoint:** `GET /api/v1/swarm/config`
 
 **Description:** Get swarm configuration (leader/follower relationships)
 
@@ -332,7 +336,7 @@ Preferred mission encoding:
 
 ### 10. Get Local Position NED
 
-**Endpoint:** `GET /get-local-position-ned`
+**Endpoint:** `GET /api/v1/telemetry/local-position`
 
 **Description:** Get LOCAL_POSITION_NED data from MAVLink
 
@@ -388,7 +392,7 @@ To change frequency, modify `asyncio.sleep()` value in endpoint code.
 
 ### Data Format
 
-Same as HTTP `/get_drone_state` endpoint - JSON format with all telemetry fields.
+Same as HTTP `/api/v1/drone/state` endpoint - JSON format with all telemetry fields.
 
 ### Usage Examples
 
@@ -556,10 +560,10 @@ If drone state is unavailable:
 curl http://192.168.1.100:7070/ping
 
 # Get drone state
-curl http://192.168.1.100:7070/get_drone_state
+curl http://192.168.1.100:7070/api/v1/drone/state
 
 # Send command
-curl -X POST http://192.168.1.100:7070/api/send-command \
+curl -X POST http://192.168.1.100:7070/api/v1/drone/commands \
   -H "Content-Type: application/json" \
   -d '{"missionType": "ARM", "triggerTime": "0"}'
 ```
@@ -599,11 +603,10 @@ Visit `http://drone-ip:7070/docs` in browser:
 
 ### What Stayed the Same
 
-- ✅ All endpoint URLs unchanged
-- ✅ Request/response formats identical
 - ✅ Port number (7070)
+- ✅ WebSocket route (`/ws/drone-state`)
 - ✅ CORS configuration
-- ✅ Functionality 100% preserved
+- ✅ Core request/response payload shapes preserved while routes were canonicalized
 
 ### Backward Compatibility
 
@@ -667,7 +670,7 @@ FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS mo
 
 #### 3. State Data Not Updating
 
-**Symptom:** `/get_drone_state` returns stale data
+**Symptom:** `/api/v1/drone/state` returns stale data
 
 **Solutions:**
 - Verify DroneCommunicator is running

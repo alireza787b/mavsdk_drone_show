@@ -4,6 +4,7 @@ import time
 import requests
 import logging
 from src.params import Params
+from src.drone_api_routes import DRONE_STATE_ROUTE
 
 class TelemetrySubscriptionManager:
     def __init__(self, drones):
@@ -50,7 +51,10 @@ class TelemetrySubscriptionManager:
             drone = self.drones.get(hw_id)
             if drone:
                 try:
-                    response = requests.get(f"http://{drone['ip']}:{Params.drone_api_port}/{Params.get_drone_state_URI}", timeout=Params.HTTP_REQUEST_TIMEOUT)
+                    response = requests.get(
+                        f"http://{drone['ip']}:{Params.drone_api_port}{DRONE_STATE_ROUTE}",
+                        timeout=Params.HTTP_REQUEST_TIMEOUT,
+                    )
                     if response.status_code == 200:
                         telemetry_data = response.json()
                         logging.info(f"Received telemetry data for drone {hw_id}: {telemetry_data}")

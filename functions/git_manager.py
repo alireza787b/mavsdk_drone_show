@@ -17,6 +17,7 @@ import subprocess
 import logging
 import requests
 from typing import Dict, Any, Optional
+from src.drone_api_routes import DRONE_GIT_STATUS_ROUTE
 
 logger = logging.getLogger(__name__)
 
@@ -215,7 +216,7 @@ def get_remote_git_status(
     Returns:
         Dictionary with git status from drone, or {'error': message} on failure
     """
-    endpoint = f"{drone_uri}/get-git-status"
+    endpoint = f"{drone_uri}{DRONE_GIT_STATUS_ROUTE}"
 
     try:
         logger.debug(f"Fetching git status from {endpoint}")

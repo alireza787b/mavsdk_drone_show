@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 drone canonicalization checkpoint note documenting the shared drone route constants, the canonical `/api/v1/git/status` and `/api/v1/navigation/position-deviation` routes, the retirement of the legacy drone business aliases, the HTTP/WebSocket state serializer alignment, and the paired local/Hetzner validation results
 - a 2026-04-03 API-modernization review audit note documenting why the stream is not yet merge-ready, with the remaining drone-side contract, caller-migration, schema, and documentation slices required before any merge to `main`
 - a 2026-04-03 GCS telemetry contract-cleanup checkpoint note documenting the retirement of the duplicate GCS telemetry aliases, the removal of the fake command-cancel endpoint, the validator migration onto canonical health/telemetry routes, and the LAND/RTL timeout fallback fix
 - a 2026-04-03 SITL suite runtime-root fix checkpoint note documenting the reusable multi-mode validator, the stale live gunicorn restart on Hetzner, the validator-root/runtime-root split, and the corrected end-to-end live 3-drone suite pass across Drone Show, Smart Swarm, and Swarm Trajectory
@@ -51,6 +52,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the drone API now treats the canonical `/api/v1/...` contract as the only current public business HTTP surface, adding `GET /api/v1/git/status` and `GET /api/v1/navigation/position-deviation` while retiring the legacy drone business aliases that previously stayed mounted beside the v1 routes
+- first-party runtime/tooling callers now use the shared canonical drone route surface instead of repeating legacy strings such as `/get_drone_state`, `/get-home-pos`, `/get-git-status`, and `/api/live-armability`, so GCS polling, validators, mission runtimes, and local helpers no longer reinforce the retired contract
+- `GET /api/v1/drone/state` and `WS /ws/drone-state` now share one validator-backed serializer, so the live drone state payload stays schema-aligned across HTTP and WebSocket transport instead of drifting by transport path
 - duplicate GCS HTTP telemetry aliases `GET /telemetry` and `GET /api/telemetry` are now retired, leaving `GET /api/v1/fleet/telemetry` as the single current fleet-telemetry snapshot route
 - the fake `POST /api/v1/commands/{command_id}/cancel` endpoint has been removed because it never dispatched a live cancel to drones; the only current cancellation contract remains `POST /api/v1/commands` with `missionType=0`
 - reusable live validators, request-log classification, route inventory, and shared frontend/docs guidance now prove and describe the canonical `GET /api/v1/system/health` and `GET /api/v1/fleet/telemetry` routes instead of preserving removed telemetry aliases as pseudo-compatibility

@@ -334,7 +334,7 @@ class HeartbeatPostResponse(BaseModel):
 class DroneGitStatus(BaseModel):
     """Git status for individual drone.
 
-    Field names match the raw drone API response (/get-git-status on each drone)
+    Field names match the canonical drone API response (`GET /api/v1/git/status`)
     so the frontend can read them directly without remapping.
     """
     pos_id: int = Field(..., ge=1, description="Position ID")

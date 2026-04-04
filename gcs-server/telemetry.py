@@ -17,6 +17,7 @@ from typing import Any, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
+from drone_api_routes import DRONE_STATE_ROUTE
 from params import Params
 from enums import Mission, State
 from config import load_config
@@ -281,7 +282,7 @@ def poll_telemetry(drone):
     while True:
         try:
             # Construct the full URI
-            full_uri = f"http://{drone_ip}:{Params.drone_api_port}/{Params.get_drone_state_URI}"
+            full_uri = f"http://{drone_ip}:{Params.drone_api_port}{DRONE_STATE_ROUTE}"
             
             # Make the HTTP request
             response = requests.get(full_uri, timeout=Params.HTTP_REQUEST_TIMEOUT)

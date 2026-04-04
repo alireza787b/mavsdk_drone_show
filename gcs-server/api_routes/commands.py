@@ -6,6 +6,7 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Path as PathParam, Query, Request
+from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE
 
 from schemas import (
     CommandListResponse,
@@ -103,7 +104,7 @@ def _estimate_max_target_relative_altitude_m(
 
             try:
                 response = requests.get(
-                    f"http://{drone_ip}:{deps.Params.drone_api_port}/get-home-pos",
+                    f"http://{drone_ip}:{deps.Params.drone_api_port}{DRONE_NAVIGATION_HOME_ROUTE}",
                     timeout=request_timeout,
                 )
                 response.raise_for_status()

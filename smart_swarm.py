@@ -103,6 +103,7 @@ import navpy
 import numpy as np  # Added for numerical computations
 
 from src.drone_config import ConfigLoader
+from src.drone_api_routes import DRONE_STATE_ROUTE
 from src.led_controller import LEDController
 from src.params import Params
 import aiohttp 
@@ -876,7 +877,7 @@ async def update_leader_state():
     async with aiohttp.ClientSession(timeout=timeout) as session:
         while True:
             try:
-                state_url = f"http://{LEADER_IP}:{Params.drone_api_port}/{Params.get_drone_state_URI}"
+                state_url = f"http://{LEADER_IP}:{Params.drone_api_port}{DRONE_STATE_ROUTE}"
                 async with session.get(state_url) as response:
                     if response.status != 200:
                         raise aiohttp.ClientResponseError(

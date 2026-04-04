@@ -41,6 +41,7 @@ try:
         calculate_land_disarm_timeout,
         calculate_swarm_rtl_completion_timeout,
     )
+    from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
     from src.gcs_api_routes import (
         GCS_SWARM_TRAJECTORY_PROCESS_ROUTE,
         GCS_SWARM_TRAJECTORY_STATUS_ROUTE,
@@ -50,6 +51,7 @@ try:
     from tools.runtime_validation_support import write_json_report
 except Exception:  # pragma: no cover - validator fallback only
     USING_FALLBACK_TIMEOUT_PARAMS = True
+    DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
 
     class _FallbackParams:
         SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
@@ -316,7 +318,7 @@ def probe_live_armability_for_drone(
     query = urllib.parse.urlencode(
         {"require_global_position": str(bool(require_global_position)).lower()}
     )
-    url = f"http://{normalized_ip}:7070/api/live-armability?{query}"
+    url = f"http://{normalized_ip}:7070{DRONE_LIVE_ARMABILITY_ROUTE}?{query}"
     request_timeout = float(timeout or calculate_live_armability_request_timeout(params=Params))
 
     try:

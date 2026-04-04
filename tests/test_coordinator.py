@@ -147,8 +147,8 @@ class TestComponentInitialization:
         # Check app has routes
         routes = [route.path for route in server.app.routes]
 
-        assert '/get_drone_state' in routes or any('drone_state' in r for r in routes)
-        assert '/ping' in routes
+        assert '/api/v1/drone/state' in routes
+        assert '/api/v1/system/health' in routes
 
 
 # ============================================================================

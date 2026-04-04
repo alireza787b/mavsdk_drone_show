@@ -527,8 +527,8 @@ class TestDroneCommandReception:
     """Test command reception on drone side"""
 
     def test_command_endpoint_exists(self, test_client):
-        """Test /api/send-command endpoint exists"""
-        response = test_client.post('/api/send-command', json={})
+        """Test canonical drone command endpoint exists"""
+        response = test_client.post('/api/v1/drone/commands', json={})
 
         # Should get response (even if error)
         assert response.status_code in [200, 400, 422]

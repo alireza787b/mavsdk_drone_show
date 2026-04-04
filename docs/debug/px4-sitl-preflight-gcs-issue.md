@@ -29,7 +29,7 @@ That turned out to be a separate packaging problem:
 
 Symptoms:
 
-- `POST /api/send-command` accepted `TAKE_OFF`
+- the legacy `POST /api/send-command` path in use at that time accepted `TAKE_OFF`
 - `DroneSetup` launched `actions.py`
 - `actions.py` exited with code `1`
 - the structured child log showed: `mavsdk_server executable not found.`
@@ -45,7 +45,7 @@ Final mitigation:
 After the `mavsdk_server` packaging issue was fixed, the next `TAKE_OFF` attempt still failed in Docker SITL even though:
 
 - `is_ready_to_arm` was `true`
-- the command was accepted by `/api/send-command`
+- the command was accepted by the legacy `/api/send-command` path in use at that time
 - `actions.py` existed and could be found
 
 That turned out to be an application-runtime issue in our own code, not PX4 or MAVSDK:
