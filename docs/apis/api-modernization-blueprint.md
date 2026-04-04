@@ -635,6 +635,28 @@ After this checkpoint, the remaining API-modernization debt is not the GCS telem
 
 - remove the remaining deferred or high-risk non-canonical surfaces only after frontend, runtime callers, SITL tools, docs, and tests are fully migrated and validated
 
+Phase 6 first checkpoint on 2026-04-03:
+
+- ran an explicit merge-readiness review from code-maintainer, contract-design, and future MCP/operator-tooling perspectives instead of treating the GCS cleanup stream as implicitly complete
+- confirmed that the GCS route-classification policy is now substantially cleaner, but the overall API-modernization stream is still not end-to-end complete because the drone-side public contract remains mixed-generation
+- confirmed that drone-side canonicalization is still incomplete:
+  - first-party runtime callers still use legacy drone URLs such as `/get_drone_state`, `/get-git-status`, `/get-home-pos`, and `/api/live-armability`
+  - the drone API still lacks a canonical `/api/v1/git/status` route, so git synchronization remains documented and consumed through the legacy drone path
+  - the active route inventory and human-facing drone API docs still present legacy drone aliases as first-class current surface instead of compatibility-only mounts
+- confirmed that future MCP / agent readiness is improved on the GCS side but not finished:
+  - the live GCS command submit route still accepts raw JSON instead of a strongly enforced canonical request model
+  - the drone command request model still allows arbitrary extra fields
+  - websocket payloads are documented and typed, but command/control input contracts remain looser than the future MCP/tool layer should depend on
+- recorded the review as a no-merge checkpoint rather than a release checkpoint: `main-candidate` may continue, but the API stream should not be tagged/merged to `main` until the drone-side contract, docs, and caller migration are finished and revalidated
+
+After this checkpoint, the remaining high-signal API-modernization debt is explicit:
+
+- create a shared canonical drone route-constant surface and migrate first-party callers to it
+- add the missing canonical drone git-status route and migrate GCS/tooling/docs to it
+- retire drone legacy aliases only after caller/docs/test migration stays green
+- replace raw/legacy command-input handling with stronger typed request models where the live routes still accept open-ended dictionaries
+- refresh the active drone/operator docs so they teach the canonical contract first and stop reinforcing the legacy-first story
+
 Frontend dead code does not need to survive until phase 6. If a consumer is unrouted, unreferenced, and superseded by a validated live workflow, it should be removed during migration rather than kept as misleading pseudo-compatibility.
 
 ## Phase 1 Canonical Routes
