@@ -13,8 +13,10 @@ from functions.swarm_session_manager import SwarmSessionManager
 from functions import swarm_trajectory_processor
 from functions.swarm_trajectory_service import (
     SwarmTrajectoryError,
+    clear_processed_payload,
     clear_individual_drone_payload,
     get_processing_status_payload,
+    process_trajectories_payload,
     save_uploaded_trajectory,
     validate_target_scope_for_swarm_trajectory,
 )
@@ -451,3 +453,36 @@ def test_execute_trajectory_processing_marks_partial_when_swarm_outputs_are_inco
     assert result['skipped_drone_ids'] == [5, 6]
     assert result['missing_leaders'] == [5]
     assert 'Some clusters still need attention before launch' in result['message']
+
+
+def test_process_trajectories_payload_raises_typed_error_for_failed_processing(monkeypatch):
+    monkeypatch.setattr(
+        'functions.swarm_trajectory_service.process_swarm_trajectories',
+        lambda force_clear=False, auto_reload=True: {
+            'success': False,
+            'error': 'No trajectory files available for processing',
+        },
+    )
+
+    with pytest.raises(SwarmTrajectoryError) as exc_info:
+        process_trajectories_payload()
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.message == 'No trajectory files available for processing'
+
+
+def test_clear_processed_payload_raises_typed_error_for_failed_clear(monkeypatch):
+    monkeypatch.setattr(
+        'functions.swarm_trajectory_service.clear_processed_data',
+        lambda: {
+            'success': False,
+            'error': 'disk is read-only',
+            'message': 'Failed to clear processed data',
+        },
+    )
+
+    with pytest.raises(SwarmTrajectoryError) as exc_info:
+        clear_processed_payload()
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.message == 'disk is read-only'

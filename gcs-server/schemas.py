@@ -13,7 +13,7 @@ import os
 import sys
 
 from pydantic import BaseModel, Field, validator, ConfigDict, field_validator
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Literal
 from datetime import datetime
 from enum import Enum
 
@@ -453,6 +453,340 @@ class SwarmTrajectory(BaseModel):
     total_drones: int = Field(..., ge=1, description="Total number of drones")
     max_duration: float = Field(..., ge=0, description="Maximum trajectory duration (s)")
     created_at: Optional[int] = Field(None, description="Creation timestamp (Unix ms)")
+
+
+class SwarmTrajectoryLeaderListResponse(BaseModel):
+    """Response for GET /api/v1/swarm-trajectories/leaders."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    leaders: List[int] = Field(default_factory=list, description="Current top-level leader drone IDs")
+    hierarchies: Dict[str, int] = Field(
+        default_factory=dict,
+        description="Follower counts keyed by leader drone ID",
+    )
+    follower_details: Dict[str, List[int]] = Field(
+        default_factory=dict,
+        description="Follower drone IDs keyed by leader drone ID",
+    )
+    uploaded_leaders: List[int] = Field(default_factory=list, description="Leader IDs with uploaded CSV inputs")
+    simulation_mode: bool = Field(False, description="Whether the system is running in SITL mode")
+
+    @field_validator("hierarchies", "follower_details", mode="before")
+    @classmethod
+    def _normalize_swarm_mapping_keys(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(key): payload for key, payload in value.items()}
+        return value
+
+
+class SwarmTrajectoryUploadResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/upload/{leader_id}."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    message: str = Field(..., description="Operator-facing upload summary")
+    filepath: str = Field(..., description="Saved raw CSV path relative to the active runtime filesystem")
+
+
+class SwarmTrajectoryProcessRequest(BaseModel):
+    """Optional processing controls for POST /api/v1/swarm-trajectories/process."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    force_clear: bool = Field(False, description="Clear processed outputs before generating a fresh package")
+    auto_reload: bool = Field(True, description="Auto-include unchanged leader uploads from the active workspace")
+
+
+class SwarmTrajectoryCommitRequest(BaseModel):
+    """Optional git commit metadata for POST /api/v1/swarm-trajectories/commit."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    message: Optional[str] = Field(None, min_length=1, description="Optional git commit message override")
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def _normalize_commit_message(cls, value: Any) -> Any:
+        if value in (None, ""):
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+
+class SwarmTrajectoryProcessingChanges(BaseModel):
+    """Change-detection details from the current workspace session."""
+
+    has_previous_session: bool = Field(..., description="Whether the workspace has a prior processed session record")
+    swarm_structure_changed: bool = Field(..., description="Whether swarm relationships changed since last process")
+    parameters_changed: bool = Field(..., description="Whether trajectory processing parameters changed")
+    trajectory_files_changed: bool = Field(..., description="Whether uploaded leader CSV contents changed")
+    new_uploads: List[int] = Field(default_factory=list, description="Leader IDs newly uploaded since last process")
+    missing_uploads: List[int] = Field(default_factory=list, description="Leader IDs removed since last process")
+    leader_structure_changed: bool = Field(..., description="Whether leader coverage changed in a way that invalidates outputs")
+    requires_full_reprocess: bool = Field(..., description="Whether the workspace requires a full reprocess")
+    safe_to_incremental: bool = Field(..., description="Whether incremental processing is considered safe")
+
+
+class SwarmTrajectoryProcessingRecommendation(BaseModel):
+    """Operator-facing processing recommendation for the active workspace."""
+
+    action: str = Field(..., description="Recommended processing action identifier")
+    message: str = Field(..., description="Short operator-facing recommendation summary")
+    details: List[str] = Field(default_factory=list, description="Detailed recommendation bullets")
+    requires_confirmation: bool = Field(False, description="Whether the operator should explicitly confirm before proceeding")
+    uploaded_count: int = Field(0, ge=0, description="Count of currently uploaded leader CSV files")
+    changes: SwarmTrajectoryProcessingChanges = Field(..., description="Detected workspace changes behind this recommendation")
+    expected_top_leaders: List[int] = Field(default_factory=list, description="Leader IDs required by the current swarm configuration")
+    uploaded_leaders: List[int] = Field(default_factory=list, description="Leader IDs currently uploaded in the workspace")
+    missing_uploaded_leaders: List[int] = Field(default_factory=list, description="Expected leaders still missing uploads")
+    orphan_uploaded_leaders: List[int] = Field(default_factory=list, description="Uploaded leaders no longer present in the swarm configuration")
+
+
+class SwarmTrajectoryRecommendationResponse(BaseModel):
+    """Response for GET /api/v1/swarm-trajectories/recommendation."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    recommendation: SwarmTrajectoryProcessingRecommendation = Field(..., description="Current processing recommendation")
+
+
+class SwarmTrajectoryDronePackageStats(BaseModel):
+    """Per-drone processed package timing and altitude stats."""
+
+    drone_id: int = Field(..., ge=1, description="Drone ID")
+    route_entry_time_s: Optional[float] = Field(None, ge=0, description="First route-entry timestamp in seconds")
+    mission_clock_s: Optional[float] = Field(None, ge=0, description="Mission completion timestamp in seconds")
+    route_motion_time_s: Optional[float] = Field(None, ge=0, description="Time between route entry and completion")
+    max_altitude_msl_m: Optional[float] = Field(None, description="Maximum altitude above MSL in meters")
+    min_altitude_msl_m: Optional[float] = Field(None, description="Minimum altitude above MSL in meters")
+    altitude_window_m: Optional[float] = Field(None, ge=0, description="Altitude envelope across the package")
+
+
+class SwarmTrajectoryPackageStats(BaseModel):
+    """Aggregate timing and altitude stats for a processed package."""
+
+    available: bool = Field(..., description="Whether processed package stats are currently available")
+    drone_count: int = Field(..., ge=0, description="Number of drones contributing to this package summary")
+    drone_ids: List[int] = Field(default_factory=list, description="Drone IDs included in the package summary")
+    route_entry_time_s: Optional[float] = Field(None, ge=0, description="Earliest route-entry timestamp in seconds")
+    mission_clock_s: Optional[float] = Field(None, ge=0, description="Latest mission completion timestamp in seconds")
+    route_motion_time_s: Optional[float] = Field(None, ge=0, description="Envelope duration between entry and completion")
+    max_altitude_msl_m: Optional[float] = Field(None, description="Maximum altitude above MSL in meters")
+    min_altitude_msl_m: Optional[float] = Field(None, description="Minimum altitude above MSL in meters")
+    altitude_window_m: Optional[float] = Field(None, ge=0, description="Altitude envelope across the package")
+
+
+class SwarmTrajectoryClusterSummary(BaseModel):
+    """Readiness summary for all swarm clusters in the active workspace."""
+
+    cluster_count: int = Field(..., ge=0, description="Number of top-level leader clusters in the swarm")
+    ready_cluster_count: int = Field(..., ge=0, description="Clusters fully ready for launch packaging")
+    needs_processing_cluster_count: int = Field(..., ge=0, description="Clusters waiting for processed outputs")
+    missing_upload_cluster_count: int = Field(..., ge=0, description="Clusters missing required leader uploads")
+    partial_output_cluster_count: int = Field(..., ge=0, description="Clusters with incomplete processed outputs")
+    processed_cluster_count: int = Field(..., ge=0, description="Clusters with a processed leader output")
+    all_clusters_ready: bool = Field(..., description="Whether every cluster is fully ready")
+    overall_state: str = Field(..., description="High-level readiness state for the full workspace")
+
+
+class SwarmTrajectoryClusterStatus(BaseModel):
+    """Per-cluster readiness and artifact state for the active workspace."""
+
+    leader_id: int = Field(..., ge=1, description="Top-level leader drone ID")
+    follower_ids: List[int] = Field(default_factory=list, description="Follower drone IDs in this cluster")
+    follower_count: int = Field(..., ge=0, description="Number of followers in this cluster")
+    expected_drone_count: int = Field(..., ge=1, description="Expected total drones for the cluster")
+    processed_drone_count: int = Field(..., ge=0, description="Processed drones currently available for the cluster")
+    leader_uploaded: bool = Field(..., description="Whether the leader CSV upload is present")
+    leader_processed: bool = Field(..., description="Whether the leader output was successfully processed")
+    processed_follower_ids: List[int] = Field(default_factory=list, description="Follower drone IDs with processed outputs")
+    missing_follower_ids: List[int] = Field(default_factory=list, description="Follower drone IDs still missing outputs")
+    leader_plot_available: bool = Field(..., description="Whether the individual leader plot exists")
+    cluster_plot_available: bool = Field(..., description="Whether the aggregate cluster plot exists")
+    package_stats: SwarmTrajectoryPackageStats = Field(..., description="Processed package statistics scoped to this cluster")
+    ready: bool = Field(..., description="Whether this cluster is fully ready")
+    state: str = Field(..., description="Cluster readiness state identifier")
+    issues: List[str] = Field(default_factory=list, description="Blocking issues for the cluster")
+    advisories: List[str] = Field(default_factory=list, description="Non-blocking operator advisories for the cluster")
+
+
+class SwarmTrajectorySessionStatus(BaseModel):
+    """Saved processing-session metadata for the active workspace."""
+
+    exists: bool = Field(..., description="Whether a processing session exists")
+    session_id: Optional[str] = Field(None, description="Current processing session identifier")
+    timestamp: Optional[str] = Field(None, description="ISO-8601 timestamp when the current session was created")
+    processed_leaders: List[int] = Field(default_factory=list, description="Leader IDs included in the current session")
+    total_drones: int = Field(0, ge=0, description="Total drones processed in the current session")
+
+
+class SwarmTrajectoryStatusPayload(BaseModel):
+    """Current Swarm Trajectory workspace state and readiness envelope."""
+
+    raw_trajectories: int = Field(..., ge=0, description="Raw leader CSV file count")
+    processed_trajectories: int = Field(..., ge=0, description="Processed per-drone CSV file count")
+    generated_plots: int = Field(..., ge=0, description="Generated plot image count")
+    raw_leaders: List[int] = Field(default_factory=list, description="Leader IDs with uploaded raw CSV files")
+    processed_drones: List[int] = Field(default_factory=list, description="Drone IDs with processed outputs")
+    processed_leaders: List[int] = Field(default_factory=list, description="Leader IDs with processed outputs")
+    processed_followers: List[int] = Field(default_factory=list, description="Follower IDs with processed outputs")
+    follow_map: Dict[str, int] = Field(default_factory=dict, description="Current follow assignments keyed by drone ID")
+    leader_count: int = Field(..., ge=0, description="Processed leader count")
+    follower_count: int = Field(..., ge=0, description="Processed follower count")
+    package_stats: SwarmTrajectoryPackageStats = Field(..., description="Aggregate package timing and altitude stats")
+    package_drone_stats: Dict[str, SwarmTrajectoryDronePackageStats] = Field(
+        default_factory=dict,
+        description="Per-drone processed package stats keyed by drone ID",
+    )
+    has_results: bool = Field(..., description="Whether processed outputs are currently available")
+    plots_available: bool = Field(..., description="Whether any processed plots are currently available")
+    expected_top_leaders: List[int] = Field(default_factory=list, description="Leader IDs expected by the current swarm configuration")
+    uploaded_leaders: List[int] = Field(default_factory=list, description="Leader IDs currently uploaded")
+    missing_uploaded_leaders: List[int] = Field(default_factory=list, description="Expected leaders still missing uploads")
+    orphan_uploaded_leaders: List[int] = Field(default_factory=list, description="Uploaded leaders no longer present in the swarm configuration")
+    clusters: List[SwarmTrajectoryClusterStatus] = Field(default_factory=list, description="Per-cluster readiness state")
+    cluster_summary: SwarmTrajectoryClusterSummary = Field(..., description="Workspace-wide cluster readiness summary")
+    session: SwarmTrajectorySessionStatus = Field(..., description="Saved processing session metadata")
+    session_changes: SwarmTrajectoryProcessingChanges = Field(..., description="Detected workspace changes relative to the saved session")
+    processing_recommendation: SwarmTrajectoryProcessingRecommendation = Field(..., description="Operator-facing processing recommendation")
+
+    @field_validator("follow_map", "package_drone_stats", mode="before")
+    @classmethod
+    def _normalize_status_mapping_keys(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {str(key): payload for key, payload in value.items()}
+        return value
+
+
+class SwarmTrajectoryStatusResponse(BaseModel):
+    """Response for GET /api/v1/swarm-trajectories/status."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    status: SwarmTrajectoryStatusPayload = Field(..., description="Current workspace state")
+    folders: Dict[str, str] = Field(default_factory=dict, description="Active raw/processed/plot workspace paths")
+
+
+class SwarmTrajectoryProcessingStatistics(BaseModel):
+    """Processing totals from a successful reprocess run."""
+
+    leaders: int = Field(..., ge=0, description="Number of leaders processed")
+    followers: int = Field(..., ge=0, description="Number of followers processed")
+    errors: int = Field(..., ge=0, description="Number of drones skipped due to processing errors")
+
+
+class SwarmTrajectoryProcessResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/process."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    outcome: Literal["success", "partial"] = Field(..., description="Overall processing outcome")
+    message: str = Field(..., description="Operator-facing processing summary")
+    processed_drones: int = Field(..., ge=0, description="Number of drones processed into the output package")
+    processed_drone_list: List[int] = Field(default_factory=list, description="Drone IDs included in the processed package")
+    expected_drone_list: List[int] = Field(default_factory=list, description="Drone IDs expected by the current swarm configuration")
+    skipped_drone_ids: List[int] = Field(default_factory=list, description="Drone IDs still missing outputs after processing")
+    statistics: SwarmTrajectoryProcessingStatistics = Field(..., description="Processing totals")
+    session_id: Optional[str] = Field(None, description="Saved processing session identifier")
+    recommendation: SwarmTrajectoryProcessingRecommendation = Field(..., description="Recommendation snapshot captured at processing time")
+    processed_leaders: List[int] = Field(default_factory=list, description="Leader IDs included in the processed package")
+    missing_leaders: List[int] = Field(default_factory=list, description="Expected leaders still missing raw uploads")
+    auto_reloaded: List[int] = Field(default_factory=list, description="Leader IDs auto-reloaded from the current workspace")
+    ignored_leaders: List[int] = Field(default_factory=list, description="Uploaded leader IDs ignored because they are no longer valid top leaders")
+
+
+class SwarmTrajectoryPolicyAltitude(BaseModel):
+    """Altitude policy envelope for Swarm Trajectory planning."""
+
+    default_msl: float = Field(..., description="Default altitude above mean sea level")
+    default_target_agl: float = Field(..., description="Default target altitude above ground level")
+    min_msl: float = Field(..., description="Minimum allowed altitude above mean sea level")
+    max_msl: float = Field(..., description="Maximum allowed altitude above mean sea level")
+
+
+class SwarmTrajectoryPolicySpeed(BaseModel):
+    """Speed policy envelope for Swarm Trajectory planning."""
+
+    default_preferred: float = Field(..., description="Default preferred route speed")
+    min_preferred: float = Field(..., description="Minimum preferred route speed")
+    optimal_max: float = Field(..., description="Preferred upper bound for routine authoring")
+    absolute_max: float = Field(..., description="Hard speed ceiling")
+
+
+class SwarmTrajectoryPolicyTiming(BaseModel):
+    """Timing policy envelope for Swarm Trajectory planning."""
+
+    default_route_entry_delay_s: float = Field(..., description="Default delay before route entry")
+    default_fallback_leg_duration_s: float = Field(..., description="Fallback leg duration used when explicit timing is unavailable")
+    derived_time_step_s: float = Field(..., description="Derived waypoint interpolation time step")
+
+
+class SwarmTrajectoryPolicyTerrain(BaseModel):
+    """Terrain clearance policy envelope for Swarm Trajectory planning."""
+
+    min_safe_clearance_m: float = Field(..., description="Minimum allowed terrain clearance")
+    default_safe_clearance_m: float = Field(..., description="Default terrain clearance target")
+
+
+class SwarmTrajectoryPolicyPayload(BaseModel):
+    """Operator-facing planning envelope sourced from Params."""
+
+    altitude: SwarmTrajectoryPolicyAltitude = Field(..., description="Altitude planning policy")
+    speed: SwarmTrajectoryPolicySpeed = Field(..., description="Speed planning policy")
+    timing: SwarmTrajectoryPolicyTiming = Field(..., description="Timing planning policy")
+    terrain: SwarmTrajectoryPolicyTerrain = Field(..., description="Terrain planning policy")
+
+
+class SwarmTrajectoryPolicyResponse(BaseModel):
+    """Response for GET /api/v1/swarm-trajectories/policy."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    policy: SwarmTrajectoryPolicyPayload = Field(..., description="Current planning envelope")
+
+
+class SwarmTrajectoryClearProcessedResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/clear-processed."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    cleared_items: List[str] = Field(default_factory=list, description="Processed outputs and plots removed by the clear operation")
+    message: str = Field(..., description="Operator-facing clear summary")
+
+
+class SwarmTrajectoryClearAllResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/clear."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    message: str = Field(..., description="Operator-facing clear summary")
+    cleared_directories: List[str] = Field(default_factory=list, description="Workspace artifacts removed by the clear operation")
+
+
+class SwarmTrajectoryRemoveLeaderResponse(BaseModel):
+    """Response for DELETE /api/v1/swarm-trajectories/remove/{leader_id}."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    message: str = Field(..., description="Operator-facing removal summary")
+    removed_files: List[str] = Field(default_factory=list, description="Raw and derived files removed for the leader cluster")
+    files_removed: int = Field(..., ge=0, description="Count of removed files")
+
+
+class SwarmTrajectoryClearLeaderResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/clear-leader/{leader_id}."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    message: str = Field(..., description="Operator-facing clear summary")
+    removed_files: List[str] = Field(default_factory=list, description="Files removed for the cleared leader cluster")
+
+
+class SwarmTrajectoryClearDroneResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/clear-drone/{drone_id}."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    message: str = Field(..., description="Operator-facing clear summary")
+    removed_files: List[str] = Field(default_factory=list, description="Follower files removed by the clear operation")
+
+
+class SwarmTrajectoryCommitResponse(BaseModel):
+    """Response for POST /api/v1/swarm-trajectories/commit."""
+
+    success: Literal[True] = Field(True, description="Always true for successful responses")
+    message: str = Field(..., description="Operator-facing git commit summary")
+    git_info: Optional[Dict[str, Any]] = Field(None, description="Git commit and push result details")
 
 
 # ============================================================================

@@ -953,6 +953,25 @@ the cleaned GCS HTTP surface. Git sync failures on `commit` are surfaced as
 operation errors with an explicit HTTP status (`409` or `502`) and a readable
 `detail` field instead of route-local `success=false` payloads.
 
+The active Swarm Trajectory success surfaces are now typed in the GCS schema
+layer as well, so `/docs` and `/openapi.json` expose the current contract for:
+
+- `GET /api/v1/swarm-trajectories/leaders`
+- `GET /api/v1/swarm-trajectories/recommendation`
+- `GET /api/v1/swarm-trajectories/status`
+- `GET /api/v1/swarm-trajectories/policy`
+- `POST /api/v1/swarm-trajectories/process`
+- `POST /api/v1/swarm-trajectories/clear-processed`
+- `POST /api/v1/swarm-trajectories/clear`
+- `POST /api/v1/swarm-trajectories/clear-leader/{leader_id}`
+- `DELETE /api/v1/swarm-trajectories/remove/{leader_id}`
+- `POST /api/v1/swarm-trajectories/clear-drone/{drone_id}`
+- `POST /api/v1/swarm-trajectories/commit`
+
+`process` and `commit` now accept optional typed JSON bodies, so schema/body
+violations use the standard shared `422 Validation error` envelope instead of
+custom route-local parsing behavior.
+
 #### `POST /api/v1/swarm-trajectories/clear-processed`
 Explicitly clear all processed data and plots.
 

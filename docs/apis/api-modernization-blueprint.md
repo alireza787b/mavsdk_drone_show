@@ -774,6 +774,40 @@ After this checkpoint, the remaining merge-readiness debt is narrower again:
 - add clearer dormant auth/principal seams and richer actor context around privileged mutations
 - continue the drone-side error-envelope and typed-stream cleanup so merge readiness is end to end
 
+Phase 6 seventh checkpoint on 2026-04-04:
+
+- finished the larger Swarm Trajectory success-surface cleanup instead of leaving it as a special untyped island after the error-envelope work
+- added typed GCS schema models for the active Swarm Trajectory success payloads:
+  - leaders
+  - upload
+  - recommendation
+  - status
+  - policy
+  - process
+  - clear / remove mutations
+  - commit success
+- moved the Swarm Trajectory router onto typed `response_model` contracts so FastAPI/OpenAPI now advertises the current success payloads directly instead of relying on ad hoc `JSONResponse` dictionaries
+- replaced the remaining manual request parsing on:
+  - `POST /api/v1/swarm-trajectories/process`
+  - `POST /api/v1/swarm-trajectories/commit`
+  with typed optional request models, making the route family machine-readable for future MCP/tool consumers and standardizing schema failures onto the shared `422 Validation error` envelope
+- fixed an underlying operational-contract issue instead of adapting around it:
+  - the Swarm Trajectory processing and clear-processed service wrappers now raise `SwarmTrajectoryError` on failure instead of returning `200` plus `success=false`, so the HTTP layer no longer reports operational failure as transport success
+- updated the frontend-side API error extraction and Swarm Trajectory service wrappers so structured validation/detail payloads continue to surface readable operator messages after the typed-route migration
+- added focused router/service/OpenAPI regression coverage for the new contract shapes and failure behavior
+- revalidated the slice:
+  - local backend batch: `108 passed`
+  - Hetzner backend batch: `108 passed`
+  - Hetzner frontend Jest slice: `5 passed`
+  - Hetzner production build: passed
+
+After this checkpoint, the remaining merge-readiness debt is narrower again:
+
+- finish the same typed success-surface and OpenAPI cleanup for `QuickScout / SAR`
+- tighten the WebSocket/OpenAPI contract where live stream payloads still drift from documented schemas
+- add clearer dormant auth/principal seams and richer actor context around privileged mutations
+- continue the drone-side error-envelope and typed-stream cleanup so merge readiness is end to end
+
 ## Phase 1 Canonical Routes
 
 The first alias slice introduces these canonical entry points:

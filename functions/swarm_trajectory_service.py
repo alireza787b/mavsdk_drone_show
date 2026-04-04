@@ -37,6 +37,19 @@ class SwarmTrajectoryError(Exception):
         self.status_code = status_code
 
 
+def _processing_failure_status_code(result: Dict) -> int:
+    error = str(result.get("error") or "").lower()
+    stage = str(result.get("processing_stage") or "").lower()
+
+    if stage in {"initialization", "execution"}:
+        return 500
+
+    if "failed to clear data" in error:
+        return 500
+
+    return 400
+
+
 def _load_swarm_structure() -> Dict:
     swarm_data = load_swarm()
     return analyze_swarm_structure(swarm_data)
@@ -408,7 +421,14 @@ def save_uploaded_trajectory(leader_id: int, filename: str, content: bytes) -> D
 
 
 def process_trajectories_payload(force_clear: bool = False, auto_reload: bool = True) -> Dict:
-    return process_swarm_trajectories(force_clear=force_clear, auto_reload=auto_reload)
+    result = process_swarm_trajectories(force_clear=force_clear, auto_reload=auto_reload)
+    if result.get("success"):
+        return result
+
+    raise SwarmTrajectoryError(
+        str(result.get("error") or result.get("message") or "Swarm trajectory processing failed"),
+        status_code=_processing_failure_status_code(result),
+    )
 
 
 def get_processing_recommendation_payload() -> Dict:
@@ -513,7 +533,14 @@ def get_processing_status_payload() -> Dict:
 
 
 def clear_processed_payload() -> Dict:
-    return clear_processed_data()
+    result = clear_processed_data()
+    if result.get("success"):
+        return result
+
+    raise SwarmTrajectoryError(
+        str(result.get("error") or result.get("message") or "Failed to clear processed swarm trajectory data"),
+        status_code=500,
+    )
 
 
 def clear_all_payload() -> Dict:

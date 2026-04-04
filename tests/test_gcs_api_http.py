@@ -1574,10 +1574,11 @@ class TestSwarmTrajectoryEndpoints:
             headers={"content-type": "application/json"},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         payload = response.json()
-        assert payload["error"] == "Bad request"
-        assert payload["detail"] == "Malformed JSON request body"
+        assert payload["error"] == "Validation error"
+        assert isinstance(payload["detail"], list)
+        assert payload["detail"][0]["loc"][0] == "body"
         assert payload["path"] == "/api/v1/swarm-trajectories/process"
 
     @patch("app_fastapi.swarm_trajectory_service.commit_trajectory_changes_payload")

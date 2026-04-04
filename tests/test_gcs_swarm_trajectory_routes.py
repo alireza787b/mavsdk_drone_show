@@ -14,43 +14,231 @@ class _DummySwarmTrajectoryError(Exception):
         self.status_code = status_code
 
 
+def _recommendation_payload():
+    return {
+        "action": "safe_incremental",
+        "message": "Ready to process trajectories",
+        "details": ["No conflicts detected with existing data"],
+        "requires_confirmation": False,
+        "uploaded_count": 1,
+        "changes": {
+            "has_previous_session": True,
+            "swarm_structure_changed": False,
+            "parameters_changed": False,
+            "trajectory_files_changed": False,
+            "new_uploads": [],
+            "missing_uploads": [],
+            "leader_structure_changed": False,
+            "requires_full_reprocess": False,
+            "safe_to_incremental": True,
+        },
+        "expected_top_leaders": [1, 5],
+        "uploaded_leaders": [1],
+        "missing_uploaded_leaders": [5],
+        "orphan_uploaded_leaders": [],
+    }
+
+
+def _package_stats_payload(*, available=True, drone_ids=None):
+    drone_ids = drone_ids or []
+    return {
+        "available": available,
+        "drone_count": len(drone_ids),
+        "drone_ids": drone_ids,
+        "route_entry_time_s": 10.0 if available else None,
+        "mission_clock_s": 70.0 if available else None,
+        "route_motion_time_s": 60.0 if available else None,
+        "max_altitude_msl_m": 1465.0 if available else None,
+        "min_altitude_msl_m": 1450.0 if available else None,
+        "altitude_window_m": 15.0 if available else None,
+    }
+
+
+def _status_payload(processed_trajectories=2):
+    recommendation = _recommendation_payload()
+    return {
+        "success": True,
+        "status": {
+            "raw_trajectories": 1,
+            "processed_trajectories": processed_trajectories,
+            "generated_plots": 0,
+            "raw_leaders": [1],
+            "processed_drones": [1, 2] if processed_trajectories else [],
+            "processed_leaders": [1] if processed_trajectories else [],
+            "processed_followers": [2] if processed_trajectories else [],
+            "follow_map": {1: 0, 2: 1},
+            "leader_count": 1 if processed_trajectories else 0,
+            "follower_count": 1 if processed_trajectories else 0,
+            "package_stats": _package_stats_payload(available=processed_trajectories > 0, drone_ids=[1, 2] if processed_trajectories else []),
+            "package_drone_stats": {
+                1: {
+                    "drone_id": 1,
+                    "route_entry_time_s": 10.0,
+                    "mission_clock_s": 70.0,
+                    "route_motion_time_s": 60.0,
+                    "max_altitude_msl_m": 1465.0,
+                    "min_altitude_msl_m": 1450.0,
+                    "altitude_window_m": 15.0,
+                },
+                2: {
+                    "drone_id": 2,
+                    "route_entry_time_s": 10.0,
+                    "mission_clock_s": 68.0,
+                    "route_motion_time_s": 58.0,
+                    "max_altitude_msl_m": 1460.0,
+                    "min_altitude_msl_m": 1452.0,
+                    "altitude_window_m": 8.0,
+                },
+            } if processed_trajectories else {},
+            "has_results": processed_trajectories > 0,
+            "plots_available": False,
+            "expected_top_leaders": [1, 5],
+            "uploaded_leaders": [1],
+            "missing_uploaded_leaders": [5],
+            "orphan_uploaded_leaders": [],
+            "clusters": [
+                {
+                    "leader_id": 1,
+                    "follower_ids": [2],
+                    "follower_count": 1,
+                    "expected_drone_count": 2,
+                    "processed_drone_count": 2 if processed_trajectories else 0,
+                    "leader_uploaded": True,
+                    "leader_processed": processed_trajectories > 0,
+                    "processed_follower_ids": [2] if processed_trajectories else [],
+                    "missing_follower_ids": [],
+                    "leader_plot_available": False,
+                    "cluster_plot_available": False,
+                    "package_stats": _package_stats_payload(
+                        available=processed_trajectories > 0,
+                        drone_ids=[1, 2] if processed_trajectories else [],
+                    ),
+                    "ready": processed_trajectories > 0,
+                    "state": "ready" if processed_trajectories else "needs_processing",
+                    "issues": [],
+                    "advisories": [],
+                },
+                {
+                    "leader_id": 5,
+                    "follower_ids": [6],
+                    "follower_count": 1,
+                    "expected_drone_count": 2,
+                    "processed_drone_count": 0,
+                    "leader_uploaded": False,
+                    "leader_processed": False,
+                    "processed_follower_ids": [],
+                    "missing_follower_ids": [6],
+                    "leader_plot_available": False,
+                    "cluster_plot_available": False,
+                    "package_stats": _package_stats_payload(available=False, drone_ids=[]),
+                    "ready": False,
+                    "state": "missing_upload",
+                    "issues": ["Leader trajectory CSV has not been uploaded."],
+                    "advisories": [],
+                },
+            ],
+            "cluster_summary": {
+                "cluster_count": 2,
+                "ready_cluster_count": 1 if processed_trajectories else 0,
+                "needs_processing_cluster_count": 0 if processed_trajectories else 1,
+                "missing_upload_cluster_count": 1,
+                "partial_output_cluster_count": 0,
+                "processed_cluster_count": 1 if processed_trajectories else 0,
+                "all_clusters_ready": False,
+                "overall_state": "partial" if processed_trajectories else "missing_uploads",
+            },
+            "session": {
+                "exists": processed_trajectories > 0,
+                "session_id": "session-1" if processed_trajectories else None,
+                "timestamp": "2026-04-04T00:00:00" if processed_trajectories else None,
+                "processed_leaders": [1] if processed_trajectories else [],
+                "total_drones": 2 if processed_trajectories else 0,
+            },
+            "session_changes": recommendation["changes"],
+            "processing_recommendation": recommendation,
+        },
+        "folders": {
+            "base": "/tmp/swarm",
+            "raw": "/tmp/swarm/raw",
+            "processed": "/tmp/swarm/processed",
+            "plots": "/tmp/swarm/plots",
+        },
+    }
+
+
 def _make_service(tmp_path: Path):
     csv_path = tmp_path / "Drone 7.csv"
     csv_path.write_text("t,px,py\n0,0,0\n", encoding="utf-8")
 
     return SimpleNamespace(
         SwarmTrajectoryError=_DummySwarmTrajectoryError,
-        get_swarm_leaders_payload=lambda: {"success": True, "leaders": [1, 5]},
+        get_swarm_leaders_payload=lambda: {
+            "success": True,
+            "leaders": [1, 5],
+            "hierarchies": {1: 1, 5: 1},
+            "follower_details": {1: [2], 5: [6]},
+            "uploaded_leaders": [1],
+            "simulation_mode": True,
+        },
         save_uploaded_trajectory=lambda leader_id, filename, content: {
             "success": True,
-            "leader_id": leader_id,
-            "filename": filename,
-            "bytes": len(content),
+            "message": f"Drone {leader_id} trajectory uploaded successfully",
+            "filepath": str(tmp_path / f"Drone {leader_id}.csv"),
         },
         process_trajectories_payload=lambda force_clear=False, auto_reload=True: {
             "success": True,
-            "force_clear": force_clear,
-            "auto_reload": auto_reload,
+            "outcome": "success",
+            "message": "Formation outputs ready",
+            "processed_drones": 2,
+            "processed_drone_list": [1, 2],
+            "expected_drone_list": [1, 2],
+            "skipped_drone_ids": [],
+            "statistics": {"leaders": 1, "followers": 1, "errors": 0},
+            "session_id": "session-1",
+            "recommendation": _recommendation_payload(),
+            "processed_leaders": [1],
+            "missing_leaders": [],
+            "auto_reloaded": [1] if auto_reload else [],
+            "ignored_leaders": [],
         },
         get_processing_recommendation_payload=lambda: {
             "success": True,
-            "recommendation": {"action": "recommended_full_reprocess"},
+            "recommendation": _recommendation_payload(),
         },
-        get_processing_status_payload=lambda: {
+        get_processing_status_payload=lambda: _status_payload(),
+        clear_processed_payload=lambda: {
             "success": True,
-            "status": {"processed_trajectories": 2},
+            "cleared_items": ["processed/Drone 1.csv", "plots/combined_swarm.jpg"],
+            "message": "Cleared 2 items successfully",
         },
-        clear_processed_payload=lambda: {"success": True},
-        clear_all_payload=lambda: {"success": True},
-        clear_leader_trajectory_payload=lambda leader_id: {"success": True, "leader_id": leader_id},
-        remove_leader_trajectory_payload=lambda leader_id: {"success": True, "leader_id": leader_id},
+        clear_all_payload=lambda: {
+            "success": True,
+            "message": "All trajectory files cleared successfully from 2 locations",
+            "cleared_directories": ["raw/Drone 1.csv", "processed/Drone 1.csv"],
+        },
+        clear_leader_trajectory_payload=lambda leader_id: {
+            "success": True,
+            "message": f"Drone {leader_id} and associated trajectories cleared successfully",
+            "removed_files": [f"processed/Drone {leader_id}.csv"],
+        },
+        remove_leader_trajectory_payload=lambda leader_id: {
+            "success": True,
+            "message": f"Removed trajectory for Drone {leader_id}",
+            "removed_files": [f"raw/Drone {leader_id}.csv"],
+            "files_removed": 1,
+        },
         get_processed_trajectory_download=lambda drone_id: (str(csv_path), f"Drone {drone_id}.csv"),
         get_drone_kml_download=lambda drone_id: ("<kml/>", f"Drone {drone_id}.kml"),
         get_cluster_kml_download=lambda leader_id: ("<kml/>", f"Cluster {leader_id}.kml"),
-        clear_individual_drone_payload=lambda drone_id: {"success": True, "drone_id": drone_id},
+        clear_individual_drone_payload=lambda drone_id: {
+            "success": True,
+            "message": f"Drone {drone_id} trajectory files removed successfully",
+            "removed_files": [f"processed/Drone {drone_id}.csv"],
+        },
         commit_trajectory_changes_payload=lambda message=None: {
             "success": True,
             "message": message or "ok",
+            "git_info": {"message": "Committed successfully"},
         },
     )
 
@@ -125,8 +313,7 @@ def test_swarm_trajectory_router_status_uses_live_service_after_router_creation(
     app.include_router(create_swarm_trajectory_router(deps))
 
     deps.swarm_trajectory_service.get_processing_status_payload = lambda: {
-        "success": True,
-        "status": {"processed_trajectories": 9},
+        **_status_payload(processed_trajectories=9),
     }
 
     with TestClient(app) as client:
@@ -148,12 +335,10 @@ def test_swarm_trajectory_router_process_rejects_malformed_json(tmp_path):
             headers={"content-type": "application/json"},
         )
 
-    assert response.status_code == 400
+    assert response.status_code == 422
     payload = response.json()
-    assert payload["error"] == "Bad request"
-    assert payload["detail"] == "Malformed JSON request body"
-    assert payload["path"] == "/api/v1/swarm-trajectories/process"
-    assert isinstance(payload["timestamp"], int)
+    assert isinstance(payload["detail"], list)
+    assert payload["detail"][0]["loc"][0] == "body"
 
 
 def test_swarm_trajectory_router_commit_rejects_non_object_json(tmp_path):
@@ -164,12 +349,10 @@ def test_swarm_trajectory_router_commit_rejects_non_object_json(tmp_path):
     with TestClient(app) as client:
         response = client.post("/api/v1/swarm-trajectories/commit", json=["not", "an", "object"])
 
-    assert response.status_code == 400
+    assert response.status_code == 422
     payload = response.json()
-    assert payload["error"] == "Bad request"
-    assert payload["detail"] == "Request body must be a JSON object"
-    assert payload["path"] == "/api/v1/swarm-trajectories/commit"
-    assert isinstance(payload["timestamp"], int)
+    assert isinstance(payload["detail"], list)
+    assert payload["detail"][0]["loc"][0] == "body"
 
 
 def test_swarm_trajectory_router_service_error_uses_shared_problem_envelope(tmp_path):
@@ -212,3 +395,34 @@ def test_swarm_trajectory_router_commit_git_failure_maps_to_operation_error(tmp_
     assert payload["error"] == "Bad gateway"
     assert payload["detail"] == "Git push failed: network error. Check internet connectivity."
     assert payload["path"] == "/api/v1/swarm-trajectories/commit"
+
+
+def test_swarm_trajectory_router_openapi_exposes_typed_contracts(tmp_path):
+    deps = _make_deps(tmp_path)
+    app = FastAPI()
+    app.include_router(create_swarm_trajectory_router(deps))
+
+    schema = app.openapi()
+    process_spec = schema["paths"]["/api/v1/swarm-trajectories/process"]["post"]
+    commit_spec = schema["paths"]["/api/v1/swarm-trajectories/commit"]["post"]
+    status_spec = schema["paths"]["/api/v1/swarm-trajectories/status"]["get"]
+    process_request_schema = process_spec["requestBody"]["content"]["application/json"]["schema"]
+    commit_request_schema = commit_spec["requestBody"]["content"]["application/json"]["schema"]
+
+    assert process_request_schema["anyOf"][0]["$ref"].endswith(
+        "/SwarmTrajectoryProcessRequest"
+    )
+    assert process_request_schema["anyOf"][1]["type"] == "null"
+    assert process_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryProcessResponse"
+    )
+    assert commit_request_schema["anyOf"][0]["$ref"].endswith(
+        "/SwarmTrajectoryCommitRequest"
+    )
+    assert commit_request_schema["anyOf"][1]["type"] == "null"
+    assert commit_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryCommitResponse"
+    )
+    assert status_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryStatusResponse"
+    )

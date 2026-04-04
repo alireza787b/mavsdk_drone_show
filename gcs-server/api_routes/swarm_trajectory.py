@@ -1,14 +1,29 @@
 """Swarm Trajectory routes extracted from the GCS FastAPI monolith."""
 
 import asyncio
-import json
 from functools import partial
 from typing import Any
 
-from fastapi import APIRouter, File, Path as PathParam, Request, UploadFile
+from fastapi import APIRouter, Body, File, Path as PathParam, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from api_errors import DEFAULT_ERROR_RESPONSES, build_error_payload
+from schemas import (
+    SwarmTrajectoryClearAllResponse,
+    SwarmTrajectoryClearDroneResponse,
+    SwarmTrajectoryClearLeaderResponse,
+    SwarmTrajectoryClearProcessedResponse,
+    SwarmTrajectoryCommitRequest,
+    SwarmTrajectoryCommitResponse,
+    SwarmTrajectoryLeaderListResponse,
+    SwarmTrajectoryPolicyResponse,
+    SwarmTrajectoryProcessRequest,
+    SwarmTrajectoryProcessResponse,
+    SwarmTrajectoryRecommendationResponse,
+    SwarmTrajectoryRemoveLeaderResponse,
+    SwarmTrajectoryStatusResponse,
+    SwarmTrajectoryUploadResponse,
+)
 
 
 def _swarm_error_response(request: Request, exc: Exception) -> JSONResponse:
@@ -79,48 +94,31 @@ def _build_swarm_trajectory_policy_payload(params: Any) -> dict[str, Any]:
     }
 
 
-def _is_json_content_type(content_type: str) -> bool:
-    return content_type.split(";", 1)[0].strip().lower() == "application/json"
-
-
-async def _parse_optional_json_object(request: Request) -> dict[str, Any]:
-    content_type = request.headers.get("content-type", "")
-    if not _is_json_content_type(content_type):
-        return {}
-
-    raw_body = await request.body()
-    if not raw_body or not raw_body.strip():
-        return {}
-
-    try:
-        payload = json.loads(raw_body)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("Malformed JSON request body") from exc
-
-    if payload is None:
-        return {}
-
-    if not isinstance(payload, dict):
-        raise TypeError("Request body must be a JSON object")
-
-    return payload
-
-
 def create_swarm_trajectory_router(deps: Any) -> APIRouter:
     router = APIRouter(responses=DEFAULT_ERROR_RESPONSES)
 
-    @router.get("/api/v1/swarm-trajectories/leaders", tags=["Swarm Trajectories"])
+    @router.get(
+        "/api/v1/swarm-trajectories/leaders",
+        response_model=SwarmTrajectoryLeaderListResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def get_swarm_leaders(request: Request):
         """Get list of top leaders from swarm configuration."""
         try:
-            return JSONResponse(content=deps.swarm_trajectory_service.get_swarm_leaders_payload())
+            return SwarmTrajectoryLeaderListResponse.model_validate(
+                deps.swarm_trajectory_service.get_swarm_leaders_payload()
+            )
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to get swarm leaders", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.post("/api/v1/swarm-trajectories/upload/{leader_id}", tags=["Swarm Trajectories"])
+    @router.post(
+        "/api/v1/swarm-trajectories/upload/{leader_id}",
+        response_model=SwarmTrajectoryUploadResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def upload_leader_trajectory(
         request: Request,
         leader_id: int = PathParam(..., description="Leader drone ID"),
@@ -133,40 +131,47 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
                 filename=file.filename or "",
                 content=await file.read(),
             )
-            return JSONResponse(content=payload)
+            return SwarmTrajectoryUploadResponse.model_validate(payload)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, f"Failed to upload swarm trajectory for leader {leader_id}", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.post("/api/v1/swarm-trajectories/process", tags=["Swarm Trajectories"])
-    async def process_trajectories(request: Request):
+    @router.post(
+        "/api/v1/swarm-trajectories/process",
+        response_model=SwarmTrajectoryProcessResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def process_trajectories(
+        request: Request,
+        payload: SwarmTrajectoryProcessRequest | None = Body(default=None),
+    ):
         """Smart processing with automatic change detection."""
         try:
-            data = await _parse_optional_json_object(request)
-            force_clear = bool(data.get("force_clear", False))
-            auto_reload = bool(data.get("auto_reload", True))
+            process_request = payload or SwarmTrajectoryProcessRequest()
 
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
                 None,
                 partial(
                     deps.swarm_trajectory_service.process_trajectories_payload,
-                    force_clear=force_clear,
-                    auto_reload=auto_reload,
+                    force_clear=process_request.force_clear,
+                    auto_reload=process_request.auto_reload,
                 ),
             )
-            return JSONResponse(content=result)
-        except (TypeError, ValueError) as exc:
-            return _swarm_problem_response(request, status_code=400, detail=str(exc))
+            return SwarmTrajectoryProcessResponse.model_validate(result)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to process swarm trajectories", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.get("/api/v1/swarm-trajectories/recommendation", tags=["Swarm Trajectories"])
+    @router.get(
+        "/api/v1/swarm-trajectories/recommendation",
+        response_model=SwarmTrajectoryRecommendationResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def get_trajectory_recommendation(request: Request):
         """Get smart processing recommendation based on current state."""
         try:
@@ -180,56 +185,78 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
                 "INFO",
                 "swarm",
             )
-            return JSONResponse(content=payload)
+            return SwarmTrajectoryRecommendationResponse.model_validate(payload)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to get recommendation", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.get("/api/v1/swarm-trajectories/status", tags=["Swarm Trajectories"])
+    @router.get(
+        "/api/v1/swarm-trajectories/status",
+        response_model=SwarmTrajectoryStatusResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def get_processing_status(request: Request):
         """Get current processing status and file counts."""
         try:
-            return JSONResponse(content=deps.swarm_trajectory_service.get_processing_status_payload())
+            return SwarmTrajectoryStatusResponse.model_validate(
+                deps.swarm_trajectory_service.get_processing_status_payload()
+            )
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to get swarm trajectory status", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.get("/api/v1/swarm-trajectories/policy", tags=["Swarm Trajectories"])
+    @router.get(
+        "/api/v1/swarm-trajectories/policy",
+        response_model=SwarmTrajectoryPolicyResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def get_swarm_trajectory_policy(_request: Request):
         """Return the operator-facing trajectory planning envelope sourced from Params."""
-        return JSONResponse(content=_build_swarm_trajectory_policy_payload(deps.Params))
+        return SwarmTrajectoryPolicyResponse.model_validate(_build_swarm_trajectory_policy_payload(deps.Params))
 
-    @router.post("/api/v1/swarm-trajectories/clear-processed", tags=["Swarm Trajectories"])
+    @router.post(
+        "/api/v1/swarm-trajectories/clear-processed",
+        response_model=SwarmTrajectoryClearProcessedResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def clear_processed_trajectories(request: Request):
         """Explicitly clear all processed data and plots."""
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, deps.swarm_trajectory_service.clear_processed_payload)
-            return JSONResponse(content=result)
+            return SwarmTrajectoryClearProcessedResponse.model_validate(result)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to clear processed swarm trajectories", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.post("/api/v1/swarm-trajectories/clear", tags=["Swarm Trajectories"])
+    @router.post(
+        "/api/v1/swarm-trajectories/clear",
+        response_model=SwarmTrajectoryClearAllResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def clear_all_trajectories(request: Request):
         """Clear all raw, processed, and generated swarm trajectory artifacts."""
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, deps.swarm_trajectory_service.clear_all_payload)
-            return JSONResponse(content=result)
+            return SwarmTrajectoryClearAllResponse.model_validate(result)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to clear all swarm trajectories", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.post("/api/v1/swarm-trajectories/clear-leader/{leader_id}", tags=["Swarm Trajectories"])
+    @router.post(
+        "/api/v1/swarm-trajectories/clear-leader/{leader_id}",
+        response_model=SwarmTrajectoryClearLeaderResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def clear_leader_trajectory(
         request: Request,
         leader_id: int = PathParam(..., description="Leader drone ID"),
@@ -241,14 +268,18 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
                 None,
                 partial(deps.swarm_trajectory_service.clear_leader_trajectory_payload, leader_id),
             )
-            return JSONResponse(content=result)
+            return SwarmTrajectoryClearLeaderResponse.model_validate(result)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, f"Failed to clear leader trajectory for drone {leader_id}", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.delete("/api/v1/swarm-trajectories/remove/{leader_id}", tags=["Swarm Trajectories"])
+    @router.delete(
+        "/api/v1/swarm-trajectories/remove/{leader_id}",
+        response_model=SwarmTrajectoryRemoveLeaderResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def remove_leader_trajectory(
         request: Request,
         leader_id: int = PathParam(..., description="Leader drone ID"),
@@ -260,7 +291,7 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
                 None,
                 partial(deps.swarm_trajectory_service.remove_leader_trajectory_payload, leader_id),
             )
-            return JSONResponse(content=result)
+            return SwarmTrajectoryRemoveLeaderResponse.model_validate(result)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
@@ -328,7 +359,11 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             _log_swarm_internal_error(deps, f"Failed to generate cluster KML for leader {leader_id}", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.post("/api/v1/swarm-trajectories/clear-drone/{drone_id}", tags=["Swarm Trajectories"])
+    @router.post(
+        "/api/v1/swarm-trajectories/clear-drone/{drone_id}",
+        response_model=SwarmTrajectoryClearDroneResponse,
+        tags=["Swarm Trajectories"],
+    )
     async def clear_individual_drone(
         request: Request,
         drone_id: int = PathParam(..., description="Drone ID"),
@@ -340,34 +375,38 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
                 None,
                 partial(deps.swarm_trajectory_service.clear_individual_drone_payload, drone_id),
             )
-            return JSONResponse(content=result)
+            return SwarmTrajectoryClearDroneResponse.model_validate(result)
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, f"Failed to clear trajectory for drone {drone_id}", exc)
             return _swarm_problem_response(request, status_code=500)
 
-    @router.post("/api/v1/swarm-trajectories/commit", tags=["Swarm Trajectories"])
-    async def commit_trajectory_changes(request: Request):
+    @router.post(
+        "/api/v1/swarm-trajectories/commit",
+        response_model=SwarmTrajectoryCommitResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def commit_trajectory_changes(
+        request: Request,
+        payload: SwarmTrajectoryCommitRequest | None = Body(default=None),
+    ):
         """Commit and push swarm trajectory changes to git."""
         try:
-            data = await _parse_optional_json_object(request)
-            commit_message = data.get("message")
+            commit_request = payload or SwarmTrajectoryCommitRequest()
 
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(
                 None,
-                partial(deps.swarm_trajectory_service.commit_trajectory_changes_payload, commit_message),
+                partial(deps.swarm_trajectory_service.commit_trajectory_changes_payload, commit_request.message),
             )
             if result.get("success"):
-                return JSONResponse(content=result)
+                return SwarmTrajectoryCommitResponse.model_validate(result)
             return _swarm_problem_response(
                 request,
                 status_code=_git_failure_status_code(result.get("error")),
                 detail=result.get("error", "Git operations failed"),
             )
-        except (TypeError, ValueError) as exc:
-            return _swarm_problem_response(request, status_code=400, detail=str(exc))
         except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
             return _swarm_error_response(request, exc)
         except Exception as exc:

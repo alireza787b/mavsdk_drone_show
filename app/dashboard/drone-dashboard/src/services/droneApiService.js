@@ -210,7 +210,7 @@ export const processTrajectories = async (options = {}) => {
     });
     return response.data;
   } catch (error) {
-    throw error;
+    throw new Error(await extractApiErrorMessage(error, 'Processing failed'));
   }
 };
 
@@ -219,7 +219,7 @@ export const clearProcessedData = async () => {
     const response = await clearProcessedSwarmTrajectoriesResponse();
     return response.data;
   } catch (error) {
-    throw error;
+    throw new Error(await extractApiErrorMessage(error, 'Clear failed'));
   }
 };
 
