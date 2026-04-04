@@ -370,7 +370,7 @@ Preferred mission encoding:
 **Advantages over HTTP polling:**
 - ✅ **95% less network overhead** (no HTTP headers)
 - ✅ **Real-time push** (no polling delay)
-- ✅ **Bi-directional** (can send commands through same connection)
+- ✅ **One-way monitoring stream** (commands stay on `POST /api/v1/drone/commands`)
 - ✅ **More efficient** for GCS monitoring multiple drones
 - ✅ **Lower latency** (~5ms vs 20ms with HTTP)
 
@@ -388,6 +388,15 @@ ws://drone-ip:7070/ws/drone-state
 - High frequency: 10 Hz (0.1s interval) - For precise monitoring
 - Medium frequency: 1 Hz (1s interval) - Recommended default
 - Low frequency: 0.5 Hz (2s interval) - For bandwidth-constrained networks
+
+### Current Contract
+
+- When state is available, each WebSocket message uses the same canonical
+  payload shape as `GET /api/v1/drone/state`.
+- When state is temporarily unavailable, the server sends the sentinel payload
+  `{"error": "Drone state not available", "timestamp": ...}`.
+- This endpoint is currently a one-way monitoring stream. Command submission
+  remains the HTTP route `POST /api/v1/drone/commands`.
 
 To change frequency, modify `asyncio.sleep()` value in endpoint code.
 
@@ -684,7 +693,7 @@ FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS mo
 
 ### Internal Docs
 - [Backend Analysis Report](../../BACKEND_ANALYSIS_REPORT.md) - Complete backend architecture
-- [GCS Server API](./gcs-server-api.md) - Ground Control Station API (TODO: Create)
+- [GCS Server API](./gcs-api-server.md) - Ground Control Station API
 - [Swarm Trajectory](../features/swarm-trajectory.md) - Swarm mission coordination
 
 ### Auto-Generated Docs
@@ -733,6 +742,6 @@ FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS mo
 
 ---
 
-**Last Updated:** 2025-11-22
+**Last Updated:** 2026-04-04
 **Maintainer:** MAVSDK Drone Show Team
 **License:** Same as main project

@@ -183,10 +183,11 @@ def create_core_router(deps: Any) -> APIRouter:
 
         try:
             while True:
+                heartbeat_snapshot = _build_heartbeat_response(deps)
                 message = HeartbeatStreamMessage(
                     type="heartbeat",
                     timestamp=int(time.time() * 1000),
-                    data=deps.get_all_heartbeats(),
+                    data=heartbeat_snapshot.heartbeats,
                 )
                 await websocket.send_json(message.model_dump())
                 await asyncio.sleep(2.0)

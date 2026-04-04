@@ -1293,6 +1293,10 @@ WebSocket endpoints provide real-time streaming for high-frequency data.
 
 The three current GCS WebSocket endpoints are intentional canonical transport roots, not temporary compatibility aliases.
 
+FastAPI/OpenAPI does not describe WebSocket contracts. For `/ws/*`, this
+section plus [`tests/test_gcs_api_websocket.py`](../../tests/test_gcs_api_websocket.py)
+are the source of truth.
+
 ### `WS /ws/telemetry`
 Real-time telemetry streaming (1 Hz).
 
@@ -1314,8 +1318,9 @@ ws.onmessage = (event) => {
   "data": {
     "1": {
       "pos_id": 0,
+      "hw_id": 1,
       "battery_voltage": 12.6,
-      "Position_Lat": 35.123456
+      "position_lat": 35.123456
     }
   }
 }
@@ -1347,14 +1352,32 @@ ws.onmessage = (event) => {
   "type": "git_status",
   "timestamp": 1700000000000,
   "data": {
-    "1": {
-      "pos_id": 0,
-      "status": "synced",
-      "current_branch": "main"
-    }
-  }
+    "git_status": {
+      "1": {
+        "pos_id": 1,
+        "hw_id": "1",
+        "branch": "main-candidate",
+        "status": "synced",
+        "in_sync_with_gcs": true
+      }
+    },
+    "total_drones": 1,
+    "synced_count": 1,
+    "needs_sync_count": 0,
+    "gcs_status": {
+      "branch": "main-candidate",
+      "commit": "abc12345"
+    },
+    "sync_in_progress": false,
+    "timestamp": 1700000000000
+  },
+  "sync_in_progress": false
 }
 ```
+
+`data` mirrors the canonical `GET /api/v1/git/status` snapshot body. The
+top-level `sync_in_progress` is a convenience copy for stream consumers that do
+not want to inspect the nested snapshot payload.
 
 ### `WS /ws/heartbeats`
 Real-time heartbeat monitoring (0.5 Hz).
@@ -1384,6 +1407,9 @@ ws.onmessage = (event) => {
   ]
 }
 ```
+
+`data` matches the `heartbeats` list from `GET /api/v1/fleet/heartbeats`; it is
+not the older raw internal heartbeat map.
 
 ---
 

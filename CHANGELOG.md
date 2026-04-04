@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 API closeout checkpoint note documenting the websocket-contract cleanup, the explicit deferred API follow-ups, the standing rules for future API additions, and the focused validation results
 - a 2026-04-04 Swarm Trajectory typed-contract checkpoint note documenting the typed success models, OpenAPI request/response cleanup, operational failure normalization, and the paired local/Hetzner validation results
 - a 2026-04-04 subsystem error-envelope checkpoint note documenting the Swarm Trajectory error-contract cleanup, the QuickScout/Swarm Trajectory OpenAPI response-metadata alignment, and the focused subsystem validation results
 - a 2026-04-04 GCS error-envelope and typed-mutation checkpoint note documenting the shared FastAPI error contract, the typed request-model cleanup for fleet/origin/swarm/show-management/GCS-config routes, and the paired local/Hetzner validation results
@@ -57,6 +58,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- `WS /ws/heartbeats` now emits the normalized heartbeat list contract documented in the GCS API instead of the older raw internal heartbeat map, and the old skipped GCS websocket suite was replaced with deterministic route-level contract coverage for telemetry, heartbeat, and git-status streams
+- the GCS and drone websocket API docs now match the live transport contracts more closely: GCS examples reflect the real payload shapes, and drone docs no longer claim bidirectional command transport over `WS /ws/drone-state`
 - the active Swarm Trajectory success surfaces now use typed GCS schema models and `response_model` contracts, so `/docs` and `/openapi.json` describe the real leaders/upload/recommendation/status/policy/process/clear/remove/commit payloads instead of leaving that domain as ad hoc dictionaries
 - `POST /api/v1/swarm-trajectories/process` and `POST /api/v1/swarm-trajectories/commit` now use typed optional request models, which removes the last manual request parsing in that route family and standardizes schema/body failures onto the shared `422 Validation error` envelope
 - Swarm Trajectory processing and clear-processed service failures now raise typed `SwarmTrajectoryError` instead of returning `200` with `success=false`, so transport success and operational success are no longer conflated on that domain boundary

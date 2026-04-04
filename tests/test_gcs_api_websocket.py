@@ -1,212 +1,155 @@
-# tests/test_gcs_api_websocket.py
-"""
-GCS API WebSocket Tests
-=======================
-Comprehensive test suite for GCS Server FastAPI WebSocket endpoints.
+"""Focused contract tests for the canonical GCS WebSocket streams."""
 
-Tests real-time streaming for:
-- Telemetry data (WS /ws/telemetry)
-- Git status (WS /ws/git-status)
-- Heartbeats (WS /ws/heartbeats)
-
-Author: MAVSDK Drone Show Test Team
-Last Updated: 2025-12-27
-"""
+import asyncio
+import threading
+import time
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
 import pytest
-import json
-import asyncio
-import signal
-import sys
-import os
-from unittest.mock import Mock, patch
-
-# Mock signal.signal BEFORE any imports that might use it
-_original_signal = signal.signal
-def _safe_signal(sig, handler):
-    """Safe signal registration that works in threads"""
-    try:
-        return _original_signal(sig, handler)
-    except ValueError:
-        # In a thread, just return None
-        return None
-
-signal.signal = _safe_signal
-
-# Path configuration is handled by conftest.py
-
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-
-@pytest.fixture
-def mock_telemetry_data():
-    """Mock telemetry data"""
-    return {
-        '1': {
-            'pos_id': 0,
-            'hw_id': '1',
-            'battery_voltage': 12.6,
-            'Position_Lat': 35.123456,
-            'Position_Long': -120.654321,
-            'armed': False
-        }
-    }
+from api_routes.core import create_core_router
+from api_routes.git_status import create_git_router
 
 
-@pytest.fixture
-def mock_git_status_data():
-    """Mock git status data"""
-    return {
-        '1': {
-            'pos_id': 1,
-            'hw_id': '1',
-            'status': 'clean',
-            'branch': 'main',
-            'commit': 'abc12345',
-            'commit_message': 'test commit',
-            'uncommitted_changes': []
-        }
-    }
+def _make_core_deps():
+    now_ms = int(time.time() * 1000)
+    return SimpleNamespace(
+        MDS_VERSION="test-version",
+        telemetry_data_all_drones={
+            1: {
+                "pos_id": 1,
+                "hw_id": 1,
+                "state": "idle",
+                "mission": 0,
+                "last_mission": 0,
+                "position_lat": 35.0,
+                "position_long": -120.0,
+                "position_alt": 488.0,
+                "velocity_north": 0.0,
+                "velocity_east": 0.0,
+                "velocity_down": 0.0,
+                "yaw": 180.0,
+                "battery_voltage": 12.4,
+                "follow_mode": 0,
+                "update_time": "2026-04-04 00:00:00",
+                "timestamp": 1_700_000_000_000,
+                "flight_mode": 65536,
+                "base_mode": 81,
+                "system_status": 4,
+                "is_armed": False,
+                "is_ready_to_arm": True,
+                "hdop": 0.8,
+                "vdop": 1.1,
+                "gps_fix_type": 3,
+                "satellites_visible": 12,
+                "ip": "10.0.0.1",
+                "telemetry_available": True,
+            }
+        },
+        Params=SimpleNamespace(TELEMETRY_POLLING_TIMEOUT=10),
+        handle_heartbeat_post=Mock(),
+        get_all_heartbeats=lambda: {
+            "1": {
+                "hw_id": "1",
+                "pos_id": 1,
+                "ip": "10.0.0.1",
+                "timestamp": now_ms,
+                "network_info": {"latency_ms": 12},
+            }
+        },
+        get_network_info_from_heartbeats=lambda: {
+            "1": {"reachable": True, "latency_ms": 12}
+        },
+        load_config=lambda: [{"hw_id": "1", "ip": "10.0.0.1"}],
+        log_system_event=lambda *args, **kwargs: None,
+        log_system_error=lambda *args, **kwargs: None,
+    )
 
 
-@pytest.fixture
-def test_client(mock_telemetry_data, mock_git_status_data):
-    """Create FastAPI test client with mocked dependencies"""
-    with patch('app_fastapi.load_config', return_value=[]):
-        with patch('app_fastapi.telemetry_data_all_drones', mock_telemetry_data):
-            with patch('app_fastapi.git_status_data_all_drones', mock_git_status_data):
-                from app_fastapi import app
-                client = TestClient(app)
-                yield client
+def _make_git_deps():
+    return SimpleNamespace(
+        Params=SimpleNamespace(GIT_BRANCH="main-candidate"),
+        load_config=lambda: [{"hw_id": "1", "pos_id": 1, "ip": "10.0.0.1"}],
+        get_gcs_git_report=lambda: {"branch": "main-candidate", "commit": "abc12345"},
+        git_status_data_all_drones={
+            "1": {
+                "status": "clean",
+                "branch": "main-candidate",
+                "commit": "abc12345",
+                "commit_message": "test commit",
+                "uncommitted_changes": [],
+            }
+        },
+        data_lock_git_status=threading.Lock(),
+        _sync_state={"active": False, "started_at": None, "results": None},
+        _sync_lock=asyncio.Lock(),
+        _select_sync_target_drones=lambda drones_config, pos_ids: (drones_config, []),
+        _verify_sync_targets=AsyncMock(return_value=([1], [])),
+        send_commands_to_all=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
+        send_commands_to_selected=Mock(return_value={"results": {"1": {"category": "accepted"}}}),
+        log_system_event=lambda *args, **kwargs: None,
+        log_system_error=lambda *args, **kwargs: None,
+    )
 
 
-# ============================================================================
-# Telemetry WebSocket Tests
-# ============================================================================
+def test_telemetry_websocket_streams_typed_message():
+    app = FastAPI()
+    app.include_router(create_core_router(_make_core_deps()))
 
-@pytest.mark.skip(reason="WebSocket tests require running background services - TODO: add proper mocking")
-class TestTelemetryWebSocket:
-    """Test WebSocket telemetry streaming
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/telemetry") as websocket:
+            payload = websocket.receive_json()
 
-    NOTE: These tests are skipped because they require real-time data from
-    background services that don't run in tests. Proper WebSocket testing
-    requires mocking the async generators or implementing test-specific
-    WebSocket handlers.
-    """
-
-    def test_websocket_telemetry_connection(self, test_client):
-        """Test WebSocket connection to /ws/telemetry"""
-        with test_client.websocket_connect("/ws/telemetry") as websocket:
-            # Receive first message
-            data = websocket.receive_json()
-
-            assert 'type' in data
-            assert data['type'] == 'telemetry'
-            assert 'timestamp' in data
-            assert 'data' in data
-
-    def test_websocket_telemetry_data_format(self, test_client, mock_telemetry_data):
-        """Test telemetry WebSocket data format"""
-        with test_client.websocket_connect("/ws/telemetry") as websocket:
-            data = websocket.receive_json()
-
-            assert data['type'] == 'telemetry'
-            assert isinstance(data['data'], dict)
-            assert '1' in data['data']
-            assert data['data']['1']['battery_voltage'] == 12.6
-
-    def test_websocket_telemetry_multiple_messages(self, test_client):
-        """Test receiving multiple telemetry messages"""
-        with test_client.websocket_connect("/ws/telemetry") as websocket:
-            # Receive multiple messages
-            for i in range(3):
-                data = websocket.receive_json()
-                assert 'type' in data
-                assert data['type'] == 'telemetry'
+    assert payload["type"] == "telemetry"
+    assert isinstance(payload["timestamp"], int)
+    assert "1" in payload["data"]
+    assert payload["data"]["1"]["battery_voltage"] == 12.4
+    assert payload["data"]["1"]["position_lat"] == 35.0
 
 
-# ============================================================================
-# Git Status WebSocket Tests
-# ============================================================================
+def test_heartbeat_websocket_streams_normalized_heartbeat_list():
+    app = FastAPI()
+    app.include_router(create_core_router(_make_core_deps()))
 
-@pytest.mark.skip(reason="WebSocket tests require running background services - TODO: add proper mocking")
-class TestGitStatusWebSocket:
-    """Test WebSocket git status streaming"""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/heartbeats") as websocket:
+            payload = websocket.receive_json()
 
-    def test_websocket_git_status_connection(self, test_client):
-        """Test WebSocket connection to /ws/git-status"""
-        with test_client.websocket_connect("/ws/git-status") as websocket:
-            data = websocket.receive_json()
-
-            assert 'type' in data
-            assert data['type'] == 'git_status'
-            assert 'timestamp' in data
-            assert 'data' in data
-
-    def test_websocket_git_status_data_format(self, test_client, mock_git_status_data):
-        """Test git status WebSocket data format"""
-        with test_client.websocket_connect("/ws/git-status") as websocket:
-            data = websocket.receive_json()
-
-            assert data['type'] == 'git_status'
-            assert isinstance(data['data'], dict)
-            assert '1' in data['data']
-            assert data['data']['1']['status'] == 'synced'
+    assert payload["type"] == "heartbeat"
+    assert isinstance(payload["timestamp"], int)
+    assert isinstance(payload["data"], list)
+    assert len(payload["data"]) == 1
+    assert payload["data"][0]["hw_id"] == "1"
+    assert payload["data"][0]["online"] is True
+    assert payload["data"][0]["latency_ms"] == 12
 
 
-# ============================================================================
-# Heartbeat WebSocket Tests
-# ============================================================================
+def test_git_status_websocket_streams_snapshot_shape():
+    app = FastAPI()
+    app.include_router(create_git_router(_make_git_deps()))
 
-@pytest.mark.skip(reason="WebSocket tests require running background services - TODO: add proper mocking")
-class TestHeartbeatWebSocket:
-    """Test WebSocket heartbeat streaming"""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/git-status") as websocket:
+            payload = websocket.receive_json()
 
-    @patch('app_fastapi.get_all_heartbeats')
-    def test_websocket_heartbeat_connection(self, mock_heartbeats, test_client):
-        """Test WebSocket connection to /ws/heartbeats"""
-        mock_heartbeats.return_value = [
-            {'pos_id': 0, 'hw_id': '1', 'online': True}
-        ]
-
-        with test_client.websocket_connect("/ws/heartbeats") as websocket:
-            data = websocket.receive_json()
-
-            assert 'type' in data
-            assert data['type'] == 'heartbeat'
-            assert 'timestamp' in data
-            assert 'data' in data
-
-    @patch('app_fastapi.get_all_heartbeats')
-    def test_websocket_heartbeat_data_format(self, mock_heartbeats, test_client):
-        """Test heartbeat WebSocket data format"""
-        mock_heartbeats.return_value = [
-            {'pos_id': 0, 'hw_id': '1', 'online': True},
-            {'pos_id': 1, 'hw_id': '2', 'online': False}
-        ]
-
-        with test_client.websocket_connect("/ws/heartbeats") as websocket:
-            data = websocket.receive_json()
-
-            assert data['type'] == 'heartbeat'
-            assert isinstance(data['data'], list)
-            assert len(data['data']) == 2
-            assert data['data'][0]['online'] == True
+    assert payload["type"] == "git_status"
+    assert isinstance(payload["timestamp"], int)
+    assert payload["sync_in_progress"] is False
+    assert payload["data"]["total_drones"] == 1
+    assert payload["data"]["synced_count"] == 1
+    assert payload["data"]["git_status"]["1"]["status"] == "synced"
+    assert payload["data"]["gcs_status"]["branch"] == "main-candidate"
 
 
-# ============================================================================
-# WebSocket Error Handling Tests
-# ============================================================================
+def test_websocket_invalid_endpoint():
+    app = FastAPI()
+    app.include_router(create_core_router(_make_core_deps()))
+    app.include_router(create_git_router(_make_git_deps()))
 
-class TestWebSocketErrorHandling:
-    """Test WebSocket error handling"""
-
-    def test_websocket_invalid_endpoint(self, test_client):
-        """Test connection to non-existent WebSocket endpoint"""
+    with TestClient(app) as client:
         with pytest.raises(Exception):
-            with test_client.websocket_connect("/ws/nonexistent"):
+            with client.websocket_connect("/ws/nonexistent"):
                 pass
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])

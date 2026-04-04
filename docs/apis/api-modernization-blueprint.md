@@ -1,7 +1,7 @@
 # API Modernization Blueprint
 
 Date: 2026-04-03
-Status: In progress
+Status: Core cleanup complete on `main-candidate`; deferred follow-ups tracked explicitly
 Owner: API audit / modernization stream
 
 ## Purpose
@@ -109,6 +109,19 @@ To support future MCP servers and LLM-based control flows, canonical routes shou
 - preserve enough machine-readable context for tool execution, retries, and postmortem analysis
 
 This work should make it straightforward to expose a later MCP layer without inventing a second parallel contract.
+
+## Ongoing Rules for New API Work
+
+From this checkpoint forward, new API work should follow these rules unless a
+design note explicitly records an exception:
+
+- new public HTTP business routes live under `/api/v1/...`
+- `/api/logs/*`, `/api/sar/*`, and `/ws/*` are the only current stable-root exceptions
+- new request and response bodies should use typed models instead of ad hoc dictionaries whenever practical
+- first-party callers, docs, and tests must move to the canonical route in the same slice; do not teach edge-only aliases as current behavior
+- any temporary compatibility alias must be called out explicitly with a retirement reason and follow-up checkpoint
+- route inventory, human-facing API docs, changelog, and checkpoint notes must be updated in the same change
+- future MCP/AI-agent consumers should get stable IDs, timestamps, actor/target context, and machine-readable error/details instead of UI-only strings
 
 ## Phase Plan
 
@@ -807,6 +820,31 @@ After this checkpoint, the remaining merge-readiness debt is narrower again:
 - tighten the WebSocket/OpenAPI contract where live stream payloads still drift from documented schemas
 - add clearer dormant auth/principal seams and richer actor context around privileged mutations
 - continue the drone-side error-envelope and typed-stream cleanup so merge readiness is end to end
+
+Phase 6 eighth closeout checkpoint on 2026-04-04:
+
+- fixed a real GCS stream-contract bug instead of leaving it as hidden debt:
+  - `WS /ws/heartbeats` now emits the normalized heartbeat list contract documented in the API docs and schema, rather than the older raw internal heartbeat map
+- replaced the old skipped GCS websocket test file with deterministic route-level contract coverage for:
+  - `WS /ws/telemetry`
+  - `WS /ws/heartbeats`
+  - `WS /ws/git-status`
+- corrected the human-facing websocket docs so they match the live contract:
+  - GCS telemetry docs now use the canonical snake_case payload fields
+  - GCS git-status docs now reflect the real nested snapshot shape streamed by `WS /ws/git-status`
+  - drone websocket docs no longer claim bidirectional command transport and now document the explicit no-state sentinel payload
+- documented the post-closeout deferred follow-ups explicitly instead of leaving them as implicit review notes:
+  - defer QuickScout/SAR typed success-surface cleanup until the subsystem itself is more mature
+  - defer a richer drone websocket event-envelope redesign until a real first-party consumer needs more than the current one-way state/error stream
+  - defer dormant auth/principal seams until after the next SITL/systematic validation gate and concrete customer auth requirements
+- treat the API modernization stream as closed for now on `main-candidate`, with the next major gate being systematic SITL regression on top of the cleaned contract rather than more route churn
+
+After this checkpoint, the remaining API debt is deliberate deferred follow-up work, not hidden contract drift:
+
+- QuickScout / SAR success-surface typing and OpenAPI cleanup after subsystem maturity
+- richer drone websocket event metadata only if a real consumer requires it
+- dormant auth/principal seams when enterprise auth requirements are scheduled
+- merge to `main` only after the next systematic SITL regression gate passes on the cleaned API surface
 
 ## Phase 1 Canonical Routes
 
