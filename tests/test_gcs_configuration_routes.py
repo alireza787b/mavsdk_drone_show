@@ -58,7 +58,7 @@ def test_configuration_router_uses_live_dependency_attributes_after_router_creat
     replacement_validate.assert_called_once()
 
 
-def test_configuration_router_preserves_client_error_status_for_invalid_payload():
+def test_configuration_router_returns_validation_error_for_invalid_payload_shape():
     deps = _make_deps()
     app = FastAPI()
     app.include_router(create_configuration_router(deps))
@@ -66,8 +66,8 @@ def test_configuration_router_preserves_client_error_status_for_invalid_payload(
     with TestClient(app) as client:
         response = client.put("/api/v1/config/fleet", json={"not": "a-list"})
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid configuration data format"
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "list_type"
 
 
 def test_configuration_router_get_drone_positions_uses_live_dependency_after_router_creation():

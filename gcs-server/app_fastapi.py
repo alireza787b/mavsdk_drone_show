@@ -33,13 +33,16 @@ from fastapi import (
     FastAPI, HTTPException, WebSocket, WebSocketDisconnect,
     UploadFile, File, Form, Request, Response, Query, Path as PathParam
 )
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Import schemas
 from schemas import *
+from api_errors import DEFAULT_ERROR_RESPONSES, build_error_payload, normalize_validation_errors
 
 # Configure base directories
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -513,15 +516,15 @@ app.add_middleware(
 
 # Register SAR router
 app.include_router(create_sar_router(sys.modules[__name__]))
-app.include_router(create_command_router(sys.modules[__name__]))
-app.include_router(create_core_router(sys.modules[__name__]))
-app.include_router(create_configuration_router(sys.modules[__name__]))
-app.include_router(create_git_router(sys.modules[__name__]))
-app.include_router(create_management_router(sys.modules[__name__]))
-app.include_router(create_origin_router(sys.modules[__name__]))
-app.include_router(create_show_management_router(sys.modules[__name__]))
-app.include_router(create_static_assets_router(sys.modules[__name__]))
-app.include_router(create_swarm_router(sys.modules[__name__]))
+app.include_router(create_command_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_core_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_configuration_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_git_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_origin_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_show_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_static_assets_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_swarm_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_swarm_trajectory_router(sys.modules[__name__]))
 
 # Background log puller (disabled by default, enable via MDS_LOG_BACKGROUND_PULL=true)
@@ -530,7 +533,7 @@ background_puller = BackgroundLogPuller()
 
 # Register Log API router (puller injected to avoid circular import)
 from log_routes import create_log_router
-app.include_router(create_log_router(puller=background_puller))
+app.include_router(create_log_router(puller=background_puller), responses=DEFAULT_ERROR_RESPONSES)
 
 
 # ============================================================================
@@ -683,31 +686,44 @@ async def _verify_sync_targets(
 # Error Handlers
 # ============================================================================
 
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    """Handle 404 errors"""
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    """Return one consistent validation-error envelope for typed request parsing."""
     return JSONResponse(
-        status_code=404,
-        content=ErrorResponse(
-            error="Not found",
-            timestamp=int(time.time() * 1000),
-            path=str(request.url.path)
-        ).model_dump()
+        status_code=422,
+        content=build_error_payload(
+            request,
+            status_code=422,
+            detail=normalize_validation_errors(exc),
+        ),
     )
 
 
-@app.exception_handler(500)
-async def internal_error_handler(request: Request, exc):
-    """Handle 500 errors"""
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    """Return one consistent HTTP-error envelope for FastAPI and Starlette errors."""
+    if exc.status_code >= 500:
+        log_system_error(f"HTTP {exc.status_code} on {request.url.path}: {exc.detail}", "api")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=build_error_payload(
+            request,
+            status_code=exc.status_code,
+            detail=None if exc.status_code >= 500 else exc.detail,
+        ),
+    )
+
+
+@app.exception_handler(Exception)
+async def internal_error_handler(request: Request, exc: Exception):
+    """Handle uncaught server errors without exposing raw internals to clients."""
     log_system_error(f"Internal error on {request.url.path}: {exc}", "api")
     return JSONResponse(
         status_code=500,
-        content=ErrorResponse(
-            error="Internal server error",
-            detail=str(exc),
-            timestamp=int(time.time() * 1000),
-            path=str(request.url.path)
-        ).model_dump()
+        content=build_error_payload(
+            request,
+            status_code=500,
+        ),
     )
 
 

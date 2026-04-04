@@ -358,10 +358,11 @@ class TestConfigurationEndpoints:
         assert 'summary' in data
 
     def test_save_config_rejects_invalid_format(self, test_client):
-        """Test PUT /api/v1/config/fleet preserves 400 for invalid client payload shape."""
+        """Test PUT /api/v1/config/fleet returns typed validation errors for invalid payload shape."""
         response = test_client.request("PUT", "/api/v1/config/fleet", json={"not": "a-list"})
-        assert response.status_code == 400
-        assert response.json()['detail'] == "Invalid configuration data format"
+        assert response.status_code == 422
+        assert response.json()['error'] == "Validation error"
+        assert response.json()['detail'][0]['type'] == "list_type"
 
 
 # ============================================================================
@@ -1331,7 +1332,14 @@ class TestSwarmEndpoints:
         assert response.status_code == 200
         assert response.json() == {
             'version': 1,
-            'assignments': [{'hw_id': 1, 'follow': 0}],
+            'assignments': [{
+                'hw_id': 1,
+                'follow': 0,
+                'offset_x': 0.0,
+                'offset_y': 0.0,
+                'offset_z': 0.0,
+                'frame': 'ned',
+            }],
         }
 
     @patch('app_fastapi.load_swarm')
@@ -1344,7 +1352,14 @@ class TestSwarmEndpoints:
         assert response.status_code == 200
         assert response.json() == {
             'version': 1,
-            'assignments': [{'hw_id': 1, 'follow': 0}],
+            'assignments': [{
+                'hw_id': 1,
+                'follow': 0,
+                'offset_x': 0.0,
+                'offset_y': 0.0,
+                'offset_z': 0.0,
+                'frame': 'ned',
+            }],
         }
 
     @patch('app_fastapi.save_swarm')
@@ -1364,7 +1379,17 @@ class TestSwarmEndpoints:
 
         assert response.status_code == 200
         assert response.json()['status'] == 'success'
-        assert response.json()['config'] == swarm_data
+        assert response.json()['config'] == {
+            'version': 1,
+            'assignments': [{
+                'hw_id': 1,
+                'follow': 0,
+                'offset_x': 0.0,
+                'offset_y': 0.0,
+                'offset_z': 0.0,
+                'frame': 'ned',
+            }],
+        }
 
     @patch('app_fastapi.save_swarm')
     def test_save_swarm_data_rejects_cycles(self, mock_save, test_client):
@@ -1958,6 +1983,8 @@ class TestErrorHandling:
         """Test 404 error for non-existent endpoint"""
         response = test_client.get("/nonexistent-endpoint")
         assert response.status_code == 404
+        assert response.json()["error"] == "Not found"
+        assert response.json()["path"] == "/nonexistent-endpoint"
 
     def test_invalid_json(self, test_client):
         """Test handling of invalid JSON in POST request"""
@@ -1967,7 +1994,9 @@ class TestErrorHandling:
             data="invalid json",
             headers={"Content-Type": "application/json"}
         )
-        assert response.status_code in [400, 422, 500]
+        assert response.status_code == 422
+        assert response.json()["error"] == "Validation error"
+        assert response.json()["detail"][0]["type"] == "json_invalid"
 
 
 class TestAPIV1Aliases:

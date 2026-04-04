@@ -1,12 +1,18 @@
 """Show-management routes extracted from the GCS FastAPI monolith."""
 
 import asyncio
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 
-from schemas import CustomShowImportResponse, CustomShowInfoResponse, ShowImportResponse
+from schemas import (
+    CustomShowImportResponse,
+    CustomShowInfoResponse,
+    ShowDeploymentRequest,
+    ShowDeploymentResponse,
+    ShowImportResponse,
+)
 from show_management import (
     build_comprehensive_metrics_payload,
     build_custom_show_info_payload,
@@ -163,13 +169,13 @@ def create_show_management_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Error validating trajectory: {exc}") from exc
 
-    @router.post("/api/v1/shows/skybrush/deployments", tags=["Show Management"])
-    async def deploy_show(request: Request):
+    @router.post("/api/v1/shows/skybrush/deployments", response_model=ShowDeploymentResponse, tags=["Show Management"])
+    async def deploy_show(payload: Optional[ShowDeploymentRequest] = None):
         """Commit and push show changes for the fleet."""
         try:
-            content_type = request.headers.get("content-type", "")
-            data = await request.json() if content_type.startswith("application/json") else {}
-            commit_message = data.get("message", f"Deploy drone show: {deps.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            commit_message = (payload.message if payload else None) or (
+                f"Deploy drone show: {deps.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
 
             loop = asyncio.get_running_loop()
             git_result = await loop.run_in_executor(
@@ -178,11 +184,11 @@ def create_show_management_router(deps: Any) -> APIRouter:
             )
 
             if git_result.get("success"):
-                return JSONResponse(content={
-                    "success": True,
-                    "message": "Show deployed successfully to drone fleet",
-                    "git_info": git_result,
-                })
+                return ShowDeploymentResponse(
+                    success=True,
+                    message="Show deployed successfully to drone fleet",
+                    git_info=git_result,
+                )
 
             raise HTTPException(status_code=500, detail=f"Deployment failed: {git_result.get('message')}")
         except HTTPException:

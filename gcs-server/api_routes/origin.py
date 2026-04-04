@@ -6,10 +6,16 @@ import time
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import JSONResponse
 
-from schemas import GPSGlobalOriginResponse, OriginRequest, OriginResponse
+from schemas import (
+    GPSGlobalOriginResponse,
+    OriginComputeRequest,
+    OriginComputeResponse,
+    OriginRequest,
+    OriginResponse,
+)
 
 
 _LAUNCH_POSITION_FORMATS = {"json", "csv", "kml"}
@@ -268,26 +274,13 @@ def create_origin_router(deps: Any) -> APIRouter:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @router.post("/api/v1/origin/compute", tags=["Origin"])
-    async def compute_origin_endpoint(request: Request):
+    @router.post("/api/v1/origin/compute", response_model=OriginComputeResponse, tags=["Origin"])
+    async def compute_origin_endpoint(payload: OriginComputeRequest):
         """Compute origin coordinates from a drone's current position and assigned launch slot."""
         try:
-            data = await request.json()
-
-            required_fields = ["current_lat", "current_lon", "pos_id"]
-            missing_fields = [field for field in required_fields if field not in data]
-            if missing_fields:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Missing required field(s): {', '.join(missing_fields)}",
-                )
-
-            try:
-                current_lat = float(data.get("current_lat"))
-                current_lon = float(data.get("current_lon"))
-                pos_id = data.get("pos_id")
-            except (TypeError, ValueError) as exc:
-                raise HTTPException(status_code=400, detail=f"Invalid input data types: {exc}") from exc
+            current_lat = float(payload.current_lat)
+            current_lon = float(payload.current_lon)
+            pos_id = int(payload.pos_id)
 
             sim_mode = getattr(deps.Params, "sim_mode", False)
             intended_north, intended_east = deps.get_expected_position_from_trajectory(pos_id, sim_mode)
@@ -305,7 +298,7 @@ def create_origin_router(deps: Any) -> APIRouter:
                 intended_east,
             )
 
-            return JSONResponse(content={"status": "success", "lat": origin_lat, "lon": origin_lon})
+            return OriginComputeResponse(status="success", lat=origin_lat, lon=origin_lon)
         except HTTPException:
             raise
         except Exception as exc:

@@ -2,10 +2,10 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from schemas import GCSConfigResponse, GCSConfigSaveResponse
+from schemas import GCSConfigResponse, GCSConfigSaveResponse, GCSConfigUpdateRequest
 
 
 def _build_gcs_config_response(deps: Any) -> GCSConfigResponse:
@@ -29,7 +29,7 @@ def create_management_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.put("/api/v1/system/gcs-config", response_model=GCSConfigSaveResponse, tags=["GCS Management"])
-    async def save_gcs_config(request: Request):
+    async def save_gcs_config(payload: GCSConfigUpdateRequest | None = None):
         """Stub acknowledgement for GCS config updates.
 
         The current UI expects an ACK surface here, but the FastAPI runtime does not
@@ -37,9 +37,7 @@ def create_management_router(deps: Any) -> APIRouter:
         instead of pretending a durable save occurred.
         """
         try:
-            data = await request.json()
-            if not isinstance(data, dict):
-                raise HTTPException(status_code=400, detail="GCS configuration payload must be a JSON object")
+            del payload
 
             return GCSConfigSaveResponse(
                 success=True,

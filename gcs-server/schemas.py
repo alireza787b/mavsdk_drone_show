@@ -88,6 +88,17 @@ class FleetConfig(BaseModel):
     drones: List[DroneConfig]
 
 
+class FleetConfigEntryPayload(BaseModel):
+    """Permissive fleet-config entry payload for the live dashboard contract."""
+    model_config = ConfigDict(extra='allow')
+
+    hw_id: Optional[Union[int, str]] = Field(None, description="Hardware ID")
+    pos_id: Optional[int] = Field(None, ge=1, description="Position ID")
+    ip: Optional[str] = Field(None, description="IP address")
+    mavlink_port: Optional[int] = Field(None, ge=1, description="MAVLink UDP port")
+    connection_str: Optional[str] = Field(None, description="Legacy connection string")
+
+
 class SwarmAssignment(BaseModel):
     """Individual swarm assignment for swarm.json"""
     model_config = ConfigDict(extra='allow')
@@ -104,6 +115,32 @@ class SwarmConfig(BaseModel):
     """Top-level swarm.json schema"""
     version: int = Field(1, ge=1, description="Schema version")
     assignments: List[SwarmAssignment]
+
+
+class SwarmConfigSaveResponse(BaseModel):
+    """Response for PUT /api/v1/config/swarm"""
+    status: str = Field(..., description="Save status")
+    message: str = Field(..., description="Operator-facing result summary")
+    config: SwarmConfig = Field(..., description="Persisted swarm configuration resource")
+    git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if auto-push enabled")
+
+
+class SwarmAssignmentPatchRequest(BaseModel):
+    """Patch payload for one saved swarm assignment."""
+    model_config = ConfigDict(extra='forbid')
+
+    follow: Optional[int] = Field(None, ge=0, description="Leader hw_id to follow (0 = independent)")
+    offset_x: Optional[float] = Field(None, description="Offset axis 1: North (ned) or Forward (body), meters")
+    offset_y: Optional[float] = Field(None, description="Offset axis 2: East (ned) or Right (body), meters")
+    offset_z: Optional[float] = Field(None, description="Offset axis 3: Up (positive = higher), meters")
+    frame: Optional[str] = Field(None, pattern=r'^(ned|body)$', description="Coordinate frame override")
+
+
+class SwarmAssignmentUpdateResponse(BaseModel):
+    """Response for PATCH /api/v1/config/swarm/assignments/{hw_id}"""
+    status: str = Field(..., description="Update status")
+    message: str = Field(..., description="Operator-facing result summary")
+    assignment: SwarmAssignment = Field(..., description="Updated saved assignment")
 
 
 class ConfigListResponse(BaseModel):
@@ -442,6 +479,28 @@ class ShowImportResponse(BaseModel):
     git_info: Optional[Dict[str, Any]] = Field(None, description="Git auto-push result when enabled")
 
 
+class ShowDeploymentRequest(BaseModel):
+    """Optional deployment metadata for POST /api/v1/shows/skybrush/deployments."""
+    model_config = ConfigDict(extra='forbid')
+
+    message: Optional[str] = Field(None, min_length=1, description="Optional git commit message override")
+
+    @field_validator("message", mode="before")
+    @classmethod
+    def _normalize_show_deployment_message(cls, value):
+        if value in (None, ""):
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+
+class ShowDeploymentResponse(BaseModel):
+    """Response for POST /api/v1/shows/skybrush/deployments."""
+    success: bool = Field(..., description="Deployment success status")
+    message: str = Field(..., description="Operator-facing deployment result")
+    git_info: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result")
+
+
 class CustomShowInfoResponse(BaseModel):
     """Response for GET /api/v1/shows/custom"""
     exists: bool = Field(..., description="Whether an active custom CSV exists")
@@ -497,6 +556,20 @@ class OriginRequest(BaseModel):
     alt_source: Optional[str] = Field('manual', description="Altitude source (manual/drone)")
 
 
+class OriginComputeRequest(BaseModel):
+    """Request for computing origin from a live drone position plus assigned slot."""
+    current_lat: float = Field(..., ge=-90, le=90, description="Current drone latitude")
+    current_lon: float = Field(..., ge=-180, le=180, description="Current drone longitude")
+    pos_id: int = Field(..., ge=1, description="Assigned launch-slot position ID")
+
+
+class OriginComputeResponse(BaseModel):
+    """Response for POST /api/v1/origin/compute."""
+    status: str = Field(..., description="Computation status")
+    lat: float = Field(..., description="Computed origin latitude")
+    lon: float = Field(..., description="Computed origin longitude")
+
+
 class OriginResponse(BaseModel):
     """Response for canonical origin read/write endpoints"""
     lat: float = Field(..., description="Origin latitude")
@@ -520,6 +593,16 @@ class GCSConfigResponse(BaseModel):
     gcs_port: int = Field(..., ge=1, description="Configured GCS API port")
     git_auto_push: bool = Field(..., description="Whether git auto-push is enabled")
     acceptable_deviation: float = Field(..., ge=0, description="Allowed launch-position deviation in meters")
+
+
+class GCSConfigUpdateRequest(BaseModel):
+    """Request payload for the current GCS-config ACK stub."""
+    model_config = ConfigDict(extra='allow')
+
+    sim_mode: Optional[bool] = Field(None, description="Requested simulation mode flag")
+    gcs_port: Optional[int] = Field(None, ge=1, description="Requested GCS API port")
+    git_auto_push: Optional[bool] = Field(None, description="Requested git auto-push flag")
+    acceptable_deviation: Optional[float] = Field(None, ge=0, description="Requested acceptable launch deviation")
 
 
 class GCSConfigSaveResponse(BaseModel):
@@ -567,7 +650,7 @@ class HealthCheckResponse(BaseModel):
 
 class ErrorDetail(BaseModel):
     """Detailed error information"""
-    loc: Optional[List[str]] = Field(None, description="Error location path")
+    loc: Optional[List[Union[str, int]]] = Field(None, description="Error location path")
     msg: str = Field(..., description="Error message")
     type: str = Field(..., description="Error type")
 

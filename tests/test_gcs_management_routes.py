@@ -78,8 +78,8 @@ def test_management_router_save_gcs_config_rejects_non_object_payload():
     with TestClient(app) as client:
         response = client.put("/api/v1/system/gcs-config", json=["not", "an", "object"])
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "GCS configuration payload must be a JSON object"
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["type"] == "model_attributes_type"
 
 
 def test_management_router_get_network_info_uses_live_dependency_after_router_creation():

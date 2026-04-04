@@ -3,8 +3,16 @@
 import asyncio
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+
+from schemas import (
+    SwarmAssignment,
+    SwarmAssignmentPatchRequest,
+    SwarmAssignmentUpdateResponse,
+    SwarmConfig,
+    SwarmConfigSaveResponse,
+)
 
 
 def _normalize_swarm_hw_id(value: Any) -> Optional[int]:
@@ -167,17 +175,19 @@ def _apply_swarm_assignment_patch(deps: Any, hw_id: int, data: dict[str, Any]) -
 def create_swarm_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/api/v1/config/swarm", tags=["Swarm"])
+    @router.get("/api/v1/config/swarm", response_model=SwarmConfig, tags=["Swarm"])
     async def get_swarm_config():
         try:
-            return JSONResponse(content=_build_swarm_config_resource(deps.load_swarm()))
+            return SwarmConfig.model_validate(_build_swarm_config_resource(deps.load_swarm()))
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @router.put("/api/v1/config/swarm", tags=["Swarm"])
-    async def put_swarm_config(request: Request, commit: Optional[bool] = Query(None)):
+    @router.put("/api/v1/config/swarm", response_model=SwarmConfigSaveResponse, tags=["Swarm"])
+    async def put_swarm_config(payload: SwarmConfig, commit: Optional[bool] = Query(None)):
         try:
-            swarm_data = _parse_swarm_config_payload(await request.json())
+            swarm_data = [assignment.model_dump(exclude_none=True) for assignment in payload.assignments]
+            if not swarm_data:
+                raise HTTPException(status_code=400, detail="No swarm data provided")
             _validate_swarm_cycle_constraints(swarm_data)
 
             deps.log_system_event("💾 Swarm configuration update received", "INFO", "swarm")
@@ -193,44 +203,32 @@ def create_swarm_router(deps: Any) -> APIRouter:
                     None, deps.git_operations, deps.BASE_DIR, "config: update swarm.json via dashboard"
                 )
 
-            return JSONResponse(content={
-                "status": "success",
-                "message": "Swarm configuration saved successfully",
-                "config": _build_swarm_config_resource(swarm_data),
-                "git_result": git_result,
-            })
+            return SwarmConfigSaveResponse(
+                status="success",
+                message="Swarm configuration saved successfully",
+                config=SwarmConfig(version=int(payload.version), assignments=payload.assignments),
+                git_result=git_result,
+            )
 
         except HTTPException:
             raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @router.patch("/api/v1/config/swarm/assignments/{hw_id}", tags=["Swarm"])
-    async def patch_swarm_assignment(hw_id: int, request: Request):
+    @router.patch("/api/v1/config/swarm/assignments/{hw_id}", response_model=SwarmAssignmentUpdateResponse, tags=["Swarm"])
+    async def patch_swarm_assignment(hw_id: int, payload: SwarmAssignmentPatchRequest):
         try:
-            data = await request.json()
+            data = payload.model_dump(exclude_unset=True, exclude_none=True)
 
-            if not isinstance(data, dict):
-                raise HTTPException(status_code=400, detail="Swarm assignment patch must be a JSON object")
-
-            payload_hw_id = data.get("hw_id")
-            if payload_hw_id is not None and _normalize_swarm_hw_id(payload_hw_id) != hw_id:
-                raise HTTPException(status_code=400, detail="Payload hw_id must match the path hw_id")
-
-            data = {
-                **data,
-                "hw_id": hw_id,
-            }
-
-            if len(data) == 1:
+            if not data:
                 raise HTTPException(status_code=400, detail="No swarm assignment changes provided")
-            updated_assignment = _apply_swarm_assignment_patch(deps, hw_id, data)
+            updated_assignment = _apply_swarm_assignment_patch(deps, hw_id, {"hw_id": hw_id, **data})
 
-            return JSONResponse(content={
-                "status": "success",
-                "message": "Swarm assignment updated",
-                "assignment": updated_assignment,
-            })
+            return SwarmAssignmentUpdateResponse(
+                status="success",
+                message="Swarm assignment updated",
+                assignment=SwarmAssignment.model_validate(updated_assignment),
+            )
         except HTTPException:
             raise
         except Exception as exc:

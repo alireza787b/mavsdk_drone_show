@@ -729,6 +729,30 @@ After this checkpoint, the main remaining merge-readiness debt is narrower and m
 - add dormant auth/security metadata and clearer actor/origin seams so customer auth can be enabled later without redesigning the mutation envelope
 - keep tightening telemetry/stream metadata for MCP and agent consumers instead of leaving mixed `Any` payload pockets
 
+Phase 6 fifth checkpoint on 2026-04-04:
+
+- added `gcs-server/api_errors.py` as the shared GCS HTTP error-envelope helper and OpenAPI response map for the canonical FastAPI router families
+- normalized request-validation failures onto one machine-readable `422 Validation error` envelope with structured `detail[]` entries instead of leaving each typed route to surface the raw FastAPI default payload ad hoc
+- normalized regular `HTTPException` and uncaught server failures for the cleaned GCS routers so clients now receive one shared `ErrorResponse` envelope with stable `error`, `detail`, `timestamp`, and `path` fields
+- replaced remaining high-value manual JSON parsing with typed request/response models for:
+  - fleet config reads/writes and validation
+  - GCS config stub writes
+  - origin compute
+  - swarm config read/write and per-assignment patch
+  - Drone Show deployment
+- tightened the canonical swarm resource contract so read/write responses now return the normalized assignment objects, including defaulted `offset_*` fields and `frame`
+- deliberately left `Swarm Trajectory` and `QuickScout / SAR` on their existing specialized operation envelopes for now instead of pretending the entire GCS surface is already uniform
+- revalidated the slice locally and on Hetzner with the focused backend contract batch:
+  - local batch: `275 passed, 1 skipped`
+  - Hetzner batch: `275 passed, 1 skipped`
+
+After this checkpoint, the remaining merge-readiness debt is narrower and explicit:
+
+- normalize the remaining subsystem-specific error envelopes in `Swarm Trajectory` and `QuickScout / SAR`
+- tighten the WebSocket/OpenAPI contract where the current typed schemas still drift from the live stream payloads
+- add clearer dormant auth/principal seams and richer actor context around privileged mutations
+- continue the drone-side error-envelope and typed-stream cleanup so the public API is merge-ready end to end
+
 ## Phase 1 Canonical Routes
 
 The first alias slice introduces these canonical entry points:

@@ -152,6 +152,9 @@ Save drone configuration to config.json.
 }
 ```
 
+Invalid or non-list JSON payloads now return the shared `422 Validation error`
+envelope instead of route-local string errors.
+
 #### `POST /api/v1/config/fleet/validation`
 Validate configuration without saving.
 
@@ -168,6 +171,9 @@ Validate configuration without saving.
   }
 }
 ```
+
+Invalid or non-list JSON payloads now return the shared `422 Validation error`
+envelope.
 
 #### `GET /api/v1/config/fleet/trajectory-start-positions`
 Get initial positions for all drones from trajectory CSV files.
@@ -426,6 +432,9 @@ This endpoint is compute-only. It returns the candidate origin and does not pers
 }
 ```
 
+Malformed JSON or missing/invalid required fields now return the shared
+validation envelope instead of route-local `400` parsing errors.
+
 #### `GET /api/v1/origin/deviations`
 Calculate position deviations for all drones.
 
@@ -673,6 +682,9 @@ Deploy show changes to git repository for drone fleet.
 }
 ```
 
+The request body is optional. When provided, it must be a JSON object with an
+optional `message` field.
+
 ---
 
 ### Swarm Management
@@ -729,10 +741,22 @@ Save the canonical swarm configuration resource.
   "message": "Swarm configuration saved successfully",
   "config": {
     "version": 1,
-    "assignments": []
+    "assignments": [
+      {
+        "hw_id": 1,
+        "follow": 0,
+        "offset_x": 0,
+        "offset_y": 0,
+        "offset_z": 0,
+        "frame": "ned"
+      }
+    ]
   }
 }
 ```
+
+The canonical response returns the normalized assignment resource, including the
+defaulted offset fields and frame for each assignment.
 
 #### `PATCH /api/v1/config/swarm/assignments/{hw_id}`
 Patch a saved swarm assignment for one hardware drone.
@@ -751,6 +775,9 @@ together for a single saved assignment.
   "frame": "body"
 }
 ```
+
+The `hw_id` path parameter owns the target resource. The request body no longer
+accepts a second `hw_id` field.
 
 **Response:**
 ```json
@@ -1202,6 +1229,10 @@ The current implementation is an explicit stub acknowledgement. It validates the
 }
 ```
 
+The current implementation still does not persist config, but malformed or
+non-object JSON payloads now return the shared `422 Validation error` envelope
+instead of route-local string errors.
+
 ---
 
 ### Stable Subsystem Roots
@@ -1343,7 +1374,10 @@ Currently, no authentication is required. In production deployments, consider ad
 
 ## Error Handling
 
-All endpoints return consistent error responses:
+Canonical FastAPI HTTP routes that use the shared exception path now return one
+consistent error envelope. A few subsystem routes still intentionally use
+specialized operation envelopes until those domains are normalized further
+(`Swarm Trajectory` and `QuickScout / SAR` are the main remaining cases).
 
 **Error Response Format:**
 ```json

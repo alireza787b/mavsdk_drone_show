@@ -3,10 +3,10 @@
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Path as PathParam, Request
+from fastapi import APIRouter, HTTPException, Path as PathParam
 from fastapi.responses import JSONResponse
 
-from schemas import ConfigUpdateResponse
+from schemas import ConfigUpdateResponse, FleetConfigEntryPayload
 
 
 def _get_trajectory_start_position_payload(deps: Any, pos_id: int) -> dict[str, Any]:
@@ -27,30 +27,26 @@ def _get_trajectory_start_position_payload(deps: Any, pos_id: int) -> dict[str, 
 def create_configuration_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/api/v1/config/fleet", tags=["Configuration"])
+    @router.get("/api/v1/config/fleet", response_model=list[FleetConfigEntryPayload], tags=["Configuration"])
     async def get_config():
         """Get current drone configuration."""
         try:
-            return JSONResponse(content=deps.load_config())
+            return deps.load_config()
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Error loading configuration: {exc}") from exc
 
     @router.put("/api/v1/config/fleet", response_model=ConfigUpdateResponse, tags=["Configuration"])
-    async def save_config_route(request: Request):
+    async def save_config_route(config_data: list[FleetConfigEntryPayload]):
         """Validate and save drone configuration."""
         try:
-            config_data = await request.json()
-
             if not config_data:
                 raise HTTPException(status_code=400, detail="No configuration data provided")
 
             deps.log_system_event("💾 Configuration update received", "INFO", "config")
-
-            if not isinstance(config_data, list):
-                raise HTTPException(status_code=400, detail="Invalid configuration data format")
+            normalized_config = [entry.model_dump(exclude_none=True) for entry in config_data]
 
             sim_mode = getattr(deps.Params, "sim_mode", False)
-            report = deps.validate_and_process_config(config_data, sim_mode)
+            report = deps.validate_and_process_config(normalized_config, sim_mode)
 
             deps.save_config(report["updated_config"])
             deps.log_system_event("✅ Configuration saved successfully", "INFO", "config")
@@ -79,16 +75,17 @@ def create_configuration_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.post("/api/v1/config/fleet/validation", tags=["Configuration"])
-    async def validate_config_route(request: Request):
+    async def validate_config_route(config_data: list[FleetConfigEntryPayload]):
         """Validate configuration without saving it."""
         try:
-            config_data = await request.json()
-
             if not config_data:
                 raise HTTPException(status_code=400, detail="No configuration data provided")
 
             sim_mode = getattr(deps.Params, "sim_mode", False)
-            report = deps.validate_and_process_config(config_data, sim_mode)
+            report = deps.validate_and_process_config(
+                [entry.model_dump(exclude_none=True) for entry in config_data],
+                sim_mode,
+            )
             return JSONResponse(content=report)
         except HTTPException:
             raise
