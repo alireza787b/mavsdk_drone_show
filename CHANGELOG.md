@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-04 SITL release refresh checkpoint note documenting the final deferred-debt audit result, the low-space release packaging fix, the stale Hetzner validation-tree cleanup, and the refreshed packaged image publication flow
 - a 2026-04-04 SITL plan-library checkpoint note documenting the checked-in `tools/sitl_plans/` scenario library, the named-plan CLI entrypoint, the currently validated scenario coverage, and the deferred advanced combined-mode boundary
 - a 2026-04-04 SITL validation-platform phase 2 checkpoint note documenting the new Mission Config/origin runtime validator, the `config_only` template, the host-agnostic validator/runtime-root guidance, the full live Hetzner operator-regression pass, and the updated AI-agent/runtime docs
 - a 2026-04-04 SITL clean-image regression checkpoint note documenting the stale mixed-runtime finding, the fully green Hetzner operator-regression run on a rebuilt pinned image, and the post-validation host cleanup
@@ -62,6 +63,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- Docker SITL release packaging no longer requires a full intermediate `.tar` on disk when compression is enabled and `--keep-tar` is not requested; `tools/package_sitl_image.sh` now streams `docker save` directly into `7z`, which keeps the release workflow viable on smaller VPS hosts
 - Hetzner promotion-style SITL validation is now documented against the mode that actually proved stable in practice: fresh rebuilt image, fresh fleet recreation, and boot-time repo/dependency sync disabled during the regression run
 - the reusable SITL suite is no longer just a hardcoded mission wrapper: it now supports the standalone action-control drill, plan-hash/provenance capture, side-effect-free dry-run, final reset/failure cleanup behavior, and explicit deferred QuickScout tracking for future expansion
 - Swarm Trajectory short-profile preparation no longer leaves shared raw leader CSVs mutated after a validation run; the validator now snapshots the original raw profiles, restores them in a finalization step, and records the restore result in the JSON summary

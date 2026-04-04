@@ -37,6 +37,9 @@ Notes:
   - When compression is enabled, the generated .7z is verified with '7z t'.
   - Compression writes a .sha256 checksum and manifest. The raw tar is deleted
     after compression unless --keep-tar is set.
+  - When compression is enabled without --keep-tar, packaging streams
+    'docker save' directly into 7z to avoid large intermediate tar files on
+    disk-constrained hosts.
 EOF
 }
 
@@ -137,9 +140,6 @@ manifest_path="${OUTPUT_DIR}/${ARCHIVE_BASENAME}.manifest.json"
 
 log "Packaging Docker SITL image"
 log "  Image refs : ${unique_refs[*]}"
-log "  Tar output : ${tar_path}"
-
-docker save -o "$tar_path" "${unique_refs[@]}"
 
 tar_file="$(basename "$tar_path")"
 tar_sha_file=""
@@ -148,7 +148,14 @@ if [[ "$COMPRESS" == true ]]; then
     rm -f "$archive_path"
     rm -f "$archive_sha_path"
     log "  7z output  : ${archive_path}"
-    7z a "$archive_path" "$tar_path" >/dev/null
+    if [[ "$KEEP_TAR" == "true" ]]; then
+        log "  Tar output : ${tar_path}"
+        docker save -o "$tar_path" "${unique_refs[@]}"
+        7z a "$archive_path" "$tar_path" >/dev/null
+    else
+        log "  Tar stream : ${ARCHIVE_BASENAME}.tar"
+        docker save "${unique_refs[@]}" | 7z a "$archive_path" "-si${ARCHIVE_BASENAME}.tar" >/dev/null
+    fi
     log "  7z verify  : ${archive_path}"
     7z t "$archive_path" >/dev/null
     sha256sum "$archive_path" > "$archive_sha_path"
@@ -156,11 +163,11 @@ if [[ "$COMPRESS" == true ]]; then
         sha256sum "$tar_path" > "$tar_sha_path"
         tar_sha_file="$(basename "$tar_sha_path")"
     else
-        rm -f "$tar_path"
-        rm -f "$tar_sha_path"
         tar_file=""
     fi
 else
+    log "  Tar output : ${tar_path}"
+    docker save -o "$tar_path" "${unique_refs[@]}"
     sha256sum "$tar_path" > "$tar_sha_path"
     tar_sha_file="$(basename "$tar_sha_path")"
 fi

@@ -127,6 +127,8 @@ This does all of the following:
 - preserves PX4 provenance metadata
 - tags the image as `latest`, the release tag, and the baked commit tag
 - exports a stable archive basename
+- streams `docker save` directly into `7z` by default when the raw tar is not
+  meant to be retained, so packaging stays viable on disk-constrained VPS hosts
 - verifies the resulting `.7z`
 - writes checksum and manifest files
 
