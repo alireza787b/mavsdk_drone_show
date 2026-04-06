@@ -92,6 +92,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    window.innerWidth = 1024;
     useFetch.mockReturnValue({
       data: { git_auto_push: false },
       error: null,
@@ -117,6 +118,10 @@ describe('SwarmTrajectory git writeback messaging', () => {
     processTrajectories.mockResolvedValue({ success: true });
     removeSwarmTrajectoryUpload.mockResolvedValue({ success: true });
     uploadSwarmTrajectory.mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    window.innerWidth = 1024;
   });
 
   test('labels commit step as local-only when GCS auto-push is disabled', async () => {
@@ -200,5 +205,22 @@ describe('SwarmTrajectory git writeback messaging', () => {
     expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
     expect(screen.getByText(/resolve the listed attention items, and reprocess before treating this as a full-fleet launch package/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mission trigger/i })).toHaveLength(2);
+  });
+
+  test('uses compact operator-flow and workspace-review summaries on mobile', async () => {
+    window.innerWidth = 640;
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SwarmTrajectory />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Operator flow & package review')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Expand for the full package sequence and linked tools/i)).toBeInTheDocument();
+    expect(screen.getByText('Workspace review & policy')).toBeInTheDocument();
   });
 });

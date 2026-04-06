@@ -53,4 +53,40 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
     expect(screen.getByRole('link', { name: 'Open Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByText('Generate Cluster Outputs')).toBeInTheDocument();
   });
+
+  test('collapses doctrine and stage review behind one compact summary on mobile surfaces', () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SwarmTrajectoryWorkspaceSummary
+          compact
+          workspaceStatus={{
+            tone: 'attention',
+            title: 'Review package needs attention',
+            message: 'One cluster still needs operator review.',
+            details: ['Missing follower output: 3'],
+          }}
+          session={{
+            exists: true,
+            session_id: 'session-99',
+            total_drones: 2,
+          }}
+          stages={[
+            {
+              id: 'upload',
+              step: 1,
+              title: 'Load Leader Paths',
+              label: 'Ready',
+              tone: 'ready',
+              summary: 'All expected leader CSVs are loaded.',
+              details: ['Uploaded leaders: 1'],
+            },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Workspace review & policy')).toBeInTheDocument();
+    expect(screen.getByText(/Expand for doctrine, stage status, and operator links/i)).toBeInTheDocument();
+    expect(screen.getByText('Review package needs attention')).toBeInTheDocument();
+  });
 });

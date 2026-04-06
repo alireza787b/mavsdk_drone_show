@@ -53,7 +53,7 @@ import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from '../components/map/LeafletMapBase';
 import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
-import { Marker as LMarker, Polyline as LPolyline, useMapEvents } from 'react-leaflet';
+import { Marker as LMarker, Polyline as LPolyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
 // Import styles
@@ -89,6 +89,28 @@ const LeafletClickHandler = ({ isAddingWaypoint, isDragging, onMapClick }) => {
   return null;
 };
 
+const LeafletResizeBridge = ({ mapRef, resizeKey }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (mapRef) {
+      mapRef.current = map;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        map.invalidateSize();
+      } catch (error) {
+        // Ignore transient resize failures while the container is mounting.
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [map, mapRef, resizeKey]);
+
+  return null;
+};
+
 // Create numbered waypoint icon for Leaflet
 const createWaypointIcon = (index, color) =>
   L.divIcon({
@@ -119,6 +141,9 @@ const TrajectoryPlanning = () => {
   const [isAddingWaypoint, setIsAddingWaypoint] = useState(false);
   const [showTerrain, setShowTerrain] = useState(true);
   const [sceneMode, setSceneMode] = useState('3D');
+  const [isCompactViewport, setIsCompactViewport] = useState(
+    () => typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+  );
 
   // Enhanced state
   const [historyStatus, setHistoryStatus] = useState({ canUndo: false, canRedo: false });
@@ -161,6 +186,15 @@ const TrajectoryPlanning = () => {
     pitch: showTerrain ? 60 : 0,
     bearing: 0
   });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsCompactViewport(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const initializeServices = useCallback(() => {
     stateManagerRef.current.setInitialState({
@@ -428,7 +462,65 @@ const TrajectoryPlanning = () => {
     () => getTrajectoryOperatorPolicyNotes({ stats: trajectoryStats, waypointCount: waypoints.length }),
     [trajectoryStats, waypoints.length]
   );
-
+  const plannerWorkflowBriefContent = (
+    <>
+      <div className="trajectory-workflow-brief__cards">
+        {plannerWorkflowCards.map((card) => (
+          <div key={card.label} className="trajectory-workflow-brief__card">
+            <span className="trajectory-workflow-brief__label">{card.label}</span>
+            <strong className="trajectory-workflow-brief__value">{card.value}</strong>
+            <span className="trajectory-workflow-brief__detail">{card.detail}</span>
+          </div>
+        ))}
+      </div>
+      <div className="trajectory-workflow-brief__stages" aria-label="Trajectory planning mission stages">
+        {plannerWorkflowStages.map((stage, index) => (
+          <div key={stage.key} className="trajectory-workflow-brief__stage">
+            <span className="trajectory-workflow-brief__stage-index">{index + 1}</span>
+            <div className="trajectory-workflow-brief__stage-copy">
+              <strong>{stage.label}</strong>
+              <span>{stage.detail}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {plannerBriefItems.length > 0 ? (
+        <div className="trajectory-workflow-brief__alerts">
+          {plannerBriefItems.map((item) => (
+            <div
+              key={`${item.code}-${item.text}`}
+              className={`trajectory-workflow-brief__alert trajectory-workflow-brief__alert--${item.tone}`}
+            >
+              {item.text}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <TrajectoryPolicyNotes
+        notes={plannerPolicyNotes}
+        title="Trajectory execution policy"
+        className="trajectory-workflow-brief__policy"
+      />
+    </>
+  );
+  const plannerWorkflowBriefBlock = isCompactViewport ? (
+    <details
+      className="trajectory-workflow-brief trajectory-workflow-brief--compact"
+      open={waypoints.length === 0 || plannerMissionReadiness.blockers.length > 0}
+    >
+      <summary>
+        <span>Route brief & policy</span>
+        <small>Expand for workflow stages, envelope, and launch notes</small>
+      </summary>
+      <div className="trajectory-workflow-brief__compact-body">
+        {plannerWorkflowBriefContent}
+      </div>
+    </details>
+  ) : (
+    <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
+      {plannerWorkflowBriefContent}
+    </div>
+  );
   const addWaypointWithData = useCallback((position, waypointData) => {
     const newWaypoint = {
       id: `waypoint-${Date.now()}`,
@@ -790,8 +882,47 @@ const TrajectoryPlanning = () => {
     setPendingWaypointPosition(null);
   }, []);
 
+  const resizeActiveMap = useCallback(() => {
+    if (!mapRef.current) {
+      return;
+    }
+
+    try {
+      if (useLeaflet && typeof mapRef.current.invalidateSize === 'function') {
+        mapRef.current.invalidateSize();
+        return;
+      }
+
+      if (typeof mapRef.current.resize === 'function') {
+        mapRef.current.resize();
+        return;
+      }
+
+      if (typeof mapRef.current.getMap === 'function') {
+        mapRef.current.getMap()?.resize?.();
+      }
+    } catch (error) {
+      // Ignore transient map-resize failures during layout transitions.
+    }
+  }, [useLeaflet]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      resizeActiveMap();
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isCompactViewport, resizeActiveMap, sceneMode, selectedWaypointId, showTerrain, waypoints.length]);
+
   // Navigation functions
   const flyToWaypoint = useCallback((waypoint) => {
+    if (mapRef.current && useLeaflet && typeof mapRef.current.flyTo === 'function') {
+      try {
+        mapRef.current.flyTo([waypoint.latitude, waypoint.longitude], 15, { duration: 1.5 });
+        return;
+      } catch (err) {}
+    }
+
     if (mapRef.current && mapboxAvailable && !useLeaflet) {
       try {
         mapRef.current.flyTo({
@@ -814,6 +945,13 @@ const TrajectoryPlanning = () => {
 
   // Enhanced location select with elevation estimation
   const handleLocationSelect = useCallback((longitude, latitude) => {
+    if (mapRef.current && useLeaflet && typeof mapRef.current.flyTo === 'function') {
+      try {
+        mapRef.current.flyTo([latitude, longitude], 12, { duration: 1.8 });
+        return;
+      } catch (err) {}
+    }
+
     if (mapRef.current && mapboxAvailable && !useLeaflet) {
       try {
         mapRef.current.flyTo({
@@ -841,6 +979,14 @@ const TrajectoryPlanning = () => {
       flyToWaypoint(waypoint);
     }
   }, [flyToWaypoint, waypoints]);
+
+  const trajectorySegmentReviewBlock = (
+    <TrajectorySegmentReview
+      segments={trajectorySegments}
+      activeSegmentId={activeSegmentId}
+      onSelectSegment={handleSelectSegment}
+    />
+  );
 
   const openSwarmTransferDialog = useCallback(() => {
     if (waypoints.length === 0) {
@@ -1160,51 +1306,8 @@ const TrajectoryPlanning = () => {
           <TrajectoryStats stats={trajectoryStats} />
         </div>
 
-        <TrajectorySegmentReview
-          segments={trajectorySegments}
-          activeSegmentId={activeSegmentId}
-          onSelectSegment={handleSelectSegment}
-        />
-
-        <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
-          <div className="trajectory-workflow-brief__cards">
-            {plannerWorkflowCards.map((card) => (
-              <div key={card.label} className="trajectory-workflow-brief__card">
-                <span className="trajectory-workflow-brief__label">{card.label}</span>
-                <strong className="trajectory-workflow-brief__value">{card.value}</strong>
-                <span className="trajectory-workflow-brief__detail">{card.detail}</span>
-              </div>
-            ))}
-          </div>
-          <div className="trajectory-workflow-brief__stages" aria-label="Trajectory planning mission stages">
-            {plannerWorkflowStages.map((stage, index) => (
-              <div key={stage.key} className="trajectory-workflow-brief__stage">
-                <span className="trajectory-workflow-brief__stage-index">{index + 1}</span>
-                <div className="trajectory-workflow-brief__stage-copy">
-                  <strong>{stage.label}</strong>
-                  <span>{stage.detail}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          {plannerBriefItems.length > 0 ? (
-            <div className="trajectory-workflow-brief__alerts">
-              {plannerBriefItems.map((item) => (
-                <div
-                  key={`${item.code}-${item.text}`}
-                  className={`trajectory-workflow-brief__alert trajectory-workflow-brief__alert--${item.tone}`}
-                >
-                  {item.text}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          <TrajectoryPolicyNotes
-            notes={plannerPolicyNotes}
-            title="Trajectory execution policy"
-            className="trajectory-workflow-brief__policy"
-          />
-        </div>
+        {!isCompactViewport && trajectorySegmentReviewBlock}
+        {!isCompactViewport && plannerWorkflowBriefBlock}
 
         <div className="trajectory-container">
           <div className="trajectory-main">
@@ -1243,6 +1346,10 @@ const TrajectoryPlanning = () => {
                 defaultLayer="osm"
                 style={{ width: '100%', height: '100%' }}
               >
+                <LeafletResizeBridge
+                  mapRef={mapRef}
+                  resizeKey={`${isCompactViewport}-${waypoints.length}-${selectedWaypointId}`}
+                />
                 <LeafletClickHandler
                   isAddingWaypoint={isAddingWaypoint}
                   isDragging={isDragging}
@@ -1303,6 +1410,9 @@ const TrajectoryPlanning = () => {
           />
         </div>
 
+        {isCompactViewport && trajectorySegmentReviewBlock}
+        {isCompactViewport && plannerWorkflowBriefBlock}
+
         <WaypointModal
           isOpen={modalOpen}
           onClose={handleModalClose}
@@ -1339,51 +1449,8 @@ const TrajectoryPlanning = () => {
         <TrajectoryStats stats={trajectoryStats} />
       </div>
 
-      <TrajectorySegmentReview
-        segments={trajectorySegments}
-        activeSegmentId={activeSegmentId}
-        onSelectSegment={handleSelectSegment}
-      />
-
-      <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
-        <div className="trajectory-workflow-brief__cards">
-          {plannerWorkflowCards.map((card) => (
-            <div key={card.label} className="trajectory-workflow-brief__card">
-              <span className="trajectory-workflow-brief__label">{card.label}</span>
-              <strong className="trajectory-workflow-brief__value">{card.value}</strong>
-              <span className="trajectory-workflow-brief__detail">{card.detail}</span>
-            </div>
-          ))}
-        </div>
-        <div className="trajectory-workflow-brief__stages" aria-label="Trajectory planning mission stages">
-          {plannerWorkflowStages.map((stage, index) => (
-            <div key={stage.key} className="trajectory-workflow-brief__stage">
-              <span className="trajectory-workflow-brief__stage-index">{index + 1}</span>
-              <div className="trajectory-workflow-brief__stage-copy">
-                <strong>{stage.label}</strong>
-                <span>{stage.detail}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        {plannerBriefItems.length > 0 ? (
-          <div className="trajectory-workflow-brief__alerts">
-            {plannerBriefItems.map((item) => (
-              <div
-                key={`${item.code}-${item.text}`}
-                className={`trajectory-workflow-brief__alert trajectory-workflow-brief__alert--${item.tone}`}
-              >
-                {item.text}
-              </div>
-            ))}
-          </div>
-        ) : null}
-        <TrajectoryPolicyNotes
-          notes={plannerPolicyNotes}
-          title="Trajectory execution policy"
-          className="trajectory-workflow-brief__policy"
-        />
-      </div>
+      {!isCompactViewport && trajectorySegmentReviewBlock}
+      {!isCompactViewport && plannerWorkflowBriefBlock}
 
       <div className="trajectory-container">
         <div className="trajectory-main">
@@ -1423,6 +1490,7 @@ const TrajectoryPlanning = () => {
               onMove={evt => setViewState(evt.viewState)}
               onClick={handleMapClick}
               mapboxAccessToken={mapboxToken}
+              style={{ width: '100%', height: '100%' }}
               mapStyle={showTerrain ? "mapbox://styles/mapbox/satellite-streets-v12" : "mapbox://styles/mapbox/streets-v12"}
               terrain={showTerrain ? { source: 'mapbox-dem', exaggeration: 1.5 } : undefined}
               cursor={
@@ -1562,16 +1630,19 @@ const TrajectoryPlanning = () => {
           </div>
         </div>
 
-        <WaypointPanel
-          waypoints={waypoints}
-          selectedWaypointId={selectedWaypointId}
-          onSelectWaypoint={setSelectedWaypointId}
+          <WaypointPanel
+            waypoints={waypoints}
+            selectedWaypointId={selectedWaypointId}
+            onSelectWaypoint={setSelectedWaypointId}
           onUpdateWaypoint={updateWaypoint}
           onDeleteWaypoint={deleteWaypoint}
           onMoveWaypoint={() => {}}
-          onFlyTo={flyToWaypoint}
-        />
-      </div>
+            onFlyTo={flyToWaypoint}
+          />
+        </div>
+
+      {isCompactViewport && trajectorySegmentReviewBlock}
+      {isCompactViewport && plannerWorkflowBriefBlock}
 
       <WaypointModal
         isOpen={modalOpen}

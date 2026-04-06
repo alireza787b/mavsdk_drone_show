@@ -65,6 +65,10 @@ jest.mock('react-leaflet', () => ({
   Marker: ({ children }) => <div>{children}</div>,
   Polyline: () => null,
   useMapEvents: () => null,
+  useMap: () => ({
+    invalidateSize: jest.fn(),
+    flyTo: jest.fn(),
+  }),
 }));
 jest.mock('leaflet', () => ({
   divIcon: jest.fn(() => ({})),
@@ -216,12 +220,18 @@ describe('TrajectoryPlanning', () => {
     resetTrajectoryMissionPolicy();
   });
 
+  afterEach(() => {
+    window.innerWidth = 1024;
+  });
+
   it('moves from an empty planner to draft and then ready posture as waypoints are authored', async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TrajectoryPlanning />
       </MemoryRouter>
     );
+
+    await waitFor(() => expect(getSwarmTrajectoryPolicy).toHaveBeenCalled());
 
     expect(screen.getByText('Not ready')).toBeInTheDocument();
     expect(screen.getByText('No path yet')).toBeInTheDocument();
@@ -262,6 +272,22 @@ describe('TrajectoryPlanning', () => {
     expect(screen.getByTestId('waypoint-panel-state')).toHaveTextContent('"targetAgl":120');
   });
 
+  it('uses the compact workflow brief on small viewports so the map stays primary', async () => {
+    window.innerWidth = 640;
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TrajectoryPlanning />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(getSwarmTrajectoryPolicy).toHaveBeenCalled());
+
+    expect(screen.getByText('Route brief & policy')).toBeInTheDocument();
+    expect(screen.getByText(/Expand for workflow stages, envelope, and launch notes/i)).toBeInTheDocument();
+    expect(screen.getByTestId('trajectory-toolbar')).toBeInTheDocument();
+  });
+
   it('hydrates planner policy from the backend runtime contract', async () => {
     getSwarmTrajectoryPolicy.mockResolvedValue({
       success: true,
@@ -295,6 +321,8 @@ describe('TrajectoryPlanning', () => {
         <TrajectoryPlanning />
       </MemoryRouter>
     );
+
+    await waitFor(() => expect(getSwarmTrajectoryPolicy).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText('Toggle Add'));
     fireEvent.click(screen.getByTestId('mock-map'));
@@ -337,6 +365,8 @@ describe('TrajectoryPlanning', () => {
         <TrajectoryPlanning />
       </MemoryRouter>
     );
+
+    await waitFor(() => expect(getSwarmTrajectoryPolicy).toHaveBeenCalled());
 
     fireEvent.click(screen.getByText('Toggle Add'));
     fireEvent.click(screen.getByTestId('mock-map'));

@@ -318,6 +318,47 @@
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
 }
 
+.trajectory-workflow-brief--compact {
+  margin: 0 var(--spacing-base) var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-sm);
+  padding: 0;
+}
+
+.trajectory-workflow-brief--compact summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--spacing-base);
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.trajectory-workflow-brief--compact summary::-webkit-details-marker {
+  display: none;
+}
+
+.trajectory-workflow-brief--compact summary small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.trajectory-workflow-brief__compact-body {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0 1rem 1rem;
+}
+
+.trajectory-workflow-brief--compact[open] summary {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
 .trajectory-workflow-brief__cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

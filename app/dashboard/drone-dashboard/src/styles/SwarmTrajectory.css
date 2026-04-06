@@ -379,6 +379,40 @@
   box-shadow: var(--shadow-base);
 }
 
+.workflow-guide--compact {
+  padding: 0;
+}
+
+.workflow-guide--compact summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--spacing-base);
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.workflow-guide--compact summary::-webkit-details-marker {
+  display: none;
+}
+
+.workflow-guide--compact summary small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.workflow-guide__compact-body {
+  padding: 0 1rem 1rem;
+}
+
+.workflow-guide--compact[open] summary {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
 /* Status Card */
 .status-card {
   background: var(--color-bg-secondary);
@@ -401,6 +435,45 @@
   flex-direction: column;
   gap: var(--spacing-base);
   margin-top: var(--spacing-xl);
+}
+
+.swarm-workspace-summary__details-panel {
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.swarm-workspace-summary__details-panel summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--spacing-base);
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-workspace-summary__details-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.swarm-workspace-summary__details-panel summary small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.swarm-workspace-summary__details-panel[open] summary {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.swarm-workspace-summary__details-body {
+  display: grid;
+  gap: var(--spacing-base);
+  padding: 0 1rem 1rem;
 }
 
 .swarm-workspace-status {
@@ -1997,7 +2070,13 @@
   .header {
     flex-direction: column;
     gap: var(--spacing-base);
-    text-align: center;
+    align-items: stretch;
+    text-align: left;
+  }
+
+  .status-card {
+    padding: var(--spacing-base);
+    margin-bottom: var(--spacing-lg);
   }
 
   .guide-content {
@@ -2011,7 +2090,7 @@
   }
 
   .status-metrics {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--spacing-sm);
   }
 
@@ -2056,6 +2135,12 @@
   .processing-stats {
     flex-direction: column;
     gap: var(--spacing-sm);
+  }
+
+  .workflow-guide--compact summary,
+  .swarm-workspace-summary__details-panel summary {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .review-actions,
