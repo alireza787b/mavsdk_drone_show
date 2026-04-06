@@ -21,6 +21,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   recentCommands: 'recentCommands',
   activeCommands: 'activeCommands',
   commandStatistics: 'commandStatistics',
+  precisionMovePolicy: 'precisionMovePolicy',
   gitStatus: 'gitStatus',
   syncRepos: 'syncRepos',
   origin: 'origin',
@@ -71,6 +72,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.recentCommands]: '/api/v1/commands/recent',
   [GCS_ROUTE_KEYS.activeCommands]: '/api/v1/commands/active',
   [GCS_ROUTE_KEYS.commandStatistics]: '/api/v1/commands/statistics',
+  [GCS_ROUTE_KEYS.precisionMovePolicy]: '/api/v1/commands/policy/precision-move',
   [GCS_ROUTE_KEYS.gitStatus]: '/api/v1/git/status',
   [GCS_ROUTE_KEYS.syncRepos]: '/api/v1/git/sync-operations',
   [GCS_ROUTE_KEYS.origin]: '/api/v1/origin',
@@ -122,6 +124,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/config/fleet/trajectory-start-positions': GCS_ROUTE_KEYS.dronePositions,
   '/api/v1/config/swarm': GCS_ROUTE_KEYS.swarmConfig,
   '/api/v1/commands': GCS_ROUTE_KEYS.commandSubmit,
+  '/api/v1/commands/policy/precision-move': GCS_ROUTE_KEYS.precisionMovePolicy,
   '/api/v1/commands/recent': GCS_ROUTE_KEYS.recentCommands,
   '/api/v1/commands/active': GCS_ROUTE_KEYS.activeCommands,
   '/api/v1/commands/statistics': GCS_ROUTE_KEYS.commandStatistics,
@@ -392,6 +395,10 @@ export async function getRecentCommandsResponse(
 
 export async function getActiveCommandsResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.activeCommands, config);
+}
+
+export async function getPrecisionMovePolicyResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.precisionMovePolicy, config);
 }
 
 export async function syncReposResponse(payload = {}, config = {}) {

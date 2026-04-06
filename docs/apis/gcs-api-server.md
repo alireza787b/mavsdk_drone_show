@@ -1147,6 +1147,44 @@ Retrieve currently active non-terminal commands.
 
 Use this endpoint to rehydrate command monitors after a dashboard refresh/navigation event so operators do not lose in-flight command context when the page remounts.
 
+#### `GET /api/v1/commands/policy/precision-move`
+Retrieve the live runtime defaults and safety envelope for the Precision Move action.
+
+**Response:**
+```json
+{
+  "action": "precision_move",
+  "defaults": {
+    "speed_m_s": 1.0,
+    "position_tolerance_m": 0.15,
+    "yaw_tolerance_deg": 5.0,
+    "settle_time_sec": 1.0,
+    "timeout_sec": 30.0
+  },
+  "limits": {
+    "max_translation_m": 100.0,
+    "max_speed_m_s": 5.0,
+    "min_position_tolerance_m": 0.05,
+    "max_timeout_sec": 180.0,
+    "min_airborne_altitude_m": 0.3,
+    "control_rate_hz": 10.0
+  },
+  "execution": {
+    "supported_frames": ["body", "ned"],
+    "supported_yaw_modes": ["hold_current", "relative_delta", "absolute_heading"],
+    "hold_mode": "px4_hold",
+    "immediate_only": true,
+    "requires_airborne": true,
+    "requires_local_position": true
+  }
+}
+```
+
+Use this contract for:
+- operator UI defaults and limit hints
+- CLI / automation wrappers that want the live backend policy instead of mirrored constants
+- future MCP/AI-agent adapters that need to discover whether the action is immediate-only, airborne-only, and local-position dependent
+
 ---
 
 ### Git Operations

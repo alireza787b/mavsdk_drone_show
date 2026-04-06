@@ -2073,6 +2073,7 @@ class TestAPIV1Aliases:
             "/api/v1/shows/skybrush/plots/{filename}",
             "/api/v1/shows/custom/preview",
             "/api/v1/commands",
+            "/api/v1/commands/policy/precision-move",
             "/api/v1/commands/{command_id}",
             "/api/v1/commands/recent",
             "/api/v1/commands/active",

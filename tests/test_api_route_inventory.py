@@ -72,6 +72,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/recent",
         "/api/v1/commands/active",
         "/api/v1/commands/statistics",
+        "/api/v1/commands/policy/precision-move",
         "/api/v1/commands/{command_id}",
         "/api/v1/system/gcs-config",
         "/api/v1/swarm-trajectories/leaders",

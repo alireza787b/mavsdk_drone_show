@@ -7,6 +7,7 @@ import {
   buildLifecycleSnapshotFromStatus,
   submitCommandWithLifecycleFeedback,
 } from '../utilities/commandLifecycleFeedback';
+import { getPrecisionMovePolicyResponse } from '../services/gcsApiService';
 import { getActiveCommands, getRecentCommands } from '../services/droneApiService';
 
 jest.mock('../utilities/commandLifecycleFeedback', () => ({
@@ -17,6 +18,11 @@ jest.mock('../utilities/commandLifecycleFeedback', () => ({
 jest.mock('../services/droneApiService', () => ({
   getActiveCommands: jest.fn(),
   getRecentCommands: jest.fn(),
+}));
+
+jest.mock('../services/gcsApiService', () => ({
+  ...jest.requireActual('../services/gcsApiService'),
+  getPrecisionMovePolicyResponse: jest.fn(),
 }));
 
 jest.mock('./MissionTrigger', () => (props) => (
@@ -65,6 +71,34 @@ describe('CommandSender', () => {
     jest.clearAllMocks();
     getActiveCommands.mockResolvedValue({ commands: [] });
     getRecentCommands.mockResolvedValue({ commands: [] });
+    getPrecisionMovePolicyResponse.mockResolvedValue({
+      data: {
+        action: 'precision_move',
+        defaults: {
+          speed_m_s: 1,
+          position_tolerance_m: 0.15,
+          yaw_tolerance_deg: 5,
+          settle_time_sec: 1,
+          timeout_sec: 30,
+        },
+        limits: {
+          max_translation_m: 100,
+          max_speed_m_s: 5,
+          min_position_tolerance_m: 0.05,
+          max_timeout_sec: 180,
+          min_airborne_altitude_m: 0.3,
+          control_rate_hz: 10,
+        },
+        execution: {
+          supported_frames: ['body', 'ned'],
+          supported_yaw_modes: ['hold_current', 'relative_delta', 'absolute_heading'],
+          hold_mode: 'px4_hold',
+          immediate_only: true,
+          requires_airborne: true,
+          requires_local_position: true,
+        },
+      },
+    });
     buildLifecycleSnapshotFromStatus.mockImplementation((status) => ({
       commandId: status.command_id,
       commandLabel: status.mission_name,
@@ -213,7 +247,8 @@ describe('CommandSender', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
-    fireEvent.click(screen.getByRole('button', { name: /dispatch hold/i }));
+    await waitFor(() => expect(getPrecisionMovePolicyResponse).toHaveBeenCalled());
+    fireEvent.click(screen.getAllByRole('button', { name: /dispatch hold/i })[0]);
 
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(

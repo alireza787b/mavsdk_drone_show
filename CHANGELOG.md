@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-06 Precision Move operator-UX refinement checkpoint note documenting the compact controller-style dialog layout, folded manual/tuning sections, shared scope-edit return path, live command-status strip, runtime policy endpoint, and the paired backend/frontend validation results
 - a 2026-04-06 Precision Move SITL validation checkpoint note documenting the fixed fresh-container branch-sync boot path, the green live Hetzner 3-drone Precision Move action run, the validator false-negative fixes, and the confirmed immediate-action override semantics
 - a 2026-04-06 Precision Move phase 1 checkpoint note documenting the new `PRECISION_MOVE (112)` action, the typed command/executor path, the dedicated dashboard dialog, the quick-control and direct-HOLD refinements, the reusable SITL validator extension, the fresh-container git-sync bootstrap fix, and the remaining deferred follow-up items
 - a 2026-04-04 SITL release refresh checkpoint note documenting the final deferred-debt audit result, the low-space release packaging fix, the stale Hetzner validation-tree cleanup, and the refreshed packaged image publication flow
@@ -65,6 +66,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the Precision Move dialog now prioritizes the fast operator path: compact controller-style nudges, folded manual tuning, direct scope-edit return into the shared Command Control selector, visible live runtime defaults, and cleaner live command-state context without forking the main target-selection workflow
+- GCS now exposes `/api/v1/commands/policy/precision-move`, a typed runtime policy envelope for default speed/tolerance/timeout/limit values so UI, automation, and future MCP surfaces can reuse the live backend contract instead of hardcoded frontend guesses
 - the action system now supports a typed local-relative `PRECISION_MOVE` command end to end, from GCS submit validation to drone runtime payload staging, timeout budgeting, `DroneSetup` mission routing, and the offboard local-position executor that settles then returns control to PX4 Hold
 - the dashboard Actions tab no longer has to force parameterized precision moves through the generic two-step confirm flow; the new dedicated Precision Move dialog is now the single operator confirmation surface and still submits through the standard command lifecycle tracker
 - command submission normalization now explicitly preserves nested `precision_move` payloads while still converting the surrounding command envelope onto the canonical snake_case GCS API contract

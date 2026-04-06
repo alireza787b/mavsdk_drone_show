@@ -1,8 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
+import {
+  FaArrowDown,
+  FaArrowLeft,
+  FaArrowRight,
+  FaArrowUp,
+  FaEdit,
+  FaRedo,
+  FaUndo,
+} from 'react-icons/fa';
 
 import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
+import { getPrecisionMovePolicyResponse } from '../services/gcsApiService';
 import { getActionExecutionPolicy } from '../utilities/commandExecutionPolicy';
 import '../styles/PrecisionMoveDialog.css';
 
@@ -88,19 +98,32 @@ function formatAxisValue(value) {
   return String(Number(value.toFixed(3)));
 }
 
+function formatRuntimeValue(value, unit, fallback = 'Runtime policy unavailable') {
+  if (!Number.isFinite(Number(value))) {
+    return fallback;
+  }
+
+  return `${Number(value)} ${unit}`.trim();
+}
+
 const PrecisionMoveDialog = ({
   isOpen,
   targetLabel,
   targetDescriptor,
   targetCount,
+  liveMonitor = null,
   submitting = false,
   onClose,
+  onEditTargetScope,
   onSubmit,
   onSubmitHold,
 }) => {
   const [formState, setFormState] = useState(buildInitialState);
   const [quickMoveStepM, setQuickMoveStepM] = useState(1);
   const [quickYawStepDeg, setQuickYawStepDeg] = useState(30);
+  const [policy, setPolicy] = useState(null);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [policyError, setPolicyError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -108,6 +131,44 @@ const PrecisionMoveDialog = ({
       setQuickMoveStepM(1);
       setQuickYawStepDeg(30);
     }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPolicyLoading(true);
+    setPolicyError('');
+
+    getPrecisionMovePolicyResponse()
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+
+        const payload = response?.data?.policy || response?.data || null;
+        setPolicy(payload);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('Failed to load Precision Move policy:', error);
+        setPolicy(null);
+        setPolicyError('Runtime defaults unavailable. Dispatch still uses backend policy.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPolicyLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -230,6 +291,7 @@ const PrecisionMoveDialog = ({
     }
 
     const { primary, secondary, vertical, yawMode, yawDegrees, speedMps } = validation.preview;
+    const runtimeDefaults = policy?.defaults || {};
     const movementSummary = [
       formatSignedDistance(primary, frameConfig.translationKeys[0], frameConfig.translationKeys[0] === 'forward' ? 'back' : 'south'),
       formatSignedDistance(secondary, frameConfig.translationKeys[1], frameConfig.translationKeys[1] === 'right' ? 'left' : 'west'),
@@ -246,10 +308,89 @@ const PrecisionMoveDialog = ({
       { label: 'Frame', value: frameConfig.description },
       { label: 'Translation', value: movementSummary.join(' · ') },
       { label: 'Yaw', value: yawSummary },
-      { label: 'Speed', value: speedMps === null ? 'Use backend default' : `${speedMps} m/s` },
+      {
+        label: 'Speed',
+        value: speedMps === null
+          ? formatRuntimeValue(runtimeDefaults.speed_m_s, 'm/s')
+          : `${speedMps} m/s`,
+      },
+      {
+        label: 'Position tolerance',
+        value: formState.positionToleranceM === ''
+          ? formatRuntimeValue(runtimeDefaults.position_tolerance_m, 'm')
+          : `${Number(formState.positionToleranceM)} m`,
+      },
+      {
+        label: 'Yaw tolerance',
+        value: formState.yawToleranceDeg === ''
+          ? formatRuntimeValue(runtimeDefaults.yaw_tolerance_deg, 'deg')
+          : `${Number(formState.yawToleranceDeg)}°`,
+      },
+      {
+        label: 'Settle time',
+        value: formState.settleTimeSec === ''
+          ? formatRuntimeValue(runtimeDefaults.settle_time_sec, 's')
+          : `${Number(formState.settleTimeSec)} s`,
+      },
+      {
+        label: 'Timeout',
+        value: formState.timeoutSec === ''
+          ? formatRuntimeValue(runtimeDefaults.timeout_sec, 's')
+          : `${Number(formState.timeoutSec)} s`,
+      },
       { label: 'Execution policy', value: getActionExecutionPolicy({ actionKey: 'PRECISION_MOVE', isImmediate: true }) },
     ];
-  }, [frameConfig.description, frameConfig.translationKeys, validation.preview]);
+  }, [frameConfig.description, frameConfig.translationKeys, formState.positionToleranceM, formState.settleTimeSec, formState.timeoutSec, formState.yawToleranceDeg, policy?.defaults, validation.preview]);
+
+  const runtimeDefaultsSummary = useMemo(() => {
+    const defaults = policy?.defaults;
+    const limits = policy?.limits;
+    if (!defaults || !limits) {
+      return null;
+    }
+
+    return [
+      { label: 'Default speed', value: `${defaults.speed_m_s} m/s` },
+      { label: 'Position tol', value: `${defaults.position_tolerance_m} m` },
+      { label: 'Yaw tol', value: `${defaults.yaw_tolerance_deg}°` },
+      { label: 'Settle', value: `${defaults.settle_time_sec} s` },
+      { label: 'Timeout', value: `${defaults.timeout_sec} s` },
+      { label: 'Max move', value: `${limits.max_translation_m} m` },
+    ];
+  }, [policy]);
+
+  const liveMonitorSteps = useMemo(() => {
+    if (!liveMonitor) {
+      return null;
+    }
+
+    const accepted = Number(liveMonitor?.acks?.accepted ?? 0);
+    const expected = Number(liveMonitor?.acks?.expected ?? 0);
+    const active = Number(liveMonitor?.progress?.active ?? 0);
+    const completed = Number(liveMonitor?.progress?.completed ?? 0);
+    const stage = String(liveMonitor?.progress?.stage || '');
+    const terminalStages = new Set(['completed', 'partial', 'failed', 'cancelled', 'timeout', 'superseded']);
+
+    return [
+      {
+        key: 'accepted',
+        label: 'Accepted',
+        state: expected > 0 && accepted >= expected ? 'complete' : (accepted > 0 || stage !== 'awaiting_ack' ? 'active' : 'idle'),
+      },
+      {
+        key: 'moving',
+        label: 'Executing',
+        state: active > 0 || stage === 'executing' || stage === 'finishing'
+          ? 'active'
+          : (completed > 0 || terminalStages.has(stage) ? 'complete' : 'idle'),
+      },
+      {
+        key: 'hold',
+        label: 'Hold / terminal',
+        state: terminalStages.has(stage) || liveMonitor?.isTerminal ? 'complete' : 'idle',
+      },
+    ];
+  }, [liveMonitor]);
 
   const handleFieldChange = (field) => (event) => {
     setFormState((current) => ({
@@ -369,19 +510,93 @@ const PrecisionMoveDialog = ({
         </div>
 
         <div className="precision-move-dialog__scope">
-          <span className="precision-move-dialog__scope-badge">{targetLabel}</span>
+          <button
+            type="button"
+            className="precision-move-dialog__scope-badge precision-move-dialog__scope-badge--interactive"
+            onClick={onEditTargetScope}
+            disabled={submitting}
+          >
+            <FaEdit aria-hidden="true" />
+            <span>{targetLabel}</span>
+          </button>
           <span className="precision-move-dialog__scope-badge">Immediate only</span>
           <span className="precision-move-dialog__scope-badge">Airborne + local position required</span>
         </div>
 
-        <p className="precision-move-dialog__description">
-          {targetDescriptor}. Each targeted drone resolves this move from its own current local state and then hands control back to PX4 Hold.
-        </p>
+        <section className="precision-move-dialog__section precision-move-dialog__section--compact">
+          <div className="precision-move-dialog__section-header">
+            <div>
+              <h4>Command Scope</h4>
+              <p className="precision-move-dialog__hint">
+                Reuses the shared Command Control selector so target edits stay in one place.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="precision-move-dialog__ghost"
+              onClick={onEditTargetScope}
+              disabled={submitting}
+            >
+              Edit scope
+            </button>
+          </div>
+          <p className="precision-move-dialog__description">
+            {targetDescriptor}. Each targeted drone resolves this move from its own current local state and then hands control back to PX4 Hold.
+          </p>
+          <div className="precision-move-dialog__scope-summary">
+            <div className="precision-move-dialog__scope-card">
+              <span>Targets</span>
+              <strong>{targetLabel}</strong>
+              <small>{targetDescriptor}</small>
+            </div>
+            <div className="precision-move-dialog__scope-card">
+              <span>Execution</span>
+              <strong>Immediate only</strong>
+              <small>Precision Move is not queued or delayed.</small>
+            </div>
+          </div>
+        </section>
+
+        {liveMonitor && liveMonitorSteps && (
+          <section className="precision-move-dialog__section precision-move-dialog__section--compact">
+            <div className="precision-move-dialog__section-header">
+              <div>
+                <h4>Live Command Status</h4>
+                <p className="precision-move-dialog__hint">
+                  Reopen this dialog after a link drop to review the latest command stage.
+                </p>
+              </div>
+              <span className="precision-move-dialog__live-badge">{liveMonitor.progress?.label || 'Command update'}</span>
+            </div>
+            <div className="precision-move-dialog__status-strip" role="list" aria-label="Live command progress">
+              {liveMonitorSteps.map((step) => (
+                <div
+                  key={step.key}
+                  role="listitem"
+                  className={`precision-move-dialog__status-step precision-move-dialog__status-step--${step.state}`}
+                >
+                  <span>{step.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="precision-move-dialog__status-meta">
+              <strong>{liveMonitor.commandLabel}</strong>
+              <span>{liveMonitor.progress?.message}</span>
+              <span>
+                Accepted {liveMonitor.acks?.accepted ?? 0}/{liveMonitor.acks?.expected ?? 0}
+                {' · '}
+                Active {liveMonitor.progress?.active ?? 0}
+                {' · '}
+                Completed {liveMonitor.progress?.completed ?? 0}
+              </span>
+            </div>
+          </section>
+        )}
 
         <section className="precision-move-dialog__section">
           <h4>Quick Move</h4>
           <p className="precision-move-dialog__hint">
-            Use quick controls for common nudges, then fine-tune the exact values below if needed.
+            Use the controller for common nudges. Manual vector and tuning stay folded until you need them.
           </p>
 
           <div className="precision-move-dialog__quick-config">
@@ -400,6 +615,23 @@ const PrecisionMoveDialog = ({
                   </button>
                 ))}
               </div>
+              <label className="precision-move-dialog__step-input">
+                <span>Custom</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0.05"
+                  step="0.05"
+                  value={quickMoveStepM}
+                  onChange={(event) => {
+                    const nextValue = Number(event.target.value);
+                    if (Number.isFinite(nextValue) && nextValue > 0) {
+                      setQuickMoveStepM(nextValue);
+                    }
+                  }}
+                  disabled={submitting}
+                />
+              </label>
             </div>
 
             <div className="precision-move-dialog__step-group">
@@ -417,37 +649,117 @@ const PrecisionMoveDialog = ({
                   </button>
                 ))}
               </div>
+              <label className="precision-move-dialog__step-input">
+                <span>Custom</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="1"
+                  step="1"
+                  value={quickYawStepDeg}
+                  onChange={(event) => {
+                    const nextValue = Number(event.target.value);
+                    if (Number.isFinite(nextValue) && nextValue > 0) {
+                      setQuickYawStepDeg(nextValue);
+                    }
+                  }}
+                  disabled={submitting}
+                />
+              </label>
             </div>
           </div>
 
-          <div className="precision-move-dialog__quick-grid">
-            <button type="button" onClick={() => adjustAxis('axisPrimary', quickMoveStepM)} disabled={submitting}>
-              + {frameConfig.translationKeys[0]}
-            </button>
-            <button type="button" onClick={() => adjustAxis('axisPrimary', -quickMoveStepM)} disabled={submitting}>
-              - {frameConfig.translationKeys[0]}
-            </button>
-            <button type="button" onClick={() => adjustAxis('axisSecondary', quickMoveStepM)} disabled={submitting}>
-              + {frameConfig.translationKeys[1]}
-            </button>
-            <button type="button" onClick={() => adjustAxis('axisSecondary', -quickMoveStepM)} disabled={submitting}>
-              - {frameConfig.translationKeys[1]}
-            </button>
-            <button type="button" onClick={() => adjustAxis('axisVertical', quickMoveStepM)} disabled={submitting}>
-              Up
-            </button>
-            <button type="button" onClick={() => adjustAxis('axisVertical', -quickMoveStepM)} disabled={submitting}>
-              Down
-            </button>
-            <button type="button" onClick={() => adjustYawDelta(-quickYawStepDeg)} disabled={submitting}>
-              Yaw left
-            </button>
-            <button type="button" onClick={() => adjustYawDelta(quickYawStepDeg)} disabled={submitting}>
-              Yaw right
-            </button>
+          <div className="precision-move-dialog__controller">
+            <div className="precision-move-dialog__controller-pad">
+              <button
+                type="button"
+                className="precision-move-dialog__control precision-move-dialog__control--forward"
+                onClick={() => adjustAxis('axisPrimary', quickMoveStepM)}
+                disabled={submitting}
+              >
+                <FaArrowUp aria-hidden="true" />
+                <span>{frameConfig.translationKeys[0]}</span>
+                <small>+{quickMoveStepM} m</small>
+              </button>
+              <button
+                type="button"
+                className="precision-move-dialog__control precision-move-dialog__control--left"
+                onClick={() => adjustAxis('axisSecondary', -quickMoveStepM)}
+                disabled={submitting}
+              >
+                <FaArrowLeft aria-hidden="true" />
+                <span>{frameConfig.translationKeys[1] === 'right' ? 'left' : 'west'}</span>
+                <small>{quickMoveStepM} m</small>
+              </button>
+              <div className="precision-move-dialog__control-core">
+                <span>Vector</span>
+                <strong>
+                  {frameConfig.translationKeys[0].charAt(0).toUpperCase()}: {formState.axisPrimary} ·
+                  {' '}
+                  {frameConfig.translationKeys[1].charAt(0).toUpperCase()}: {formState.axisSecondary} ·
+                  {' '}
+                  U: {formState.axisVertical}
+                </strong>
+                <button type="button" className="precision-move-dialog__ghost" onClick={resetQuickMove} disabled={submitting}>
+                  Reset
+                </button>
+              </div>
+              <button
+                type="button"
+                className="precision-move-dialog__control precision-move-dialog__control--right"
+                onClick={() => adjustAxis('axisSecondary', quickMoveStepM)}
+                disabled={submitting}
+              >
+                <FaArrowRight aria-hidden="true" />
+                <span>{frameConfig.translationKeys[1]}</span>
+                <small>+{quickMoveStepM} m</small>
+              </button>
+              <button
+                type="button"
+                className="precision-move-dialog__control precision-move-dialog__control--back"
+                onClick={() => adjustAxis('axisPrimary', -quickMoveStepM)}
+                disabled={submitting}
+              >
+                <FaArrowDown aria-hidden="true" />
+                <span>{frameConfig.translationKeys[0] === 'forward' ? 'back' : 'south'}</span>
+                <small>{quickMoveStepM} m</small>
+              </button>
+            </div>
+
+            <div className="precision-move-dialog__controller-rails">
+              <div className="precision-move-dialog__rail-group">
+                <span>Altitude</span>
+                <button type="button" className="precision-move-dialog__control" onClick={() => adjustAxis('axisVertical', quickMoveStepM)} disabled={submitting}>
+                  <FaArrowUp aria-hidden="true" />
+                  <span>Up</span>
+                  <small>+{quickMoveStepM} m</small>
+                </button>
+                <button type="button" className="precision-move-dialog__control" onClick={() => adjustAxis('axisVertical', -quickMoveStepM)} disabled={submitting}>
+                  <FaArrowDown aria-hidden="true" />
+                  <span>Down</span>
+                  <small>{quickMoveStepM} m</small>
+                </button>
+              </div>
+              <div className="precision-move-dialog__rail-group">
+                <span>Yaw</span>
+                <button type="button" className="precision-move-dialog__control" onClick={() => adjustYawDelta(-quickYawStepDeg)} disabled={submitting}>
+                  <FaUndo aria-hidden="true" />
+                  <span>Left</span>
+                  <small>{quickYawStepDeg}°</small>
+                </button>
+                <button type="button" className="precision-move-dialog__control" onClick={() => adjustYawDelta(quickYawStepDeg)} disabled={submitting}>
+                  <FaRedo aria-hidden="true" />
+                  <span>Right</span>
+                  <small>{quickYawStepDeg}°</small>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div className="precision-move-dialog__quick-actions">
+            <button type="button" className="precision-move-dialog__ghost" onClick={handleSubmitHold} disabled={submitting}>
+              Dispatch Hold
+            </button>
             <button type="button" className="precision-move-dialog__ghost" onClick={resetQuickMove} disabled={submitting}>
               Reset quick values
             </button>
@@ -472,10 +784,10 @@ const PrecisionMoveDialog = ({
           </div>
         </section>
 
-        <section className="precision-move-dialog__section">
-          <h4>Exact Values</h4>
+        <details className="precision-move-dialog__advanced">
+          <summary>Manual vector and heading</summary>
           <p className="precision-move-dialog__hint">
-            Signed metres: positive moves toward the first direction, negative reverses it. Manual edits stay in sync with the quick controls above.
+            Signed metres: positive moves toward the first direction, negative reverses it. Manual edits stay in sync with the quick controller above.
           </p>
           <div className="precision-move-dialog__grid">
             <label>
@@ -518,51 +830,67 @@ const PrecisionMoveDialog = ({
                 inputMode="decimal"
                 step="0.1"
                 min="0.1"
-                placeholder="Backend default"
+                placeholder={policy?.defaults?.speed_m_s ? String(policy.defaults.speed_m_s) : 'Runtime default'}
                 value={formState.speedMps}
                 onChange={handleFieldChange('speedMps')}
                 disabled={submitting}
               />
             </label>
           </div>
-        </section>
 
-        <section className="precision-move-dialog__section">
-          <h4>Yaw</h4>
-          <div className="precision-move-dialog__toggle-group precision-move-dialog__toggle-group--compact" role="group" aria-label="Yaw mode">
-            {YAW_MODE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={formState.yawMode === option.value ? 'is-active' : ''}
-                onClick={() => setFormState((current) => ({ ...current, yawMode: option.value }))}
-                disabled={submitting}
-              >
-                <strong>{option.label}</strong>
-                <small>{option.hint}</small>
-              </button>
-            ))}
-          </div>
-          {formState.yawMode !== 'hold_current' && (
-            <label className="precision-move-dialog__single-field">
-              <span>{formState.yawMode === 'relative_delta' ? 'Yaw delta (deg)' : 'Heading (deg)'}</span>
-              <input
-                type="number"
-                inputMode="decimal"
-                step="1"
-                value={formState.yawDegrees}
-                onChange={handleFieldChange('yawDegrees')}
-                disabled={submitting}
-              />
-            </label>
-          )}
-        </section>
+          <section className="precision-move-dialog__subsection">
+            <h4>Yaw</h4>
+            <div className="precision-move-dialog__toggle-group precision-move-dialog__toggle-group--compact" role="group" aria-label="Yaw mode">
+              {YAW_MODE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={formState.yawMode === option.value ? 'is-active' : ''}
+                  onClick={() => setFormState((current) => ({ ...current, yawMode: option.value }))}
+                  disabled={submitting}
+                >
+                  <strong>{option.label}</strong>
+                  <small>{option.hint}</small>
+                </button>
+              ))}
+            </div>
+            {formState.yawMode !== 'hold_current' && (
+              <label className="precision-move-dialog__single-field">
+                <span>{formState.yawMode === 'relative_delta' ? 'Yaw delta (deg)' : 'Heading (deg)'}</span>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="1"
+                  value={formState.yawDegrees}
+                  onChange={handleFieldChange('yawDegrees')}
+                  disabled={submitting}
+                />
+              </label>
+            )}
+          </section>
+        </details>
 
         <details className="precision-move-dialog__advanced">
-          <summary>Advanced convergence controls</summary>
+          <summary>Convergence tuning</summary>
           <p className="precision-move-dialog__hint">
-            Leave blank to use backend defaults for tolerance, settle time, and timeout.
+            Leave blank to use the live runtime defaults from the GCS policy.
           </p>
+          {policyLoading && (
+            <p className="precision-move-dialog__hint">Loading runtime defaults…</p>
+          )}
+          {policyError && (
+            <p className="precision-move-dialog__hint">{policyError}</p>
+          )}
+          {runtimeDefaultsSummary && (
+            <div className="precision-move-dialog__defaults-grid" aria-label="Runtime defaults">
+              {runtimeDefaultsSummary.map((item) => (
+                <div key={item.label} className="precision-move-dialog__default-item">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="precision-move-dialog__grid">
             <label>
               <span>Position tolerance (m)</span>
@@ -571,7 +899,7 @@ const PrecisionMoveDialog = ({
                 inputMode="decimal"
                 step="0.01"
                 min="0.01"
-                placeholder="Backend default"
+                placeholder={policy?.defaults?.position_tolerance_m ? String(policy.defaults.position_tolerance_m) : 'Runtime default'}
                 value={formState.positionToleranceM}
                 onChange={handleFieldChange('positionToleranceM')}
                 disabled={submitting}
@@ -584,7 +912,7 @@ const PrecisionMoveDialog = ({
                 inputMode="decimal"
                 step="0.5"
                 min="0.1"
-                placeholder="Backend default"
+                placeholder={policy?.defaults?.yaw_tolerance_deg ? String(policy.defaults.yaw_tolerance_deg) : 'Runtime default'}
                 value={formState.yawToleranceDeg}
                 onChange={handleFieldChange('yawToleranceDeg')}
                 disabled={submitting}
@@ -597,7 +925,7 @@ const PrecisionMoveDialog = ({
                 inputMode="decimal"
                 step="0.1"
                 min="0.1"
-                placeholder="Backend default"
+                placeholder={policy?.defaults?.settle_time_sec ? String(policy.defaults.settle_time_sec) : 'Runtime default'}
                 value={formState.settleTimeSec}
                 onChange={handleFieldChange('settleTimeSec')}
                 disabled={submitting}
@@ -610,7 +938,7 @@ const PrecisionMoveDialog = ({
                 inputMode="decimal"
                 step="1"
                 min="1"
-                placeholder="Backend default"
+                placeholder={policy?.defaults?.timeout_sec ? String(policy.defaults.timeout_sec) : 'Runtime default'}
                 value={formState.timeoutSec}
                 onChange={handleFieldChange('timeoutSec')}
                 disabled={submitting}
@@ -668,8 +996,24 @@ PrecisionMoveDialog.propTypes = {
   targetLabel: PropTypes.string.isRequired,
   targetDescriptor: PropTypes.string.isRequired,
   targetCount: PropTypes.number.isRequired,
+  liveMonitor: PropTypes.shape({
+    commandLabel: PropTypes.string,
+    isTerminal: PropTypes.bool,
+    acks: PropTypes.shape({
+      accepted: PropTypes.number,
+      expected: PropTypes.number,
+    }),
+    progress: PropTypes.shape({
+      label: PropTypes.string,
+      message: PropTypes.string,
+      stage: PropTypes.string,
+      active: PropTypes.number,
+      completed: PropTypes.number,
+    }),
+  }),
   submitting: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
+  onEditTargetScope: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
   onSubmitHold: PropTypes.func.isRequired,
 };

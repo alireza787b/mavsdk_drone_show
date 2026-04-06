@@ -13,6 +13,7 @@ from schemas import (
     CommandListResponse,
     CommandOutcome,
     CommandPhase,
+    PrecisionMovePolicyResponse,
     CommandStatisticsResponse,
     CommandStatus,
     CommandStatusResponse,
@@ -220,6 +221,43 @@ def _build_submit_request_fingerprint(command: SubmitCommandRequest) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _build_precision_move_policy_payload(params: Any) -> dict[str, Any]:
+    return {
+        "action": "precision_move",
+        "defaults": {
+            "speed_m_s": float(getattr(params, "PRECISION_MOVE_DEFAULT_SPEED_MPS", 1.0)),
+            "position_tolerance_m": float(
+                getattr(params, "PRECISION_MOVE_DEFAULT_POSITION_TOLERANCE_M", 0.15)
+            ),
+            "yaw_tolerance_deg": float(
+                getattr(params, "PRECISION_MOVE_DEFAULT_YAW_TOLERANCE_DEG", 5.0)
+            ),
+            "settle_time_sec": float(getattr(params, "PRECISION_MOVE_DEFAULT_SETTLE_TIME_SEC", 1.0)),
+            "timeout_sec": float(getattr(params, "PRECISION_MOVE_DEFAULT_TIMEOUT_SEC", 30.0)),
+        },
+        "limits": {
+            "max_translation_m": float(getattr(params, "PRECISION_MOVE_MAX_TRANSLATION_M", 100.0)),
+            "max_speed_m_s": float(getattr(params, "PRECISION_MOVE_MAX_SPEED_MPS", 5.0)),
+            "min_position_tolerance_m": float(
+                getattr(params, "PRECISION_MOVE_MIN_POSITION_TOLERANCE_M", 0.05)
+            ),
+            "max_timeout_sec": float(getattr(params, "PRECISION_MOVE_MAX_TIMEOUT_SEC", 180.0)),
+            "min_airborne_altitude_m": float(
+                getattr(params, "PRECISION_MOVE_MIN_AIRBORNE_ALTITUDE_M", 0.3)
+            ),
+            "control_rate_hz": float(getattr(params, "PRECISION_MOVE_CONTROL_RATE_HZ", 10.0)),
+        },
+        "execution": {
+            "supported_frames": ["body", "ned"],
+            "supported_yaw_modes": ["hold_current", "relative_delta", "absolute_heading"],
+            "hold_mode": "px4_hold",
+            "immediate_only": True,
+            "requires_airborne": True,
+            "requires_local_position": True,
+        },
+    }
+
+
 async def _record_command_acknowledgements(tracker: Any, command_id: str, results: dict[str, Any]) -> None:
     for drone_id, result in results.get("results", {}).items():
         category = result.get("category", "error")
@@ -258,6 +296,15 @@ async def _record_command_acknowledgements(tracker: Any, command_id: str, result
 
 def create_command_router(deps: Any) -> APIRouter:
     router = APIRouter()
+
+    @router.get(
+        "/api/v1/commands/policy/precision-move",
+        response_model=PrecisionMovePolicyResponse,
+        tags=["Commands"],
+    )
+    async def get_precision_move_policy():
+        """Get the current runtime policy envelope for Precision Move."""
+        return PrecisionMovePolicyResponse.model_validate(_build_precision_move_policy_payload(deps.Params))
 
     @router.post("/api/v1/commands", response_model=SubmitCommandResponse, tags=["Commands"])
     async def submit_command(command: SubmitCommandRequest):

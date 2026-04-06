@@ -16,6 +16,7 @@ import {
   getGcsConfigResponse,
   getNetworkInfoResponse,
   getCommandStatusResponse,
+  getPrecisionMovePolicyResponse,
   getTrajectoryFirstRowResponse,
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
@@ -91,6 +92,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/origin/compute')).toBe(GCS_ROUTE_KEYS.computeOrigin);
     expect(resolveGcsRouteKey('/api/v1/origin/launch-positions')).toBe(GCS_ROUTE_KEYS.desiredLaunchPositions);
     expect(resolveGcsRouteKey('/api/v1/commands')).toBe(GCS_ROUTE_KEYS.commandSubmit);
+    expect(resolveGcsRouteKey('/api/v1/commands/policy/precision-move')).toBe(GCS_ROUTE_KEYS.precisionMovePolicy);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryBase);
@@ -195,6 +197,17 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/commands/cmd%2Fleader%201',
+      {}
+    );
+  });
+
+  it('fetches precision move policy from the canonical command policy route', async () => {
+    axios.get.mockResolvedValue({ data: { action: 'precision_move' } });
+
+    await getPrecisionMovePolicyResponse();
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/commands/policy/precision-move',
       {}
     );
   });

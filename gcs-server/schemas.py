@@ -1184,6 +1184,43 @@ class CommandStatisticsResponse(BaseModel):
     timestamp: int = Field(..., description="Response timestamp (Unix ms)")
 
 
+class PrecisionMovePolicyDefaults(BaseModel):
+    """Runtime defaults for the Precision Move action."""
+    speed_m_s: float = Field(..., gt=0, description="Default translation speed in m/s")
+    position_tolerance_m: float = Field(..., gt=0, description="Default convergence position tolerance in metres")
+    yaw_tolerance_deg: float = Field(..., gt=0, description="Default convergence yaw tolerance in degrees")
+    settle_time_sec: float = Field(..., gt=0, description="Default settle duration after entering tolerance")
+    timeout_sec: float = Field(..., gt=0, description="Default maximum execution timeout in seconds")
+
+
+class PrecisionMovePolicyLimits(BaseModel):
+    """Runtime safety and control limits for the Precision Move action."""
+    max_translation_m: float = Field(..., gt=0, description="Maximum total translation magnitude in metres")
+    max_speed_m_s: float = Field(..., gt=0, description="Maximum allowed translation speed in m/s")
+    min_position_tolerance_m: float = Field(..., gt=0, description="Minimum allowed position tolerance in metres")
+    max_timeout_sec: float = Field(..., gt=0, description="Maximum allowed action timeout in seconds")
+    min_airborne_altitude_m: float = Field(..., gt=0, description="Minimum relative altitude required before the move is allowed")
+    control_rate_hz: float = Field(..., gt=0, description="Offboard control-loop update rate in Hz")
+
+
+class PrecisionMovePolicyExecution(BaseModel):
+    """Operator-facing execution constraints for the Precision Move action."""
+    supported_frames: List[str] = Field(..., description="Supported input frames")
+    supported_yaw_modes: List[str] = Field(..., description="Supported yaw command modes")
+    hold_mode: str = Field(..., description="Post-move hold handoff strategy")
+    immediate_only: bool = Field(..., description="Whether the action must dispatch immediately")
+    requires_airborne: bool = Field(..., description="Whether the drone must already be airborne")
+    requires_local_position: bool = Field(..., description="Whether local position telemetry is required")
+
+
+class PrecisionMovePolicyResponse(BaseModel):
+    """Response for GET /api/v1/commands/policy/precision-move."""
+    action: str = Field(..., description="Canonical action key")
+    defaults: PrecisionMovePolicyDefaults = Field(..., description="Runtime defaults used when fields are omitted")
+    limits: PrecisionMovePolicyLimits = Field(..., description="Runtime safety and control limits")
+    execution: PrecisionMovePolicyExecution = Field(..., description="Execution constraints for operators and clients")
+
+
 class SubmitCommandRequest(SharedSubmitCommandRequest):
     """Request body for POST /api/v1/commands."""
 

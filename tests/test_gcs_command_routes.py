@@ -173,6 +173,7 @@ def test_command_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/commands" in routes
+    assert "/api/v1/commands/policy/precision-move" in routes
     assert "/api/v1/commands/{command_id}" in routes
     assert "/api/v1/commands/recent" in routes
     assert "/api/v1/commands/active" in routes
@@ -214,6 +215,40 @@ def test_command_router_statistics_uses_live_tracker_after_router_creation():
     assert response.status_code == 200
     assert response.json()["total_commands"] == 7
     assert response.json()["active_commands"] == 2
+
+
+def test_command_router_precision_move_policy_uses_runtime_params():
+    deps = _make_deps()
+    deps.Params = SimpleNamespace(
+        PRECISION_MOVE_DEFAULT_SPEED_MPS=1.25,
+        PRECISION_MOVE_DEFAULT_POSITION_TOLERANCE_M=0.2,
+        PRECISION_MOVE_DEFAULT_YAW_TOLERANCE_DEG=6.0,
+        PRECISION_MOVE_DEFAULT_SETTLE_TIME_SEC=1.5,
+        PRECISION_MOVE_DEFAULT_TIMEOUT_SEC=40.0,
+        PRECISION_MOVE_MAX_TRANSLATION_M=120.0,
+        PRECISION_MOVE_MAX_SPEED_MPS=6.0,
+        PRECISION_MOVE_MIN_POSITION_TOLERANCE_M=0.08,
+        PRECISION_MOVE_MAX_TIMEOUT_SEC=200.0,
+        PRECISION_MOVE_MIN_AIRBORNE_ALTITUDE_M=0.4,
+        PRECISION_MOVE_CONTROL_RATE_HZ=12.0,
+        GCS_TELEMETRY_REQUEST_TIMEOUT_SEC=1.0,
+        drone_api_port=5001,
+        get_drone_home_URI="get-home-pos",
+    )
+    app = FastAPI()
+    app.include_router(create_command_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/commands/policy/precision-move")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["action"] == "precision_move"
+    assert body["defaults"]["speed_m_s"] == 1.25
+    assert body["defaults"]["position_tolerance_m"] == 0.2
+    assert body["limits"]["max_translation_m"] == 120.0
+    assert body["execution"]["immediate_only"] is True
+    assert body["execution"]["supported_frames"] == ["body", "ned"]
 
 
 def test_command_router_submit_rejects_malformed_json():

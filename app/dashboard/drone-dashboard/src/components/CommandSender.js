@@ -1,6 +1,6 @@
 // src/components/CommandSender.js
 
-import React, { useMemo, useReducer, useState } from 'react';
+import React, { useMemo, useReducer, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
@@ -50,6 +50,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const targetSelectionRef = useRef(null);
   const [, forceClockTick] = useReducer((value) => value + 1, 0);
   const {
     primaryMonitor: commandMonitor,
@@ -400,6 +401,21 @@ const CommandSender = ({ drones, swarmData = null }) => {
     }
   };
 
+  const handleEditTargetScopeFromPrecisionMove = () => {
+    if (loading) {
+      return;
+    }
+
+    setPrecisionMoveDialogOpen(false);
+
+    window.setTimeout(() => {
+      targetSelectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      const focusTarget = document.getElementById('targetMode')
+        || targetSelectionRef.current?.querySelector('input, select, button');
+      focusTarget?.focus?.();
+    }, 0);
+  };
+
   const handleSubmitPrecisionMove = async (commandData) => {
     const preparedCommand = prepareCommandForDispatch(commandData);
     if (!preparedCommand) {
@@ -512,7 +528,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
         </div>
 
       {/* Target Selection UI */}
-      <div className="target-selection">
+      <div className="target-selection" ref={targetSelectionRef}>
         <div className="target-selection__row">
           <div>
             <label htmlFor="targetMode" className="target-selection__label">Command target</label>
@@ -764,8 +780,10 @@ const CommandSender = ({ drones, swarmData = null }) => {
         targetLabel={targetLabel}
         targetDescriptor={targetDescriptor}
         targetCount={targetCount}
+        liveMonitor={commandMonitor}
         submitting={loading}
         onClose={handleClosePrecisionMoveDialog}
+        onEditTargetScope={handleEditTargetScopeFromPrecisionMove}
         onSubmit={handleSubmitPrecisionMove}
         onSubmitHold={handleSubmitPrecisionMoveHold}
       />

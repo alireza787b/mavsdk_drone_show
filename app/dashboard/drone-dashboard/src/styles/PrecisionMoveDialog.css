@@ -90,6 +90,17 @@
   background: var(--color-surface-muted);
 }
 
+.precision-move-dialog__section--compact {
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__section-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+}
+
 .precision-move-dialog__section h4,
 .precision-move-dialog__review h4 {
   margin: 0;
@@ -140,9 +151,31 @@
   min-width: 120px;
 }
 
+.precision-move-dialog__step-input {
+  display: grid;
+  gap: var(--spacing-xs);
+  max-width: 140px;
+}
+
+.precision-move-dialog__step-input span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.precision-move-dialog__step-input input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
 .precision-move-dialog__quick-actions {
   display: flex;
   justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
 }
 
 .precision-move-dialog__toggle-group {
@@ -206,6 +239,11 @@
   max-width: 240px;
 }
 
+.precision-move-dialog__subsection {
+  display: grid;
+  gap: var(--spacing-base);
+}
+
 .precision-move-dialog__advanced summary {
   cursor: pointer;
   font-weight: var(--font-weight-semibold);
@@ -221,6 +259,168 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-base);
+}
+
+.precision-move-dialog__scope-summary,
+.precision-move-dialog__defaults-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__scope-card,
+.precision-move-dialog__default-item {
+  display: grid;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+}
+
+.precision-move-dialog__scope-card span,
+.precision-move-dialog__default-item span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.precision-move-dialog__scope-card small {
+  color: var(--color-text-secondary);
+}
+
+.precision-move-dialog__controller {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.8fr);
+  gap: var(--spacing-base);
+}
+
+.precision-move-dialog__controller-pad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-areas:
+    ". forward ."
+    "left core right"
+    ". back .";
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__controller-rails {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__rail-group {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__rail-group > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.precision-move-dialog__control,
+.precision-move-dialog__control-core {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--spacing-xs);
+  min-height: 92px;
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.precision-move-dialog__control {
+  cursor: pointer;
+}
+
+.precision-move-dialog__control svg {
+  font-size: 1rem;
+}
+
+.precision-move-dialog__control small,
+.precision-move-dialog__control-core span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.precision-move-dialog__control-core strong {
+  text-align: center;
+  line-height: var(--line-height-normal);
+}
+
+.precision-move-dialog__control--forward {
+  grid-area: forward;
+}
+
+.precision-move-dialog__control--left {
+  grid-area: left;
+}
+
+.precision-move-dialog__control--right {
+  grid-area: right;
+}
+
+.precision-move-dialog__control--back {
+  grid-area: back;
+}
+
+.precision-move-dialog__control-core {
+  grid-area: core;
+}
+
+.precision-move-dialog__live-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.precision-move-dialog__status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__status-step {
+  padding: var(--spacing-sm) var(--spacing-base);
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.precision-move-dialog__status-step--active {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-light);
+  color: var(--color-text-primary);
+}
+
+.precision-move-dialog__status-step--complete {
+  border-color: color-mix(in srgb, var(--color-success, #17803d) 60%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-success, #17803d) 16%, var(--color-bg-primary));
+  color: var(--color-text-primary);
+}
+
+.precision-move-dialog__status-meta {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.precision-move-dialog__status-meta span {
+  color: var(--color-text-secondary);
 }
 
 .precision-move-dialog__review p {
@@ -278,14 +478,21 @@
 .precision-move-dialog__chip-row button:focus-visible,
 .precision-move-dialog__quick-grid button:focus-visible,
 .precision-move-dialog__ghost:focus-visible,
+.precision-move-dialog__step-input input:focus-visible,
 .precision-move-dialog__toggle-group button:focus-visible,
 .precision-move-dialog__grid input:focus-visible,
 .precision-move-dialog__single-field input:focus-visible,
+.precision-move-dialog__control:focus-visible,
 .precision-move-dialog__cancel:focus-visible,
 .precision-move-dialog__hold:focus-visible,
 .precision-move-dialog__submit:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.precision-move-dialog__scope-badge--interactive {
+  cursor: pointer;
+  gap: var(--spacing-sm);
 }
 
 @media (max-width: 768px) {
@@ -307,5 +514,24 @@
 
   .precision-move-dialog__single-field {
     max-width: none;
+  }
+
+  .precision-move-dialog__section-header,
+  .precision-move-dialog__controller,
+  .precision-move-dialog__scope-summary,
+  .precision-move-dialog__defaults-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .precision-move-dialog__controller {
+    display: grid;
+  }
+
+  .precision-move-dialog__controller-pad {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .precision-move-dialog__status-strip {
+    grid-template-columns: 1fr;
   }
 }
