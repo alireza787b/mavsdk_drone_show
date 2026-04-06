@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import {
@@ -312,7 +312,7 @@ const PrecisionMoveDialog = ({
     [formState, frameConfig],
   );
 
-  const buildDetailRows = (sourceState, preview, sourceFrameConfig = frameConfig) => {
+  const buildDetailRows = useCallback((sourceState, preview, sourceFrameConfig = frameConfig) => {
     if (!preview) {
       return [];
     }
@@ -371,11 +371,11 @@ const PrecisionMoveDialog = ({
     }
 
     return rows;
-  };
+  }, [frameConfig, policy?.defaults]);
 
   const detailRows = useMemo(
     () => buildDetailRows(formState, validation.preview),
-    [formState, policy?.defaults, validation.preview, frameConfig],
+    [buildDetailRows, formState, validation.preview],
   );
 
   const runtimeDefaultsSummary = useMemo(() => {

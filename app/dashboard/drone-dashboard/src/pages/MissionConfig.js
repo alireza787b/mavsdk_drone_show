@@ -46,6 +46,7 @@ import {
   normalizeDroneConfigData,
   normalizeDroneConfigEntry,
 } from '../utilities/missionIdentityUtils';
+import { buildMissionSlotStatusPresentation } from '../utilities/missionSlotStatus';
 import {
   buildClusterScopeOptions,
   buildSwarmViewModel,
@@ -60,10 +61,16 @@ import {
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
+import { CircularProgress } from '@mui/material';
 
 // Icons
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExclamationTriangle, faExchangeAlt } from '@fortawesome/free-solid-svg-icons';
+import {
+  faExclamationTriangle,
+  faExchangeAlt,
+  faPlus,
+  faSave,
+} from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
   const [searchParams] = useSearchParams();
@@ -118,6 +125,7 @@ const MissionConfig = () => {
   const [trajectoryPositionsByPosId, setTrajectoryPositionsByPosId] = useState({});
   const [missionConfigSearch, setMissionConfigSearch] = useState('');
   const [clusterScope, setClusterScope] = useState('all');
+  const [assignmentFilter, setAssignmentFilter] = useState('all');
   const requestedDroneId = normalizeComparableId(searchParams.get('drone'));
   const requestedEditMode = searchParams.get('edit') === '1';
 
@@ -157,6 +165,14 @@ const MissionConfig = () => {
   const clusterScopeOptions = useMemo(
     () => buildClusterScopeOptions(swarmViewModel?.clusters || [], configData.length),
     [configData.length, swarmViewModel?.clusters]
+  );
+  const duplicateHwIdSet = useMemo(
+    () => new Set(duplicateHwIds.map((entry) => normalizeComparableId(entry.hw_id)).filter(Boolean)),
+    [duplicateHwIds]
+  );
+  const duplicatePosIdSet = useMemo(
+    () => new Set(duplicatePosIds.map((entry) => normalizeComparableId(entry.pos_id)).filter(Boolean)),
+    [duplicatePosIds]
   );
 
   // -----------------------------------------------------
@@ -596,6 +612,113 @@ const MissionConfig = () => {
       visibleClusters.flatMap((cluster) => cluster.drones.map((drone) => normalizeComparableId(drone.hw_id)))
     );
   }, [clusterScope, visibleClusters]);
+  const getHeartbeatAgeSec = (heartbeatData) => {
+    const timestamp = Number(heartbeatData?.timestamp);
+    if (!Number.isFinite(timestamp)) {
+      return null;
+    }
+
+    return Math.floor((Date.now() - timestamp) / 1000);
+  };
+  const getAssignmentSignals = (drone) => {
+    const hwId = normalizeComparableId(drone.hw_id);
+    const configPosId = normalizeComparableId(drone.pos_id, drone.hw_id);
+    const heartbeatData = heartbeats[hwId] || null;
+    const heartbeatAgeSec = getHeartbeatAgeSec(heartbeatData);
+    const assignedPosId = normalizeComparableId(heartbeatData?.pos_id);
+    const autoPosId = normalizeComparableId(heartbeatData?.detected_pos_id);
+    const slotPresentation = buildMissionSlotStatusPresentation(configPosId, assignedPosId, autoPosId);
+    const isRoleSwap = Boolean(hwId && configPosId && hwId !== configPosId);
+    const isOffline = heartbeatAgeSec !== null && heartbeatAgeSec >= 60;
+    const isNew = Boolean(drone.isNew);
+    const needsAttention = (
+      duplicateHwIdSet.has(hwId)
+      || duplicatePosIdSet.has(configPosId)
+      || isRoleSwap
+      || isNew
+      || isOffline
+      || slotPresentation.tone === 'review'
+    );
+
+    return {
+      isNew,
+      isRoleSwap,
+      isOffline,
+      needsAttention,
+    };
+  };
+  const assignmentFilterOptions = useMemo(() => {
+    const counts = {
+      all: sortedConfigData.length,
+      attention: 0,
+      roleSwaps: 0,
+      offline: 0,
+      new: 0,
+    };
+
+    sortedConfigData.forEach((drone) => {
+      const signals = getAssignmentSignals(drone);
+      if (signals.needsAttention) {
+        counts.attention += 1;
+      }
+      if (signals.isRoleSwap) {
+        counts.roleSwaps += 1;
+      }
+      if (signals.isOffline) {
+        counts.offline += 1;
+      }
+      if (signals.isNew) {
+        counts.new += 1;
+      }
+    });
+
+    return [
+      {
+        id: 'all',
+        label: 'All assignments',
+        count: counts.all,
+        description: 'Show every assignment card.',
+      },
+      counts.attention > 0
+        ? {
+            id: 'attention',
+            label: 'Needs review',
+            count: counts.attention,
+            description: 'Show cards that need operator attention first.',
+          }
+        : null,
+      counts.roleSwaps > 0
+        ? {
+            id: 'roleSwaps',
+            label: 'Role swaps',
+            count: counts.roleSwaps,
+            description: 'Show deliberate slot swap assignments.',
+          }
+        : null,
+      counts.offline > 0
+        ? {
+            id: 'offline',
+            label: 'Offline',
+            count: counts.offline,
+            description: 'Show drones that have gone offline.',
+          }
+        : null,
+      counts.new > 0
+        ? {
+            id: 'new',
+            label: 'New',
+            count: counts.new,
+            description: 'Show newly detected drones.',
+          }
+        : null,
+    ].filter(Boolean);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedConfigData, heartbeats, duplicateHwIdSet, duplicatePosIdSet]);
+  useEffect(() => {
+    if (!assignmentFilterOptions.some((option) => option.id === assignmentFilter)) {
+      setAssignmentFilter('all');
+    }
+  }, [assignmentFilter, assignmentFilterOptions]);
   const filteredConfigData = useMemo(() => (
     sortedConfigData.filter((drone) => {
       const hwId = normalizeComparableId(drone.hw_id);
@@ -603,9 +726,41 @@ const MissionConfig = () => {
         return false;
       }
 
-      return matchesDroneSearchQuery(drone, missionConfigSearch);
+      if (!matchesDroneSearchQuery(drone, missionConfigSearch)) {
+        return false;
+      }
+
+      if (assignmentFilter === 'all') {
+        return true;
+      }
+
+      const signals = getAssignmentSignals(drone);
+      switch (assignmentFilter) {
+        case 'attention':
+          return signals.needsAttention;
+        case 'roleSwaps':
+          return signals.isRoleSwap;
+        case 'offline':
+          return signals.isOffline;
+        case 'new':
+          return signals.isNew;
+        default:
+          return true;
+      }
     })
-  ), [missionConfigSearch, sortedConfigData, visibleClusterHwIds]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [assignmentFilter, missionConfigSearch, sortedConfigData, visibleClusterHwIds, heartbeats, duplicateHwIdSet, duplicatePosIdSet]);
+  const missionWorkspaceStats = useMemo(
+    () => [
+      { label: 'Visible', value: filteredConfigData.length },
+      { label: 'Online', value: onlineDroneCount },
+      { label: 'Role swaps', value: roleSwaps.length },
+      { label: 'Duplicate slots', value: duplicatePosIds.length },
+      { label: 'New', value: configData.filter((drone) => drone.isNew).length },
+      { label: 'Origin', value: originAvailable ? 'Ready' : 'Needed', tone: originAvailable ? 'good' : 'warning' },
+    ],
+    [configData, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originAvailable, roleSwaps.length]
+  );
 
   useEffect(() => {
     if (!requestedDroneId) {
@@ -656,70 +811,89 @@ const MissionConfig = () => {
         </div>
       </header>
 
-      <section className="mission-identity-brief" aria-label="Hardware and position ID guidance">
-        <div className="mission-identity-brief__summary">
-          <div className="identity-brief-card">
-            <span className="identity-brief-label">Hardware ID</span>
-            <strong>Airframe identity</strong>
-            <p>Labeled airframe and runtime identity.</p>
+      <section className="mission-config-workspace-shell" aria-label="Assignment workspace">
+        <div className="mission-config-primary-bar">
+          <div className="mission-config-primary-bar__copy">
+            <span className="mission-config-primary-bar__kicker">Assignment workspace</span>
+            <strong>Review slot ownership, fix conflicts, then save once the wall is clean.</strong>
           </div>
-          <div className="identity-brief-card">
-            <span className="identity-brief-label">Position ID</span>
-            <strong>Mission slot</strong>
-            <p>Assigned show or route slot.</p>
-          </div>
-          <div className="identity-brief-card">
-            <span className="identity-brief-label">Role swaps</span>
-            <strong>Allowed, but explicit</strong>
-            <p>Use only for deliberate spare takeover.</p>
+          <div className="mission-config-primary-bar__actions">
+            <button
+              type="button"
+              className="mission-config-primary-button mission-config-primary-button--save"
+              onClick={handleSaveChangesToServerWrapper}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <CircularProgress size={18} color="inherit" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <FontAwesomeIcon icon={faSave} />
+                  Save & Commit
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="mission-config-primary-button mission-config-primary-button--add"
+              onClick={addNewDrone}
+            >
+              <FontAwesomeIcon icon={faPlus} />
+              Add Drone
+            </button>
           </div>
         </div>
 
-        <details className="mission-identity-guide">
-          <summary>
-            <span>Identity guide</span>
-            <small>Slot ownership, role swaps, optional metadata</small>
-          </summary>
-          <div className="mission-identity-guide__grid">
-            <div className="identity-brief-card">
-              <span className="identity-brief-label">Hardware ID</span>
-              <strong>Physical drone identity</strong>
-              <p>Matches the labeled drone and the companion-computer identity used at runtime.</p>
-            </div>
-            <div className="identity-brief-card">
-              <span className="identity-brief-label">Position ID</span>
-              <strong>Show slot / trajectory slot</strong>
-              <p>Selects which <code>Drone {'{pos_id}'}.csv</code> path that airframe will fly.</p>
-            </div>
-            <div className="identity-brief-card identity-brief-card-wide">
-              <span className="identity-brief-label">Operational rule</span>
-              <strong>Follow-links still use Hardware ID.</strong>
-              <p>Role swaps change slot ownership only. Smart Swarm follow-chains still reference physical leader hardware IDs.</p>
-            </div>
-            <div className="identity-brief-card">
-              <span className="identity-brief-label">Additional fields</span>
-              <strong>Optional metadata stays secondary</strong>
-              <p>Add JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
-            </div>
+        <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
+          <label className="mission-config-search">
+            <span>Search assignments</span>
+            <input
+              type="search"
+              value={missionConfigSearch}
+              onChange={(event) => setMissionConfigSearch(event.target.value)}
+              placeholder={DRONE_SEARCH_PLACEHOLDER}
+              aria-label="Search assignments by position, hardware ID, or callsign"
+            />
+          </label>
+          <p className="mission-config-ops-note">
+            {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. {DRONE_SEARCH_HELP_TEXT}
+          </p>
+          <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
+            {missionWorkspaceStats.map((stat) => (
+              <div
+                key={stat.label}
+                className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
+              >
+                <span className="mission-config-ops-stat__label">{stat.label}</span>
+                <strong className="mission-config-ops-stat__value">{stat.value}</strong>
+              </div>
+            ))}
           </div>
-        </details>
-      </section>
+        </section>
 
-      {/* Top Control Buttons */}
-      <ControlButtons
-        addNewDrone={addNewDrone}
-        handleSaveChangesToServer={handleSaveChangesToServerWrapper}
-        handleRevertChanges={handleRevertChangesWrapper}
-        handleFileChange={handleFileChangeWrapper}
-        exportConfig={handleExportConfigWrapper}
-        exportConfigCSV={handleExportConfigCSVWrapper}
-        openOriginModal={() => setShowOriginModal(true)}
-        openGcsConfigModal={() => setShowGcsConfigModal(true)}
-        handleResetToDefault={handleResetToDefault}
-        configData={configData}
-        setConfigData={setConfigData}
-        loading={loading}
-      />
+        {assignmentFilterOptions.length > 1 && (
+          <ClusterScopeBar
+            label="Issue filters"
+            options={assignmentFilterOptions}
+            selectedId={assignmentFilter}
+            onSelect={setAssignmentFilter}
+            summary="Start with cards that need review before working through the full wall."
+          />
+        )}
+
+        {clusterScopeOptions.length > 1 && (
+          <ClusterScopeBar
+            label="Cluster scope"
+            options={clusterScopeOptions}
+            selectedId={clusterScope}
+            onSelect={setClusterScope}
+            summary="Detected from the current saved swarm topology."
+          />
+        )}
+      </section>
 
       {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0) && (
         <div className="config-warning-banner">
@@ -850,100 +1024,18 @@ const MissionConfig = () => {
         </div>
       )}
 
-      <MissionLayout
-        configData={configData}
-        origin={origin}
-        openOriginModal={() => setShowOriginModal(true)}
-      />
-
-      <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
-        <label className="mission-config-search">
-          <span>Search assignments</span>
-          <input
-            type="search"
-            value={missionConfigSearch}
-            onChange={(event) => setMissionConfigSearch(event.target.value)}
-            placeholder={DRONE_SEARCH_PLACEHOLDER}
-            aria-label="Search assignments by position, hardware ID, or callsign"
-          />
-        </label>
-        <p className="mission-config-ops-note">
-          {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. {DRONE_SEARCH_HELP_TEXT}
-        </p>
-      </section>
-
-      {clusterScopeOptions.length > 1 && (
-        <ClusterScopeBar
-          label="Cluster scope"
-          options={clusterScopeOptions}
-          selectedId={clusterScope}
-          onSelect={setClusterScope}
-          summary="Detected from the current saved swarm topology."
-        />
-      )}
-
-      {/* Drone Stats Summary */}
-      {configData.length > 0 && (
-        <div className="drone-stats-summary">
-          <div className="stat-item">
-            <span className="stat-number">{configData.length}</span>
-            <span className="stat-label">Drones</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">{onlineDroneCount}</span>
-            <span className="stat-label">Online</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">{roleSwaps.length}</span>
-            <span className="stat-label">Role Swaps</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">{duplicatePosIds.length}</span>
-            <span className="stat-label">Duplicate Slots</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">{configData.filter((drone) => drone.isNew).length}</span>
-            <span className="stat-label">New Drones</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-number">
-              {originAvailable ? '✓' : '✗'}
-            </span>
-            <span className="stat-label">Origin Set</span>
-          </div>
-        </div>
-      )}
-
-      {/* TODO: Persist mission-wide forward heading once the backend contract is finalized. */}
-      <div className="heading-controls heading-controls-preview">
-        <div className="heading-controls-header">
-          <div>
-            <div className="heading-kicker">Preview Only</div>
-            <label htmlFor="headingSlider">
-              Forward Heading: {forwardHeading}°
-            </label>
-            <p className="heading-controls-copy">
-              Updates the mission preview only. Server-backed forward heading workflow is still under development.
-            </p>
-          </div>
-          <span className="heading-status-badge">Under development</span>
-        </div>
-        <input
-          id="headingSlider"
-          type="range"
-          min={0}
-          max={359}
-          value={forwardHeading}
-          onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
-        />
-        <div className="heading-preview-note">
-          Coming soon: mission-wide save/apply behavior after the operator workflow is finalized.
-        </div>
-      </div>
-
       {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
         <div className="drone-cards slide-in-left">
+          <div className="mission-config-card-panel-header">
+            <div>
+              <h3>Assignment wall</h3>
+              <p>Keep the default view focused on identity, slot status, and the actions needed to fix the assignment.</p>
+            </div>
+            <span className="mission-config-card-panel-meta">
+              {filteredConfigData.length} visible
+            </span>
+          </div>
           {filteredConfigData.length > 0 ? (
             filteredConfigData.map((drone, index) => (
               <div
@@ -987,7 +1079,7 @@ const MissionConfig = () => {
               </div>
             ))
           ) : (
-            <p>No assignment cards match the current search or cluster scope.</p>
+            <p>No assignment cards match the current search, issue filter, or cluster scope.</p>
           )}
         </div>
 
@@ -1011,6 +1103,98 @@ const MissionConfig = () => {
           />
         </div>
       </div>
+
+      <section className="mission-config-secondary-panels" aria-label="Mission configuration secondary tools">
+        <details className="mission-config-secondary-panel">
+          <summary>
+            <span>Mission tools</span>
+            <small>Sync, import/export, origin, revert, and reset actions</small>
+          </summary>
+          <ControlButtons
+            addNewDrone={addNewDrone}
+            handleSaveChangesToServer={handleSaveChangesToServerWrapper}
+            handleRevertChanges={handleRevertChangesWrapper}
+            handleFileChange={handleFileChangeWrapper}
+            exportConfig={handleExportConfigWrapper}
+            exportConfigCSV={handleExportConfigCSVWrapper}
+            openOriginModal={() => setShowOriginModal(true)}
+            openGcsConfigModal={() => setShowGcsConfigModal(true)}
+            handleResetToDefault={handleResetToDefault}
+            configData={configData}
+            setConfigData={setConfigData}
+            loading={loading}
+            mode="secondary"
+          />
+        </details>
+
+        <details className="mission-config-secondary-panel">
+          <summary>
+            <span>Identity guide</span>
+            <small>Slot ownership, role swaps, optional metadata</small>
+          </summary>
+          <div className="mission-identity-guide__grid">
+            <div className="identity-brief-card">
+              <span className="identity-brief-label">Hardware ID</span>
+              <strong>Physical drone identity</strong>
+              <p>Matches the labeled drone and the companion-computer identity used at runtime.</p>
+            </div>
+            <div className="identity-brief-card">
+              <span className="identity-brief-label">Position ID</span>
+              <strong>Show slot / trajectory slot</strong>
+              <p>Selects which <code>Drone {'{pos_id}'}.csv</code> path that airframe will fly.</p>
+            </div>
+            <div className="identity-brief-card identity-brief-card-wide">
+              <span className="identity-brief-label">Operational rule</span>
+              <strong>Follow-links still use Hardware ID.</strong>
+              <p>Role swaps change slot ownership only. Smart Swarm follow-chains still reference physical leader hardware IDs.</p>
+            </div>
+            <div className="identity-brief-card">
+              <span className="identity-brief-label">Additional fields</span>
+              <strong>Optional metadata stays secondary</strong>
+              <p>Add JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
+            </div>
+          </div>
+        </details>
+
+        <details className="mission-config-secondary-panel">
+          <summary>
+            <span>Mission preview tools</span>
+            <small>KML export, print, origin state, and forward-heading preview</small>
+          </summary>
+          <MissionLayout
+            configData={configData}
+            origin={origin}
+            openOriginModal={() => setShowOriginModal(true)}
+          />
+
+          {/* TODO: Persist mission-wide forward heading once the backend contract is finalized. */}
+          <div className="heading-controls heading-controls-preview">
+            <div className="heading-controls-header">
+              <div>
+                <div className="heading-kicker">Preview Only</div>
+                <label htmlFor="headingSlider">
+                  Forward Heading: {forwardHeading}°
+                </label>
+                <p className="heading-controls-copy">
+                  Updates the mission preview only. Server-backed forward heading workflow is still under development.
+                </p>
+              </div>
+              <span className="heading-status-badge">Under development</span>
+            </div>
+            <input
+              id="headingSlider"
+              type="range"
+              min={0}
+              max={359}
+              value={forwardHeading}
+              onChange={(e) => setForwardHeading(parseInt(e.target.value, 10))}
+            />
+            <div className="heading-preview-note">
+              Coming soon: mission-wide save/apply behavior after the operator workflow is finalized.
+            </div>
+          </div>
+        </details>
+      </section>
 
       {/* Replace Drone Wizard */}
       <ReplaceDroneWizard

@@ -588,6 +588,97 @@
   line-height: var(--line-height-normal);
 }
 
+.runtime-snapshot-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-xs);
+}
+
+.runtime-snapshot-chip {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+}
+
+.runtime-snapshot-chip.is-good {
+  border-color: var(--color-success-border);
+  background: color-mix(in srgb, var(--color-success-light) 76%, var(--color-bg-primary));
+}
+
+.runtime-snapshot-chip.needs-review {
+  border-color: var(--color-warning-border);
+  background: color-mix(in srgb, var(--color-warning-light) 76%, var(--color-bg-primary));
+}
+
+.runtime-snapshot-chip__label {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runtime-snapshot-chip__value {
+  min-width: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.drone-card-details {
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface-muted);
+  overflow: hidden;
+}
+
+.drone-card-details__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  padding: 0.75rem 0.85rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.drone-card-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.drone-card-details__title {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.drone-card-details__copy {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.drone-card-details[open] .drone-card-details__summary {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.drone-card-details__content {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.75rem;
+}
+
 /* Action Buttons - Modern Design */
 .action-button {
   background: var(--color-primary);

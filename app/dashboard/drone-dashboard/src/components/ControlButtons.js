@@ -37,9 +37,11 @@ const ControlButtons = ({
   configData,
   setConfigData,
   loading,
+  mode = 'full',
 }) => {
   const fileInputRef = useRef(null);
   const { syncing, syncDrones: handleSyncDrones } = useSyncDrones();
+  const showPrimaryActions = mode === 'full';
 
   const triggerFileInput = () => {
     if (fileInputRef.current) {
@@ -48,67 +50,63 @@ const ControlButtons = ({
   };
 
   return (
-    <div className="control-buttons">
-      {/* Primary Actions */}
-      <div className="primary-actions">
-        {/* Save */}
-        <button
-          className="save"
-          onClick={handleSaveChangesToServer}
-          title="Save configuration and commit to git repository"
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <CircularProgress size={20} color="inherit" />
-              &nbsp;Saving & Committing...
-            </>
-          ) : (
-            <>
-              <FontAwesomeIcon icon={faSave} />
-              Save & Commit to Git
-            </>
-          )}
-        </button>
+    <div className={`control-buttons ${showPrimaryActions ? '' : 'control-buttons--secondary'}`.trim()}>
+      {showPrimaryActions && (
+        <div className="primary-actions">
+          <button
+            className="save"
+            onClick={handleSaveChangesToServer}
+            title="Save configuration and commit to git repository"
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <CircularProgress size={20} color="inherit" />
+                &nbsp;Saving & Committing...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faSave} />
+                Save & Commit to Git
+              </>
+            )}
+          </button>
 
-        {/* Sync Drones */}
-        <button
-          className="sync-drones"
-          onClick={handleSyncDrones}
-          title="Trigger git pull on all drones to sync with GCS"
-          disabled={syncing}
-        >
-          {syncing ? (
-            <>
-              <CircularProgress size={20} color="inherit" />
-              &nbsp;Syncing...
-            </>
-          ) : (
-            <>
-              <FontAwesomeIcon icon={faCodeBranch} />
-              Sync Drones
-            </>
-          )}
-        </button>
+          <button
+            className="sync-drones"
+            onClick={handleSyncDrones}
+            title="Trigger git pull on all drones to sync with GCS"
+            disabled={syncing}
+          >
+            {syncing ? (
+              <>
+                <CircularProgress size={20} color="inherit" />
+                &nbsp;Syncing...
+              </>
+            ) : (
+              <>
+                <FontAwesomeIcon icon={faCodeBranch} />
+                Sync Drones
+              </>
+            )}
+          </button>
 
-        {/* Add New Drone */}
-        <button className="add" onClick={addNewDrone} title="Add a new drone">
-          <FontAwesomeIcon icon={faPlus} />
-          Add New Drone
-        </button>
+          <button className="add" onClick={addNewDrone} title="Add a new drone">
+            <FontAwesomeIcon icon={faPlus} />
+            Add New Drone
+          </button>
 
-        {/* Set Origin */}
-        <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
-          <FontAwesomeIcon icon={faMapMarkerAlt} />
-          Set Origin
-        </button>
+          <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
+            <FontAwesomeIcon icon={faMapMarkerAlt} />
+            Set Origin
+          </button>
 
-        {/* Configure GCS */}
-        <button className="configure-gcs" onClick={openGcsConfigModal} title="Configure GCS Server IP">
-          <FontAwesomeIcon icon={faServer} />
-          Configure GCS
-        </button>
-      </div>
+          <button className="configure-gcs" onClick={openGcsConfigModal} title="Configure GCS Server IP">
+            <FontAwesomeIcon icon={faServer} />
+            Configure GCS
+          </button>
+        </div>
+      )}
 
       {/* Secondary Actions */}
       <div className="secondary-actions">
@@ -184,6 +182,7 @@ ControlButtons.propTypes = {
   configData: PropTypes.array.isRequired,
   setConfigData: PropTypes.func.isRequired,
   loading: PropTypes.bool.isRequired,
+  mode: PropTypes.oneOf(['full', 'secondary']),
 };
 
 export default ControlButtons;

@@ -18,6 +18,7 @@ import {
   faExchangeAlt,
 } from '@fortawesome/free-solid-svg-icons';
 import {
+  areGitRevisionsEquivalent,
   buildKnownPositionIds,
   formatCompactDroneIdentity,
   formatDroneLabel,
@@ -281,6 +282,38 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const trajectorySourceLabel = normalizedPosId
     ? `Source Drone ${normalizedPosId}.csv`
     : 'Source file pending';
+  const isGitInSync = typeof gitStatus?.in_sync_with_gcs === 'boolean'
+    ? gitStatus.in_sync_with_gcs
+    : Boolean(
+        gcsGitStatus?.commit
+        && gitStatus?.commit
+        && areGitRevisionsEquivalent(gitStatus.commit, gcsGitStatus.commit)
+      );
+  const runtimePathLabel = normalizedHeartbeatIp || drone.ip || 'Pending';
+  const runtimeLinkLabel = showSimulatedNetworkFallback
+    ? 'SITL / simulated'
+    : wifiSsid
+      ? `Wi-Fi ${wifiSsid}`
+      : ethernetInterface
+        ? `Ethernet ${ethernetInterface}`
+        : hasWifiSignal
+          ? `Wi-Fi ${wifiSignalStrength}%`
+          : 'Link telemetry unavailable';
+  const gitSummaryLabel = gitStatus?.branch
+    ? (isGitInSync ? `Git ${gitStatus.branch} synced` : `Git ${gitStatus.branch} review`)
+    : 'Git unavailable';
+  const hasSecondaryDetails = Boolean(
+    secondaryCustomFieldEntries.length
+    || gitStatus
+    || networkInfo
+    || drone.ip
+    || drone.mavlink_port
+    || drone.serial_port
+    || drone.baudrate
+  );
+  const diagnosticsSummary = secondaryCustomFieldEntries.length > 0
+    ? `Transport, git, and ${secondaryCustomFieldEntries.length} saved field${secondaryCustomFieldEntries.length === 1 ? '' : 's'}`
+    : 'Transport and git details';
 
   return (
     <>
@@ -332,65 +365,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
         </div>
 
-        {secondaryCustomFieldEntries.length > 0 && (
-          <div className="custom-field-section">
-            <div className="custom-field-section-header">
-              <span className="custom-field-section-title">Additional Fields</span>
-              <span className="custom-field-section-count">
-                {secondaryCustomFieldEntries.length} saved
-              </span>
-            </div>
-            <div className="custom-field-list">
-              {visibleCustomFieldEntries.map((field) => (
-                <div key={field.key} className="custom-field-row">
-                  <span className="custom-field-label">
-                    {field.label}
-                    {field.isPromoted && <span className="custom-field-badge">Promoted</span>}
-                  </span>
-                  <span className="custom-field-value">{getCustomFieldValuePreview(field)}</span>
-                </div>
-              ))}
-              {hiddenCustomFieldCount > 0 && (
-                <div className="custom-field-overflow">
-                  +{hiddenCustomFieldCount} more field{hiddenCustomFieldCount === 1 ? '' : 's'} available in edit mode
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Basic Information */}
-        <div className="info-section">
-          <div className="info-row">
-            <span className="info-label">IP Address</span>
-            <span className={`info-value ${ipMismatch ? 'mismatch' : ''}`}>
-              {drone.ip}
-              {ipMismatch && heartbeatIP && (
-                <FontAwesomeIcon
-                  icon={faExclamationCircle}
-                  title={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
-                  aria-label={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
-                />
-              )}
-            </span>
-          </div>
-
-          <div className="info-row">
-            <span className="info-label">MAVLink Port</span>
-            <span className="info-value">{drone.mavlink_port}</span>
-          </div>
-
-          <div className="info-row">
-            <span className="info-label">Serial Port</span>
-            <span className="info-value">{serialPortLabel}</span>
-          </div>
-
-          <div className="info-row">
-            <span className="info-label">Baudrate</span>
-            <span className="info-value">{baudrateLabel}</span>
-          </div>
-        </div>
-
         {/* Position ID Section */}
         <div className="position-section">
           <div className="position-header">Show Slot Status</div>
@@ -399,77 +373,160 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
         </div>
 
-      {/* Network Information Section */}
-      <div className="network-section">
-        <div className="network-header">
-          <FontAwesomeIcon icon={faSignal} />
-          Runtime Connectivity
+        <div className="runtime-snapshot-strip" aria-label="Runtime summary">
+          <div className="runtime-snapshot-chip">
+            <span className="runtime-snapshot-chip__label">Path</span>
+            <span className="runtime-snapshot-chip__value">{runtimePathLabel}</span>
+          </div>
+          <div className="runtime-snapshot-chip">
+            <span className="runtime-snapshot-chip__label">Link</span>
+            <span className="runtime-snapshot-chip__value">{runtimeLinkLabel}</span>
+          </div>
+          <div className={`runtime-snapshot-chip ${isGitInSync ? 'is-good' : 'needs-review'}`}>
+            <span className="runtime-snapshot-chip__label">Git</span>
+            <span className="runtime-snapshot-chip__value">{gitSummaryLabel}</span>
+          </div>
         </div>
-        <div className="network-content">
-          {showSimulatedNetworkFallback ? (
-            <>
-              <div className="network-row">
-                <span className="network-label">Runtime mode</span>
-                <span className="network-value">
-                  SITL / simulated
-                  <span className="network-status simulated">Expected</span>
-                </span>
-              </div>
-              <div className="network-row">
-                <span className="network-label">Telemetry path</span>
-                <span className="network-value">{normalizedHeartbeatIp || drone.ip || 'Mission-config runtime path'}</span>
-              </div>
-              <div className="network-row">
-                <span className="network-label">Physical links</span>
-                <span className="network-value">Wi-Fi and Ethernet telemetry are not reported in SITL.</span>
-              </div>
-            </>
-          ) : networkInfo ? (
-            <>
-              <div className="network-row">
-                <span className="network-label">Wi-Fi network</span>
-                <span className="network-value">
-                  {networkInfo?.wifi?.ssid || 'N/A'}
-                  <span className={`network-status ${networkInfo?.wifi?.ssid ? 'connected' : 'disconnected'}`}>
-                    {networkInfo?.wifi?.ssid ? 'Connected' : 'Disconnected'}
-                  </span>
-                </span>
-              </div>
-              <div className="network-row">
-                <span className="network-label">Signal</span>
-                <span className="network-value">
-                  {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
-                  {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
-                </span>
-              </div>
-              <div className="network-row">
-                <span className="network-label">Ethernet</span>
-                <span className="network-value">
-                  {networkInfo?.ethernet?.interface || 'N/A'}
-                  <span className={`network-status ${networkInfo?.ethernet?.interface ? 'connected' : 'unknown'}`}>
-                    {networkInfo?.ethernet?.interface ? 'Active' : 'Unknown'}
-                  </span>
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="network-row">
-              <span className="network-label">Status</span>
-              <span className="network-value">
-                Runtime network telemetry unavailable
-                <span className="network-status unknown">Unknown</span>
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
 
-        {/* Git Info for this drone */}
-        <DroneGitStatus
-          gitStatus={gitStatus}
-          gcsGitStatus={gcsGitStatus}
-          droneName={`Drone ${drone.hw_id}`}
-        />
+        {hasSecondaryDetails && (
+        <details className="drone-card-details">
+          <summary className="drone-card-details__summary">
+            <div>
+              <span className="drone-card-details__title">Diagnostics & metadata</span>
+              <small className="drone-card-details__copy">{diagnosticsSummary}</small>
+            </div>
+          </summary>
+          <div className="drone-card-details__content">
+            {secondaryCustomFieldEntries.length > 0 && (
+              <div className="custom-field-section">
+                <div className="custom-field-section-header">
+                  <span className="custom-field-section-title">Additional Fields</span>
+                  <span className="custom-field-section-count">
+                    {secondaryCustomFieldEntries.length} saved
+                  </span>
+                </div>
+                <div className="custom-field-list">
+                  {visibleCustomFieldEntries.map((field) => (
+                    <div key={field.key} className="custom-field-row">
+                      <span className="custom-field-label">
+                        {field.label}
+                        {field.isPromoted && <span className="custom-field-badge">Promoted</span>}
+                      </span>
+                      <span className="custom-field-value">{getCustomFieldValuePreview(field)}</span>
+                    </div>
+                  ))}
+                  {hiddenCustomFieldCount > 0 && (
+                    <div className="custom-field-overflow">
+                      +{hiddenCustomFieldCount} more field{hiddenCustomFieldCount === 1 ? '' : 's'} available in edit mode
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="info-section">
+              <div className="info-row">
+                <span className="info-label">IP Address</span>
+                <span className={`info-value ${ipMismatch ? 'mismatch' : ''}`}>
+                  {drone.ip}
+                  {ipMismatch && heartbeatIP && (
+                    <FontAwesomeIcon
+                      icon={faExclamationCircle}
+                      title={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
+                      aria-label={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
+                    />
+                  )}
+                </span>
+              </div>
+
+              <div className="info-row">
+                <span className="info-label">MAVLink Port</span>
+                <span className="info-value">{drone.mavlink_port}</span>
+              </div>
+
+              <div className="info-row">
+                <span className="info-label">Serial Port</span>
+                <span className="info-value">{serialPortLabel}</span>
+              </div>
+
+              <div className="info-row">
+                <span className="info-label">Baudrate</span>
+                <span className="info-value">{baudrateLabel}</span>
+              </div>
+            </div>
+
+            <div className="network-section">
+              <div className="network-header">
+                <FontAwesomeIcon icon={faSignal} />
+                Runtime Connectivity
+              </div>
+              <div className="network-content">
+                {showSimulatedNetworkFallback ? (
+                  <>
+                    <div className="network-row">
+                      <span className="network-label">Runtime mode</span>
+                      <span className="network-value">
+                        SITL / simulated
+                        <span className="network-status simulated">Expected</span>
+                      </span>
+                    </div>
+                    <div className="network-row">
+                      <span className="network-label">Telemetry path</span>
+                      <span className="network-value">{normalizedHeartbeatIp || drone.ip || 'Mission-config runtime path'}</span>
+                    </div>
+                    <div className="network-row">
+                      <span className="network-label">Physical links</span>
+                      <span className="network-value">Wi-Fi and Ethernet telemetry are not reported in SITL.</span>
+                    </div>
+                  </>
+                ) : networkInfo ? (
+                  <>
+                    <div className="network-row">
+                      <span className="network-label">Wi-Fi network</span>
+                      <span className="network-value">
+                        {networkInfo?.wifi?.ssid || 'N/A'}
+                        <span className={`network-status ${networkInfo?.wifi?.ssid ? 'connected' : 'disconnected'}`}>
+                          {networkInfo?.wifi?.ssid ? 'Connected' : 'Disconnected'}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="network-row">
+                      <span className="network-label">Signal</span>
+                      <span className="network-value">
+                        {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
+                        {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
+                      </span>
+                    </div>
+                    <div className="network-row">
+                      <span className="network-label">Ethernet</span>
+                      <span className="network-value">
+                        {networkInfo?.ethernet?.interface || 'N/A'}
+                        <span className={`network-status ${networkInfo?.ethernet?.interface ? 'connected' : 'unknown'}`}>
+                          {networkInfo?.ethernet?.interface ? 'Active' : 'Unknown'}
+                        </span>
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="network-row">
+                    <span className="network-label">Status</span>
+                    <span className="network-value">
+                      Runtime network telemetry unavailable
+                      <span className="network-status unknown">Unknown</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <DroneGitStatus
+              gitStatus={gitStatus}
+              gcsGitStatus={gcsGitStatus}
+              droneName={`Drone ${drone.hw_id}`}
+            />
+          </div>
+        </details>
+        )}
 
       </div>
 

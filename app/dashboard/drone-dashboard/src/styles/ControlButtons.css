@@ -16,6 +16,12 @@
     min-height: 60px;
 }
 
+.control-buttons--secondary {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: var(--spacing-base);
+}
+
 /* Action Groups */
 .primary-actions,
 .secondary-actions {
@@ -39,6 +45,11 @@
 .secondary-actions {
     justify-content: flex-end;
     flex-shrink: 0;
+}
+
+.control-buttons--secondary .secondary-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
 }
 
 
