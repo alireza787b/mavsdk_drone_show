@@ -142,7 +142,7 @@ const TrajectoryPlanning = () => {
   const [showTerrain, setShowTerrain] = useState(true);
   const [sceneMode, setSceneMode] = useState('3D');
   const [isCompactViewport, setIsCompactViewport] = useState(
-    () => typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+    () => typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
   );
 
   // Enhanced state
@@ -189,7 +189,7 @@ const TrajectoryPlanning = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsCompactViewport(window.innerWidth <= 768);
+      setIsCompactViewport(window.innerWidth <= 1024);
     };
 
     window.addEventListener('resize', handleResize);

@@ -82,7 +82,7 @@ const SwarmTrajectory = () => {
   const [operatorNotice, setOperatorNotice] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [isCompactViewport, setIsCompactViewport] = useState(
-    () => typeof window !== 'undefined' ? window.innerWidth <= 768 : false
+    () => typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
   );
   const { data: gcsConfig } = useFetch(GCS_ROUTE_KEYS.gcsConfig);
 
@@ -94,7 +94,7 @@ const SwarmTrajectory = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsCompactViewport(window.innerWidth <= 768);
+      setIsCompactViewport(window.innerWidth <= 1024);
     };
 
     window.addEventListener('resize', handleResize);

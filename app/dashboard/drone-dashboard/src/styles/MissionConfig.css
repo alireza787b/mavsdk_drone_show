@@ -25,7 +25,7 @@
 
 .mission-config-page-header__content {
     display: grid;
-    gap: var(--spacing-sm);
+    gap: 0.25rem;
 }
 
 .mission-config-title {
@@ -38,31 +38,10 @@
 
 .mission-config-subtitle {
     margin: 0;
-    max-width: 48rem;
+    max-width: 42rem;
     color: var(--color-text-secondary);
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-sm);
     line-height: var(--line-height-normal);
-}
-
-.mission-config-header-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-}
-
-.mission-config-header-chip {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2rem;
-    padding: 0.35rem 0.8rem;
-    border-radius: var(--border-radius-full);
-    border: 1px solid var(--color-border-primary);
-    background: var(--color-surface-inset);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-semibold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .mission-config-workspace-shell {
@@ -92,7 +71,7 @@
 
 .mission-config-primary-bar__copy strong {
     color: var(--color-text-primary);
-    font-size: var(--font-size-sm);
+    font-size: var(--font-size-base);
     font-weight: var(--font-weight-semibold);
 }
 
@@ -270,12 +249,21 @@
 .mission-config-ops-toolbar {
     display: grid;
     gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-lg);
     padding: var(--spacing-base);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-md);
     background: var(--color-surface-muted);
     box-shadow: var(--shadow-sm);
+}
+
+.mission-config-ops-toolbar__main {
+    display: grid;
+    gap: var(--spacing-sm);
+}
+
+.mission-config-ops-toolbar__summary {
+    display: grid;
+    gap: var(--spacing-sm);
 }
 
 .mission-config-search {
@@ -303,8 +291,7 @@
     margin: 0;
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
-    line-height: var(--line-height-normal);
-    max-width: 54rem;
+    line-height: 1.35;
 }
 
 .mission-config-ops-summary {
@@ -313,11 +300,16 @@
     gap: var(--spacing-sm);
 }
 
+.mission-config-filter-rails {
+    display: grid;
+    gap: var(--spacing-sm);
+}
+
 .mission-config-ops-stat {
     display: grid;
     gap: 0.15rem;
-    padding: 0.75rem 0.85rem;
-    border-radius: var(--border-radius-sm);
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
     background: var(--color-bg-primary);
 }
@@ -346,73 +338,58 @@
     font-weight: var(--font-weight-bold);
 }
 
-/* Origin Warning */
-.origin-warning {
-    background: var(--color-warning-light);
-    border: 1px solid var(--color-warning-border);
-    border-left: 4px solid var(--color-warning);
-    border-radius: var(--border-radius-md);
-    padding: var(--spacing-base);
+.mission-config-alert-stack {
+    display: grid;
+    gap: var(--spacing-sm);
     margin-bottom: var(--spacing-lg);
-    box-shadow: var(--shadow-sm);
 }
 
-.origin-warning p {
-    margin: 0;
-    color: var(--color-text-primary);
-    font-weight: var(--font-weight-medium);
-    font-size: var(--font-size-base);
-}
-
-/* Config Warning Banner */
-.config-warning-banner {
-    margin-bottom: var(--spacing-lg);
-    border-radius: var(--border-radius-md);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
-
-.config-warning-banner .warning-section {
-    padding: var(--spacing-base);
+.mission-config-alert {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    font-weight: var(--font-weight-medium);
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: 0.85rem 1rem;
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-secondary);
+    box-shadow: var(--shadow-sm);
 }
 
-.config-warning-banner .collision-warning {
-    background: var(--color-danger-light);
-    border-left: 4px solid var(--color-danger);
+.mission-config-alert svg {
+    margin-top: 0.15rem;
+    flex-shrink: 0;
+}
+
+.mission-config-alert > div {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.mission-config-alert strong {
     color: var(--color-text-primary);
-    padding: var(--spacing-base);
-}
-
-.config-warning-banner .role-swap-info {
-    background: var(--color-primary-light);
-    border-left: 4px solid var(--color-primary);
-    color: var(--color-text-primary);
-    padding: var(--spacing-base);
-}
-
-.config-warning-banner .duplicate-detail,
-.config-warning-banner .role-swap-detail {
-    background: var(--color-bg-primary);
-    padding: 4px 10px;
-    border-radius: 6px;
     font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
 }
 
-.config-warning-banner .collision-warning .duplicate-detail {
-    border: 1px solid var(--color-danger-border);
-    background: rgba(239, 90, 90, 0.12);
+.mission-config-alert span {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
 }
 
-.config-warning-banner .role-swap-info .role-swap-detail {
-    border: 1px solid var(--color-primary-border);
-    background: rgba(var(--color-primary-rgb), 0.12);
+.mission-config-alert--danger {
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-light);
+}
+
+.mission-config-alert--warning {
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-light);
+}
+
+.mission-config-alert--info {
+    border-color: var(--color-info-border);
+    background: var(--color-info-light);
 }
 
 .role-swap-more-link {
@@ -561,24 +538,16 @@
 .mission-config-card-panel-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--spacing-base);
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-base);
 }
 
 .mission-config-card-panel-header h3 {
-    margin: 0 0 0.35rem 0;
+    margin: 0;
     color: var(--color-text-primary);
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
-}
-
-.mission-config-card-panel-header p {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-normal);
-    max-width: 34rem;
 }
 
 .mission-config-card-panel-meta {
@@ -610,6 +579,40 @@
     gap: var(--spacing-base);
     position: sticky;
     top: var(--spacing-lg);
+}
+
+.mission-config-layout-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: 0.25rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-inset);
+    width: fit-content;
+}
+
+.mission-config-layout-switcher__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.1rem;
+    padding: 0.45rem 0.8rem;
+    border: none;
+    border-radius: var(--border-radius-full);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.mission-config-layout-switcher__button.active {
+    background: rgba(var(--color-primary-rgb), 0.14);
+    color: var(--color-text-primary);
+    box-shadow: inset 0 0 0 1px var(--color-primary-border);
 }
 
 /* Empty State */
@@ -733,16 +736,8 @@
         width: 100%;
     }
 
-    .mission-config-header-chips {
-        gap: var(--spacing-xs);
-    }
-
-    .mission-config-header-chip {
-        width: fit-content;
-    }
-
-    .mission-config-ops-toolbar {
-        margin-bottom: var(--spacing-base);
+    .mission-config-ops-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .drone-stats-summary {
@@ -772,6 +767,7 @@
 
     .mission-config-card-panel-header {
         flex-direction: column;
+        align-items: flex-start;
     }
 
     .initial-launch-plot {
@@ -793,6 +789,10 @@
 
     .mission-config-subtitle {
         font-size: var(--font-size-sm);
+    }
+
+    .mission-config-ops-summary {
+        grid-template-columns: 1fr;
     }
 
     .drone-stats-summary {

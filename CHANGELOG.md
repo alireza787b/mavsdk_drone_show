@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-06 Mission Config / command-surface cleanup phase 4 checkpoint note documenting the compressed Mission Config ops shell, the plot/map launch-layout toggle, the shorter command/mission copy, the Custom Show token overrides, the tablet-width trajectory compact behavior, and the paired Hetzner Jest/build validation results
 - a 2026-04-06 trajectory-authoring phase 3 checkpoint note documenting the map-first mobile Trajectory Planning layout, the compact Swarm Trajectory operator-flow/workspace-review disclosures, the map resize/fly-to fixes, the focused trajectory Jest coverage, and the paired Hetzner build result
 - a 2026-04-06 shared operator-scope phase 2 checkpoint note documenting the explicit visible-cards-to-command-scope bridge, the new card-level command-scope markers, the shared Overview-owned target state, the build-found PropTypes/hook fixes, and the paired Hetzner Jest/build validation results
 - a 2026-04-06 Mission Config architecture-reset phase 1 checkpoint note documenting the issue-first Mission Config workspace shell, the compacted assignment-card default view, the corrected secondary tool-panel layout, the Precision Move lint-warning cleanup, and the paired Hetzner Jest/build validation results
@@ -70,6 +71,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- Mission Config now opens on a tighter assignment wall instead of a long top-heavy explainer stack: the header copy is shorter, issue/origin warnings are compact alert rows, filters live in one ops rail, the visible-card summary is terse, and the right-side launch-review panel can switch between the default engineering plot and a real map view without leaving the workspace
+- Trajectory Planning and Swarm Trajectory now use their compact authoring-first behavior through tablet width as well as phone width, so route authoring no longer falls back to the verbose desktop layout on mid-sized operator screens
+- Command Control, mission-trigger cards, and Custom Show no longer carry as much tester-reported copy/token noise: target-scope guidance is shorter, mission notes are glanceable, and Custom Show now forces dashboard tokens for dark/light readability instead of inheriting weaker default MUI colors
 - the Precision Move dialog now prioritizes the fast operator path: compact controller-style nudges, folded manual tuning, direct scope-edit return into the shared Command Control selector, visible live runtime defaults, and cleaner live command-state context without forking the main target-selection workflow
 - GCS now exposes `/api/v1/commands/policy/precision-move`, a typed runtime policy envelope for default speed/tolerance/timeout/limit values so UI, automation, and future MCP surfaces can reuse the live backend contract instead of hardcoded frontend guesses
 - the action system now supports a typed local-relative `PRECISION_MOVE` command end to end, from GCS submit validation to drone runtime payload staging, timeout budgeting, `DroneSetup` mission routing, and the offboard local-position executor that settles then returns control to PX4 Hold

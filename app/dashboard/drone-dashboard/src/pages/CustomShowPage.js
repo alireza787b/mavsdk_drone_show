@@ -127,9 +127,8 @@ const CustomShowPage = () => {
             Custom CSV Drone Show
           </Typography>
           <Typography variant="body1" className="custom-show-page__intro">
-            Upload one ready-to-execute protocol CSV as <code>active.csv</code>. MDS validates the file,
-            regenerates the preview, and then every drone executes that same path relative to its own local
-            launch frame.
+            Upload one ready-to-execute protocol CSV as <code>active.csv</code>. MDS validates it, refreshes the preview,
+            and every drone replays that same file in its own local launch frame.
           </Typography>
         </div>
 
@@ -144,8 +143,7 @@ const CustomShowPage = () => {
       </div>
 
       <Alert severity="warning" className="custom-show-page__banner">
-        Expert-only override: no SkyBrush ZIP processing happens here. This page assumes you already authored the
-        correct protocol CSV and want every drone to replay the same file in its own local launch frame.
+        Expert-only override: no SkyBrush ZIP processing happens here. This page assumes the protocol CSV is already correct and ready to replay locally on every drone.
       </Alert>
 
       {customShowBackendError && (
@@ -161,7 +159,7 @@ const CustomShowPage = () => {
             <div>
               <Typography variant="h6">Upload Ready-to-Execute CSV</Typography>
               <Typography variant="body2" color="text.secondary">
-                Upload replaces the current <code>active.csv</code>, validates the protocol, and regenerates the preview.
+                Replaces <code>active.csv</code>, validates the protocol, and regenerates the preview.
               </Typography>
             </div>
           </div>
@@ -184,8 +182,7 @@ const CustomShowPage = () => {
             </div>
 
             <Alert severity="info">
-              This is not a SkyBrush import. The CSV must already use the MDS custom trajectory protocol and be ready
-              to execute as-is.
+              Not a SkyBrush import. The CSV must already match the MDS custom trajectory protocol.
             </Alert>
 
             {uploadWarnings.length > 0 && (
@@ -225,10 +222,10 @@ const CustomShowPage = () => {
                   Execution mode: <strong>{customShowInfo.execution_mode || 'local per-drone replay'}</strong>
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  No shared-origin correction, no per-drone file mapping, and no SkyBrush conversion happen in this mode.
+                  No shared-origin correction, per-drone file mapping, or SkyBrush conversion happens in this mode.
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  MDS only validates the protocol, stores it as <code>active.csv</code>, and regenerates the preview.
+                  MDS validates the protocol, stores <code>active.csv</code>, and regenerates the preview.
                 </Typography>
               </Stack>
             </>
@@ -266,8 +263,7 @@ const CustomShowPage = () => {
               ))}
             </div>
             <Typography variant="body2" color="text.secondary">
-              Every drone executes the same path from wherever it launched, assuming its own local frame is the
-              origin. Operators remain responsible for spacing, protocol correctness, and real-world safety checks.
+              Every drone executes the same path from its own launch frame. Operators remain responsible for spacing, protocol correctness, and real-world safety checks.
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Read the operational note in{' '}

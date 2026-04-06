@@ -54,6 +54,73 @@
     border-radius: var(--border-radius-base);
 }
 
+.custom-show-page .MuiTypography-colorTextSecondary {
+    color: var(--color-text-secondary) !important;
+}
+
+.custom-show-page .MuiPaper-root {
+    color: var(--color-text-primary);
+}
+
+.custom-show-page .MuiButton-root {
+    text-transform: none;
+    font-weight: var(--font-weight-semibold);
+}
+
+.custom-show-page .MuiButton-outlined {
+    border-color: var(--color-border-primary);
+    color: var(--color-text-primary);
+}
+
+.custom-show-page .MuiButton-outlined:hover {
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.08);
+}
+
+.custom-show-page .MuiButton-contained {
+    background: var(--color-primary);
+    color: var(--color-primary-text);
+}
+
+.custom-show-page .MuiButton-contained:hover {
+    background: var(--color-primary-hover);
+}
+
+.custom-show-page .MuiAlert-root {
+    border: 1px solid var(--color-border-primary);
+    color: var(--color-text-primary);
+}
+
+.custom-show-page .MuiAlert-standardInfo {
+    background: var(--color-info-light);
+    border-color: var(--color-info-border);
+}
+
+.custom-show-page .MuiAlert-standardWarning {
+    background: var(--color-warning-light);
+    border-color: var(--color-warning-border);
+}
+
+.custom-show-page .MuiAlert-standardError {
+    background: var(--color-danger-light);
+    border-color: var(--color-danger-border);
+}
+
+.custom-show-page .MuiAlert-icon,
+.custom-show-page .MuiAlert-message {
+    color: inherit;
+}
+
+.custom-show-page .MuiChip-root {
+    border-color: var(--color-border-primary) !important;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary) !important;
+}
+
+.custom-show-page .MuiChip-icon {
+    color: inherit !important;
+}
+
 .custom-show-page__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

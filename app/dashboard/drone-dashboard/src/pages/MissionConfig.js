@@ -126,6 +126,7 @@ const MissionConfig = () => {
   const [missionConfigSearch, setMissionConfigSearch] = useState('');
   const [clusterScope, setClusterScope] = useState('all');
   const [assignmentFilter, setAssignmentFilter] = useState('all');
+  const [launchLayoutView, setLaunchLayoutView] = useState('plot');
   const requestedDroneId = normalizeComparableId(searchParams.get('drone'));
   const requestedEditMode = searchParams.get('edit') === '1';
 
@@ -761,6 +762,11 @@ const MissionConfig = () => {
     ],
     [configData, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originAvailable, roleSwaps.length]
   );
+  const missionAttentionCount = duplicateHwIds.length + duplicatePosIds.length + roleSwaps.length + (originAvailable ? 0 : 1);
+  const missionWorkspaceHeadline = missionAttentionCount > 0
+    ? `${missionAttentionCount} active review item${missionAttentionCount === 1 ? '' : 's'}`
+    : 'Assignment wall is clear for save review';
+  const missionSearchSummary = `${filteredConfigData.length}/${sortedConfigData.length} assignment card${sortedConfigData.length === 1 ? '' : 's'} visible`;
 
   useEffect(() => {
     if (!requestedDroneId) {
@@ -801,21 +807,16 @@ const MissionConfig = () => {
         <div className="mission-config-page-header__content">
           <h2 className="mission-config-title">Mission Configuration</h2>
           <p className="mission-config-subtitle">
-            Assign airframes to slots and keep operator identity current.
+            Assignment wall for slot ownership, identity, and launch readiness.
           </p>
-          <div className="mission-config-header-chips" aria-label="Mission configuration focus areas">
-            <span className="mission-config-header-chip">Identity</span>
-            <span className="mission-config-header-chip">Launch slot</span>
-            <span className="mission-config-header-chip">Metadata</span>
-          </div>
         </div>
       </header>
 
       <section className="mission-config-workspace-shell" aria-label="Assignment workspace">
         <div className="mission-config-primary-bar">
           <div className="mission-config-primary-bar__copy">
-            <span className="mission-config-primary-bar__kicker">Assignment workspace</span>
-            <strong>Review slot ownership, fix conflicts, then save once the wall is clean.</strong>
+            <span className="mission-config-primary-bar__kicker">Assignment wall</span>
+            <strong>{missionWorkspaceHeadline}</strong>
           </div>
           <div className="mission-config-primary-bar__actions">
             <button
@@ -848,87 +849,94 @@ const MissionConfig = () => {
         </div>
 
         <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
-          <label className="mission-config-search">
-            <span>Search assignments</span>
-            <input
-              type="search"
-              value={missionConfigSearch}
-              onChange={(event) => setMissionConfigSearch(event.target.value)}
-              placeholder={DRONE_SEARCH_PLACEHOLDER}
-              aria-label="Search assignments by position, hardware ID, or callsign"
-            />
-          </label>
-          <p className="mission-config-ops-note">
-            {filteredConfigData.length}/{sortedConfigData.length} assignment card{sortedConfigData.length === 1 ? '' : 's'} visible. {DRONE_SEARCH_HELP_TEXT}
-          </p>
-          <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
-            {missionWorkspaceStats.map((stat) => (
-              <div
-                key={stat.label}
-                className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
-              >
-                <span className="mission-config-ops-stat__label">{stat.label}</span>
-                <strong className="mission-config-ops-stat__value">{stat.value}</strong>
+          <div className="mission-config-ops-toolbar__main">
+            <label className="mission-config-search">
+              <span>Search</span>
+              <input
+                type="search"
+                value={missionConfigSearch}
+                onChange={(event) => setMissionConfigSearch(event.target.value)}
+                placeholder={DRONE_SEARCH_PLACEHOLDER}
+                aria-label="Search assignments by position, hardware ID, or callsign"
+                title={DRONE_SEARCH_HELP_TEXT}
+              />
+            </label>
+            <div className="mission-config-ops-toolbar__summary">
+              <p className="mission-config-ops-note">{missionSearchSummary}</p>
+              <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
+                {missionWorkspaceStats.map((stat) => (
+                  <div
+                    key={stat.label}
+                    className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
+                  >
+                    <span className="mission-config-ops-stat__label">{stat.label}</span>
+                    <strong className="mission-config-ops-stat__value">{stat.value}</strong>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+          </div>
+
+          <div className="mission-config-filter-rails">
+            {assignmentFilterOptions.length > 1 && (
+              <ClusterScopeBar
+                label="Issue focus"
+                options={assignmentFilterOptions}
+                selectedId={assignmentFilter}
+                onSelect={setAssignmentFilter}
+              />
+            )}
+
+            {clusterScopeOptions.length > 1 && (
+              <ClusterScopeBar
+                label="Cluster scope"
+                options={clusterScopeOptions}
+                selectedId={clusterScope}
+                onSelect={setClusterScope}
+              />
+            )}
           </div>
         </section>
-
-        {assignmentFilterOptions.length > 1 && (
-          <ClusterScopeBar
-            label="Issue filters"
-            options={assignmentFilterOptions}
-            selectedId={assignmentFilter}
-            onSelect={setAssignmentFilter}
-            summary="Start with cards that need review before working through the full wall."
-          />
-        )}
-
-        {clusterScopeOptions.length > 1 && (
-          <ClusterScopeBar
-            label="Cluster scope"
-            options={clusterScopeOptions}
-            selectedId={clusterScope}
-            onSelect={setClusterScope}
-            summary="Detected from the current saved swarm topology."
-          />
-        )}
       </section>
 
-      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0) && (
-        <div className="config-warning-banner">
+      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || !originAvailable) && (
+        <div className="mission-config-alert-stack">
           {duplicateHwIds.length > 0 && (
-            <div className="warning-section collision-warning">
+            <div className="mission-config-alert mission-config-alert--danger">
               <FontAwesomeIcon icon={faExclamationTriangle} />
-              <strong> Invalid Hardware IDs:</strong>
-              {duplicateHwIds.map((duplicate) => (
-                <span key={duplicate.hw_id} className="duplicate-detail">
-                  {' '}{formatDroneLabel(duplicate.hw_id)} appears multiple times
+              <div>
+                <strong>{duplicateHwIds.length} duplicate hardware ID{duplicateHwIds.length === 1 ? '' : 's'}</strong>
+                <span>
+                  {duplicateHwIds.map((duplicate) => formatDroneLabel(duplicate.hw_id)).join(', ')}
                 </span>
-              ))}
+              </div>
             </div>
           )}
           {duplicatePosIds.length > 0 && (
-            <div className="warning-section collision-warning">
+            <div className="mission-config-alert mission-config-alert--danger">
               <FontAwesomeIcon icon={faExclamationTriangle} />
-              <strong> Collision Risk:</strong>
-              {duplicatePosIds.map((duplicate) => (
-                <span key={duplicate.pos_id} className="duplicate-detail">
-                  {' '}{formatShowSlotLabel(duplicate.pos_id)} → Drones {duplicate.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}
+              <div>
+                <strong>{duplicatePosIds.length} slot collision{duplicatePosIds.length === 1 ? '' : 's'}</strong>
+                <span>
+                  {duplicatePosIds.map((duplicate) => (
+                    `${formatShowSlotLabel(duplicate.pos_id)} → ${duplicate.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}`
+                  )).join(' • ')}
                 </span>
-              ))}
+              </div>
             </div>
           )}
           {roleSwaps.length > 0 && (
-            <div className="warning-section role-swap-info">
+            <div className="mission-config-alert mission-config-alert--info">
               <FontAwesomeIcon icon={faExchangeAlt} />
-              <strong> {roleSwaps.length} Active Role Swap(s):</strong>
-              {roleSwaps.slice(0, 3).map((drone) => (
-                <span key={drone.hw_id} className="role-swap-detail">
-                  {' '}{formatDroneLabel(drone.hw_id)} → {formatShowSlotLabel(drone.pos_id)}
+              <div>
+                <strong>{roleSwaps.length} role swap{roleSwaps.length === 1 ? '' : 's'} active</strong>
+                <span>
+                  {roleSwaps.slice(0, 3).map((drone) => (
+                    `${formatDroneLabel(drone.hw_id)} → ${formatShowSlotLabel(drone.pos_id)}`
+                  )).join(' • ')}
                 </span>
-              ))}
-              {roleSwaps.length > 3 && (
+              </div>
+              {roleSwaps.length > 3 ? (
                 <button
                   type="button"
                   className="role-swap-more-link"
@@ -937,20 +945,20 @@ const MissionConfig = () => {
                     setShowRoleSwapModal(true);
                   }}
                 >
-                  and {roleSwaps.length - 3} more
+                  View all
                 </button>
-              )}
+              ) : null}
             </div>
           )}
-        </div>
-      )}
-
-      {!originAvailable && (
-        <div className="origin-warning">
-          <p>
-            <strong>Note:</strong> Origin coordinates are not set. Please set the origin
-            to display position deviation data.
-          </p>
+          {!originAvailable && (
+            <div className="mission-config-alert mission-config-alert--warning">
+              <FontAwesomeIcon icon={faExclamationTriangle} />
+              <div>
+                <strong>Origin needed</strong>
+                <span>Set the origin before using deviation-based launch review.</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1028,10 +1036,7 @@ const MissionConfig = () => {
       <div className="content-flex">
         <div className="drone-cards slide-in-left">
           <div className="mission-config-card-panel-header">
-            <div>
-              <h3>Assignment wall</h3>
-              <p>Keep the default view focused on identity, slot status, and the actions needed to fix the assignment.</p>
-            </div>
+            <h3>Assignment wall</h3>
             <span className="mission-config-card-panel-meta">
               {filteredConfigData.length} visible
             </span>
@@ -1084,23 +1089,44 @@ const MissionConfig = () => {
         </div>
 
         <div className="initial-launch-plot slide-in-right">
-          <PositionTabs
-            drones={configData}
-            deviationData={deviationData}
-            trajectoryPositionsByPosId={trajectoryPositionsByPosId}
-            origin={origin}
-            forwardHeading={forwardHeading}
-            onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
-            onRefresh={handleManualRefresh}
-          />
+          <div className="mission-config-layout-switcher" role="tablist" aria-label="Launch layout view">
+            <button
+              type="button"
+              className={`mission-config-layout-switcher__button ${launchLayoutView === 'plot' ? 'active' : ''}`}
+              onClick={() => setLaunchLayoutView('plot')}
+              aria-pressed={launchLayoutView === 'plot'}
+            >
+              Plot
+            </button>
+            <button
+              type="button"
+              className={`mission-config-layout-switcher__button ${launchLayoutView === 'map' ? 'active' : ''}`}
+              onClick={() => setLaunchLayoutView('map')}
+              aria-pressed={launchLayoutView === 'map'}
+            >
+              Map
+            </button>
+          </div>
 
-          <DronePositionMap
-            originLat={origin.lat}
-            originLon={origin.lon}
-            drones={configData}
-            trajectoryPositionsByPosId={trajectoryPositionsByPosId}
-            forwardHeading={forwardHeading}
-          />
+          {launchLayoutView === 'plot' ? (
+            <PositionTabs
+              drones={configData}
+              deviationData={deviationData}
+              trajectoryPositionsByPosId={trajectoryPositionsByPosId}
+              origin={origin}
+              forwardHeading={forwardHeading}
+              onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
+              onRefresh={handleManualRefresh}
+            />
+          ) : (
+            <DronePositionMap
+              originLat={origin.lat}
+              originLon={origin.lon}
+              drones={configData}
+              trajectoryPositionsByPosId={trajectoryPositionsByPosId}
+              forwardHeading={forwardHeading}
+            />
+          )}
         </div>
       </div>
 

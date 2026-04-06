@@ -182,7 +182,7 @@ const CommandSender = ({
     ? `Visible cards already in scope (${normalizedVisibleDroneIds.length})`
     : `Use ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'} as scope`;
   const scopeSourceNotice = targetMode === 'selected' && scopeSource === 'card-wall'
-    ? 'Current command scope was copied from the visible fleet cards. Changing card filters later will not change dispatch targets until you apply the visible wall again.'
+    ? 'Command scope was copied from the visible cards. Later card-filter changes stay visual until you apply them again.'
     : null;
 
   const buildTargetContext = (commandData = {}) => {
@@ -588,7 +588,7 @@ const CommandSender = ({
         <div className="target-selection__row">
           <div>
             <label htmlFor="targetMode" className="target-selection__label">Command target</label>
-            <p className="target-selection__hint">Whole fleet, one saved cluster, or a manual subset. Card-wall filters stay visual until you apply them explicitly.</p>
+            <p className="target-selection__hint">All drones, one saved cluster, or a reviewed subset.</p>
           </div>
           <div className="target-selection__controls">
             <span className="target-selection__scope">{targetLabel}</span>
@@ -614,7 +614,7 @@ const CommandSender = ({
           <div className="target-selection__bridge">
             <div>
               <strong>Card wall bridge</strong>
-              <p>Dashboard currently shows {normalizedVisibleDroneIds.length} drone{normalizedVisibleDroneIds.length === 1 ? '' : 's'}. Apply that visible wall as an explicit command subset when needed.</p>
+              <p>{normalizedVisibleDroneIds.length} visible drone{normalizedVisibleDroneIds.length === 1 ? '' : 's'} can be copied into command scope.</p>
             </div>
             <button
               type="button"
@@ -634,7 +634,7 @@ const CommandSender = ({
               options={clusterTargetOptions}
               selectedId={selectedClusterScope}
               onSelect={setSelectedClusterScope}
-              summary="Uses the current saved Smart Swarm topology."
+              summary="Uses the saved Smart Swarm topology."
             />
             <div className="selected-count">
               {activeClusterTarget
