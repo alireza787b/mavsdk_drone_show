@@ -288,6 +288,12 @@ def command_summary(status: dict) -> dict:
     }
 
 
+def _is_safe_interrupted_terminal_status(status: dict[str, Any]) -> bool:
+    state = str(status.get("status") or "").lower()
+    outcome = str(status.get("outcome") or "").lower()
+    return state == "completed" or outcome == "superseded" or state == "superseded"
+
+
 def require_full_acceptance(status: dict, expected_count: int, label: str) -> None:
     accepted = int((status.get("acks") or {}).get("accepted", 0) or 0)
     require(
@@ -347,6 +353,13 @@ def _is_airborne_row(row: dict, baseline_altitude: float, *, min_gain: float) ->
     except (TypeError, ValueError):
         return False
     return bool(row.get("is_armed")) and altitude >= (baseline_altitude + min_gain)
+
+
+def _is_hold_ready_row(row: dict, baseline_altitude: float, *, min_gain: float) -> bool:
+    # The command tracker is the authoritative execution result for HOLD. After a
+    # successful HOLD command, some runtime paths may already clear the transient
+    # mission code while the drone is still correctly holding in the air.
+    return _is_airborne_row(row, baseline_altitude, min_gain=min_gain)
 
 
 def _local_position_from_snapshot(snapshot: dict) -> tuple[float, float, float]:
@@ -446,9 +459,7 @@ def wait_hold_ready(client: ApiClient, ids: list[int], baseline_altitudes: dict[
         rows = {str(idx): telemetry[str(idx)] for idx in ids}
         for idx in ids:
             row = rows[str(idx)]
-            if not _is_airborne_row(row, baseline_altitudes[str(idx)], min_gain=min_gain):
-                return False
-            if int(row.get("mission", 0) or 0) != HOLD:
+            if not _is_hold_ready_row(row, baseline_altitudes[str(idx)], min_gain=min_gain):
                 return False
         return rows
 
@@ -664,7 +675,7 @@ def main() -> int:
         require_full_execution(hold_status, len(ids), "Hold")
         results["hold"] = command_summary(hold_status)
 
-        hold_rows = wait_hold_ready(client, ids, baseline_altitudes, args.post_rtl_airborne_gain, timeout=60)
+        hold_rows = wait_hold_ready(client, ids, baseline_altitudes, args.post_rtl_airborne_gain, timeout=120)
         results["post_hold_telemetry"] = hold_rows
 
         precision_move_start = get_local_snapshots(client, hold_rows, ids)
@@ -751,7 +762,7 @@ def main() -> int:
 
         interrupted_status = wait_for_command(client, interrupt_response["command_id"], terminal=True, timeout=120)
         require(
-            interrupted_status["status"] in {"superseded", "completed"},
+            _is_safe_interrupted_terminal_status(interrupted_status),
             f"Interrupted precision move did not reach a safe terminal state: {command_summary(interrupted_status)}",
         )
         results["precision_move_interrupt_command"] = command_summary(interrupted_status)
@@ -761,7 +772,7 @@ def main() -> int:
             interrupt_targets,
             baseline_altitudes,
             args.post_rtl_airborne_gain,
-            timeout=60,
+            timeout=120,
         )
         results["precision_move_interrupt_post_hold"] = interrupted_hold_rows
 

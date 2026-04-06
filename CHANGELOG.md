@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-06 Precision Move SITL validation checkpoint note documenting the fixed fresh-container branch-sync boot path, the green live Hetzner 3-drone Precision Move action run, the validator false-negative fixes, and the confirmed immediate-action override semantics
 - a 2026-04-06 Precision Move phase 1 checkpoint note documenting the new `PRECISION_MOVE (112)` action, the typed command/executor path, the dedicated dashboard dialog, the quick-control and direct-HOLD refinements, the reusable SITL validator extension, the fresh-container git-sync bootstrap fix, and the remaining deferred follow-up items
 - a 2026-04-04 SITL release refresh checkpoint note documenting the final deferred-debt audit result, the low-space release packaging fix, the stale Hetzner validation-tree cleanup, and the refreshed packaged image publication flow
 - a 2026-04-04 SITL plan-library checkpoint note documenting the checked-in `tools/sitl_plans/` scenario library, the named-plan CLI entrypoint, the currently validated scenario coverage, and the deferred advanced combined-mode boundary

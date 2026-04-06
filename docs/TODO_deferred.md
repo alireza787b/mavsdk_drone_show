@@ -118,6 +118,7 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 - mixed-mode partial-fleet exercises
 - command override and supersession stress cases
+- precision-move-to-precision-move override from each drone's then-current local state
 - late-command / delayed-trigger timing checks
 - optional fault-injection drills that remain deterministic enough for repeatable acceptance use
 
