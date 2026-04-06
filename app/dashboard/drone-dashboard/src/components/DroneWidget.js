@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaCog, FaProjectDiagram } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +23,7 @@ const DroneWidget = ({
   toggleDroneDetails,
   isExpanded,
   setSelectedDrone,
+  commandScopeLabel = '',
 }) => {
   const navigate = useNavigate();
   const currentTimeInMs = Date.now();
@@ -172,7 +174,7 @@ const DroneWidget = ({
         missionReady ? 'mission-ready' : ''
       } ${missionExecuting ? 'mission-executing' : ''} ${
         isExpanded ? 'expanded' : ''
-      }`}
+      } ${commandScopeLabel ? 'command-scope-active' : ''}`}
     >
       {/* Header */}
       <h3 onClick={(e) => {
@@ -199,6 +201,9 @@ const DroneWidget = ({
             <div className="drone-header__meta">
               {operatorAlias && (
                 <span className="drone-header__alias">{promotedField.label}: {operatorAlias}</span>
+              )}
+              {commandScopeLabel && (
+                <span className="drone-header__scope-badge">{commandScopeLabel}</span>
               )}
             </div>
           </div>
@@ -382,6 +387,14 @@ const DroneWidget = ({
 
     </div>
   );
+};
+
+DroneWidget.propTypes = {
+  drone: PropTypes.object.isRequired,
+  toggleDroneDetails: PropTypes.func.isRequired,
+  isExpanded: PropTypes.bool,
+  setSelectedDrone: PropTypes.func,
+  commandScopeLabel: PropTypes.string,
 };
 
 export default DroneWidget;

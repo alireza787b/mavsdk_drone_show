@@ -41,6 +41,9 @@ const Overview = ({ setSelectedDrone }) => {
   const [droneQuery, setDroneQuery] = useState('');
   const [cardFilter, setCardFilter] = useState('all');
   const [clusterScope, setClusterScope] = useState('all');
+  const [commandTargetMode, setCommandTargetMode] = useState('all');
+  const [commandSelectedDrones, setCommandSelectedDrones] = useState([]);
+  const [commandClusterScope, setCommandClusterScope] = useState('');
   const [originRect, setOriginRect] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -256,6 +259,82 @@ const Overview = ({ setSelectedDrone }) => {
       }
     });
   }, [cardFilter, droneQuery, drones, visibleClusterHwIds]);
+  const filteredDroneIds = React.useMemo(
+    () => filteredDrones
+      .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
+      .filter(Boolean),
+    [filteredDrones],
+  );
+  const commandClusterTargetIds = React.useMemo(() => {
+    if (!swarmViewModel || !commandClusterScope) {
+      return [];
+    }
+
+    return Array.from(
+      new Set(
+        filterClustersByScope(swarmViewModel.clusters, commandClusterScope)
+          .flatMap((cluster) => cluster.drones.map((drone) => normalizeComparableId(drone.hw_id)))
+          .filter(Boolean),
+      ),
+    );
+  }, [commandClusterScope, swarmViewModel]);
+  const commandScopeIds = React.useMemo(() => {
+    if (commandTargetMode === 'selected') {
+      return commandSelectedDrones.map((value) => String(value));
+    }
+
+    if (commandTargetMode === 'cluster') {
+      return commandClusterTargetIds;
+    }
+
+    return [];
+  }, [commandClusterTargetIds, commandSelectedDrones, commandTargetMode]);
+  const commandScopeSet = React.useMemo(
+    () => new Set(commandScopeIds.map((value) => String(value))),
+    [commandScopeIds],
+  );
+  const commandScopeSummary = React.useMemo(() => {
+    if (commandTargetMode === 'selected') {
+      return `${commandScopeIds.length} selected drone${commandScopeIds.length === 1 ? '' : 's'}`;
+    }
+
+    if (commandTargetMode === 'cluster') {
+      return `${commandClusterScope || 'Cluster'} · ${commandScopeIds.length} drone${commandScopeIds.length === 1 ? '' : 's'}`;
+    }
+
+    return `All ${drones.length} drones`;
+  }, [commandClusterScope, commandScopeIds.length, commandTargetMode, drones.length]);
+  const applyVisibleCardsToCommandScope = React.useCallback(() => {
+    if (filteredDroneIds.length === 0) {
+      return;
+    }
+
+    setCommandTargetMode('selected');
+    setCommandSelectedDrones(filteredDroneIds);
+  }, [filteredDroneIds]);
+  React.useEffect(() => {
+    if (commandTargetMode !== 'selected') {
+      return;
+    }
+
+    const validDroneIds = new Set(
+      drones
+        .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
+        .filter(Boolean),
+    );
+
+    setCommandSelectedDrones((prev) => prev.filter((value) => validDroneIds.has(String(value))));
+  }, [commandTargetMode, drones]);
+  React.useEffect(() => {
+    if (commandTargetMode !== 'cluster') {
+      return;
+    }
+
+    if (!clusterScopeOptions.some((option) => String(option.id) === String(commandClusterScope))) {
+      const fallbackCluster = clusterScopeOptions.find((option) => option.id !== 'all' && option.id !== 'attention');
+      setCommandClusterScope(fallbackCluster ? String(fallbackCluster.id) : '');
+    }
+  }, [clusterScopeOptions, commandClusterScope, commandTargetMode]);
 
   return (
     <div className="overview-container">
@@ -292,17 +371,40 @@ const Overview = ({ setSelectedDrone }) => {
       </header>
 
       <div className="mission-trigger-section">
-        <CommandSender drones={drones} swarmData={swarmAssignments} />
+        <CommandSender
+          drones={drones}
+          swarmData={swarmAssignments}
+          targetMode={commandTargetMode}
+          onTargetModeChange={setCommandTargetMode}
+          selectedDrones={commandSelectedDrones}
+          onSelectedDronesChange={setCommandSelectedDrones}
+          selectedClusterScope={commandClusterScope}
+          onSelectedClusterScopeChange={setCommandClusterScope}
+          visibleDroneIds={filteredDroneIds}
+        />
       </div>
 
       <div className="connected-drones-header">
         <div>
           <h2>Connected Drones</h2>
-          <p>Filter the card wall without changing dispatch scope in Command Control.</p>
+          <p>Card-wall filters stay visual until you explicitly apply them to Command Control.</p>
         </div>
-        <span className="connected-drones-count">
-          {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
-        </span>
+        <div className="connected-drones-header__actions">
+          <span className="connected-drones-count">
+            {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
+          </span>
+          <span className="connected-drones-scope">
+            Command scope: {commandScopeSummary}
+          </span>
+          <button
+            type="button"
+            className="connected-drones-action"
+            onClick={applyVisibleCardsToCommandScope}
+            disabled={filteredDroneIds.length === 0}
+          >
+            Use visible cards as scope
+          </button>
+        </div>
       </div>
 
       <div className="overview-fleet-toolbar">
@@ -375,6 +477,13 @@ const Overview = ({ setSelectedDrone }) => {
               isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
               toggleDroneDetails={toggleDroneDetails}
               setSelectedDrone={setSelectedDrone}
+              commandScopeLabel={
+                commandTargetMode === 'all'
+                  ? ''
+                  : commandScopeSet.has(normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
+                    ? (commandTargetMode === 'cluster' ? 'Command cluster' : 'Command scope')
+                    : ''
+              }
             />
           </div>
         ))}

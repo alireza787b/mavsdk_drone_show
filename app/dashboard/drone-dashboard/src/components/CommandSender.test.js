@@ -304,6 +304,40 @@ describe('CommandSender', () => {
     });
   });
 
+  it('can apply visible dashboard cards as an explicit command scope', async () => {
+    const ScopeHarness = () => {
+      const [targetMode, setTargetMode] = React.useState('all');
+      const [selectedDrones, setSelectedDrones] = React.useState([]);
+      const [selectedClusterScope, setSelectedClusterScope] = React.useState('');
+
+      return (
+        <CommandActivityProvider>
+          <CommandSender
+            drones={drones}
+            targetMode={targetMode}
+            onTargetModeChange={setTargetMode}
+            selectedDrones={selectedDrones}
+            onSelectedDronesChange={setSelectedDrones}
+            selectedClusterScope={selectedClusterScope}
+            onSelectedClusterScopeChange={setSelectedClusterScope}
+            visibleDroneIds={['1', '3']}
+          />
+        </CommandActivityProvider>
+      );
+    };
+
+    render(<ScopeHarness />);
+
+    fireEvent.click(screen.getByRole('button', { name: /use 2 visible cards as scope/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('2 selected drones')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Visible cards already in scope (2)')).toBeInTheDocument();
+    expect(screen.getByText('Selected: 2')).toBeInTheDocument();
+  });
+
   it('dispatches Cancel Mission to the same targets from the monitor', async () => {
     submitCommandWithLifecycleFeedback.mockImplementation(async (commandData, options = {}) => {
       if (commandData.missionType === '0') {

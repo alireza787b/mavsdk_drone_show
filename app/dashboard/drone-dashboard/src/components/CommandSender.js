@@ -39,12 +39,24 @@ import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/CommandSender.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 
-const CommandSender = ({ drones, swarmData = null }) => {
+const CommandSender = ({
+  drones,
+  swarmData = null,
+  targetMode: controlledTargetMode = null,
+  onTargetModeChange = null,
+  selectedDrones: controlledSelectedDrones = null,
+  onSelectedDronesChange = null,
+  selectedClusterScope: controlledSelectedClusterScope = null,
+  onSelectedClusterScopeChange = null,
+  visibleDroneIds = [],
+  onAdoptVisibleScope = null,
+  scopeSource = 'manual',
+}) => {
   const [activeTab, setActiveTab] = useState('missionTrigger');
-  const [targetMode, setTargetMode] = useState('all'); // 'all', 'cluster', or 'selected'
-  const [selectedDrones, setSelectedDrones] = useState([]);
+  const [internalTargetMode, setInternalTargetMode] = useState('all'); // 'all', 'cluster', or 'selected'
+  const [internalSelectedDrones, setInternalSelectedDrones] = useState([]);
   const [targetQuery, setTargetQuery] = useState('');
-  const [selectedClusterScope, setSelectedClusterScope] = useState('');
+  const [internalSelectedClusterScope, setInternalSelectedClusterScope] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [precisionMoveDialogOpen, setPrecisionMoveDialogOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
@@ -58,6 +70,12 @@ const CommandSender = ({ drones, swarmData = null }) => {
     dismissCommandMonitor,
     commandLifecycleCallbacks,
   } = useCommandActivity();
+  const targetMode = controlledTargetMode ?? internalTargetMode;
+  const setTargetMode = onTargetModeChange ?? setInternalTargetMode;
+  const selectedDrones = controlledSelectedDrones ?? internalSelectedDrones;
+  const setSelectedDrones = onSelectedDronesChange ?? setInternalSelectedDrones;
+  const selectedClusterScope = controlledSelectedClusterScope ?? internalSelectedClusterScope;
+  const setSelectedClusterScope = onSelectedClusterScopeChange ?? setInternalSelectedClusterScope;
 
   React.useEffect(() => {
     const interval = setInterval(forceClockTick, 1000);
@@ -118,7 +136,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
     if (!clusterTargetOptions.some((option) => String(option.id) === String(selectedClusterScope))) {
       setSelectedClusterScope(String(clusterTargetOptions[0].id));
     }
-  }, [clusterTargetOptions, selectedClusterScope, targetMode]);
+  }, [clusterTargetOptions, selectedClusterScope, setSelectedClusterScope, setTargetMode, targetMode]);
 
   const scopedTargetIds = useMemo(() => {
     if (targetMode === 'selected') {
@@ -148,6 +166,24 @@ const CommandSender = ({ drones, swarmData = null }) => {
       ? (activeClusterTarget?.description || 'Cluster scope follows the current saved Smart Swarm topology.')
       : 'Target scope: all configured drones';
   const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
+  const normalizedVisibleDroneIds = useMemo(
+    () => Array.from(new Set((visibleDroneIds || []).map((value) => String(value)).filter(Boolean))),
+    [visibleDroneIds],
+  );
+  const visibleScopeMatchesSelection = useMemo(() => {
+    if (targetMode !== 'selected' || normalizedVisibleDroneIds.length !== selectedDrones.length) {
+      return false;
+    }
+
+    const selectedSet = new Set(selectedDrones.map((value) => String(value)));
+    return normalizedVisibleDroneIds.every((value) => selectedSet.has(value));
+  }, [normalizedVisibleDroneIds, selectedDrones, targetMode]);
+  const visibleScopeButtonLabel = visibleScopeMatchesSelection
+    ? `Visible cards already in scope (${normalizedVisibleDroneIds.length})`
+    : `Use ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'} as scope`;
+  const scopeSourceNotice = targetMode === 'selected' && scopeSource === 'card-wall'
+    ? 'Current command scope was copied from the visible fleet cards. Changing card filters later will not change dispatch targets until you apply the visible wall again.'
+    : null;
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
@@ -519,6 +555,21 @@ const CommandSender = ({ drones, swarmData = null }) => {
   const deselectAllDrones = () => {
     setSelectedDrones([]);
   };
+  const applyVisibleCardsToScope = () => {
+    if (typeof onAdoptVisibleScope === 'function') {
+      onAdoptVisibleScope();
+      return;
+    }
+
+    if (normalizedVisibleDroneIds.length === 0) {
+      toast.info('No visible cards are available to apply as command scope.');
+      return;
+    }
+
+    setTargetMode('selected');
+    setSelectedDrones(normalizedVisibleDroneIds);
+    toast.info(`Command scope updated to ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'}.`);
+  };
 
   return (
       <div className="command-sender-container">
@@ -537,7 +588,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
         <div className="target-selection__row">
           <div>
             <label htmlFor="targetMode" className="target-selection__label">Command target</label>
-            <p className="target-selection__hint">Whole fleet, one saved cluster, or a manual subset.</p>
+            <p className="target-selection__hint">Whole fleet, one saved cluster, or a manual subset. Card-wall filters stay visual until you apply them explicitly.</p>
           </div>
           <div className="target-selection__controls">
             <span className="target-selection__scope">{targetLabel}</span>
@@ -554,6 +605,27 @@ const CommandSender = ({ drones, swarmData = null }) => {
             </select>
           </div>
         </div>
+
+        {scopeSourceNotice && (
+          <p className="target-selection__notice">{scopeSourceNotice}</p>
+        )}
+
+        {normalizedVisibleDroneIds.length > 0 && (
+          <div className="target-selection__bridge">
+            <div>
+              <strong>Card wall bridge</strong>
+              <p>Dashboard currently shows {normalizedVisibleDroneIds.length} drone{normalizedVisibleDroneIds.length === 1 ? '' : 's'}. Apply that visible wall as an explicit command subset when needed.</p>
+            </div>
+            <button
+              type="button"
+              className="target-selection__bridge-action"
+              onClick={applyVisibleCardsToScope}
+              disabled={visibleScopeMatchesSelection}
+            >
+              {visibleScopeButtonLabel}
+            </button>
+          </div>
+        )}
 
         {targetMode === 'cluster' && (
           <div className="drone-selection drone-selection--cluster">
@@ -586,7 +658,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
                 />
               </label>
               <div className="selection-buttons">
-              <button type="button" onClick={selectVisibleDrones}>Select visible</button>
+              <button type="button" onClick={selectVisibleDrones}>Select matches</button>
               <button type="button" onClick={deselectAllDrones}>Clear</button>
               </div>
             </div>
@@ -833,6 +905,15 @@ const CommandSender = ({ drones, swarmData = null }) => {
 CommandSender.propTypes = {
   drones: PropTypes.array.isRequired,
   swarmData: PropTypes.array,
+  targetMode: PropTypes.oneOf(['all', 'cluster', 'selected']),
+  onTargetModeChange: PropTypes.func,
+  selectedDrones: PropTypes.arrayOf(PropTypes.string),
+  onSelectedDronesChange: PropTypes.func,
+  selectedClusterScope: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onSelectedClusterScopeChange: PropTypes.func,
+  visibleDroneIds: PropTypes.arrayOf(PropTypes.string),
+  onAdoptVisibleScope: PropTypes.func,
+  scopeSource: PropTypes.oneOf(['manual', 'card-wall']),
 };
 
 export default CommandSender;

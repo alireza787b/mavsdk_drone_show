@@ -46,6 +46,11 @@
     border-top: 3px solid var(--color-text-tertiary);
 }
 
+.drone-widget.command-scope-active {
+    box-shadow: var(--shadow-base), 0 0 0 1px rgba(var(--color-primary-rgb), 0.14);
+    border-color: var(--color-primary-border);
+}
+
 /* Mission State Visual Indicators with Enhanced Feedback */
 .drone-widget.mission-ready {
     border-right: 3px solid var(--color-warning);
@@ -184,6 +189,22 @@
     letter-spacing: 0.03em;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.drone-header__scope-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.5rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.12);
+    color: var(--color-text-primary);
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     white-space: nowrap;
 }
 
