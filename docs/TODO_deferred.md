@@ -169,3 +169,26 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 - related build/test tooling docs
 
 ---
+
+## TODO 10: Evaluate true continuous manual-control mode separately from Precision Move
+
+**Priority:** Medium
+**Status:** Deferred — keep Precision Move on discrete audited step commands for now
+
+**Problem:** Operators asked for an RC-like steer mode, but a true continuous offboard-control stream has different safety, supervision, logging, MCP/API, and link-loss behavior than discrete Precision Move steps. Folding that into the same first implementation would blur two different operator contracts.
+
+**Solution:** Keep `Precision Move` as the discrete local-relative repositioning action with `Planned Move` and `Live Jog` surfaces. Revisit continuous manual-control as a separate feature only after we define:
+
+- explicit authority/arming gates
+- link-loss and timeout behavior
+- continuous-stream ownership and override semantics
+- telemetry/progress visibility expectations
+- MCP/manual/CLI/operator-console usage rules
+
+**Files to revisit:**
+- `src/action_runners/precision_move.py`
+- `src/command_contract.py`
+- `app/dashboard/drone-dashboard/src/components/PrecisionMoveDialog.js`
+- future manual-control/MCP docs and validators
+
+---

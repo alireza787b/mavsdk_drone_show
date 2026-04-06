@@ -416,27 +416,27 @@ const CommandSender = ({ drones, swarmData = null }) => {
     }, 0);
   };
 
-  const handleSubmitPrecisionMove = async (commandData) => {
+  const handleSubmitPrecisionMove = async (commandData, options = {}) => {
     const preparedCommand = prepareCommandForDispatch(commandData);
     if (!preparedCommand) {
       return false;
     }
 
     const didSend = await submitPreparedCommand(preparedCommand);
-    if (didSend) {
+    if (didSend && options.closeOnSuccess !== false) {
       setPrecisionMoveDialogOpen(false);
     }
     return didSend;
   };
 
-  const handleSubmitPrecisionMoveHold = async (commandData) => {
+  const handleSubmitPrecisionMoveHold = async (commandData, options = {}) => {
     const preparedCommand = prepareCommandForDispatch(commandData);
     if (!preparedCommand) {
       return false;
     }
 
     const didSend = await submitPreparedCommand(preparedCommand);
-    if (didSend) {
+    if (didSend && options.closeOnSuccess !== false) {
       setPrecisionMoveDialogOpen(false);
     }
     return didSend;

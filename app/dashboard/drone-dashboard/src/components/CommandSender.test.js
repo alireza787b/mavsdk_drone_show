@@ -207,9 +207,10 @@ describe('CommandSender', () => {
     expect(screen.getByRole('dialog', { name: /precision move/i })).toBeInTheDocument();
     expect(screen.queryByText('Confirm Command')).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByText(/manual values/i));
     fireEvent.change(screen.getByLabelText(/forward \(\+\) \/ back \(-\)/i), { target: { value: '1.5' } });
     fireEvent.change(screen.getByLabelText(/up \(\+\) \/ down \(-\)/i), { target: { value: '0.5' } });
-    fireEvent.click(screen.getByRole('button', { name: /dispatch precision move/i }));
+    fireEvent.click(screen.getByRole('button', { name: /dispatch planned move/i }));
 
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
@@ -240,6 +241,43 @@ describe('CommandSender', () => {
     expect(screen.queryByText('Confirm Command')).not.toBeInTheDocument();
   });
 
+  it('keeps the precision move dialog open while dispatching live jog steps', async () => {
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-jog' });
+
+    renderWithCommandActivity(<CommandSender drones={drones} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
+    await waitFor(() => expect(getPrecisionMovePolicyResponse).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole('button', { name: /live jog/i }));
+    fireEvent.click(screen.getByRole('button', { name: /forward/i }));
+
+    await waitFor(() => {
+      expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          missionType: '112',
+          triggerTime: '0',
+          precision_move: {
+            frame: 'body',
+            translation_m: {
+              forward: 1,
+              right: 0,
+              up: 0,
+            },
+            yaw: {
+              mode: 'hold_current',
+            },
+            hold_mode: 'px4_hold',
+          },
+        }),
+        expect.any(Object),
+      );
+    });
+
+    expect(screen.getByRole('dialog', { name: /precision move/i })).toBeInTheDocument();
+  });
+
   it('offers a direct hold override from the precision move dialog', async () => {
     submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-hold' });
 
@@ -248,7 +286,7 @@ describe('CommandSender', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
     await waitFor(() => expect(getPrecisionMovePolicyResponse).toHaveBeenCalled());
-    fireEvent.click(screen.getAllByRole('button', { name: /dispatch hold/i })[0]);
+    fireEvent.click(screen.getByRole('button', { name: /dispatch hold/i }));
 
     await waitFor(() => {
       expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(

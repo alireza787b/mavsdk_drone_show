@@ -290,6 +290,11 @@
   color: var(--color-text-secondary);
 }
 
+.precision-move-dialog__scope-card--interactive {
+  text-align: left;
+  cursor: pointer;
+}
+
 .precision-move-dialog__controller {
   display: grid;
   grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.8fr);
@@ -321,6 +326,14 @@
   font-size: var(--font-size-sm);
 }
 
+.precision-move-dialog__mode-strip,
+.precision-move-dialog__controller-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
 .precision-move-dialog__control,
 .precision-move-dialog__control-core {
   display: grid;
@@ -335,7 +348,8 @@
   color: var(--color-text-primary);
 }
 
-.precision-move-dialog__control {
+.precision-move-dialog__control,
+.precision-move-dialog__control-core {
   cursor: pointer;
 }
 
@@ -372,6 +386,9 @@
 
 .precision-move-dialog__control-core {
   grid-area: core;
+  text-align: center;
+  background: color-mix(in srgb, var(--color-warning, #b66a00) 12%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-warning, #b66a00) 45%, var(--color-border-primary));
 }
 
 .precision-move-dialog__live-badge {
@@ -414,6 +431,18 @@
   color: var(--color-text-primary);
 }
 
+.precision-move-dialog__status-step--warning {
+  border-color: color-mix(in srgb, var(--color-warning, #b66a00) 60%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-warning, #b66a00) 14%, var(--color-bg-primary));
+  color: var(--color-text-primary);
+}
+
+.precision-move-dialog__status-step--danger {
+  border-color: color-mix(in srgb, var(--color-danger, #b42318) 60%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-danger, #b42318) 12%, var(--color-bg-primary));
+  color: var(--color-text-primary);
+}
+
 .precision-move-dialog__status-meta {
   display: grid;
   gap: var(--spacing-xs);
@@ -429,6 +458,19 @@
   line-height: var(--line-height-normal);
 }
 
+.precision-move-dialog__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__controller-summary {
+  flex: 1 1 320px;
+  min-width: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
 .precision-move-dialog__error {
   color: var(--color-danger);
   font-weight: var(--font-weight-semibold);
@@ -438,11 +480,20 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--spacing-base);
+  position: sticky;
+  bottom: calc(var(--spacing-xl) * -1);
+  margin: 0 calc(var(--spacing-xl) * -1) calc(var(--spacing-xl) * -1);
+  padding: var(--spacing-base) var(--spacing-xl) var(--spacing-xl);
+  background: linear-gradient(
+    to top,
+    var(--color-surface-raised) 72%,
+    color-mix(in srgb, var(--color-surface-raised) 0%, transparent)
+  );
 }
 
 .precision-move-dialog__cancel,
 .precision-move-dialog__submit,
-.precision-move-dialog__hold {
+.precision-move-dialog__control-core {
   border: none;
   border-radius: var(--border-radius-md);
   padding: var(--spacing-base) var(--spacing-xl);
@@ -461,13 +512,8 @@
   color: var(--color-primary-text);
 }
 
-.precision-move-dialog__hold {
-  background: var(--color-warning);
-  color: var(--color-warning-text, var(--color-text-primary));
-}
-
 .precision-move-dialog__submit:disabled,
-.precision-move-dialog__hold:disabled,
+.precision-move-dialog__control-core:disabled,
 .precision-move-dialog__cancel:disabled,
 .precision-move-dialog__close:disabled {
   opacity: 0.6;
@@ -483,8 +529,8 @@
 .precision-move-dialog__grid input:focus-visible,
 .precision-move-dialog__single-field input:focus-visible,
 .precision-move-dialog__control:focus-visible,
+.precision-move-dialog__control-core:focus-visible,
 .precision-move-dialog__cancel:focus-visible,
-.precision-move-dialog__hold:focus-visible,
 .precision-move-dialog__submit:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
@@ -519,7 +565,8 @@
   .precision-move-dialog__section-header,
   .precision-move-dialog__controller,
   .precision-move-dialog__scope-summary,
-  .precision-move-dialog__defaults-grid {
+  .precision-move-dialog__defaults-grid,
+  .precision-move-dialog__summary-grid {
     grid-template-columns: 1fr;
   }
 
@@ -533,5 +580,11 @@
 
   .precision-move-dialog__status-strip {
     grid-template-columns: 1fr;
+  }
+
+  .precision-move-dialog__actions {
+    bottom: calc(var(--spacing-lg) * -1);
+    margin: 0 calc(var(--spacing-lg) * -1) calc(var(--spacing-lg) * -1);
+    padding: var(--spacing-base) var(--spacing-lg) var(--spacing-lg);
   }
 }

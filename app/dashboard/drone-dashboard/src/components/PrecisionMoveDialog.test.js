@@ -81,15 +81,20 @@ describe('PrecisionMoveDialog', () => {
 
     expect(screen.getByText('Live Command Status')).toBeInTheDocument();
     expect(screen.getByText('Default speed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /aircraft-relative/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /live jog/i })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(/manual vector and heading/i));
+    fireEvent.click(screen.getByText(/manual values/i));
 
     expect(screen.getByLabelText(/forward \(\+\) \/ back \(-\)/i)).toBeInTheDocument();
   });
 
-  it('returns the operator to the shared scope editor when requested', () => {
+  it('returns the operator to the shared scope editor when requested', async () => {
     const onEditTargetScope = jest.fn();
-    renderDialog({ onEditTargetScope });
+    await act(async () => {
+      renderDialog({ onEditTargetScope });
+    });
+    await waitFor(() => expect(getPrecisionMovePolicyResponse).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole('button', { name: /edit scope/i }));
 
