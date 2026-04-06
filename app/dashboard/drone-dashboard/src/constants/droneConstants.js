@@ -37,6 +37,7 @@ export const DRONE_ACTION_TYPES = {
     DISARM: 9,
     INIT_SYSID: 110,
     APPLY_COMMON_PARAMS: 111,
+    PRECISION_MOVE: 112,
 };
 
 export const DRONE_MISSION_IMAGES = {
@@ -67,6 +68,7 @@ export const DRONE_ACTION_NAMES = {
     106: 'Hover Test',
     110: 'Init System ID',
     111: 'Apply Common Params',
+    112: 'Precision Move',
 };
 
 export const getMissionDescription = (missionType) => {

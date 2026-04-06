@@ -966,6 +966,27 @@ class TestCommandValidation:
         })
         assert result['valid']
 
+    def test_validate_precision_move_requires_payload(self, api_server):
+        from src.enums import Mission, CommandErrorCode
+
+        result = api_server._validate_command({
+            'missionType': str(Mission.PRECISION_MOVE.value),
+            'triggerTime': '0',
+        })
+        assert not result['valid']
+        assert result['error_code'] == CommandErrorCode.INVALID_FORMAT.value
+
+    def test_validate_precision_move_requires_immediate_trigger(self, api_server):
+        from src.enums import Mission, CommandErrorCode
+
+        result = api_server._validate_command({
+            'missionType': str(Mission.PRECISION_MOVE.value),
+            'triggerTime': '5',
+            'precision_move': {'frame': 'body', 'translation_m': {'forward': 1.0}},
+        })
+        assert not result['valid']
+        assert result['error_code'] == CommandErrorCode.INVALID_TRIGGER_TIME.value
+
     def test_check_state_executing(self, api_server):
         """Test state check fails during execution"""
         api_server.drone_config.state = 2  # MISSION_EXECUTING
@@ -979,6 +1000,13 @@ class TestCommandValidation:
         api_server.drone_config.state = 2  # MISSION_EXECUTING
 
         result = api_server._check_state_preconditions(mission_type=105)  # KILL_TERMINATE
+        assert result['valid']
+
+    def test_check_state_precision_move_allowed_as_override(self, api_server):
+        from src.enums import Mission
+
+        api_server.drone_config.state = 2  # MISSION_EXECUTING
+        result = api_server._check_state_preconditions(mission_type=Mission.PRECISION_MOVE.value)
         assert result['valid']
 
     def test_check_state_not_ready_to_arm(self, api_server):
@@ -1000,6 +1028,7 @@ class TestSchemas:
     def test_submit_command_request(self):
         """Test SubmitCommandRequest schema"""
         from schemas import SubmitCommandRequest
+        from src.enums import Mission
 
         # Valid request
         request = SubmitCommandRequest(
@@ -1029,6 +1058,25 @@ class TestSchemas:
             SubmitCommandRequest(
                 mission_type=10,
                 takeoff_altitude=-5.0
+            )
+
+        precision_request = SubmitCommandRequest(
+            mission_type=Mission.PRECISION_MOVE.value,
+            trigger_time=0,
+            precision_move={
+                "frame": "body",
+                "translation_m": {"forward": 1.0},
+                "yaw": {"mode": "hold_current"},
+            },
+        )
+        assert precision_request.precision_move is not None
+        assert precision_request.precision_move.translation_m["forward"] == 1.0
+
+        with pytest.raises(Exception):
+            SubmitCommandRequest(
+                mission_type=Mission.PRECISION_MOVE.value,
+                trigger_time=5,
+                precision_move={"frame": "body", "translation_m": {"forward": 1.0}},
             )
 
     def test_submit_command_response(self):

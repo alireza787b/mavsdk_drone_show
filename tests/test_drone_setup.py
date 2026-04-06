@@ -96,6 +96,7 @@ class TestDroneSetupInitialization:
         assert Mission.RETURN_RTL.value in setup.mission_handlers
         assert Mission.KILL_TERMINATE.value in setup.mission_handlers
         assert Mission.SMART_SWARM.value in setup.mission_handlers
+        assert Mission.PRECISION_MOVE.value in setup.mission_handlers
 
 
 # ============================================================================
@@ -625,6 +626,7 @@ class TestActionMissionHandlerRouting:
             ("_execute_reboot_fc", "Flight Control Reboot Mission", "actions.py", "--action=reboot_fc", False),
             ("_execute_reboot_sys", "System Reboot Mission", "actions.py", "--action=reboot_sys", False),
             ("_execute_init_sysid", "Init SysID Mission", "actions.py", "--action=init_sysid", False),
+            ("_execute_precision_move", "Precision Move Mission", "actions.py", "--action=precision_move --request-file=/tmp/precision_move_1_cmd-xyz.json", True),
             ("_execute_test_led", "LED Test Mission", "test_led_controller.py", "--action=start", False),
             ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", False),
         ],
@@ -637,10 +639,15 @@ class TestActionMissionHandlerRouting:
         params = Mock()
         params.trigger_sooner_seconds = 4
         drone_config = create_mock_drone_config()
+        if handler_name == "_execute_precision_move":
+            drone_config.precision_move_request_file = "/tmp/precision_move_1_cmd-xyz.json"
 
         setup = DroneSetup(params, drone_config)
 
-        with patch.object(setup, '_execute_immediate_script_mission', AsyncMock(return_value=(True, "started"))) as mock_execute:
+        with (
+            patch.object(setup, '_execute_immediate_script_mission', AsyncMock(return_value=(True, "started"))) as mock_execute,
+            patch("src.drone_setup.os.path.isfile", return_value=True),
+        ):
             result = await getattr(setup, handler_name)()
 
         assert result == (True, "started")
@@ -726,6 +733,22 @@ class TestActionMissionHandlerRouting:
             None,
             None,
         )
+
+    @pytest.mark.asyncio
+    async def test_precision_move_handler_requires_payload_file(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.precision_move_request_file = None
+
+        setup = DroneSetup(params, drone_config)
+        with patch.object(setup, "_fail_pending_command", AsyncMock(return_value=(False, "missing"))) as mock_fail:
+            result = await setup._execute_precision_move()
+
+        assert result == (False, "missing")
+        mock_fail.assert_awaited_once()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

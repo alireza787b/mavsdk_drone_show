@@ -38,6 +38,7 @@ describe('commandExecutionPolicy', () => {
     expect(isSchedulableActionKey('TAKE_OFF')).toBe(true);
     expect(isStrictSyncActionKey('HOVER_TEST')).toBe(true);
     expect(isSchedulableActionKey('UPDATE_CODE')).toBe(false);
+    expect(isSchedulableActionKey('PRECISION_MOVE')).toBe(false);
     expect(
       getActionExecutionPolicy({ actionKey: 'TAKE_OFF', isImmediate: true })
     ).toMatch(/retries PX4 armability briefly/i);
@@ -50,5 +51,8 @@ describe('commandExecutionPolicy', () => {
     expect(
       getActionExecutionPolicy({ actionKey: 'UPDATE_CODE', isImmediate: false })
     ).toBe('Immediate only. This action is not queued behind a future trigger.');
+    expect(
+      getActionExecutionPolicy({ actionKey: 'PRECISION_MOVE', isImmediate: false })
+    ).toMatch(/local offboard reposition/i);
   });
 });

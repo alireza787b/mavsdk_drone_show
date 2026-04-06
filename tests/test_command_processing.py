@@ -7,6 +7,7 @@ Tests both GCS-side command handling and drone-side command reception.
 """
 
 import pytest
+import os
 import time
 from unittest.mock import Mock, MagicMock, patch, AsyncMock
 from typing import Dict, List, Any
@@ -46,6 +47,7 @@ from tests.fixtures.command_samples import (
     cmd_rtl,
     cmd_kill_terminate,
     cmd_drone_show,
+    cmd_precision_move,
     cmd_invalid_mission_type,
     cmd_missing_mission_type,
     cmd_empty,
@@ -639,6 +641,27 @@ class TestDroneCommandReception:
         assert drone_config.reboot_after_params is True
         assert drone_config.mission == Mission.APPLY_COMMON_PARAMS.value
         assert drone_config.state == State.MISSION_READY.value
+
+    def test_precision_move_command_writes_runtime_payload_file(self):
+        """PRECISION_MOVE must install a normalized runtime payload file for DroneSetup."""
+        from src.drone_communicator import DroneCommunicator
+
+        params = Mock(
+            enable_udp_telemetry=False,
+            enable_default_subscriptions=False,
+            default_takeoff_alt=10.0,
+            max_takeoff_alt=50.0,
+            reboot_after_params=False,
+        )
+        drone_config = create_mock_drone_config()
+        communicator = DroneCommunicator(drone_config, params, {})
+
+        communicator.process_command(cmd_precision_move())
+
+        assert drone_config.mission == Mission.PRECISION_MOVE.value
+        assert drone_config.state == State.MISSION_READY.value
+        assert drone_config.precision_move_request_file
+        assert os.path.isfile(drone_config.precision_move_request_file)
 
     def test_get_drone_state_reports_px4_home_truth_not_fallback_cache(self):
         """Telemetry home_position_set must reflect PX4 home truth, not a fallback position cache."""

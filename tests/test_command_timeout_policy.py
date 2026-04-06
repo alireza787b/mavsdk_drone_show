@@ -14,6 +14,7 @@ class _MockParams:
     COMMAND_TRACKING_MISSION_BUFFER_SEC = 120
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900
+    COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC = 45
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45
@@ -25,6 +26,7 @@ class _MockParams:
     RTL_ACTION_COMPLETION_MAX_TIMEOUT = 1200
     SWARM_TRAJECTORY_TIMEOUT_MULTIPLIER = 1.2
     SWARM_TRAJECTORY_END_BEHAVIOR = "return_home"
+    PRECISION_MOVE_DEFAULT_TIMEOUT_SEC = 30.0
 
 
 def test_estimate_command_tracking_timeout_for_takeoff_uses_prefight_and_climb_budget():
@@ -41,6 +43,16 @@ def test_estimate_command_tracking_timeout_for_land_scales_with_relative_altitud
     )
 
     assert timeout_ms == (45 + 80 + 30 + 30) * 1000
+
+
+def test_estimate_command_tracking_timeout_for_precision_move_uses_requested_budget():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.PRECISION_MOVE,
+        command_data={"precision_move": {"timeout_sec": 45}},
+        params=_MockParams,
+    )
+
+    assert timeout_ms == (45 + 30) * 1000
 
 
 def test_estimate_command_tracking_timeout_for_rtl_scales_with_relative_altitude():

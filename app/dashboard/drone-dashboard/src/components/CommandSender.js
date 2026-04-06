@@ -5,6 +5,7 @@ import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
+import PrecisionMoveDialog from './PrecisionMoveDialog';
 import CommandPreflightSummary from './CommandPreflightSummary';
 import ClusterScopeBar from './ClusterScopeBar';
 import { toast } from 'react-toastify';
@@ -45,6 +46,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
   const [targetQuery, setTargetQuery] = useState('');
   const [selectedClusterScope, setSelectedClusterScope] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [precisionMoveDialogOpen, setPrecisionMoveDialogOpen] = useState(false);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -171,6 +173,59 @@ const CommandSender = ({ drones, swarmData = null }) => {
           ? (activeClusterTarget?.description || 'Cluster scope follows the current saved Smart Swarm topology.')
         : 'Target scope: all configured drones',
     };
+  };
+
+  const ensureTargetScopeReady = (targetContext) => {
+    if (targetMode === 'selected' && targetContext.effectiveTargets.length === 0) {
+      toast.error('No drones selected. Please select at least one drone.');
+      return false;
+    }
+
+    if (targetMode === 'cluster' && targetContext.effectiveTargets.length === 0) {
+      toast.error('No executable cluster is selected. Choose a valid cluster target first.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const prepareCommandForDispatch = (commandData = {}) => {
+    const targetContext = buildTargetContext(commandData);
+    const hasExplicitTargets = Array.isArray(commandData?.target_drones) && commandData.target_drones.length > 0;
+
+    if (!hasExplicitTargets && !ensureTargetScopeReady(targetContext)) {
+      return null;
+    }
+
+    const missionName = getCommandName(commandData.missionType);
+
+    return {
+      ...commandData,
+      ...(targetContext.effectiveTargets.length > 0 ? { target_drones: targetContext.effectiveTargets } : {}),
+      uiMeta: {
+        ...(commandData.uiMeta || {}),
+        operatorLabel: commandData?.uiMeta?.operatorLabel || missionName,
+        targetLabel: targetContext.targetLabel,
+        targetDescriptor: targetContext.targetDescriptor,
+      },
+    };
+  };
+
+  const submitPreparedCommand = async (commandData) => {
+    setLoading(true);
+    try {
+      await submitCommandWithLifecycleFeedback(commandData, {
+        ...commandLifecycleCallbacks,
+      });
+      return true;
+    } catch (error) {
+      console.error('Error sending command:', error);
+      const detail = error?.response?.data?.detail || error?.message || 'Error sending command. Please check console for details.';
+      toast.error(detail);
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getMonitorTone = (monitor) => {
@@ -316,63 +371,55 @@ const CommandSender = ({ drones, swarmData = null }) => {
 
   // Handle new command from child components (MissionTrigger/DroneActions)
   const handleSendCommand = (commandData) => {
-    const targetContext = buildTargetContext(commandData);
-
-    if (!Array.isArray(commandData?.target_drones) || commandData.target_drones.length === 0) {
-      if (targetMode === 'selected' && targetContext.effectiveTargets.length === 0) {
-        toast.error('No drones selected. Please select at least one drone.');
-        return;
-      }
-      if (targetMode === 'cluster' && targetContext.effectiveTargets.length === 0) {
-        toast.error('No executable cluster is selected. Choose a valid cluster target first.');
-        return;
-      }
+    const preparedCommand = prepareCommandForDispatch(commandData);
+    if (!preparedCommand) {
+      return;
     }
 
-    const missionName = getCommandName(commandData.missionType);
-    setCurrentCommandData({
-      ...commandData,
-      ...(targetContext.effectiveTargets.length > 0 ? { target_drones: targetContext.effectiveTargets } : {}),
-      uiMeta: {
-        ...(commandData.uiMeta || {}),
-        operatorLabel: missionName,
-        targetLabel: targetContext.targetLabel,
-        targetDescriptor: targetContext.targetDescriptor,
-      },
-    });
+    const missionName = getCommandName(preparedCommand.missionType);
+    setCurrentCommandData(preparedCommand);
     setConfirmationMessage(
-      commandData.uiMeta?.confirmationMessage
-        || `${missionName} → ${targetContext.targetLabel}. Confirm dispatch.`
+      preparedCommand.uiMeta?.confirmationMessage
+        || `${missionName} → ${preparedCommand.uiMeta?.targetLabel || targetLabel}. Confirm dispatch.`
     );
     setModalOpen(true);
+  };
+
+  const handleRequestPrecisionMove = () => {
+    const targetContext = buildTargetContext({});
+    if (!ensureTargetScopeReady(targetContext)) {
+      return;
+    }
+
+    setPrecisionMoveDialogOpen(true);
+  };
+
+  const handleClosePrecisionMoveDialog = () => {
+    if (!loading) {
+      setPrecisionMoveDialogOpen(false);
+    }
+  };
+
+  const handleSubmitPrecisionMove = async (commandData) => {
+    const preparedCommand = prepareCommandForDispatch(commandData);
+    if (!preparedCommand) {
+      return false;
+    }
+
+    const didSend = await submitPreparedCommand(preparedCommand);
+    if (didSend) {
+      setPrecisionMoveDialogOpen(false);
+    }
+    return didSend;
   };
 
   // Confirm and send the command
   const handleConfirmSendCommand = async () => {
     if (currentCommandData) {
+      const commandToSend = currentCommandData;
       setModalOpen(false);
-      setLoading(true);
-      try {
-        const commandDataToSend = { ...currentCommandData };
-        if (!Array.isArray(commandDataToSend.target_drones) || commandDataToSend.target_drones.length === 0) {
-          if (targetMode === 'selected') {
-            commandDataToSend.target_drones = selectedDrones.map((value) => String(value));
-          } else if (targetMode === 'cluster') {
-            commandDataToSend.target_drones = clusterTargetIds;
-          }
-        }
-
-        await submitCommandWithLifecycleFeedback(commandDataToSend, {
-          ...commandLifecycleCallbacks,
-        });
-      } catch (error) {
-        console.error('Error sending command:', error);
-        const detail = error?.response?.data?.detail || error?.message || 'Error sending command. Please check console for details.';
-        toast.error(detail);
-      } finally {
-        setLoading(false);
-        setCurrentCommandData(null);
-      }
+      await submitPreparedCommand(commandToSend);
+      setCurrentCommandData(null);
     }
   };
 
@@ -691,12 +738,23 @@ const CommandSender = ({ drones, swarmData = null }) => {
           <DroneActions
             actionTypes={DRONE_ACTION_TYPES}
             onSendCommand={handleSendCommand}
+            onRequestPrecisionMove={handleRequestPrecisionMove}
             targetCount={targetCount}
             referenceNowMs={fleetClock.referenceNowMs}
             clockOffsetLabel={clockOffsetLabel}
           />
         )}
       </div>
+
+      <PrecisionMoveDialog
+        isOpen={precisionMoveDialogOpen}
+        targetLabel={targetLabel}
+        targetDescriptor={targetDescriptor}
+        targetCount={targetCount}
+        submitting={loading}
+        onClose={handleClosePrecisionMoveDialog}
+        onSubmit={handleSubmitPrecisionMove}
+      />
 
       {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
       {modalOpen && ReactDOM.createPortal(

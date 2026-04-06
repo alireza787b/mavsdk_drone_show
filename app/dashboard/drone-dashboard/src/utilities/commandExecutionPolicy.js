@@ -67,6 +67,8 @@ export const getActionExecutionPolicy = ({ actionKey, isImmediate = true }) => {
       return isImmediate
         ? 'Executes immediately on acceptance.'
         : 'Waits for the trigger, then executes immediately on acceptance.';
+    case 'PRECISION_MOVE':
+      return 'Immediate-only local offboard reposition. Each target resolves the same requested offset relative to its own current local state, then hands control back to PX4 Hold.';
     default:
       return 'Immediate only. This action is not queued behind a future trigger.';
   }

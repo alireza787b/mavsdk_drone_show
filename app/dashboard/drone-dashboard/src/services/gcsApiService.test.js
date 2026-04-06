@@ -251,6 +251,50 @@ describe('gcsApiService', () => {
     );
   });
 
+  it('preserves nested precision_move payloads while normalizing the command envelope', async () => {
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    await submitCommandResponse({
+      missionType: '112',
+      triggerTime: '0',
+      operatorLabel: 'Precision Move',
+      target_drones: ['1'],
+      precision_move: {
+        frame: 'body',
+        translation_m: {
+          forward: 1,
+          right: 0,
+          up: 0.5,
+        },
+        yaw: {
+          mode: 'hold_current',
+        },
+      },
+    });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/commands',
+      {
+        mission_type: '112',
+        trigger_time: '0',
+        operator_label: 'Precision Move',
+        target_drone_ids: ['1'],
+        precision_move: {
+          frame: 'body',
+          translation_m: {
+            forward: 1,
+            right: 0,
+            up: 0.5,
+          },
+          yaw: {
+            mode: 'hold_current',
+          },
+        },
+      },
+      {}
+    );
+  });
+
   it('uploads SkyBrush archives through the canonical show import route', async () => {
     const formData = { append: jest.fn() };
     axios.post.mockResolvedValue({ data: { success: true } });

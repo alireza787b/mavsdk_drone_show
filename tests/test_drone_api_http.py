@@ -10,6 +10,7 @@ import asyncio
 import json
 from unittest.mock import AsyncMock, Mock
 from fastapi.testclient import TestClient
+from src.enums import Mission
 
 
 class TestHealthCheck:
@@ -241,6 +242,47 @@ class TestCommands:
         assert call_args["mission_type"] == 10
         assert call_args["trigger_time"] == 0
         assert call_args["takeoff_altitude"] == 12.0
+
+    def test_send_precision_move_command_success(self, test_client, mock_drone_communicator, mock_drone_config):
+        mock_drone_config.is_armed = True
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": "PRECISION_MOVE",
+                "trigger_time": 0,
+                "precision_move": {
+                    "frame": "body",
+                    "translation_m": {"forward": 1.0, "up": 0.5},
+                    "yaw": {"mode": "relative_delta", "degrees": 15.0},
+                    "speed_m_s": 1.0,
+                },
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert data["mission_type"] == Mission.PRECISION_MOVE.value
+
+        mock_drone_communicator.process_command.assert_called_once()
+        call_args = mock_drone_communicator.process_command.call_args[0][0]
+        assert call_args["precision_move"]["frame"] == "body"
+
+    def test_send_precision_move_requires_zero_trigger(self, test_client, mock_drone_communicator):
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={
+                "mission_type": Mission.PRECISION_MOVE.value,
+                "trigger_time": 5,
+                "precision_move": {
+                    "frame": "body",
+                    "translation_m": {"forward": 1.0},
+                },
+            },
+        )
+
+        assert response.status_code == 422
+        mock_drone_communicator.process_command.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_report_pending_command_superseded_uses_canonical_execution_result_route(self, api_server, monkeypatch):

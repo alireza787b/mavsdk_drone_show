@@ -19,6 +19,7 @@ import {
   FaToolbox,
   FaWrench,
   FaClock,
+  FaCrosshairs,
 } from 'react-icons/fa';
 import { DRONE_ACTION_NAMES } from '../constants/droneConstants';
 import {
@@ -38,7 +39,7 @@ const ACTION_SECTIONS = [
     key: 'routine',
     title: 'Flight',
     description: 'Launch, hold, land, recover.',
-    actions: ['TAKE_OFF', 'HOVER_TEST', 'HOLD', 'LAND', 'RETURN_RTL'],
+    actions: ['TAKE_OFF', 'HOVER_TEST', 'HOLD', 'PRECISION_MOVE', 'LAND', 'RETURN_RTL'],
   },
   {
     key: 'test',
@@ -70,6 +71,7 @@ const ACTION_SHORT_LABELS = {
   TEST: 'Bench Test',
   TEST_LED: 'LED Test',
   HOVER_TEST: 'Hover',
+  PRECISION_MOVE: 'Precision Move',
   REBOOT_FC: 'Reboot PX4',
   REBOOT_SYS: 'Reboot System',
   UPDATE_CODE: 'Update Repo',
@@ -87,6 +89,7 @@ const ACTION_ICONS = {
   TEST: FaVial,
   TEST_LED: FaLightbulb,
   HOVER_TEST: FaRocket,
+  PRECISION_MOVE: FaCrosshairs,
   REBOOT_FC: FaPowerOff,
   REBOOT_SYS: FaSyncAlt,
   UPDATE_CODE: FaCodeBranch,
@@ -104,6 +107,7 @@ const ACTION_DESCRIPTIONS = {
   TEST: 'Run the generic bench test.',
   TEST_LED: 'Run the light-pattern test.',
   HOVER_TEST: 'Lift, hover briefly, then land.',
+  PRECISION_MOVE: 'Move a local offset from the current state, then hold.',
   REBOOT_FC: 'Restart PX4 and flight-control services.',
   REBOOT_SYS: 'Restart the companion computer or container.',
   UPDATE_CODE: 'Pull the repo and refresh services.',
@@ -114,6 +118,7 @@ const ACTION_DESCRIPTIONS = {
 const DroneActions = ({
   actionTypes,
   onSendCommand,
+  onRequestPrecisionMove,
   targetCount = 0,
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
@@ -186,12 +191,20 @@ const DroneActions = ({
     const fullLabel = DRONE_ACTION_NAMES[actionTypeValue];
     const isDanger = actionKey === 'KILL_TERMINATE' || actionKey === 'DISARM';
     const isCritical = actionKey === 'KILL_TERMINATE';
+    const isPrecisionMove = actionKey === 'PRECISION_MOVE';
 
     return (
       <button
         key={actionKey}
         className={`action-button action-button--${sectionKey}${isDanger ? ' action-button--danger' : ''}${isCritical ? ' action-button--critical' : ''}`}
-        onClick={() => handleActionClick(actionKey, actionKey === 'APPLY_COMMON_PARAMS' ? { reboot_after: true } : {})}
+        onClick={() => {
+          if (isPrecisionMove) {
+            onRequestPrecisionMove();
+            return;
+          }
+
+          handleActionClick(actionKey, actionKey === 'APPLY_COMMON_PARAMS' ? { reboot_after: true } : {});
+        }}
         title={`${fullLabel}. ${ACTION_DESCRIPTIONS[actionKey]}`}
         aria-label={`${fullLabel}. ${ACTION_DESCRIPTIONS[actionKey]}`}
       >
@@ -336,6 +349,7 @@ const DroneActions = ({
 DroneActions.propTypes = {
   actionTypes: PropTypes.object.isRequired,
   onSendCommand: PropTypes.func.isRequired,
+  onRequestPrecisionMove: PropTypes.func.isRequired,
   targetCount: PropTypes.number,
   referenceNowMs: PropTypes.number,
   clockOffsetLabel: PropTypes.string,

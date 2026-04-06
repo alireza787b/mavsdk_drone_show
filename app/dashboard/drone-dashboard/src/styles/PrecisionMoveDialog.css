@@ -1,0 +1,251 @@
+@import './DesignTokens.css';
+
+.precision-move-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  background: var(--color-overlay);
+  backdrop-filter: blur(6px);
+}
+
+.precision-move-dialog {
+  width: min(760px, 100%);
+  max-height: min(92vh, 960px);
+  overflow-y: auto;
+  display: grid;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-xl);
+  border-radius: var(--border-radius-xl);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-xl);
+}
+
+.precision-move-dialog__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+}
+
+.precision-move-dialog__eyebrow {
+  margin: 0 0 var(--spacing-xs);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: var(--font-size-xs);
+}
+
+.precision-move-dialog__header h3 {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+}
+
+.precision-move-dialog__close {
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  border-radius: var(--border-radius-full);
+  padding: var(--spacing-sm) var(--spacing-base);
+  cursor: pointer;
+}
+
+.precision-move-dialog__scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__scope-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-base);
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.precision-move-dialog__description,
+.precision-move-dialog__hint {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.precision-move-dialog__section,
+.precision-move-dialog__review,
+.precision-move-dialog__advanced {
+  display: grid;
+  gap: var(--spacing-base);
+  padding: var(--spacing-lg);
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-muted);
+}
+
+.precision-move-dialog__section h4,
+.precision-move-dialog__review h4 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.precision-move-dialog__toggle-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__toggle-group button {
+  display: grid;
+  gap: var(--spacing-xs);
+  text-align: left;
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.precision-move-dialog__toggle-group button.is-active {
+  border-color: var(--color-primary-border);
+  background: var(--color-primary-light);
+  color: var(--color-text-primary);
+  box-shadow: 0 0 0 1px var(--color-primary-border);
+}
+
+.precision-move-dialog__toggle-group small {
+  color: inherit;
+}
+
+.precision-move-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-base);
+}
+
+.precision-move-dialog__grid label,
+.precision-move-dialog__single-field {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.precision-move-dialog__grid span,
+.precision-move-dialog__single-field span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.precision-move-dialog__grid input,
+.precision-move-dialog__single-field input {
+  width: 100%;
+  padding: var(--spacing-base);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.precision-move-dialog__single-field {
+  max-width: 240px;
+}
+
+.precision-move-dialog__advanced summary {
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.precision-move-dialog__review {
+  gap: var(--spacing-sm);
+}
+
+.precision-move-dialog__review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+}
+
+.precision-move-dialog__review p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.precision-move-dialog__error {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-semibold);
+}
+
+.precision-move-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-base);
+}
+
+.precision-move-dialog__cancel,
+.precision-move-dialog__submit {
+  border: none;
+  border-radius: var(--border-radius-md);
+  padding: var(--spacing-base) var(--spacing-xl);
+  cursor: pointer;
+  font-weight: var(--font-weight-semibold);
+}
+
+.precision-move-dialog__cancel {
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-primary);
+}
+
+.precision-move-dialog__submit {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.precision-move-dialog__submit:disabled,
+.precision-move-dialog__cancel:disabled,
+.precision-move-dialog__close:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.precision-move-dialog__close:focus-visible,
+.precision-move-dialog__toggle-group button:focus-visible,
+.precision-move-dialog__grid input:focus-visible,
+.precision-move-dialog__single-field input:focus-visible,
+.precision-move-dialog__cancel:focus-visible,
+.precision-move-dialog__submit:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .precision-move-dialog {
+    padding: var(--spacing-lg);
+    gap: var(--spacing-base);
+  }
+
+  .precision-move-dialog__header,
+  .precision-move-dialog__review-header,
+  .precision-move-dialog__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .precision-move-dialog__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .precision-move-dialog__single-field {
+    max-width: none;
+  }
+}

@@ -1200,6 +1200,20 @@ class DroneAPIServer:
                     'detail': str(e)
                 }
 
+        if mission_type == Mission.PRECISION_MOVE.value:
+            if trigger_time != 0:
+                return {
+                    'valid': False,
+                    'message': 'PRECISION_MOVE requires trigger_time=0',
+                    'error_code': CommandErrorCode.INVALID_TRIGGER_TIME.value,
+                }
+            if not isinstance(command_data.get('precision_move'), dict):
+                return {
+                    'valid': False,
+                    'message': 'Missing required field: precision_move',
+                    'error_code': CommandErrorCode.INVALID_FORMAT.value,
+                }
+
         return {'valid': True, 'message': 'Validation passed'}
 
     def _check_state_preconditions(self, mission_type: int) -> Dict[str, Any]:
@@ -1250,6 +1264,13 @@ class DroneAPIServer:
                     'detail': detail
                 }
 
+        if mission_type == Mission.PRECISION_MOVE.value and not self.drone_config.is_armed:
+            return {
+                'valid': False,
+                'message': 'PRECISION_MOVE requires an armed airborne drone',
+                'error_code': CommandErrorCode.NOT_ARMED.value,
+            }
+
         return {'valid': True, 'message': 'State preconditions met'}
 
     @staticmethod
@@ -1261,6 +1282,7 @@ class DroneAPIServer:
             Mission.LAND.value,
             Mission.HOLD.value,
             Mission.RETURN_RTL.value,
+            Mission.PRECISION_MOVE.value,
         }
 
     def _find_active_command_by_id(self, command_id: Optional[str]) -> Optional[Dict[str, Any]]:

@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-06 Precision Move phase 1 checkpoint note documenting the new `PRECISION_MOVE (112)` action, the typed command/executor path, the dedicated dashboard dialog, the focused backend/frontend validation results, and the explicit deferred follow-up items for the broader action pipeline and SITL bootstrap bug
 - a 2026-04-04 SITL release refresh checkpoint note documenting the final deferred-debt audit result, the low-space release packaging fix, the stale Hetzner validation-tree cleanup, and the refreshed packaged image publication flow
 - a 2026-04-04 SITL plan-library checkpoint note documenting the checked-in `tools/sitl_plans/` scenario library, the named-plan CLI entrypoint, the currently validated scenario coverage, and the deferred advanced combined-mode boundary
 - a 2026-04-04 SITL validation-platform phase 2 checkpoint note documenting the new Mission Config/origin runtime validator, the `config_only` template, the host-agnostic validator/runtime-root guidance, the full live Hetzner operator-regression pass, and the updated AI-agent/runtime docs
@@ -63,6 +64,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the action system now supports a typed local-relative `PRECISION_MOVE` command end to end, from GCS submit validation to drone runtime payload staging, timeout budgeting, `DroneSetup` mission routing, and the offboard local-position executor that settles then returns control to PX4 Hold
+- the dashboard Actions tab no longer has to force parameterized precision moves through the generic two-step confirm flow; the new dedicated Precision Move dialog is now the single operator confirmation surface and still submits through the standard command lifecycle tracker
+- command submission normalization now explicitly preserves nested `precision_move` payloads while still converting the surrounding command envelope onto the canonical snake_case GCS API contract
 - Docker SITL release packaging no longer requires a full intermediate `.tar` on disk when compression is enabled and `--keep-tar` is not requested; `tools/package_sitl_image.sh` now streams `docker save` directly into `7z`, which keeps the release workflow viable on smaller VPS hosts
 - Hetzner promotion-style SITL validation is now documented against the mode that actually proved stable in practice: fresh rebuilt image, fresh fleet recreation, and boot-time repo/dependency sync disabled during the regression run
 - the reusable SITL suite is no longer just a hardcoded mission wrapper: it now supports the standalone action-control drill, plan-hash/provenance capture, side-effect-free dry-run, final reset/failure cleanup behavior, and explicit deferred QuickScout tracking for future expansion

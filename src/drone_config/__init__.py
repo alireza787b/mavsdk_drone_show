@@ -180,6 +180,62 @@ class DroneConfig:
         self._state.drone_setup = value
 
     @property
+    def current_command_id(self) -> Optional[str]:
+        return self._state.current_command_id
+
+    @current_command_id.setter
+    def current_command_id(self, value: Optional[str]):
+        self._state.current_command_id = value
+
+    @property
+    def update_branch(self) -> Optional[str]:
+        return self._state.update_branch
+
+    @update_branch.setter
+    def update_branch(self, value: Optional[str]):
+        self._state.update_branch = value
+
+    @property
+    def reboot_after_params(self) -> Optional[bool]:
+        return self._state.reboot_after_params
+
+    @reboot_after_params.setter
+    def reboot_after_params(self, value: Optional[bool]):
+        self._state.reboot_after_params = value
+
+    @property
+    def quickscout_mission_id(self) -> Optional[str]:
+        return self._state.quickscout_mission_id
+
+    @quickscout_mission_id.setter
+    def quickscout_mission_id(self, value: Optional[str]):
+        self._state.quickscout_mission_id = value
+
+    @property
+    def quickscout_waypoints_file(self) -> Optional[str]:
+        return self._state.quickscout_waypoints_file
+
+    @quickscout_waypoints_file.setter
+    def quickscout_waypoints_file(self, value: Optional[str]):
+        self._state.quickscout_waypoints_file = value
+
+    @property
+    def quickscout_return_behavior(self) -> Optional[str]:
+        return self._state.quickscout_return_behavior
+
+    @quickscout_return_behavior.setter
+    def quickscout_return_behavior(self, value: Optional[str]):
+        self._state.quickscout_return_behavior = value
+
+    @property
+    def precision_move_request_file(self) -> Optional[str]:
+        return self._state.precision_move_request_file
+
+    @precision_move_request_file.setter
+    def precision_move_request_file(self, value: Optional[str]):
+        self._state.precision_move_request_file = value
+
+    @property
     def auto_global_origin(self) -> Optional[bool]:
         return self._state.auto_global_origin
 

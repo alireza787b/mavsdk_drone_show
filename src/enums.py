@@ -24,6 +24,7 @@ class Mission(Enum):
     # New Missions:
     INIT_SYSID = 110
     APPLY_COMMON_PARAMS = 111
+    PRECISION_MOVE = 112
 
 class State(Enum):
     IDLE = 0

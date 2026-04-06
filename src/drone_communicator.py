@@ -5,10 +5,13 @@ import struct
 import select
 import time
 import re
+import json
 from typing import Dict, Any, List
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
 from mds_logging import get_logger
+from src.command_contract import PrecisionMoveRequest
 from src.enums import Mission, State
 
 logger = get_logger("drone_comm")
@@ -289,6 +292,8 @@ class DroneCommunicator:
             self._handle_takeoff_command(command_data)
         elif mission == Mission.QUICKSCOUT.value:
             self._handle_quickscout_command(command_data)
+        elif mission == Mission.PRECISION_MOVE.value:
+            self._handle_precision_move_command(command_data)
         elif mission in Mission._value2member_map_:
             self._handle_standard_mission(mission, command_data)
         else:
@@ -321,10 +326,17 @@ class DroneCommunicator:
         self.drone_config.mission = mission
         self.drone_config.state = State.MISSION_READY.value  # Mission loaded, waiting for trigger
 
+    def _write_runtime_payload_file(self, prefix: str, payload: Any, *identifiers: Any) -> str:
+        safe_parts = [re.sub(r'[^a-zA-Z0-9_-]', '', str(part)) for part in identifiers if part not in (None, "")]
+        suffix = "_".join(part for part in safe_parts if part)
+        file_name = f"{prefix}_{suffix}.json" if suffix else f"{prefix}.json"
+        payload_path = Path("/tmp") / file_name
+        with payload_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+        return str(payload_path)
+
     def _handle_quickscout_command(self, command_data: Dict[str, Any]) -> None:
         """Handle QuickScout SAR mission command - extract waypoints and store."""
-        import json
-
         waypoints = command_data.get('waypoints', [])
         mission_id = command_data.get('mission_id', 'unknown')
         return_behavior = command_data.get('return_behavior', 'return_home')
@@ -333,12 +345,7 @@ class DroneCommunicator:
         if not waypoints:
             raise ValueError("QuickScout command missing waypoints")
 
-        # Sanitize identifiers to prevent path traversal
-        safe_hw_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(hw_id))
-        safe_mission_id = re.sub(r'[^a-zA-Z0-9_-]', '', str(mission_id))
-        waypoints_file = f"/tmp/quickscout_{safe_hw_id}_{safe_mission_id}.json"
-        with open(waypoints_file, 'w') as f:
-            json.dump(waypoints, f)
+        waypoints_file = self._write_runtime_payload_file("quickscout", waypoints, hw_id, mission_id)
         logger.info(f"QuickScout waypoints written to {waypoints_file} ({len(waypoints)} waypoints)")
 
         # Store mission parameters on drone_config
@@ -347,6 +354,26 @@ class DroneCommunicator:
         self.drone_config.quickscout_return_behavior = return_behavior
         self.drone_config.mission = Mission.QUICKSCOUT.value
         self.drone_config.state = State.MISSION_READY.value
+
+    def _handle_precision_move_command(self, command_data: Dict[str, Any]) -> None:
+        """Handle precision-move command payload installation."""
+        precision_move = PrecisionMoveRequest.from_action_payload(command_data)
+        command_id = command_data.get("command_id", "pending")
+        request_file = self._write_runtime_payload_file(
+            "precision_move",
+            precision_move.model_dump(mode="json"),
+            self.drone_config.hw_id,
+            command_id,
+        )
+
+        self.drone_config.precision_move_request_file = request_file
+        self.drone_config.mission = Mission.PRECISION_MOVE.value
+        self.drone_config.state = State.MISSION_READY.value
+        logger.info(
+            "Precision Move command installed: frame=%s request_file=%s",
+            precision_move.frame.value,
+            request_file,
+        )
 
     def _log_updated_configuration(self) -> None:
         """Log the updated drone configuration."""

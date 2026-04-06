@@ -38,7 +38,14 @@ jest.mock('./MissionTrigger', () => (props) => (
   </button>
 ));
 
-jest.mock('./DroneActions', () => () => <div>Mock Actions</div>);
+jest.mock('./DroneActions', () => (props) => (
+  <div>
+    <button type="button" onClick={() => props.onRequestPrecisionMove?.()}>
+      Mock Precision Move
+    </button>
+    <div>Mock Actions</div>
+  </div>
+));
 jest.mock('./CommandPreflightSummary', () => () => <div>Mock Preflight</div>);
 
 const drones = [
@@ -153,6 +160,50 @@ describe('CommandSender', () => {
     expect(screen.getByRole('button', { name: 'Cancel Before Trigger' })).toBeInTheDocument();
     expect(screen.getByText('Accepted')).toBeInTheDocument();
     expect(screen.getByText('2/2')).toBeInTheDocument();
+  });
+
+  it('submits precision move directly from the dedicated dialog without opening the generic confirm modal', async () => {
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-precision' });
+
+    renderWithCommandActivity(<CommandSender drones={drones} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
+
+    expect(screen.getByRole('dialog', { name: /precision move/i })).toBeInTheDocument();
+    expect(screen.queryByText('Confirm Command')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/forward \(\+\) \/ back \(-\)/i), { target: { value: '1.5' } });
+    fireEvent.change(screen.getByLabelText(/up \(\+\) \/ down \(-\)/i), { target: { value: '0.5' } });
+    fireEvent.click(screen.getByRole('button', { name: /dispatch precision move/i }));
+
+    await waitFor(() => {
+      expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          missionType: '112',
+          triggerTime: '0',
+          precision_move: {
+            frame: 'body',
+            translation_m: {
+              forward: 1.5,
+              right: 0,
+              up: 0.5,
+            },
+            yaw: {
+              mode: 'hold_current',
+            },
+            hold_mode: 'px4_hold',
+          },
+          uiMeta: expect.objectContaining({
+            operatorLabel: 'Precision Move',
+            targetLabel: 'all 3 drones',
+          }),
+        }),
+        expect.any(Object),
+      );
+    });
+
+    expect(screen.queryByText('Confirm Command')).not.toBeInTheDocument();
   });
 
   it('dispatches Cancel Mission to the same targets from the monitor', async () => {

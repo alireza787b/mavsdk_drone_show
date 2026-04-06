@@ -284,6 +284,17 @@ class Params:
 
     max_takeoff_alt = 100          # Maximum allowable takeoff altitude
     default_takeoff_alt = 10       # Default takeoff altitude
+    PRECISION_MOVE_DEFAULT_SPEED_MPS = 1.0
+    PRECISION_MOVE_MAX_SPEED_MPS = 5.0
+    PRECISION_MOVE_DEFAULT_POSITION_TOLERANCE_M = 0.15
+    PRECISION_MOVE_MIN_POSITION_TOLERANCE_M = 0.05
+    PRECISION_MOVE_DEFAULT_YAW_TOLERANCE_DEG = 5.0
+    PRECISION_MOVE_DEFAULT_SETTLE_TIME_SEC = 1.0
+    PRECISION_MOVE_DEFAULT_TIMEOUT_SEC = 30.0
+    PRECISION_MOVE_MAX_TIMEOUT_SEC = 180.0
+    PRECISION_MOVE_CONTROL_RATE_HZ = 10.0
+    PRECISION_MOVE_MAX_TRANSLATION_M = 100.0
+    PRECISION_MOVE_MIN_AIRBORNE_ALTITUDE_M = 0.3
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45       # Minimum wait budget for LAND action to fully disarm
@@ -299,6 +310,7 @@ class Params:
     COMMAND_TRACKING_MISSION_BUFFER_SEC = 120    # Extra tracker slack for show/trajectory mission playback
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180  # Conservative tracker budget for hover-test workflows
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900  # Fallback tracker budget until QuickScout duration is estimator-backed
+    COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC = 45  # Tracker budget for precision repositioning actions
     COMMAND_TRACKING_CHECK_INTERVAL_SEC = 1.0     # Background cadence for promoting stale commands to terminal timeout state
     COMMAND_SYNC_DISPATCH_GUARD_SEC = 1.0         # Extra lead time before synchronized mission trigger-minus-warmup; GCS stops retries after this safe queue window
     COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5           # Per-attempt HTTP timeout for drone -> GCS execution callbacks

@@ -1,7 +1,7 @@
-# Deferred TODOs — Drone Identity & Configuration
+# Deferred TODOs — Product Backlog
 
-Items intentionally deferred from the hw_id/pos_id cleanup (2026-03-05).
-Each has a corresponding `TODO(deferred)` comment in the code at the referenced location.
+Deferred items across identity, config, SITL, frontend, and command/runtime workflows.
+Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this file is now the shared deferred backlog so phase handoffs do not lose important follow-up work.
 
 ---
 
@@ -126,3 +126,66 @@ Each has a corresponding `TODO(deferred)` comment in the code at the referenced 
 - `tools/validate_*.py` — add bounded helper hooks only when a scenario cannot be expressed cleanly as a plan
 - `docs/guides/sitl-validation-platform.md` — document advanced plan recipes and acceptance boundaries
 - `docs/guides/sitl-comprehensive.md` — link the advanced validation path once it is stable
+
+---
+
+## TODO 8: Audit the DroneSetup / actions.py / runner pipeline after precision-move rollout
+
+**Priority:** Medium
+**Status:** Deferred — wait until Precision Move stabilizes under broader operator/SITL use
+
+**Problem:** Precision Move landed on the new typed action-runner seam, but the wider action pipeline still needs one deliberate audit so older immediate actions, subprocess launch rules, runtime payload handling, and future MCP/manual/CLI entrypoints all converge cleanly on the same execution model.
+
+**Solution:** Review the full action pipeline and normalize:
+
+- `DroneSetup` mission handler responsibilities
+- `actions.py` CLI/runtime adapter responsibilities
+- runner lifecycle hooks and payload loading
+- progress/error reporting seams
+- future MCP / manual-CLI entrypoint ergonomics
+
+**Files to revisit:**
+- `src/drone_setup.py`
+- `actions.py`
+- `src/action_runners/*`
+- `src/drone_communicator.py`
+- related command-reporting docs/tests
+
+---
+
+## TODO 9: Modernize dashboard dependencies after Precision Move
+
+**Priority:** Medium
+**Status:** Deferred — surfaced during Hetzner validation for the Precision Move UI slice
+
+**Problem:** `npm ci` in the dashboard still surfaces several deprecated CRA-era dependencies and the audit result still reports known vulnerabilities. This did not block the Precision Move feature, but it is real maintenance debt.
+
+**Solution:** Plan a controlled frontend dependency modernization pass that reduces deprecated packages and vulnerability backlog without destabilizing the operator UI.
+
+**Files to revisit:**
+- `app/dashboard/drone-dashboard/package.json`
+- `app/dashboard/drone-dashboard/package-lock.json`
+- related build/test tooling docs
+
+---
+
+## TODO 10: Fix fresh SITL container git-sync checkout flow for branch-tracking boots
+
+**Priority:** Medium
+**Status:** Deferred — operator-reported during Precision Move kickoff, not part of the feature implementation itself
+
+**Problem:** Fresh SITL container startup can fail branch checkout with:
+
+`fatal: 'origin/main-candidate' is not a commit and a branch 'main-candidate' cannot be created from it`
+
+This indicates the bootstrap fetch/checkout flow is not always creating the expected remote-tracking ref before branch checkout.
+
+**Solution:** Audit the SITL startup git-sync logic so fresh containers can either:
+
+- fetch and check out the target branch deterministically, or
+- skip branch-tracking sync cleanly when running against pinned-image validation mode
+
+**Files to revisit:**
+- SITL bootstrap/startup scripts
+- git-sync helper logic used by the containers
+- SITL docs covering branch-sync vs pinned-image validation modes

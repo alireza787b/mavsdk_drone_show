@@ -60,6 +60,13 @@ import time
 import psutil
 from mavsdk import System, telemetry, action
 from mavsdk.action import ActionError
+from src.action_runners import (
+    ActionExecutionContext,
+    ActionInvocation,
+    ActionSpec,
+    load_request_payload,
+)
+from src.action_runners.precision_move import precision_move
 from src.drone_config import ConfigLoader
 from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
 from src.drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
@@ -257,18 +264,44 @@ def start_mavsdk_server(grpc_port, udp_port):
 # Core Action Execution
 # -----------------------
 
-async def perform_action(action, altitude=None, parameters=None, branch=None, reboot_after=False):
+def _normalize_action_name(action_name: str | None) -> str | None:
+    if action_name is None:
+        return None
+    normalized = str(action_name).strip().lower()
+    return normalized or None
+
+
+async def perform_action(action, altitude=None, parameters=None, branch=None, reboot_after=False, request_payload=None):
     """
     Main entry to perform the requested action with optional altitude/parameters/branch, plus
     an optional reboot_after boolean for certain actions like apply_common_params.
     """
-    logger.info(f"Requested action: {action}, altitude: {altitude}, parameters: {parameters}, "
-                f"branch: {branch}, reboot_after: {reboot_after}")
+    action_name = _normalize_action_name(action)
+    logger.info(
+        f"Requested action: {action_name}, altitude: {altitude}, parameters: {parameters}, "
+        f"branch: {branch}, reboot_after: {reboot_after}"
+    )
     global HW_ID
+    invocation = ActionInvocation(
+        action=action_name or "",
+        altitude=altitude,
+        parameters=parameters,
+        branch=branch,
+        reboot_after=bool(reboot_after),
+        request_payload=request_payload,
+    )
+    action_spec = get_action_spec(action_name)
+    if action_spec is None:
+        logger.error(f"Invalid action specified: {action_name}")
+        fail()
+        return
 
-    # Special case: code update
-    if action == "update_code":
-        await update_code(branch)
+    if not action_spec.requires_connection:
+        if not await action_spec.runner(
+            ActionExecutionContext(drone=None, hw_id=str(HW_ID) if HW_ID is not None else None, logger=logger),
+            invocation,
+        ):
+            fail()
         return
 
     # For init_sysid, we do need a valid HW_ID. That is checked later in init_sysid logic.
@@ -322,42 +355,18 @@ async def perform_action(action, altitude=None, parameters=None, branch=None, re
 
     # Execute the requested action safely
     try:
-        if action == "takeoff":
-            if not await safe_action(takeoff, drone, altitude):
-                fail()
-        elif action == "land":
-            if not await safe_action(land, drone):
-                fail()
-        elif action == "return_rtl":
-            if not await safe_action(return_rtl, drone):
-                fail()
-        elif action == "hold":
-            if not await safe_action(hold, drone):
-                fail()
-        elif action == "kill_terminate":
-            if not await safe_action(kill_terminate, drone):
-                fail()
-        elif action == "test":
-            if not await safe_action(test, drone):
-                fail()
-        elif action == "reboot_fc":
-            if not await safe_action(reboot, drone, fc_flag=True, sys_flag=False):
-                fail()
-        elif action == "reboot_sys":
-            if not await safe_action(reboot, drone, fc_flag=False, sys_flag=True):
-                fail()
-        elif action == "init_sysid":
-            # automatically set MAV_SYS_ID from HW_ID, then reboot FC
-            if not await safe_action(init_sysid, drone):
-                fail()
-        elif action == "apply_common_params":
-            if not await safe_action(apply_common_params, drone, reboot_after):
-                fail()
-        else:
-            logger.error(f"Invalid action specified: {action}")
+        context = ActionExecutionContext(
+            drone=drone,
+            hw_id=str(HW_ID) if HW_ID is not None else None,
+            logger=logger,
+            grpc_port=grpc_port,
+            udp_port=udp_port,
+            mavsdk_server=mavsdk_server,
+        )
+        if not await action_spec.runner(context, invocation):
             fail()
     except Exception:
-        logger.exception(f"Error performing action '{action}'")
+        logger.exception(f"Error performing action '{action_name}'")
         fail()
     finally:
         stop_mavsdk_server(mavsdk_server)
@@ -536,6 +545,136 @@ async def safe_action(func, *args, **kwargs):
     except Exception:
         logger.exception(f"Action {action_name} failed with an unexpected error.")
         return False
+
+
+async def _run_takeoff(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(takeoff, context.drone, invocation.altitude)
+
+
+async def _run_land(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(land, context.drone)
+
+
+async def _run_return_rtl(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(return_rtl, context.drone)
+
+
+async def _run_hold(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(hold, context.drone)
+
+
+async def _run_kill_terminate(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(kill_terminate, context.drone)
+
+
+async def _run_test(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(test, context.drone)
+
+
+async def _run_reboot_fc(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(reboot, context.drone, fc_flag=True, sys_flag=False)
+
+
+async def _run_reboot_sys(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(reboot, context.drone, fc_flag=False, sys_flag=True)
+
+
+async def _run_init_sysid(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(init_sysid, context.drone)
+
+
+async def _run_apply_common_params(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(apply_common_params, context.drone, invocation.reboot_after)
+
+
+async def _run_update_code(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(update_code, invocation.branch)
+
+
+async def _run_precision_move(context: ActionExecutionContext, invocation: ActionInvocation) -> bool:
+    return await safe_action(precision_move, context, invocation)
+
+
+def get_action_spec(action_name: str | None) -> ActionSpec | None:
+    normalized = _normalize_action_name(action_name)
+    if normalized is None:
+        return None
+
+    action_specs = {
+        "takeoff": ActionSpec(
+            name="takeoff",
+            runner=_run_takeoff,
+            requires_connection=True,
+            description="Arm and take off to the requested altitude.",
+        ),
+        "land": ActionSpec(
+            name="land",
+            runner=_run_land,
+            requires_connection=True,
+            description="Land safely and wait for disarm confirmation.",
+        ),
+        "return_rtl": ActionSpec(
+            name="return_rtl",
+            runner=_run_return_rtl,
+            requires_connection=True,
+            description="Return to launch and wait for landing/disarm completion.",
+        ),
+        "hold": ActionSpec(
+            name="hold",
+            runner=_run_hold,
+            requires_connection=True,
+            description="Enter PX4 Hold mode.",
+        ),
+        "kill_terminate": ActionSpec(
+            name="kill_terminate",
+            runner=_run_kill_terminate,
+            requires_connection=True,
+            description="Emergency kill/terminate.",
+        ),
+        "test": ActionSpec(
+            name="test",
+            runner=_run_test,
+            requires_connection=True,
+            description="Connectivity and LED bench test.",
+        ),
+        "reboot_fc": ActionSpec(
+            name="reboot_fc",
+            runner=_run_reboot_fc,
+            requires_connection=True,
+            description="Reboot PX4/flight controller services.",
+        ),
+        "reboot_sys": ActionSpec(
+            name="reboot_sys",
+            runner=_run_reboot_sys,
+            requires_connection=True,
+            description="Reboot the companion computer/system.",
+        ),
+        "init_sysid": ActionSpec(
+            name="init_sysid",
+            runner=_run_init_sysid,
+            requires_connection=True,
+            description="Set MAV_SYS_ID from HW_ID and reboot FC.",
+        ),
+        "apply_common_params": ActionSpec(
+            name="apply_common_params",
+            runner=_run_apply_common_params,
+            requires_connection=True,
+            description="Apply common PX4 parameters and optionally reboot.",
+        ),
+        "update_code": ActionSpec(
+            name="update_code",
+            runner=_run_update_code,
+            requires_connection=False,
+            description="Sync the repo via the configured update workflow.",
+        ),
+        "precision_move": ActionSpec(
+            name="precision_move",
+            runner=_run_precision_move,
+            requires_connection=True,
+            description="Move relative to the current local state and finish in PX4 Hold.",
+        ),
+    }
+    return action_specs.get(normalized)
 
 # Mapping of parameter names to their expected types
 PARAM_TYPES = {
@@ -1141,18 +1280,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Perform actions with drones.")
     parser.add_argument('--action',
                         help='Actions: takeoff, land, hold, test, reboot_fc, reboot_sys, update_code, '
-                             'return_rtl, kill_terminate, init_sysid, apply_common_params')
+                             'return_rtl, kill_terminate, init_sysid, apply_common_params, precision_move')
     parser.add_argument('--altitude', type=float, default=10.0, help='Altitude (meters) for takeoff')
     parser.add_argument('--param', action='append', nargs=2, metavar=('param_name', 'param_value'),
                         help='Set one or more PX4 parameters, e.g.: --param MPC_XY_CRUISE 5.0 --param MAV_SYS_ID 4')
     parser.add_argument('--branch', type=str, help='Branch name for code update')
     parser.add_argument('--reboot_after', action='store_true',
                         help='If set, certain actions (e.g. apply_common_params) will reboot FC at the end')
+    parser.add_argument('--request-json', dest='request_json', type=str,
+                        help='Optional structured JSON request payload for typed action runners')
+    parser.add_argument('--request-file', dest='request_file', type=str,
+                        help='Optional path to a JSON file containing a structured action request payload')
 
     args = parser.parse_args()
 
     # Convert all param pairs into a dictionary { 'param_name': 'param_value_str', ... }
     parameters = {p[0]: p[1] for p in args.param} if args.param else None
+    try:
+        request_payload = load_request_payload(args.request_json, args.request_file)
+    except Exception as exc:
+        logger.error(f"Invalid structured action request payload: {exc}")
+        fail()
+        request_payload = None
 
     try:
         asyncio.run(
@@ -1161,7 +1310,8 @@ if __name__ == "__main__":
                 altitude=args.altitude,
                 parameters=parameters,
                 branch=args.branch,
-                reboot_after=args.reboot_after
+                reboot_after=args.reboot_after,
+                request_payload=request_payload,
             )
         )
     except Exception:

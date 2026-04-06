@@ -7,11 +7,13 @@ import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
 describe('DroneActions', () => {
   test('sends takeoff immediately by default', () => {
     const onSendCommand = jest.fn();
+    const onRequestPrecisionMove = jest.fn();
 
     render(
       <DroneActions
         actionTypes={DRONE_ACTION_TYPES}
         onSendCommand={onSendCommand}
+        onRequestPrecisionMove={onRequestPrecisionMove}
         targetCount={3}
         referenceNowMs={1_700_000_000_000}
       />
@@ -37,11 +39,13 @@ describe('DroneActions', () => {
 
   test('allows scheduled takeoff while leaving maintenance actions immediate', () => {
     const onSendCommand = jest.fn();
+    const onRequestPrecisionMove = jest.fn();
 
     render(
       <DroneActions
         actionTypes={DRONE_ACTION_TYPES}
         onSendCommand={onSendCommand}
+        onRequestPrecisionMove={onRequestPrecisionMove}
         targetCount={3}
         referenceNowMs={1_700_000_000_000}
       />
@@ -85,11 +89,13 @@ describe('DroneActions', () => {
 
   test('treats hover test as a strict synchronized rehearsal in scheduled mode', () => {
     const onSendCommand = jest.fn();
+    const onRequestPrecisionMove = jest.fn();
 
     render(
       <DroneActions
         actionTypes={DRONE_ACTION_TYPES}
         onSendCommand={onSendCommand}
+        onRequestPrecisionMove={onRequestPrecisionMove}
         targetCount={3}
         referenceNowMs={1_700_000_000_000}
       />
@@ -112,5 +118,25 @@ describe('DroneActions', () => {
         ]),
       }),
     }));
+  });
+
+  test('routes precision move to the dedicated request callback instead of direct dispatch', () => {
+    const onSendCommand = jest.fn();
+    const onRequestPrecisionMove = jest.fn();
+
+    render(
+      <DroneActions
+        actionTypes={DRONE_ACTION_TYPES}
+        onSendCommand={onSendCommand}
+        onRequestPrecisionMove={onRequestPrecisionMove}
+        targetCount={3}
+        referenceNowMs={1_700_000_000_000}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /precision move/i }));
+
+    expect(onRequestPrecisionMove).toHaveBeenCalledTimes(1);
+    expect(onSendCommand).not.toHaveBeenCalled();
   });
 });

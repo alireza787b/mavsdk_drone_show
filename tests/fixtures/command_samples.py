@@ -38,6 +38,7 @@ class MissionType:
     HOVER_TEST = Mission.HOVER_TEST.value
     INIT_SYSID = Mission.INIT_SYSID.value
     APPLY_COMMON_PARAMS = Mission.APPLY_COMMON_PARAMS.value
+    PRECISION_MOVE = Mission.PRECISION_MOVE.value
 
 
 # ============================================================================
@@ -221,6 +222,33 @@ def cmd_apply_common_params(trigger_time: int = None) -> Dict[str, Any]:
     ).build()
 
 
+def cmd_precision_move(trigger_time: int = 0) -> Dict[str, Any]:
+    """Precision move command."""
+    command = CommandBuilder(
+        mission_type=MissionType.PRECISION_MOVE,
+        trigger_time=trigger_time,
+    ).build()
+    command["precision_move"] = {
+        "frame": "body",
+        "translation_m": {
+            "forward": 2.0,
+            "right": 0.5,
+            "up": 1.0,
+        },
+        "yaw": {
+            "mode": "relative_delta",
+            "degrees": 30.0,
+        },
+        "speed_m_s": 1.0,
+        "position_tolerance_m": 0.15,
+        "yaw_tolerance_deg": 5.0,
+        "settle_time_sec": 1.0,
+        "timeout_sec": 30.0,
+        "hold_mode": "px4_hold",
+    }
+    return command
+
+
 # ============================================================================
 # Targeted Commands (for specific drones)
 # ============================================================================
@@ -389,7 +417,8 @@ def all_valid_commands() -> List[Dict[str, Any]]:
         cmd_update_code(),
         cmd_test_led(),
         cmd_init_sysid(),
-        cmd_apply_common_params()
+        cmd_apply_common_params(),
+        cmd_precision_move(),
     ]
 
 

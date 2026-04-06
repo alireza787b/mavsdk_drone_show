@@ -110,6 +110,7 @@ class DroneSetup:
             Mission.UPDATE_CODE.value: self._execute_update_code,
             Mission.INIT_SYSID.value: self._execute_init_sysid,
             Mission.APPLY_COMMON_PARAMS.value: self._execute_apply_common_params,
+            Mission.PRECISION_MOVE.value: self._execute_precision_move,
         }
 
     def _validate_params(self):
@@ -1276,6 +1277,23 @@ class DroneSetup:
             action_args,
             current_time,
             earlier_trigger_time,
+        )
+
+    async def _execute_precision_move(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:
+        """Handler for Mission.PRECISION_MOVE."""
+        request_file = getattr(self.drone_config, "precision_move_request_file", None)
+        if not request_file or not os.path.isfile(request_file):
+            logger.error("Precision Move request payload file not found.")
+            return await self._fail_pending_command("Precision Move payload file not found.")
+
+        action_args = f"--action=precision_move --request-file={request_file}"
+        return await self._execute_immediate_script_mission(
+            "Precision Move Mission",
+            "actions.py",
+            action_args,
+            current_time,
+            earlier_trigger_time,
+            interrupt_running=True,
         )
 
     # --------------------- LOGGING HELPERS ----------------------

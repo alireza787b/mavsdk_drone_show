@@ -211,6 +211,20 @@ def estimate_command_tracking_timeout_ms(
         hover_timeout_sec = _safe_int(getattr(params, "COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC", 180), 180)
         return max(default_ms, trigger_delay_ms + (hover_timeout_sec * 1000))
 
+    if mission_enum == Mission.PRECISION_MOVE:
+        precision_move = (command_data or {}).get("precision_move") or {}
+        try:
+            requested_timeout_sec = float(precision_move.get("timeout_sec"))
+        except (TypeError, ValueError):
+            requested_timeout_sec = float(
+                getattr(
+                    params,
+                    "COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC",
+                    getattr(params, "PRECISION_MOVE_DEFAULT_TIMEOUT_SEC", 30.0),
+                )
+            )
+        return max(default_ms, trigger_delay_ms + int((requested_timeout_sec + action_buffer_sec) * 1000))
+
     if mission_enum == Mission.DRONE_SHOW_FROM_CSV:
         show_duration_ms = (
             _read_show_duration_ms(Path(skybrush_dir), target_drone_ids=target_drone_ids)
