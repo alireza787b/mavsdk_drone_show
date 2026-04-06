@@ -25,7 +25,7 @@ The current reusable validators cover:
 - `drone_show`
   - SkyBrush import, metadata, launch readiness, global/manual/local/custom flows, and override drill
 - `actions`
-  - TAKEOFF, HOLD, targeted RTL override, remaining-drone LAND, and idle cleanup
+  - TAKEOFF, HOLD, completed `PRECISION_MOVE`, interrupted `PRECISION_MOVE -> HOLD`, targeted RTL override, remaining-drone LAND, and idle cleanup
 - `smart_swarm`
   - takeoff, cluster start, settle, reassignment, leader RTL, follower hold, and assignment restore
 - `swarm_trajectory`
@@ -52,6 +52,7 @@ Current templates:
   - reset, Drone Show, Smart Swarm, Swarm Trajectory
 - `actions_only`
   - reset plus the standalone action drill only
+  - covers TAKEOFF, HOLD, Precision Move completion, Precision Move interrupt via HOLD, targeted RTL override, and LAND cleanup
 - `config_only`
   - reset plus the Mission Config / swarm / origin validator only
 

@@ -413,6 +413,19 @@ const CommandSender = ({ drones, swarmData = null }) => {
     return didSend;
   };
 
+  const handleSubmitPrecisionMoveHold = async (commandData) => {
+    const preparedCommand = prepareCommandForDispatch(commandData);
+    if (!preparedCommand) {
+      return false;
+    }
+
+    const didSend = await submitPreparedCommand(preparedCommand);
+    if (didSend) {
+      setPrecisionMoveDialogOpen(false);
+    }
+    return didSend;
+  };
+
   // Confirm and send the command
   const handleConfirmSendCommand = async () => {
     if (currentCommandData) {
@@ -754,6 +767,7 @@ const CommandSender = ({ drones, swarmData = null }) => {
         submitting={loading}
         onClose={handleClosePrecisionMoveDialog}
         onSubmit={handleSubmitPrecisionMove}
+        onSubmitHold={handleSubmitPrecisionMoveHold}
       />
 
       {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}

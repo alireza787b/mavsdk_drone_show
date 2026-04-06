@@ -10,7 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
-- a 2026-04-06 Precision Move phase 1 checkpoint note documenting the new `PRECISION_MOVE (112)` action, the typed command/executor path, the dedicated dashboard dialog, the focused backend/frontend validation results, and the explicit deferred follow-up items for the broader action pipeline and SITL bootstrap bug
+- a 2026-04-06 Precision Move phase 1 checkpoint note documenting the new `PRECISION_MOVE (112)` action, the typed command/executor path, the dedicated dashboard dialog, the quick-control and direct-HOLD refinements, the reusable SITL validator extension, the fresh-container git-sync bootstrap fix, and the remaining deferred follow-up items
 - a 2026-04-04 SITL release refresh checkpoint note documenting the final deferred-debt audit result, the low-space release packaging fix, the stale Hetzner validation-tree cleanup, and the refreshed packaged image publication flow
 - a 2026-04-04 SITL plan-library checkpoint note documenting the checked-in `tools/sitl_plans/` scenario library, the named-plan CLI entrypoint, the currently validated scenario coverage, and the deferred advanced combined-mode boundary
 - a 2026-04-04 SITL validation-platform phase 2 checkpoint note documenting the new Mission Config/origin runtime validator, the `config_only` template, the host-agnostic validator/runtime-root guidance, the full live Hetzner operator-regression pass, and the updated AI-agent/runtime docs

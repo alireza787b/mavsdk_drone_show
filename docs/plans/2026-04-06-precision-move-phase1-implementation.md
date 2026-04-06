@@ -49,6 +49,18 @@ Implement the approved v1 `PRECISION_MOVE` action end to end without rewriting t
   - airborne + local-position requirement
   - per-target relative interpretation
   - body vs NED frame selection
+- Refined the dialog with two operator layers instead of one dense form:
+  - quick-step nudge controls for common movement and yaw adjustments
+  - exact numeric fields for advanced/manual edits
+- Added a direct `Dispatch Hold` override inside the dialog so operators can interrupt an in-progress move without closing the precision-move surface first.
+
+### SITL / Validation
+
+- Extended the reusable standalone action validator to cover:
+  - a completed `PRECISION_MOVE` verified through per-drone local-position telemetry
+  - a second longer `PRECISION_MOVE` interrupted by `HOLD`
+  - safe post-interrupt airborne hold confirmation
+- Fixed fresh SITL container branch-tracking boots by fetching the target branch into an explicit remote-tracking ref before checkout/reset. Fresh `main-candidate` boots no longer depend on `origin/<branch>` existing implicitly after a branch-name fetch.
 
 ## Validation
 
@@ -86,4 +98,3 @@ Implement the approved v1 `PRECISION_MOVE` action end to end without rewriting t
 - Audit and modernize the dashboard dependency stack:
   - `npm ci` on Hetzner still surfaces CRA-era deprecations
   - the dashboard dependency tree still reports known vulnerabilities
-- Fix the SITL bootstrap git-sync branch checkout failure reported from fresh containers (`origin/main-candidate` missing after fetch-by-branch flow).

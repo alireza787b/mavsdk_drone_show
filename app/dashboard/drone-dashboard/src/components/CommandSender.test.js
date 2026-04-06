@@ -206,6 +206,30 @@ describe('CommandSender', () => {
     expect(screen.queryByText('Confirm Command')).not.toBeInTheDocument();
   });
 
+  it('offers a direct hold override from the precision move dialog', async () => {
+    submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-hold' });
+
+    renderWithCommandActivity(<CommandSender drones={drones} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
+    fireEvent.click(screen.getByRole('button', { name: /dispatch hold/i }));
+
+    await waitFor(() => {
+      expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          missionType: '102',
+          triggerTime: '0',
+          uiMeta: expect.objectContaining({
+            operatorLabel: 'Hold',
+            targetLabel: 'all 3 drones',
+          }),
+        }),
+        expect.any(Object),
+      );
+    });
+  });
+
   it('dispatches Cancel Mission to the same targets from the monitor', async () => {
     submitCommandWithLifecycleFeedback.mockImplementation(async (commandData, options = {}) => {
       if (commandData.missionType === '0') {

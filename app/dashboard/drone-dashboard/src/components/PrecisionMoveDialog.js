@@ -6,6 +6,9 @@ import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConsta
 import { getActionExecutionPolicy } from '../utilities/commandExecutionPolicy';
 import '../styles/PrecisionMoveDialog.css';
 
+const MOVE_STEP_OPTIONS = [0.25, 0.5, 1, 2, 5];
+const YAW_STEP_OPTIONS = [15, 30, 45, 90];
+
 const DEFAULT_FORM_STATE = Object.freeze({
   frame: 'body',
   axisPrimary: '0',
@@ -78,6 +81,13 @@ function formatSignedDistance(value, positiveLabel, negativeLabel) {
   return `${direction} ${Math.abs(value)} m`;
 }
 
+function formatAxisValue(value) {
+  if (Math.abs(value) <= 1e-9) {
+    return '0';
+  }
+  return String(Number(value.toFixed(3)));
+}
+
 const PrecisionMoveDialog = ({
   isOpen,
   targetLabel,
@@ -86,12 +96,17 @@ const PrecisionMoveDialog = ({
   submitting = false,
   onClose,
   onSubmit,
+  onSubmitHold,
 }) => {
   const [formState, setFormState] = useState(buildInitialState);
+  const [quickMoveStepM, setQuickMoveStepM] = useState(1);
+  const [quickYawStepDeg, setQuickYawStepDeg] = useState(30);
 
   useEffect(() => {
     if (isOpen) {
       setFormState(buildInitialState());
+      setQuickMoveStepM(1);
+      setQuickYawStepDeg(30);
     }
   }, [isOpen]);
 
@@ -243,6 +258,40 @@ const PrecisionMoveDialog = ({
     }));
   };
 
+  const adjustAxis = (field, delta) => {
+    setFormState((current) => {
+      const nextValue = parseSignedNumber(current[field]);
+      const safeCurrentValue = Number.isNaN(nextValue) ? 0 : nextValue;
+      return {
+        ...current,
+        [field]: formatAxisValue(safeCurrentValue + delta),
+      };
+    });
+  };
+
+  const adjustYawDelta = (delta) => {
+    setFormState((current) => {
+      const nextValue = parseSignedNumber(current.yawDegrees);
+      const safeCurrentValue = Number.isNaN(nextValue) ? 0 : nextValue;
+      return {
+        ...current,
+        yawMode: 'relative_delta',
+        yawDegrees: formatAxisValue(safeCurrentValue + delta),
+      };
+    });
+  };
+
+  const resetQuickMove = () => {
+    setFormState((current) => ({
+      ...current,
+      axisPrimary: '0',
+      axisSecondary: '0',
+      axisVertical: '0',
+      yawMode: 'hold_current',
+      yawDegrees: '',
+    }));
+  };
+
   const handleSubmit = async () => {
     if (!validation.payload) {
       return;
@@ -257,6 +306,28 @@ const PrecisionMoveDialog = ({
         confirmationMessage: `Precision Move → ${targetLabel}. Dispatch now?`,
         triggerSummary: 'Immediate local offboard move on acceptance',
         details: detailRows,
+      },
+    });
+  };
+
+  const handleSubmitHold = async () => {
+    await onSubmitHold({
+      missionType: String(DRONE_ACTION_TYPES.HOLD),
+      triggerTime: '0',
+      uiMeta: {
+        operatorLabel: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.HOLD],
+        confirmationMessage: `Hold → ${targetLabel}. Dispatch now?`,
+        triggerSummary: 'Immediate override on acceptance',
+        details: [
+          {
+            label: 'Purpose',
+            value: 'Interrupt current movement and hand the targeted drones to Hold immediately.',
+          },
+          {
+            label: 'Execution policy',
+            value: getActionExecutionPolicy({ actionKey: 'HOLD', isImmediate: true }),
+          },
+        ],
       },
     });
   };
@@ -308,6 +379,82 @@ const PrecisionMoveDialog = ({
         </p>
 
         <section className="precision-move-dialog__section">
+          <h4>Quick Move</h4>
+          <p className="precision-move-dialog__hint">
+            Use quick controls for common nudges, then fine-tune the exact values below if needed.
+          </p>
+
+          <div className="precision-move-dialog__quick-config">
+            <div className="precision-move-dialog__step-group">
+              <span>Move step</span>
+              <div className="precision-move-dialog__chip-row" role="group" aria-label="Quick move step">
+                {MOVE_STEP_OPTIONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={quickMoveStepM === value ? 'is-active' : ''}
+                    onClick={() => setQuickMoveStepM(value)}
+                    disabled={submitting}
+                  >
+                    {value} m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="precision-move-dialog__step-group">
+              <span>Yaw step</span>
+              <div className="precision-move-dialog__chip-row" role="group" aria-label="Quick yaw step">
+                {YAW_STEP_OPTIONS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={quickYawStepDeg === value ? 'is-active' : ''}
+                    onClick={() => setQuickYawStepDeg(value)}
+                    disabled={submitting}
+                  >
+                    {value}°
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="precision-move-dialog__quick-grid">
+            <button type="button" onClick={() => adjustAxis('axisPrimary', quickMoveStepM)} disabled={submitting}>
+              + {frameConfig.translationKeys[0]}
+            </button>
+            <button type="button" onClick={() => adjustAxis('axisPrimary', -quickMoveStepM)} disabled={submitting}>
+              - {frameConfig.translationKeys[0]}
+            </button>
+            <button type="button" onClick={() => adjustAxis('axisSecondary', quickMoveStepM)} disabled={submitting}>
+              + {frameConfig.translationKeys[1]}
+            </button>
+            <button type="button" onClick={() => adjustAxis('axisSecondary', -quickMoveStepM)} disabled={submitting}>
+              - {frameConfig.translationKeys[1]}
+            </button>
+            <button type="button" onClick={() => adjustAxis('axisVertical', quickMoveStepM)} disabled={submitting}>
+              Up
+            </button>
+            <button type="button" onClick={() => adjustAxis('axisVertical', -quickMoveStepM)} disabled={submitting}>
+              Down
+            </button>
+            <button type="button" onClick={() => adjustYawDelta(-quickYawStepDeg)} disabled={submitting}>
+              Yaw left
+            </button>
+            <button type="button" onClick={() => adjustYawDelta(quickYawStepDeg)} disabled={submitting}>
+              Yaw right
+            </button>
+          </div>
+
+          <div className="precision-move-dialog__quick-actions">
+            <button type="button" className="precision-move-dialog__ghost" onClick={resetQuickMove} disabled={submitting}>
+              Reset quick values
+            </button>
+          </div>
+        </section>
+
+        <section className="precision-move-dialog__section">
           <h4>Reference Frame</h4>
           <div className="precision-move-dialog__toggle-group" role="group" aria-label="Reference frame">
             {Object.entries(FRAME_LABELS).map(([value, labels]) => (
@@ -326,9 +473,9 @@ const PrecisionMoveDialog = ({
         </section>
 
         <section className="precision-move-dialog__section">
-          <h4>Move Vector</h4>
+          <h4>Exact Values</h4>
           <p className="precision-move-dialog__hint">
-            Signed metres: positive moves toward the first direction, negative reverses it.
+            Signed metres: positive moves toward the first direction, negative reverses it. Manual edits stay in sync with the quick controls above.
           </p>
           <div className="precision-move-dialog__grid">
             <label>
@@ -495,6 +642,14 @@ const PrecisionMoveDialog = ({
           </button>
           <button
             type="button"
+            className="precision-move-dialog__hold"
+            onClick={handleSubmitHold}
+            disabled={submitting}
+          >
+            Dispatch Hold
+          </button>
+          <button
+            type="button"
             className="precision-move-dialog__submit"
             onClick={handleSubmit}
             disabled={submitting || Boolean(validation.error)}
@@ -516,6 +671,7 @@ PrecisionMoveDialog.propTypes = {
   submitting: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
+  onSubmitHold: PropTypes.func.isRequired,
 };
 
 export default PrecisionMoveDialog;

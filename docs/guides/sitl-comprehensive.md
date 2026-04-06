@@ -568,8 +568,10 @@ bash multiple_sitl/create_dockers.sh 3
 ```
 
 For the reusable operator-grade validation platform, including standalone action
-controls, Mission Config/origin validation, built-in templates, JSON plan
-files, deterministic artifacts, and the runtime-vs-validator repo split, use:
+controls (TAKEOFF, HOLD, Precision Move completion, Precision Move interrupt via
+HOLD, RTL override, LAND cleanup), Mission Config/origin validation, built-in
+templates, JSON plan files, deterministic artifacts, and the
+runtime-vs-validator repo split, use:
 
 - [SITL Validation Platform](sitl-validation-platform.md)
 
@@ -588,7 +590,7 @@ That default template now includes:
 - Mission Config / origin validation
 - a protective reset before Drone Show
 - Drone Show
-- standalone action controls
+- standalone action controls, including Precision Move and HOLD interrupt coverage
 - Smart Swarm
 - Swarm Trajectory
 

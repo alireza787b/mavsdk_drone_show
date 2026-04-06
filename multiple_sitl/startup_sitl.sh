@@ -922,12 +922,15 @@ update_repository() {
         git remote add "$GIT_REMOTE" "$effective_repo_url"
     fi
 
+    local remote_tracking_ref="refs/remotes/$GIT_REMOTE/$GIT_BRANCH"
+    local fetch_refspec="+refs/heads/$GIT_BRANCH:$remote_tracking_ref"
+
     log_message "Fetching latest changes from $GIT_REMOTE/$GIT_BRANCH..."
-    if ! sitl_retry 3 "GIT-FETCH" git fetch --depth 1 "$GIT_REMOTE" "$GIT_BRANCH"; then
+    if ! sitl_retry 3 "GIT-FETCH" git fetch --depth 1 "$GIT_REMOTE" "$fetch_refspec"; then
         if [ -n "$fallback_repo_url" ] && [ "$fallback_repo_url" != "$effective_repo_url" ]; then
             log_message "SSH fetch failed. Retrying with HTTPS fallback: $fallback_repo_url"
             git remote set-url "$GIT_REMOTE" "$fallback_repo_url" || true
-            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch --depth 1 "$GIT_REMOTE" "$GIT_BRANCH"; then
+            if ! sitl_retry 3 "GIT-FETCH-HTTPS" git fetch --depth 1 "$GIT_REMOTE" "$fetch_refspec"; then
                 log_message "ERROR: Failed to fetch from $GIT_REMOTE/$GIT_BRANCH even after HTTPS fallback."
                 echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"fetch_failed\"}"
                 exit 1
@@ -940,14 +943,14 @@ update_repository() {
     fi
 
     log_message "Checking out branch $GIT_BRANCH..."
-    if ! git checkout -B "$GIT_BRANCH" "$GIT_REMOTE/$GIT_BRANCH"; then
+    if ! git checkout -B "$GIT_BRANCH" "$remote_tracking_ref"; then
         log_message "ERROR: Failed to checkout branch $GIT_BRANCH."
         echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"checkout_failed\"}"
         exit 1
     fi
 
     log_message "Resetting worktree to $GIT_REMOTE/$GIT_BRANCH..."
-    if ! git reset --hard "$GIT_REMOTE/$GIT_BRANCH"; then
+    if ! git reset --hard "$remote_tracking_ref"; then
         log_message "ERROR: Failed to reset to $GIT_REMOTE/$GIT_BRANCH."
         echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$GIT_BRANCH\",\"error\":\"reset_failed\"}"
         exit 1

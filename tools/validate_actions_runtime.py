@@ -9,9 +9,11 @@ to a mission-planning domain:
 2. Probe live launch readiness on the selected drones
 3. Dispatch TAKEOFF to the selected fleet and confirm climb
 4. Dispatch HOLD to the selected fleet and confirm they remain airborne
-5. Dispatch RETURN_RTL to one drone (or the full fleet when only one drone is selected)
-6. Confirm non-target drones remain airborne after the targeted RTL override
-7. Dispatch LAND to the remaining drones and verify the fleet returns idle
+5. Dispatch PRECISION_MOVE and verify local-frame displacement completes
+6. Dispatch a longer PRECISION_MOVE and interrupt it with HOLD
+7. Dispatch RETURN_RTL to one drone (or the full fleet when only one drone is selected)
+8. Confirm non-target drones remain airborne after the targeted RTL override
+9. Dispatch LAND to the remaining drones and verify the fleet returns idle
 
 This validator intentionally exercises:
 
@@ -42,6 +44,7 @@ USING_FALLBACK_TIMEOUT_PARAMS = False
 
 try:
     from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
+    from src.drone_api_routes import DRONE_LOCAL_POSITION_ROUTE, DRONE_STATE_ROUTE
     from src.flight_timeout_utils import calculate_land_disarm_timeout, calculate_rtl_completion_timeout
     from src.gcs_api_routes import (
         GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
@@ -71,6 +74,8 @@ except Exception:  # pragma: no cover - fallback only
 
     Params = _FallbackParams()
     DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
+    DRONE_LOCAL_POSITION_ROUTE = "/api/v1/telemetry/local-position"
+    DRONE_STATE_ROUTE = "/api/v1/drone/state"
     GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
     GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
     GCS_COMMANDS_ROUTE = "/api/v1/commands"
@@ -122,6 +127,7 @@ TAKEOFF = 10
 LAND = 101
 HOLD = 102
 RETURN_RTL = 104
+PRECISION_MOVE = 112
 TERMINAL_STATUSES = {"completed", "partial", "failed", "cancelled", "timeout", "superseded"}
 COMMAND_HEARTBEAT_GRACE_SECONDS = max(
     getattr(Params, "TELEMETRY_POLLING_TIMEOUT", 10),
@@ -192,17 +198,33 @@ class ApiClient:
         except urllib.error.HTTPError as exc:
             raise RuntimeError(format_http_error(exc)) from exc
 
+    def get_drone_json(self, drone_ip: str, path: str, *, timeout: float = 20.0) -> dict:
+        try:
+            with urllib.request.urlopen(f"http://{drone_ip}:7070{path}", timeout=timeout) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(format_http_error(exc)) from exc
+
     def get_telemetry(self) -> dict[str, dict]:
         payload = self.get_json(GCS_FLEET_TELEMETRY_ROUTE)
         telemetry = payload.get("telemetry", {})
         return {str(key): value for key, value in telemetry.items()}
 
-    def submit_command(self, mission_type: int, target_ids: list[int], operator_label: str, *, trigger_time: int = 0) -> dict:
+    def submit_command(
+        self,
+        mission_type: int,
+        target_ids: list[int],
+        operator_label: str,
+        *,
+        trigger_time: int = 0,
+        extra_fields: dict[str, Any] | None = None,
+    ) -> dict:
         payload = {
             "mission_type": int(mission_type),
             "target_drone_ids": [str(target_id) for target_id in target_ids],
             "trigger_time": int(trigger_time),
             "operator_label": operator_label,
+            **(extra_fields or {}),
         }
         response = self.post_json(GCS_COMMANDS_ROUTE, payload)
         log(f"COMMAND {operator_label}: id={response['command_id']} targets={target_ids}")
@@ -325,6 +347,14 @@ def _is_airborne_row(row: dict, baseline_altitude: float, *, min_gain: float) ->
     except (TypeError, ValueError):
         return False
     return bool(row.get("is_armed")) and altitude >= (baseline_altitude + min_gain)
+
+
+def _local_position_from_snapshot(snapshot: dict) -> tuple[float, float, float]:
+    return (
+        float(snapshot["north_m"]),
+        float(snapshot["east_m"]),
+        float(snapshot["down_m"]),
+    )
 
 
 def choose_override_targets(ids: list[int]) -> tuple[list[int], list[int]]:
@@ -466,6 +496,98 @@ def wait_for_live_launch_readiness(client: ApiClient, ids: list[int], timeout: i
     return wait_for(_ready, label=f"live launch readiness for drones {ids}", timeout=timeout, interval=2.0)
 
 
+def get_local_snapshots(client: ApiClient, telemetry: dict[str, dict], ids: list[int]) -> dict[str, dict[str, float]]:
+    snapshots: dict[str, dict[str, float]] = {}
+    for idx in ids:
+        row = telemetry[str(idx)]
+        drone_ip = str(row.get("ip") or "").strip()
+        require(drone_ip, f"Drone {idx} is missing an IP address in telemetry")
+        local_position = client.get_drone_json(drone_ip, DRONE_LOCAL_POSITION_ROUTE)
+        drone_state = client.get_drone_json(drone_ip, DRONE_STATE_ROUTE)
+        time_boot_ms = int(local_position.get("time_boot_ms", 0) or 0)
+        require(time_boot_ms > 0, f"Drone {idx} local position is unavailable")
+        snapshots[str(idx)] = {
+            "north_m": float(local_position["x"]),
+            "east_m": float(local_position["y"]),
+            "down_m": float(local_position["z"]),
+            "yaw_deg": float(drone_state.get("yaw", 0.0)),
+        }
+    return snapshots
+
+
+def wait_precision_move_settle(
+    client: ApiClient,
+    telemetry: dict[str, dict],
+    ids: list[int],
+    baseline_snapshots: dict[str, dict[str, float]],
+    *,
+    north_m: float,
+    east_m: float,
+    up_m: float,
+    tolerance_m: float,
+    timeout: int = 90,
+) -> dict[str, dict[str, float]]:
+    def _ready():
+        current_telemetry = client.get_telemetry()
+        if not _telemetry_has_ids(current_telemetry, ids):
+            return False
+
+        snapshots = get_local_snapshots(client, current_telemetry, ids)
+        for idx in ids:
+            baseline = baseline_snapshots[str(idx)]
+            snapshot = snapshots[str(idx)]
+            expected_north = float(baseline["north_m"]) + north_m
+            expected_east = float(baseline["east_m"]) + east_m
+            expected_down = float(baseline["down_m"]) - up_m
+            north_error = abs(snapshot["north_m"] - expected_north)
+            east_error = abs(snapshot["east_m"] - expected_east)
+            down_error = abs(snapshot["down_m"] - expected_down)
+            if max(north_error, east_error, down_error) > tolerance_m:
+                return False
+        return snapshots
+
+    return wait_for(
+        _ready,
+        label=f"precision move settled within {tolerance_m:.2f}m for drones {ids}",
+        timeout=timeout,
+        interval=1.0,
+    )
+
+
+def wait_local_position_offset_at_least(
+    client: ApiClient,
+    telemetry: dict[str, dict],
+    ids: list[int],
+    baseline_snapshots: dict[str, dict[str, float]],
+    *,
+    min_horizontal_delta_m: float,
+    timeout: int = 60,
+) -> dict[str, dict[str, float]]:
+    def _ready():
+        current_telemetry = client.get_telemetry()
+        if not _telemetry_has_ids(current_telemetry, ids):
+            return False
+
+        snapshots = get_local_snapshots(client, current_telemetry, ids)
+        for idx in ids:
+            baseline = baseline_snapshots[str(idx)]
+            snapshot = snapshots[str(idx)]
+            horizontal_delta = math.hypot(
+                snapshot["north_m"] - float(baseline["north_m"]),
+                snapshot["east_m"] - float(baseline["east_m"]),
+            )
+            if horizontal_delta < min_horizontal_delta_m:
+                return False
+        return snapshots
+
+    return wait_for(
+        _ready,
+        label=f"precision move starts displacing drones {ids} by at least {min_horizontal_delta_m:.2f}m",
+        timeout=timeout,
+        interval=1.0,
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate standalone action/control commands against a live GCS/SITL stack.")
     parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
@@ -473,6 +595,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to validate")
     parser.add_argument("--takeoff-min-gain", type=float, default=4.0, help="Minimum altitude gain required after TAKEOFF")
     parser.add_argument("--post-rtl-airborne-gain", type=float, default=2.0, help="Minimum residual altitude gain required when checking that non-target drones stayed airborne after RTL override")
+    parser.add_argument("--precision-move-north", type=float, default=2.0, help="Completed precision-move north offset in metres")
+    parser.add_argument("--precision-move-east", type=float, default=1.0, help="Completed precision-move east offset in metres")
+    parser.add_argument("--precision-move-up", type=float, default=0.5, help="Completed precision-move up offset in metres")
+    parser.add_argument("--precision-move-speed", type=float, default=1.0, help="Completed precision-move speed in metres per second")
+    parser.add_argument("--precision-move-tolerance", type=float, default=0.75, help="Local-position tolerance for completed precision-move verification")
+    parser.add_argument("--precision-move-interrupt-north", type=float, default=8.0, help="Long precision-move north offset used for the HOLD override drill")
+    parser.add_argument("--precision-move-interrupt-speed", type=float, default=0.5, help="Speed used for the HOLD override precision-move drill")
+    parser.add_argument("--precision-move-interrupt-threshold", type=float, default=1.0, help="Minimum horizontal displacement required before issuing HOLD during the interrupt drill")
     parser.add_argument("--json-output", type=Path, default=None, help="Optional path to write the final validation summary JSON")
     return parser.parse_args()
 
@@ -494,6 +624,18 @@ def main() -> int:
         "drone_ids": ids,
         "takeoff_min_gain": float(args.takeoff_min_gain),
         "post_rtl_airborne_gain": float(args.post_rtl_airborne_gain),
+        "precision_move": {
+            "north_m": float(args.precision_move_north),
+            "east_m": float(args.precision_move_east),
+            "up_m": float(args.precision_move_up),
+            "speed_m_s": float(args.precision_move_speed),
+            "tolerance_m": float(args.precision_move_tolerance),
+        },
+        "precision_move_interrupt": {
+            "north_m": float(args.precision_move_interrupt_north),
+            "speed_m_s": float(args.precision_move_interrupt_speed),
+            "start_threshold_m": float(args.precision_move_interrupt_threshold),
+        },
     }
 
     try:
@@ -524,6 +666,104 @@ def main() -> int:
 
         hold_rows = wait_hold_ready(client, ids, baseline_altitudes, args.post_rtl_airborne_gain, timeout=60)
         results["post_hold_telemetry"] = hold_rows
+
+        precision_move_start = get_local_snapshots(client, hold_rows, ids)
+        results["precision_move_start"] = precision_move_start
+
+        precision_move_payload = {
+            "frame": "ned",
+            "translation_m": {
+                "north": float(args.precision_move_north),
+                "east": float(args.precision_move_east),
+                "up": float(args.precision_move_up),
+            },
+            "yaw": {
+                "mode": "hold_current",
+            },
+            "speed_m_s": float(args.precision_move_speed),
+        }
+        precision_move_response = client.submit_command(
+            PRECISION_MOVE,
+            ids,
+            "SITL Actions Validation Precision Move",
+            extra_fields={
+                "precision_move": precision_move_payload,
+            },
+        )
+        precision_move_status = wait_for_command(client, precision_move_response["command_id"], terminal=True, timeout=180)
+        require(precision_move_status["status"] == "completed", f"Precision Move failed: {command_summary(precision_move_status)}")
+        require_full_acceptance(precision_move_status, len(ids), "Precision Move")
+        require_full_execution(precision_move_status, len(ids), "Precision Move")
+        results["precision_move_command"] = command_summary(precision_move_status)
+
+        precision_move_end = wait_precision_move_settle(
+            client,
+            hold_rows,
+            ids,
+            precision_move_start,
+            north_m=float(args.precision_move_north),
+            east_m=float(args.precision_move_east),
+            up_m=float(args.precision_move_up),
+            tolerance_m=float(args.precision_move_tolerance),
+            timeout=90,
+        )
+        results["precision_move_end"] = precision_move_end
+
+        interrupt_targets = ids[:1]
+        interrupt_start = get_local_snapshots(client, client.get_telemetry(), interrupt_targets)
+        results["precision_move_interrupt_start"] = interrupt_start
+
+        interrupt_response = client.submit_command(
+            PRECISION_MOVE,
+            interrupt_targets,
+            "SITL Actions Validation Precision Move Interrupt",
+            extra_fields={
+                "precision_move": {
+                    "frame": "ned",
+                    "translation_m": {
+                        "north": float(args.precision_move_interrupt_north),
+                        "east": 0.0,
+                        "up": 0.0,
+                    },
+                    "yaw": {
+                        "mode": "hold_current",
+                    },
+                    "speed_m_s": float(args.precision_move_interrupt_speed),
+                    "timeout_sec": 90.0,
+                },
+            },
+        )
+        results["precision_move_interrupt_displacement"] = wait_local_position_offset_at_least(
+            client,
+            client.get_telemetry(),
+            interrupt_targets,
+            interrupt_start,
+            min_horizontal_delta_m=float(args.precision_move_interrupt_threshold),
+            timeout=90,
+        )
+
+        interrupt_hold = client.submit_command(HOLD, interrupt_targets, "SITL Actions Validation Precision Move Interrupt Hold")
+        interrupt_hold_status = wait_for_command(client, interrupt_hold["command_id"], terminal=True, timeout=120)
+        require(interrupt_hold_status["status"] == "completed", f"Precision Move interrupt HOLD failed: {command_summary(interrupt_hold_status)}")
+        require_full_acceptance(interrupt_hold_status, len(interrupt_targets), "Precision Move interrupt HOLD")
+        require_full_execution(interrupt_hold_status, len(interrupt_targets), "Precision Move interrupt HOLD")
+        results["precision_move_interrupt_hold"] = command_summary(interrupt_hold_status)
+
+        interrupted_status = wait_for_command(client, interrupt_response["command_id"], terminal=True, timeout=120)
+        require(
+            interrupted_status["status"] in {"superseded", "completed"},
+            f"Interrupted precision move did not reach a safe terminal state: {command_summary(interrupted_status)}",
+        )
+        results["precision_move_interrupt_command"] = command_summary(interrupted_status)
+
+        interrupted_hold_rows = wait_hold_ready(
+            client,
+            interrupt_targets,
+            baseline_altitudes,
+            args.post_rtl_airborne_gain,
+            timeout=60,
+        )
+        results["precision_move_interrupt_post_hold"] = interrupted_hold_rows
 
         rtl_targets, land_targets = choose_override_targets(ids)
         results["override_plan"] = {
