@@ -251,6 +251,7 @@ describe('CommandSender', () => {
     await waitFor(() => expect(getPrecisionMovePolicyResponse).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole('button', { name: /live jog/i }));
+    expect(screen.queryByRole('button', { name: /dispatch planned move/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /forward/i }));
 
     await waitFor(() => {

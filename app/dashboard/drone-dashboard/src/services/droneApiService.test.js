@@ -7,6 +7,7 @@ import {
   uploadSwarmTrajectory,
 } from './droneApiService';
 import {
+  COMMAND_SUBMIT_TIMEOUT_MS,
   buildSwarmTrajectoryUrl,
   clearProcessedSwarmTrajectoriesResponse,
   getRecentCommandsResponse,
@@ -18,6 +19,7 @@ import {
 } from './gcsApiService';
 
 jest.mock('./gcsApiService', () => ({
+  COMMAND_SUBMIT_TIMEOUT_MS: 12000,
   buildSwarmTrajectoryUrl: jest.fn(),
   clearProcessedSwarmTrajectoriesResponse: jest.fn(),
   getActiveCommandsResponse: jest.fn(),
@@ -41,7 +43,10 @@ describe('droneApiService', () => {
 
     const result = await sendDroneCommand({ missionType: '4', target_drones: ['1'] });
 
-    expect(submitCommandResponse).toHaveBeenCalledWith({ missionType: '4', target_drones: ['1'] });
+    expect(submitCommandResponse).toHaveBeenCalledWith(
+      { missionType: '4', target_drones: ['1'] },
+      { timeout: COMMAND_SUBMIT_TIMEOUT_MS },
+    );
     expect(result).toEqual({ success: true, command_id: 'cmd-1' });
   });
 

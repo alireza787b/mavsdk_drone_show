@@ -3,6 +3,7 @@ import { getBackendURL } from '../config/apiConfig';
 
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d+\-.]*:\/\//i;
 const ABSOLUTE_WS_URL_PATTERN = /^wss?:\/\//i;
+export const COMMAND_SUBMIT_TIMEOUT_MS = 12000;
 
 export const GCS_ROUTE_KEYS = Object.freeze({
   systemHealth: 'systemHealth',

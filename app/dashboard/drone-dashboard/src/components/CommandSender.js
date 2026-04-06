@@ -222,7 +222,12 @@ const CommandSender = ({ drones, swarmData = null }) => {
     } catch (error) {
       console.error('Error sending command:', error);
       const detail = error?.response?.data?.detail || error?.message || 'Error sending command. Please check console for details.';
-      toast.error(detail);
+      const timedOut = error?.code === 'ECONNABORTED' || /timeout/i.test(String(detail));
+      if (timedOut) {
+        toast.warn('Command response timed out. It may still have reached the GCS. Check the Live Command Monitor before retrying.');
+      } else {
+        toast.error(detail);
+      }
       return false;
     } finally {
       setLoading(false);

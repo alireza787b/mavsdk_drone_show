@@ -10,7 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
-- a 2026-04-06 Precision Move phase 2 checkpoint note documenting the operator-control-surface cleanup, the new Planned Move vs Live Jog behavior, the reduced dialog verbosity, the improved frame wording, the terminal-status tone cleanup, and the paired Hetzner React validation results
+- a 2026-04-06 Precision Move phase 2 checkpoint note documenting the operator-control-surface cleanup, the new Planned Move vs Live Jog behavior, the reduced dialog verbosity, the improved frame wording, the terminal-status tone cleanup, the low-bandwidth command-submit timeout safeguard, and the paired Hetzner React validation results
 - a 2026-04-06 Precision Move operator-UX refinement checkpoint note documenting the compact controller-style dialog layout, folded manual/tuning sections, shared scope-edit return path, live command-status strip, runtime policy endpoint, and the paired backend/frontend validation results
 - a 2026-04-06 Precision Move SITL validation checkpoint note documenting the fixed fresh-container branch-sync boot path, the green live Hetzner 3-drone Precision Move action run, the validator false-negative fixes, and the confirmed immediate-action override semantics
 - a 2026-04-06 Precision Move phase 1 checkpoint note documenting the new `PRECISION_MOVE (112)` action, the typed command/executor path, the dedicated dashboard dialog, the quick-control and direct-HOLD refinements, the reusable SITL validator extension, the fresh-container git-sync bootstrap fix, and the remaining deferred follow-up items

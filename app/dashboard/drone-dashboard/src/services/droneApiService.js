@@ -4,6 +4,7 @@ import {
   buildStaticPlotUrl,
   buildSwarmTrajectoryUrl,
   clearProcessedSwarmTrajectoriesResponse,
+  COMMAND_SUBMIT_TIMEOUT_MS,
   deleteGcsResource,
   fetchBlobGcsResource,
   getActiveCommandsResponse,
@@ -35,9 +36,12 @@ export const buildActionCommand = (actionType, droneIds = [], triggerTime = 0) =
   };
 };
 
-export const sendDroneCommand = async (commandData) => {
+export const sendDroneCommand = async (commandData, config = {}) => {
   try {
-    const response = await submitCommandResponse(commandData);
+    const response = await submitCommandResponse(commandData, {
+      timeout: COMMAND_SUBMIT_TIMEOUT_MS,
+      ...config,
+    });
     return response.data;
   } catch (error) {
     throw error;

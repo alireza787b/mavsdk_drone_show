@@ -1127,8 +1127,8 @@ const PrecisionMoveDialog = ({
 
         <section className="precision-move-dialog__review">
           <div className="precision-move-dialog__review-header">
-            <h4>Planned Move</h4>
-            <span>{interactionMode === 'live_jog' ? 'Optional staged dispatch' : `${targetCount} target drone${targetCount === 1 ? '' : 's'}`}</span>
+            <h4>Staged Move</h4>
+            <span>{interactionMode === 'live_jog' ? 'Live Jog ignores this staged vector' : `${targetCount} target drone${targetCount === 1 ? '' : 's'}`}</span>
           </div>
           <div className="precision-move-dialog__summary-grid">
             {detailRows.map((detail) => (
@@ -1149,14 +1149,16 @@ const PrecisionMoveDialog = ({
           <button type="button" className="precision-move-dialog__cancel" onClick={onClose} disabled={submitting}>
             Cancel
           </button>
-          <button
-            type="button"
-            className="precision-move-dialog__submit"
-            onClick={handleSubmit}
-            disabled={submitting || Boolean(validation.error)}
-          >
-            {submitting ? 'Dispatching…' : 'Dispatch Planned Move'}
-          </button>
+          {interactionMode === 'planned' && (
+            <button
+              type="button"
+              className="precision-move-dialog__submit"
+              onClick={handleSubmit}
+              disabled={submitting || Boolean(validation.error)}
+            >
+              {submitting ? 'Dispatching…' : 'Dispatch Planned Move'}
+            </button>
+          )}
         </div>
       </div>
     </div>,

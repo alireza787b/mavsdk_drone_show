@@ -357,6 +357,14 @@
   font-size: 1rem;
 }
 
+.precision-move-dialog__control span,
+.precision-move-dialog__control small,
+.precision-move-dialog__control-core span,
+.precision-move-dialog__control-core small {
+  text-align: center;
+  line-height: var(--line-height-snug, 1.25);
+}
+
 .precision-move-dialog__control small,
 .precision-move-dialog__control-core span {
   color: var(--color-text-secondary);

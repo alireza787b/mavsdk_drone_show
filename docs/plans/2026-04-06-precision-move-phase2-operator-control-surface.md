@@ -9,6 +9,7 @@ Refine the Precision Move operator dialog after the first live browser pass so t
 - kept `Precision Move` as one action surface and added two explicit operator behaviors inside it:
   - `Planned Move`: compose a staged vector and then dispatch
   - `Live Jog`: each control press sends one immediate discrete Precision Move step
+- hid the staged-dispatch CTA while `Live Jog` is active so the operator is not shown two conflicting interaction models at once
 - kept the shared target selector as the single source of truth and retained the `Edit scope` return path
 - folded custom/manual/tuning surfaces by default so the initial dialog stays compact
 - made the main control pad do the primary work:
@@ -22,6 +23,7 @@ Refine the Precision Move operator dialog after the first live browser pass so t
   - `Map-relative`
 - reduced review verbosity and only show tuning in the planned-move summary when the operator overrides it
 - split live terminal-state styling so failure/timeout/interruption no longer read like clean completion
+- added an explicit frontend command-submit timeout so poor uplinks do not leave the operator in an infinite spinner state; timeout now degrades to a warning that tells the operator to check the live command monitor before retrying
 
 ### Validation
 
