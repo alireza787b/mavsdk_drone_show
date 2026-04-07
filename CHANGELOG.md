@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-07 Mission Config actionable-alert checkpoint note documenting the new clickable Mission Config review alerts, the origin-loading versus origin-missing distinction, the origin-workflow jump action, the zero-origin Mission Layout export fix, and the focused Hetzner React validation/build results
 - a 2026-04-07 Mission Config launch-map and git-sync finalization checkpoint note documenting the new expected/live Leaflet launch map, zero-origin handling fix, click-through card parity, explicit sync target branch/commit reporting, and the final live Hetzner runtime cleanup
 - a 2026-04-07 advanced SITL regression checkpoint note documenting the new integrated mixed-mode leader-override validator, the runtime mission-state root-cause fix, the green Hetzner `integrated_mixed_mode` and `advanced_operator_regression` runs, and the updated advanced-plan documentation
 - a 2026-04-06 Phase 4 UI closeout note documenting the shortened Overview scope guidance, the compacted preflight strip, the reduced Mission Details readiness/timing copy, and the paired Hetzner Jest/build validation results

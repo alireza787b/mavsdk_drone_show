@@ -75,6 +75,8 @@ import {
 const MissionConfig = () => {
   const [searchParams] = useSearchParams();
   const cardRefs = useRef({});
+  const assignmentWallRef = useRef(null);
+  const missionPreviewPanelRef = useRef(null);
   const handledRouteDroneRef = useRef('');
 
   // -----------------------------------------------------
@@ -127,6 +129,7 @@ const MissionConfig = () => {
   const [clusterScope, setClusterScope] = useState('all');
   const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [launchLayoutView, setLaunchLayoutView] = useState('plot');
+  const [pendingFocusDroneId, setPendingFocusDroneId] = useState(null);
   const requestedDroneId = normalizeComparableId(searchParams.get('drone'));
   const requestedEditMode = searchParams.get('edit') === '1';
 
@@ -138,7 +141,7 @@ const MissionConfig = () => {
   // Data Fetching using custom hooks
   // -----------------------------------------------------
   const { data: configDataFetched } = useFetch(GCS_ROUTE_KEYS.fleetConfig);
-  const { data: originDataFetched } = useFetch(GCS_ROUTE_KEYS.origin);
+  const { data: originDataFetched, loading: originLoading, error: originError } = useFetch(GCS_ROUTE_KEYS.origin);
   const { data: gcsConfigFetched } = useFetch(GCS_ROUTE_KEYS.gcsConfig, null);
   const { data: deviationDataFetched } = useFetch(
     GCS_ROUTE_KEYS.positionDeviations,
@@ -159,6 +162,18 @@ const MissionConfig = () => {
   const roleSwaps = getRoleSwaps(configData);
   const { duplicateHwIds, duplicatePosIds } = getDuplicateAssignments(configData);
   const onlineDroneCount = getOnlineDroneCount(heartbeats);
+  const originStatus = useMemo(() => {
+    if (originLoading) {
+      return 'checking';
+    }
+    if (originAvailable) {
+      return 'ready';
+    }
+    if (originError) {
+      return 'unavailable';
+    }
+    return 'needed';
+  }, [originAvailable, originError, originLoading]);
   const swarmViewModel = useMemo(
     () => buildSwarmViewModel(unwrapSwarmConfigPayload(swarmDataFetched), configData),
     [configData, swarmDataFetched]
@@ -758,15 +773,88 @@ const MissionConfig = () => {
       { label: 'Role swaps', value: roleSwaps.length },
       { label: 'Duplicate slots', value: duplicatePosIds.length },
       { label: 'New', value: configData.filter((drone) => drone.isNew).length },
-      { label: 'Origin', value: originAvailable ? 'Ready' : 'Needed', tone: originAvailable ? 'good' : 'warning' },
+      {
+        label: 'Origin',
+        value: originStatus === 'ready'
+          ? 'Ready'
+          : originStatus === 'checking'
+            ? 'Checking'
+            : originStatus === 'unavailable'
+              ? 'Check failed'
+              : 'Needed',
+        tone: originStatus === 'ready' ? 'good' : originStatus === 'checking' ? null : 'warning',
+      },
     ],
-    [configData, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originAvailable, roleSwaps.length]
+    [configData, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originStatus, roleSwaps.length]
   );
-  const missionAttentionCount = duplicateHwIds.length + duplicatePosIds.length + roleSwaps.length + (originAvailable ? 0 : 1);
+  const missionAttentionCount = duplicateHwIds.length
+    + duplicatePosIds.length
+    + roleSwaps.length
+    + (originStatus === 'ready' || originStatus === 'checking' ? 0 : 1);
   const missionWorkspaceHeadline = missionAttentionCount > 0
     ? `${missionAttentionCount} active review item${missionAttentionCount === 1 ? '' : 's'}`
     : 'Assignment wall is clear for save review';
   const missionSearchSummary = `${filteredConfigData.length}/${sortedConfigData.length} assignment card${sortedConfigData.length === 1 ? '' : 's'} visible`;
+
+  const scrollNodeIntoView = (node, block = 'center') => {
+    if (!node) {
+      return;
+    }
+
+    node.scrollIntoView({
+      behavior: 'smooth',
+      block,
+    });
+  };
+
+  const reviewOriginWorkflow = () => {
+    if (missionPreviewPanelRef.current) {
+      missionPreviewPanelRef.current.open = true;
+      scrollNodeIntoView(missionPreviewPanelRef.current, 'start');
+    }
+
+    setShowOriginModal(true);
+  };
+
+  const reviewAssignmentCard = (hwId, filterId = 'attention') => {
+    const normalizedHwId = normalizeComparableId(hwId);
+    setClusterScope('all');
+    setMissionConfigSearch('');
+    setAssignmentFilter(filterId);
+
+    if (!normalizedHwId) {
+      scrollNodeIntoView(assignmentWallRef.current, 'start');
+      return;
+    }
+
+    setPendingFocusDroneId(normalizedHwId);
+  };
+
+  const reviewDuplicateHardwareIds = () => {
+    reviewAssignmentCard(duplicateHwIds[0]?.hw_id, 'attention');
+  };
+
+  const reviewDuplicateSlots = () => {
+    reviewAssignmentCard(duplicatePosIds[0]?.hw_ids?.[0], 'attention');
+  };
+
+  const reviewRoleSwapAssignments = () => {
+    setClusterScope('all');
+    setMissionConfigSearch('');
+    setAssignmentFilter('roleSwaps');
+
+    const firstRoleSwapHwId = normalizeComparableId(roleSwaps[0]?.hw_id);
+    if (firstRoleSwapHwId) {
+      setPendingFocusDroneId(firstRoleSwapHwId);
+    } else {
+      scrollNodeIntoView(assignmentWallRef.current, 'start');
+    }
+
+    if (roleSwaps.length > 3) {
+      setRoleSwapData(roleSwaps);
+      setShowRoleSwapModal(true);
+    }
+  };
 
   useEffect(() => {
     if (!requestedDroneId) {
@@ -792,11 +880,22 @@ const MissionConfig = () => {
       return;
     }
 
-    targetNode.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    });
+    scrollNodeIntoView(targetNode);
   }, [configData, requestedDroneId, requestedEditMode]);
+
+  useEffect(() => {
+    if (!pendingFocusDroneId) {
+      return;
+    }
+
+    const targetNode = cardRefs.current[pendingFocusDroneId];
+    if (!targetNode) {
+      return;
+    }
+
+    scrollNodeIntoView(targetNode);
+    setPendingFocusDroneId(null);
+  }, [filteredConfigData, pendingFocusDroneId]);
 
   // -----------------------------------------------------
   // Render
@@ -865,13 +964,16 @@ const MissionConfig = () => {
               <p className="mission-config-ops-note">{missionSearchSummary}</p>
               <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
                 {missionWorkspaceStats.map((stat) => (
-                  <div
+                  <button
                     key={stat.label}
+                    type="button"
                     className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
+                    onClick={stat.label === 'Origin' && originStatus !== 'ready' ? reviewOriginWorkflow : undefined}
+                    disabled={!(stat.label === 'Origin' && originStatus !== 'ready')}
                   >
                     <span className="mission-config-ops-stat__label">{stat.label}</span>
                     <strong className="mission-config-ops-stat__value">{stat.value}</strong>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -899,10 +1001,14 @@ const MissionConfig = () => {
         </section>
       </section>
 
-      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || !originAvailable) && (
+      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || (originStatus !== 'ready' && originStatus !== 'checking')) && (
         <div className="mission-config-alert-stack">
           {duplicateHwIds.length > 0 && (
-            <div className="mission-config-alert mission-config-alert--danger">
+            <button
+              type="button"
+              className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
+              onClick={reviewDuplicateHardwareIds}
+            >
               <FontAwesomeIcon icon={faExclamationTriangle} />
               <div>
                 <strong>{duplicateHwIds.length} duplicate hardware ID{duplicateHwIds.length === 1 ? '' : 's'}</strong>
@@ -910,10 +1016,15 @@ const MissionConfig = () => {
                   {duplicateHwIds.map((duplicate) => formatDroneLabel(duplicate.hw_id)).join(', ')}
                 </span>
               </div>
-            </div>
+              <span className="mission-config-alert__action">Review</span>
+            </button>
           )}
           {duplicatePosIds.length > 0 && (
-            <div className="mission-config-alert mission-config-alert--danger">
+            <button
+              type="button"
+              className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
+              onClick={reviewDuplicateSlots}
+            >
               <FontAwesomeIcon icon={faExclamationTriangle} />
               <div>
                 <strong>{duplicatePosIds.length} slot collision{duplicatePosIds.length === 1 ? '' : 's'}</strong>
@@ -923,10 +1034,15 @@ const MissionConfig = () => {
                   )).join(' • ')}
                 </span>
               </div>
-            </div>
+              <span className="mission-config-alert__action">Review</span>
+            </button>
           )}
           {roleSwaps.length > 0 && (
-            <div className="mission-config-alert mission-config-alert--info">
+            <button
+              type="button"
+              className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
+              onClick={reviewRoleSwapAssignments}
+            >
               <FontAwesomeIcon icon={faExchangeAlt} />
               <div>
                 <strong>{roleSwaps.length} role swap{roleSwaps.length === 1 ? '' : 's'} active</strong>
@@ -936,28 +1052,26 @@ const MissionConfig = () => {
                   )).join(' • ')}
                 </span>
               </div>
-              {roleSwaps.length > 3 ? (
-                <button
-                  type="button"
-                  className="role-swap-more-link"
-                  onClick={() => {
-                    setRoleSwapData(roleSwaps);
-                    setShowRoleSwapModal(true);
-                  }}
-                >
-                  View all
-                </button>
-              ) : null}
-            </div>
+              <span className="mission-config-alert__action">{roleSwaps.length > 3 ? 'View all' : 'Review'}</span>
+            </button>
           )}
-          {!originAvailable && (
-            <div className="mission-config-alert mission-config-alert--warning">
+          {(originStatus === 'needed' || originStatus === 'unavailable') && (
+            <button
+              type="button"
+              className="mission-config-alert mission-config-alert--warning mission-config-alert--actionable"
+              onClick={reviewOriginWorkflow}
+            >
               <FontAwesomeIcon icon={faExclamationTriangle} />
               <div>
-                <strong>Origin needed</strong>
-                <span>Set the origin before using deviation-based launch review.</span>
+                <strong>{originStatus === 'unavailable' ? 'Origin check failed' : 'Origin needed'}</strong>
+                <span>
+                  {originStatus === 'unavailable'
+                    ? 'The page could not confirm the current origin. Open the origin tools to review or set it again.'
+                    : 'Set the origin before using deviation-based launch review.'}
+                </span>
               </div>
-            </div>
+              <span className="mission-config-alert__action">{originStatus === 'unavailable' ? 'Review' : 'Set origin'}</span>
+            </button>
           )}
         </div>
       )}
@@ -1034,7 +1148,7 @@ const MissionConfig = () => {
 
       {/* Main content: Drone Cards & Plots */}
       <div className="content-flex">
-        <div className="drone-cards slide-in-left">
+        <div className="drone-cards slide-in-left" ref={assignmentWallRef}>
           <div className="mission-config-card-panel-header">
             <h3>Assignment wall</h3>
             <span className="mission-config-card-panel-meta">
@@ -1184,7 +1298,7 @@ const MissionConfig = () => {
           </div>
         </details>
 
-        <details className="mission-config-secondary-panel">
+        <details className="mission-config-secondary-panel" ref={missionPreviewPanelRef}>
           <summary>
             <span>Mission preview tools</span>
             <small>KML export, print, origin state, and forward-heading preview</small>

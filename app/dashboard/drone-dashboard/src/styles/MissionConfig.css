@@ -312,6 +312,22 @@
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
     background: var(--color-bg-primary);
+    width: 100%;
+    text-align: left;
+}
+
+button.mission-config-ops-stat {
+    appearance: none;
+    cursor: pointer;
+}
+
+button.mission-config-ops-stat:disabled {
+    cursor: default;
+}
+
+button.mission-config-ops-stat:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .mission-config-ops-stat--good {
@@ -355,6 +371,23 @@
     box-shadow: var(--shadow-sm);
 }
 
+button.mission-config-alert {
+    width: 100%;
+    appearance: none;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mission-config-alert--actionable:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.mission-config-alert--actionable:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
 .mission-config-alert svg {
     margin-top: 0.15rem;
     flex-shrink: 0;
@@ -375,6 +408,16 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
     line-height: 1.4;
+}
+
+.mission-config-alert__action {
+    margin-left: auto;
+    color: var(--color-primary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .mission-config-alert--danger {

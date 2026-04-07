@@ -17,6 +17,10 @@ import OriginModal from './OriginModal';
  */
 const MissionLayout = ({ configData, origin, openOriginModal }) => {
   const [showOriginModal, setShowOriginModal] = useState(false);
+  const hasOriginCoordinates = origin.lat !== null
+    && origin.lat !== undefined
+    && origin.lon !== null
+    && origin.lon !== undefined;
 
   // Handle printing the mission briefing
   const handlePrint = () => {
@@ -25,12 +29,12 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
 
   // Export the drone positions to a KML file for Google Earth
   const exportToKML = () => {
-    if (!origin.lat || !origin.lon) {
+    if (!hasOriginCoordinates) {
       setShowOriginModal(true);
       return;
     }
 
-    if (isNaN(origin.lat) || isNaN(origin.lon)) {
+    if (!Number.isFinite(Number(origin.lat)) || !Number.isFinite(Number(origin.lon))) {
       alert('Origin latitude and longitude must be valid numbers.');
       return;
     }
@@ -75,7 +79,7 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
             <FontAwesomeIcon icon={faMapMarkerAlt} />
             Set Origin
           </button>
-          {origin.lat !== null && origin.lon !== null && (
+          {hasOriginCoordinates && (
             <div className="current-origin">
               <p>
                 <strong>Origin:</strong>
