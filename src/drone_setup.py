@@ -235,10 +235,14 @@ class DroneSetup:
             return await process.communicate()
         return await asyncio.to_thread(process.communicate)
 
-    async def terminate_all_running_processes(self):
+    async def terminate_all_running_processes(self, *, reset_state: bool = True):
         """
         Forcibly stops all currently running mission scripts.
         Useful for emergency overrides (e.g., new land command).
+
+        When a newer mission has already been staged on drone_config, callers
+        can pass reset_state=False so the superseded process is terminated
+        without clobbering the replacement mission metadata.
         """
         async with self.process_lock:
             for process_key, record in list(self.running_processes.items()):
@@ -260,8 +264,11 @@ class DroneSetup:
                         await self._wait_for_process(process)
                         logger.info(f"Process '{script_name}' killed forcefully.")
 
-                    # Mark mission as failed to place the system in a safe state
-                    self._reset_mission_state(success=False)
+                    if reset_state:
+                        # Standalone termination requests should leave the
+                        # vehicle in a safe cleared state. Override paths skip
+                        # this because a newer mission is already staged.
+                        self._reset_mission_state(success=False)
                 else:
                     logger.debug(f"Process '{script_name}' already ended.")
             self.running_processes.clear()
@@ -819,7 +826,7 @@ class DroneSetup:
 
         if interrupt_running and self.running_processes:
             logger.info(f"{mission_name} requested while another mission is running. Interrupting active mission scripts.")
-            await self.terminate_all_running_processes()
+            await self.terminate_all_running_processes(reset_state=False)
 
         logger.info(f"Starting {mission_name}")
         self._prepare_mission_start(mission_name)

@@ -807,7 +807,45 @@ class TestActionMissionHandlerRouting:
         with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))):
             await setup._execute_land(current_time=100, earlier_trigger_time=0)
 
-        setup.terminate_all_running_processes.assert_awaited_once()
+        setup.terminate_all_running_processes.assert_awaited_once_with(reset_state=False)
+
+    @pytest.mark.asyncio
+    async def test_terminate_all_running_processes_can_preserve_staged_mission(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+        drone_config.mission = Mission.SWARM_TRAJECTORY.value
+        drone_config.state = State.MISSION_READY.value
+
+        setup = DroneSetup(params, drone_config)
+
+        mock_process = Mock()
+        mock_process.returncode = None
+        mock_process.pid = 4321
+        mock_process.terminate = Mock()
+        mock_process.kill = Mock()
+
+        async def mock_wait():
+            mock_process.returncode = 0
+
+        mock_process.wait = mock_wait
+
+        process_record = Mock()
+        process_record.script_name = "smart_swarm.py"
+        process_record.process = mock_process
+        process_record.process_key = "smart_swarm.py:cmd-1"
+        process_record.superseded = False
+
+        setup.running_processes[process_record.process_key] = process_record
+
+        await setup.terminate_all_running_processes(reset_state=False)
+
+        assert drone_config.mission == Mission.SWARM_TRAJECTORY.value
+        assert drone_config.state == State.MISSION_READY.value
+        assert process_record.superseded is True
+        assert len(setup.running_processes) == 0
 
 
 # ============================================================================
