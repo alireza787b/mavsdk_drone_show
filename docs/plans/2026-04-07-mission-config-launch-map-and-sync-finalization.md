@@ -41,11 +41,11 @@
 
 - GCS backend now reports:
   - branch: `main-candidate`
-  - commit: `296151595f4126587e344444540f7d1b71ecfb0d`
+  - commit: `e6965c4a9db5c0a3af1abdd37f6a2865eeadd7d5`
   - status: `clean`
 - `GET /api/v1/system/health` returns `ok`
 - `GET /api/v1/git/status` now shows:
-  - drones `1/2/3` synced to `296151595f4126587e344444540f7d1b71ecfb0d`
+  - drones `1/2/3` synced to `e6965c4a9db5c0a3af1abdd37f6a2865eeadd7d5`
   - `synced_count=3`
   - `needs_sync_count=0`
 
@@ -57,7 +57,7 @@
   - `synced_drones=[1,2,3]`
   - `failed_drones=[4,5]`
   - `target_branch=main-candidate`
-  - `target_commit=296151595f4126587e344444540f7d1b71ecfb0d`
+  - `target_commit=e6965c4a9db5c0a3af1abdd37f6a2865eeadd7d5`
 - Interpretation:
   - the active 3-drone SITL fleet updated and verified cleanly
   - config entries `4` and `5` are not active runtime participants in the current Hetzner SITL stack, so they are correctly reported outside the verified active set
