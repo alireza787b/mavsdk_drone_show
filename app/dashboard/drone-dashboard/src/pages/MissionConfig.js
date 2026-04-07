@@ -1123,8 +1123,10 @@ const MissionConfig = () => {
               originLat={origin.lat}
               originLon={origin.lon}
               drones={configData}
+              deviationData={deviationData}
               trajectoryPositionsByPosId={trajectoryPositionsByPosId}
               forwardHeading={forwardHeading}
+              onDroneClick={(hwId) => setEditingDroneId(normalizeComparableId(hwId))}
             />
           )}
         </div>

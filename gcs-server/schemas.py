@@ -423,6 +423,8 @@ class SyncReposResponse(BaseModel):
     synced_drones: List[int] = Field(..., description="Successfully synced drone IDs")
     failed_drones: List[int] = Field(..., description="Failed drone IDs")
     total_attempted: int = Field(..., ge=0, description="Total sync attempts")
+    target_branch: Optional[str] = Field(None, description="Branch the drones were asked to match")
+    target_commit: Optional[str] = Field(None, description="Commit the drones were verified against")
 
 
 # ============================================================================

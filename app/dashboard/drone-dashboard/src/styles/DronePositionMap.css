@@ -1,138 +1,112 @@
-/* app/dashboard/drone-dashboard/src/styles/DronePositionMap.css */
-
 .drone-position-map {
-    margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-base);
 }
 
-.drone-position-map h3 {
-    margin-bottom: 10px;
+.drone-position-map__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-base);
 }
 
-.leaflet-container {
-    width: 100%;
-    height: 400px;
+.drone-position-map__header h3 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
 }
 
-.drone-position-map {
-    margin-top: 20px;
-    position: relative;
-    /* To position the MapLayerSwitcher */
+.drone-position-map__header p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 42rem;
 }
 
-.drone-position-map h3 {
-    margin-bottom: 10px;
-    text-align: center;
+.drone-position-map__summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
 }
 
-.leaflet-container {
-    width: 100%;
-    height: 400px;
-    border-radius: 4px;
+.drone-position-map__summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.9rem;
+  padding: 0.25rem 0.65rem;
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-/* app/dashboard/drone-dashboard/src/styles/DronePositionMap.css */
+.drone-position-map__canvas {
+  height: 420px;
+  min-height: 420px;
+  border-radius: var(--border-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-secondary);
+}
 
-.drone-position-map {
-    width: 100%;
-    height: 100%;
-    /* Additional styling as needed */
-  }
-  
-  .drone-position-map h3 {
-    text-align: center;
-    margin-bottom: 10px;
-  }
-  
-  .leaflet-container {
-    width: 100%;
-    height: 400px; /* Adjust as needed or make responsive */
-  }
-  
-  @media (max-width: 768px) {
-    .leaflet-container {
-      height: 300px;
-    }
-  }
-  
-  /* Custom Icon Styles */
-  .custom-icon {
-    background: transparent;
-    border: none;
-    /* Ensures that the default marker styles do not interfere */
-  }
-  
-  .custom-marker {
-    width: 30px;
-    height: 30px;
-    background-color: rgba(51, 136, 255, 0.8); /* #3388ff with opacity */
-    border: 2px solid #fff;
-    border-radius: 50%;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px; /* Adjust font size as needed */
-    font-weight: bold;
-    text-align: center;
-    pointer-events: auto;
-    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
-  }
-  
-  .custom-marker:hover {
-    background-color: rgba(51, 136, 255, 1); /* Slightly more opaque on hover */
-    cursor: pointer;
-  }
-  
-  /* app/dashboard/drone-dashboard/src/styles/DronePositionMap.css */
+.drone-position-map__empty-state {
+  margin: 0;
+  padding: var(--spacing-base);
+  border: 1px dashed var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  color: var(--color-text-secondary);
+  background: var(--color-surface-muted);
+}
 
-.drone-position-map {
-    width: 100%;
-    height: 100%;
-    /* Additional styling as needed */
+.drone-position-map__expected-icon,
+.drone-position-map__origin-icon {
+  background: transparent;
+  border: none;
+}
+
+.drone-position-map__expected-marker,
+.drone-position-map__origin-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #031525;
+}
+
+.drone-position-map__expected-marker {
+  background: rgba(56, 189, 248, 0.92);
+}
+
+.drone-position-map__origin-marker {
+  background: rgba(248, 250, 252, 0.94);
+}
+
+@media (max-width: 768px) {
+  .drone-position-map__header {
+    flex-direction: column;
   }
-  
-  .drone-position-map h3 {
-    text-align: center;
-    margin-bottom: 10px;
+
+  .drone-position-map__summary {
+    justify-content: flex-start;
   }
-  
-  .leaflet-container {
-    width: 100%;
-    height: 400px; /* Adjust as needed or make responsive */
+
+  .drone-position-map__canvas {
+    height: 320px;
+    min-height: 320px;
   }
-  
-  @media (max-width: 768px) {
-    .leaflet-container {
-      height: 300px;
-    }
-  }
-  
-  /* Custom Icon Styles */
-  .custom-icon {
-    background: transparent;
-    border: none;
-    /* Ensures that the default marker styles do not interfere */
-  }
-  
-  .custom-marker {
-    width: 20px; /* Reduced from 30px to 20px */
-    height: 20px; /* Reduced from 30px to 20px */
-    background-color: rgba(51, 136, 255, 0.8); /* #3388ff with opacity */
-    border: 2px solid #fff;
-    border-radius: 50%;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px; /* Reduced from 10px to 8px */
-    font-weight: bold;
-    text-align: center;
-    pointer-events: auto;
-    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5); /* Reduced shadow */
-  }
-  
-  .custom-marker:hover {
-    background-color: rgba(51, 136, 255, 1); /* Slightly more opaque on hover */
-    cursor: pointer;
-  }
-  
+}

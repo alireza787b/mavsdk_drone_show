@@ -119,6 +119,8 @@ def create_git_router(deps: Any) -> APIRouter:
                     synced_drones=[],
                     failed_drones=[],
                     total_attempted=0,
+                    target_branch=None,
+                    target_commit=None,
                 )
 
         try:
@@ -147,6 +149,8 @@ def create_git_router(deps: Any) -> APIRouter:
                     synced_drones=[],
                     failed_drones=skipped_offline,
                     total_attempted=0,
+                    target_branch=branch,
+                    target_commit=expected_commit,
                 )
 
             if sync_request.pos_ids:
@@ -216,6 +220,8 @@ def create_git_router(deps: Any) -> APIRouter:
                 synced_drones=synced,
                 failed_drones=failed,
                 total_attempted=total_attempted,
+                target_branch=branch,
+                target_commit=expected_commit,
             )
         except Exception as exc:
             deps.log_system_error(f"Sync repos failed: {exc}", "git")
@@ -225,6 +231,8 @@ def create_git_router(deps: Any) -> APIRouter:
                 synced_drones=[],
                 failed_drones=[],
                 total_attempted=0,
+                target_branch=None,
+                target_commit=None,
             )
         finally:
             deps._sync_state["active"] = False
