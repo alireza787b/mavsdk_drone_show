@@ -1283,6 +1283,7 @@ class DroneAPIServer:
             Mission.HOLD.value,
             Mission.RETURN_RTL.value,
             Mission.PRECISION_MOVE.value,
+            Mission.SWARM_TRAJECTORY.value,
         }
 
     def _find_active_command_by_id(self, command_id: Optional[str]) -> Optional[Dict[str, Any]]:

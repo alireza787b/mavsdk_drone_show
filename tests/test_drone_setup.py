@@ -628,7 +628,7 @@ class TestActionMissionHandlerRouting:
             ("_execute_init_sysid", "Init SysID Mission", "actions.py", "--action=init_sysid", False),
             ("_execute_precision_move", "Precision Move Mission", "actions.py", "--action=precision_move --request-file=/tmp/precision_move_1_cmd-xyz.json", True),
             ("_execute_test_led", "LED Test Mission", "test_led_controller.py", "--action=start", False),
-            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", False),
+            ("_execute_swarm_trajectory", "Swarm Trajectory Mission", "swarm_trajectory_mission.py", "", True),
         ],
     )
     async def test_handlers_use_execute_immediate_launcher(
@@ -762,7 +762,7 @@ class TestActionMissionHandlerRouting:
             ("_execute_reboot_fc", False),
             ("_execute_reboot_sys", False),
             ("_execute_test_led", False),
-            ("_execute_swarm_trajectory", False),
+            ("_execute_swarm_trajectory", True),
             ("_execute_init_sysid", False),
         ],
     )

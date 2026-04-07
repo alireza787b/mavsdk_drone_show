@@ -1090,6 +1090,7 @@ class DroneSetup:
             "",
             current_time,
             earlier_trigger_time,
+            interrupt_running=True,
         )
 
     async def _execute_quickscout(self, current_time: int = None, earlier_trigger_time: int = None) -> tuple:

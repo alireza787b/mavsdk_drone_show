@@ -1009,6 +1009,13 @@ class TestCommandValidation:
         result = api_server._check_state_preconditions(mission_type=Mission.PRECISION_MOVE.value)
         assert result['valid']
 
+    def test_check_state_swarm_trajectory_allowed_as_override(self, api_server):
+        from src.enums import Mission
+
+        api_server.drone_config.state = 2  # MISSION_EXECUTING
+        result = api_server._check_state_preconditions(mission_type=Mission.SWARM_TRAJECTORY.value)
+        assert result['valid']
+
     def test_check_state_not_ready_to_arm(self, api_server):
         """Test state check fails when not ready to arm"""
         api_server.drone_config.is_ready_to_arm = False
