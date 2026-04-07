@@ -283,8 +283,8 @@ describe('TrajectoryPlanning', () => {
 
     await waitFor(() => expect(getSwarmTrajectoryPolicy).toHaveBeenCalled());
 
-    expect(screen.getByText('Route brief & policy')).toBeInTheDocument();
-    expect(screen.getByText(/Expand for workflow stages, envelope, and launch notes/i)).toBeInTheDocument();
+    expect(screen.getByText('Route review & policy', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.getByText(/No route yet .* Not ready/i)).toBeInTheDocument();
     expect(screen.getByTestId('trajectory-toolbar')).toBeInTheDocument();
   });
 

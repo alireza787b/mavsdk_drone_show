@@ -6,6 +6,7 @@ import { getSwarmTrajectoryExecutionDoctrine } from '../../utilities/trajectoryA
 
 const SwarmTrajectoryWorkspaceSummary = ({ workspaceStatus, stages, session, compact = false }) => {
   const doctrine = getSwarmTrajectoryExecutionDoctrine();
+  const reviewOpen = compact || workspaceStatus.tone !== 'ready';
   const reviewBlock = (
     <>
       <TrajectoryPolicyNotes notes={doctrine} title="Swarm trajectory execution policy" />
@@ -61,20 +62,30 @@ const SwarmTrajectoryWorkspaceSummary = ({ workspaceStatus, stages, session, com
         ) : null}
       </div>
 
-      {compact ? (
-        <details
-          className="swarm-workspace-summary__details-panel"
-          open={workspaceStatus.tone !== 'ready'}
-        >
-          <summary>
-            <span>Workspace review & policy</span>
-            <small>Expand for doctrine, stage status, and operator links</small>
-          </summary>
-          <div className="swarm-workspace-summary__details-body">
-            {reviewBlock}
-          </div>
-        </details>
-      ) : reviewBlock}
+      <div className="swarm-workspace-summary__links" aria-label="Related mission tools">
+        <Link to="/swarm-design" className="swarm-workspace-summary__link">
+          Open Swarm Design
+        </Link>
+        <Link to="/trajectory-planning" className="swarm-workspace-summary__link">
+          Open Trajectory Planning
+        </Link>
+        <Link to="/" className="swarm-workspace-summary__link">
+          Open Mission Trigger
+        </Link>
+      </div>
+
+      <details
+        className="swarm-workspace-summary__details-panel"
+        open={reviewOpen}
+      >
+        <summary>
+          <span>Workspace review & policy</span>
+          <small>Expand for doctrine and stage status</small>
+        </summary>
+        <div className="swarm-workspace-summary__details-body">
+          {reviewBlock}
+        </div>
+      </details>
     </div>
   );
 };

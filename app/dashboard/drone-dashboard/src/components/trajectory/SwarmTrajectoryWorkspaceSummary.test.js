@@ -48,9 +48,10 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
 
     expect(screen.getByText('Mission package is ready for launch preflight')).toBeInTheDocument();
     expect(screen.getByText('session-42')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Swarm Design' })).toHaveAttribute('href', '/swarm-design');
     expect(screen.getByText('Swarm trajectory execution policy')).toBeInTheDocument();
     expect(screen.getByText(/This is not live Smart Swarm/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
+    expect(screen.getAllByRole('link', { name: 'Open Trajectory Planning' })[0]).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByText('Generate Cluster Outputs')).toBeInTheDocument();
   });
 
@@ -86,7 +87,7 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
     );
 
     expect(screen.getByText('Workspace review & policy')).toBeInTheDocument();
-    expect(screen.getByText(/Expand for doctrine, stage status, and operator links/i)).toBeInTheDocument();
+    expect(screen.getByText(/Expand for doctrine and stage status/i)).toBeInTheDocument();
     expect(screen.getByText('Review package needs attention')).toBeInTheDocument();
   });
 });

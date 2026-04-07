@@ -503,23 +503,24 @@ const TrajectoryPlanning = () => {
       />
     </>
   );
-  const plannerWorkflowBriefBlock = isCompactViewport ? (
+  const plannerWorkflowBriefSummary = [
+    waypoints.length > 0 ? `${waypoints.length} waypoint${waypoints.length === 1 ? '' : 's'}` : 'No route yet',
+    plannerMissionReadiness.posture.label,
+    formatTrajectorySpeedEnvelope(),
+  ].join(' • ');
+  const plannerWorkflowBriefBlock = (
     <details
-      className="trajectory-workflow-brief trajectory-workflow-brief--compact"
+      className="trajectory-workflow-brief trajectory-workflow-brief--compact trajectory-workflow-brief--docked"
       open={waypoints.length === 0 || plannerMissionReadiness.blockers.length > 0}
     >
       <summary>
-        <span>Route brief & policy</span>
-        <small>Expand for workflow stages, envelope, and launch notes</small>
+        <span>Route review & policy</span>
+        <small>{plannerWorkflowBriefSummary}</small>
       </summary>
       <div className="trajectory-workflow-brief__compact-body">
         {plannerWorkflowBriefContent}
       </div>
     </details>
-  ) : (
-    <div className="trajectory-workflow-brief" aria-label="Trajectory planning workflow brief">
-      {plannerWorkflowBriefContent}
-    </div>
   );
   const addWaypointWithData = useCallback((position, waypointData) => {
     const newWaypoint = {
@@ -1286,6 +1287,13 @@ const TrajectoryPlanning = () => {
     />
   );
 
+  const plannerReviewStack = (
+    <div className="trajectory-review-stack" aria-label="Trajectory review tools">
+      {trajectorySegmentReviewBlock}
+      {plannerWorkflowBriefBlock}
+    </div>
+  );
+
   // Leaflet fallback: show Leaflet map when Mapbox unavailable
   if (useLeaflet || (!mapboxAvailable && !mapboxToken) || !mapboxToken) {
     return (
@@ -1305,9 +1313,6 @@ const TrajectoryPlanning = () => {
           </div>
           <TrajectoryStats stats={trajectoryStats} />
         </div>
-
-        {!isCompactViewport && trajectorySegmentReviewBlock}
-        {!isCompactViewport && plannerWorkflowBriefBlock}
 
         <div className="trajectory-container">
           <div className="trajectory-main">
@@ -1392,7 +1397,7 @@ const TrajectoryPlanning = () => {
                 <div className="map-instruction-overlay">
                   <div className="instruction-content">
                     <span className="instruction-icon">📍</span>
-                    <span className="instruction-text">Click on the map to add waypoint</span>
+                    <span className="instruction-text">Click map to place waypoint</span>
                   </div>
                 </div>
               )}
@@ -1410,8 +1415,7 @@ const TrajectoryPlanning = () => {
           />
         </div>
 
-        {isCompactViewport && trajectorySegmentReviewBlock}
-        {isCompactViewport && plannerWorkflowBriefBlock}
+        {plannerReviewStack}
 
         <WaypointModal
           isOpen={modalOpen}
@@ -1448,9 +1452,6 @@ const TrajectoryPlanning = () => {
         </div>
         <TrajectoryStats stats={trajectoryStats} />
       </div>
-
-      {!isCompactViewport && trajectorySegmentReviewBlock}
-      {!isCompactViewport && plannerWorkflowBriefBlock}
 
       <div className="trajectory-container">
         <div className="trajectory-main">
@@ -1612,7 +1613,7 @@ const TrajectoryPlanning = () => {
               <div className="map-instruction-overlay">
                 <div className="instruction-content">
                   <span className="instruction-icon">📍</span>
-                  <span className="instruction-text">Click on the map to add a waypoint with terrain-aware altitude context</span>
+                  <span className="instruction-text">Click map to place waypoint</span>
                 </div>
               </div>
             )}
@@ -1621,7 +1622,7 @@ const TrajectoryPlanning = () => {
               <div className="map-instruction-overlay drag-mode">
                 <div className="instruction-content">
                   <span className="instruction-icon">✋</span>
-                  <span className="instruction-text">Dragging a waypoint refreshes terrain context and recalculates timing, speed, and clearance review</span>
+                  <span className="instruction-text">Drag updates terrain and timing</span>
                 </div>
               </div>
             )}
@@ -1641,8 +1642,7 @@ const TrajectoryPlanning = () => {
           />
         </div>
 
-      {isCompactViewport && trajectorySegmentReviewBlock}
-      {isCompactViewport && plannerWorkflowBriefBlock}
+      {plannerReviewStack}
 
       <WaypointModal
         isOpen={modalOpen}

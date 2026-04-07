@@ -327,6 +327,10 @@
   padding: 0;
 }
 
+.trajectory-workflow-brief--docked {
+  margin: 0;
+}
+
 .trajectory-workflow-brief--compact summary {
   display: flex;
   justify-content: space-between;
@@ -472,6 +476,12 @@
 .trajectory-workflow-brief__alert--danger {
   color: #f8fafc;
   background: rgba(220, 38, 38, 0.9);
+}
+
+.trajectory-review-stack {
+  display: grid;
+  gap: var(--spacing-base);
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
 }
 
 /* =============================================== */
@@ -1859,6 +1869,10 @@
     padding: 0.9rem 1rem;
   }
 
+  .trajectory-review-stack {
+    padding: 0 0 var(--spacing-base);
+  }
+
   .trajectory-container {
     flex-direction: column;
     overflow: visible;
@@ -1988,6 +2002,10 @@
 
   .trajectory-segment-review {
     margin: 0 var(--spacing-sm);
+  }
+
+  .trajectory-review-stack {
+    padding-bottom: var(--spacing-sm);
   }
 
   .waypoint-panel {

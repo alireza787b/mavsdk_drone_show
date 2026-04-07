@@ -133,54 +133,6 @@ const SwarmTrajectory = () => {
       ? 'commit_and_push'
       : 'local_commit';
   const isPartialPackage = viewModel.currentOutcome === 'partial';
-  const workflowGuideBlock = isCompactViewport ? (
-    <details className="workflow-guide workflow-guide--compact">
-      <summary>
-        <span>Operator flow & package review</span>
-        <small>Expand for the full package sequence and linked tools</small>
-      </summary>
-      <div className="workflow-guide__compact-body">
-        <div className="guide-content">
-          <span className="guide-icon">Route</span>
-          <div className="guide-text">
-            <span className="guide-main">Operator Flow</span>
-            <span className="guide-steps">
-              1. <Link to="/swarm-design" className="guide-link">Verify swarm structure</Link>
-              {' → '}
-              2. <Link to="/trajectory-planning" className="guide-link">Author leader path</Link>
-              {' → '}
-              3. Send from planner or upload leader CSVs here
-              {' → '}
-              4. Process follower outputs
-              {' → '}
-              5. Review plots, confirm readiness, then commit if needed and launch from Dashboard
-            </span>
-          </div>
-        </div>
-      </div>
-    </details>
-  ) : (
-    <div className="workflow-guide">
-      <div className="guide-content">
-        <span className="guide-icon">Route</span>
-        <div className="guide-text">
-          <span className="guide-main">Operator Flow</span>
-          <span className="guide-steps">
-            1. <Link to="/swarm-design" className="guide-link">Verify swarm structure</Link>
-            {' → '}
-            2. <Link to="/trajectory-planning" className="guide-link">Author leader path</Link>
-            {' → '}
-            3. Send from planner or upload leader CSVs here
-            {' → '}
-            4. Process follower outputs
-            {' → '}
-            5. Review plots, confirm readiness, then commit if needed and launch from Dashboard
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
     method(message ? `${title} — ${message}` : title);
@@ -733,7 +685,7 @@ const SwarmTrajectory = () => {
         <div className="title-section">
           <h1>Swarm Trajectory Mission</h1>
           <p className="subtitle">
-            Load leader paths, regenerate follower outputs from the current swarm structure, and review the mission package before launch.
+            Upload leader paths, regenerate follower outputs, and confirm the launch package.
           </p>
         </div>
         <div className="mode-badge">
@@ -741,10 +693,8 @@ const SwarmTrajectory = () => {
         </div>
       </div>
 
-      {workflowGuideBlock}
-
       <div className="status-card">
-        <h2>Mission Status</h2>
+        <h2>Workspace Status</h2>
 
         <div className="status-metrics">
           <div className="metric">

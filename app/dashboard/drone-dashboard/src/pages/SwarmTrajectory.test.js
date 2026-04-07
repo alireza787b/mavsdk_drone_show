@@ -204,7 +204,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
 
     expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
     expect(screen.getByText(/resolve the listed attention items, and reprocess before treating this as a full-fleet launch package/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /open mission trigger/i })).toHaveLength(2);
+    expect(screen.getAllByRole('link', { name: /open mission trigger/i }).length).toBeGreaterThanOrEqual(2);
   });
 
   test('uses compact operator-flow and workspace-review summaries on mobile', async () => {
@@ -217,10 +217,10 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Operator flow & package review')).toBeInTheDocument();
+      expect(screen.getByText('Workspace review & policy')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Expand for the full package sequence and linked tools/i)).toBeInTheDocument();
-    expect(screen.getByText('Workspace review & policy')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Open Swarm Design' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('link', { name: 'Open Mission Trigger' }).length).toBeGreaterThanOrEqual(1);
   });
 });
