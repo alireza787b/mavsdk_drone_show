@@ -1,10 +1,10 @@
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import DroneConfigCard from './DroneConfigCard';
 
 describe('DroneConfigCard', () => {
-  it('renders compact operator summary chips in read-only mode', () => {
+  it('renders compact operator indicators and opens git details on demand', () => {
     render(
       <DroneConfigCard
         drone={{
@@ -44,15 +44,29 @@ describe('DroneConfigCard', () => {
       />
     );
 
-    const operatorSummary = screen.getByLabelText('Operator summary');
+    const indicators = screen.getByLabelText('Operator card indicators');
 
-    expect(within(operatorSummary).getByText('Slot')).toBeInTheDocument();
-    expect(within(operatorSummary).getByText('Mapped P2')).toBeInTheDocument();
-    expect(within(operatorSummary).getByText('Path')).toBeInTheDocument();
-    expect(within(operatorSummary).getByText('10.0.0.11')).toBeInTheDocument();
-    expect(within(operatorSummary).getByText('Git')).toBeInTheDocument();
-    expect(within(operatorSummary).getByText('Synced')).toBeInTheDocument();
-    expect(screen.getByText('Source Drone 2.csv · SITL / simulated')).toBeInTheDocument();
-    expect(screen.getByText('More details')).toBeInTheDocument();
+    expect(within(indicators).getByRole('button', { name: /slot/i })).toBeInTheDocument();
+    expect(within(indicators).getByText('Aligned')).toBeInTheDocument();
+    expect(within(indicators).getByText('P2')).toBeInTheDocument();
+    expect(within(indicators).getByRole('button', { name: /link/i })).toBeInTheDocument();
+    expect(within(indicators).getByText('Simulated')).toBeInTheDocument();
+    expect(within(indicators).getByRole('button', { name: /git/i })).toBeInTheDocument();
+    expect(within(indicators).getByText('Synced')).toBeInTheDocument();
+    expect(screen.queryByText('Source Drone 2.csv')).not.toBeInTheDocument();
+
+    fireEvent.click(within(indicators).getByRole('button', { name: /slot/i }));
+
+    expect(screen.getByText('Slot confirmed')).toBeInTheDocument();
+    expect(screen.getByText('Source Drone 2.csv')).toBeInTheDocument();
+    expect(screen.getByText('Identity')).toBeInTheDocument();
+
+    expect(screen.queryByText('Full Hash')).not.toBeInTheDocument();
+
+    fireEvent.click(within(indicators).getByRole('button', { name: /git/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Details' }));
+
+    expect(screen.getByText('Full Hash')).toBeInTheDocument();
+    expect(screen.getByText('abcdef1234567890')).toBeInTheDocument();
   });
 });

@@ -16,6 +16,8 @@ import {
   faSignal,
   faCheckCircle,
   faExchangeAlt,
+  faCodeBranch,
+  faInfoCircle,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   areGitRevisionsEquivalent,
@@ -92,6 +94,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   onAcceptConfigFromHb,
 }) {
   const slotPresentation = buildMissionSlotStatusPresentation(configPosId, assignedPosId, autoPosId);
+  const [activeInspector, setActiveInspector] = useState(slotPresentation.tone === 'review' ? 'slot' : null);
 
   /**
    * Returns the correct heartbeat status icon based on `heartbeatStatus`.
@@ -182,79 +185,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     );
   };
 
-  /**
-   * Render the show-slot section with logic for no heartbeat, mismatch, etc.
-   */
-  const renderPositionIdInfo = () => {
-    return (
-      <div className={`position-status ${slotPresentation.tone}`}>
-        <div className="position-summary">
-          <div>
-            <div className="position-headline">{slotPresentation.headline}</div>
-            <p className="position-detail">{slotPresentation.detail}</p>
-          </div>
-          {slotPresentation.tone === 'verified' && (
-            <FontAwesomeIcon
-              icon={faCheckCircle}
-              className="status-icon all-good"
-              title="Mission slot sources are aligned"
-            />
-          )}
-        </div>
-
-        <div className="position-source-list">
-          {slotPresentation.chips.map((chip) => (
-            <div
-              key={`${chip.label}-${chip.rawValue || 'missing'}`}
-              className={`position-source-chip ${chip.tone}`}
-              title={`${chip.label === 'Cfg' ? 'Configured slot' : chip.label === 'HB' ? 'Heartbeat slot' : 'Auto-detected slot'}: ${chip.value}`}
-            >
-              <span className="position-source-chip-label">{chip.label}</span>
-              <span className="position-source-chip-value">{chip.value}</span>
-            </div>
-          ))}
-        </div>
-
-        {(slotPresentation.actions.acceptAutoValue || slotPresentation.actions.acceptAssignedValue) && (
-          <div className="accept-buttons">
-            {slotPresentation.actions.acceptAutoValue && (
-              <button
-                type="button"
-                className="accept-button"
-                onClick={() => onAcceptConfigFromAuto?.(slotPresentation.actions.acceptAutoValue)}
-                title="Accept auto-detected show slot"
-                aria-label="Accept auto-detected show slot"
-              >
-                <FontAwesomeIcon icon={faCheckCircle} />
-                Use Auto {`P${slotPresentation.actions.acceptAutoValue}`}
-              </button>
-            )}
-            {slotPresentation.actions.acceptAssignedValue && (
-              <button
-                type="button"
-                className="accept-button accept-assigned-btn"
-                onClick={() => onAcceptConfigFromHb?.(slotPresentation.actions.acceptAssignedValue)}
-                title="Accept heartbeat-assigned show slot"
-                aria-label="Accept heartbeat-assigned show slot"
-              >
-                <FontAwesomeIcon icon={faCheckCircle} />
-                Use HB {`P${slotPresentation.actions.acceptAssignedValue}`}
-              </button>
-            )}
-          </div>
-        )}
-
-        {slotPresentation.footnote && (
-          <small className="position-footnote">{slotPresentation.footnote}</small>
-        )}
-      </div>
-    );
-  };
-
   const normalizedHwId = normalizeComparableId(drone.hw_id);
   const normalizedPosId = normalizeComparableId(drone.pos_id, normalizedHwId);
   const compactIdentity = formatCompactDroneIdentity(normalizedPosId, normalizedHwId, 'Unassigned');
-  const compactPosId = normalizedPosId ? `P${normalizedPosId}` : 'P?';
   const isRoleSwap = normalizedHwId !== normalizedPosId;
   const serialPortLabel = drone.serial_port ? drone.serial_port : 'SITL / none';
   const baudrateLabel = drone.baudrate === '0' || drone.baudrate === 0 ? '0 (SITL / no serial)' : (drone.baudrate || '57600');
@@ -305,29 +238,310 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     || drone.serial_port
     || drone.baudrate
   );
-  const diagnosticsSummary = secondaryCustomFieldEntries.length > 0
-    ? `Transport, link, git, and ${secondaryCustomFieldEntries.length} field${secondaryCustomFieldEntries.length === 1 ? '' : 's'}`
-    : 'Transport, link, and git';
-  const operatorSummaryChips = [
+  const slotIndicatorValue = slotPresentation.tone === 'verified'
+    ? 'Aligned'
+    : slotPresentation.tone === 'review'
+      ? 'Review'
+      : 'Pending';
+  const slotIndicatorTone = slotPresentation.tone === 'verified'
+    ? 'good'
+    : slotPresentation.tone === 'review'
+      ? 'review'
+      : 'neutral';
+  const slotIndicatorNote = slotPresentation.configStr
+    ? `P${slotPresentation.configStr}`
+    : 'No slot';
+  const runtimeModeLabel = showSimulatedNetworkFallback ? 'SITL' : 'Hardware';
+  const runtimeBadgeTone = showSimulatedNetworkFallback ? 'simulated' : 'hardware';
+  const linkIndicatorValue = showSimulatedNetworkFallback
+    ? 'Simulated'
+    : wifiSsid
+      ? 'Wi-Fi'
+      : ethernetInterface
+        ? 'Ethernet'
+        : hasWifiSignal
+          ? 'Wi-Fi'
+          : 'Review';
+  const linkIndicatorTone = showSimulatedNetworkFallback || wifiSsid || ethernetInterface || hasWifiSignal
+    ? 'good'
+    : 'review';
+  const linkIndicatorNote = showSimulatedNetworkFallback
+    ? runtimePathLabel
+    : wifiSsid
+      ? wifiSsid
+      : ethernetInterface
+        ? ethernetInterface
+        : runtimePathLabel;
+  const gitIndicatorNote = gitStatus?.branch
+    ? `${gitStatus.branch} · ${gitStatus.commit ? gitStatus.commit.slice(0, 7) : 'n/a'}`
+    : 'No git report';
+  const inspectorButtons = [
     {
       key: 'slot',
+      icon: slotPresentation.tone === 'verified' ? faCheckCircle : faExclamationTriangle,
       label: 'Slot',
-      value: isRoleSwap ? `Mapped ${compactPosId}` : compactPosId,
-      tone: isRoleSwap ? 'review' : 'neutral',
+      value: slotIndicatorValue,
+      note: slotIndicatorNote,
+      tone: slotIndicatorTone,
+      title: `${slotPresentation.headline}. ${slotPresentation.detail}`,
     },
     {
-      key: 'path',
-      label: 'Path',
-      value: runtimePathLabel,
-      tone: 'neutral',
+      key: 'link',
+      icon: faSignal,
+      label: 'Link',
+      value: linkIndicatorValue,
+      note: linkIndicatorNote,
+      tone: linkIndicatorTone,
+      title: `Runtime connectivity. ${runtimeLinkLabel}.`,
     },
     {
       key: 'git',
+      icon: faCodeBranch,
       label: 'Git',
       value: gitCompactLabel,
+      note: gitIndicatorNote,
       tone: isGitInSync ? 'good' : 'review',
+      title: isGitInSync ? 'Drone git revision matches GCS.' : 'Drone git revision differs from GCS or needs review.',
     },
+    ...(secondaryCustomFieldEntries.length > 0
+      ? [{
+        key: 'fields',
+        icon: faInfoCircle,
+        label: 'Fields',
+        value: `${secondaryCustomFieldEntries.length} saved`,
+        note: secondaryCustomFieldEntries[0]?.label || 'Additional fields',
+        tone: 'neutral',
+        title: `${secondaryCustomFieldEntries.length} additional mission-config field${secondaryCustomFieldEntries.length === 1 ? '' : 's'} saved.`,
+      }]
+      : []),
   ];
+  const toggleInspector = (key) => {
+    setActiveInspector((current) => (current === key ? null : key));
+  };
+
+  const renderSlotInspectorPanel = () => (
+    <div className={`position-status ${slotPresentation.tone}`}>
+      <div className="position-summary">
+        <div>
+          <div className="position-headline">{slotPresentation.headline}</div>
+          <p className="position-detail">{slotPresentation.detail}</p>
+        </div>
+        {slotPresentation.tone === 'verified' && (
+          <FontAwesomeIcon
+            icon={faCheckCircle}
+            className="status-icon all-good"
+            title="Mission slot sources are aligned"
+          />
+        )}
+      </div>
+
+      <div className="position-source-list">
+        {slotPresentation.chips.map((chip) => (
+          <div
+            key={`${chip.label}-${chip.rawValue || 'missing'}`}
+            className={`position-source-chip ${chip.tone}`}
+            title={`${chip.label === 'Cfg' ? 'Configured slot' : chip.label === 'HB' ? 'Heartbeat slot' : 'Auto-detected slot'}: ${chip.value}`}
+          >
+            <span className="position-source-chip-label">{chip.label}</span>
+            <span className="position-source-chip-value">{chip.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="slot-inspector-meta">
+        <div className="slot-inspector-meta__row">
+          <span className="slot-inspector-meta__label">Source file</span>
+          <span className="slot-inspector-meta__value">{trajectorySourceLabel}</span>
+        </div>
+        <div className="slot-inspector-meta__row">
+          <span className="slot-inspector-meta__label">Identity</span>
+          <span className="slot-inspector-meta__value">{compactIdentity}</span>
+        </div>
+      </div>
+
+      {(slotPresentation.actions.acceptAutoValue || slotPresentation.actions.acceptAssignedValue) && (
+        <div className="accept-buttons">
+          {slotPresentation.actions.acceptAutoValue && (
+            <button
+              type="button"
+              className="accept-button"
+              onClick={() => onAcceptConfigFromAuto?.(slotPresentation.actions.acceptAutoValue)}
+              title="Accept auto-detected show slot"
+              aria-label="Accept auto-detected show slot"
+            >
+              <FontAwesomeIcon icon={faCheckCircle} />
+              Use Auto {`P${slotPresentation.actions.acceptAutoValue}`}
+            </button>
+          )}
+          {slotPresentation.actions.acceptAssignedValue && (
+            <button
+              type="button"
+              className="accept-button accept-assigned-btn"
+              onClick={() => onAcceptConfigFromHb?.(slotPresentation.actions.acceptAssignedValue)}
+              title="Accept heartbeat-assigned show slot"
+              aria-label="Accept heartbeat-assigned show slot"
+            >
+              <FontAwesomeIcon icon={faCheckCircle} />
+              Use HB {`P${slotPresentation.actions.acceptAssignedValue}`}
+            </button>
+          )}
+        </div>
+      )}
+
+      {slotPresentation.footnote && (
+        <small className="position-footnote">{slotPresentation.footnote}</small>
+      )}
+    </div>
+  );
+
+  const renderLinkInspectorPanel = () => (
+    <div className="drone-inspector-panel__stack">
+      <div className="info-section">
+        <div className="info-row">
+          <span className="info-label">Runtime mode</span>
+          <span className="info-value">{showSimulatedNetworkFallback ? 'SITL / simulated' : 'Hardware / live'}</span>
+        </div>
+        <div className="info-row">
+          <span className="info-label">Telemetry path</span>
+          <span className={`info-value ${ipMismatch ? 'mismatch' : ''}`}>
+            {runtimePathLabel}
+            {ipMismatch && heartbeatIP && (
+              <FontAwesomeIcon
+                icon={faExclamationCircle}
+                title={`IP mismatch: heartbeat path is ${heartbeatIP}`}
+                aria-label={`IP mismatch: heartbeat path is ${heartbeatIP}`}
+              />
+            )}
+          </span>
+        </div>
+        <div className="info-row">
+          <span className="info-label">MAVLink port</span>
+          <span className="info-value">{drone.mavlink_port}</span>
+        </div>
+        <div className="info-row">
+          <span className="info-label">Serial transport</span>
+          <span className="info-value">{serialPortLabel} · {baudrateLabel}</span>
+        </div>
+      </div>
+
+      <div className="network-section">
+        <div className="network-header">
+          <FontAwesomeIcon icon={faSignal} />
+          Runtime Connectivity
+        </div>
+        <div className="network-content">
+          {showSimulatedNetworkFallback ? (
+            <>
+              <div className="network-row">
+                <span className="network-label">Runtime mode</span>
+                <span className="network-value">
+                  SITL / simulated
+                  <span className="network-status simulated">Expected</span>
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Telemetry path</span>
+                <span className="network-value">{normalizedHeartbeatIp || drone.ip || 'Mission-config runtime path'}</span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Physical links</span>
+                <span className="network-value">Wi-Fi and Ethernet telemetry are not reported in SITL.</span>
+              </div>
+            </>
+          ) : networkInfo ? (
+            <>
+              <div className="network-row">
+                <span className="network-label">Wi-Fi network</span>
+                <span className="network-value">
+                  {networkInfo?.wifi?.ssid || 'N/A'}
+                  <span className={`network-status ${networkInfo?.wifi?.ssid ? 'connected' : 'disconnected'}`}>
+                    {networkInfo?.wifi?.ssid ? 'Connected' : 'Disconnected'}
+                  </span>
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Signal</span>
+                <span className="network-value">
+                  {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
+                  {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Ethernet</span>
+                <span className="network-value">
+                  {networkInfo?.ethernet?.interface || 'N/A'}
+                  <span className={`network-status ${networkInfo?.ethernet?.interface ? 'connected' : 'unknown'}`}>
+                    {networkInfo?.ethernet?.interface ? 'Active' : 'Unknown'}
+                  </span>
+                </span>
+              </div>
+            </>
+          ) : (
+            <div className="network-row">
+              <span className="network-label">Status</span>
+              <span className="network-value">
+                Runtime network telemetry unavailable
+                <span className="network-status unknown">Unknown</span>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderFieldsInspectorPanel = () => (
+    <div className="custom-field-section">
+      <div className="custom-field-section-header">
+        <span className="custom-field-section-title">Additional Fields</span>
+        <span className="custom-field-section-count">
+          {secondaryCustomFieldEntries.length} saved
+        </span>
+      </div>
+      <div className="custom-field-list">
+        {visibleCustomFieldEntries.map((field) => (
+          <div key={field.key} className="custom-field-row">
+            <span className="custom-field-label">
+              {field.label}
+              {field.isPromoted && <span className="custom-field-badge">Promoted</span>}
+            </span>
+            <span className="custom-field-value">{getCustomFieldValuePreview(field)}</span>
+          </div>
+        ))}
+        {hiddenCustomFieldCount > 0 && (
+          <div className="custom-field-overflow">
+            +{hiddenCustomFieldCount} more field{hiddenCustomFieldCount === 1 ? '' : 's'} available in edit mode
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderActiveInspectorPanel = () => {
+    if (activeInspector === 'slot') {
+      return renderSlotInspectorPanel();
+    }
+
+    if (activeInspector === 'link') {
+      return renderLinkInspectorPanel();
+    }
+
+    if (activeInspector === 'git') {
+      return (
+        <DroneGitStatus
+          gitStatus={gitStatus}
+          gcsGitStatus={gcsGitStatus}
+          droneName={`Drone ${drone.hw_id}`}
+        />
+      );
+    }
+
+    if (activeInspector === 'fields' && secondaryCustomFieldEntries.length > 0) {
+      return renderFieldsInspectorPanel();
+    }
+
+    return null;
+  };
 
   return (
     <>
@@ -345,8 +559,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             <h3 className="drone-title">{compactIdentity}</h3>
           </div>
           <div className="identity-meta-row">
-            <span className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}>
+            <span
+              className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}
+              title={isRoleSwap ? 'Hardware ID and assigned show slot differ.' : 'Hardware ID and assigned show slot match.'}
+            >
               {isRoleSwap ? 'Slot swap' : 'Own slot'}
+            </span>
+            <span className={`identity-runtime-chip ${runtimeBadgeTone}`}>
+              {runtimeModeLabel}
             </span>
             {promotedField && (
               <div className="promoted-field-chip">
@@ -367,164 +587,35 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
       {/* Main Content */}
       <div className="drone-content">
-        <div className="operator-summary-strip" aria-label="Operator summary">
-          {operatorSummaryChips.map((chip) => (
-            <div
-              key={chip.key}
-              className={`operator-summary-chip ${chip.tone === 'good' ? 'is-good' : chip.tone === 'review' ? 'needs-review' : ''}`}
+        <div className="operator-indicator-grid" aria-label="Operator card indicators">
+          {inspectorButtons.map((indicator) => (
+            <button
+              key={indicator.key}
+              type="button"
+              className={`operator-indicator operator-indicator--${indicator.tone}${activeInspector === indicator.key ? ' is-active' : ''}`}
+              onClick={() => toggleInspector(indicator.key)}
+              aria-expanded={activeInspector === indicator.key}
+              title={indicator.title}
             >
-              <span className="operator-summary-chip__label">{chip.label}</span>
-              <span className="operator-summary-chip__value">{chip.value}</span>
-            </div>
+              <span className="operator-indicator__topline">
+                <FontAwesomeIcon icon={indicator.icon} className="operator-indicator__icon" />
+                <span className="operator-indicator__label">{indicator.label}</span>
+              </span>
+              <span className="operator-indicator__value">{indicator.value}</span>
+              <span className="operator-indicator__note">{indicator.note}</span>
+            </button>
           ))}
         </div>
-        <p className="operator-summary-caption">
-          {trajectorySourceLabel} · {runtimeLinkLabel}
-        </p>
-
-        {/* Position ID Section */}
-        <div className="position-section">
-          {renderPositionIdInfo()}
-        </div>
-
-        {hasSecondaryDetails && (
-        <details className="drone-card-details">
-          <summary className="drone-card-details__summary">
-            <div>
-              <span className="drone-card-details__title">More details</span>
-              <small className="drone-card-details__copy">{diagnosticsSummary}</small>
+        {hasSecondaryDetails && activeInspector && (
+          <div className="drone-card-details-rail">
+            <div className="drone-card-details-rail__header">
+              <strong>{inspectorButtons.find((indicator) => indicator.key === activeInspector)?.label || 'Details'}</strong>
+              <span>Tap the same indicator again to collapse.</span>
             </div>
-          </summary>
-          <div className="drone-card-details__content">
-            {secondaryCustomFieldEntries.length > 0 && (
-              <div className="custom-field-section">
-                <div className="custom-field-section-header">
-                  <span className="custom-field-section-title">Additional Fields</span>
-                  <span className="custom-field-section-count">
-                    {secondaryCustomFieldEntries.length} saved
-                  </span>
-                </div>
-                <div className="custom-field-list">
-                  {visibleCustomFieldEntries.map((field) => (
-                    <div key={field.key} className="custom-field-row">
-                      <span className="custom-field-label">
-                        {field.label}
-                        {field.isPromoted && <span className="custom-field-badge">Promoted</span>}
-                      </span>
-                      <span className="custom-field-value">{getCustomFieldValuePreview(field)}</span>
-                    </div>
-                  ))}
-                  {hiddenCustomFieldCount > 0 && (
-                    <div className="custom-field-overflow">
-                      +{hiddenCustomFieldCount} more field{hiddenCustomFieldCount === 1 ? '' : 's'} available in edit mode
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="info-section">
-              <div className="info-row">
-                <span className="info-label">IP Address</span>
-                <span className={`info-value ${ipMismatch ? 'mismatch' : ''}`}>
-                  {drone.ip}
-                  {ipMismatch && heartbeatIP && (
-                    <FontAwesomeIcon
-                      icon={faExclamationCircle}
-                      title={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
-                      aria-label={`IP Mismatch: Heartbeat IP = ${heartbeatIP}`}
-                    />
-                  )}
-                </span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">MAVLink Port</span>
-                <span className="info-value">{drone.mavlink_port}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Serial Port</span>
-                <span className="info-value">{serialPortLabel}</span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Baudrate</span>
-                <span className="info-value">{baudrateLabel}</span>
-              </div>
+            <div className="drone-card-details-rail__content">
+              {renderActiveInspectorPanel()}
             </div>
-
-            <div className="network-section">
-              <div className="network-header">
-                <FontAwesomeIcon icon={faSignal} />
-                Runtime Connectivity
-              </div>
-              <div className="network-content">
-                {showSimulatedNetworkFallback ? (
-                  <>
-                    <div className="network-row">
-                      <span className="network-label">Runtime mode</span>
-                      <span className="network-value">
-                        SITL / simulated
-                        <span className="network-status simulated">Expected</span>
-                      </span>
-                    </div>
-                    <div className="network-row">
-                      <span className="network-label">Telemetry path</span>
-                      <span className="network-value">{normalizedHeartbeatIp || drone.ip || 'Mission-config runtime path'}</span>
-                    </div>
-                    <div className="network-row">
-                      <span className="network-label">Physical links</span>
-                      <span className="network-value">Wi-Fi and Ethernet telemetry are not reported in SITL.</span>
-                    </div>
-                  </>
-                ) : networkInfo ? (
-                  <>
-                    <div className="network-row">
-                      <span className="network-label">Wi-Fi network</span>
-                      <span className="network-value">
-                        {networkInfo?.wifi?.ssid || 'N/A'}
-                        <span className={`network-status ${networkInfo?.wifi?.ssid ? 'connected' : 'disconnected'}`}>
-                          {networkInfo?.wifi?.ssid ? 'Connected' : 'Disconnected'}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="network-row">
-                      <span className="network-label">Signal</span>
-                      <span className="network-value">
-                        {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
-                        {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
-                      </span>
-                    </div>
-                    <div className="network-row">
-                      <span className="network-label">Ethernet</span>
-                      <span className="network-value">
-                        {networkInfo?.ethernet?.interface || 'N/A'}
-                        <span className={`network-status ${networkInfo?.ethernet?.interface ? 'connected' : 'unknown'}`}>
-                          {networkInfo?.ethernet?.interface ? 'Active' : 'Unknown'}
-                        </span>
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="network-row">
-                    <span className="network-label">Status</span>
-                    <span className="network-value">
-                      Runtime network telemetry unavailable
-                      <span className="network-status unknown">Unknown</span>
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <DroneGitStatus
-              gitStatus={gitStatus}
-              gcsGitStatus={gcsGitStatus}
-              droneName={`Drone ${drone.hw_id}`}
-            />
           </div>
-        </details>
         )}
 
       </div>

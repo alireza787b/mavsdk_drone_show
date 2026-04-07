@@ -924,3 +924,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Added Smart Swarm launch readiness gating in the dashboard so grounded targets now block formation dispatch, show the airborne count in scope, and expose a one-click quick-takeoff action for just the grounded drones using the shared Take Off altitude.
 - Fixed the Smart Swarm readiness card so mission blockers render alongside advisories instead of silently hiding airborne-launch problems.
 - Added reusable `smartSwarmLaunchReadiness` coverage plus Smart Swarm mission-detail tests for the grounded-target quick-takeoff workflow.
+
+### Mission Config Card Compaction
+- Reworked Mission Config drone cards around compact indicator buttons for slot, link, git, and custom fields so operators see identity and status first, then tap into the exact detail panel they need.
+- Moved slot-source reconciliation, runtime transport/link data, and git diagnostics behind touch-friendly drilldowns instead of keeping verbose text permanently above the fold.
+- Added focused `DroneConfigCard` test coverage for the new indicator-to-detail workflow.

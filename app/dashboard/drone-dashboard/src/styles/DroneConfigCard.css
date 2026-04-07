@@ -164,6 +164,31 @@
   border: 1px solid var(--color-primary-border);
 }
 
+.identity-runtime-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 var(--spacing-sm);
+  border-radius: var(--border-radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-quaternary);
+  color: var(--color-text-secondary);
+}
+
+.identity-runtime-chip.simulated {
+  background: var(--color-info-light);
+  color: var(--color-info-text);
+  border-color: var(--color-info-border);
+}
+
+.identity-runtime-chip.hardware {
+  background: var(--color-bg-quaternary);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-primary);
+}
+
 .promoted-field-chip {
   display: inline-flex;
   align-items: center;
@@ -273,6 +298,158 @@
   display: grid;
   gap: 0.55rem;
   padding: 0.72rem 0.85rem 0.82rem calc(0.85rem + 4px);
+}
+
+.operator-indicator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--spacing-xs);
+}
+
+.operator-indicator {
+  display: grid;
+  gap: 0.24rem;
+  min-width: 0;
+  padding: 0.55rem 0.62rem;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.operator-indicator:hover {
+  border-color: var(--color-primary-border);
+  background: color-mix(in srgb, var(--color-bg-secondary) 74%, var(--color-bg-primary));
+}
+
+.operator-indicator.is-active {
+  border-color: var(--color-primary-border);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
+
+.operator-indicator--good {
+  border-color: var(--color-success-border);
+  background: color-mix(in srgb, var(--color-success-light) 78%, var(--color-bg-primary));
+}
+
+.operator-indicator--review {
+  border-color: var(--color-warning-border);
+  background: color-mix(in srgb, var(--color-warning-light) 78%, var(--color-bg-primary));
+}
+
+.operator-indicator__topline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.operator-indicator__icon {
+  color: var(--card-accent-color, var(--color-primary));
+  font-size: var(--font-size-sm);
+}
+
+.operator-indicator__label {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.operator-indicator__value {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.operator-indicator__note {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drone-card-details-rail {
+  display: grid;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-muted);
+}
+
+.drone-card-details-rail__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+}
+
+.drone-card-details-rail__header strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.drone-card-details-rail__header span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.drone-card-details-rail__content {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.drone-inspector-panel__stack {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.drone-inspector-empty {
+  display: grid;
+  gap: 0.24rem;
+  padding: 0.15rem 0;
+}
+
+.drone-inspector-empty strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.drone-inspector-empty span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.slot-inspector-meta {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.slot-inspector-meta__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.slot-inspector-meta__label {
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.slot-inspector-meta__value {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-mono);
 }
 
 .operator-summary-strip {
@@ -1256,6 +1433,7 @@ input:checked + .slider:before {
 
 @container drone-card (max-width: 860px) {
   .operator-summary-strip,
+  .operator-indicator-grid,
   .form-grid,
   .custom-field-editor-grid {
     grid-template-columns: 1fr;
@@ -1315,7 +1493,8 @@ input:checked + .slider:before {
     grid-template-columns: 1fr;
   }
 
-  .operator-summary-strip {
+  .operator-summary-strip,
+  .operator-indicator-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1364,6 +1543,10 @@ input:checked + .slider:before {
 
   .promoted-field-chip {
     max-width: 100%;
+  }
+
+  .operator-indicator__note {
+    white-space: normal;
   }
 
   .network-content {
