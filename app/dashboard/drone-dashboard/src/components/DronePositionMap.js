@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   CircleMarker,
@@ -6,6 +6,7 @@ import {
   Polyline,
   Popup,
   useMap,
+  useMapEvents,
 } from 'react-leaflet';
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
@@ -38,13 +39,13 @@ const LaunchMapViewport = ({ points }) => {
 
       const bounds = L.latLngBounds(validPoints);
       if (validPoints.length === 1) {
-        map.setView(validPoints[0], 18, { animate: false });
+        map.setView(validPoints[0], 19, { animate: false });
         return;
       }
 
-      map.fitBounds(bounds.pad(0.22), {
+      map.fitBounds(bounds.pad(validPoints.length <= 3 ? 0.14 : 0.18), {
         animate: false,
-        maxZoom: 18,
+        maxZoom: 19,
       });
     };
 
@@ -64,21 +65,209 @@ LaunchMapViewport.propTypes = {
   points: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.number)).isRequired,
 };
 
-const buildExpectedIcon = (label) =>
+const resolveZoomTier = (zoom) => {
+  if (zoom >= 19) {
+    return {
+      size: 34,
+      fontSize: 11,
+      borderWidth: 3,
+      liveRadius: 10,
+      liveWeight: 3,
+      pathWeight: 3,
+    };
+  }
+
+  if (zoom >= 17) {
+    return {
+      size: 30,
+      fontSize: 10,
+      borderWidth: 3,
+      liveRadius: 9,
+      liveWeight: 3,
+      pathWeight: 2.5,
+    };
+  }
+
+  if (zoom >= 15) {
+    return {
+      size: 26,
+      fontSize: 9,
+      borderWidth: 2,
+      liveRadius: 8,
+      liveWeight: 2.5,
+      pathWeight: 2,
+    };
+  }
+
+  return {
+    size: 22,
+    fontSize: 8,
+    borderWidth: 2,
+    liveRadius: 7,
+    liveWeight: 2,
+    pathWeight: 2,
+  };
+};
+
+const buildExpectedIcon = (label, statusColor, zoom) => {
+  const zoomTier = resolveZoomTier(zoom);
+
   L.divIcon({
-    html: `<div class="drone-position-map__expected-marker">${label}</div>`,
+    html: `
+      <div
+        class="drone-position-map__expected-marker"
+        style="
+          --mds-launch-marker-size:${zoomTier.size}px;
+          --mds-launch-marker-font-size:${zoomTier.fontSize}px;
+          --mds-launch-marker-border-width:${zoomTier.borderWidth}px;
+          --mds-launch-marker-border-color:${statusColor};
+        "
+      >${label}</div>
+    `,
     className: 'drone-position-map__expected-icon',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
+    iconSize: [zoomTier.size, zoomTier.size],
+    iconAnchor: [zoomTier.size / 2, zoomTier.size / 2],
+  });
+};
+
+const buildOriginIcon = (zoom) => {
+  const zoomTier = resolveZoomTier(zoom);
+
+  L.divIcon({
+    html: `
+      <div
+        class="drone-position-map__origin-marker"
+        style="
+          --mds-launch-marker-size:${zoomTier.size}px;
+          --mds-launch-marker-font-size:${zoomTier.fontSize}px;
+          --mds-launch-marker-border-width:${zoomTier.borderWidth}px;
+        "
+      >OR</div>
+    `,
+    className: 'drone-position-map__origin-icon',
+    iconSize: [zoomTier.size, zoomTier.size],
+    iconAnchor: [zoomTier.size / 2, zoomTier.size / 2],
+  });
+};
+
+const LaunchMapMarkerLayer = ({ parsedOriginLat, parsedOriginLon, markers, onDroneClick }) => {
+  const map = useMap();
+  const [zoom, setZoom] = useState(map.getZoom());
+
+  useMapEvents({
+    zoomend: () => {
+      setZoom(map.getZoom());
+    },
   });
 
-const buildOriginIcon = () =>
-  L.divIcon({
-    html: '<div class="drone-position-map__origin-marker">OR</div>',
-    className: 'drone-position-map__origin-icon',
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
+  const zoomTier = resolveZoomTier(zoom);
+
+  return (
+    <>
+      <Marker
+        position={[parsedOriginLat, parsedOriginLon]}
+        icon={buildOriginIcon(zoom)}
+      >
+        <Popup>
+          <strong>Origin</strong>
+          <br />
+          Latitude: {parsedOriginLat.toFixed(6)}
+          <br />
+          Longitude: {parsedOriginLon.toFixed(6)}
+        </Popup>
+      </Marker>
+
+      {markers.map((marker) => {
+        const statusColor = STATUS_COLORS[marker.status] || STATUS_COLORS.no_telemetry;
+        const eventHandlers = onDroneClick
+          ? { click: () => onDroneClick(marker.hwId) }
+          : undefined;
+
+        return (
+          <React.Fragment key={`${marker.hwId}-${marker.posId}`}>
+            <Marker
+              position={[marker.lat, marker.lon]}
+              icon={buildExpectedIcon(marker.posId, statusColor, zoom)}
+              eventHandlers={eventHandlers}
+            >
+              <Popup>
+                <strong>Expected slot {marker.posId}</strong>
+                <br />
+                Drone: {marker.hwId}
+                <br />
+                Latitude: {marker.lat.toFixed(6)}
+                <br />
+                Longitude: {marker.lon.toFixed(6)}
+                <br />
+                Tap the marker to open this drone card.
+              </Popup>
+            </Marker>
+
+            {marker.current && (
+              <>
+                <Polyline
+                  positions={[
+                    [marker.lat, marker.lon],
+                    [marker.current.lat, marker.current.lon],
+                  ]}
+                  pathOptions={{
+                    color: statusColor,
+                    weight: zoomTier.pathWeight,
+                    opacity: 0.72,
+                  }}
+                />
+                <CircleMarker
+                  center={[marker.current.lat, marker.current.lon]}
+                  radius={zoomTier.liveRadius}
+                  pathOptions={{
+                    color: statusColor,
+                    weight: zoomTier.liveWeight,
+                    fillColor: '#0f172a',
+                    fillOpacity: 0.34,
+                  }}
+                >
+                  <Popup>
+                    <strong>Live position</strong>
+                    <br />
+                    Drone: {marker.hwId}
+                    <br />
+                    Slot: {marker.posId}
+                    <br />
+                    Status: {marker.status}
+                    <br />
+                    Deviation: {marker.deviationMeters.toFixed(2)}m
+                    <br />
+                    GPS: {marker.gpsQuality} ({marker.satellites} sats)
+                  </Popup>
+                </CircleMarker>
+              </>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+};
+
+LaunchMapMarkerLayer.propTypes = {
+  parsedOriginLat: PropTypes.number.isRequired,
+  parsedOriginLon: PropTypes.number.isRequired,
+  markers: PropTypes.arrayOf(PropTypes.shape({
+    hwId: PropTypes.string.isRequired,
+    posId: PropTypes.string.isRequired,
+    lat: PropTypes.number.isRequired,
+    lon: PropTypes.number.isRequired,
+    status: PropTypes.string,
+    current: PropTypes.shape({
+      lat: PropTypes.number.isRequired,
+      lon: PropTypes.number.isRequired,
+    }),
+    deviationMeters: PropTypes.number,
+    gpsQuality: PropTypes.string,
+    satellites: PropTypes.number,
+  })).isRequired,
+  onDroneClick: PropTypes.func,
+};
 
 const resolveExpectedCoordinate = (drone, trajectoryPositionsByPosId, deviationLookup, origin, forwardHeading) => {
   const hwId = String(drone.hw_id);
@@ -240,7 +429,7 @@ const DronePositionMap = ({
       <div className="drone-position-map__header">
         <div>
           <h3>Launch Layout Map</h3>
-          <p>Expected slots on satellite tiles, with live position overlays when telemetry is available.</p>
+          <p>Expected slots on satellite imagery, with live deviation overlays and zoom-aware markers for operator review.</p>
         </div>
         <div className="drone-position-map__summary" aria-label="Launch layout map summary">
           <span>{mapState.summary.expected} expected</span>
@@ -254,90 +443,18 @@ const DronePositionMap = ({
       <div className="drone-position-map__canvas">
         <LeafletMapBase
           center={[parsedOriginLat, parsedOriginLon]}
-          zoom={17}
-          defaultLayer="esriSatellite"
+          zoom={18}
+          defaultLayer="googleSatellite"
           showLayerControl={true}
           style={{ width: '100%', height: '100%' }}
         >
           <LaunchMapViewport points={mapState.viewportPoints} />
-
-          <Marker
-            position={[parsedOriginLat, parsedOriginLon]}
-            icon={buildOriginIcon()}
-          >
-            <Popup>
-              <strong>Origin</strong>
-              <br />
-              Latitude: {parsedOriginLat.toFixed(6)}
-              <br />
-              Longitude: {parsedOriginLon.toFixed(6)}
-            </Popup>
-          </Marker>
-
-          {mapState.markers.map((marker) => {
-            const statusColor = STATUS_COLORS[marker.status] || STATUS_COLORS.no_telemetry;
-            const eventHandlers = onDroneClick
-              ? { click: () => onDroneClick(marker.hwId) }
-              : undefined;
-
-            return (
-              <React.Fragment key={`${marker.hwId}-${marker.posId}`}>
-                <Marker
-                  position={[marker.lat, marker.lon]}
-                  icon={buildExpectedIcon(marker.posId)}
-                  eventHandlers={eventHandlers}
-                >
-                  <Popup>
-                    <strong>Expected slot {marker.posId}</strong>
-                    <br />
-                    Drone: {marker.hwId}
-                    <br />
-                    Latitude: {marker.lat.toFixed(6)}
-                    <br />
-                    Longitude: {marker.lon.toFixed(6)}
-                    <br />
-                    Tap the marker to open this drone card.
-                  </Popup>
-                </Marker>
-
-                {marker.current && (
-                  <>
-                    <Polyline
-                      positions={[
-                        [marker.lat, marker.lon],
-                        [marker.current.lat, marker.current.lon],
-                      ]}
-                      pathOptions={{ color: statusColor, weight: 2, opacity: 0.7 }}
-                    />
-                    <CircleMarker
-                      center={[marker.current.lat, marker.current.lon]}
-                      radius={9}
-                      pathOptions={{
-                        color: statusColor,
-                        weight: 3,
-                        fillColor: '#0f172a',
-                        fillOpacity: 0.3,
-                      }}
-                    >
-                      <Popup>
-                        <strong>Live position</strong>
-                        <br />
-                        Drone: {marker.hwId}
-                        <br />
-                        Slot: {marker.posId}
-                        <br />
-                        Status: {marker.status}
-                        <br />
-                        Deviation: {marker.deviationMeters.toFixed(2)}m
-                        <br />
-                        GPS: {marker.gpsQuality} ({marker.satellites} sats)
-                      </Popup>
-                    </CircleMarker>
-                  </>
-                )}
-              </React.Fragment>
-            );
-          })}
+          <LaunchMapMarkerLayer
+            parsedOriginLat={parsedOriginLat}
+            parsedOriginLon={parsedOriginLon}
+            markers={mapState.markers}
+            onDroneClick={onDroneClick}
+          />
         </LeafletMapBase>
       </div>
     </section>

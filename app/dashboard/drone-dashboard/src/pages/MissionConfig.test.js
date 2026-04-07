@@ -150,4 +150,22 @@ describe('MissionConfig origin review surface', () => {
 
     expect(screen.getByTestId('origin-modal')).toBeInTheDocument();
   });
+
+  test('keeps origin status reviewable even when the origin is already ready', () => {
+    const fetchResponses = buildFetchResponseMap({
+      data: { lat: 35.7, lon: 51.2 },
+      loading: false,
+      error: null,
+    });
+
+    useFetch.mockImplementation((endpoint) => fetchResponses[endpoint] || { data: null, loading: false, error: null });
+
+    renderMissionConfig();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /origin ready review/i })
+    );
+
+    expect(screen.getByTestId('origin-modal')).toBeInTheDocument();
+  });
 });

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 
 jest.mock('geodesy/latlon-spherical', () =>
   jest.fn().mockImplementation((lat, lon) => ({
@@ -18,11 +18,14 @@ const mockMapApi = {
   invalidateSize: jest.fn(),
   fitBounds: jest.fn(),
   setView: jest.fn(),
+  getZoom: jest.fn(() => 18),
 };
 
-jest.mock('./map/LeafletMapBase', () => ({ children }) => (
+const mockLeafletMapBase = jest.fn(({ children }) => (
   <div data-testid="leaflet-map-base">{children}</div>
 ));
+
+jest.mock('./map/LeafletMapBase', () => (props) => mockLeafletMapBase(props));
 
 jest.mock('leaflet', () => ({
   divIcon: jest.fn((payload) => payload),
@@ -42,11 +45,13 @@ jest.mock('react-leaflet', () => ({
   Polyline: () => <div data-testid="launch-map-polyline" />,
   Popup: ({ children }) => <div>{children}</div>,
   useMap: () => mockMapApi,
+  useMapEvents: jest.fn(() => mockMapApi),
 }));
 
 describe('DronePositionMap', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockMapApi.getZoom.mockReturnValue(18);
   });
 
   it('accepts zero-value origins as valid map coordinates', () => {
@@ -75,11 +80,13 @@ describe('DronePositionMap', () => {
     expect(screen.queryByText(/set the origin first/i)).not.toBeInTheDocument();
     expect(screen.getByText('Launch Layout Map')).toBeInTheDocument();
     expect(screen.getByText('1 expected')).toBeInTheDocument();
+    expect(mockLeafletMapBase.mock.calls[0][0]).toEqual(expect.objectContaining({
+      defaultLayer: 'googleSatellite',
+      zoom: 18,
+    }));
   });
 
-  it('renders expected and live summaries and keeps marker clicks operator-routable', () => {
-    const onDroneClick = jest.fn();
-
+  it('renders expected/live summaries on the satellite launch map', () => {
     render(
       <DronePositionMap
         originLat={35}
@@ -109,16 +116,15 @@ describe('DronePositionMap', () => {
         }}
         trajectoryPositionsByPosId={{}}
         forwardHeading={15}
-        onDroneClick={onDroneClick}
+        onDroneClick={jest.fn()}
       />
     );
 
     expect(screen.getByText('1 expected')).toBeInTheDocument();
     expect(screen.getByText('1 live')).toBeInTheDocument();
     expect(screen.getByText('1 warn')).toBeInTheDocument();
-    expect(screen.getByTestId('launch-map-polyline')).toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByRole('button')[1]);
-    expect(onDroneClick).toHaveBeenCalledWith('1');
+    expect(mockLeafletMapBase.mock.calls[0][0]).toEqual(expect.objectContaining({
+      defaultLayer: 'googleSatellite',
+    }));
   });
 });

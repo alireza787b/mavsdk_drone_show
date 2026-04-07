@@ -354,6 +354,14 @@ button.mission-config-ops-stat:not(:disabled):hover {
     font-weight: var(--font-weight-bold);
 }
 
+.mission-config-ops-stat__action {
+    color: var(--color-primary);
+    font-size: 0.68rem;
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .mission-config-alert-stack {
     display: grid;
     gap: var(--spacing-sm);

@@ -783,6 +783,7 @@ const MissionConfig = () => {
               ? 'Check failed'
               : 'Needed',
         tone: originStatus === 'ready' ? 'good' : originStatus === 'checking' ? null : 'warning',
+        actionLabel: originStatus === 'ready' ? 'Review' : 'Open',
       },
     ],
     [configData, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originStatus, roleSwaps.length]
@@ -968,11 +969,14 @@ const MissionConfig = () => {
                     key={stat.label}
                     type="button"
                     className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
-                    onClick={stat.label === 'Origin' && originStatus !== 'ready' ? reviewOriginWorkflow : undefined}
-                    disabled={!(stat.label === 'Origin' && originStatus !== 'ready')}
+                    onClick={stat.label === 'Origin' ? reviewOriginWorkflow : undefined}
+                    disabled={stat.label !== 'Origin'}
                   >
                     <span className="mission-config-ops-stat__label">{stat.label}</span>
                     <strong className="mission-config-ops-stat__value">{stat.value}</strong>
+                    {stat.actionLabel ? (
+                      <span className="mission-config-ops-stat__action">{stat.actionLabel}</span>
+                    ) : null}
                   </button>
                 ))}
               </div>
