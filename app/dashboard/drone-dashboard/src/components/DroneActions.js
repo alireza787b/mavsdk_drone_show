@@ -120,10 +120,11 @@ const DroneActions = ({
   onSendCommand,
   onRequestPrecisionMove,
   targetCount = 0,
+  takeoffAltitude = 10,
+  onTakeoffAltitudeChange = () => {},
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
 }) => {
-  const [altitude, setAltitude] = useState(10);
   const [scheduleMode, setScheduleMode] = useState(COMMAND_SCHEDULE_MODES.NOW);
   const [timeDelay, setTimeDelay] = useState(30);
   const [selectedDateTime, setSelectedDateTime] = useState(() => formatDateTimeLocalInput(referenceNowMs + 60_000));
@@ -151,7 +152,7 @@ const DroneActions = ({
     };
 
     if (actionKey === 'TAKE_OFF') {
-      commandData.takeoff_altitude = altitude;
+      commandData.takeoff_altitude = takeoffAltitude;
     }
 
     commandData.uiMeta = {
@@ -168,7 +169,7 @@ const DroneActions = ({
         ...(actionKey === 'TAKE_OFF'
           ? [{
             label: 'Takeoff altitude',
-            value: `${altitude} m`,
+            value: `${takeoffAltitude} m`,
           }]
           : []),
         {
@@ -236,8 +237,8 @@ const DroneActions = ({
           <input
             type="number"
             id="takeoff-altitude"
-            value={altitude}
-            onChange={(e) => setAltitude(Number(e.target.value))}
+            value={takeoffAltitude}
+            onChange={(e) => onTakeoffAltitudeChange(Number(e.target.value))}
             min="1"
             max="1000"
             className="altitude-input"
@@ -351,6 +352,8 @@ DroneActions.propTypes = {
   onSendCommand: PropTypes.func.isRequired,
   onRequestPrecisionMove: PropTypes.func.isRequired,
   targetCount: PropTypes.number,
+  takeoffAltitude: PropTypes.number,
+  onTakeoffAltitudeChange: PropTypes.func,
   referenceNowMs: PropTypes.number,
   clockOffsetLabel: PropTypes.string,
 };

@@ -1053,6 +1053,37 @@
     line-height: var(--line-height-relaxed);
 }
 
+.mission-inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    align-items: center;
+    margin-top: var(--spacing-base);
+}
+
+.mission-inline-actions__primary {
+    border: 1px solid var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
+    border-radius: var(--border-radius-base);
+    padding: 0.6rem 0.9rem;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-base);
+}
+
+.mission-inline-actions__primary:hover {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+
+.mission-inline-actions__note {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed);
+}
+
 .origin-link {
     color: var(--color-primary);
     text-decoration: none;

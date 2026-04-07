@@ -79,12 +79,15 @@ function getMissionPresentation(missionType) {
 const MissionTrigger = ({
   missionTypes,
   onSendCommand,
+  drones = [],
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
   targetMode = 'all',
   selectedDrones = [],
   targetDroneIds = [],
   targetSummaryLabel = 'All targeted drones',
+  takeoffAltitude = 10,
+  onQuickTakeoffGrounded = null,
 }) => {
   const [selectedMission, setSelectedMission] = useState('');
   const [timeDelay, setTimeDelay] = useState(defaultTriggerTimeDelay);
@@ -248,6 +251,9 @@ const MissionTrigger = ({
               selectedDrones={selectedDrones}
               targetDroneIds={targetDroneIds}
               targetSummaryLabel={targetSummaryLabel}
+              drones={drones}
+              takeoffAltitude={takeoffAltitude}
+              onQuickTakeoffGrounded={onQuickTakeoffGrounded}
               onSend={handleSend}
               onBack={handleBack}
             />

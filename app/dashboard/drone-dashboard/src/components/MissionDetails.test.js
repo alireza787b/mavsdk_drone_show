@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import MissionDetails from './MissionDetails';
@@ -383,5 +383,76 @@ describe('MissionDetails Swarm Trajectory gating', () => {
 
     expect(screen.getByText('2 leader chains are incomplete: Drone 2 requires leader 1; Drone 3 requires leader 1.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeDisabled();
+  });
+});
+
+describe('MissionDetails Smart Swarm airborne gating', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    useSwarmClusterStatus.mockReturnValue({
+      data: null,
+      error: null,
+      loading: false,
+      refresh: jest.fn(),
+    });
+  });
+
+  test('blocks Smart Swarm when selected targets are still grounded and offers quick takeoff', () => {
+    const onQuickTakeoffGrounded = jest.fn();
+    useFetch.mockImplementation((routeKey) => {
+      if (routeKey === 'swarmLeaders') {
+        return {
+          data: {
+            leaders: [1],
+            follower_details: {
+              1: [2],
+            },
+          },
+          error: null,
+          loading: false,
+        };
+      }
+
+      return { data: null, error: null, loading: false };
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MissionDetails
+          {...baseProps}
+          missionType={DRONE_MISSION_TYPES.SMART_SWARM}
+          label="Smart Swarm"
+          drones={[
+            {
+              hw_id: '1',
+              update_time: Date.now(),
+              heartbeat_last_seen: Date.now(),
+              is_armed: false,
+              position_alt: 0.05,
+            },
+            {
+              hw_id: '2',
+              update_time: Date.now(),
+              heartbeat_last_seen: Date.now(),
+              is_armed: true,
+              position_alt: 4.2,
+            },
+          ]}
+          targetMode="selected"
+          selectedDrones={['1', '2']}
+          takeoffAltitude={12}
+          onQuickTakeoffGrounded={onQuickTakeoffGrounded}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/1 targeted drone is not airborne yet/i)).toBeInTheDocument();
+    expect(screen.getByText('Airborne targets:')).toBeInTheDocument();
+    expect(screen.getByText('1/2')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take off grounded drones to 12 m' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Take off grounded drones to 12 m' }));
+    expect(onQuickTakeoffGrounded).toHaveBeenCalledWith(['1']);
   });
 });

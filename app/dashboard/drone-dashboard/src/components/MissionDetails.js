@@ -23,6 +23,7 @@ import {
   formatSwarmTrajectoryAltitudeEnvelope,
   formatSwarmTrajectoryMissionSeconds,
 } from '../utilities/swarmTrajectoryPackageStats';
+import { buildSmartSwarmLaunchReadiness } from '../utilities/smartSwarmLaunchReadiness';
 
 const MissionDetails = ({
   missionType,
@@ -34,6 +35,7 @@ const MissionDetails = ({
   selectedDrones = [],
   targetDroneIds = [],
   targetSummaryLabel = 'All targeted drones',
+  drones = [],
   scheduleMode,
   timeDelay,
   selectedDateTime,
@@ -47,6 +49,8 @@ const MissionDetails = ({
   delayPresets = [],
   referenceNowMs = Date.now(),
   clockOffsetLabel = null,
+  takeoffAltitude = 10,
+  onQuickTakeoffGrounded = null,
   onSend,
   onBack,
 }) => {
@@ -222,6 +226,15 @@ const MissionDetails = ({
   const customShowWarnings = [];
   const smartSwarmBlockers = [];
   const smartSwarmWarnings = [];
+  const smartSwarmLaunchReadiness = smartSwarmHints
+    ? buildSmartSwarmLaunchReadiness({
+      drones,
+      targetMode,
+      selectedDrones,
+      targetDroneIds,
+      referenceNowMs,
+    })
+    : null;
   const swarmTrajectoryWarningsList = [...swarmTrajectoryWarnings];
   const scheduleDoctrine = getMissionScheduleDoctrine(missionType);
 
@@ -302,6 +315,19 @@ const MissionDetails = ({
 
     if (!smartSwarmLoading && leaders.length > 0 && totalFollowers === 0) {
       smartSwarmWarnings.push('The current topology has leaders but no follower links.');
+    }
+
+    if ((smartSwarmLaunchReadiness?.groundedDrones?.length || 0) > 0) {
+      const groundedCount = smartSwarmLaunchReadiness.groundedDrones.length;
+      const groundedLabels = smartSwarmLaunchReadiness.groundedDrones
+        .slice(0, 4)
+        .map((drone) => drone.label)
+        .join(', ');
+      const overflow = groundedCount > 4 ? ` +${groundedCount - 4} more` : '';
+
+      smartSwarmBlockers.push(
+        `${groundedCount} targeted drone${groundedCount === 1 ? ' is' : 's are'} not airborne yet (${groundedLabels}${overflow}). Launch them before starting Smart Swarm.`
+      );
     }
   }
 
@@ -407,6 +433,7 @@ const MissionDetails = ({
     blockers = [],
     warnings = [],
     reference = null,
+    actions = null,
     notes = null,
   }) => {
     const hasBlockers = blockers.length > 0;
@@ -436,6 +463,7 @@ const MissionDetails = ({
           {renderIssueDigest('Blockers to resolve', blockers, 'danger')}
           {renderIssueDigest('Operator advisories', warnings, 'warning')}
           {reference}
+          {actions}
           {notes}
         </div>
       </div>
@@ -861,7 +889,14 @@ const MissionDetails = ({
                 0,
               ),
             },
+            {
+              label: 'Airborne targets:',
+              value: smartSwarmLaunchReadiness
+                ? `${smartSwarmLaunchReadiness.airborneCount}/${smartSwarmLaunchReadiness.targetCount || 0}`
+                : 'Unknown',
+            },
           ],
+          blockers: missionBlockers,
           warnings: missionWarnings,
           reference: (
             <p>
@@ -872,9 +907,24 @@ const MissionDetails = ({
               before launch.
             </p>
           ),
+          actions: smartSwarmLaunchReadiness?.groundedIds?.length > 0 && typeof onQuickTakeoffGrounded === 'function' ? (
+            <div className="mission-inline-actions">
+              <button
+                type="button"
+                className="mission-inline-actions__primary"
+                onClick={() => onQuickTakeoffGrounded(smartSwarmLaunchReadiness.groundedIds)}
+              >
+                Take off grounded drones to {takeoffAltitude} m
+              </button>
+              <span className="mission-inline-actions__note">
+                Uses the current Action takeoff altitude and immediate dispatch.
+              </span>
+            </div>
+          ) : null,
           notes: renderOperatorNotes('Swarm notes', [
             'This mission uses the live Smart Swarm formation topology, not pre-processed leader trajectories.',
             'Verify leader and follower roles, offsets, and frame selection in Swarm Design before launch.',
+            'Smart Swarm is an airborne-mode mission. Launch grounded targets first, then dispatch the formation.',
             'Use immediate overrides like Hold, RTL, or Land to recover drones individually while the rest of the swarm stays in mode.',
           ]),
         })

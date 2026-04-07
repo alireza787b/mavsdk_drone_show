@@ -14,6 +14,7 @@ import { faRocket, faCog } from '@fortawesome/free-solid-svg-icons';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
+  DRONE_ACTION_NAMES,
   getCommandName,
 } from '../constants/droneConstants';
 import {
@@ -24,6 +25,7 @@ import {
   formatCommandAbsoluteTime,
   getFleetReferenceClock,
 } from '../utilities/commandScheduling';
+import { getActionExecutionPolicy } from '../utilities/commandExecutionPolicy';
 import {
   DRONE_SEARCH_HELP_TEXT,
   DRONE_SEARCH_PLACEHOLDER,
@@ -59,6 +61,7 @@ const CommandSender = ({
   const [internalSelectedClusterScope, setInternalSelectedClusterScope] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [precisionMoveDialogOpen, setPrecisionMoveDialogOpen] = useState(false);
+  const [takeoffAltitude, setTakeoffAltitude] = useState(10);
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -434,6 +437,43 @@ const CommandSender = ({
     }
 
     setPrecisionMoveDialogOpen(true);
+  };
+
+  const handleQuickTakeoffGrounded = (groundedDroneIds = []) => {
+    const normalizedTargets = Array.from(
+      new Set((groundedDroneIds || []).map((value) => String(value)).filter(Boolean)),
+    );
+
+    if (normalizedTargets.length === 0) {
+      toast.info('No grounded Smart Swarm targets are available for quick takeoff.');
+      return;
+    }
+
+    handleSendCommand({
+      missionType: String(DRONE_ACTION_TYPES.TAKE_OFF),
+      triggerTime: '0',
+      target_drones: normalizedTargets,
+      takeoff_altitude: takeoffAltitude,
+      uiMeta: {
+        operatorLabel: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.TAKE_OFF],
+        confirmationMessage: `Take Off → ${normalizedTargets.length} grounded Smart Swarm target${normalizedTargets.length === 1 ? '' : 's'} to ${takeoffAltitude} m?`,
+        triggerSummary: 'Immediate on acceptance',
+        details: [
+          {
+            label: 'Takeoff altitude',
+            value: `${takeoffAltitude} m`,
+          },
+          {
+            label: 'Reason',
+            value: 'Launches the grounded Smart Swarm targets before you retry formation dispatch.',
+          },
+          {
+            label: 'Execution policy',
+            value: getActionExecutionPolicy({ actionKey: 'TAKE_OFF', isImmediate: true }),
+          },
+        ],
+      },
+    });
   };
 
   const handleClosePrecisionMoveDialog = () => {
@@ -832,12 +872,15 @@ const CommandSender = ({
           <MissionTrigger
             missionTypes={DRONE_MISSION_TYPES}
             onSendCommand={handleSendCommand}
+            drones={drones}
             referenceNowMs={fleetClock.referenceNowMs}
             clockOffsetLabel={clockOffsetLabel}
             targetMode={targetMode}
             selectedDrones={selectedDrones}
             targetDroneIds={scopedTargetIds}
             targetSummaryLabel={targetLabel}
+            takeoffAltitude={takeoffAltitude}
+            onQuickTakeoffGrounded={handleQuickTakeoffGrounded}
           />
         )}
         {activeTab === 'actions' && (
@@ -846,6 +889,8 @@ const CommandSender = ({
             onSendCommand={handleSendCommand}
             onRequestPrecisionMove={handleRequestPrecisionMove}
             targetCount={targetCount}
+            takeoffAltitude={takeoffAltitude}
+            onTakeoffAltitudeChange={setTakeoffAltitude}
             referenceNowMs={fleetClock.referenceNowMs}
             clockOffsetLabel={clockOffsetLabel}
           />

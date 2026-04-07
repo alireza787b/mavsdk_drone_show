@@ -918,3 +918,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ---
 
 © 2025 Alireza Ghaderi | Licensed under CC BY-NC-SA 4.0
+# 2026-04-07
+
+### Smart Swarm Airborne Gate
+- Added Smart Swarm launch readiness gating in the dashboard so grounded targets now block formation dispatch, show the airborne count in scope, and expose a one-click quick-takeoff action for just the grounded drones using the shared Take Off altitude.
+- Fixed the Smart Swarm readiness card so mission blockers render alongside advisories instead of silently hiding airborne-launch problems.
+- Added reusable `smartSwarmLaunchReadiness` coverage plus Smart Swarm mission-detail tests for the grounded-target quick-takeoff workflow.
