@@ -1,0 +1,92 @@
+import time
+
+from sar.schemas import (
+    CoverageWaypoint,
+    DroneCoveragePlan,
+    DroneSurveyState,
+    POI,
+    QuickScoutOperationRecord,
+    SearchArea,
+    SearchAreaPoint,
+    SurveyConfig,
+    SurveyState,
+)
+import sar.store as store_module
+
+
+def _build_operation() -> QuickScoutOperationRecord:
+    search_area = SearchArea(
+        points=[
+            SearchAreaPoint(lat=47.0, lng=8.0),
+            SearchAreaPoint(lat=47.001, lng=8.0),
+            SearchAreaPoint(lat=47.001, lng=8.001),
+        ]
+    )
+    waypoint = CoverageWaypoint(
+        lat=47.0,
+        lng=8.0,
+        alt_msl=50.0,
+        is_survey_leg=True,
+        speed_ms=5.0,
+        sequence=0,
+    )
+    plan = DroneCoveragePlan(
+        hw_id="1",
+        pos_id=0,
+        waypoints=[waypoint],
+        assigned_area_sq_m=100.0,
+        estimated_duration_s=10.0,
+        total_distance_m=50.0,
+    )
+    now = time.time()
+    return QuickScoutOperationRecord(
+        mission_id="mission-1",
+        state=SurveyState.READY,
+        search_area=search_area,
+        survey_config=SurveyConfig(),
+        plans=[plan],
+        drone_states={
+            "1": DroneSurveyState(hw_id="1", state=SurveyState.READY, total_waypoints=0),
+        },
+        total_area_sq_m=100.0,
+        estimated_coverage_time_s=10.0,
+        algorithm_used="boustrophedon",
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def test_quickscout_store_persists_operations(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
+    store_module._store_instance = None
+
+    store = store_module.get_quickscout_store()
+    operation = _build_operation()
+    store.save_operation(operation)
+
+    store_module._store_instance = None
+    reopened = store_module.get_quickscout_store()
+    loaded = reopened.get_operation("mission-1")
+
+    assert loaded is not None
+    assert loaded.mission_id == "mission-1"
+    assert loaded.state == SurveyState.READY
+    assert loaded.total_area_sq_m == 100.0
+
+
+def test_quickscout_store_persists_pois(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
+    store_module._store_instance = None
+
+    store = store_module.get_quickscout_store()
+    store.save_operation(_build_operation())
+    poi = POI(id="poi-1", lat=47.0, lng=8.0, notes="marker", mission_id="mission-1")
+    store.save_poi("mission-1", poi)
+
+    store_module._store_instance = None
+    reopened = store_module.get_quickscout_store()
+    loaded = reopened.list_pois("mission-1")
+
+    assert len(loaded) == 1
+    assert loaded[0].id == "poi-1"
+    assert loaded[0].notes == "marker"

@@ -87,6 +87,7 @@ class CoverageWaypoint(BaseModel):
     is_survey_leg: bool = Field(default=True, description="True if survey leg, False if transit")
     speed_ms: float = Field(..., gt=0, description="Target speed (m/s)")
     yaw_deg: Optional[float] = Field(None, description="Target yaw (degrees)")
+    camera_interval_s: Optional[float] = Field(None, gt=0, description="Camera trigger interval (s)")
     sequence: int = Field(..., ge=0, description="Waypoint sequence number")
 
 
@@ -151,6 +152,36 @@ class MissionStatus(BaseModel):
     total_coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Total coverage (%)")
     elapsed_time_s: float = Field(default=0.0, ge=0, description="Elapsed time (s)")
     started_at: Optional[float] = Field(None, description="Mission start timestamp (Unix epoch)")
+
+
+class QuickScoutOperationRecord(BaseModel):
+    """Durable QuickScout operation record stored on the GCS."""
+    model_config = ConfigDict(extra='ignore')
+
+    mission_id: str = Field(..., description="Mission unique identifier")
+    state: SurveyState = Field(default=SurveyState.PLANNING, description="Overall mission state")
+    search_area: SearchArea = Field(..., description="Search area definition")
+    survey_config: SurveyConfig = Field(default_factory=SurveyConfig, description="Survey parameters")
+    pos_ids: Optional[List[int]] = Field(None, description="Requested target drone position IDs")
+    return_behavior: ReturnBehavior = Field(
+        default=ReturnBehavior.RETURN_HOME,
+        description="Configured end-of-mission behavior",
+    )
+    plans: List[DroneCoveragePlan] = Field(default_factory=list, description="Per-drone coverage plans")
+    drone_states: Dict[str, DroneSurveyState] = Field(
+        default_factory=dict,
+        description="Per-drone states keyed by hw_id",
+    )
+    total_area_sq_m: float = Field(default=0.0, ge=0, description="Total search area (sq m)")
+    estimated_coverage_time_s: float = Field(default=0.0, ge=0, description="Estimated coverage time (s)")
+    algorithm_used: str = Field(default="boustrophedon", description="Planner algorithm used")
+    created_at: float = Field(..., description="Creation timestamp (Unix epoch)")
+    updated_at: float = Field(..., description="Last-update timestamp (Unix epoch)")
+    started_at: Optional[float] = Field(None, description="Mission launch timestamp (Unix epoch)")
+    launch_summary: Optional[Dict] = Field(
+        None,
+        description="Latest launch/control summary for operator recovery",
+    )
 
 
 class DroneProgressReport(BaseModel):

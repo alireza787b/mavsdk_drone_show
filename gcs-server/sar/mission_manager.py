@@ -1,169 +1,78 @@
 # gcs-server/sar/mission_manager.py
 """
-QuickScout SAR - Mission Manager
+Compatibility adapter for legacy QuickScout mission-manager callers.
 
-In-memory mission lifecycle management with singleton pattern.
+The old implementation kept mission state in-memory. The active storage now
+flows through the durable QuickScout service/store, but some tests and older
+call sites still import `get_mission_manager()`. Keep this adapter until the
+subsystem is fully migrated.
 """
 
-import time
-import threading
-from typing import Dict, Optional, List
+from __future__ import annotations
 
-from sar.schemas import (
-    MissionStatus, DroneSurveyState, SurveyState, DroneCoveragePlan, SurveyConfig
-)
-from mds_logging import get_logger
+from typing import List, Optional
 
-logger = get_logger("mission_manager")
+from sar.service import get_quickscout_service
 
-_manager_instance = None
-_manager_lock = threading.Lock()
+_manager_instance: "MissionManager | None" = None
 
 
-def get_mission_manager() -> 'MissionManager':
-    """Get or create the singleton MissionManager instance."""
+def get_mission_manager() -> "MissionManager":
     global _manager_instance
     if _manager_instance is None:
-        with _manager_lock:
-            if _manager_instance is None:
-                _manager_instance = MissionManager()
+        _manager_instance = MissionManager()
     return _manager_instance
 
 
 class MissionManager:
-    """In-memory mission state store and lifecycle manager."""
-
-    MAX_MISSIONS = 50  # Evict oldest missions beyond this limit
+    """Compatibility wrapper over the durable QuickScout service."""
 
     def __init__(self):
-        self._missions: Dict[str, MissionStatus] = {}
-        self._plans: Dict[str, List[DroneCoveragePlan]] = {}
-        self._configs: Dict[str, SurveyConfig] = {}
-        self._mission_order: List[str] = []  # Track insertion order for LRU eviction
-        self._lock = threading.Lock()
+        self._service = get_quickscout_service()
 
-    def _evict_oldest(self):
-        """Remove oldest missions if over limit. Must be called under lock."""
-        while len(self._mission_order) > self.MAX_MISSIONS:
-            oldest_id = self._mission_order.pop(0)
-            self._missions.pop(oldest_id, None)
-            self._plans.pop(oldest_id, None)
-            self._configs.pop(oldest_id, None)
-            logger.info(f"Evicted old mission {oldest_id} (limit: {self.MAX_MISSIONS})")
+    def create_mission(self, mission_id, plans, config):
+        raise NotImplementedError("Legacy create_mission direct calls are no longer supported")
 
-    def create_mission(
-        self, mission_id: str, plans: List[DroneCoveragePlan], config: SurveyConfig
-    ) -> MissionStatus:
-        drone_states = {}
-        for plan in plans:
-            drone_states[plan.hw_id] = DroneSurveyState(
-                hw_id=plan.hw_id,
-                state=SurveyState.READY,
-                total_waypoints=len(plan.waypoints),
-            )
-        status = MissionStatus(
-            mission_id=mission_id,
-            state=SurveyState.READY,
-            drone_states=drone_states,
-        )
-        with self._lock:
-            self._missions[mission_id] = status
-            self._plans[mission_id] = plans
-            self._configs[mission_id] = config
-            self._mission_order.append(mission_id)
-            self._evict_oldest()
-        logger.info(f"Mission {mission_id} created with {len(plans)} drones")
-        return status
+    def get_status(self, mission_id: str):
+        return self._service.get_status(mission_id)
 
-    def get_status(self, mission_id: str) -> Optional[MissionStatus]:
-        with self._lock:
-            status = self._missions.get(mission_id)
-            if status:
-                if status.started_at:
-                    status.elapsed_time_s = time.time() - status.started_at
-                if status.drone_states:
-                    total_pct = sum(
-                        ds.coverage_percent for ds in status.drone_states.values()
-                    ) / len(status.drone_states)
-                    status.total_coverage_percent = total_pct
-            return status
+    def get_plans(self, mission_id: str):
+        return self._service.get_plans(mission_id)
 
-    def get_plans(self, mission_id: str) -> Optional[List[DroneCoveragePlan]]:
-        with self._lock:
-            return self._plans.get(mission_id)
+    def get_config(self, mission_id: str):
+        return self._service.get_config(mission_id)
 
-    def get_config(self, mission_id: str) -> Optional[SurveyConfig]:
-        with self._lock:
-            return self._configs.get(mission_id)
-
-    def start_mission(self, mission_id: str) -> Optional[MissionStatus]:
-        with self._lock:
-            status = self._missions.get(mission_id)
-            if not status:
-                return None
-            status.state = SurveyState.EXECUTING
-            status.started_at = time.time()
-            for ds in status.drone_states.values():
-                ds.state = SurveyState.EXECUTING
-            return status
+    def start_mission(self, mission_id: str):
+        return self._service.start_mission(mission_id)
 
     def update_drone_progress(
-        self, mission_id: str, hw_id: str,
-        current_waypoint_index: int, total_waypoints: int,
-        distance_covered_m: float = 0, state: Optional[SurveyState] = None,
+        self,
+        mission_id: str,
+        hw_id: str,
+        current_waypoint_index: int,
+        total_waypoints: int,
+        distance_covered_m: float = 0,
+        state=None,
     ) -> bool:
-        with self._lock:
-            status = self._missions.get(mission_id)
-            if not status or hw_id not in status.drone_states:
-                return False
-            ds = status.drone_states[hw_id]
-            ds.current_waypoint_index = current_waypoint_index
-            ds.total_waypoints = total_waypoints
-            ds.distance_covered_m = distance_covered_m
-            if total_waypoints > 0:
-                ds.coverage_percent = (current_waypoint_index / total_waypoints) * 100.0
-            if state:
-                ds.state = state
-            elif current_waypoint_index >= total_waypoints and total_waypoints > 0:
-                ds.state = SurveyState.COMPLETED
-            if all(d.state == SurveyState.COMPLETED for d in status.drone_states.values()):
-                status.state = SurveyState.COMPLETED
-            return True
+        return self._service.update_drone_progress(
+            mission_id=mission_id,
+            hw_id=hw_id,
+            current_waypoint_index=current_waypoint_index,
+            total_waypoints=total_waypoints,
+            distance_covered_m=distance_covered_m,
+            state=state,
+        )
 
     def pause_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None) -> bool:
-        with self._lock:
-            status = self._missions.get(mission_id)
-            if not status:
-                return False
-            for hw_id, ds in status.drone_states.items():
-                if hw_ids is None or hw_id in hw_ids:
-                    if ds.state == SurveyState.EXECUTING:
-                        ds.state = SurveyState.PAUSED
-            if all(ds.state == SurveyState.PAUSED for ds in status.drone_states.values()):
-                status.state = SurveyState.PAUSED
-            return True
+        return self._service.pause_mission(mission_id, hw_ids)
 
     def resume_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None) -> bool:
-        with self._lock:
-            status = self._missions.get(mission_id)
-            if not status:
-                return False
-            for hw_id, ds in status.drone_states.items():
-                if hw_ids is None or hw_id in hw_ids:
-                    if ds.state == SurveyState.PAUSED:
-                        ds.state = SurveyState.EXECUTING
-            if any(ds.state == SurveyState.EXECUTING for ds in status.drone_states.values()):
-                status.state = SurveyState.EXECUTING
-            return True
+        return self._service.resume_mission(mission_id, hw_ids)
 
-    def abort_mission(self, mission_id: str, hw_ids: Optional[List[str]] = None, return_behavior: str = "return_home") -> bool:
-        with self._lock:
-            status = self._missions.get(mission_id)
-            if not status:
-                return False
-            for hw_id, ds in status.drone_states.items():
-                if hw_ids is None or hw_id in hw_ids:
-                    ds.state = SurveyState.ABORTED
-            if all(ds.state == SurveyState.ABORTED for ds in status.drone_states.values()):
-                status.state = SurveyState.ABORTED
-            return True
+    def abort_mission(
+        self,
+        mission_id: str,
+        hw_ids: Optional[List[str]] = None,
+        return_behavior: str = "return_home",
+    ) -> bool:
+        return self._service.abort_mission(mission_id, hw_ids, return_behavior)

@@ -66,15 +66,22 @@ def client():
 
 
 @pytest.fixture(autouse=True)
-def reset_managers():
-    """Reset singleton managers between tests."""
+def reset_managers(tmp_path, monkeypatch):
+    """Reset QuickScout singletons and isolate durable state between tests."""
+    monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
     import sar.mission_manager as mm
     import sar.poi_manager as pm
+    import sar.service as svc
+    import sar.store as store
     mm._manager_instance = None
     pm._poi_instance = None
+    svc._service_instance = None
+    store._store_instance = None
     yield
     mm._manager_instance = None
     pm._poi_instance = None
+    svc._service_instance = None
+    store._store_instance = None
 
 
 def make_plan_request(pos_ids=None):
@@ -234,14 +241,20 @@ class TestMissionLifecycle:
 
 
 class TestPOIEndpoints:
+    def _plan_and_get_id(self, client):
+        resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
+        assert resp.status_code == 200
+        return resp.json()["mission_id"]
+
     def test_create_and_list_pois(self, client):
         """POST /poi + GET /poi lifecycle."""
+        mission_id = self._plan_and_get_id(client)
         poi_data = {
             "lat": 47.001, "lng": 8.001,
             "type": "person", "priority": "high",
             "notes": "Test POI",
         }
-        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": "test-mission"})
+        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": mission_id})
         assert resp.status_code == 200
         poi = resp.json()
         assert poi["lat"] == 47.001
@@ -249,7 +262,7 @@ class TestPOIEndpoints:
         assert poi["id"] is not None
 
         # List POIs
-        resp = client.get("/api/sar/poi", params={"mission_id": "test-mission"})
+        resp = client.get("/api/sar/poi", params={"mission_id": mission_id})
         assert resp.status_code == 200
         pois = resp.json()
         assert len(pois) == 1
@@ -257,8 +270,9 @@ class TestPOIEndpoints:
 
     def test_update_poi(self, client):
         """PATCH /poi/{id} should update fields."""
+        mission_id = self._plan_and_get_id(client)
         poi_data = {"lat": 47.0, "lng": 8.0}
-        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": "m1"})
+        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": mission_id})
         poi_id = resp.json()["id"]
 
         resp = client.patch(f"/api/sar/poi/{poi_id}", json={"notes": "Updated"})
@@ -267,15 +281,16 @@ class TestPOIEndpoints:
 
     def test_delete_poi(self, client):
         """DELETE /poi/{id} should remove POI."""
+        mission_id = self._plan_and_get_id(client)
         poi_data = {"lat": 47.0, "lng": 8.0}
-        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": "m1"})
+        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": mission_id})
         poi_id = resp.json()["id"]
 
         resp = client.delete(f"/api/sar/poi/{poi_id}")
         assert resp.status_code == 200
 
         # Verify it's gone
-        resp = client.get("/api/sar/poi", params={"mission_id": "m1"})
+        resp = client.get("/api/sar/poi", params={"mission_id": mission_id})
         assert len(resp.json()) == 0
 
     def test_delete_poi_not_found(self, client):

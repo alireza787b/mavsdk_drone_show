@@ -214,3 +214,4 @@ QUICKSCOUT_IMPLEMENTATION_PROMPT.md
 multiple_sitl/**/build/
 .benchmarks/
 temp/
+runtime_data/

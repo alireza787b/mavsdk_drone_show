@@ -12,6 +12,19 @@ from sar.routes import create_sar_router
 pytestmark = pytest.mark.skipif(not SHAPELY_AVAILABLE, reason="shapely not installed")
 
 
+@pytest.fixture(autouse=True)
+def reset_quickscout_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
+    import sar.service as svc
+    import sar.store as store
+
+    svc._service_instance = None
+    store._store_instance = None
+    yield
+    svc._service_instance = None
+    store._store_instance = None
+
+
 def _make_deps():
     return SimpleNamespace(
         telemetry_data_all_drones={

@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-07 QuickScout foundation phase 1 checkpoint note documenting the new durable SQLite-backed QuickScout store, the backend service boundary that replaces the old in-memory mission/POI managers, the stricter live-GPS planning gate, the camera-interval waypoint persistence, and the focused backend validation results
 - a 2026-04-07 Mission Config launch-map polish checkpoint note documenting the Google-satellite default, tighter launch-layout fit behavior, zoom-adaptive marker styling, always-reviewable Origin status affordance, and the focused Hetzner React validation/build results
 - a 2026-04-07 Mission Config actionable-alert checkpoint note documenting the new clickable Mission Config review alerts, the origin-loading versus origin-missing distinction, the origin-workflow jump action, the zero-origin Mission Layout export fix, and the focused Hetzner React validation/build results
 - a 2026-04-07 Mission Config launch-map and git-sync finalization checkpoint note documenting the new expected/live Leaflet launch map, zero-origin handling fix, click-through card parity, explicit sync target branch/commit reporting, and the final live Hetzner runtime cleanup
