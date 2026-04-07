@@ -1,0 +1,19 @@
+{
+  "title": "Advanced Operator Regression",
+  "description": "Run the stable operator gate plus the integrated mixed-mode override drill.",
+  "tags": ["advanced", "operator", "regression", "full-suite"],
+  "steps": [
+    {
+      "validator": "configuration"
+    },
+    {
+      "validator": "drone_show"
+    },
+    {
+      "validator": "actions"
+    },
+    {
+      "validator": "integrated_runtime"
+    }
+  ]
+}

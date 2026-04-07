@@ -41,18 +41,21 @@ MODE_CONFIGURATION = "configuration"
 MODE_ACTIONS = "actions"
 MODE_SMART_SWARM = "smart_swarm"
 MODE_SWARM_TRAJECTORY = "swarm_trajectory"
+MODE_INTEGRATED_RUNTIME = "integrated_runtime"
 VALIDATION_MODES = (
     MODE_CONFIGURATION,
     MODE_DRONE_SHOW,
     MODE_ACTIONS,
     MODE_SMART_SWARM,
     MODE_SWARM_TRAJECTORY,
+    MODE_INTEGRATED_RUNTIME,
 )
 
 TEMPLATE_OPERATOR_REGRESSION = "operator_regression"
 TEMPLATE_MISSION_REGRESSION = "mission_regression"
 TEMPLATE_ACTIONS_ONLY = "actions_only"
 TEMPLATE_CONFIG_ONLY = "config_only"
+TEMPLATE_INTEGRATED_ONLY = "integrated_only"
 
 TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
     TEMPLATE_OPERATOR_REGRESSION: {
@@ -83,6 +86,12 @@ TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "Reset plus the Mission Config / swarm / origin runtime validator only.",
         "steps": [
             {"validator": MODE_CONFIGURATION},
+        ],
+    },
+    TEMPLATE_INTEGRATED_ONLY: {
+        "description": "Reset plus the mixed-mode Smart Swarm / leader-override / Precision Move validator only.",
+        "steps": [
+            {"validator": MODE_INTEGRATED_RUNTIME},
         ],
     },
 }
@@ -305,12 +314,68 @@ def build_swarm_trajectory_command(
     return command
 
 
+def build_integrated_runtime_command(
+    args: argparse.Namespace,
+    json_path: Path,
+    *,
+    drone_ids: tuple[int, ...],
+    options: dict[str, Any],
+) -> list[str]:
+    return [
+        args.python,
+        "tools/validate_integrated_runtime.py",
+        "--base-url",
+        args.base_url,
+        "--repo-root",
+        str(args.repo_root),
+        "--json-output",
+        str(json_path),
+        "--drone-ids",
+        *[str(drone_id) for drone_id in drone_ids],
+        "--takeoff-min-gain",
+        str(option_value(args, options, "integrated_takeoff_min_gain")),
+        "--formation-horizontal-tolerance",
+        str(option_value(args, options, "integrated_formation_horizontal_tolerance")),
+        "--formation-altitude-tolerance",
+        str(option_value(args, options, "integrated_formation_altitude_tolerance")),
+        "--formation-min-timeout",
+        str(option_value(args, options, "integrated_formation_min_timeout")),
+        "--max-smart-swarm-velocity",
+        str(option_value(args, options, "integrated_max_velocity")),
+        "--stability-samples",
+        str(option_value(args, options, "integrated_stability_samples")),
+        "--follower-spacing-m",
+        str(option_value(args, options, "integrated_follower_spacing_m")),
+        "--reassign-offset-m",
+        str(option_value(args, options, "integrated_reassign_offset_m")),
+        "--trajectory-altitude-gain",
+        str(option_value(args, options, "integrated_trajectory_altitude_gain")),
+        "--trajectory-entry-delay",
+        str(option_value(args, options, "integrated_trajectory_entry_delay")),
+        "--trajectory-leg-duration",
+        str(option_value(args, options, "integrated_trajectory_leg_duration")),
+        "--precision-move-north",
+        str(option_value(args, options, "integrated_precision_move_north")),
+        "--precision-move-east",
+        str(option_value(args, options, "integrated_precision_move_east")),
+        "--precision-move-up",
+        str(option_value(args, options, "integrated_precision_move_up")),
+        "--precision-move-speed",
+        str(option_value(args, options, "integrated_precision_move_speed")),
+        "--precision-move-tolerance",
+        str(option_value(args, options, "integrated_precision_move_tolerance")),
+        "--precision-move-start-threshold",
+        str(option_value(args, options, "integrated_precision_move_start_threshold")),
+    ]
+
+
 VALIDATOR_BUILDERS = {
     MODE_CONFIGURATION: build_configuration_command,
     MODE_DRONE_SHOW: build_drone_show_command,
     MODE_ACTIONS: build_actions_command,
     MODE_SMART_SWARM: build_smart_swarm_command,
     MODE_SWARM_TRAJECTORY: build_swarm_trajectory_command,
+    MODE_INTEGRATED_RUNTIME: build_integrated_runtime_command,
 }
 
 
@@ -786,6 +851,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trajectory-vert-tolerance", type=float, default=8.0, help="Swarm Trajectory vertical formation tolerance")
     parser.add_argument("--trajectory-min-altitude-gain", type=float, default=2.0, help="Swarm Trajectory minimum altitude gain before formation sampling")
     parser.add_argument("--trajectory-formation-timeout", type=int, default=120, help="Swarm Trajectory formation timeout in seconds")
+    parser.add_argument("--integrated-takeoff-min-gain", type=float, default=4.0, help="Minimum altitude gain required after TAKEOFF in the integrated mixed-mode validator")
+    parser.add_argument("--integrated-formation-horizontal-tolerance", type=float, default=8.0, help="Follower horizontal tolerance during the integrated mixed-mode validator")
+    parser.add_argument("--integrated-formation-altitude-tolerance", type=float, default=2.0, help="Follower altitude tolerance during the integrated mixed-mode validator")
+    parser.add_argument("--integrated-formation-min-timeout", type=int, default=45, help="Minimum formation timeout used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-max-velocity", type=float, default=3.0, help="Expected Smart Swarm max velocity used for integrated mixed-mode timeout sizing")
+    parser.add_argument("--integrated-stability-samples", type=int, default=2, help="Consecutive in-tolerance samples required by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-follower-spacing-m", type=float, default=8.0, help="Initial deterministic follower spacing used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-reassign-offset-m", type=float, default=6.0, help="In-flight follower reassignment offset used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-trajectory-altitude-gain", type=float, default=12.0, help="Generated leader-trajectory altitude gain used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-trajectory-entry-delay", type=float, default=8.0, help="Default short-profile entry delay used by the integrated mixed-mode validator before automatic adjustment")
+    parser.add_argument("--integrated-trajectory-leg-duration", type=float, default=14.0, help="Short-profile leg duration used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-precision-move-north", type=float, default=4.0, help="Leader precision-move north offset used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-precision-move-east", type=float, default=2.0, help="Leader precision-move east offset used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-precision-move-up", type=float, default=0.5, help="Leader precision-move up offset used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-precision-move-speed", type=float, default=1.0, help="Leader precision-move speed used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-precision-move-tolerance", type=float, default=0.9, help="Leader precision-move settle tolerance used by the integrated mixed-mode validator")
+    parser.add_argument("--integrated-precision-move-start-threshold", type=float, default=1.0, help="Leader minimum displacement before treating integrated precision move as active")
     parser.add_argument("--artifact-dir", type=Path, default=None, help="Directory for suite logs and per-step JSON reports")
     parser.add_argument("--dry-run", action="store_true", help="Print the suite plan without executing it")
     args = parser.parse_args()

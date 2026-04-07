@@ -254,7 +254,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const normalizedHwId = normalizeComparableId(drone.hw_id);
   const normalizedPosId = normalizeComparableId(drone.pos_id, normalizedHwId);
   const compactIdentity = formatCompactDroneIdentity(normalizedPosId, normalizedHwId, 'Unassigned');
-  const compactHwId = normalizedHwId ? `H${normalizedHwId}` : 'H?';
   const compactPosId = normalizedPosId ? `P${normalizedPosId}` : 'P?';
   const isRoleSwap = normalizedHwId !== normalizedPosId;
   const serialPortLabel = drone.serial_port ? drone.serial_port : 'SITL / none';
@@ -276,9 +275,6 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const hasRuntimeConnectivity = Boolean(wifiSsid || ethernetInterface || hasWifiSignal);
   const isSitlProfile = !drone.serial_port && ['', '0'].includes(String(drone.baudrate ?? '0'));
   const showSimulatedNetworkFallback = isSitlProfile && !hasRuntimeConnectivity;
-  const assignmentSummary = isRoleSwap
-    ? `Mapped to ${compactPosId}`
-    : 'Native slot alignment';
   const trajectorySourceLabel = normalizedPosId
     ? `Source Drone ${normalizedPosId}.csv`
     : 'Source file pending';
@@ -299,9 +295,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         : hasWifiSignal
           ? `Wi-Fi ${wifiSignalStrength}%`
           : 'Link telemetry unavailable';
-  const gitSummaryLabel = gitStatus?.branch
-    ? (isGitInSync ? `Git ${gitStatus.branch} synced` : `Git ${gitStatus.branch} review`)
-    : 'Git unavailable';
+  const gitCompactLabel = isGitInSync ? 'Synced' : gitStatus?.branch ? 'Review' : 'Unknown';
   const hasSecondaryDetails = Boolean(
     secondaryCustomFieldEntries.length
     || gitStatus
@@ -312,8 +306,28 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     || drone.baudrate
   );
   const diagnosticsSummary = secondaryCustomFieldEntries.length > 0
-    ? `Transport, git, and ${secondaryCustomFieldEntries.length} saved field${secondaryCustomFieldEntries.length === 1 ? '' : 's'}`
-    : 'Transport and git details';
+    ? `Transport, link, git, and ${secondaryCustomFieldEntries.length} field${secondaryCustomFieldEntries.length === 1 ? '' : 's'}`
+    : 'Transport, link, and git';
+  const operatorSummaryChips = [
+    {
+      key: 'slot',
+      label: 'Slot',
+      value: isRoleSwap ? `Mapped ${compactPosId}` : compactPosId,
+      tone: isRoleSwap ? 'review' : 'neutral',
+    },
+    {
+      key: 'path',
+      label: 'Path',
+      value: runtimePathLabel,
+      tone: 'neutral',
+    },
+    {
+      key: 'git',
+      label: 'Git',
+      value: gitCompactLabel,
+      tone: isGitInSync ? 'good' : 'review',
+    },
+  ];
 
   return (
     <>
@@ -329,17 +343,18 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <div className="identity-kicker">{formatDroneLabel(normalizedHwId)}</div>
           <div className="drone-title-row">
             <h3 className="drone-title">{compactIdentity}</h3>
+          </div>
+          <div className="identity-meta-row">
             <span className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}>
               {isRoleSwap ? 'Slot swap' : 'Own slot'}
             </span>
+            {promotedField && (
+              <div className="promoted-field-chip">
+                <span className="promoted-field-label">{promotedField.label}</span>
+                <span className="promoted-field-value">{getCustomFieldValuePreview(promotedField)}</span>
+              </div>
+            )}
           </div>
-          <p className="assignment-summary">{assignmentSummary}</p>
-          {promotedField && (
-            <div className="promoted-field-chip">
-              <span className="promoted-field-label">{promotedField.label}</span>
-              <span className="promoted-field-value">{getCustomFieldValuePreview(promotedField)}</span>
-            </div>
-          )}
         </div>
         <div className="card-actions">
           <div className={`status-badge ${heartbeatStatus.toLowerCase().replace(/[^a-z]/g, '')}`}>
@@ -352,47 +367,31 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
       {/* Main Content */}
       <div className="drone-content">
-        <div className="identity-strip">
-          <div className="identity-tile">
-            <span className="identity-label">Hardware / runtime</span>
-            <span className="identity-value">{compactHwId}</span>
-            <small>Physical drone and runtime identity</small>
-          </div>
-          <div className="identity-tile">
-            <span className="identity-label">Mission slot</span>
-            <span className="identity-value">{compactPosId}</span>
-            <small>{trajectorySourceLabel}</small>
-          </div>
+        <div className="operator-summary-strip" aria-label="Operator summary">
+          {operatorSummaryChips.map((chip) => (
+            <div
+              key={chip.key}
+              className={`operator-summary-chip ${chip.tone === 'good' ? 'is-good' : chip.tone === 'review' ? 'needs-review' : ''}`}
+            >
+              <span className="operator-summary-chip__label">{chip.label}</span>
+              <span className="operator-summary-chip__value">{chip.value}</span>
+            </div>
+          ))}
         </div>
+        <p className="operator-summary-caption">
+          {trajectorySourceLabel} · {runtimeLinkLabel}
+        </p>
 
         {/* Position ID Section */}
         <div className="position-section">
-          <div className="position-header">Show Slot Status</div>
-          <div className="position-content">
-            {renderPositionIdInfo()}
-          </div>
-        </div>
-
-        <div className="runtime-snapshot-strip" aria-label="Runtime summary">
-          <div className="runtime-snapshot-chip">
-            <span className="runtime-snapshot-chip__label">Path</span>
-            <span className="runtime-snapshot-chip__value">{runtimePathLabel}</span>
-          </div>
-          <div className="runtime-snapshot-chip">
-            <span className="runtime-snapshot-chip__label">Link</span>
-            <span className="runtime-snapshot-chip__value">{runtimeLinkLabel}</span>
-          </div>
-          <div className={`runtime-snapshot-chip ${isGitInSync ? 'is-good' : 'needs-review'}`}>
-            <span className="runtime-snapshot-chip__label">Git</span>
-            <span className="runtime-snapshot-chip__value">{gitSummaryLabel}</span>
-          </div>
+          {renderPositionIdInfo()}
         </div>
 
         {hasSecondaryDetails && (
         <details className="drone-card-details">
           <summary className="drone-card-details__summary">
             <div>
-              <span className="drone-card-details__title">Diagnostics & metadata</span>
+              <span className="drone-card-details__title">More details</span>
               <small className="drone-card-details__copy">{diagnosticsSummary}</small>
             </div>
           </summary>

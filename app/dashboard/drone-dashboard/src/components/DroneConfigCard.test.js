@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react';
 import DroneConfigCard from './DroneConfigCard';
 
 describe('DroneConfigCard', () => {
-  it('renders compact runtime summary chips in read-only mode', () => {
+  it('renders compact operator summary chips in read-only mode', () => {
     render(
       <DroneConfigCard
         drone={{
@@ -44,14 +44,15 @@ describe('DroneConfigCard', () => {
       />
     );
 
-    const runtimeSummary = screen.getByLabelText('Runtime summary');
+    const operatorSummary = screen.getByLabelText('Operator summary');
 
-    expect(within(runtimeSummary).getByText('Path')).toBeInTheDocument();
-    expect(within(runtimeSummary).getByText('10.0.0.11')).toBeInTheDocument();
-    expect(within(runtimeSummary).getByText('Link')).toBeInTheDocument();
-    expect(within(runtimeSummary).getByText('SITL / simulated')).toBeInTheDocument();
-    expect(within(runtimeSummary).getByText('Git')).toBeInTheDocument();
-    expect(within(runtimeSummary).getByText('Git main-candidate synced')).toBeInTheDocument();
-    expect(screen.getByText('Diagnostics & metadata')).toBeInTheDocument();
+    expect(within(operatorSummary).getByText('Slot')).toBeInTheDocument();
+    expect(within(operatorSummary).getByText('Mapped P2')).toBeInTheDocument();
+    expect(within(operatorSummary).getByText('Path')).toBeInTheDocument();
+    expect(within(operatorSummary).getByText('10.0.0.11')).toBeInTheDocument();
+    expect(within(operatorSummary).getByText('Git')).toBeInTheDocument();
+    expect(within(operatorSummary).getByText('Synced')).toBeInTheDocument();
+    expect(screen.getByText('Source Drone 2.csv · SITL / simulated')).toBeInTheDocument();
+    expect(screen.getByText('More details')).toBeInTheDocument();
   });
 });

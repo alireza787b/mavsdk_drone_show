@@ -92,7 +92,7 @@
 .drone-id-section {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.3rem;
   min-width: 0;
   flex: 1;
 }
@@ -135,6 +135,13 @@
   flex-wrap: wrap;
 }
 
+.identity-meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
 .assignment-badge {
   display: inline-flex;
   align-items: center;
@@ -155,14 +162,6 @@
   background: var(--color-primary-light);
   color: var(--color-primary);
   border: 1px solid var(--color-primary-border);
-}
-
-.assignment-summary {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  line-height: 1.35;
 }
 
 .promoted-field-chip {
@@ -272,45 +271,57 @@
 /* Main Content - Left-aligned Grid */
 .drone-content {
   display: grid;
-  gap: 0.7rem;
+  gap: 0.55rem;
   padding: 0.72rem 0.85rem 0.82rem calc(0.85rem + 4px);
 }
 
-.identity-strip {
+.operator-summary-strip {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--spacing-xs);
 }
 
-.identity-tile {
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border-primary);
+.operator-summary-chip {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
   border-radius: var(--border-radius-sm);
-  background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-secondary));
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
 }
 
-.identity-label {
-  display: block;
+.operator-summary-chip.is-good {
+  border-color: var(--color-success-border);
+  background: color-mix(in srgb, var(--color-success-light) 76%, var(--color-bg-primary));
+}
+
+.operator-summary-chip.needs-review {
+  border-color: var(--color-warning-border);
+  background: color-mix(in srgb, var(--color-warning-light) 76%, var(--color-bg-primary));
+}
+
+.operator-summary-chip__label {
   color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
+  font-size: 10px;
   font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-bottom: 4px;
 }
 
-.identity-value {
-  display: block;
+.operator-summary-chip__value {
+  min-width: 0;
   color: var(--color-text-primary);
-  font-size: clamp(0.9rem, 2.6vw, 1rem);
-  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  word-break: break-word;
 }
 
-.identity-tile small {
-  display: block;
-  margin-top: 2px;
+.operator-summary-caption {
+  margin: -0.1rem 0 0;
   color: var(--color-text-secondary);
-  line-height: var(--line-height-normal);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
 }
 
 .custom-field-section {
@@ -455,28 +466,12 @@
 .position-section {
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
-  overflow: hidden;
   background: var(--color-surface-muted);
-}
-
-.position-header {
-  background: var(--color-bg-quaternary);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-bottom: 1px solid var(--color-border-primary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  min-height: 28px;
-}
-
-.position-content {
-  padding: 0.75rem;
+  padding: 0.6rem;
 }
 
 .position-status {
-  padding: 0.7rem 0.8rem;
+  padding: 0.6rem 0.7rem;
   border-radius: var(--border-radius-sm);
   border: 1px solid var(--color-border-primary);
   display: flex;
@@ -522,7 +517,7 @@
   margin: 0.2rem 0 0;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
-  line-height: var(--line-height-relaxed);
+  line-height: var(--line-height-normal);
 }
 
 .position-summary .status-icon {
@@ -588,49 +583,6 @@
   line-height: var(--line-height-normal);
 }
 
-.runtime-snapshot-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: var(--spacing-xs);
-}
-
-.runtime-snapshot-chip {
-  display: grid;
-  gap: 0.2rem;
-  min-width: 0;
-  padding: 0.55rem 0.7rem;
-  border-radius: var(--border-radius-sm);
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-inset);
-}
-
-.runtime-snapshot-chip.is-good {
-  border-color: var(--color-success-border);
-  background: color-mix(in srgb, var(--color-success-light) 76%, var(--color-bg-primary));
-}
-
-.runtime-snapshot-chip.needs-review {
-  border-color: var(--color-warning-border);
-  background: color-mix(in srgb, var(--color-warning-light) 76%, var(--color-bg-primary));
-}
-
-.runtime-snapshot-chip__label {
-  color: var(--color-text-tertiary);
-  font-size: 10px;
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.runtime-snapshot-chip__value {
-  min-width: 0;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.35;
-  word-break: break-word;
-}
-
 .drone-card-details {
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
@@ -643,7 +595,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: var(--spacing-sm);
-  padding: 0.75rem 0.85rem;
+  padding: 0.65rem 0.75rem;
   cursor: pointer;
   list-style: none;
 }
@@ -666,7 +618,7 @@
   margin-top: 0.15rem;
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
-  line-height: var(--line-height-normal);
+  line-height: 1.35;
 }
 
 .drone-card-details[open] .drone-card-details__summary {
@@ -1303,7 +1255,7 @@ input:checked + .slider:before {
 }
 
 @container drone-card (max-width: 860px) {
-  .identity-strip,
+  .operator-summary-strip,
   .form-grid,
   .custom-field-editor-grid {
     grid-template-columns: 1fr;
@@ -1359,8 +1311,11 @@ input:checked + .slider:before {
     justify-content: space-between;
   }
 
-  .identity-strip,
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operator-summary-strip {
     grid-template-columns: 1fr;
   }
 
@@ -1408,8 +1363,7 @@ input:checked + .slider:before {
   }
 
   .promoted-field-chip {
-    width: 100%;
-    justify-content: space-between;
+    max-width: 100%;
   }
 
   .network-content {

@@ -51,6 +51,23 @@ def _build_args(suite, tmp_path, **overrides):
         "trajectory_vert_tolerance": 8.0,
         "trajectory_min_altitude_gain": 2.0,
         "trajectory_formation_timeout": 120,
+        "integrated_takeoff_min_gain": 4.0,
+        "integrated_formation_horizontal_tolerance": 8.0,
+        "integrated_formation_altitude_tolerance": 2.0,
+        "integrated_formation_min_timeout": 45,
+        "integrated_max_velocity": 3.0,
+        "integrated_stability_samples": 2,
+        "integrated_follower_spacing_m": 8.0,
+        "integrated_reassign_offset_m": 6.0,
+        "integrated_trajectory_altitude_gain": 12.0,
+        "integrated_trajectory_entry_delay": 8.0,
+        "integrated_trajectory_leg_duration": 14.0,
+        "integrated_precision_move_north": 4.0,
+        "integrated_precision_move_east": 2.0,
+        "integrated_precision_move_up": 0.5,
+        "integrated_precision_move_speed": 1.0,
+        "integrated_precision_move_tolerance": 0.9,
+        "integrated_precision_move_start_threshold": 1.0,
     }
     values.update(overrides)
 
@@ -164,8 +181,10 @@ def test_list_templates_mentions_operator_and_actions_templates():
     assert suite.TEMPLATE_OPERATOR_REGRESSION in output
     assert suite.TEMPLATE_ACTIONS_ONLY in output
     assert suite.TEMPLATE_CONFIG_ONLY in output
+    assert suite.TEMPLATE_INTEGRATED_ONLY in output
     assert suite.MODE_ACTIONS in output
     assert suite.MODE_CONFIGURATION in output
+    assert suite.MODE_INTEGRATED_RUNTIME in output
 
 
 def test_write_suite_summary_skips_side_effects_in_dry_run(tmp_path):
@@ -290,3 +309,25 @@ def test_build_suite_steps_uses_bundled_plan_name(tmp_path):
         suite.MODE_DRONE_SHOW,
         "reset_after_suite",
     ]
+
+
+def test_build_suite_steps_supports_integrated_runtime_mode(tmp_path):
+    suite = _load_module()
+    args = _build_args(
+        suite,
+        tmp_path,
+        template=suite.TEMPLATE_INTEGRATED_ONLY,
+        modes=[suite.MODE_INTEGRATED_RUNTIME],
+    )
+
+    steps = suite.build_suite_steps(args, tmp_path / "artifacts")
+
+    assert [step.name for step in steps] == [
+        "reset_before_suite",
+        suite.MODE_INTEGRATED_RUNTIME,
+        "reset_after_suite",
+    ]
+    assert steps[1].validator == suite.MODE_INTEGRATED_RUNTIME
+    assert steps[1].json_path == tmp_path / "artifacts" / "integrated_runtime.json"
+    assert "tools/validate_integrated_runtime.py" in steps[1].command
+    assert "--precision-move-east" in steps[1].command
