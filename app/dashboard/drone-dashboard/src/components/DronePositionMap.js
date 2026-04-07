@@ -214,8 +214,6 @@ const DronePositionMap = ({
     drones,
     forwardHeading,
     hasOrigin,
-    originLat,
-    originLon,
     parsedOriginLat,
     parsedOriginLon,
     trajectoryPositionsByPosId,
