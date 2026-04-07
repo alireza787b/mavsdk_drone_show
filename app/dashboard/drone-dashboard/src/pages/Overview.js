@@ -387,7 +387,7 @@ const Overview = ({ setSelectedDrone }) => {
       <div className="connected-drones-header">
         <div>
           <h2>Connected Drones</h2>
-          <p>Card-wall filters stay visual until you explicitly apply them to Command Control.</p>
+          <p>Filters stay visual until you apply them to Command Control.</p>
         </div>
         <div className="connected-drones-header__actions">
           <span className="connected-drones-count">
@@ -442,11 +442,11 @@ const Overview = ({ setSelectedDrone }) => {
             options={clusterScopeOptions}
             selectedId={clusterScope}
             onSelect={setClusterScope}
-            summary="Top-leader scopes keep large fleets readable. Card-wall filters never change command scope."
+            summary="Top-leader scopes keep large fleets readable."
           />
         )}
         <p className="overview-fleet-toolbar__note">
-          Card-wall filters never change dispatch scope inside Command Control. Examples: {DRONE_SEARCH_HELP_TEXT}
+          Search examples: {DRONE_SEARCH_HELP_TEXT}
         </p>
       </div>
 

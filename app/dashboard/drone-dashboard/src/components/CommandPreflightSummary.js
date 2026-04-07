@@ -183,11 +183,11 @@ const CommandPreflightSummary = ({
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
         <div>
-          <h3>Preflight Snapshot</h3>
-          <p>Live link, readiness, armed state, and repo sync for {targetSummaryLabel || 'the current scope'}.</p>
+          <h3>Preflight</h3>
+          <p>Link, readiness, arm state, and git sync for {targetSummaryLabel || 'the current scope'}.</p>
         </div>
         <div className="command-preflight__clock">
-          <span className="command-preflight__clock-label">Scheduler clock</span>
+          <span className="command-preflight__clock-label">Scheduler</span>
           <span className="command-preflight__clock-value">{clockOffsetLabel ? `GCS aligned · ${clockOffsetLabel}` : 'GCS aligned'}</span>
         </div>
       </div>
@@ -208,7 +208,7 @@ const CommandPreflightSummary = ({
 
       {summary.exceptions.length > 0 && (
         <details className="command-preflight__exceptions">
-          <summary>Review exceptions ({summary.exceptions.length})</summary>
+          <summary>Exceptions ({summary.exceptions.length})</summary>
           <div className="command-preflight__exception-list">
             {summary.exceptions.map((exception) => (
               <div

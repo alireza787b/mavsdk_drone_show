@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-06 Phase 4 UI closeout note documenting the shortened Overview scope guidance, the compacted preflight strip, the reduced Mission Details readiness/timing copy, and the paired Hetzner Jest/build validation results
 - a 2026-04-06 Mission Config / command-surface cleanup phase 4 checkpoint note documenting the compressed Mission Config ops shell, the plot/map launch-layout toggle, the shorter command/mission copy, the Custom Show token overrides, the tablet-width trajectory compact behavior, and the paired Hetzner Jest/build validation results
 - a 2026-04-06 trajectory-authoring phase 3 checkpoint note documenting the map-first Trajectory Planning layout, the docked compact route-review surface, the collapsed Swarm Trajectory workspace-review flow with related-tool links, the map resize/fly-to fixes, the focused trajectory Jest coverage, and the paired Hetzner build result
 - a 2026-04-06 shared operator-scope phase 2 checkpoint note documenting the explicit visible-cards-to-command-scope bridge, the new card-level command-scope markers, the shared Overview-owned target state, the build-found PropTypes/hook fixes, and the paired Hetzner Jest/build validation results

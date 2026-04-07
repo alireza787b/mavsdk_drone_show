@@ -45,12 +45,23 @@ The remaining accepted issues were:
 
 This keeps tablet-width operators on the same authoring-first flow that already worked on phones.
 
+#### Remaining operator-copy closeout
+
+- shortened the remaining duplicated scope guidance in `Overview` so the fleet wall no longer repeats the same warning in multiple places
+- tightened `CommandPreflightSummary` from a report-style header into a compact preflight strip
+- shortened the remaining Mission Details launch-readiness headings, timing copy, and operator-note labels so mission review reads like a launch surface instead of a help article
+- kept safety-critical doctrine intact by leaving the deeper notes in explicit foldouts instead of deleting them
+
 ### Files changed
 
 - `app/dashboard/drone-dashboard/src/components/CommandSender.js`
+- `app/dashboard/drone-dashboard/src/components/CommandPreflightSummary.js`
+- `app/dashboard/drone-dashboard/src/components/MissionDetails.js`
+- `app/dashboard/drone-dashboard/src/components/MissionDetails.test.js`
 - `app/dashboard/drone-dashboard/src/components/MissionTrigger.js`
 - `app/dashboard/drone-dashboard/src/pages/CustomShowPage.js`
 - `app/dashboard/drone-dashboard/src/pages/MissionConfig.js`
+- `app/dashboard/drone-dashboard/src/pages/Overview.js`
 - `app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js`
 - `app/dashboard/drone-dashboard/src/pages/TrajectoryPlanning.js`
 - `app/dashboard/drone-dashboard/src/styles/CustomShowPage.css`
@@ -69,6 +80,9 @@ This keeps tablet-width operators on the same authoring-first flow that already 
 - `CI=true npm test -- --runInBand --watch=false src/components/CommandSender.test.js src/components/MissionTrigger.test.js src/components/ControlButtons.test.js src/components/DroneConfigCard.test.js src/pages/TrajectoryPlanning.test.js src/pages/SwarmTrajectory.test.js src/components/trajectory/SwarmTrajectoryWorkspaceSummary.test.js`
   - `7` suites passed
   - `23` tests passed
+- `CI=true npm test -- --runInBand --watch=false src/components/MissionDetails.test.js src/components/CommandSender.test.js`
+  - `2` suites passed
+  - `12` tests passed
 
 #### Hetzner production build
 
@@ -77,7 +91,7 @@ This keeps tablet-width operators on the same authoring-first flow that already 
 
 ### Review conclusion
 
-This checkpoint is tester-ready for the reviewed dashboard / Mission Config / trajectory / command surfaces.
+This checkpoint closes the accepted Phase 4 operator-copy/token cleanup and is tester-ready for the reviewed dashboard / Mission Config / trajectory / command surfaces.
 
 Deferred, but not blocking this tester handoff:
 

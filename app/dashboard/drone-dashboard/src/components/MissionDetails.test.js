@@ -107,7 +107,7 @@ describe('MissionDetails Swarm Trajectory gating', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Swarm Trajectory Launch Snapshot')).toBeInTheDocument();
+    expect(screen.getByText('Swarm Trajectory Readiness')).toBeInTheDocument();
     expect(screen.getByText('1 cluster still has partial outputs.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Review & Send Command' })).toBeDisabled();
   });
@@ -185,8 +185,8 @@ describe('MissionDetails Swarm Trajectory gating', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Swarm Trajectory Launch Snapshot')).toBeInTheDocument();
-    expect(screen.getByText('Processed swarm package is active. Confirm the final plots match the intended leader paths before launch.')).toBeInTheDocument();
+    expect(screen.getByText('Swarm Trajectory Readiness')).toBeInTheDocument();
+    expect(screen.getByText('Processed package is active. Confirm the final plots before launch.')).toBeInTheDocument();
     expect(screen.getByText('Mission clock:')).toBeInTheDocument();
     expect(screen.getByText('72.0s')).toBeInTheDocument();
     expect(screen.getByText('Altitude envelope:')).toBeInTheDocument();

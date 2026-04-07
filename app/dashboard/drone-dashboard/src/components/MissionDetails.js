@@ -312,7 +312,7 @@ const MissionDetails = ({
     && swarmTrajectorySummary.readyClusterCount > 0
     && swarmTrajectorySummary.advisoryCount === 0
   ) {
-    swarmTrajectoryWarningsList.push('Processed swarm package is active. Confirm the final plots match the intended leader paths before launch.');
+    swarmTrajectoryWarningsList.push('Processed package is active. Confirm the final plots before launch.');
   }
 
   const missionBlockers = showModeHints
@@ -367,7 +367,7 @@ const MissionDetails = ({
     <details className="mission-operator-notes">
       <summary>
         <span>{summaryLabel}</span>
-        <small>Reference guidance</small>
+        <small>Expand notes</small>
       </summary>
       <ul>
         {items.map((item, index) => (
@@ -412,10 +412,10 @@ const MissionDetails = ({
     const hasBlockers = blockers.length > 0;
     const hasWarnings = warnings.length > 0;
     const postureLabel = hasBlockers
-      ? 'Blocked until reviewed'
+      ? 'Blocked'
       : hasWarnings
-        ? 'Ready with advisories'
-        : 'Ready to queue';
+        ? 'Review advisories'
+        : 'Ready';
 
     return (
       <div className={`origin-warning ${hasBlockers ? 'origin-missing' : ''}`}>
@@ -750,7 +750,7 @@ const MissionDetails = ({
                       </div>
                     )}
                     
-                    {renderOperatorNotes('Auto-correction limits', [
+                    {renderOperatorNotes('Correction limits', [
                       <>Drones will <strong>automatically correct</strong> their positions after takeoff and initial climb.</>,
                       <>Approximate placement is acceptable within the expected tolerance envelope.</>,
                       <>Good GPS fix quality is required for accurate correction.</>,
@@ -779,7 +779,7 @@ const MissionDetails = ({
 
       {swarmTrajectoryHints && (
         renderSnapshot({
-          title: 'Swarm Trajectory Launch Snapshot',
+          title: 'Swarm Trajectory Readiness',
           facts: [
             {
               label: 'Ready clusters:',
@@ -826,7 +826,7 @@ const MissionDetails = ({
           warnings: missionWarnings,
           reference: (
             <p>
-              Review the authored leaders in{' '}
+              Confirm leader routes in{' '}
               <Link to="/trajectory-planning" className="origin-link">
                 Trajectory Planning
               </Link>{' '}
@@ -834,10 +834,10 @@ const MissionDetails = ({
               <Link to="/swarm-trajectory" className="origin-link">
                 Swarm Trajectory
               </Link>{' '}
-              before scheduling Mission Type 4.
+              before launch.
             </p>
           ),
-          notes: renderOperatorNotes('Swarm Trajectory operator notes', [
+          notes: renderOperatorNotes('Trajectory notes', [
             'Selected drones fly their own generated global path package after processing; this is not live Smart Swarm follow mode.',
             'Launch and home truth still matter for armability, climb verification, drift handling, and RTL/LAND recovery, but they do not redefine the authored route geometry.',
           ]),
@@ -846,7 +846,7 @@ const MissionDetails = ({
 
       {smartSwarmHints && (
         renderSnapshot({
-          title: 'Smart Swarm Topology Snapshot',
+          title: 'Smart Swarm Readiness',
           facts: [
             {
               label: 'Top leaders:',
@@ -865,14 +865,14 @@ const MissionDetails = ({
           warnings: missionWarnings,
           reference: (
             <p>
-              Review the live topology in{' '}
+              Confirm the live topology in{' '}
               <Link to="/swarm-design" className="origin-link">
                 Swarm Design
               </Link>{' '}
-              before scheduling this mission.
+              before launch.
             </p>
           ),
-          notes: renderOperatorNotes('Smart Swarm operator notes', [
+          notes: renderOperatorNotes('Swarm notes', [
             'This mission uses the live Smart Swarm formation topology, not pre-processed leader trajectories.',
             'Verify leader and follower roles, offsets, and frame selection in Swarm Design before launch.',
             'Use immediate overrides like Hold, RTL, or Land to recover drones individually while the rest of the swarm stays in mode.',
@@ -882,7 +882,7 @@ const MissionDetails = ({
 
       {showModeHints && (
         renderSnapshot({
-          title: 'Launch Readiness Snapshot',
+          title: 'Drone Show Readiness',
           facts: [
             {
               label: 'Imported Show:',
@@ -901,15 +901,15 @@ const MissionDetails = ({
           warnings: droneShowWarnings,
           reference: (
             <p>
-              Review the imported geometry in{' '}
+              Confirm imported geometry in{' '}
               <Link to="/manage-drone-show" className="origin-link">
                 Show Design
               </Link>{' '}
-              and the live launch setup in{' '}
+              and launch setup in{' '}
               <Link to="/mission-config" className="origin-link">
                 Mission Config
               </Link>{' '}
-              before scheduling launch.
+              before launch.
             </p>
           ),
         })
@@ -917,7 +917,7 @@ const MissionDetails = ({
 
       {customShowHints && (
         renderSnapshot({
-          title: 'Custom CSV Readiness Snapshot',
+          title: 'Custom CSV Readiness',
           facts: [
             {
               label: 'Execution Mode:',
@@ -940,18 +940,18 @@ const MissionDetails = ({
           warnings: missionWarnings,
           reference: (
             <p>
-              Review the authored path in{' '}
+              Confirm the authored path in{' '}
               <Link to="/custom-show" className="origin-link">
                 Custom Show
               </Link>{' '}
-              and confirm launch spacing in{' '}
+              and launch spacing in{' '}
               <Link to="/mission-config" className="origin-link">
                 Mission Config
               </Link>{' '}
-              before scheduling launch.
+              before launch.
             </p>
           ),
-          notes: renderOperatorNotes('Custom CSV operator notes', [
+          notes: renderOperatorNotes('Custom CSV notes', [
             'Each drone runs the same CSV relative to its own launch point.',
             'Global origin correction and shared-origin placement checks do not apply in this mode.',
             'Use this for advanced or manual testing, not for the normal SkyBrush multi-drone show pipeline.',
@@ -963,11 +963,11 @@ const MissionDetails = ({
       <div className="mission-schedule">
         <div className="mission-schedule__header">
           <div>
-            <h3>Execution Timing</h3>
-            <p>Queue now, use a short countdown, or lock to an exact UTC trigger.</p>
+            <h3>Timing</h3>
+            <p>Now, short countdown, or exact UTC.</p>
           </div>
           <div className="mission-schedule__clock">
-            <span>Scheduler clock</span>
+            <span>Clock</span>
             <strong>{clockOffsetLabel ? `GCS aligned · ${clockOffsetLabel}` : 'GCS aligned'}</strong>
           </div>
         </div>
@@ -980,7 +980,7 @@ const MissionDetails = ({
               onChange={() => onScheduleModeChange(COMMAND_SCHEDULE_MODES.NOW)}
             />
             <span>Now</span>
-            <small>Immediate after acceptance</small>
+            <small>After review</small>
           </label>
           <label className={`mission-schedule__mode ${scheduleMode === COMMAND_SCHEDULE_MODES.DELAY ? 'active' : ''}`}>
             <input
@@ -989,7 +989,7 @@ const MissionDetails = ({
               onChange={() => onScheduleModeChange(COMMAND_SCHEDULE_MODES.DELAY)}
             />
             <span>Delay</span>
-            <small>Short controlled countdown</small>
+            <small>Controlled countdown</small>
           </label>
           <label className={`mission-schedule__mode ${scheduleMode === COMMAND_SCHEDULE_MODES.ABSOLUTE ? 'active' : ''}`}>
             <input
@@ -998,7 +998,7 @@ const MissionDetails = ({
               onChange={() => onScheduleModeChange(COMMAND_SCHEDULE_MODES.ABSOLUTE)}
             />
             <span>Exact Time</span>
-            <small>Absolute calendar time</small>
+            <small>Absolute UTC</small>
           </label>
         </div>
 

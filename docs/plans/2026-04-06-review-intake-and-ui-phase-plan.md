@@ -1,5 +1,13 @@
 ## 2026-04-06 Review Intake and UI Phase Plan
 
+### Current status
+
+- Phase 1: Mission Config architecture reset, complete
+- Phase 2: shared operator scope model, complete
+- Phase 3: trajectory authoring-first redesign, complete
+- Phase 4: remaining operator-copy/token cleanup, complete
+- Phase 5: advanced integrated SITL scenarios, pending after the next tester handoff
+
 ### Context
 
 External tester feedback was received in `/root/mds_review/`:
