@@ -683,8 +683,13 @@ Current stable bundled scenarios include:
 - `mission_regression`
 - `operator_regression`
 
-More aggressive combined-mode and fault-injection scenarios are intentionally
-tracked as deferred work until they stay deterministic enough for routine use.
+Validated advanced bundled scenarios now include:
+
+- `integrated_mixed_mode`
+- `advanced_operator_regression`
+
+Harder simultaneous mixed-mode and fault-injection scenarios are still tracked
+as deferred work until they stay deterministic enough for routine use.
 
 
 ## Additional Resources

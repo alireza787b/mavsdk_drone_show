@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-07 advanced SITL regression checkpoint note documenting the new integrated mixed-mode leader-override validator, the runtime mission-state root-cause fix, the green Hetzner `integrated_mixed_mode` and `advanced_operator_regression` runs, and the updated advanced-plan documentation
 - a 2026-04-06 Phase 4 UI closeout note documenting the shortened Overview scope guidance, the compacted preflight strip, the reduced Mission Details readiness/timing copy, and the paired Hetzner Jest/build validation results
 - a 2026-04-06 Mission Config / command-surface cleanup phase 4 checkpoint note documenting the compressed Mission Config ops shell, the plot/map launch-layout toggle, the shorter command/mission copy, the Custom Show token overrides, the tablet-width trajectory compact behavior, and the paired Hetzner Jest/build validation results
 - a 2026-04-06 trajectory-authoring phase 3 checkpoint note documenting the map-first Trajectory Planning layout, the docked compact route-review surface, the collapsed Swarm Trajectory workspace-review flow with related-tool links, the map resize/fly-to fixes, the focused trajectory Jest coverage, and the paired Hetzner build result
@@ -72,6 +73,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- advanced SITL mixed-mode validation no longer fails because override missions clobber their own staged mission metadata: interrupting a running mission now preserves the replacement mission/state while the superseded process is terminated, so leader-only Swarm Trajectory overrides report `mission=4` correctly in fleet telemetry and the integrated operator drill stays observable end to end
 - Mission Config now opens on a tighter assignment wall instead of a long top-heavy explainer stack: the header copy is shorter, issue/origin warnings are compact alert rows, filters live in one ops rail, the visible-card summary is terse, and the right-side launch-review panel can switch between the default engineering plot and a real map view without leaving the workspace
 - Trajectory Planning and Swarm Trajectory now use their compact authoring-first behavior through tablet width as well as phone width, so route authoring no longer falls back to the verbose desktop layout on mid-sized operator screens
 - Trajectory Planning no longer front-loads desktop route review above the working surface: the map/waypoint workspace stays first, review surfaces dock below it, and the route-policy brief is now one compact disclosure instead of a separate expanded desktop block

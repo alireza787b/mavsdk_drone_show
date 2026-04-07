@@ -25,12 +25,16 @@ python3 tools/run_sitl_validation_suite.py \
   --drone-ids 1 2 3
 ```
 
-The current plan library is split into two classes:
+The current plan library is split into three classes:
 
 - stable acceptance plans
   - deterministic enough for routine operator, maintainer, and AI-agent use
-- advanced scenarios
-  - not yet promoted here unless they stay deterministic across repeated runs
+- validated advanced plans
+  - higher-cost mixed-mode operator drills that are now deterministic enough to
+    keep checked in and rerun on demand
+- deferred advanced scenarios
+  - still intentionally outside the checked-in acceptance set until they stay
+    repeatable across more releases
 
 ## Current Stable Plans
 
@@ -51,12 +55,22 @@ The current plan library is split into two classes:
 - `operator_regression`
   - configuration, Drone Show, actions, Smart Swarm, Swarm Trajectory
 
+## Current Validated Advanced Plans
+
+- `integrated_mixed_mode`
+  - Smart Swarm cluster, in-flight reassignment, leader Swarm Trajectory
+    override, HOLD supersession, leader Precision Move, and clean land/restore
+- `advanced_operator_regression`
+  - configuration, Drone Show matrix, standalone actions, and the integrated
+    mixed-mode override drill in one reusable promotion-style gate
+
 ## Deferred Advanced Scenarios
 
 The following are intentionally tracked outside the stable plan set for now:
 
 - simultaneous mixed-mode missions on one live fleet
 - harder command supersession / late-trigger stress drills
+- precision-move-to-precision-move override drills from each drone's current local state
 - deliberate fault-injection plans
 
 Those are tracked in `docs/TODO_deferred.md` and will be promoted into this

@@ -107,16 +107,16 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 7: Advanced mixed-mode and fault-injection SITL plans
+## TODO 7: Harder simultaneous mixed-mission and fault-injection SITL plans
 
 **Priority:** Medium
-**Status:** Deferred — wait until the core reusable operator regression stays stable over more releases
+**Status:** Deferred — the checked-in `integrated_mixed_mode` and `advanced_operator_regression` plans are now validated; this TODO remains only for the harder next tier
 
-**Problem:** The current SITL validation platform now covers the core deterministic acceptance gate, but it does not yet encode the more advanced operator scenarios we still want later: mixed mission families on one fleet, command supersession under load, delayed triggers across subgroups, and deliberate failure/fallback drills.
+**Problem:** The reusable SITL validation platform now covers the core deterministic acceptance gate plus the validated mixed-mode leader-override path, but it still does not encode the harder next-tier operator scenarios we want later: simultaneous mixed mission families on one fleet, command supersession under heavier load, delayed triggers across subgroups, and deliberate failure/fallback drills.
 
 **Solution:** Add explicit advanced JSON plan examples and, where needed, new validator helpers for:
 
-- mixed-mode partial-fleet exercises
+- simultaneous mixed-mode partial-fleet exercises
 - command override and supersession stress cases
 - precision-move-to-precision-move override from each drone's then-current local state
 - late-command / delayed-trigger timing checks

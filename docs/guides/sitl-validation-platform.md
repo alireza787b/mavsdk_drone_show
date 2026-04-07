@@ -30,6 +30,8 @@ The current reusable validators cover:
   - takeoff, cluster start, settle, reassignment, leader RTL, follower hold, and assignment restore
 - `swarm_trajectory`
   - deterministic short-profile generation, processing, launch, formation validation, and cleanup
+- `integrated_runtime`
+  - Smart Swarm cluster start, in-flight reassignment, leader-only Swarm Trajectory override, HOLD supersession, leader Precision Move, and clean restore/land
 
 ## Deferred Domains
 
@@ -89,6 +91,11 @@ Current checked-in stable plans:
 - `swarm_trajectory_short_profile`
 - `mission_regression`
 - `operator_regression`
+
+Current validated advanced plans:
+
+- `integrated_mixed_mode`
+- `advanced_operator_regression`
 
 These plans are meant to be edited, copied, or used as the starting point for
 new scenario files. They are intentionally stored in git so operators, CI, and
@@ -150,6 +157,28 @@ Run only the standalone action/control drill:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template actions_only \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+Run the validated mixed-mode operator drill directly:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --plan-name integrated_mixed_mode \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+Run the broader advanced promotion-style regression:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --plan-name advanced_operator_regression \
   --base-url http://127.0.0.1:5000 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
