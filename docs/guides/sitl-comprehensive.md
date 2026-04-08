@@ -649,8 +649,10 @@ That is the clean acceptance-grade default. Reusing already-running containers
 is only recommended for narrow local debugging when you intentionally accept the
 inherited runtime state.
 
-QuickScout remains intentionally deferred from this reusable SITL gate until the
-mission subsystem itself is more mature.
+QuickScout is now available as a dedicated reusable SITL gate and is included
+in the current `mission_regression` and `operator_regression` bundles. The
+stable gate remains intentionally bounded to the launch / hold / resume-policy /
+abort lifecycle rather than broader evidence workflows.
 
 If you want checked-in named scenarios instead of remembering plan-file paths,
 the suite now ships with a bundled plan library under `tools/sitl_plans/`.
@@ -680,12 +682,14 @@ Current stable bundled scenarios include:
 - `actions_core`
 - `smart_swarm_runtime`
 - `swarm_trajectory_short_profile`
+- `quickscout_runtime`
 - `mission_regression`
 - `operator_regression`
 
 Validated advanced bundled scenarios now include:
 
 - `integrated_mixed_mode`
+- `quickscout_multi_runtime`
 - `advanced_operator_regression`
 
 Harder simultaneous mixed-mode and fault-injection scenarios are still tracked

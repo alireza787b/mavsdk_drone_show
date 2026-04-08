@@ -42,6 +42,7 @@ MODE_ACTIONS = "actions"
 MODE_SMART_SWARM = "smart_swarm"
 MODE_SWARM_TRAJECTORY = "swarm_trajectory"
 MODE_INTEGRATED_RUNTIME = "integrated_runtime"
+MODE_QUICKSCOUT = "quickscout"
 VALIDATION_MODES = (
     MODE_CONFIGURATION,
     MODE_DRONE_SHOW,
@@ -49,6 +50,7 @@ VALIDATION_MODES = (
     MODE_SMART_SWARM,
     MODE_SWARM_TRAJECTORY,
     MODE_INTEGRATED_RUNTIME,
+    MODE_QUICKSCOUT,
 )
 
 TEMPLATE_OPERATOR_REGRESSION = "operator_regression"
@@ -56,6 +58,7 @@ TEMPLATE_MISSION_REGRESSION = "mission_regression"
 TEMPLATE_ACTIONS_ONLY = "actions_only"
 TEMPLATE_CONFIG_ONLY = "config_only"
 TEMPLATE_INTEGRATED_ONLY = "integrated_only"
+TEMPLATE_QUICKSCOUT_ONLY = "quickscout_only"
 
 TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
     TEMPLATE_OPERATOR_REGRESSION: {
@@ -94,11 +97,13 @@ TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
             {"validator": MODE_INTEGRATED_RUNTIME},
         ],
     },
+    TEMPLATE_QUICKSCOUT_ONLY: {
+        "description": "Reset plus the dedicated QuickScout runtime validator only.",
+        "steps": [
+            {"validator": MODE_QUICKSCOUT},
+        ],
+    },
 }
-
-# TODO(deferred): Add a QuickScout SITL validator/template after the QuickScout
-# mission behavior and operator workflow are mature enough to support a stable
-# deterministic acceptance contract.
 
 
 @dataclass(frozen=True)
@@ -369,6 +374,45 @@ def build_integrated_runtime_command(
     ]
 
 
+def build_quickscout_command(
+    args: argparse.Namespace,
+    json_path: Path,
+    *,
+    drone_ids: tuple[int, ...],
+    options: dict[str, Any],
+) -> list[str]:
+    return [
+        args.python,
+        "tools/validate_quickscout_runtime.py",
+        "--base-url",
+        args.base_url,
+        "--json-output",
+        str(json_path),
+        "--drone-ids",
+        *[str(drone_id) for drone_id in drone_ids],
+        "--launch-drone-count",
+        str(option_value(args, options, "quickscout_launch_drone_count")),
+        "--point-radius-m",
+        str(option_value(args, options, "quickscout_point_radius_m")),
+        "--altitude-gain-m",
+        str(option_value(args, options, "quickscout_altitude_gain_m")),
+        "--airborne-min-gain",
+        str(option_value(args, options, "quickscout_airborne_min_gain")),
+        "--sweep-width-m",
+        str(option_value(args, options, "quickscout_sweep_width_m")),
+        "--overlap-percent",
+        str(option_value(args, options, "quickscout_overlap_percent")),
+        "--cruise-speed-ms",
+        str(option_value(args, options, "quickscout_cruise_speed_ms")),
+        "--survey-speed-ms",
+        str(option_value(args, options, "quickscout_survey_speed_ms")),
+        "--min-estimated-coverage-s",
+        str(option_value(args, options, "quickscout_min_estimated_coverage_s")),
+        "--abort-return-behavior",
+        str(option_value(args, options, "quickscout_abort_return_behavior")),
+    ]
+
+
 VALIDATOR_BUILDERS = {
     MODE_CONFIGURATION: build_configuration_command,
     MODE_DRONE_SHOW: build_drone_show_command,
@@ -376,6 +420,7 @@ VALIDATOR_BUILDERS = {
     MODE_SMART_SWARM: build_smart_swarm_command,
     MODE_SWARM_TRAJECTORY: build_swarm_trajectory_command,
     MODE_INTEGRATED_RUNTIME: build_integrated_runtime_command,
+    MODE_QUICKSCOUT: build_quickscout_command,
 }
 
 
@@ -868,6 +913,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--integrated-precision-move-speed", type=float, default=1.0, help="Leader precision-move speed used by the integrated mixed-mode validator")
     parser.add_argument("--integrated-precision-move-tolerance", type=float, default=0.9, help="Leader precision-move settle tolerance used by the integrated mixed-mode validator")
     parser.add_argument("--integrated-precision-move-start-threshold", type=float, default=1.0, help="Leader minimum displacement before treating integrated precision move as active")
+    parser.add_argument("--quickscout-launch-drone-count", type=int, default=1, help="How many selected drones the QuickScout runtime validator should include in the launch package")
+    parser.add_argument("--quickscout-point-radius-m", type=float, default=120.0, help="Last-known-point search radius used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-altitude-gain-m", type=float, default=20.0, help="Requested survey altitude gain used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-airborne-min-gain", type=float, default=6.0, help="Minimum observed altitude gain required after QuickScout launch")
+    parser.add_argument("--quickscout-sweep-width-m", type=float, default=25.0, help="Sweep width used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-overlap-percent", type=float, default=20.0, help="Overlap percentage used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-cruise-speed-ms", type=float, default=8.0, help="Cruise speed used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-survey-speed-ms", type=float, default=4.0, help="Survey speed used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-min-estimated-coverage-s", type=float, default=90.0, help="Minimum planned duration required before the QuickScout validator launches")
+    parser.add_argument("--quickscout-abort-return-behavior", default="return_home", choices=["return_home", "land_current", "hold_position"], help="Mission-end behavior used during the QuickScout abort drill")
     parser.add_argument("--artifact-dir", type=Path, default=None, help="Directory for suite logs and per-step JSON reports")
     parser.add_argument("--dry-run", action="store_true", help="Print the suite plan without executing it")
     args = parser.parse_args()

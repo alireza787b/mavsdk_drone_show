@@ -1,0 +1,15 @@
+{
+  "title": "QuickScout Runtime",
+  "description": "Run the stable QuickScout last-known-point runtime drill on one selected drone, with hold, replan-required resume rejection, abort, and clean fleet reset.",
+  "tags": ["quickscout", "sar", "runtime", "stable"],
+  "steps": [
+    {
+      "validator": "quickscout",
+      "options": {
+        "quickscout_launch_drone_count": 1,
+        "quickscout_point_radius_m": 120.0,
+        "quickscout_min_estimated_coverage_s": 90.0
+      }
+    }
+  ]
+}

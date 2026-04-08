@@ -32,11 +32,8 @@ The current reusable validators cover:
   - deterministic short-profile generation, processing, launch, formation validation, and cleanup
 - `integrated_runtime`
   - Smart Swarm cluster start, in-flight reassignment, leader-only Swarm Trajectory override, HOLD supersession, leader Precision Move, and clean restore/land
-
-## Deferred Domains
-
-- `QuickScout`
-  - intentionally deferred until the mission behavior and operator workflow are mature enough for a stable deterministic acceptance contract
+- `quickscout`
+  - deterministic `last_known_point` plan, targeted launch acceptance, airborne confirmation for targeted drones, non-target idle confirmation when applicable, HOLD, honest `replan_required` resume behavior, abort/end behavior, and clean fleet reset
 
 ## Built-In Templates
 
@@ -49,14 +46,16 @@ python3 tools/run_sitl_validation_suite.py --list-templates
 Current templates:
 
 - `operator_regression`
-  - reset, Mission Config/origin validation, reset-before-Drone-Show, Drone Show, standalone actions, Smart Swarm, Swarm Trajectory
+  - reset, Mission Config/origin validation, reset-before-Drone-Show, Drone Show, standalone actions, Smart Swarm, Swarm Trajectory, QuickScout
 - `mission_regression`
-  - reset, Drone Show, Smart Swarm, Swarm Trajectory
+  - reset, Drone Show, Smart Swarm, Swarm Trajectory, QuickScout
 - `actions_only`
   - reset plus the standalone action drill only
   - covers TAKEOFF, HOLD, Precision Move completion, Precision Move interrupt via HOLD, targeted RTL override, and LAND cleanup
 - `config_only`
   - reset plus the Mission Config / swarm / origin validator only
+- `quickscout_only`
+  - reset plus the dedicated QuickScout runtime validator only
 
 ## Bundled Plan Library
 
@@ -89,12 +88,14 @@ Current checked-in stable plans:
 - `actions_core`
 - `smart_swarm_runtime`
 - `swarm_trajectory_short_profile`
+- `quickscout_runtime`
 - `mission_regression`
 - `operator_regression`
 
 Current validated advanced plans:
 
 - `integrated_mixed_mode`
+- `quickscout_multi_runtime`
 - `advanced_operator_regression`
 
 These plans are meant to be edited, copied, or used as the starting point for
@@ -163,6 +164,17 @@ python3 tools/run_sitl_validation_suite.py \
   --drone-ids 1 2 3
 ```
 
+Run the dedicated QuickScout runtime gate:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --template quickscout_only \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
 Run the validated mixed-mode operator drill directly:
 
 ```bash
@@ -179,6 +191,28 @@ Run the broader advanced promotion-style regression:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name advanced_operator_regression \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+Run the checked-in QuickScout runtime plan directly:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --plan-name quickscout_runtime \
+  --base-url http://127.0.0.1:5000 \
+  --validator-root ~/mavsdk_drone_show \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3
+```
+
+Run the validated multi-drone QuickScout runtime plan directly:
+
+```bash
+python3 tools/run_sitl_validation_suite.py \
+  --plan-name quickscout_multi_runtime \
   --base-url http://127.0.0.1:5000 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
@@ -263,7 +297,7 @@ python3 tools/run_sitl_validation_suite.py \
 Plan rules:
 
 - each step must be a JSON object
-- validator steps use `"validator": "configuration" | "drone_show" | "actions" | "smart_swarm" | "swarm_trajectory"`
+- validator steps use `"validator": "configuration" | "drone_show" | "actions" | "smart_swarm" | "swarm_trajectory" | "integrated_runtime" | "quickscout"`
 - reset steps use `"kind": "reset"`
 - `drone_ids` is optional per step and defaults to the global `--drone-ids`
 - `options` is optional and overrides the corresponding suite CLI defaults for that step only

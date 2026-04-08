@@ -7,7 +7,7 @@ from tools.validate_quickscout_runtime import (
     _telemetry_has_ids,
     build_last_known_point_request,
     resolve_selected_ids,
-    select_primary_target,
+    select_target_drones,
 )
 
 
@@ -51,28 +51,36 @@ def test_resolve_selected_ids_falls_back_to_csv_and_default():
     assert resolve_selected_ids(default_args) == [1, 2, 3]
 
 
-def test_select_primary_target_uses_first_selected_drone_with_gps_and_pos_id():
+def test_select_target_drones_uses_first_selected_drones_with_gps_and_pos_id():
     telemetry = {
         "1": {"position_lat": None, "position_long": None, "pos_id": 1},
         "2": {"position_lat": 47.0, "position_long": 8.0, "pos_id": 22},
+        "3": {"position_lat": 48.0, "position_long": 9.0, "pos_id": 33},
     }
 
-    drone_id, row = select_primary_target(telemetry, [1, 2])
+    targets = select_target_drones(telemetry, [1, 2, 3], target_count=2)
 
-    assert drone_id == 2
-    assert row["pos_id"] == 22
+    assert [drone_id for drone_id, _ in targets] == [2, 3]
+    assert [row["pos_id"] for _, row in targets] == [22, 33]
 
 
-def test_build_last_known_point_request_tracks_live_center_pos_id_and_altitude():
-    row = {
-        "position_lat": 47.1,
-        "position_long": 8.2,
-        "position_alt": 510.0,
-    }
+def test_build_last_known_point_request_tracks_multi_drone_center_pos_ids_and_altitude():
+    rows = [
+        {
+            "position_lat": 47.1,
+            "position_long": 8.2,
+            "position_alt": 510.0,
+        },
+        {
+            "position_lat": 47.3,
+            "position_long": 8.4,
+            "position_alt": 512.0,
+        },
+    ]
 
     payload = build_last_known_point_request(
-        row,
-        pos_id=7,
+        rows,
+        pos_ids=[7, 8],
         radius_m=125.0,
         altitude_gain_m=20.0,
         sweep_width_m=25.0,
@@ -84,9 +92,9 @@ def test_build_last_known_point_request_tracks_live_center_pos_id_and_altitude()
     assert payload["mission_template"] == "last_known_point"
     assert payload["search_area"] == {
         "type": "point",
-        "center": {"lat": 47.1, "lng": 8.2},
+        "center": {"lat": 47.2, "lng": 8.3},
         "radius_m": 125.0,
     }
-    assert payload["pos_ids"] == [7]
-    assert payload["survey_config"]["cruise_altitude_msl"] == 530.0
+    assert payload["pos_ids"] == [7, 8]
+    assert payload["survey_config"]["cruise_altitude_msl"] == 532.0
     assert payload["survey_config"]["survey_altitude_agl"] == 20.0

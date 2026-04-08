@@ -68,6 +68,16 @@ def _build_args(suite, tmp_path, **overrides):
         "integrated_precision_move_speed": 1.0,
         "integrated_precision_move_tolerance": 0.9,
         "integrated_precision_move_start_threshold": 1.0,
+        "quickscout_launch_drone_count": 1,
+        "quickscout_point_radius_m": 120.0,
+        "quickscout_altitude_gain_m": 20.0,
+        "quickscout_airborne_min_gain": 6.0,
+        "quickscout_sweep_width_m": 25.0,
+        "quickscout_overlap_percent": 20.0,
+        "quickscout_cruise_speed_ms": 8.0,
+        "quickscout_survey_speed_ms": 4.0,
+        "quickscout_min_estimated_coverage_s": 90.0,
+        "quickscout_abort_return_behavior": "return_home",
     }
     values.update(overrides)
 
@@ -182,9 +192,11 @@ def test_list_templates_mentions_operator_and_actions_templates():
     assert suite.TEMPLATE_ACTIONS_ONLY in output
     assert suite.TEMPLATE_CONFIG_ONLY in output
     assert suite.TEMPLATE_INTEGRATED_ONLY in output
+    assert suite.TEMPLATE_QUICKSCOUT_ONLY in output
     assert suite.MODE_ACTIONS in output
     assert suite.MODE_CONFIGURATION in output
     assert suite.MODE_INTEGRATED_RUNTIME in output
+    assert suite.MODE_QUICKSCOUT in output
 
 
 def test_write_suite_summary_skips_side_effects_in_dry_run(tmp_path):
@@ -331,3 +343,28 @@ def test_build_suite_steps_supports_integrated_runtime_mode(tmp_path):
     assert steps[1].json_path == tmp_path / "artifacts" / "integrated_runtime.json"
     assert "tools/validate_integrated_runtime.py" in steps[1].command
     assert "--precision-move-east" in steps[1].command
+
+
+def test_build_suite_steps_supports_quickscout_mode(tmp_path):
+    suite = _load_module()
+    args = _build_args(
+        suite,
+        tmp_path,
+        template=suite.TEMPLATE_QUICKSCOUT_ONLY,
+        modes=[suite.MODE_QUICKSCOUT],
+        quickscout_launch_drone_count=2,
+        quickscout_min_estimated_coverage_s=60.0,
+    )
+
+    steps = suite.build_suite_steps(args, tmp_path / "artifacts")
+
+    assert [step.name for step in steps] == [
+        "reset_before_suite",
+        suite.MODE_QUICKSCOUT,
+        "reset_after_suite",
+    ]
+    assert steps[1].validator == suite.MODE_QUICKSCOUT
+    assert steps[1].json_path == tmp_path / "artifacts" / "quickscout.json"
+    assert "tools/validate_quickscout_runtime.py" in steps[1].command
+    assert steps[1].command[steps[1].command.index("--launch-drone-count") + 1] == "2"
+    assert steps[1].command[steps[1].command.index("--min-estimated-coverage-s") + 1] == "60.0"

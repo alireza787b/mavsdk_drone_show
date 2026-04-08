@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """Validate the QuickScout workflow against a live GCS/SITL stack.
 
-This validator intentionally starts narrow and deterministic:
+The validator supports both:
+
+1. the stable single-drone last-known-point drill
+2. a broader multi-drone launch drill using the same mission template
+
+In both cases it validates the same operator-facing lifecycle:
 
 1. Wait for a clean ready/idle fleet baseline
-2. Plan a single-drone last-known-point QuickScout mission from live telemetry
-3. Launch the mission and confirm the selected aircraft climbs and begins searching
+2. Plan a QuickScout mission from live telemetry
+3. Launch the mission and confirm the targeted aircraft climb and begin searching
 4. Pause into HOLD and confirm the mission enters the holding phase
 5. Confirm direct resume is rejected with explicit replan guidance
-6. Abort with return-home and confirm the fleet returns to a clean idle baseline
+6. Abort and confirm the fleet returns to a clean idle baseline
 
-The validator also confirms that non-target drones stay idle throughout the
-drill and that no active commands remain at the end.
+For partial-fleet drills it also confirms that non-target drones remain idle.
 """
 
 from __future__ import annotations
@@ -203,21 +207,36 @@ def resolve_selected_ids(args: argparse.Namespace) -> list[int]:
     return [1, 2, 3]
 
 
-def select_primary_target(telemetry: dict[str, dict[str, Any]], selected_ids: list[int]) -> tuple[int, dict[str, Any]]:
+def select_target_drones(
+    telemetry: dict[str, dict[str, Any]],
+    selected_ids: list[int],
+    *,
+    target_count: int,
+) -> list[tuple[int, dict[str, Any]]]:
+    if target_count <= 0:
+        raise RuntimeError(f"Target count must be positive, got {target_count}")
+
+    targets: list[tuple[int, dict[str, Any]]] = []
     for drone_id in selected_ids:
         row = telemetry.get(str(drone_id)) or {}
         if row.get("position_lat") is None or row.get("position_long") is None:
             continue
         if row.get("pos_id") is None:
             continue
-        return drone_id, row
-    raise RuntimeError(f"No selected drone has live GPS + pos_id telemetry: {selected_ids}")
+        targets.append((drone_id, row))
+        if len(targets) >= target_count:
+            return targets
+
+    raise RuntimeError(
+        f"Only {len(targets)} selected drone(s) had live GPS + pos_id telemetry; "
+        f"needed {target_count} from {selected_ids}"
+    )
 
 
 def build_last_known_point_request(
-    row: dict[str, Any],
+    target_rows: list[dict[str, Any]],
     *,
-    pos_id: int,
+    pos_ids: list[int],
     radius_m: float,
     altitude_gain_m: float,
     sweep_width_m: float,
@@ -225,15 +244,22 @@ def build_last_known_point_request(
     cruise_speed_ms: float,
     survey_speed_ms: float,
 ) -> dict[str, Any]:
-    current_alt_msl = float(row.get("position_alt", 0.0) or 0.0)
+    require(bool(target_rows), "At least one target row is required for QuickScout plan construction")
+    require(
+        len(target_rows) == len(pos_ids),
+        f"Target row / pos_id mismatch: {len(target_rows)} rows for {len(pos_ids)} pos_ids",
+    )
+    center_lat = sum(float(row["position_lat"]) for row in target_rows) / len(target_rows)
+    center_lng = sum(float(row["position_long"]) for row in target_rows) / len(target_rows)
+    current_alt_msl = max(float(row.get("position_alt", 0.0) or 0.0) for row in target_rows)
     cruise_altitude_msl = max(20.0, current_alt_msl + float(altitude_gain_m))
     return {
         "mission_template": "last_known_point",
         "search_area": {
             "type": "point",
             "center": {
-                "lat": float(row["position_lat"]),
-                "lng": float(row["position_long"]),
+                "lat": center_lat,
+                "lng": center_lng,
             },
             "radius_m": float(radius_m),
         },
@@ -248,7 +274,7 @@ def build_last_known_point_request(
             "use_terrain_following": False,
             "camera_interval_s": 2.0,
         },
-        "pos_ids": [int(pos_id)],
+        "pos_ids": [int(pos_id) for pos_id in pos_ids],
         "mission_label": "QuickScout Runtime Validator",
         "mission_profile": "runtime_last_known_point",
         "mission_brief": "Runtime validator search package",
@@ -333,6 +359,34 @@ def wait_target_airborne(
     )
 
 
+def wait_targets_airborne(
+    client: ApiClient,
+    target_ids: list[int],
+    *,
+    baseline_altitudes: dict[int, float],
+    min_gain: float,
+    timeout: int = 180,
+) -> dict[str, dict[str, Any]]:
+    def _ready():
+        telemetry = client.get_telemetry()
+        rows: dict[str, dict[str, Any]] = {}
+        for target_id in target_ids:
+            row = telemetry.get(str(target_id))
+            if row is None:
+                return False
+            if not _is_airborne_row(row, baseline_altitudes[target_id], min_gain=min_gain):
+                return False
+            rows[str(target_id)] = row
+        return rows
+
+    return wait_for(
+        _ready,
+        label=f"drones {target_ids} airborne with +{min_gain:.1f}m gain",
+        timeout=timeout,
+        interval=2.0,
+    )
+
+
 def wait_active_commands_clear(client: ApiClient, timeout: int = 120) -> dict[str, Any]:
     def _ready():
         payload = client.get_json(GCS_ACTIVE_COMMANDS_ROUTE)
@@ -407,6 +461,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
     parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to observe")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to observe")
+    parser.add_argument("--launch-drone-count", type=int, default=1, help="How many selected drones to include in the QuickScout launch package")
     parser.add_argument("--point-radius-m", type=float, default=120.0, help="Last-known-point search radius in metres")
     parser.add_argument("--altitude-gain-m", type=float, default=20.0, help="Requested survey altitude gain used in the planning payload")
     parser.add_argument("--airborne-min-gain", type=float, default=6.0, help="Minimum observed altitude gain required after launch")
@@ -423,10 +478,15 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     selected_ids = resolve_selected_ids(args)
+    require(
+        1 <= int(args.launch_drone_count) <= len(selected_ids),
+        f"--launch-drone-count must be between 1 and {len(selected_ids)} for selected fleet {selected_ids}",
+    )
     client = ApiClient(args.base_url)
 
     artifacts: dict[str, Any] = {
         "selected_drone_ids": selected_ids,
+        "launch_drone_count": int(args.launch_drone_count),
         "base_url": args.base_url,
         "stages": {},
     }
@@ -437,14 +497,27 @@ def main() -> int:
     baseline_rows = wait_fleet_ready(client, selected_ids)
     artifacts["stages"]["baseline_ready"] = baseline_rows
 
-    target_id, target_row = select_primary_target(baseline_rows, selected_ids)
-    target_pos_id = int(target_row["pos_id"])
-    baseline_altitude = float(target_row.get("position_alt", 0.0) or 0.0)
-    non_target_ids = [drone_id for drone_id in selected_ids if drone_id != target_id]
+    target_rows = select_target_drones(
+        baseline_rows,
+        selected_ids,
+        target_count=int(args.launch_drone_count),
+    )
+    target_ids = [drone_id for drone_id, _ in target_rows]
+    target_pos_ids = [int(row["pos_id"]) for _, row in target_rows]
+    target_row_payloads = [row for _, row in target_rows]
+    baseline_altitudes = {
+        drone_id: float(row.get("position_alt", 0.0) or 0.0)
+        for drone_id, row in target_rows
+    }
+    non_target_ids = [drone_id for drone_id in selected_ids if drone_id not in set(target_ids)]
+    artifacts["stages"]["targets"] = {
+        "target_drone_ids": target_ids,
+        "target_pos_ids": target_pos_ids,
+    }
 
     plan_request = build_last_known_point_request(
-        target_row,
-        pos_id=target_pos_id,
+        target_row_payloads,
+        pos_ids=target_pos_ids,
         radius_m=args.point_radius_m,
         altitude_gain_m=args.altitude_gain_m,
         sweep_width_m=args.sweep_width_m,
@@ -453,7 +526,10 @@ def main() -> int:
         survey_speed_ms=args.survey_speed_ms,
     )
     artifacts["stages"]["plan_request"] = plan_request
-    log(f"PLANNING QuickScout runtime mission for hw_id={target_id} pos_id={target_pos_id}")
+    log(
+        "PLANNING QuickScout runtime mission for "
+        f"hw_ids={target_ids} pos_ids={target_pos_ids}"
+    )
     plan_response = client.post_json("/api/sar/mission/plan", plan_request)
     artifacts["stages"]["plan_response"] = plan_response
     mission_id = str(plan_response["mission_id"])
@@ -467,48 +543,71 @@ def main() -> int:
     operation = workspace.get("operation") or {}
     plans = operation.get("plans") or []
     require(operation.get("mission_template") == "last_known_point", "Workspace did not persist the last_known_point template")
-    require(operation.get("pos_ids") == [target_pos_id], f"Workspace target pos_ids mismatch: {operation.get('pos_ids')}")
-    require(len(plans) == 1, f"Expected exactly one QuickScout plan for runtime validation, got {len(plans)}")
-    require(int(plans[0].get("pos_id", -1)) == target_pos_id, f"QuickScout plan pos_id mismatch: {plans[0]}")
-    target_hw_id = str(plans[0].get("hw_id"))
-    require(target_hw_id == str(target_id), f"QuickScout plan hw_id mismatch. Expected {target_id}, got {target_hw_id}")
+    require(
+        sorted(int(pos_id) for pos_id in operation.get("pos_ids") or []) == sorted(target_pos_ids),
+        f"Workspace target pos_ids mismatch: {operation.get('pos_ids')}",
+    )
+    require(
+        len(plans) == len(target_pos_ids),
+        f"Expected {len(target_pos_ids)} QuickScout plans for runtime validation, got {len(plans)}",
+    )
+    plan_pos_ids = sorted(int(plan.get("pos_id", -1)) for plan in plans)
+    require(plan_pos_ids == sorted(target_pos_ids), f"QuickScout plan pos_ids mismatch: {plans}")
+    target_hw_ids = sorted(str(plan.get("hw_id")) for plan in plans)
+    require(
+        target_hw_ids == sorted(str(target_id) for target_id in target_ids),
+        f"QuickScout plan hw_ids mismatch. Expected {target_ids}, got {target_hw_ids}",
+    )
 
-    log(f"LAUNCHING QuickScout mission {mission_id} on hw_id={target_hw_id}")
+    log(f"LAUNCHING QuickScout mission {mission_id} on hw_ids={target_hw_ids}")
     launch_response = client.post_json("/api/sar/mission/launch", query={"mission_id": mission_id})
     artifacts["stages"]["launch_response"] = launch_response
     require(bool(launch_response.get("success")), f"QuickScout launch did not succeed: {json.dumps(launch_response, indent=2)}")
-    require(target_hw_id in {str(hw_id) for hw_id in launch_response.get("launched_hw_ids", [])}, f"Target hw_id {target_hw_id} was not launched")
+    launched_hw_ids = sorted(str(hw_id) for hw_id in launch_response.get("launched_hw_ids", []))
+    require(
+        launched_hw_ids == target_hw_ids,
+        f"QuickScout launched hw_ids mismatch. Expected {target_hw_ids}, got {launched_hw_ids}",
+    )
+    require(
+        int(launch_response.get("drones_failed", 0) or 0) == 0,
+        f"QuickScout launch reported failed drones: {json.dumps(launch_response, indent=2)}",
+    )
 
-    searching_status = wait_status_phase(client, mission_id, {"searching", "launch_partial"})
+    searching_status = wait_status_phase(client, mission_id, {"searching"})
     artifacts["stages"]["searching_status"] = searching_status
 
-    airborne_row = wait_target_airborne(
+    airborne_rows = wait_targets_airborne(
         client,
-        target_id,
-        baseline_altitude=baseline_altitude,
+        target_ids,
+        baseline_altitudes=baseline_altitudes,
         min_gain=args.airborne_min_gain,
     )
-    artifacts["stages"]["target_airborne"] = airborne_row
+    artifacts["stages"]["target_airborne"] = airborne_rows
 
     if non_target_ids:
         artifacts["stages"]["non_target_idle_after_launch"] = wait_non_targets_idle(client, non_target_ids)
 
     pause_response = client.post_json(
         f"/api/sar/mission/{mission_id}/pause",
-        query=[("pos_ids", target_pos_id)],
+        query=[("pos_ids", pos_id) for pos_id in target_pos_ids],
     )
     artifacts["stages"]["pause_response"] = pause_response
     require(bool(pause_response.get("success")), f"QuickScout pause was not accepted: {json.dumps(pause_response, indent=2)}")
     require(
-        str(target_hw_id) in {str(hw_id) for hw_id in pause_response.get("accepted_hw_ids", [])},
-        f"Pause did not target the launched drone: {json.dumps(pause_response, indent=2)}",
+        sorted(str(hw_id) for hw_id in pause_response.get("accepted_hw_ids", [])) == target_hw_ids,
+        f"Pause did not target the launched drones: {json.dumps(pause_response, indent=2)}",
     )
     pause_command = pause_response.get("command") or {}
     pause_command_id = pause_command.get("command_id")
     require(pause_command_id, "Pause response did not include a tracked command_id")
     pause_command_status = wait_command_terminal(client, pause_command_id, timeout=180)
     artifacts["stages"]["pause_command_status"] = pause_command_status
-    require_command_success(pause_command_status, expected_accepts=1, expected_successes=1, label="QuickScout pause")
+    require_command_success(
+        pause_command_status,
+        expected_accepts=len(target_ids),
+        expected_successes=len(target_ids),
+        label="QuickScout pause",
+    )
 
     holding_status = wait_status_phase(client, mission_id, {"holding"}, timeout=90)
     artifacts["stages"]["holding_status"] = holding_status
@@ -519,7 +618,7 @@ def main() -> int:
 
     resume_response = client.post_json(
         f"/api/sar/mission/{mission_id}/resume",
-        query=[("pos_ids", target_pos_id)],
+        query=[("pos_ids", pos_id) for pos_id in target_pos_ids],
     )
     artifacts["stages"]["resume_response"] = resume_response
     require(resume_response.get("success") is False, "QuickScout resume unexpectedly succeeded")
@@ -535,10 +634,7 @@ def main() -> int:
 
     abort_response = client.post_json(
         f"/api/sar/mission/{mission_id}/abort",
-        query=[
-            ("pos_ids", target_pos_id),
-            ("return_behavior", args.abort_return_behavior),
-        ],
+        query=[*[("pos_ids", pos_id) for pos_id in target_pos_ids], ("return_behavior", args.abort_return_behavior)],
     )
     artifacts["stages"]["abort_response"] = abort_response
     require(bool(abort_response.get("success")), f"QuickScout abort was not accepted: {json.dumps(abort_response, indent=2)}")
@@ -547,7 +643,12 @@ def main() -> int:
     require(abort_command_id, "Abort response did not include a tracked command_id")
     abort_command_status = wait_command_terminal(client, abort_command_id, timeout=420)
     artifacts["stages"]["abort_command_status"] = abort_command_status
-    require_command_success(abort_command_status, expected_accepts=1, expected_successes=1, label="QuickScout abort")
+    require_command_success(
+        abort_command_status,
+        expected_accepts=len(target_ids),
+        expected_successes=len(target_ids),
+        label="QuickScout abort",
+    )
 
     return_status = wait_status_phase(client, mission_id, {"return_commanded", "aborted"}, timeout=60)
     artifacts["stages"]["return_commanded_status"] = return_status

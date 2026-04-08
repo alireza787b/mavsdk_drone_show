@@ -90,22 +90,7 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 6: QuickScout SITL validator and reusable regression template
-
-**Priority:** Medium
-**Status:** Deferred — wait until QuickScout mission behavior and operator workflow are mature
-
-**Problem:** The reusable SITL validation platform now covers Drone Show, standalone action controls, Smart Swarm, and Swarm Trajectory, but QuickScout is still an evolving subsystem. Adding it to the main deterministic gate now would create a brittle acceptance contract and misleading false failures.
-
-**Solution:** Add a dedicated QuickScout runtime validator plus a stable template entry in the SITL validation platform after the subsystem itself is ready for deterministic end-to-end acceptance testing.
-
-**Files to modify:**
-- `tools/run_sitl_validation_suite.py` — add QuickScout validator/template registration
-- `tools/validate_quickscout_runtime.py` — add dedicated runtime validator
-- `docs/guides/sitl-validation-platform.md` — document the new template and scenario coverage
-- `docs/guides/sitl-comprehensive.md` — link the new QuickScout validation path
-
-## TODO 7: QuickScout mission-batch launch identity and optional true continue/resume adapter
+## TODO 6: QuickScout mission-batch launch identity and optional true continue/resume adapter
 
 **Status:** Deferred — wait until the new QuickScout mission workspace and operator workflow settle
 
