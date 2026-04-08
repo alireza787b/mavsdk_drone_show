@@ -5,8 +5,19 @@
 
 import React from 'react';
 import DroneStatusCard from './DroneStatusCard';
+import MissionRecoveryPanel from './MissionRecoveryPanel';
 
-const MissionMonitorSidebar = ({ missionStatus, pois, onDroneClick, onPOIClick }) => {
+const MissionMonitorSidebar = ({
+  missionStatus,
+  pois,
+  onDroneClick,
+  onPOIClick,
+  missionCatalog,
+  currentMissionId,
+  recoveringMissionId,
+  loadingMissionCatalog,
+  onRecoverMission,
+}) => {
   const droneStates = missionStatus?.drone_states || {};
   const sortedDrones = Object.values(droneStates).sort((a, b) =>
     (a.hw_id || '').localeCompare(b.hw_id || '')
@@ -16,18 +27,32 @@ const MissionMonitorSidebar = ({ missionStatus, pois, onDroneClick, onPOIClick }
     <div className="qs-sidebar">
       <div className="qs-sidebar-header">Mission Monitor</div>
       <div className="qs-sidebar-content">
+        <MissionRecoveryPanel
+          missions={missionCatalog}
+          currentMissionId={currentMissionId}
+          recoveringMissionId={recoveringMissionId}
+          loading={loadingMissionCatalog}
+          onRecoverMission={onRecoverMission}
+        />
+
         {/* Drone Status Cards */}
         <div className="qs-config-section">
           <div className="qs-config-title">Drones ({sortedDrones.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {sortedDrones.map((ds) => (
-              <DroneStatusCard
-                key={ds.hw_id}
-                droneState={ds}
-                onClick={() => onDroneClick && onDroneClick(ds.hw_id)}
-              />
-            ))}
-          </div>
+          {sortedDrones.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {sortedDrones.map((ds) => (
+                <DroneStatusCard
+                  key={ds.hw_id}
+                  droneState={ds}
+                  onClick={() => onDroneClick && onDroneClick(ds.hw_id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="qs-empty-copy">
+              Select or reopen a mission to monitor live drone progress and POIs.
+            </div>
+          )}
         </div>
 
         {/* POI List */}

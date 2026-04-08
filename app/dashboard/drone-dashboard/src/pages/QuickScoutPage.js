@@ -68,6 +68,9 @@ const DEFAULT_SURVEY_CONFIG = {
   camera_interval_s: 2,
 };
 
+const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
+const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
+
 // Create simple drone icon for Leaflet markers
 // Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
 const createDroneIcon = (hwId) =>
@@ -99,11 +102,14 @@ const QuickScoutPage = () => {
   // Plan state
   const [searchArea, setSearchArea] = useState([]);
   const [searchAreaSqM, setSearchAreaSqM] = useState(0);
-  const [surveyConfig, setSurveyConfig] = useState(DEFAULT_SURVEY_CONFIG);
+  const [surveyConfig, setSurveyConfig] = useState({ ...DEFAULT_SURVEY_CONFIG });
   const [selectedDrones, setSelectedDrones] = useState([]);
   const [coveragePlan, setCoveragePlan] = useState(null);
   const [computing, setComputing] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [loadingMissionCatalog, setLoadingMissionCatalog] = useState(false);
+  const [missionCatalog, setMissionCatalog] = useState([]);
+  const [recoveringMissionId, setRecoveringMissionId] = useState(null);
 
   // Monitor state
   const [missionId, setMissionId] = useState(null);
@@ -125,6 +131,99 @@ const QuickScoutPage = () => {
   const mapRef = useRef(null);
   const drawControlRef = useRef(null);
   const [flyToTarget, setFlyToTarget] = useState(null);
+  const autoRecoveryCheckedRef = useRef(false);
+
+  const resetWorkspace = useCallback(() => {
+    setMode('plan');
+    setSearchArea([]);
+    setSearchAreaSqM(0);
+    setSurveyConfig({ ...DEFAULT_SURVEY_CONFIG });
+    setSelectedDrones([]);
+    setCoveragePlan(null);
+    setMissionId(null);
+    setMissionStatus(null);
+    setPois([]);
+    setAddingPOI(false);
+    setRecoveringMissionId(null);
+    drawControlRef.current?.reset();
+  }, []);
+
+  const refreshMissionCatalog = useCallback(async ({ withLoading = false } = {}) => {
+    if (withLoading) {
+      setLoadingMissionCatalog(true);
+    }
+
+    try {
+      const response = await sarApi.listMissions({ limit: 8 });
+      const missions = Array.isArray(response?.missions) ? response.missions : [];
+      setMissionCatalog(missions);
+      return missions;
+    } catch (error) {
+      return null;
+    } finally {
+      if (withLoading) {
+        setLoadingMissionCatalog(false);
+      }
+    }
+  }, []);
+
+  const applyWorkspace = useCallback((workspace, { preferredMode = null } = {}) => {
+    const operation = workspace?.operation;
+    const status = workspace?.status;
+
+    if (!operation || !status) {
+      return;
+    }
+
+    setMissionId(operation.mission_id);
+    setMissionStatus(status);
+    setPois(status.pois || []);
+    setSearchArea(operation.search_area?.points || []);
+    setSearchAreaSqM(operation.search_area?.area_sq_m || operation.total_area_sq_m || 0);
+    setSurveyConfig({
+      ...DEFAULT_SURVEY_CONFIG,
+      ...(operation.survey_config || {}),
+    });
+    setSelectedDrones(
+      Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
+        ? operation.pos_ids
+        : (operation.plans || []).map((plan) => plan.pos_id)
+    );
+    setCoveragePlan({
+      mission_id: operation.mission_id,
+      plans: operation.plans || [],
+      total_area_sq_m: operation.total_area_sq_m || 0,
+      estimated_coverage_time_s: operation.estimated_coverage_time_s || 0,
+      algorithm_used: operation.algorithm_used || DEFAULT_SURVEY_CONFIG.algorithm,
+    });
+
+    const recoveredState = status.state || operation.state;
+    setMode(preferredMode || (MONITOR_MISSION_STATES.has(recoveredState) ? 'monitor' : 'plan'));
+  }, []);
+
+  const handleRecoverMission = useCallback(async (
+    targetMissionId,
+    { preferredMode = null, silent = false } = {},
+  ) => {
+    if (!targetMissionId) {
+      return;
+    }
+
+    setRecoveringMissionId(targetMissionId);
+    try {
+      const workspace = await sarApi.getMissionWorkspace(targetMissionId);
+      applyWorkspace(workspace, { preferredMode });
+      await refreshMissionCatalog();
+      if (!silent) {
+        toast.success(`Opened mission ${targetMissionId}`);
+      }
+    } catch (error) {
+      const detail = error.response?.data?.detail || error.message;
+      toast.error(`Unable to recover mission: ${detail}`);
+    } finally {
+      setRecoveringMissionId(null);
+    }
+  }, [applyWorkspace, refreshMissionCatalog]);
 
   // Telemetry polling
   useEffect(() => {
@@ -144,6 +243,38 @@ const QuickScoutPage = () => {
     const interval = setInterval(fetchTelemetry, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  // Persisted mission catalog / recovery polling
+  useEffect(() => {
+    let active = true;
+
+    const fetchCatalog = async (withLoading) => {
+      const missions = await refreshMissionCatalog({ withLoading });
+      if (!active) {
+        return;
+      }
+
+      if (missions === null || autoRecoveryCheckedRef.current || missionId) {
+        return;
+      }
+
+      autoRecoveryCheckedRef.current = true;
+      const activeMission = missions.find((mission) => ACTIVE_MISSION_STATES.has(mission.state));
+      if (activeMission) {
+        handleRecoverMission(activeMission.mission_id, {
+          preferredMode: 'monitor',
+          silent: true,
+        });
+      }
+    };
+
+    fetchCatalog(true);
+    const interval = setInterval(() => fetchCatalog(false), 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [handleRecoverMission, missionId, refreshMissionCatalog]);
 
   // Fetch config drones on mount
   useEffect(() => {
@@ -186,9 +317,9 @@ const QuickScoutPage = () => {
     return merged;
   }, [configDrones, drones]);
 
-  // Mission status polling (monitor mode)
+  // Mission status polling
   useEffect(() => {
-    if (mode !== 'monitor' || !missionId) return;
+    if (!missionId) return;
 
     const pollStatus = async () => {
       try {
@@ -204,7 +335,13 @@ const QuickScoutPage = () => {
     pollStatus();
     const interval = setInterval(pollStatus, 2000);
     return () => clearInterval(interval);
-  }, [mode, missionId]);
+  }, [missionId]);
+
+  const currentMissionSummary = useMemo(
+    () => missionCatalog.find((mission) => mission.mission_id === missionId) || null,
+    [missionCatalog, missionId]
+  );
+  const currentMissionState = missionStatus?.state || currentMissionSummary?.state || null;
 
   // Center map on first drone with GPS
   useEffect(() => {
@@ -254,6 +391,7 @@ const QuickScoutPage = () => {
       const response = await sarApi.computePlan(request);
       setCoveragePlan(response);
       setMissionId(response.mission_id);
+      await refreshMissionCatalog();
       toast.success(`Plan computed: ${response.plans.length} drones, ${(response.total_area_sq_m / 10000).toFixed(1)} ha`);
     } catch (err) {
       if (err.code === 'ECONNABORTED') {
@@ -265,13 +403,14 @@ const QuickScoutPage = () => {
     } finally {
       setComputing(false);
     }
-  }, [searchArea, searchAreaSqM, surveyConfig, selectedDrones]);
+  }, [refreshMissionCatalog, searchArea, searchAreaSqM, selectedDrones, surveyConfig]);
 
   const handleLaunchMission = useCallback(async () => {
     if (!missionId) return;
     setLaunching(true);
     try {
       await sarApi.launchMission(missionId);
+      await refreshMissionCatalog();
       toast.success('Mission launched!');
       setMode('monitor');
     } catch (err) {
@@ -280,37 +419,40 @@ const QuickScoutPage = () => {
     } finally {
       setLaunching(false);
     }
-  }, [missionId]);
+  }, [missionId, refreshMissionCatalog]);
 
   const handlePause = useCallback(async () => {
     if (!missionId) return;
     try {
       await sarApi.pauseMission(missionId);
+      await refreshMissionCatalog();
       toast.info('Mission paused');
     } catch (err) {
       toast.error('Pause failed');
     }
-  }, [missionId]);
+  }, [missionId, refreshMissionCatalog]);
 
   const handleResume = useCallback(async () => {
     if (!missionId) return;
     try {
       await sarApi.resumeMission(missionId);
+      await refreshMissionCatalog();
       toast.success('Mission resumed');
     } catch (err) {
       toast.error('Resume failed');
     }
-  }, [missionId]);
+  }, [missionId, refreshMissionCatalog]);
 
   const handleAbort = useCallback(async () => {
     if (!missionId) return;
     try {
       await sarApi.abortMission(missionId);
+      await refreshMissionCatalog();
       toast.warning('Mission aborted');
     } catch (err) {
       toast.error('Abort failed');
     }
-  }, [missionId]);
+  }, [missionId, refreshMissionCatalog]);
 
   const handlePOIAdded = useCallback((poi) => {
     setPois(prev => [...prev, poi]);
@@ -336,6 +478,17 @@ const QuickScoutPage = () => {
           <span className="qs-page-title">QuickScout SAR</span>
           <PlanMonitorToggle mode={mode} onModeChange={setMode} />
           <MapProviderToggle />
+          {missionId && (
+            <div className="qs-page-chip">
+              <span className="qs-page-chip-label">Mission</span>
+              <span className="qs-page-chip-value">{missionId}</span>
+              {currentMissionState && (
+                <span className={`qs-state-badge ${currentMissionState}`}>
+                  {currentMissionState}
+                </span>
+              )}
+            </div>
+          )}
           <div className="qs-search-wrapper">
             <SearchBar onLocationSelect={handleLocationSelect} />
           </div>
@@ -478,11 +631,22 @@ const QuickScoutPage = () => {
             searchArea={searchArea}
             computing={computing}
             launching={launching}
+            missionCatalog={missionCatalog}
+            currentMissionId={missionId}
+            recoveringMissionId={recoveringMissionId}
+            loadingMissionCatalog={loadingMissionCatalog}
+            onRecoverMission={handleRecoverMission}
+            onStartFreshPlan={resetWorkspace}
           />
         ) : (
           <MissionMonitorSidebar
             missionStatus={missionStatus}
             pois={pois}
+            missionCatalog={missionCatalog}
+            currentMissionId={missionId}
+            recoveringMissionId={recoveringMissionId}
+            loadingMissionCatalog={loadingMissionCatalog}
+            onRecoverMission={handleRecoverMission}
             onDroneClick={(hwId) => {
               // Center map on drone
               const drone = mergedDrones.find(d => d.hw_ID === hwId);

@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout workspace recovery UI phase 4 checkpoint note documenting the reusable saved-mission workspace panel, the QuickScout page recovery/hydration flow, the new page-level recovery tests, and the focused Hetzner validation/build results
 - a 2026-04-08 QuickScout recovery phase 3 checkpoint note documenting the new mission catalog/workspace recovery endpoints, the matching SAR frontend service hooks, the route-inventory update, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout command-lifecycle phase 2 checkpoint note documenting the shared tracked-submit extraction, the new QuickScout tracked launch/control responses, the mission-scope targeting fix, the abort-behavior mapping fix, and the paired local/Hetzner validation results
 - a 2026-04-07 QuickScout foundation phase 1 checkpoint note documenting the new durable SQLite-backed QuickScout store, the backend service boundary that replaces the old in-memory mission/POI managers, the stricter live-GPS planning gate, the camera-interval waypoint persistence, and the focused backend validation results
@@ -79,6 +80,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- QuickScout no longer depends on one browser-local `missionId` after refresh: the page can now reopen persisted workspaces, auto-recover active missions, restore saved plan geometry/config/drone selections, and surface a shared saved-mission panel in both planning and monitor contexts
 - QuickScout now exposes durable mission-recovery surfaces instead of forcing the frontend to rely on one in-memory `missionId`: persisted missions can now be listed, a single workspace payload can reopen the stored mission package plus live-derived status, and the dashboard SAR service layer has matching recovery entrypoints for the later workspace redesign
 - QuickScout no longer bypasses the shared tracked command lifecycle for launch, pause, and abort: launch now returns per-drone tracked command submissions, pause/abort now return typed tracked control responses, and durable mission recovery data now includes compact last-command summaries instead of ephemeral route-local success dicts
 - QuickScout mission controls no longer default to all configured drones when no subset is provided; pause, resume, and abort now scope to mission participants by default, which removes a real cross-mission control hazard from the old PoC path

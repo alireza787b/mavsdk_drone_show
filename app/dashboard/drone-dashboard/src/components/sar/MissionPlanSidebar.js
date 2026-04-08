@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import MissionRecoveryPanel from './MissionRecoveryPanel';
 
 const MissionPlanSidebar = ({
   drones,
@@ -18,6 +19,12 @@ const MissionPlanSidebar = ({
   searchArea,
   computing,
   launching,
+  missionCatalog,
+  currentMissionId,
+  recoveringMissionId,
+  loadingMissionCatalog,
+  onRecoverMission,
+  onStartFreshPlan,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -34,6 +41,16 @@ const MissionPlanSidebar = ({
     <div className="qs-sidebar">
       <div className="qs-sidebar-header">Mission Planning</div>
       <div className="qs-sidebar-content">
+        <MissionRecoveryPanel
+          missions={missionCatalog}
+          currentMissionId={currentMissionId}
+          recoveringMissionId={recoveringMissionId}
+          loading={loadingMissionCatalog}
+          onRecoverMission={onRecoverMission}
+          onStartFreshPlan={onStartFreshPlan}
+          showStartFresh={Boolean(currentMissionId)}
+        />
+
         {/* Search Area Status */}
         <div className="qs-config-section">
           <div className="qs-config-title">Search Area</div>
