@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout findings cleanup and follow-up checkpoint note documenting the findings-only contract cleanup, the removal of public `/api/sar/poi` aliases, the finding-led follow-up search seed flow, the map focus fix, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout multi-drone SITL-platform checkpoint note documenting the new reusable `quickscout` validator mode, the stable bundled `quickscout_runtime` plan, the multi-drone last-known-point runtime drill, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout runtime-validation checkpoint note documenting the live launch-path debugging chain, the fresh-container Hetzner validator pass, the local regression additions for the mission executor, and the remaining next-slice QuickScout execution work
 - a 2026-04-08 QuickScout execution-semantics phase 13 checkpoint note documenting the new operator-facing mission phases, honest control-availability contract, follow-up-planning guidance, and the paired local/Hetzner validation results

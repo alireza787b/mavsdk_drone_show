@@ -114,13 +114,13 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ## TODO 7: QuickScout evidence workflow and advanced mission retasking
 
-**Status:** Deferred — findings foundation is complete, but evidence and mid-mission retasking are not yet done
+**Status:** Deferred — findings foundation and finding-seeded follow-up planning are complete, but evidence and mid-mission retasking are not yet done
 
 **Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
 
 - evidence references and later media linkage for findings
 - operator handoff/export posture for reviewed findings
-- add-drone/remove-drone or follow-up package generation from the current airborne state
+- add-drone/remove-drone or deeper follow-up package generation from the current airborne state
 - richer findings-in-the-loop SITL drills
 
 **Solution:** Revisit after the current findings checkpoint is merged into the active QuickScout stream:

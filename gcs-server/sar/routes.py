@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
-    QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate, POI, DroneProgressReport,
+    QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate, DroneProgressReport,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
@@ -114,12 +114,6 @@ def create_sar_router(deps: Any) -> APIRouter:
     router.add_api_route("/findings", _list_findings, methods=["GET"], response_model=List[QuickScoutFinding])
     router.add_api_route("/findings/{finding_id}", _update_finding, methods=["PATCH"], response_model=QuickScoutFinding)
     router.add_api_route("/findings/{finding_id}", _delete_finding, methods=["DELETE"])
-
-    # Compatibility aliases for older POI callers. Hidden from schema on purpose.
-    router.add_api_route("/poi", _create_finding, methods=["POST"], response_model=POI, include_in_schema=False)
-    router.add_api_route("/poi", _list_findings, methods=["GET"], response_model=List[POI], include_in_schema=False)
-    router.add_api_route("/poi/{finding_id}", _update_finding, methods=["PATCH"], response_model=POI, include_in_schema=False)
-    router.add_api_route("/poi/{finding_id}", _delete_finding, methods=["DELETE"], include_in_schema=False)
 
     @router.post("/elevation/batch")
     async def batch_elevation(points: List[dict]):

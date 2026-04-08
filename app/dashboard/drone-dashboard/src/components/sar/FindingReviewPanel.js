@@ -2,8 +2,11 @@ import React, { useEffect, useState } from 'react';
 
 const FINDING_TYPE_OPTIONS = [
   { value: 'person', label: 'Person' },
+  { value: 'vessel', label: 'Vessel' },
   { value: 'vehicle', label: 'Vehicle' },
-  { value: 'structure', label: 'Structure' },
+  { value: 'clue', label: 'Clue' },
+  { value: 'hazard', label: 'Hazard' },
+  { value: 'infrastructure', label: 'Infrastructure' },
   { value: 'anomaly', label: 'Anomaly' },
   { value: 'other', label: 'Other' },
 ];
@@ -52,6 +55,8 @@ const FindingReviewPanel = ({
   deleting,
   onSaveFinding,
   onDeleteFinding,
+  onFocusFinding,
+  onSeedFollowUpFromFinding,
 }) => {
   const [draft, setDraft] = useState(buildDraft(finding));
 
@@ -187,6 +192,22 @@ const FindingReviewPanel = ({
       </div>
 
       <div className="qs-finding-detail__actions">
+        <button
+          type="button"
+          className="qs-btn qs-btn-secondary"
+          onClick={() => onFocusFinding?.(finding)}
+          disabled={saving || deleting}
+        >
+          Center Map
+        </button>
+        <button
+          type="button"
+          className="qs-btn qs-btn-secondary"
+          onClick={() => onSeedFollowUpFromFinding?.(finding)}
+          disabled={saving || deleting}
+        >
+          Follow-up Search
+        </button>
         <button
           type="button"
           className="qs-btn qs-btn-primary"

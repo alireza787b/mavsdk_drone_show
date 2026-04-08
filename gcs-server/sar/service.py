@@ -3,9 +3,7 @@
 QuickScout application service.
 
 This module centralizes QuickScout mission planning, durable operation state,
-launch/control orchestration, and findings handling. The current public API surface
-stays backward-compatible while the subsystem is migrated away from the earlier
-in-memory PoC managers.
+launch/control orchestration, and findings handling.
 """
 
 from __future__ import annotations
@@ -30,7 +28,6 @@ from sar.schemas import (
     QuickScoutFindingCreate,
     QuickScoutFindingUpdate,
     MissionStatus,
-    POI,
     QuickScoutControlAvailability,
     QuickScoutControlEffect,
     QuickScoutLaunchSubmission,
@@ -555,7 +552,6 @@ class QuickScoutService:
             operation_phase=phase,
             drone_states=operation.drone_states,
             findings=findings,
-            pois=findings,
             total_coverage_percent=self._calculate_total_coverage(operation.drone_states),
             elapsed_time_s=max(0.0, elapsed_time_s),
             started_at=operation.started_at,
@@ -598,7 +594,6 @@ class QuickScoutService:
                     return_behavior=operation.return_behavior,
                     total_coverage_percent=self._calculate_total_coverage(operation.drone_states),
                     finding_count=finding_count,
-                    poi_count=finding_count,
                     last_command_summary=operation.last_command_summary,
                 )
             )
@@ -1161,16 +1156,3 @@ class QuickScoutService:
 
     def delete_finding(self, finding_id: str) -> bool:
         return self.store.delete_finding(finding_id)
-
-    # Compatibility aliases while callers/docs migrate away from POI wording.
-    def add_poi(self, mission_id: str, poi: POI) -> POI:
-        return self.add_finding(mission_id, poi)
-
-    def get_pois(self, mission_id: str) -> List[POI]:
-        return self.get_findings(mission_id)
-
-    def update_poi(self, poi_id: str, updates: Dict[str, Any]) -> Optional[POI]:
-        return self.update_finding(poi_id, updates)
-
-    def delete_poi(self, poi_id: str) -> bool:
-        return self.delete_finding(poi_id)

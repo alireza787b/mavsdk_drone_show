@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Iterable, Optional
 
-from sar.schemas import POI, QuickScoutFinding, QuickScoutOperationRecord
+from sar.schemas import QuickScoutFinding, QuickScoutOperationRecord
 from mds_logging import get_logger
 
 logger = get_logger("quickscout_store")
@@ -209,19 +209,6 @@ class QuickScoutStore:
                 (finding_id,),
             )
         return cursor.rowcount > 0
-
-    # Compatibility aliases while older callers still use POI naming.
-    def save_poi(self, mission_id: str, poi: POI) -> POI:
-        return self.save_finding(mission_id, poi)
-
-    def list_pois(self, mission_id: str) -> list[POI]:
-        return self.list_findings(mission_id)
-
-    def get_poi(self, poi_id: str) -> Optional[POI]:
-        return self.get_finding(poi_id)
-
-    def delete_poi(self, poi_id: str) -> bool:
-        return self.delete_finding(poi_id)
 
     def reset_all(self) -> None:
         with self._write_lock, self._connect() as connection:

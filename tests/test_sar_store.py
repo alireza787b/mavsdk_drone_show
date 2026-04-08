@@ -6,7 +6,9 @@ from sar.schemas import (
     CoverageWaypoint,
     DroneCoveragePlan,
     DroneSurveyState,
-    POI,
+    FindingType,
+    FindingPriority,
+    QuickScoutFinding,
     QuickScoutOperationRecord,
     SearchArea,
     SearchAreaPoint,
@@ -88,15 +90,24 @@ def test_quickscout_store_persists_findings(tmp_path, monkeypatch):
 
     store = store_module.get_quickscout_store()
     store.save_operation(_build_operation())
-    poi = POI(id="poi-1", lat=47.0, lng=8.0, notes="marker", mission_id="mission-1", summary="Dock contact")
-    store.save_finding("mission-1", poi)
+    finding = QuickScoutFinding(
+        id="finding-1",
+        lat=47.0,
+        lng=8.0,
+        notes="marker",
+        mission_id="mission-1",
+        summary="Dock contact",
+        type=FindingType.VESSEL,
+        priority=FindingPriority.HIGH,
+    )
+    store.save_finding("mission-1", finding)
 
     store_module._store_instance = None
     reopened = store_module.get_quickscout_store()
     loaded = reopened.list_findings("mission-1")
 
     assert len(loaded) == 1
-    assert loaded[0].id == "poi-1"
+    assert loaded[0].id == "finding-1"
     assert loaded[0].notes == "marker"
     assert loaded[0].summary == "Dock contact"
 
@@ -107,7 +118,7 @@ def test_quickscout_store_migrates_legacy_poi_rows(tmp_path, monkeypatch):
     store_module._store_instance = None
 
     operation = _build_operation()
-    payload = POI(
+    payload = QuickScoutFinding(
         id="legacy-poi-1",
         lat=47.0,
         lng=8.0,

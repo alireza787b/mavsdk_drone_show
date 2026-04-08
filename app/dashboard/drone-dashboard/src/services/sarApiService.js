@@ -105,12 +105,6 @@ export const deleteFinding = async (findingId) => {
   return response.data;
 };
 
-// Compatibility aliases while QuickScout callers migrate away from POI naming.
-export const createPOI = createFinding;
-export const getPOIs = getFindings;
-export const updatePOI = updateFinding;
-export const deletePOI = deleteFinding;
-
 export const batchElevation = async (points) => {
   const response = await axios.post(buildSarUrl('/elevation/batch'), points);
   return response.data;

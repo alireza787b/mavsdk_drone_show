@@ -70,16 +70,13 @@ def reset_managers(tmp_path, monkeypatch):
     """Reset QuickScout singletons and isolate durable state between tests."""
     monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
     import sar.mission_manager as mm
-    import sar.poi_manager as pm
     import sar.service as svc
     import sar.store as store
     mm._manager_instance = None
-    pm._poi_instance = None
     svc._service_instance = None
     store._store_instance = None
     yield
     mm._manager_instance = None
-    pm._poi_instance = None
     svc._service_instance = None
     store._store_instance = None
 
@@ -449,15 +446,6 @@ class TestFindingEndpoints:
         resp = client.get("/api/sar/findings", params={"mission_id": "empty-mission"})
         assert resp.status_code == 200
         assert resp.json() == []
-
-    def test_poi_alias_remains_available(self, client):
-        mission_id = self._plan_and_get_id(client)
-        resp = client.post("/api/sar/poi", json={"lat": 47.0, "lng": 8.0}, params={"mission_id": mission_id})
-        assert resp.status_code == 200
-        resp = client.get("/api/sar/poi", params={"mission_id": mission_id})
-        assert resp.status_code == 200
-        assert len(resp.json()) == 1
-
 
 class TestElevationBatch:
     def test_batch_elevation(self, client):

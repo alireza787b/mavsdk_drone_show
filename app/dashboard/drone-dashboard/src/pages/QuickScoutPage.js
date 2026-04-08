@@ -177,6 +177,16 @@ const QuickScoutPage = () => {
   const [flyToTarget, setFlyToTarget] = useState(null);
   const autoRecoveryCheckedRef = useRef(false);
 
+  const focusMap = useCallback((longitude, latitude, zoom = 15) => {
+    const nextViewport = { longitude, latitude, zoom };
+    setViewport(nextViewport);
+    if (!useLeaflet && mapRef.current?.flyTo) {
+      mapRef.current.flyTo({ center: [longitude, latitude], zoom });
+      return;
+    }
+    setFlyToTarget({ latitude, longitude, zoom });
+  }, [useLeaflet]);
+
   const resetWorkspace = useCallback(() => {
     setMode('plan');
     setSearchArea([]);
@@ -235,7 +245,7 @@ const QuickScoutPage = () => {
     const recoveredSelectedDrones = Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
       ? operation.pos_ids
       : (operation.plans || []).map((plan) => plan.pos_id);
-    const recoveredFindings = status.findings || status.pois || [];
+    const recoveredFindings = status.findings || [];
     setMissionId(operation.mission_id);
     setMissionStatus(status);
     setFindings(recoveredFindings);
@@ -406,7 +416,7 @@ const QuickScoutPage = () => {
     const pollStatus = async () => {
       try {
         const status = await sarApi.getMissionStatus(missionId);
-        const findingsData = status?.findings || status?.pois || [];
+        const findingsData = status?.findings || [];
         setMissionStatus(status);
         setFindings(findingsData);
         setSelectedFinding((current) => {
@@ -774,7 +784,7 @@ const QuickScoutPage = () => {
   // SearchBar location select handler
   const handleLocationSelect = useCallback((longitude, latitude, _altitude) => {
     const zoom = 15;
-    setViewport({ longitude, latitude, zoom });
+    focusMap(longitude, latitude, zoom);
     if (missionTemplate === 'last_known_point') {
       handleSearchCenterChange({ lat: latitude, lng: longitude });
     }
@@ -784,12 +794,53 @@ const QuickScoutPage = () => {
         { lat: latitude, lng: longitude },
       ]);
     }
-    if (!useLeaflet && mapRef.current) {
-      mapRef.current.flyTo({ center: [longitude, latitude], zoom });
-    } else {
-      setFlyToTarget({ latitude, longitude, zoom });
+  }, [focusMap, handleSearchCenterChange, handleSearchPathChange, missionTemplate, searchPath]);
+
+  const handleFocusFinding = useCallback((finding) => {
+    if (!finding) {
+      return;
     }
-  }, [handleSearchCenterChange, handleSearchPathChange, missionTemplate, searchPath, useLeaflet]);
+    setSelectedFinding(finding);
+    focusMap(finding.lng, finding.lat, 17);
+  }, [focusMap]);
+
+  const handleSeedFollowUpFromFinding = useCallback((finding) => {
+    if (!finding) {
+      return;
+    }
+
+    const preservedTargets = selectedDrones.length > 0
+      ? [...selectedDrones]
+      : (coveragePlan?.plans || []).map((plan) => plan.pos_id);
+    const nextLabelBase = missionLabel || currentMissionDisplayName || 'QuickScout';
+    const nextSummary = finding.summary || 'operator observation';
+
+    setMode('plan');
+    setMissionId(null);
+    setMissionStatus(null);
+    setFindings([]);
+    setMarkingFinding(false);
+    setSelectedFinding(null);
+    setSavingFinding(false);
+    setDeletingFinding(false);
+    setRecoveringMissionId(null);
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+
+    setMissionTemplate('last_known_point');
+    setSearchArea([]);
+    setSearchAreaSqM(0);
+    setSearchPath([]);
+    setCorridorWidthM(DEFAULT_CORRIDOR_WIDTH_M);
+    setSearchCenter({ lat: finding.lat, lng: finding.lng });
+    setSearchRadiusM(DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
+    setMissionLabel(`${nextLabelBase} follow-up`);
+    setMissionBrief(`Follow-up search seeded from finding: ${nextSummary}.`);
+    setSelectedDrones(preservedTargets);
+    drawControlRef.current?.reset();
+    focusMap(finding.lng, finding.lat, 17);
+    toast.info('Follow-up search seeded from the selected finding');
+  }, [coveragePlan?.plans, currentMissionDisplayName, focusMap, missionLabel, selectedDrones]);
 
   return (
     <div className="quickscout-page">
@@ -1153,22 +1204,18 @@ const QuickScoutPage = () => {
               // Center map on drone
               const drone = mergedDrones.find(d => d.hw_ID === hwId);
               if (hasDronePosition(drone)) {
-                setViewport({
-                  longitude: drone.position_long,
-                  latitude: drone.position_lat,
-                  zoom: 16,
-                });
+                focusMap(drone.position_long, drone.position_lat, 16);
               }
             }}
-            onFindingClick={(finding) => {
-              setViewport({ longitude: finding.lng, latitude: finding.lat, zoom: 17 });
-            }}
+            onFindingClick={handleFocusFinding}
             selectedFinding={selectedFinding}
             onFindingSelect={setSelectedFinding}
             savingFinding={savingFinding}
             deletingFinding={deletingFinding}
             onSaveFinding={handleSaveFinding}
             onDeleteFinding={handleDeleteFinding}
+            onFocusFinding={handleFocusFinding}
+            onSeedFollowUpFromFinding={handleSeedFollowUpFromFinding}
           />
         )}
       </div>

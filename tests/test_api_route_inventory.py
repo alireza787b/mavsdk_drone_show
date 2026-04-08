@@ -93,7 +93,7 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/missions",
         "/api/sar/mission/{mission_id}/workspace",
         "/api/sar/mission/{mission_id}/status",
-        "/api/sar/poi",
+        "/api/sar/findings",
     },
     "POST": {
         "/api/v1/fleet/heartbeats",
@@ -123,16 +123,16 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/mission/{mission_id}/resume",
         "/api/sar/mission/{mission_id}/abort",
         "/api/sar/mission/{mission_id}/progress",
-        "/api/sar/poi",
+        "/api/sar/findings",
         "/api/sar/elevation/batch",
     },
     "PATCH": {
         "/api/v1/config/swarm/assignments/{hw_id}",
-        "/api/sar/poi/{poi_id}",
+        "/api/sar/findings/{finding_id}",
     },
     "DELETE": {
         "/api/v1/swarm-trajectories/remove/{leader_id}",
-        "/api/sar/poi/{poi_id}",
+        "/api/sar/findings/{finding_id}",
     },
     "PUT": {
         "/api/v1/config/fleet",

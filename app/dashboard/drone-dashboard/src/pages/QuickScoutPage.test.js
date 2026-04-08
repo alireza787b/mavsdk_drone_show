@@ -147,6 +147,18 @@ jest.mock('../components/sar/MissionMonitorSidebar', () => (props) => (
   <div data-testid="monitor-sidebar">
     <div data-testid="monitor-current">{props.currentMissionId || ''}</div>
     <div data-testid="monitor-catalog">{props.missionCatalog.length}</div>
+    <button
+      type="button"
+      onClick={() => props.onFocusFinding?.({ id: 'finding-1', lat: 37.0, lng: -122.0, summary: 'Dock contact' })}
+    >
+      Focus finding
+    </button>
+    <button
+      type="button"
+      onClick={() => props.onSeedFollowUpFromFinding?.({ id: 'finding-1', lat: 37.0, lng: -122.0, summary: 'Dock contact' })}
+    >
+      Seed follow-up
+    </button>
   </div>
 ));
 
@@ -187,7 +199,7 @@ const buildMissionSummary = (overrides = {}) => ({
   algorithm_used: 'boustrophedon',
   return_behavior: 'return_home',
   total_coverage_percent: 0,
-  poi_count: 0,
+  finding_count: 0,
   last_command_summary: null,
   ...overrides,
 });
@@ -245,7 +257,6 @@ const buildWorkspace = (overrides = {}) => {
       state,
       drone_states: {},
       findings: [],
-      pois: [],
       total_coverage_percent: state === 'executing' ? 22 : 0,
       elapsed_time_s: state === 'executing' ? 45 : 0,
       started_at: state === 'executing' ? 1_700_000_110 : null,
@@ -294,7 +305,6 @@ describe('QuickScoutPage', () => {
       state: 'executing',
       drone_states: {},
       findings: [],
-      pois: [],
       total_coverage_percent: 22,
       elapsed_time_s: 45,
       started_at: 1_700_000_110,
@@ -327,6 +337,30 @@ describe('QuickScoutPage', () => {
       expect(screen.getByTestId('plan-label')).toHaveTextContent('Recovered mission');
       expect(screen.getByTestId('plan-brief')).toHaveTextContent('Recovered operator brief');
     });
+  });
+
+  it('seeds a follow-up plan from a reviewed finding in monitor mode', async () => {
+    sarApi.listMissions.mockResolvedValue({
+      missions: [buildMissionSummary({ mission_id: 'mission-exec', mission_label: 'Harbor sweep', pos_ids: [1] })],
+      count: 1,
+    });
+    sarApi.getMissionWorkspace.mockResolvedValue(buildWorkspace({
+      mission_id: 'mission-exec',
+      state: 'executing',
+      mission_label: 'Harbor sweep',
+      pos_ids: [1],
+    }));
+
+    await renderPage();
+    await flushAsyncState();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Monitor' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Seed follow-up' }));
+
+    await waitFor(() => expect(screen.getByTestId('mode-toggle')).toHaveTextContent('plan'));
+    expect(screen.getByTestId('plan-template')).toHaveTextContent('last_known_point');
+    expect(screen.getByTestId('plan-label')).toHaveTextContent('Harbor sweep follow-up');
+    expect(screen.getByTestId('plan-brief')).toHaveTextContent('Follow-up search seeded from finding: Dock contact.');
   });
 
   it('auto-recovers an active mission into monitor mode after refresh', async () => {

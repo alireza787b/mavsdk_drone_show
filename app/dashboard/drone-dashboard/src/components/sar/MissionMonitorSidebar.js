@@ -41,6 +41,8 @@ const MissionMonitorSidebar = ({
   deletingFinding,
   onSaveFinding,
   onDeleteFinding,
+  onFocusFinding,
+  onSeedFollowUpFromFinding,
 }) => {
   const droneStates = missionStatus?.drone_states || {};
   const sortedDrones = Object.values(droneStates).sort((a, b) =>
@@ -215,6 +217,8 @@ const MissionMonitorSidebar = ({
             deleting={deletingFinding}
             onSaveFinding={onSaveFinding}
             onDeleteFinding={onDeleteFinding}
+            onFocusFinding={onFocusFinding}
+            onSeedFollowUpFromFinding={onSeedFollowUpFromFinding}
           />
         </div>
       </div>

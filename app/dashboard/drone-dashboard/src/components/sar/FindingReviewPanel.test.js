@@ -21,6 +21,8 @@ describe('FindingReviewPanel', () => {
   it('delegates save and delete actions through container callbacks', () => {
     const onSaveFinding = jest.fn();
     const onDeleteFinding = jest.fn();
+    const onFocusFinding = jest.fn();
+    const onSeedFollowUpFromFinding = jest.fn();
 
     render(
       <FindingReviewPanel
@@ -38,12 +40,16 @@ describe('FindingReviewPanel', () => {
         deleting={false}
         onSaveFinding={onSaveFinding}
         onDeleteFinding={onDeleteFinding}
+        onFocusFinding={onFocusFinding}
+        onSeedFollowUpFromFinding={onSeedFollowUpFromFinding}
       />
     );
 
     fireEvent.change(screen.getByLabelText('Summary'), {
       target: { value: 'Confirmed vessel contact' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Center Map' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Follow-up Search' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save Finding' }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
 
@@ -56,5 +62,7 @@ describe('FindingReviewPanel', () => {
       }),
     );
     expect(onDeleteFinding).toHaveBeenCalledWith('finding-1');
+    expect(onFocusFinding).toHaveBeenCalledWith(expect.objectContaining({ id: 'finding-1' }));
+    expect(onSeedFollowUpFromFinding).toHaveBeenCalledWith(expect.objectContaining({ id: 'finding-1' }));
   });
 });

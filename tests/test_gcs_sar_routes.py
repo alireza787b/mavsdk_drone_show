@@ -137,8 +137,6 @@ def test_sar_router_registers_expected_routes():
     assert "/api/sar/mission/{mission_id}/progress" in routes
     assert "/api/sar/findings" in routes
     assert "/api/sar/findings/{finding_id}" in routes
-    assert "/api/sar/poi" in routes
-    assert "/api/sar/poi/{finding_id}" in routes
     assert "/api/sar/elevation/batch" in routes
 
 

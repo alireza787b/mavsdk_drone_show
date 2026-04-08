@@ -12,9 +12,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'gcs-server'))
 from sar.schemas import (
     SearchAreaPoint, SearchArea, SurveyConfig, QuickScoutMissionRequest,
     CoverageWaypoint, DroneCoveragePlan, CoveragePlanResponse,
-    POI, QuickScoutFindingCreate, QuickScoutFindingUpdate,
+    QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate,
     DroneSurveyState, MissionStatus, DroneProgressReport,
-    ReturnBehavior, SurveyState, POIType, POIPriority, QuickScoutMissionTemplate,
+    ReturnBehavior, SurveyState, FindingType, FindingPriority, QuickScoutMissionTemplate,
     FindingConfidence, FindingSource, FindingStatus,
 )
 from pydantic import ValidationError
@@ -218,30 +218,30 @@ class TestDroneCoveragePlan:
         assert len(plan.waypoints) == 1
 
 
-class TestPOI:
-    def test_valid_poi(self):
-        poi = POI(lat=40.0, lng=-74.0, type=POIType.PERSON, priority=POIPriority.HIGH)
-        assert poi.type == POIType.PERSON
-        assert poi.status == FindingStatus.NEW
-        assert poi.confidence == FindingConfidence.MEDIUM
-        assert poi.source == FindingSource.OPERATOR_MARK
+class TestFinding:
+    def test_valid_finding(self):
+        finding = QuickScoutFinding(lat=40.0, lng=-74.0, type=FindingType.PERSON, priority=FindingPriority.HIGH)
+        assert finding.type == FindingType.PERSON
+        assert finding.status == FindingStatus.NEW
+        assert finding.confidence == FindingConfidence.MEDIUM
+        assert finding.source == FindingSource.OPERATOR_MARK
 
     def test_default_values(self):
-        poi = POI(lat=0, lng=0)
-        assert poi.type == POIType.OTHER
-        assert poi.priority == POIPriority.MEDIUM
-        assert poi.evidence_refs == []
+        finding = QuickScoutFinding(lat=0, lng=0)
+        assert finding.type == FindingType.OTHER
+        assert finding.priority == FindingPriority.MEDIUM
+        assert finding.evidence_refs == []
 
     def test_valid_finding_create(self):
         finding = QuickScoutFindingCreate(
             lat=40.0,
             lng=-74.0,
             summary="Possible person in water",
-            type=POIType.PERSON,
+            type=FindingType.PERSON,
         )
 
         assert finding.summary == "Possible person in water"
-        assert finding.type == POIType.PERSON
+        assert finding.type == FindingType.PERSON
 
     def test_valid_finding_update(self):
         updates = QuickScoutFindingUpdate(summary="Reviewed contact", status=FindingStatus.CONFIRMED)
@@ -271,7 +271,6 @@ class TestMissionStatus:
         assert ms.total_coverage_percent == 0.0
         assert ms.drone_states == {}
         assert ms.findings == []
-        assert ms.pois == []
 
 
 class TestDroneProgressReport:
@@ -289,5 +288,5 @@ class TestEnums:
     def test_survey_state(self):
         assert SurveyState.EXECUTING.value == "executing"
 
-    def test_poi_type(self):
-        assert POIType.PERSON.value == "person"
+    def test_finding_type(self):
+        assert FindingType.PERSON.value == "person"
