@@ -1,9 +1,31 @@
 // src/components/sar/MissionActionBar.js
 import React from 'react';
-import { FaPlay, FaPause, FaHome, FaTimesCircle } from 'react-icons/fa';
+import { FaPlay, FaPause, FaHome, FaArrowDown, FaPauseCircle } from 'react-icons/fa';
 
-const MissionActionBar = ({ onResume, onPause, onRTL, onAbort, missionState }) => {
+const MissionActionBar = ({ onResume, onPause, onAbort, missionState, returnBehavior = 'return_home' }) => {
   if (!missionState || missionState === 'planning' || missionState === 'ready') return null;
+
+  const returnBehaviorMeta = {
+    return_home: {
+      icon: <FaHome />,
+      title: 'End mission and return home',
+      label: 'Return home',
+    },
+    hold_position: {
+      icon: <FaPauseCircle />,
+      title: 'End mission and hold position',
+      label: 'Hold position',
+    },
+    land_current: {
+      icon: <FaArrowDown />,
+      title: 'End mission and land at current position',
+      label: 'Land current',
+    },
+  }[returnBehavior] || {
+    icon: <FaHome />,
+    title: 'End mission and return home',
+    label: 'Return home',
+  };
 
   return (
     <div className="qs-action-bar">
@@ -24,22 +46,15 @@ const MissionActionBar = ({ onResume, onPause, onRTL, onAbort, missionState }) =
         <FaPause />
       </button>
       <button
-        className="qs-action-btn rtl"
-        onClick={onRTL}
-        title="Return to Launch"
-      >
-        <FaHome />
-      </button>
-      <button
-        className="qs-action-btn abort"
+        className="qs-action-btn end"
         onClick={() => {
-          if (window.confirm('Abort mission? All drones will execute return behavior.')) {
+          if (window.confirm(`End mission? Drones will ${returnBehaviorMeta.label.toLowerCase()}.`)) {
             onAbort();
           }
         }}
-        title="Abort Mission"
+        title={returnBehaviorMeta.title}
       >
-        <FaTimesCircle />
+        {returnBehaviorMeta.icon}
       </button>
     </div>
   );

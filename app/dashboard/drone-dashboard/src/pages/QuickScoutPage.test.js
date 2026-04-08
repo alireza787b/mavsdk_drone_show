@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import QuickScoutPage from './QuickScoutPage';
 import * as sarApi from '../services/sarApiService';
 import {
@@ -73,12 +73,25 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <div data-testid="plan-current">{props.currentMissionId || ''}</div>
     <div data-testid="plan-catalog">{props.missionCatalog.length}</div>
     <div data-testid="plan-loading">{String(props.loadingMissionCatalog)}</div>
+    <div data-testid="plan-return-behavior">{props.returnBehavior}</div>
     <button
       type="button"
       onClick={() => props.onRecoverMission(props.missionCatalog[0]?.mission_id)}
       disabled={!props.missionCatalog.length}
     >
       Recover first mission
+    </button>
+    <button type="button" onClick={() => props.onMissionProfileChange('detailed_sweep')}>
+      Use detailed profile
+    </button>
+    <button type="button" onClick={() => props.onReturnBehaviorChange('hold_position')}>
+      Set hold return
+    </button>
+    <button type="button" onClick={() => props.onDroneToggle(1)}>
+      Select drone 1
+    </button>
+    <button type="button" onClick={props.onComputePlan}>
+      Compute plan
     </button>
     <button type="button" onClick={props.onStartFreshPlan}>New Search</button>
   </div>
@@ -188,14 +201,42 @@ const buildWorkspace = (overrides = {}) => {
   };
 };
 
+const renderPage = async () => {
+  await act(async () => {
+    render(<QuickScoutPage />);
+  });
+};
+
+const flushAsyncState = async () => {
+  await act(async () => {
+    await Promise.resolve();
+  });
+};
+
 describe('QuickScoutPage', () => {
+  let realConsoleError;
+
   beforeEach(() => {
     jest.useFakeTimers();
     jest.spyOn(console, 'warn').mockImplementation(() => {});
+    realConsoleError = console.error;
+    jest.spyOn(console, 'error').mockImplementation((...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('not wrapped in act')) {
+        return;
+      }
+      realConsoleError(...args);
+    });
 
     getFleetTelemetryResponse.mockResolvedValue({ data: {} });
     unwrapFleetTelemetryPayload.mockReturnValue({});
     getFleetConfigResponse.mockResolvedValue({ data: [] });
+    sarApi.computePlan.mockResolvedValue({
+      mission_id: 'mission-ready',
+      plans: [],
+      total_area_sq_m: 1200,
+      estimated_coverage_time_s: 180,
+      algorithm_used: 'boustrophedon',
+    });
     sarApi.getMissionStatus.mockResolvedValue({
       mission_id: 'mission-exec',
       state: 'executing',
@@ -222,7 +263,8 @@ describe('QuickScoutPage', () => {
     });
     sarApi.getMissionWorkspace.mockResolvedValue(buildWorkspace());
 
-    render(<QuickScoutPage />);
+    await renderPage();
+    await flushAsyncState();
 
     await waitFor(() => expect(screen.getByTestId('plan-catalog')).toHaveTextContent('1'));
     fireEvent.click(screen.getByRole('button', { name: 'Recover first mission' }));
@@ -243,12 +285,37 @@ describe('QuickScoutPage', () => {
       state: 'executing',
     }));
 
-    render(<QuickScoutPage />);
+    await renderPage();
+    await flushAsyncState();
 
     await waitFor(() => {
       expect(sarApi.getMissionWorkspace).toHaveBeenCalledWith('mission-exec');
       expect(screen.getByTestId('monitor-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('monitor-current')).toHaveTextContent('mission-exec');
     });
+  });
+
+  it('includes the configured return behavior when computing a plan', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Set hold return' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.computePlan).toHaveBeenCalledWith(
+        expect.objectContaining({ return_behavior: 'hold_position' })
+      )
+    );
+    expect(screen.getByTestId('plan-return-behavior')).toHaveTextContent('hold_position');
   });
 });

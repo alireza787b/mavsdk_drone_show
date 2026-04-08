@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
+import { QUICKSCOUT_PROFILE_PRESETS } from '../../utilities/quickScoutProfiles';
 
 const MissionPlanSidebar = ({
   drones,
@@ -19,6 +20,10 @@ const MissionPlanSidebar = ({
   searchArea,
   computing,
   launching,
+  missionProfileId,
+  onMissionProfileChange,
+  returnBehavior,
+  onReturnBehaviorChange,
   missionCatalog,
   currentMissionId,
   recoveringMissionId,
@@ -50,6 +55,55 @@ const MissionPlanSidebar = ({
           onStartFreshPlan={onStartFreshPlan}
           showStartFresh={Boolean(currentMissionId)}
         />
+
+        <div className="qs-config-section">
+          <div className="qs-config-title">Mission Setup</div>
+          <div className="qs-profile-grid">
+            {QUICKSCOUT_PROFILE_PRESETS.map((profile) => (
+              <button
+                key={profile.id}
+                type="button"
+                className={`qs-profile-card ${missionProfileId === profile.id ? 'active' : ''}`}
+                onClick={() => onMissionProfileChange(profile.id)}
+              >
+                <span className="qs-profile-label">{profile.label}</span>
+                <span className="qs-profile-brief">{profile.brief}</span>
+              </button>
+            ))}
+          </div>
+          {missionProfileId === 'custom' && (
+            <div className="qs-empty-copy" style={{ marginBottom: 10 }}>
+              Current survey settings are custom and no longer match a saved profile.
+            </div>
+          )}
+
+          <div className="qs-config-row qs-config-row-stack">
+            <span className="qs-config-label">End Behavior</span>
+            <div className="qs-choice-row">
+              <button
+                type="button"
+                className={`qs-choice-chip ${returnBehavior === 'return_home' ? 'active' : ''}`}
+                onClick={() => onReturnBehaviorChange('return_home')}
+              >
+                Return Home
+              </button>
+              <button
+                type="button"
+                className={`qs-choice-chip ${returnBehavior === 'hold_position' ? 'active' : ''}`}
+                onClick={() => onReturnBehaviorChange('hold_position')}
+              >
+                Hold
+              </button>
+              <button
+                type="button"
+                className={`qs-choice-chip ${returnBehavior === 'land_current' ? 'active' : ''}`}
+                onClick={() => onReturnBehaviorChange('land_current')}
+              >
+                Land
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Search Area Status */}
         <div className="qs-config-section">

@@ -37,6 +37,11 @@ import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
 import { Marker as LeafletMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import {
+  DEFAULT_QUICKSCOUT_PROFILE_ID,
+  deriveQuickScoutProfileId,
+  getQuickScoutProfile,
+} from '../utilities/quickScoutProfiles';
 
 // Styles
 import '../styles/QuickScout.css';
@@ -103,6 +108,8 @@ const QuickScoutPage = () => {
   const [searchArea, setSearchArea] = useState([]);
   const [searchAreaSqM, setSearchAreaSqM] = useState(0);
   const [surveyConfig, setSurveyConfig] = useState({ ...DEFAULT_SURVEY_CONFIG });
+  const [missionProfileId, setMissionProfileId] = useState(DEFAULT_QUICKSCOUT_PROFILE_ID);
+  const [returnBehavior, setReturnBehavior] = useState('return_home');
   const [selectedDrones, setSelectedDrones] = useState([]);
   const [coveragePlan, setCoveragePlan] = useState(null);
   const [computing, setComputing] = useState(false);
@@ -138,6 +145,8 @@ const QuickScoutPage = () => {
     setSearchArea([]);
     setSearchAreaSqM(0);
     setSurveyConfig({ ...DEFAULT_SURVEY_CONFIG });
+    setMissionProfileId(DEFAULT_QUICKSCOUT_PROFILE_ID);
+    setReturnBehavior('return_home');
     setSelectedDrones([]);
     setCoveragePlan(null);
     setMissionId(null);
@@ -180,10 +189,13 @@ const QuickScoutPage = () => {
     setPois(status.pois || []);
     setSearchArea(operation.search_area?.points || []);
     setSearchAreaSqM(operation.search_area?.area_sq_m || operation.total_area_sq_m || 0);
-    setSurveyConfig({
+    const recoveredSurveyConfig = {
       ...DEFAULT_SURVEY_CONFIG,
       ...(operation.survey_config || {}),
-    });
+    };
+    setSurveyConfig(recoveredSurveyConfig);
+    setMissionProfileId(deriveQuickScoutProfileId(recoveredSurveyConfig));
+    setReturnBehavior(operation.return_behavior || 'return_home');
     setSelectedDrones(
       Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
         ? operation.pos_ids
@@ -376,6 +388,24 @@ const QuickScoutPage = () => {
     );
   }, []);
 
+  const handleMissionProfileChange = useCallback((profileId) => {
+    const profile = getQuickScoutProfile(profileId);
+    if (!profile) {
+      return;
+    }
+
+    setMissionProfileId(profileId);
+    setSurveyConfig({
+      ...DEFAULT_SURVEY_CONFIG,
+      ...profile.surveyConfig,
+    });
+  }, []);
+
+  const handleSurveyConfigChange = useCallback((nextConfig) => {
+    setSurveyConfig(nextConfig);
+    setMissionProfileId(deriveQuickScoutProfileId(nextConfig));
+  }, []);
+
   const handleComputePlan = useCallback(async () => {
     setComputing(true);
     try {
@@ -387,6 +417,7 @@ const QuickScoutPage = () => {
         },
         survey_config: surveyConfig,
         pos_ids: selectedDrones.length > 0 ? selectedDrones : null,
+        return_behavior: returnBehavior,
       };
       const response = await sarApi.computePlan(request);
       setCoveragePlan(response);
@@ -403,7 +434,7 @@ const QuickScoutPage = () => {
     } finally {
       setComputing(false);
     }
-  }, [refreshMissionCatalog, searchArea, searchAreaSqM, selectedDrones, surveyConfig]);
+  }, [refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, selectedDrones, surveyConfig]);
 
   const handleLaunchMission = useCallback(async () => {
     if (!missionId) return;
@@ -609,9 +640,9 @@ const QuickScoutPage = () => {
           {mode === 'monitor' && (
             <MissionActionBar
               missionState={missionStatus?.state}
+              returnBehavior={returnBehavior}
               onResume={handleResume}
               onPause={handlePause}
-              onRTL={() => handleAbort()}
               onAbort={handleAbort}
             />
           )}
@@ -624,13 +655,17 @@ const QuickScoutPage = () => {
             selectedDrones={selectedDrones}
             onDroneToggle={handleDroneToggle}
             surveyConfig={surveyConfig}
-            onConfigChange={setSurveyConfig}
+            onConfigChange={handleSurveyConfigChange}
             onComputePlan={handleComputePlan}
             onLaunchMission={handleLaunchMission}
             coveragePlan={coveragePlan}
             searchArea={searchArea}
             computing={computing}
             launching={launching}
+            missionProfileId={missionProfileId}
+            onMissionProfileChange={handleMissionProfileChange}
+            returnBehavior={returnBehavior}
+            onReturnBehaviorChange={setReturnBehavior}
             missionCatalog={missionCatalog}
             currentMissionId={missionId}
             recoveringMissionId={recoveringMissionId}

@@ -185,6 +185,13 @@
     margin-bottom: 6px;
 }
 
+.qs-config-row-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
 .qs-config-label {
     font-size: 13px;
     color: var(--color-text-secondary);
@@ -326,6 +333,67 @@
     width: 100%;
 }
 
+.qs-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.qs-profile-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.qs-profile-card.active {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+}
+
+.qs-profile-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.qs-profile-brief {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--color-text-secondary);
+}
+
+.qs-choice-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.qs-choice-chip {
+    padding: 6px 10px;
+    border: 1px solid var(--color-border-primary);
+    border-radius: 999px;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.qs-choice-chip.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+}
+
 /* === Action Bar (monitor mode) === */
 .qs-action-bar {
     position: absolute;
@@ -360,8 +428,7 @@
 
 .qs-action-btn.resume { border-color: var(--color-success); color: var(--color-success); }
 .qs-action-btn.pause { border-color: var(--color-warning); color: var(--color-warning); }
-.qs-action-btn.rtl { border-color: #fd7e14; color: #fd7e14; }
-.qs-action-btn.abort { border-color: var(--color-danger); color: var(--color-danger); }
+.qs-action-btn.end { border-color: #fd7e14; color: #fd7e14; }
 
 /* === Drone Status Card === */
 .qs-drone-card {
@@ -876,6 +943,10 @@
     .qs-config-row {
         align-items: flex-start;
         gap: 8px;
+    }
+
+    .qs-choice-row {
+        width: 100%;
     }
 
     .qs-config-input {
