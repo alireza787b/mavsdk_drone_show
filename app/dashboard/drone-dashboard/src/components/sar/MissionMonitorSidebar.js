@@ -6,6 +6,12 @@
 import React from 'react';
 import DroneStatusCard from './DroneStatusCard';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
+import {
+  buildQuickScoutGeometrySummary,
+  formatQuickScoutArea,
+  formatQuickScoutDuration,
+  getQuickScoutMissionTemplateLabel,
+} from '../../utilities/quickScoutMissionPresentation';
 
 const MissionMonitorSidebar = ({
   missionStatus,
@@ -17,11 +23,30 @@ const MissionMonitorSidebar = ({
   recoveringMissionId,
   loadingMissionCatalog,
   onRecoverMission,
+  missionLabel,
+  missionTemplate,
+  missionBrief,
+  totalAreaSqM,
+  estimatedCoverageTimeS,
+  searchArea,
+  searchCenter,
+  searchRadiusM,
+  searchPath,
+  corridorWidthM,
 }) => {
   const droneStates = missionStatus?.drone_states || {};
   const sortedDrones = Object.values(droneStates).sort((a, b) =>
     (a.hw_id || '').localeCompare(b.hw_id || '')
   );
+  const geometrySummary = buildQuickScoutGeometrySummary({
+    missionTemplate,
+    totalAreaSqM,
+    searchArea,
+    searchCenter,
+    searchRadiusM,
+    searchPath,
+    corridorWidthM,
+  });
 
   return (
     <div className="qs-sidebar">
@@ -34,6 +59,54 @@ const MissionMonitorSidebar = ({
           loading={loadingMissionCatalog}
           onRecoverMission={onRecoverMission}
         />
+
+        {currentMissionId && (
+          <div className="qs-config-section">
+            <div className="qs-config-title">Mission Package</div>
+            <div className="qs-launch-review__grid">
+              <div className="qs-launch-review__metric">
+                <span className="qs-launch-review__metric-label">Mission</span>
+                <strong className="qs-launch-review__metric-value">
+                  {missionLabel || currentMissionId}
+                </strong>
+              </div>
+              <div className="qs-launch-review__metric">
+                <span className="qs-launch-review__metric-label">Template</span>
+                <strong className="qs-launch-review__metric-value">
+                  {getQuickScoutMissionTemplateLabel(missionTemplate)}
+                </strong>
+              </div>
+              <div className="qs-launch-review__metric">
+                <span className="qs-launch-review__metric-label">Area</span>
+                <strong className="qs-launch-review__metric-value">
+                  {formatQuickScoutArea(totalAreaSqM)}
+                </strong>
+              </div>
+              <div className="qs-launch-review__metric">
+                <span className="qs-launch-review__metric-label">Coverage Time</span>
+                <strong className="qs-launch-review__metric-value">
+                  {formatQuickScoutDuration(estimatedCoverageTimeS)}
+                </strong>
+              </div>
+            </div>
+
+            <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+              <span className="qs-launch-review__brief-label">{geometrySummary.title}</span>
+              <div className="qs-launch-review__chip-row">
+                {geometrySummary.chips.map((chip) => (
+                  <span key={chip} className="qs-inline-chip">{chip}</span>
+                ))}
+              </div>
+              <p>{geometrySummary.note}</p>
+            </div>
+
+            {missionBrief ? (
+              <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+                {missionBrief}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {/* Drone Status Cards */}
         <div className="qs-config-section">

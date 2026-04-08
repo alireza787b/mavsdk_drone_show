@@ -1080,6 +1080,16 @@ const QuickScoutPage = () => {
             recoveringMissionId={recoveringMissionId}
             loadingMissionCatalog={loadingMissionCatalog}
             onRecoverMission={handleRecoverMission}
+            missionLabel={missionLabel}
+            missionTemplate={missionTemplate}
+            missionBrief={missionBrief}
+            totalAreaSqM={coveragePlan?.total_area_sq_m || currentMissionSummary?.total_area_sq_m || searchAreaSqM}
+            estimatedCoverageTimeS={coveragePlan?.estimated_coverage_time_s || currentMissionSummary?.estimated_coverage_time_s || 0}
+            searchArea={searchArea}
+            searchCenter={searchCenter}
+            searchRadiusM={searchRadiusM}
+            searchPath={searchPath}
+            corridorWidthM={corridorWidthM}
             onDroneClick={(hwId) => {
               // Center map on drone
               const drone = mergedDrones.find(d => d.hw_ID === hwId);

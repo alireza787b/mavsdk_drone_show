@@ -3,58 +3,12 @@ import PropTypes from 'prop-types';
 
 import CommandPreflightSummary from '../CommandPreflightSummary';
 import { getQuickScoutProfile } from '../../utilities/quickScoutProfiles';
-import { calculateSearchPathLengthM } from '../../utilities/quickScoutSearchGeometry';
-
-function formatArea(areaSqM) {
-  if (!Number.isFinite(Number(areaSqM)) || Number(areaSqM) <= 0) {
-    return '--';
-  }
-
-  const area = Number(areaSqM);
-  if (area >= 10000) {
-    return `${(area / 10000).toFixed(1)} ha`;
-  }
-  return `${Math.round(area)} m²`;
-}
-
-function formatDuration(seconds) {
-  if (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0) {
-    return '--';
-  }
-
-  const totalSeconds = Math.round(Number(seconds));
-  const minutes = Math.floor(totalSeconds / 60);
-  const remainderSeconds = totalSeconds % 60;
-
-  if (minutes <= 0) {
-    return `${remainderSeconds}s`;
-  }
-
-  if (remainderSeconds === 0) {
-    return `${minutes} min`;
-  }
-
-  return `${minutes}m ${remainderSeconds}s`;
-}
-
-function formatDistanceMeters(distanceM) {
-  if (!Number.isFinite(Number(distanceM)) || Number(distanceM) <= 0) {
-    return '--';
-  }
-
-  const distance = Number(distanceM);
-  if (distance >= 1000) {
-    return `${(distance / 1000).toFixed(1)} km`;
-  }
-  return `${Math.round(distance)} m`;
-}
-
-function formatCoordinate(point) {
-  if (!Number.isFinite(Number(point?.lat)) || !Number.isFinite(Number(point?.lng))) {
-    return '--';
-  }
-  return `${Number(point.lat).toFixed(4)}, ${Number(point.lng).toFixed(4)}`;
-}
+import {
+  buildQuickScoutGeometrySummary,
+  formatQuickScoutArea,
+  formatQuickScoutDuration,
+  getQuickScoutMissionTemplateLabel,
+} from '../../utilities/quickScoutMissionPresentation';
 
 function getReturnBehaviorLabel(returnBehavior) {
   if (returnBehavior === 'hold_position') {
@@ -64,16 +18,6 @@ function getReturnBehaviorLabel(returnBehavior) {
     return 'Land current';
   }
   return 'Return home';
-}
-
-function getMissionTemplateLabel(missionTemplate) {
-  if (missionTemplate === 'last_known_point') {
-    return 'Last Known Point';
-  }
-  if (missionTemplate === 'corridor_search') {
-    return 'Corridor Search';
-  }
-  return 'Area Sweep';
 }
 
 function getLaunchStatus(planNeedsRecompute, launchReadiness) {
@@ -108,50 +52,6 @@ function getLaunchStatus(planNeedsRecompute, launchReadiness) {
   };
 }
 
-function buildGeometryReview({
-  missionTemplate,
-  coveragePlan,
-  searchArea,
-  searchCenter,
-  searchRadiusM,
-  searchPath,
-  corridorWidthM,
-}) {
-  if (missionTemplate === 'last_known_point') {
-    return {
-      title: 'Point-centered search envelope',
-      note: 'QuickScout expands the reported point into a search envelope before partitioning assignments.',
-      chips: [
-        `Center ${formatCoordinate(searchCenter)}`,
-        `Radius ${Number(searchRadiusM) > 0 ? `${Math.round(Number(searchRadiusM))} m` : '--'}`,
-        `Footprint ${formatArea(coveragePlan?.total_area_sq_m)}`,
-      ],
-    };
-  }
-
-  if (missionTemplate === 'corridor_search') {
-    return {
-      title: 'Route-centered corridor package',
-      note: 'QuickScout buffers the authored route into a corridor footprint before partitioning coverage assignments.',
-      chips: [
-        `Route ${Array.isArray(searchPath) ? searchPath.length : 0} points`,
-        `Track ${formatDistanceMeters(calculateSearchPathLengthM(searchPath))}`,
-        `Width ${Number(corridorWidthM) > 0 ? `${Math.round(Number(corridorWidthM))} m` : '--'}`,
-        `Footprint ${formatArea(coveragePlan?.total_area_sq_m)}`,
-      ],
-    };
-  }
-
-  return {
-    title: 'Polygon coverage package',
-    note: 'QuickScout partitions the authored polygon into per-aircraft coverage assignments.',
-    chips: [
-      `Vertices ${Array.isArray(searchArea) ? searchArea.length : 0}`,
-      `Footprint ${formatArea(coveragePlan?.total_area_sq_m)}`,
-    ],
-  };
-}
-
 const QuickScoutLaunchReview = ({
   coveragePlan = null,
   missionLabel = '',
@@ -179,9 +79,9 @@ const QuickScoutLaunchReview = ({
   const profile = getQuickScoutProfile(missionProfileId);
   const profileLabel = profile?.label || (missionProfileId ? missionProfileId.replace(/_/g, ' ') : 'Custom');
   const status = getLaunchStatus(planNeedsRecompute, launchReadiness);
-  const geometryReview = buildGeometryReview({
+  const geometryReview = buildQuickScoutGeometrySummary({
     missionTemplate,
-    coveragePlan,
+    totalAreaSqM: coveragePlan?.total_area_sq_m,
     searchArea,
     searchCenter,
     searchRadiusM,
@@ -206,15 +106,15 @@ const QuickScoutLaunchReview = ({
     },
     {
       label: 'Template',
-      value: getMissionTemplateLabel(missionTemplate),
+      value: getQuickScoutMissionTemplateLabel(missionTemplate),
     },
     {
       label: 'Area',
-      value: formatArea(coveragePlan.total_area_sq_m),
+      value: formatQuickScoutArea(coveragePlan.total_area_sq_m),
     },
     {
       label: 'Coverage Time',
-      value: formatDuration(coveragePlan.estimated_coverage_time_s),
+      value: formatQuickScoutDuration(coveragePlan.estimated_coverage_time_s),
     },
     {
       label: 'Assignments',

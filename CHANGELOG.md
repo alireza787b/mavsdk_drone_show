@@ -961,3 +961,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Updated the QuickScout launch-review card so it now shows template-specific search-doctrine context instead of presenting corridor, point, and polygon packages as one generic coverage job.
 - Added corridor launch-review context for route-point count, route length, width, and buffered footprint, plus point-search review context for center and radius.
 - Added reusable route-length geometry math plus focused launch-review component coverage to keep the review stage aligned with the new template-first planning workflow.
+
+### QuickScout Monitor Package Context
+- Added a shared QuickScout presentation utility so template labels, geometry summaries, and package metrics stay consistent between launch review and monitor mode.
+- Updated monitor mode to keep mission-package context visible after launch, including template, footprint, coverage-time estimate, geometry summary, and mission brief.
+- Added focused monitor-sidebar coverage so reopened corridor, point, and polygon missions retain operator context instead of collapsing to drone-state-only monitoring.
