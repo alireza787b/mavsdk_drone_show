@@ -608,6 +608,35 @@ class TestScriptExecution:
         assert process_record.process_key.endswith("cmd-123")
         assert process_record.script_name == "actions.py"
 
+    @pytest.mark.asyncio
+    async def test_execute_mission_script_coerces_list_args_to_strings(self):
+        from src.drone_setup import DroneSetup
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        drone_config = create_mock_drone_config()
+
+        setup = DroneSetup(params, drone_config)
+        process = Mock()
+        process.pid = 5678
+        process.returncode = None
+
+        def fake_create_task(coro):
+            coro.close()
+            return Mock()
+
+        with patch('src.drone_setup.os.path.isfile', return_value=True), \
+             patch('src.drone_setup.asyncio.create_subprocess_exec', AsyncMock(return_value=process)) as mock_exec, \
+             patch('src.drone_setup.asyncio.create_task', side_effect=fake_create_task):
+            result = await setup.execute_mission_script(
+                'quickscout_mission.py',
+                ['--mission-id', 'mission-1', '--hw-id', 1],
+            )
+
+        assert result == (True, "Started mission script 'quickscout_mission.py' asynchronously.")
+        called_command = list(mock_exec.await_args.args)
+        assert called_command[2:] == ['--mission-id', 'mission-1', '--hw-id', '1']
+
 
 @pytest.mark.unit
 @pytest.mark.mission

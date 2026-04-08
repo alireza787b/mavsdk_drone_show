@@ -120,7 +120,12 @@ class SurveyConfig(BaseModel):
     algorithm: str = Field(default="boustrophedon", description="Coverage algorithm")
     sweep_width_m: float = Field(default=30.0, gt=0, le=500, description="Sweep width in meters")
     overlap_percent: float = Field(default=10.0, ge=0, le=50, description="Overlap between sweeps (%)")
-    cruise_altitude_msl: float = Field(default=50.0, gt=0, le=500, description="Cruise altitude MSL (m)")
+    cruise_altitude_msl: float = Field(
+        default=50.0,
+        gt=0,
+        le=10000,
+        description="Cruise altitude above mean sea level (MSL) in metres",
+    )
     survey_altitude_agl: float = Field(default=40.0, gt=0, le=300, description="Survey altitude AGL (m)")
     cruise_speed_ms: float = Field(default=10.0, gt=0, le=25, description="Cruise speed (m/s)")
     survey_speed_ms: float = Field(default=5.0, gt=0, le=15, description="Survey speed (m/s)")

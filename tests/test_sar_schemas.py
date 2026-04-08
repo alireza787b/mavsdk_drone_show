@@ -112,6 +112,11 @@ class TestSurveyConfig:
         with pytest.raises(ValidationError):
             SurveyConfig(survey_speed_ms=0)  # must be > 0
 
+    def test_accepts_high_field_elevation_cruise_altitude_msl(self):
+        cfg = SurveyConfig(cruise_altitude_msl=1525.0)
+
+        assert cfg.cruise_altitude_msl == 1525.0
+
 
 class TestQuickScoutMissionRequest:
     def test_valid_request(self):

@@ -4,6 +4,7 @@
 import asyncio
 import datetime
 import os
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass
@@ -362,8 +363,9 @@ class DroneSetup:
                 )
                 return (False, f"Script '{script_name}' not found.")
 
-            command = [python_exec_path, script_path] + (action if isinstance(action, list) else action.split())
-            logger.info(f"Executing mission script asynchronously: {' '.join(command)}")
+            raw_args = action if isinstance(action, list) else action.split()
+            command = [str(python_exec_path), str(script_path), *[str(arg) for arg in raw_args]]
+            logger.info(f"Executing mission script asynchronously: {shlex.join(command)}")
 
             try:
                 try:
