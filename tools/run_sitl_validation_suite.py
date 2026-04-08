@@ -62,21 +62,23 @@ TEMPLATE_QUICKSCOUT_ONLY = "quickscout_only"
 
 TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
     TEMPLATE_OPERATOR_REGRESSION: {
-        "description": "Reset, Mission Config/origin, Drone Show, standalone action controls, Smart Swarm, and Swarm Trajectory.",
+        "description": "Reset, Mission Config/origin, Drone Show, standalone action controls, Smart Swarm, Swarm Trajectory, and QuickScout.",
         "steps": [
             {"validator": MODE_CONFIGURATION},
             {"validator": MODE_DRONE_SHOW},
             {"validator": MODE_ACTIONS},
             {"validator": MODE_SMART_SWARM},
             {"validator": MODE_SWARM_TRAJECTORY},
+            {"validator": MODE_QUICKSCOUT},
         ],
     },
     TEMPLATE_MISSION_REGRESSION: {
-        "description": "Reset plus the three mission-family validators without the standalone actions drill.",
+        "description": "Reset plus the four mission-family validators without the standalone actions drill.",
         "steps": [
             {"validator": MODE_DRONE_SHOW},
             {"validator": MODE_SMART_SWARM},
             {"validator": MODE_SWARM_TRAJECTORY},
+            {"validator": MODE_QUICKSCOUT},
         ],
     },
     TEMPLATE_ACTIONS_ONLY: {

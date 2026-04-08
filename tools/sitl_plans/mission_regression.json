@@ -1,6 +1,6 @@
 {
   "title": "Mission Regression",
-  "description": "Run the three mission-family validators in sequence: Drone Show, Smart Swarm, and Swarm Trajectory.",
+  "description": "Run the four mission-family validators in sequence: Drone Show, Smart Swarm, Swarm Trajectory, and QuickScout.",
   "tags": ["missions", "regression"],
   "steps": [
     {
@@ -11,6 +11,12 @@
     },
     {
       "validator": "swarm_trajectory"
+    },
+    {
+      "validator": "quickscout",
+      "options": {
+        "quickscout_launch_drone_count": 1
+      }
     }
   ]
 }

@@ -32,6 +32,8 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 try:
+    from src.drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
+    from src.live_armability_utils import calculate_live_armability_request_timeout
     from src.gcs_api_routes import (
         GCS_ACTIVE_COMMANDS_ROUTE,
         GCS_COMMAND_STATUS_ROUTE_TEMPLATE,
@@ -44,12 +46,32 @@ except Exception:  # pragma: no cover - fallback only
     class _FallbackParams:
         TELEMETRY_POLLING_TIMEOUT = 10
         heartbeat_interval = 10
+        drone_api_port = 7070
+        LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
+        LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
+        LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
 
     Params = _FallbackParams()
+    DRONE_LIVE_ARMABILITY_ROUTE = "/api/v1/preflight/armability"
     GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
     GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
     GCS_ACTIVE_COMMANDS_ROUTE = "/api/v1/commands/active"
     GCS_COMMAND_STATUS_ROUTE_TEMPLATE = "/api/v1/commands/{command_id}"
+
+    def calculate_live_armability_request_timeout(*, params):
+        connect_timeout = max(
+            0.1,
+            float(getattr(params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0)),
+        )
+        probe_timeout = max(
+            0.1,
+            float(getattr(params, "LIVE_ARMABILITY_PROBE_TIMEOUT_SEC", 6.0)),
+        )
+        http_buffer_sec = max(
+            0.5,
+            float(getattr(params, "LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC", 2.0)),
+        )
+        return connect_timeout + probe_timeout + http_buffer_sec
 
     def normalize_drone_ids(ids):
         normalized = sorted({int(drone_id) for drone_id in ids})
@@ -344,6 +366,58 @@ def wait_non_targets_idle(client: ApiClient, ids: list[int], timeout: int = 120)
     return wait_for(_ready, label=f"non-target drones {ids} remain idle", timeout=timeout, interval=2.0)
 
 
+def _probe_drone_live_armability(row: dict[str, Any]) -> dict[str, Any] | None:
+    ip = str(row.get("ip") or "").strip()
+    if not ip:
+        return None
+
+    query = urllib.parse.urlencode({"require_global_position": "true"})
+    request = urllib.request.Request(
+        f"http://{ip}:{int(getattr(Params, 'drone_api_port', 7070))}{DRONE_LIVE_ARMABILITY_ROUTE}?{query}",
+        method="GET",
+    )
+    timeout = float(calculate_live_armability_request_timeout(params=Params))
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.load(response)
+            return payload if isinstance(payload, dict) else None
+    except Exception:
+        return None
+
+
+def wait_targets_launch_probe_ready(
+    client: ApiClient,
+    target_ids: list[int],
+    *,
+    timeout: int = 120,
+    interval: float = 2.0,
+) -> dict[str, dict[str, Any]]:
+    def _ready():
+        telemetry = client.get_telemetry()
+        probe_results: dict[str, dict[str, Any]] = {}
+
+        for target_id in target_ids:
+            row = telemetry.get(str(target_id))
+            if row is None:
+                return False
+            probe_payload = _probe_drone_live_armability(row)
+            if not probe_payload:
+                return False
+            if not bool(probe_payload.get("success")) or not bool(probe_payload.get("ready")):
+                return False
+            probe_results[str(target_id)] = probe_payload
+
+        return probe_results
+
+    return wait_for(
+        _ready,
+        label=f"drones {target_ids} live launch-probe ready",
+        timeout=timeout,
+        interval=interval,
+    )
+
+
 def wait_target_airborne(
     client: ApiClient,
     target_id: int,
@@ -580,6 +654,7 @@ def main() -> int:
         "target_drone_ids": target_ids,
         "target_pos_ids": target_pos_ids,
     }
+    artifacts["stages"]["launch_probe_ready"] = wait_targets_launch_probe_ready(client, target_ids)
 
     plan_request = build_last_known_point_request(
         target_row_payloads,

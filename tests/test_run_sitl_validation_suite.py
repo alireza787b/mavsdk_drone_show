@@ -104,6 +104,7 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
         suite.MODE_ACTIONS,
         suite.MODE_SMART_SWARM,
         suite.MODE_SWARM_TRAJECTORY,
+        suite.MODE_QUICKSCOUT,
         "reset_after_suite",
     ]
     assert steps[0].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
@@ -115,7 +116,10 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
     assert steps[4].json_path == tmp_path / "artifacts" / "actions.json"
     assert "--post-rtl-airborne-gain" in steps[4].command
     assert "--prepare-short-profile" in steps[6].command
-    assert steps[7].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[7].validator == suite.MODE_QUICKSCOUT
+    assert steps[7].json_path == tmp_path / "artifacts" / "quickscout.json"
+    assert "tools/validate_quickscout_runtime.py" in steps[7].command
+    assert steps[8].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
 
 
 def test_build_suite_steps_inserts_reset_before_late_drone_show_from_modes(tmp_path):

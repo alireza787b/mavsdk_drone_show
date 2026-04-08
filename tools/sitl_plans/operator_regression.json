@@ -1,6 +1,6 @@
 {
   "title": "Operator Regression",
-  "description": "Run the current full deterministic operator acceptance gate: configuration, Drone Show, actions, Smart Swarm, and Swarm Trajectory.",
+  "description": "Run the current full deterministic operator acceptance gate: configuration, Drone Show, actions, Smart Swarm, Swarm Trajectory, and QuickScout.",
   "tags": ["operator", "regression", "full-suite"],
   "steps": [
     {
@@ -17,6 +17,12 @@
     },
     {
       "validator": "swarm_trajectory"
+    },
+    {
+      "validator": "quickscout",
+      "options": {
+        "quickscout_launch_drone_count": 1
+      }
     }
   ]
 }

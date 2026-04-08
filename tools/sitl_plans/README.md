@@ -53,9 +53,9 @@ The current plan library is split into three classes:
 - `quickscout_runtime`
   - stable single-drone QuickScout last-known-point launch, hold, resume rejection, abort, and cleanup
 - `mission_regression`
-  - Drone Show, Smart Swarm, Swarm Trajectory
+  - Drone Show, Smart Swarm, Swarm Trajectory, QuickScout
 - `operator_regression`
-  - configuration, Drone Show, actions, Smart Swarm, Swarm Trajectory
+  - configuration, Drone Show, actions, Smart Swarm, Swarm Trajectory, QuickScout
 
 ## Current Validated Advanced Plans
 
@@ -65,8 +65,8 @@ The current plan library is split into three classes:
 - `quickscout_multi_runtime`
   - two-drone QuickScout launch, hold, resume rejection, abort, and non-target idle scope check
 - `advanced_operator_regression`
-  - configuration, Drone Show matrix, standalone actions, and the integrated
-    mixed-mode override drill in one reusable promotion-style gate
+  - configuration, Drone Show, standalone actions, and the integrated
+    mixed-mode override drill
 
 ## Deferred Advanced Scenarios
 
@@ -79,3 +79,14 @@ The following are intentionally tracked outside the stable plan set for now:
 
 Those are tracked in `docs/TODO_deferred.md` and will be promoted into this
 library only after they stay deterministic enough for repeated acceptance use.
+
+## Operational Notes
+
+- These plans assume the GCS command tracker is clean at plan start. Recreating
+  the drone fleet does not clear out-of-band manual debug commands that were
+  submitted directly to the live GCS between plan runs.
+- If you manually debug launch flows outside the suite, restart the GCS service
+  before treating the next plan run as a fair acceptance result.
+- When the runtime repo head is newer than the currently published SITL image,
+  recreate the fleet with `MDS_SITL_GIT_SYNC=true` so the containers do not
+  silently remain on the older baked commit.

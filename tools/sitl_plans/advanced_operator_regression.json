@@ -1,6 +1,6 @@
 {
   "title": "Advanced Operator Regression",
-  "description": "Run the stable operator gate plus the integrated mixed-mode override drill.",
+  "description": "Run configuration, Drone Show, actions, and the integrated mixed-mode override drill.",
   "tags": ["advanced", "operator", "regression", "full-suite"],
   "steps": [
     {

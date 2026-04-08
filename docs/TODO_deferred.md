@@ -111,7 +111,7 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - `gcs-server/sar/service.py`
 - `gcs-server/sar/schemas.py`
 - future QuickScout workspace/frontend components
-- QuickScout SITL validator once it exists
+- `tools/validate_quickscout_runtime.py` and the checked-in `quickscout_runtime` / `quickscout_multi_runtime` plans if mission-batch launch identity or a true resume adapter is introduced
 
 ---
 
