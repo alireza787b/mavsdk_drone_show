@@ -127,7 +127,9 @@ def test_sar_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/sar/mission/plan" in routes
+    assert "/api/sar/missions" in routes
     assert "/api/sar/mission/launch" in routes
+    assert "/api/sar/mission/{mission_id}/workspace" in routes
     assert "/api/sar/mission/{mission_id}/status" in routes
     assert "/api/sar/mission/{mission_id}/pause" in routes
     assert "/api/sar/mission/{mission_id}/resume" in routes
@@ -178,6 +180,40 @@ def test_sar_launch_uses_tracked_command_response():
     assert payload["drones_launched"] == 1
     assert payload["submissions"][0]["command"]["command_id"]
     assert payload["submissions"][0]["command"]["target_drones"] == ["1"]
+
+
+def test_sar_lists_persisted_missions_for_recovery():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=_plan_request())
+        mission_id = planned.json()["mission_id"]
+        response = client.get("/api/sar/missions", params={"limit": 10})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["missions"][0]["mission_id"] == mission_id
+    assert payload["missions"][0]["drone_count"] == 1
+
+
+def test_sar_workspace_returns_persisted_operation_and_status():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=_plan_request())
+        mission_id = planned.json()["mission_id"]
+        response = client.get(f"/api/sar/mission/{mission_id}/workspace")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["operation"]["mission_id"] == mission_id
+    assert payload["status"]["mission_id"] == mission_id
+    assert payload["operation"]["plans"]
 
 
 def test_sar_abort_respects_hold_position_behavior():

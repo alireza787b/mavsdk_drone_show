@@ -12,8 +12,11 @@ from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
     POI, DroneProgressReport,
+    QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
+    QuickScoutMissionWorkspaceResponse,
+    SurveyState,
 )
 from .terrain import batch_get_elevations
 from .service import get_quickscout_service
@@ -41,10 +44,24 @@ def create_sar_router(deps: Any) -> APIRouter:
             logger.error(f"Coverage planning failed: {exc}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Coverage planning failed: {str(exc)}") from exc
 
+    @router.get("/missions", response_model=QuickScoutMissionCatalogResponse)
+    async def list_missions(
+        limit: int = Query(20, ge=1, le=200, description="Maximum persisted missions to return"),
+        state: Optional[SurveyState] = Query(None, description="Optional mission-state filter"),
+    ):
+        return get_quickscout_service().list_operation_summaries(limit=limit, state=state)
+
     @router.post("/mission/launch", response_model=QuickScoutMissionLaunchResponse)
     async def launch_mission(mission_id: str = Query(..., description="Mission ID to launch")):
         """Launch a previously planned mission."""
         return await get_quickscout_service().launch_mission(deps, mission_id)
+
+    @router.get("/mission/{mission_id}/workspace", response_model=QuickScoutMissionWorkspaceResponse)
+    async def get_mission_workspace(mission_id: str):
+        workspace = get_quickscout_service().get_workspace(mission_id)
+        if not workspace:
+            raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+        return workspace
 
     @router.get("/mission/{mission_id}/status", response_model=MissionStatus)
     async def get_mission_status(mission_id: str):

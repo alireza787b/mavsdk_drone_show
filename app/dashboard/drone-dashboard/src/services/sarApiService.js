@@ -34,10 +34,20 @@ export const computePlan = async (missionRequest) => {
   return response.data;
 };
 
+export const listMissions = async (params = {}) => {
+  const response = await axios.get(buildSarUrl(`/missions${buildQueryString(params)}`));
+  return response.data;
+};
+
 export const launchMission = async (missionId) => {
   const response = await axios.post(
     buildSarUrl(`/mission/launch${buildQueryString({ mission_id: missionId })}`)
   );
+  return response.data;
+};
+
+export const getMissionWorkspace = async (missionId) => {
+  const response = await axios.get(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/workspace`));
   return response.data;
 };
 

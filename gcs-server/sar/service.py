@@ -28,10 +28,13 @@ from sar.schemas import (
     MissionStatus,
     POI,
     QuickScoutLaunchSubmission,
+    QuickScoutMissionCatalogResponse,
     QuickScoutMissionRequest,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
     QuickScoutOperationRecord,
+    QuickScoutMissionSummary,
+    QuickScoutMissionWorkspaceResponse,
     ReturnBehavior,
     SurveyState,
 )
@@ -284,6 +287,48 @@ class QuickScoutService:
             elapsed_time_s=max(0.0, elapsed_time_s),
             started_at=operation.started_at,
         )
+
+    def list_operation_summaries(
+        self,
+        *,
+        limit: int = 20,
+        state: Optional[SurveyState] = None,
+    ) -> QuickScoutMissionCatalogResponse:
+        operations = list(self.store.list_operations())
+        if state is not None:
+            operations = [operation for operation in operations if operation.state == state]
+        operations.sort(key=lambda operation: (operation.updated_at, operation.created_at, operation.mission_id), reverse=True)
+
+        summaries: List[QuickScoutMissionSummary] = []
+        for operation in operations[: max(1, limit)]:
+            poi_count = len(self.store.list_pois(operation.mission_id))
+            summaries.append(
+                QuickScoutMissionSummary(
+                    mission_id=operation.mission_id,
+                    state=operation.state,
+                    created_at=operation.created_at,
+                    updated_at=operation.updated_at,
+                    started_at=operation.started_at,
+                    drone_count=len(operation.plans),
+                    pos_ids=operation.pos_ids,
+                    total_area_sq_m=operation.total_area_sq_m,
+                    estimated_coverage_time_s=operation.estimated_coverage_time_s,
+                    algorithm_used=operation.algorithm_used,
+                    return_behavior=operation.return_behavior,
+                    total_coverage_percent=self._calculate_total_coverage(operation.drone_states),
+                    poi_count=poi_count,
+                    last_command_summary=operation.last_command_summary,
+                )
+            )
+
+        return QuickScoutMissionCatalogResponse(missions=summaries, count=len(summaries))
+
+    def get_workspace(self, mission_id: str) -> Optional[QuickScoutMissionWorkspaceResponse]:
+        operation = self.store.get_operation(mission_id)
+        status = self.get_status(mission_id)
+        if operation is None or status is None:
+            return None
+        return QuickScoutMissionWorkspaceResponse(operation=operation, status=status)
 
     def start_mission(
         self,

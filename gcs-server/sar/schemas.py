@@ -156,6 +156,35 @@ class MissionStatus(BaseModel):
     started_at: Optional[float] = Field(None, description="Mission start timestamp (Unix epoch)")
 
 
+class QuickScoutMissionSummary(BaseModel):
+    """Compact persisted mission summary for list/reopen flows."""
+
+    mission_id: str = Field(..., description="Mission identifier")
+    state: SurveyState = Field(..., description="Overall mission state")
+    created_at: float = Field(..., description="Mission creation timestamp (Unix epoch)")
+    updated_at: float = Field(..., description="Last mission update timestamp (Unix epoch)")
+    started_at: Optional[float] = Field(None, description="Mission launch timestamp (Unix epoch)")
+    drone_count: int = Field(..., ge=0, description="Number of drones/plans in the mission")
+    pos_ids: Optional[List[int]] = Field(None, description="Requested target position IDs")
+    total_area_sq_m: float = Field(..., ge=0, description="Total search area (sq m)")
+    estimated_coverage_time_s: float = Field(..., ge=0, description="Estimated coverage time (s)")
+    algorithm_used: str = Field(..., description="Planner algorithm used")
+    return_behavior: ReturnBehavior = Field(..., description="Configured mission end behavior")
+    total_coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Derived mission coverage (%)")
+    poi_count: int = Field(default=0, ge=0, description="Persisted POI count")
+    last_command_summary: Optional[Dict] = Field(
+        None,
+        description="Most recent compact tracked-command recovery summary",
+    )
+
+
+class QuickScoutMissionCatalogResponse(BaseModel):
+    """List response for persisted QuickScout missions."""
+
+    missions: List[QuickScoutMissionSummary] = Field(default_factory=list, description="Persisted mission summaries")
+    count: int = Field(..., ge=0, description="Number of missions in this response")
+
+
 class QuickScoutLaunchSubmission(BaseModel):
     """Single tracked command submission used to launch one drone's QuickScout plan."""
 
@@ -236,6 +265,13 @@ class QuickScoutOperationRecord(BaseModel):
         None,
         description="Latest launch or control command summary for operator recovery",
     )
+
+
+class QuickScoutMissionWorkspaceResponse(BaseModel):
+    """Combined persisted mission package and live-derived status for workspace recovery."""
+
+    operation: QuickScoutOperationRecord = Field(..., description="Persisted mission package and recovery data")
+    status: MissionStatus = Field(..., description="Current derived mission status for the same mission")
 
 
 class DroneProgressReport(BaseModel):

@@ -90,6 +90,8 @@ GCS_EXPECTED_HTTP = {
         "/api/logs/drone/{drone_id}/sessions",
         "/api/logs/drone/{drone_id}/sessions/{session_id}",
         "/api/logs/drone/{drone_id}/stream",
+        "/api/sar/missions",
+        "/api/sar/mission/{mission_id}/workspace",
         "/api/sar/mission/{mission_id}/status",
         "/api/sar/poi",
     },

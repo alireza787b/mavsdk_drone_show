@@ -3,6 +3,8 @@ import {
   abortMission,
   batchElevation,
   computePlan,
+  getMissionWorkspace,
+  listMissions,
   updatePOI,
 } from './sarApiService';
 import { buildSarUrl } from './gcsApiService';
@@ -31,6 +33,15 @@ describe('sarApiService', () => {
     );
   });
 
+  it('lists persisted QuickScout missions through the shared SAR route builder', async () => {
+    axios.get.mockResolvedValue({ data: { missions: [], count: 0 } });
+
+    await listMissions({ limit: 5, state: 'ready' });
+
+    expect(buildSarUrl).toHaveBeenCalledWith('/missions?limit=5&state=ready');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/sar/missions?limit=5&state=ready');
+  });
+
   it('encodes mission ids and repeated drone filters for abort requests', async () => {
     axios.post.mockResolvedValue({ data: { success: true } });
 
@@ -41,6 +52,17 @@ describe('sarApiService', () => {
     );
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/sar/mission/mission%2Falpha/abort?return_behavior=hold_position&pos_ids=1&pos_ids=2'
+    );
+  });
+
+  it('encodes mission ids for workspace recovery requests', async () => {
+    axios.get.mockResolvedValue({ data: { operation: { mission_id: 'mission/alpha' } } });
+
+    await getMissionWorkspace('mission/alpha');
+
+    expect(buildSarUrl).toHaveBeenCalledWith('/mission/mission%2Falpha/workspace');
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/sar/mission/mission%2Falpha/workspace'
     );
   });
 
