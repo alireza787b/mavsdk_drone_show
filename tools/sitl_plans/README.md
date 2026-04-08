@@ -51,7 +51,7 @@ The current plan library is split into three classes:
 - `swarm_trajectory_short_profile`
   - short-profile process, launch, formation, cleanup
 - `quickscout_runtime`
-  - stable single-drone QuickScout last-known-point launch, hold, resume rejection, abort, and cleanup
+  - stable single-drone QuickScout last-known-point launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
 - `mission_regression`
   - Drone Show, Smart Swarm, Swarm Trajectory, QuickScout
 - `operator_regression`
@@ -63,7 +63,7 @@ The current plan library is split into three classes:
   - Smart Swarm cluster, in-flight reassignment, leader Swarm Trajectory
     override, HOLD supersession, leader Precision Move, and clean land/restore
 - `quickscout_multi_runtime`
-  - two-drone QuickScout launch, hold, resume rejection, abort, and non-target idle scope check
+  - two-drone QuickScout launch, finding/handoff exercise, hold, resume rejection, abort, and non-target idle scope check
 - `advanced_operator_regression`
   - configuration, Drone Show, standalone actions, and the integrated
     mixed-mode override drill

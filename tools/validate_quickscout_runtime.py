@@ -12,8 +12,9 @@ In both cases it validates the same operator-facing lifecycle:
 2. Plan a QuickScout mission from live telemetry
 3. Launch the mission and confirm the targeted aircraft climb and begin searching
 4. Pause into HOLD and confirm the mission enters the holding phase
-5. Confirm direct resume is rejected with explicit replan guidance
-6. Abort and confirm the fleet returns to a clean idle baseline
+5. Create/update a finding and validate the mission handoff bundle
+6. Confirm direct resume is rejected with explicit replan guidance
+7. Abort and confirm the fleet returns to a clean idle baseline
 
 For partial-fleet drills it also confirms that non-target drones remain idle.
 """
@@ -596,6 +597,76 @@ def require_command_success(status: dict[str, Any], *, expected_accepts: int, ex
     )
 
 
+def validate_findings_and_handoff(
+    client: ApiClient,
+    mission_id: str,
+    *,
+    reference_row: dict[str, Any],
+) -> dict[str, Any]:
+    lat = float(reference_row["position_lat"])
+    lng = float(reference_row["position_long"])
+    reported_by_drone = str(reference_row.get("hw_id") or reference_row.get("hw_ID") or "")
+
+    finding = client.post_json(
+        "/api/sar/findings",
+        payload={
+            "lat": lat,
+            "lng": lng,
+            "summary": "Runtime validator contact",
+            "type": "clue",
+            "priority": "high",
+            "source": "operator_mark",
+            "notes": "Created by QuickScout runtime validator.",
+            "evidence_refs": ["img://runtime-validator-contact"],
+        },
+        query={"mission_id": mission_id},
+    )
+    finding_id = str(finding.get("id") or "")
+    require(finding_id, f"QuickScout finding creation did not return an id: {json.dumps(finding, indent=2)}")
+
+    updated_finding = client.request_json(
+        "PATCH",
+        f"/api/sar/findings/{urllib.parse.quote(finding_id, safe='')}",
+        payload={
+            "status": "confirmed",
+            "reported_by_drone": reported_by_drone or None,
+            "notes": "Validator confirmed the contact and attached a handoff reference.",
+            "evidence_refs": [
+                "img://runtime-validator-contact",
+                "report://runtime-validator-brief",
+            ],
+        },
+    )
+    require(
+        (updated_finding.get("status") or "") == "confirmed",
+        f"QuickScout finding update did not persist confirmation: {json.dumps(updated_finding, indent=2)}",
+    )
+
+    handoff = client.get_json(f"/api/sar/mission/{mission_id}/handoff")
+    require(
+        int(handoff.get("finding_count", 0) or 0) >= 1,
+        f"QuickScout handoff did not include findings: {json.dumps(handoff, indent=2)}",
+    )
+    require(
+        int(handoff.get("confirmed_finding_count", 0) or 0) >= 1,
+        f"QuickScout handoff did not include a confirmed finding: {json.dumps(handoff, indent=2)}",
+    )
+    require(
+        int(handoff.get("evidence_ref_count", 0) or 0) >= 2,
+        f"QuickScout handoff did not persist evidence refs: {json.dumps(handoff, indent=2)}",
+    )
+    require(
+        "Runtime validator contact" in str(handoff.get("brief_text") or ""),
+        f"QuickScout handoff brief did not mention the validated finding: {json.dumps(handoff, indent=2)}",
+    )
+
+    return {
+        "finding": finding,
+        "updated_finding": updated_finding,
+        "handoff": handoff,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate QuickScout against a live GCS/SITL runtime.")
     parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
@@ -761,6 +832,12 @@ def main() -> int:
     require(
         str((holding_status.get("control_availability") or {}).get("replan_enabled")).lower() == "true",
         "Holding status did not expose replan guidance",
+    )
+
+    artifacts["stages"]["findings_handoff"] = validate_findings_and_handoff(
+        client,
+        mission_id,
+        reference_row=target_row_payloads[0],
     )
 
     resume_response = client.post_json(

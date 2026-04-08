@@ -114,18 +114,18 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ## TODO 7: QuickScout advanced retasking and findings-aware SITL expansion
 
-**Status:** Deferred — findings foundation, evidence refs, handoff/export, and finding-seeded follow-up planning are complete, but mid-mission retasking and deeper runtime drills are not yet done
+**Status:** Deferred — findings foundation, evidence refs, handoff/export, finding-seeded follow-up planning, and findings-aware single/multi-drone runtime validation are complete, but mid-mission retasking and deeper advanced drills are not yet done
 
 **Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
 
 - add-drone/remove-drone or deeper follow-up package generation from the current airborne state
-- richer findings-in-the-loop SITL drills
+- richer retask / fault-injection SITL drills beyond the validated findings-aware launch-control path
 
 **Solution:** Revisit after the current findings checkpoint is merged into the active QuickScout stream:
 
 - add planner/control seams for mid-mission reassignment only after the operator workflow is explicit
 - add later media attachment/upload on top of the now-stable evidence reference model
-- promote findings-aware SITL scenarios once the next control slice is stable
+- promote deeper retask and fault-injection SITL scenarios once the next control slice is stable
 
 **Likely touch points:**
 
