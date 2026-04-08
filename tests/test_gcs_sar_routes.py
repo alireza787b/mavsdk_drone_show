@@ -131,6 +131,7 @@ def test_sar_router_registers_expected_routes():
     assert "/api/sar/mission/launch" in routes
     assert "/api/sar/mission/{mission_id}/workspace" in routes
     assert "/api/sar/mission/{mission_id}/status" in routes
+    assert "/api/sar/mission/{mission_id}/handoff" in routes
     assert "/api/sar/mission/{mission_id}/pause" in routes
     assert "/api/sar/mission/{mission_id}/resume" in routes
     assert "/api/sar/mission/{mission_id}/abort" in routes
@@ -215,6 +216,43 @@ def test_sar_workspace_returns_persisted_operation_and_status():
     assert payload["status"]["mission_id"] == mission_id
     assert payload["operation"]["plans"]
     assert payload["status"]["operation_phase"] == "ready_to_launch"
+
+
+def test_sar_handoff_returns_compact_operator_bundle():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=_plan_request())
+        mission_id = planned.json()["mission_id"]
+        finding = client.post(
+            "/api/sar/findings",
+            params={"mission_id": mission_id},
+            json={
+                "lat": 47.0,
+                "lng": 8.0,
+                "summary": "Thermal contact",
+                "type": "person",
+                "priority": "high",
+                "evidence_refs": ["img://capture-1"],
+            },
+        )
+        finding_id = finding.json()["id"]
+        client.patch(
+            f"/api/sar/findings/{finding_id}",
+            json={"status": "confirmed", "notes": "Operator confirmed thermal plus visual"},
+        )
+        response = client.get(f"/api/sar/mission/{mission_id}/handoff")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mission_id"] == mission_id
+    assert payload["finding_count"] == 1
+    assert payload["confirmed_finding_count"] == 1
+    assert payload["evidence_ref_count"] == 1
+    assert payload["findings"][0]["summary"] == "Thermal contact"
+    assert "Thermal contact" in payload["brief_text"]
 
 
 def test_sar_abort_respects_hold_position_behavior():

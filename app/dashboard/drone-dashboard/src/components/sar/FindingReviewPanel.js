@@ -47,6 +47,7 @@ const buildDraft = (finding) => ({
   source: finding?.source || 'operator_mark',
   status: finding?.status || 'new',
   notes: finding?.notes || '',
+  evidenceRefsText: (finding?.evidence_refs || []).join('\n'),
 });
 
 const FindingReviewPanel = ({
@@ -59,9 +60,11 @@ const FindingReviewPanel = ({
   onSeedFollowUpFromFinding,
 }) => {
   const [draft, setDraft] = useState(buildDraft(finding));
+  const [showEvidenceRefs, setShowEvidenceRefs] = useState(Boolean(finding?.evidence_refs?.length));
 
   useEffect(() => {
     setDraft(buildDraft(finding));
+    setShowEvidenceRefs(Boolean(finding?.evidence_refs?.length));
   }, [finding]);
 
   if (!finding) {
@@ -79,7 +82,15 @@ const FindingReviewPanel = ({
   };
 
   const handleSave = async () => {
-    await onSaveFinding?.(finding.id, draft);
+    const evidence_refs = draft.evidenceRefsText
+      .split(/\r?\n|,/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    const { evidenceRefsText, ...rest } = draft;
+    await onSaveFinding?.(finding.id, {
+      ...rest,
+      evidence_refs,
+    });
   };
 
   const handleDelete = async () => {
@@ -98,6 +109,7 @@ const FindingReviewPanel = ({
         <div className="qs-launch-review__chip-row">
           <span className="qs-inline-chip">{finding.type || 'other'}</span>
           <span className="qs-inline-chip">{finding.priority || 'medium'}</span>
+          <span className="qs-inline-chip">{(finding.evidence_refs || []).length} refs</span>
         </div>
       </div>
 
@@ -189,6 +201,28 @@ const FindingReviewPanel = ({
             placeholder="Add operator notes, contact details, or handoff instructions."
           />
         </label>
+
+        <div className="qs-finding-form__field">
+          <button
+            type="button"
+            className="qs-btn qs-btn-secondary qs-btn-compact"
+            onClick={() => setShowEvidenceRefs((current) => !current)}
+          >
+            {showEvidenceRefs ? 'Hide Evidence Refs' : 'Edit Evidence Refs'}
+          </button>
+
+          {showEvidenceRefs ? (
+            <label className="qs-finding-form__field">
+              <span className="qs-config-label">Evidence Refs</span>
+              <textarea
+                className="qs-config-textarea"
+                value={draft.evidenceRefsText}
+                onChange={(event) => handleChange('evidenceRefsText', event.target.value)}
+                placeholder="One reference per line, for example image IDs, report IDs, or external case links."
+              />
+            </label>
+          ) : null}
+        </div>
       </div>
 
       <div className="qs-finding-detail__actions">

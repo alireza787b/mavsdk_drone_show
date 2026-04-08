@@ -358,6 +358,12 @@
     width: 100%;
 }
 
+.qs-btn-compact {
+    align-self: flex-start;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
 .qs-profile-grid {
     display: grid;
     grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -856,6 +862,51 @@
 .qs-finding-detail__actions {
     display: flex;
     gap: 8px;
+    flex-wrap: wrap;
+}
+
+.qs-handoff-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.qs-handoff-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-primary);
+}
+
+.qs-handoff-item__body {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.qs-handoff-item__body strong {
+    color: var(--color-text-primary);
+    font-size: 12px;
+}
+
+.qs-handoff-item__body span {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    text-transform: capitalize;
+}
+
+.qs-handoff-item__meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
 }
 
 .qs-finding-popup {

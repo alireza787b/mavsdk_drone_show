@@ -2109,6 +2109,7 @@ class TestAPIV1Aliases:
             "/api/sar/mission/plan",
             "/api/sar/mission/launch",
             "/api/sar/mission/{mission_id}/status",
+            "/api/sar/mission/{mission_id}/handoff",
             "/api/sar/mission/{mission_id}/pause",
             "/api/sar/mission/{mission_id}/resume",
             "/api/sar/mission/{mission_id}/abort",

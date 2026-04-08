@@ -53,6 +53,18 @@ describe('MissionMonitorSidebar', () => {
         deletingFinding={false}
         onSaveFinding={() => {}}
         onDeleteFinding={() => {}}
+        missionHandoff={{
+          mission_id: 'mission-corridor',
+          finding_count: 0,
+          reviewed_finding_count: 0,
+          unresolved_finding_count: 0,
+          evidence_ref_count: 0,
+          brief_text: 'Harbor corridor is paused in holding phase.',
+          findings: [],
+        }}
+        loadingMissionHandoff={false}
+        onCopyMissionHandoff={() => {}}
+        onExportMissionHandoff={() => {}}
       />
     );
 
@@ -65,6 +77,8 @@ describe('MissionMonitorSidebar', () => {
     expect(screen.getByText('Sweep the channel approach')).toBeInTheDocument();
     expect(screen.getByText('Assigned drones are holding on operator command.')).toBeInTheDocument();
     expect(screen.getByText('QuickScout coverage missions do not support direct resume in V1.')).toBeInTheDocument();
+    expect(screen.getByText('Handoff')).toBeInTheDocument();
+    expect(screen.getByText('Harbor corridor is paused in holding phase.')).toBeInTheDocument();
     expect(screen.getByText('Mark findings from the map to capture observations, triage them, and keep the mission handoff clean.')).toBeInTheDocument();
     expect(screen.getByTestId('drone-status-card')).toHaveTextContent('1');
   });

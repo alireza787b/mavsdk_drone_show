@@ -160,6 +160,8 @@ const QuickScoutPage = () => {
   const [selectedFinding, setSelectedFinding] = useState(null);
   const [savingFinding, setSavingFinding] = useState(false);
   const [deletingFinding, setDeletingFinding] = useState(false);
+  const [missionHandoff, setMissionHandoff] = useState(null);
+  const [loadingMissionHandoff, setLoadingMissionHandoff] = useState(false);
 
   // Telemetry
   const [drones, setDrones] = useState([]);
@@ -211,6 +213,8 @@ const QuickScoutPage = () => {
     setSelectedFinding(null);
     setSavingFinding(false);
     setDeletingFinding(false);
+    setMissionHandoff(null);
+    setLoadingMissionHandoff(false);
     setRecoveringMissionId(null);
     drawControlRef.current?.reset();
   }, []);
@@ -249,6 +253,7 @@ const QuickScoutPage = () => {
     setMissionId(operation.mission_id);
     setMissionStatus(status);
     setFindings(recoveredFindings);
+    setMissionHandoff(null);
     setSelectedFinding(recoveredFindings[0] || null);
     setSearchArea(operation.search_area?.points || []);
     setSearchAreaSqM(operation.search_area?.area_sq_m || operation.total_area_sq_m || 0);
@@ -491,6 +496,37 @@ const QuickScoutPage = () => {
   );
   const currentMissionState = missionStatus?.state || currentMissionSummary?.state || null;
   const currentMissionDisplayName = currentMissionSummary?.mission_label || missionLabel || missionId;
+  const missionHandoffRefreshKey = useMemo(() => {
+    const findingSignature = findings
+      .map((finding) => [
+        finding.id,
+        finding.status,
+        finding.updated_at || finding.timestamp || '',
+        (finding.evidence_refs || []).length,
+      ].join(':'))
+      .sort()
+      .join('|');
+    const lastCommandSignature = [
+      missionStatus?.last_command_summary?.command_id || '',
+      missionStatus?.last_command_summary?.action || '',
+      missionStatus?.last_command_summary?.effect || '',
+    ].join(':');
+    return [
+      missionId || '',
+      missionStatus?.state || '',
+      missionStatus?.operation_phase || '',
+      lastCommandSignature,
+      findingSignature,
+    ].join('|');
+  }, [
+    findings,
+    missionId,
+    missionStatus?.last_command_summary?.action,
+    missionStatus?.last_command_summary?.command_id,
+    missionStatus?.last_command_summary?.effect,
+    missionStatus?.operation_phase,
+    missionStatus?.state,
+  ]);
 
   // Center map on first drone with GPS
   useEffect(() => {
@@ -504,6 +540,39 @@ const QuickScoutPage = () => {
       });
     }
   }, [drones, viewport.zoom]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchMissionHandoff = async () => {
+      if (!missionId) {
+        setMissionHandoff(null);
+        setLoadingMissionHandoff(false);
+        return;
+      }
+
+      setLoadingMissionHandoff(true);
+      try {
+        const handoff = await sarApi.getMissionHandoff(missionId);
+        if (active) {
+          setMissionHandoff(handoff);
+        }
+      } catch (error) {
+        if (active) {
+          setMissionHandoff(null);
+        }
+      } finally {
+        if (active) {
+          setLoadingMissionHandoff(false);
+        }
+      }
+    };
+
+    fetchMissionHandoff();
+    return () => {
+      active = false;
+    };
+  }, [missionHandoffRefreshKey, missionId]);
 
   // Handlers
   const handleAreaChange = useCallback((points, areaSqM) => {
@@ -780,6 +849,48 @@ const QuickScoutPage = () => {
       setDeletingFinding(false);
     }
   }, [handleFindingDeleted]);
+
+  const handleCopyMissionHandoff = useCallback(async () => {
+    if (!missionHandoff?.brief_text) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(missionHandoff.brief_text);
+      toast.success('Mission handoff brief copied');
+    } catch (error) {
+      toast.error('Unable to copy mission handoff brief');
+    }
+  }, [missionHandoff]);
+
+  const handleExportMissionHandoff = useCallback(() => {
+    if (!missionHandoff) {
+      return;
+    }
+
+    try {
+      const exportBase = missionHandoff.mission_label || missionHandoff.mission_id || 'quickscout-handoff';
+      const exportName = exportBase
+        .trim()
+        .replace(/[^a-z0-9]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'quickscout-handoff';
+      const blob = new Blob([JSON.stringify(missionHandoff, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${exportName}-handoff.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('Mission handoff package exported');
+    } catch (error) {
+      toast.error('Unable to export mission handoff package');
+    }
+  }, [missionHandoff]);
 
   // SearchBar location select handler
   const handleLocationSelect = useCallback((longitude, latitude, _altitude) => {
@@ -1221,6 +1332,10 @@ const QuickScoutPage = () => {
             onDeleteFinding={handleDeleteFinding}
             onFocusFinding={handleFocusFinding}
             onSeedFollowUpFromFinding={handleSeedFollowUpFromFinding}
+            missionHandoff={missionHandoff}
+            loadingMissionHandoff={loadingMissionHandoff}
+            onCopyMissionHandoff={handleCopyMissionHandoff}
+            onExportMissionHandoff={handleExportMissionHandoff}
           />
         )}
       </div>

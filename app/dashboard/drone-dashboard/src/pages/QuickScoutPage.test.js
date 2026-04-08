@@ -35,6 +35,7 @@ jest.mock('../services/sarApiService', () => ({
   launchMission: jest.fn(),
   getMissionWorkspace: jest.fn(),
   getMissionStatus: jest.fn(),
+  getMissionHandoff: jest.fn(),
   pauseMission: jest.fn(),
   resumeMission: jest.fn(),
   abortMission: jest.fn(),
@@ -308,6 +309,15 @@ describe('QuickScoutPage', () => {
       total_coverage_percent: 22,
       elapsed_time_s: 45,
       started_at: 1_700_000_110,
+    });
+    sarApi.getMissionHandoff.mockResolvedValue({
+      mission_id: 'mission-exec',
+      brief_text: 'Harbor sweep is executing in searching phase.',
+      finding_count: 0,
+      reviewed_finding_count: 0,
+      unresolved_finding_count: 0,
+      evidence_ref_count: 0,
+      findings: [],
     });
   });
 

@@ -35,6 +35,7 @@ describe('FindingReviewPanel', () => {
           source: 'operator_mark',
           status: 'new',
           notes: '',
+          evidence_refs: ['img://capture-1'],
         }}
         saving={false}
         deleting={false}
@@ -48,6 +49,11 @@ describe('FindingReviewPanel', () => {
     fireEvent.change(screen.getByLabelText('Summary'), {
       target: { value: 'Confirmed vessel contact' },
     });
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Evidence Refs' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Evidence Refs' }));
+    fireEvent.change(screen.getByLabelText('Evidence Refs'), {
+      target: { value: 'img://capture-1\nradio://report-2' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Center Map' }));
     fireEvent.click(screen.getByRole('button', { name: 'Follow-up Search' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save Finding' }));
@@ -59,6 +65,7 @@ describe('FindingReviewPanel', () => {
         summary: 'Confirmed vessel contact',
         type: 'other',
         priority: 'medium',
+        evidence_refs: ['img://capture-1', 'radio://report-2'],
       }),
     );
     expect(onDeleteFinding).toHaveBeenCalledWith('finding-1');

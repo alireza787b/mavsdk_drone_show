@@ -4,6 +4,7 @@ import {
   batchElevation,
   computePlan,
   getFindings,
+  getMissionHandoff,
   getMissionWorkspace,
   listMissions,
   updateFinding,
@@ -64,6 +65,17 @@ describe('sarApiService', () => {
     expect(buildSarUrl).toHaveBeenCalledWith('/mission/mission%2Falpha/workspace');
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/sar/mission/mission%2Falpha/workspace'
+    );
+  });
+
+  it('encodes mission ids for canonical handoff requests', async () => {
+    axios.get.mockResolvedValue({ data: { mission_id: 'mission/alpha' } });
+
+    await getMissionHandoff('mission/alpha');
+
+    expect(buildSarUrl).toHaveBeenCalledWith('/mission/mission%2Falpha/handoff');
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/sar/mission/mission%2Falpha/handoff'
     );
   });
 

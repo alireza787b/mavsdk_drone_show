@@ -6,6 +6,7 @@
 import React from 'react';
 import DroneStatusCard from './DroneStatusCard';
 import FindingReviewPanel from './FindingReviewPanel';
+import MissionHandoffPanel from './MissionHandoffPanel';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import {
   buildQuickScoutGeometrySummary,
@@ -43,6 +44,10 @@ const MissionMonitorSidebar = ({
   onDeleteFinding,
   onFocusFinding,
   onSeedFollowUpFromFinding,
+  missionHandoff,
+  loadingMissionHandoff,
+  onCopyMissionHandoff,
+  onExportMissionHandoff,
 }) => {
   const droneStates = missionStatus?.drone_states || {};
   const sortedDrones = Object.values(droneStates).sort((a, b) =>
@@ -157,6 +162,13 @@ const MissionMonitorSidebar = ({
             ) : null}
           </div>
         )}
+
+        <MissionHandoffPanel
+          handoff={missionHandoff}
+          loading={loadingMissionHandoff}
+          onCopyBrief={onCopyMissionHandoff}
+          onExportJson={onExportMissionHandoff}
+        />
 
         {/* Drone Status Cards */}
         <div className="qs-config-section">

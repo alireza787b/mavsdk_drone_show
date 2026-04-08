@@ -448,6 +448,55 @@ class QuickScoutMissionWorkspaceResponse(BaseModel):
     status: MissionStatus = Field(..., description="Current derived mission status for the same mission")
 
 
+class QuickScoutMissionHandoffFinding(BaseModel):
+    """Compact finding payload included in operator handoff/export bundles."""
+
+    id: str = Field(..., description="Finding identifier")
+    summary: Optional[str] = Field(None, description="Short operator-facing finding summary")
+    type: FindingType = Field(..., description="Finding classification")
+    priority: FindingPriority = Field(..., description="Priority level")
+    confidence: FindingConfidence = Field(..., description="Operator confidence level")
+    status: FindingStatus = Field(..., description="Finding lifecycle status")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude (degrees)")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude (degrees)")
+    reported_by_drone: Optional[str] = Field(None, description="Reporting drone hw_id")
+    notes: Optional[str] = Field(None, description="Operator notes")
+    evidence_refs: List[str] = Field(default_factory=list, description="Evidence or artifact references")
+
+
+class QuickScoutMissionHandoff(BaseModel):
+    """Canonical mission handoff/export bundle for operators and future automation layers."""
+
+    mission_id: str = Field(..., description="Mission identifier")
+    mission_label: Optional[str] = Field(None, description="Operator-visible mission label")
+    mission_template: QuickScoutMissionTemplate = Field(..., description="QuickScout mission template")
+    mission_state: SurveyState = Field(..., description="Current overall mission state")
+    operation_phase: QuickScoutMissionPhase = Field(..., description="Derived operator-facing mission phase")
+    mission_brief: Optional[str] = Field(None, description="Operator-entered mission brief")
+    generated_at: float = Field(..., ge=0, description="Handoff generation timestamp (Unix epoch)")
+    drone_count: int = Field(..., ge=0, description="Number of drones assigned to the mission package")
+    total_area_sq_m: float = Field(..., ge=0, description="Total search area (sq m)")
+    estimated_coverage_time_s: float = Field(..., ge=0, description="Estimated package coverage time (s)")
+    total_coverage_percent: float = Field(..., ge=0, le=100, description="Derived mission coverage percent")
+    status_summary: str = Field(default="", description="Compact mission status summary")
+    recommended_operator_action: Optional[str] = Field(None, description="Suggested operator next step")
+    finding_count: int = Field(default=0, ge=0, description="Total finding count")
+    reviewed_finding_count: int = Field(default=0, ge=0, description="Findings that are no longer in the 'new' state")
+    unresolved_finding_count: int = Field(default=0, ge=0, description="Findings still under review or awaiting disposition")
+    confirmed_finding_count: int = Field(default=0, ge=0, description="Confirmed findings")
+    handed_off_finding_count: int = Field(default=0, ge=0, description="Findings explicitly marked handed off")
+    evidence_ref_count: int = Field(default=0, ge=0, description="Total evidence references across all findings")
+    last_command_summary: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Most recent launch/control recovery summary for the mission",
+    )
+    brief_text: str = Field(..., description="Operator-facing handoff summary text")
+    findings: List[QuickScoutMissionHandoffFinding] = Field(
+        default_factory=list,
+        description="Findings included in the handoff bundle",
+    )
+
+
 class DroneProgressReport(BaseModel):
     """Progress report from drone"""
     hw_id: str = Field(..., description="Reporting drone hw_id")

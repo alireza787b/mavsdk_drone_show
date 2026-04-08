@@ -13,6 +13,7 @@ from sar.schemas import (
     SearchAreaPoint, SearchArea, SurveyConfig, QuickScoutMissionRequest,
     CoverageWaypoint, DroneCoveragePlan, CoveragePlanResponse,
     QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate,
+    QuickScoutMissionHandoff,
     DroneSurveyState, MissionStatus, DroneProgressReport,
     ReturnBehavior, SurveyState, FindingType, FindingPriority, QuickScoutMissionTemplate,
     FindingConfidence, FindingSource, FindingStatus,
@@ -252,6 +253,51 @@ class TestFinding:
     def test_finding_update_rejects_unknown_fields(self):
         with pytest.raises(ValidationError):
             QuickScoutFindingUpdate(summary="Reviewed contact", unknown_field="x")
+
+
+class TestMissionHandoff:
+    def test_valid_handoff(self):
+        handoff = QuickScoutMissionHandoff(
+            mission_id="mission-1",
+            mission_label="Harbor sweep",
+            mission_template=QuickScoutMissionTemplate.LAST_KNOWN_POINT,
+            mission_state=SurveyState.EXECUTING,
+            operation_phase="searching",
+            mission_brief="Follow the last reported contact",
+            generated_at=1_700_000_100.0,
+            drone_count=2,
+            total_area_sq_m=32000.0,
+            estimated_coverage_time_s=540.0,
+            total_coverage_percent=42.5,
+            status_summary="Assigned drones are executing the search package.",
+            recommended_operator_action="Review findings and prepare follow-up search if needed.",
+            finding_count=1,
+            reviewed_finding_count=1,
+            unresolved_finding_count=0,
+            confirmed_finding_count=1,
+            handed_off_finding_count=0,
+            evidence_ref_count=2,
+            brief_text="Harbor sweep is executing in searching phase.",
+            findings=[
+                {
+                    "id": "finding-1",
+                    "summary": "Vessel contact",
+                    "type": "vessel",
+                    "priority": "high",
+                    "confidence": "medium",
+                    "status": "confirmed",
+                    "lat": 40.0,
+                    "lng": -74.0,
+                    "reported_by_drone": "1",
+                    "notes": "Holding visual contact",
+                    "evidence_refs": ["img://capture-1", "radio://report-1"],
+                }
+            ],
+        )
+
+        assert handoff.finding_count == 1
+        assert handoff.findings[0].summary == "Vessel contact"
+        assert handoff.evidence_ref_count == 2
 
 
 class TestDroneSurveyState:

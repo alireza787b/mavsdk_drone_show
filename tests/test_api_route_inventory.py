@@ -93,6 +93,7 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/missions",
         "/api/sar/mission/{mission_id}/workspace",
         "/api/sar/mission/{mission_id}/status",
+        "/api/sar/mission/{mission_id}/handoff",
         "/api/sar/findings",
     },
     "POST": {

@@ -989,3 +989,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Added monitor-mode actions to center the map on a reviewed finding and seed a new `last_known_point` follow-up search package directly from that finding.
 - Unified QuickScout map focus behavior behind one shared page-level focus helper so monitor actions and follow-up planning use the same viewport path.
 - Fixed the follow-up-plan label fallback so singleton mission catalogs preserve the mission label during follow-up seeding instead of dropping back to a generic `QuickScout follow-up`.
+
+### QuickScout Handoff And Evidence Workflow
+- Added a canonical `GET /api/sar/mission/{mission_id}/handoff` contract so operator handoff/export data is generated on the backend instead of being improvised in the browser.
+- Added evidence-reference editing to the finding review workflow while keeping the extra detail folded behind an explicit operator action instead of permanently expanding the monitor sidebar.
+- Added a compact QuickScout monitor handoff panel with a live brief, reviewed/unresolved/reference counts, top finding summary rows, and copy/export actions.
+- Extended the QuickScout contracts, route inventory, backend tests, frontend service tests, and monitor-mode component coverage for the new handoff/evidence workflow.

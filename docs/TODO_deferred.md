@@ -112,22 +112,19 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - `gcs-server/sar/schemas.py`
 - future QuickScout workspace/frontend components
 
-## TODO 7: QuickScout evidence workflow and advanced mission retasking
+## TODO 7: QuickScout advanced retasking and findings-aware SITL expansion
 
-**Status:** Deferred — findings foundation and finding-seeded follow-up planning are complete, but evidence and mid-mission retasking are not yet done
+**Status:** Deferred — findings foundation, evidence refs, handoff/export, and finding-seeded follow-up planning are complete, but mid-mission retasking and deeper runtime drills are not yet done
 
 **Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
 
-- evidence references and later media linkage for findings
-- operator handoff/export posture for reviewed findings
 - add-drone/remove-drone or deeper follow-up package generation from the current airborne state
 - richer findings-in-the-loop SITL drills
 
 **Solution:** Revisit after the current findings checkpoint is merged into the active QuickScout stream:
 
-- add an evidence/reference model on top of the finding record
-- define operator export / handoff requirements before adding media upload
 - add planner/control seams for mid-mission reassignment only after the operator workflow is explicit
+- add later media attachment/upload on top of the now-stable evidence reference model
 - promote findings-aware SITL scenarios once the next control slice is stable
 
 **Likely touch points:**

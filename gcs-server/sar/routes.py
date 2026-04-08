@@ -12,6 +12,7 @@ from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
     QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate, DroneProgressReport,
+    QuickScoutMissionHandoff,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
@@ -69,6 +70,13 @@ def create_sar_router(deps: Any) -> APIRouter:
         if not status:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
         return status
+
+    @router.get("/mission/{mission_id}/handoff", response_model=QuickScoutMissionHandoff)
+    async def get_mission_handoff(mission_id: str):
+        handoff = get_quickscout_service().get_mission_handoff(mission_id)
+        if not handoff:
+            raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+        return handoff
 
     @router.post("/mission/{mission_id}/pause", response_model=QuickScoutMissionControlResponse)
     async def pause_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):

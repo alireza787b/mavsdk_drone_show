@@ -55,6 +55,7 @@ All endpoints are prefixed with `/api/sar`.
 | POST | `/mission/launch` | Launch a planned mission to drones |
 | GET | `/mission/{id}/workspace` | Recover persisted mission package and live status |
 | GET | `/mission/{id}/status` | Get mission status and drone progress |
+| GET | `/mission/{id}/handoff` | Get the canonical mission handoff/export bundle |
 | POST | `/mission/{id}/pause` | Pause executing drones |
 | POST | `/mission/{id}/resume` | Resume paused drones |
 | POST | `/mission/{id}/abort` | Abort mission with return behavior |
@@ -101,7 +102,7 @@ All endpoints are prefixed with `/api/sar`.
 The QuickScout page is accessible from the sidebar menu and provides two modes:
 
 - **Plan Mode**: select a mission template, define search geometry, configure survey/profile settings, review coverage packaging, and launch
-- **Monitor Mode**: view drone progress, mission/package context, control availability, findings review/update workflow, and finding-led follow-up search seeding
+- **Monitor Mode**: view drone progress, mission/package context, control availability, evidence-backed findings review, mission handoff/export, and finding-led follow-up search seeding
 
 The map view shows coverage paths color-coded per drone (solid for survey legs, dashed for transit), plus findings markers and search footprint previews for point/corridor templates.
 
@@ -154,12 +155,12 @@ QuickScout is significantly more mature than the original PoC, but it is still a
 - tracked launch / hold / abort control semantics
 - durable mission state on GCS
 - durable findings workflow with operator review
+- evidence-reference editing on findings
+- canonical mission handoff/export bundle plus monitor-mode brief/export workflow
 - reusable single-drone and multi-drone QuickScout SITL validators
 
 Still deferred:
 
-- richer evidence/media linkage on findings
-- handoff/export posture for reviewed findings
 - mid-mission add/remove-drone retasking
 - deeper follow-up package generation from current airborne state beyond finding-seeded replans
 - advanced findings-aware SITL scenarios

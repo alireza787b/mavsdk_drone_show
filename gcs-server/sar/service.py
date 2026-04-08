@@ -31,6 +31,8 @@ from sar.schemas import (
     QuickScoutControlAvailability,
     QuickScoutControlEffect,
     QuickScoutLaunchSubmission,
+    QuickScoutMissionHandoff,
+    QuickScoutMissionHandoffFinding,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionPhase,
     QuickScoutMissionRequest,
@@ -606,6 +608,147 @@ class QuickScoutService:
         if operation is None or status is None:
             return None
         return QuickScoutMissionWorkspaceResponse(operation=operation, status=status)
+
+    @staticmethod
+    def _handoff_sort_key(finding: QuickScoutFinding) -> Tuple[int, int, float]:
+        priority_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        status_rank = {
+            "confirmed": 0,
+            "under_review": 1,
+            "new": 2,
+            "handed_off": 3,
+            "dismissed": 4,
+        }
+        return (
+            priority_rank.get(getattr(finding.priority, "value", str(finding.priority)), 99),
+            status_rank.get(getattr(finding.status, "value", str(finding.status)), 99),
+            -(finding.timestamp or 0.0),
+        )
+
+    @staticmethod
+    def _build_handoff_brief(
+        operation: QuickScoutOperationRecord,
+        status: MissionStatus,
+        findings: List[QuickScoutFinding],
+        *,
+        unresolved_finding_count: int,
+        confirmed_finding_count: int,
+        handed_off_finding_count: int,
+    ) -> str:
+        mission_name = operation.mission_label or operation.mission_id
+        state_label = str(status.state).replace("_", " ")
+        phase_label = str(status.operation_phase).replace("_", " ")
+        brief_parts = [
+            f"{mission_name} is {state_label} in {phase_label} phase.",
+            (
+                f"{len(findings)} findings logged; {confirmed_finding_count} confirmed, "
+                f"{unresolved_finding_count} unresolved, {handed_off_finding_count} handed off."
+            ),
+        ]
+
+        highest_priority = next(
+            (
+                finding
+                for finding in findings
+                if getattr(finding.status, "value", str(finding.status)) != "dismissed"
+            ),
+            None,
+        )
+        if highest_priority is not None:
+            finding_label = highest_priority.summary or getattr(
+                highest_priority.type,
+                "value",
+                str(highest_priority.type),
+            ).replace("_", " ")
+            brief_parts.append(
+                "Highest-priority finding: "
+                f"{finding_label} ("
+                f"{getattr(highest_priority.priority, 'value', str(highest_priority.priority)).replace('_', ' ')}, "
+                f"{getattr(highest_priority.status, 'value', str(highest_priority.status)).replace('_', ' ')})."
+            )
+
+        if status.recommended_operator_action:
+            brief_parts.append(status.recommended_operator_action)
+
+        return " ".join(brief_parts)
+
+    def get_mission_handoff(self, mission_id: str) -> Optional[QuickScoutMissionHandoff]:
+        operation = self.store.get_operation(mission_id)
+        status = self.get_status(mission_id)
+        if operation is None or status is None:
+            return None
+
+        findings = sorted(self.store.list_findings(mission_id), key=self._handoff_sort_key)
+        reviewed_finding_count = sum(
+            1
+            for finding in findings
+            if getattr(finding.status, "value", str(finding.status)) != "new"
+        )
+        unresolved_finding_count = sum(
+            1
+            for finding in findings
+            if getattr(finding.status, "value", str(finding.status)) in {"new", "under_review"}
+        )
+        confirmed_finding_count = sum(
+            1
+            for finding in findings
+            if getattr(finding.status, "value", str(finding.status)) == "confirmed"
+        )
+        handed_off_finding_count = sum(
+            1
+            for finding in findings
+            if getattr(finding.status, "value", str(finding.status)) == "handed_off"
+        )
+        evidence_ref_count = sum(len(finding.evidence_refs or []) for finding in findings)
+
+        brief_text = self._build_handoff_brief(
+            operation,
+            status,
+            findings,
+            unresolved_finding_count=unresolved_finding_count,
+            confirmed_finding_count=confirmed_finding_count,
+            handed_off_finding_count=handed_off_finding_count,
+        )
+
+        return QuickScoutMissionHandoff(
+            mission_id=operation.mission_id,
+            mission_label=operation.mission_label,
+            mission_template=operation.mission_template,
+            mission_state=operation.state,
+            operation_phase=status.operation_phase,
+            mission_brief=operation.mission_brief,
+            generated_at=time.time(),
+            drone_count=len(operation.plans),
+            total_area_sq_m=operation.total_area_sq_m,
+            estimated_coverage_time_s=operation.estimated_coverage_time_s,
+            total_coverage_percent=status.total_coverage_percent,
+            status_summary=status.status_summary,
+            recommended_operator_action=status.recommended_operator_action,
+            finding_count=len(findings),
+            reviewed_finding_count=reviewed_finding_count,
+            unresolved_finding_count=unresolved_finding_count,
+            confirmed_finding_count=confirmed_finding_count,
+            handed_off_finding_count=handed_off_finding_count,
+            evidence_ref_count=evidence_ref_count,
+            last_command_summary=status.last_command_summary,
+            brief_text=brief_text,
+            findings=[
+                QuickScoutMissionHandoffFinding(
+                    id=str(finding.id),
+                    summary=finding.summary,
+                    type=finding.type,
+                    priority=finding.priority,
+                    confidence=finding.confidence,
+                    status=finding.status,
+                    lat=finding.lat,
+                    lng=finding.lng,
+                    reported_by_drone=finding.reported_by_drone,
+                    notes=finding.notes,
+                    evidence_refs=list(finding.evidence_refs or []),
+                )
+                for finding in findings
+            ],
+        )
 
     def start_mission(
         self,

@@ -56,6 +56,11 @@ export const getMissionStatus = async (missionId) => {
   return response.data;
 };
 
+export const getMissionHandoff = async (missionId) => {
+  const response = await axios.get(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/handoff`));
+  return response.data;
+};
+
 export const pauseMission = async (missionId, posIds = null) => {
   const response = await axios.post(
     buildSarUrl(`/mission/${encodeURIComponent(missionId)}/pause${buildQueryString({ pos_ids: posIds })}`)

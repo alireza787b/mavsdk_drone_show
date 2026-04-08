@@ -447,6 +447,61 @@ class TestFindingEndpoints:
         assert resp.status_code == 200
         assert resp.json() == []
 
+    def test_get_mission_handoff(self, client):
+        mission_id = self._plan_and_get_id(client)
+
+        first = client.post(
+            "/api/sar/findings",
+            json={
+                "lat": 47.001,
+                "lng": 8.001,
+                "summary": "Possible survivor",
+                "type": "person",
+                "priority": "critical",
+                "evidence_refs": ["img://capture-1"],
+            },
+            params={"mission_id": mission_id},
+        )
+        assert first.status_code == 200
+        first_id = first.json()["id"]
+
+        second = client.post(
+            "/api/sar/findings",
+            json={
+                "lat": 47.002,
+                "lng": 8.002,
+                "summary": "Floating debris",
+                "type": "clue",
+                "priority": "medium",
+                "status": "under_review",
+                "evidence_refs": ["img://capture-2", "radio://report-1"],
+            },
+            params={"mission_id": mission_id},
+        )
+        assert second.status_code == 200
+
+        updated = client.patch(
+            f"/api/sar/findings/{first_id}",
+            json={"status": "confirmed", "notes": "Thermal plus visual correlation"},
+        )
+        assert updated.status_code == 200
+
+        handoff = client.get(f"/api/sar/mission/{mission_id}/handoff")
+        assert handoff.status_code == 200
+        payload = handoff.json()
+
+        assert payload["mission_id"] == mission_id
+        assert payload["finding_count"] == 2
+        assert payload["confirmed_finding_count"] == 1
+        assert payload["unresolved_finding_count"] == 1
+        assert payload["evidence_ref_count"] == 3
+        assert payload["findings"][0]["summary"] == "Possible survivor"
+        assert "Possible survivor" in payload["brief_text"]
+
+    def test_get_mission_handoff_not_found(self, client):
+        resp = client.get("/api/sar/mission/nonexistent/handoff")
+        assert resp.status_code == 404
+
 class TestElevationBatch:
     def test_batch_elevation(self, client):
         """POST /elevation/batch should return elevations."""
