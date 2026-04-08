@@ -812,7 +812,12 @@ const QuickScoutPage = () => {
     const preservedTargets = selectedDrones.length > 0
       ? [...selectedDrones]
       : (coveragePlan?.plans || []).map((plan) => plan.pos_id);
-    const nextLabelBase = missionLabel || currentMissionDisplayName || 'QuickScout';
+    const catalogFallbackMission = missionCatalog.length === 1 ? missionCatalog[0] : null;
+    const nextLabelBase = missionLabel
+      || currentMissionDisplayName
+      || catalogFallbackMission?.mission_label
+      || catalogFallbackMission?.mission_id
+      || 'QuickScout';
     const nextSummary = finding.summary || 'operator observation';
 
     setMode('plan');
@@ -840,7 +845,7 @@ const QuickScoutPage = () => {
     drawControlRef.current?.reset();
     focusMap(finding.lng, finding.lat, 17);
     toast.info('Follow-up search seeded from the selected finding');
-  }, [coveragePlan?.plans, currentMissionDisplayName, focusMap, missionLabel, selectedDrones]);
+  }, [coveragePlan?.plans, currentMissionDisplayName, focusMap, missionCatalog, missionLabel, selectedDrones]);
 
   return (
     <div className="quickscout-page">

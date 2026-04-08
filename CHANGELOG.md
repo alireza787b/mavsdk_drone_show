@@ -982,3 +982,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Removed the redundant monitor-mode findings poll so QuickScout now rehydrates findings from the mission-status payload instead of making an extra request every cycle.
 - Moved finding save/delete writes back into the QuickScout page container so the subsystem keeps one mutation path instead of hiding API writes inside leaf UI components.
 - Added focused backend schema/store/route coverage plus Hetzner React tests and production build proof for the findings review flow.
+
+### QuickScout Findings Cleanup And Follow-Up
+- Removed the remaining public QuickScout `/api/sar/poi*` compatibility surface so findings are now the single active operator concept end to end.
+- Removed the active `pois` / `poi_count` mirrors from mission status and mission summary contracts and renamed the remaining schema enums to `FindingType` / `FindingPriority`.
+- Added monitor-mode actions to center the map on a reviewed finding and seed a new `last_known_point` follow-up search package directly from that finding.
+- Unified QuickScout map focus behavior behind one shared page-level focus helper so monitor actions and follow-up planning use the same viewport path.
+- Fixed the follow-up-plan label fallback so singleton mission catalogs preserve the mission label during follow-up seeding instead of dropping back to a generic `QuickScout follow-up`.

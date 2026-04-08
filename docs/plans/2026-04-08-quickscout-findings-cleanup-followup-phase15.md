@@ -40,12 +40,26 @@ seeded directly from a reviewed finding.
 ### Hetzner frontend
 
 - `CI=true npm test -- --runInBand --watch=false src/services/sarApiService.test.js src/components/sar/MissionMonitorSidebar.test.js src/components/sar/FindingReviewPanel.test.js src/pages/QuickScoutPage.test.js`
-- result: pending in the commit note until the paired Hetzner pass is finished for this checkpoint
+- result: `4 suites passed`, `17 tests passed`
 
 ### Hetzner production build
 
 - `CI=true npm run build`
-- result: pending in the commit note until the paired Hetzner pass is finished for this checkpoint
+- result: passed
+
+## Validation Notes
+
+- The first paired Hetzner frontend run exposed a real regression in the new
+  follow-up workflow: when monitor mode had a single visible mission in the
+  catalog but no explicit `currentMissionId`, the seeded follow-up plan fell
+  back to the generic `QuickScout follow-up` label instead of preserving the
+  mission label.
+- The follow-up seed handler now falls back to the singleton catalog mission
+  label or mission ID when an explicit current mission context is not yet
+  attached.
+- The clean Hetzner validation tree needed a fresh `npm ci` before the frontend
+  pass because it was created as a new detached worktree with no preinstalled
+  dashboard dependencies.
 
 ## Remaining QuickScout Product Work
 
