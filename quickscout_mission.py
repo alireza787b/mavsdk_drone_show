@@ -227,6 +227,13 @@ def load_waypoints(filepath):
         return json.load(f)
 
 
+def coerce_optional_float(value, default):
+    """Convert optional numeric payload fields to floats with an explicit fallback."""
+    if value is None:
+        return default
+    return float(value)
+
+
 def report_progress(gcs_url, mission_id, hw_id, waypoint_index, total_waypoints, distance_m=0, state=None):
     """Report progress to GCS server (best-effort, non-blocking)."""
     if not gcs_url:
@@ -314,10 +321,10 @@ async def run_mission(args):
         for i, wp in enumerate(waypoints):
             lat = wp['lat']
             lng = wp['lng']
-            alt_msl = wp.get('alt_msl', 50.0)
+            alt_msl = coerce_optional_float(wp.get('alt_msl', 50.0), 50.0)
             is_survey = wp.get('is_survey_leg', True)
-            speed = wp.get('speed_ms', 5.0)
-            yaw = wp.get('yaw_deg', float('nan'))
+            speed = coerce_optional_float(wp.get('speed_ms', 5.0), 5.0)
+            yaw = coerce_optional_float(wp.get('yaw_deg'), float('nan'))
 
             relative_alt = alt_msl - home_alt_msl
 
@@ -331,7 +338,7 @@ async def run_mission(args):
                 camera_running = False
 
             camera_interval = (
-                wp.get('camera_interval_s', 2.0)
+                coerce_optional_float(wp.get('camera_interval_s', 2.0), 2.0)
                 if camera_action == MissionItem.CameraAction.START_PHOTO_INTERVAL
                 else float('nan')
             )

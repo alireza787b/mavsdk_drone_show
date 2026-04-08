@@ -1,3 +1,4 @@
+import math
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -81,6 +82,7 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
         "alt_msl": 1298.0,
         "is_survey_leg": False,
         "speed_ms": 4.0,
+        "yaw_deg": None,
     }]))
     monkeypatch.setattr(qsm, "start_mavsdk_server", MagicMock(return_value=fake_server))
     monkeypatch.setattr(qsm, "stop_mavsdk_server", MagicMock())
@@ -99,6 +101,8 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
     )
     fake_drone.connect.assert_awaited_once_with(system_address=f"udp://:{qsm.Params.mavsdk_port}")
     fake_drone.mission.upload_mission.assert_awaited_once()
+    uploaded_plan = fake_drone.mission.upload_mission.await_args.args[0]
+    assert math.isnan(uploaded_plan.items[0].kwargs["yaw_deg"])
     fake_drone.action.arm.assert_awaited_once()
     fake_drone.mission.start_mission.assert_awaited_once()
     qsm.stop_mavsdk_server.assert_called_once_with(fake_server)
