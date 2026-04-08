@@ -30,6 +30,32 @@ export function normalizeSearchPath(path = []) {
   }));
 }
 
+export function calculateSearchPathLengthM(path = []) {
+  const normalizedPath = normalizeSearchPath(path);
+  if (normalizedPath.length < 2) {
+    return 0;
+  }
+
+  let total = 0;
+  for (let index = 1; index < normalizedPath.length; index += 1) {
+    const previous = normalizedPath[index - 1];
+    const current = normalizedPath[index];
+    const lat1 = (previous.lat * Math.PI) / 180;
+    const lat2 = (current.lat * Math.PI) / 180;
+    const dLat = ((current.lat - previous.lat) * Math.PI) / 180;
+    const dLng = ((current.lng - previous.lng) * Math.PI) / 180;
+
+    const a = (
+      (Math.sin(dLat / 2) ** 2)
+      + Math.cos(lat1) * Math.cos(lat2) * (Math.sin(dLng / 2) ** 2)
+    );
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    total += EARTH_RADIUS_M * c;
+  }
+
+  return total;
+}
+
 export function buildLastKnownPointGeoJSON(center, radiusM, steps = 48) {
   if (!hasFiniteLatLng(center)) {
     return null;

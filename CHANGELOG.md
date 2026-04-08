@@ -956,3 +956,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Generalized the shared QuickScout draw controls so area sweep can stay polygon-based while corridor search uses explicit line authoring instead of forcing route input through polygon-only code.
 - Fixed a duplicated corridor resolver branch in the QuickScout service so one canonical template-to-polygon flow now feeds the planner and persisted workspace.
 - Replaced the dashboard’s umbrella `@turf/turf` import with explicit geometry subpackages, updated the lockfile, and restored focused Jest coverage for QuickScout geometry helpers under the current CRA test stack.
+
+### QuickScout Template-Aware Launch Review
+- Updated the QuickScout launch-review card so it now shows template-specific search-doctrine context instead of presenting corridor, point, and polygon packages as one generic coverage job.
+- Added corridor launch-review context for route-point count, route length, width, and buffered footprint, plus point-search review context for center and radius.
+- Added reusable route-length geometry math plus focused launch-review component coverage to keep the review stage aligned with the new template-first planning workflow.

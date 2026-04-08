@@ -4,6 +4,7 @@ import {
   buildLastKnownPointGeoJSON,
   calculateCorridorAreaSqM,
   calculateCircularAreaSqM,
+  calculateSearchPathLengthM,
   hasFiniteLatLng,
   normalizeSearchPath,
 } from './quickScoutSearchGeometry';
@@ -54,5 +55,15 @@ describe('quickScoutSearchGeometry', () => {
     expect(corridor).not.toBeNull();
     expect(corridor.features[0].geometry.type).toBe('Polygon');
     expect(calculateCorridorAreaSqM(path, 90)).toBeGreaterThan(0);
+  });
+
+  it('calculates route length for corridor planning', () => {
+    expect(calculateSearchPathLengthM([])).toBe(0);
+    expect(calculateSearchPathLengthM([{ lat: 37.0, lng: -122.0 }])).toBe(0);
+    expect(calculateSearchPathLengthM([
+      { lat: 37.0, lng: -122.0 },
+      { lat: 37.001, lng: -122.001 },
+      { lat: 37.002, lng: -122.002 },
+    ])).toBeGreaterThan(0);
   });
 });

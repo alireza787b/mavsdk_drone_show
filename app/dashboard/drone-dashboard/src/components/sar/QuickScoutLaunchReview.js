@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 
 import CommandPreflightSummary from '../CommandPreflightSummary';
 import { getQuickScoutProfile } from '../../utilities/quickScoutProfiles';
+import { calculateSearchPathLengthM } from '../../utilities/quickScoutSearchGeometry';
 
 function formatArea(areaSqM) {
   if (!Number.isFinite(Number(areaSqM)) || Number(areaSqM) <= 0) {
@@ -36,6 +37,25 @@ function formatDuration(seconds) {
   return `${minutes}m ${remainderSeconds}s`;
 }
 
+function formatDistanceMeters(distanceM) {
+  if (!Number.isFinite(Number(distanceM)) || Number(distanceM) <= 0) {
+    return '--';
+  }
+
+  const distance = Number(distanceM);
+  if (distance >= 1000) {
+    return `${(distance / 1000).toFixed(1)} km`;
+  }
+  return `${Math.round(distance)} m`;
+}
+
+function formatCoordinate(point) {
+  if (!Number.isFinite(Number(point?.lat)) || !Number.isFinite(Number(point?.lng))) {
+    return '--';
+  }
+  return `${Number(point.lat).toFixed(4)}, ${Number(point.lng).toFixed(4)}`;
+}
+
 function getReturnBehaviorLabel(returnBehavior) {
   if (returnBehavior === 'hold_position') {
     return 'Hold position';
@@ -44,6 +64,16 @@ function getReturnBehaviorLabel(returnBehavior) {
     return 'Land current';
   }
   return 'Return home';
+}
+
+function getMissionTemplateLabel(missionTemplate) {
+  if (missionTemplate === 'last_known_point') {
+    return 'Last Known Point';
+  }
+  if (missionTemplate === 'corridor_search') {
+    return 'Corridor Search';
+  }
+  return 'Area Sweep';
 }
 
 function getLaunchStatus(planNeedsRecompute, launchReadiness) {
@@ -78,13 +108,63 @@ function getLaunchStatus(planNeedsRecompute, launchReadiness) {
   };
 }
 
+function buildGeometryReview({
+  missionTemplate,
+  coveragePlan,
+  searchArea,
+  searchCenter,
+  searchRadiusM,
+  searchPath,
+  corridorWidthM,
+}) {
+  if (missionTemplate === 'last_known_point') {
+    return {
+      title: 'Point-centered search envelope',
+      note: 'QuickScout expands the reported point into a search envelope before partitioning assignments.',
+      chips: [
+        `Center ${formatCoordinate(searchCenter)}`,
+        `Radius ${Number(searchRadiusM) > 0 ? `${Math.round(Number(searchRadiusM))} m` : '--'}`,
+        `Footprint ${formatArea(coveragePlan?.total_area_sq_m)}`,
+      ],
+    };
+  }
+
+  if (missionTemplate === 'corridor_search') {
+    return {
+      title: 'Route-centered corridor package',
+      note: 'QuickScout buffers the authored route into a corridor footprint before partitioning coverage assignments.',
+      chips: [
+        `Route ${Array.isArray(searchPath) ? searchPath.length : 0} points`,
+        `Track ${formatDistanceMeters(calculateSearchPathLengthM(searchPath))}`,
+        `Width ${Number(corridorWidthM) > 0 ? `${Math.round(Number(corridorWidthM))} m` : '--'}`,
+        `Footprint ${formatArea(coveragePlan?.total_area_sq_m)}`,
+      ],
+    };
+  }
+
+  return {
+    title: 'Polygon coverage package',
+    note: 'QuickScout partitions the authored polygon into per-aircraft coverage assignments.',
+    chips: [
+      `Vertices ${Array.isArray(searchArea) ? searchArea.length : 0}`,
+      `Footprint ${formatArea(coveragePlan?.total_area_sq_m)}`,
+    ],
+  };
+}
+
 const QuickScoutLaunchReview = ({
   coveragePlan = null,
   missionLabel = '',
   missionBrief = '',
+  missionTemplate = 'area_sweep',
   missionProfileId = '',
   returnBehavior = 'return_home',
   surveyConfig = {},
+  searchArea = [],
+  searchCenter = null,
+  searchRadiusM = null,
+  searchPath = [],
+  corridorWidthM = null,
   targetHwIds = [],
   targetSummaryLabel = '',
   targetDrones = [],
@@ -97,7 +177,17 @@ const QuickScoutLaunchReview = ({
   }
 
   const profile = getQuickScoutProfile(missionProfileId);
+  const profileLabel = profile?.label || (missionProfileId ? missionProfileId.replace(/_/g, ' ') : 'Custom');
   const status = getLaunchStatus(planNeedsRecompute, launchReadiness);
+  const geometryReview = buildGeometryReview({
+    missionTemplate,
+    coveragePlan,
+    searchArea,
+    searchCenter,
+    searchRadiusM,
+    searchPath,
+    corridorWidthM,
+  });
   const blockers = [
     ...(planNeedsRecompute
       ? [{
@@ -115,8 +205,8 @@ const QuickScoutLaunchReview = ({
       value: missionLabel || 'Untitled QuickScout mission',
     },
     {
-      label: 'Profile',
-      value: profile?.label || (missionProfileId ? missionProfileId.replace(/_/g, ' ') : 'Custom'),
+      label: 'Template',
+      value: getMissionTemplateLabel(missionTemplate),
     },
     {
       label: 'Area',
@@ -168,6 +258,16 @@ const QuickScoutLaunchReview = ({
         ))}
       </div>
 
+      <div className="qs-launch-review__brief">
+        <span className="qs-launch-review__brief-label">{geometryReview.title}</span>
+        <div className="qs-launch-review__chip-row">
+          {geometryReview.chips.map((chip) => (
+            <span key={chip} className="qs-inline-chip">{chip}</span>
+          ))}
+        </div>
+        <p>{geometryReview.note}</p>
+      </div>
+
       {missionBrief ? (
         <div className="qs-launch-review__brief">
           <span className="qs-launch-review__brief-label">Mission brief</span>
@@ -178,6 +278,7 @@ const QuickScoutLaunchReview = ({
       <details className="qs-launch-review__details">
         <summary>Package settings</summary>
         <div className="qs-launch-review__chip-row">
+          <span className="qs-inline-chip">Profile {profileLabel}</span>
           <span className="qs-inline-chip">Pattern {surveyConfig.algorithm || 'boustrophedon'}</span>
           <span className="qs-inline-chip">Survey alt {surveyConfig.survey_altitude_agl ?? '--'} m AGL</span>
           <span className="qs-inline-chip">Sweep {surveyConfig.sweep_width_m ?? '--'} m</span>
@@ -228,9 +329,15 @@ QuickScoutLaunchReview.propTypes = {
   coveragePlan: PropTypes.object,
   missionLabel: PropTypes.string,
   missionBrief: PropTypes.string,
+  missionTemplate: PropTypes.string,
   missionProfileId: PropTypes.string,
   returnBehavior: PropTypes.string,
   surveyConfig: PropTypes.object,
+  searchArea: PropTypes.array,
+  searchCenter: PropTypes.object,
+  searchRadiusM: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  searchPath: PropTypes.array,
+  corridorWidthM: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   targetHwIds: PropTypes.array,
   targetSummaryLabel: PropTypes.string,
   targetDrones: PropTypes.array,
