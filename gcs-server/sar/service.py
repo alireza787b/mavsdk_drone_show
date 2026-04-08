@@ -228,6 +228,9 @@ class QuickScoutService:
         now = time.time()
         operation = QuickScoutOperationRecord(
             mission_id=mission_id,
+            mission_label=request.mission_label,
+            mission_profile=request.mission_profile,
+            mission_brief=request.mission_brief,
             state=SurveyState.READY,
             search_area=request.search_area,
             survey_config=request.survey_config,
@@ -305,6 +308,8 @@ class QuickScoutService:
             summaries.append(
                 QuickScoutMissionSummary(
                     mission_id=operation.mission_id,
+                    mission_label=operation.mission_label,
+                    mission_profile=operation.mission_profile,
                     state=operation.state,
                     created_at=operation.created_at,
                     updated_at=operation.updated_at,

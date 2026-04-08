@@ -83,9 +83,13 @@ class TestQuickScoutMissionRequest:
                 SearchAreaPoint(lat=1, lng=1),
             ]),
             pos_ids=[0, 1],
+            mission_label="Harbor sweep",
+            mission_profile="rapid_search",
+            mission_brief="Search quay perimeter",
         )
         assert req.return_behavior == ReturnBehavior.RETURN_HOME
         assert len(req.pos_ids) == 2
+        assert req.mission_label == "Harbor sweep"
 
     def test_default_config(self):
         req = QuickScoutMissionRequest(

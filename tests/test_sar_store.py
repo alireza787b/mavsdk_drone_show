@@ -41,6 +41,9 @@ def _build_operation() -> QuickScoutOperationRecord:
     now = time.time()
     return QuickScoutOperationRecord(
         mission_id="mission-1",
+        mission_label="Harbor sweep",
+        mission_profile="rapid_search",
+        mission_brief="Search quay perimeter",
         state=SurveyState.READY,
         search_area=search_area,
         survey_config=SurveyConfig(),
@@ -70,6 +73,7 @@ def test_quickscout_store_persists_operations(tmp_path, monkeypatch):
 
     assert loaded is not None
     assert loaded.mission_id == "mission-1"
+    assert loaded.mission_label == "Harbor sweep"
     assert loaded.state == SurveyState.READY
     assert loaded.total_area_sq_m == 100.0
 

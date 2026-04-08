@@ -220,6 +220,29 @@
     width: 24px;
 }
 
+.qs-config-text-input,
+.qs-config-textarea {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-size: 13px;
+}
+
+.qs-config-textarea {
+    margin-top: 8px;
+    resize: vertical;
+    min-height: 76px;
+}
+
+.qs-config-text-input:focus,
+.qs-config-textarea:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+
 /* === Drone Selection === */
 .qs-drone-list {
     display: flex;

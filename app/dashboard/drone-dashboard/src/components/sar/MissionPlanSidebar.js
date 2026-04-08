@@ -22,6 +22,10 @@ const MissionPlanSidebar = ({
   launching,
   missionProfileId,
   onMissionProfileChange,
+  missionLabel,
+  onMissionLabelChange,
+  missionBrief,
+  onMissionBriefChange,
   returnBehavior,
   onReturnBehaviorChange,
   missionCatalog,
@@ -32,6 +36,7 @@ const MissionPlanSidebar = ({
   onStartFreshPlan,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showMissionBrief, setShowMissionBrief] = useState(false);
 
   const hasArea = searchArea && searchArea.length >= 3;
   const hasSelection = selectedDrones && selectedDrones.length > 0;
@@ -75,6 +80,35 @@ const MissionPlanSidebar = ({
             <div className="qs-empty-copy" style={{ marginBottom: 10 }}>
               Current survey settings are custom and no longer match a saved profile.
             </div>
+          )}
+
+          <div className="qs-config-row qs-config-row-stack">
+            <span className="qs-config-label">Mission Label</span>
+            <input
+              type="text"
+              className="qs-config-text-input"
+              value={missionLabel}
+              onChange={(e) => onMissionLabelChange(e.target.value)}
+              placeholder="Optional mission name"
+            />
+          </div>
+
+          <div
+            className="qs-collapsible-header"
+            onClick={() => setShowMissionBrief(!showMissionBrief)}
+            style={{ marginTop: 8 }}
+          >
+            <span className="qs-config-label">Mission Brief</span>
+            {showMissionBrief ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
+          </div>
+          {showMissionBrief && (
+            <textarea
+              className="qs-config-textarea"
+              value={missionBrief}
+              onChange={(e) => onMissionBriefChange(e.target.value)}
+              placeholder="Optional objective, last known report, or search note"
+              rows={3}
+            />
           )}
 
           <div className="qs-config-row qs-config-row-stack">

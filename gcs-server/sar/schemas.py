@@ -74,6 +74,9 @@ class QuickScoutMissionRequest(BaseModel):
     search_area: SearchArea = Field(..., description="Search area polygon")
     survey_config: SurveyConfig = Field(default_factory=SurveyConfig, description="Survey parameters")
     pos_ids: Optional[List[int]] = Field(None, description="Target drone position IDs (None = all)")
+    mission_label: Optional[str] = Field(None, max_length=80, description="Optional operator-visible mission label")
+    mission_profile: Optional[str] = Field(None, max_length=64, description="Selected planning profile identifier")
+    mission_brief: Optional[str] = Field(None, max_length=500, description="Optional operator mission brief")
     return_behavior: ReturnBehavior = Field(default=ReturnBehavior.RETURN_HOME, description="End-of-mission behavior")
 
 
@@ -160,6 +163,8 @@ class QuickScoutMissionSummary(BaseModel):
     """Compact persisted mission summary for list/reopen flows."""
 
     mission_id: str = Field(..., description="Mission identifier")
+    mission_label: Optional[str] = Field(None, description="Optional operator mission label")
+    mission_profile: Optional[str] = Field(None, description="Selected planning profile identifier")
     state: SurveyState = Field(..., description="Overall mission state")
     created_at: float = Field(..., description="Mission creation timestamp (Unix epoch)")
     updated_at: float = Field(..., description="Last mission update timestamp (Unix epoch)")
@@ -238,6 +243,9 @@ class QuickScoutOperationRecord(BaseModel):
     model_config = ConfigDict(extra='ignore')
 
     mission_id: str = Field(..., description="Mission unique identifier")
+    mission_label: Optional[str] = Field(None, description="Optional operator-visible mission label")
+    mission_profile: Optional[str] = Field(None, description="Selected planning profile identifier")
+    mission_brief: Optional[str] = Field(None, description="Optional operator mission brief")
     state: SurveyState = Field(default=SurveyState.PLANNING, description="Overall mission state")
     search_area: SearchArea = Field(..., description="Search area definition")
     survey_config: SurveyConfig = Field(default_factory=SurveyConfig, description="Survey parameters")

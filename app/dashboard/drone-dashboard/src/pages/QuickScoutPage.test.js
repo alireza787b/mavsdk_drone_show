@@ -74,6 +74,8 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <div data-testid="plan-catalog">{props.missionCatalog.length}</div>
     <div data-testid="plan-loading">{String(props.loadingMissionCatalog)}</div>
     <div data-testid="plan-return-behavior">{props.returnBehavior}</div>
+    <div data-testid="plan-label">{props.missionLabel}</div>
+    <div data-testid="plan-brief">{props.missionBrief}</div>
     <button
       type="button"
       onClick={() => props.onRecoverMission(props.missionCatalog[0]?.mission_id)}
@@ -86,6 +88,12 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     </button>
     <button type="button" onClick={() => props.onReturnBehaviorChange('hold_position')}>
       Set hold return
+    </button>
+    <button type="button" onClick={() => props.onMissionLabelChange('Harbor sweep')}>
+      Set mission label
+    </button>
+    <button type="button" onClick={() => props.onMissionBriefChange('Search quay perimeter')}>
+      Set mission brief
     </button>
     <button type="button" onClick={() => props.onDroneToggle(1)}>
       Select drone 1
@@ -128,6 +136,8 @@ jest.mock('../components/map/MapProviderToggle', () => () => <div data-testid="m
 
 const buildMissionSummary = (overrides = {}) => ({
   mission_id: 'mission-ready',
+  mission_label: 'Recovered mission',
+  mission_profile: 'rapid_search',
   state: 'ready',
   created_at: 1_700_000_000,
   updated_at: 1_700_000_100,
@@ -151,6 +161,9 @@ const buildWorkspace = (overrides = {}) => {
   return {
     operation: {
       mission_id: missionId,
+      mission_label: 'Recovered mission',
+      mission_profile: 'rapid_search',
+      mission_brief: 'Recovered operator brief',
       state,
       search_area: {
         type: 'polygon',
@@ -272,6 +285,8 @@ describe('QuickScoutPage', () => {
     await waitFor(() => {
       expect(sarApi.getMissionWorkspace).toHaveBeenCalledWith('mission-ready');
       expect(screen.getByTestId('plan-current')).toHaveTextContent('mission-ready');
+      expect(screen.getByTestId('plan-label')).toHaveTextContent('Recovered mission');
+      expect(screen.getByTestId('plan-brief')).toHaveTextContent('Recovered operator brief');
     });
   });
 
@@ -307,15 +322,26 @@ describe('QuickScoutPage', () => {
     await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Set hold return' }));
     await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set mission label' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set mission brief' }));
+    await flushAsyncState();
     fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
     await flushAsyncState();
     fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
 
     await waitFor(() =>
       expect(sarApi.computePlan).toHaveBeenCalledWith(
-        expect.objectContaining({ return_behavior: 'hold_position' })
+        expect.objectContaining({
+          return_behavior: 'hold_position',
+          mission_label: 'Harbor sweep',
+          mission_brief: 'Search quay perimeter',
+          mission_profile: 'rapid_search',
+        })
       )
     );
     expect(screen.getByTestId('plan-return-behavior')).toHaveTextContent('hold_position');
+    expect(screen.getByTestId('plan-label')).toHaveTextContent('Harbor sweep');
+    expect(screen.getByTestId('plan-brief')).toHaveTextContent('Search quay perimeter');
   });
 });

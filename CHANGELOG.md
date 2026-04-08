@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout mission-briefing phase 6 checkpoint note documenting the new durable mission label/profile/brief metadata, the recovered workspace hydration updates, the mission-catalog display improvements, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout operator setup phase 5 checkpoint note documenting the new planning profile presets, explicit QuickScout end-behavior controls, the operator-setup sidebar refactor, and the focused Hetzner validation/build results
 - a 2026-04-08 QuickScout workspace recovery UI phase 4 checkpoint note documenting the reusable saved-mission workspace panel, the QuickScout page recovery/hydration flow, the new page-level recovery tests, and the focused Hetzner validation/build results
 - a 2026-04-08 QuickScout recovery phase 3 checkpoint note documenting the new mission catalog/workspace recovery endpoints, the matching SAR frontend service hooks, the route-inventory update, and the paired local/Hetzner validation results

@@ -109,6 +109,8 @@ const QuickScoutPage = () => {
   const [searchAreaSqM, setSearchAreaSqM] = useState(0);
   const [surveyConfig, setSurveyConfig] = useState({ ...DEFAULT_SURVEY_CONFIG });
   const [missionProfileId, setMissionProfileId] = useState(DEFAULT_QUICKSCOUT_PROFILE_ID);
+  const [missionLabel, setMissionLabel] = useState('');
+  const [missionBrief, setMissionBrief] = useState('');
   const [returnBehavior, setReturnBehavior] = useState('return_home');
   const [selectedDrones, setSelectedDrones] = useState([]);
   const [coveragePlan, setCoveragePlan] = useState(null);
@@ -146,6 +148,8 @@ const QuickScoutPage = () => {
     setSearchAreaSqM(0);
     setSurveyConfig({ ...DEFAULT_SURVEY_CONFIG });
     setMissionProfileId(DEFAULT_QUICKSCOUT_PROFILE_ID);
+    setMissionLabel('');
+    setMissionBrief('');
     setReturnBehavior('return_home');
     setSelectedDrones([]);
     setCoveragePlan(null);
@@ -194,7 +198,9 @@ const QuickScoutPage = () => {
       ...(operation.survey_config || {}),
     };
     setSurveyConfig(recoveredSurveyConfig);
-    setMissionProfileId(deriveQuickScoutProfileId(recoveredSurveyConfig));
+    setMissionProfileId(operation.mission_profile || deriveQuickScoutProfileId(recoveredSurveyConfig));
+    setMissionLabel(operation.mission_label || '');
+    setMissionBrief(operation.mission_brief || '');
     setReturnBehavior(operation.return_behavior || 'return_home');
     setSelectedDrones(
       Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
@@ -354,6 +360,7 @@ const QuickScoutPage = () => {
     [missionCatalog, missionId]
   );
   const currentMissionState = missionStatus?.state || currentMissionSummary?.state || null;
+  const currentMissionDisplayName = currentMissionSummary?.mission_label || missionLabel || missionId;
 
   // Center map on first drone with GPS
   useEffect(() => {
@@ -417,6 +424,9 @@ const QuickScoutPage = () => {
         },
         survey_config: surveyConfig,
         pos_ids: selectedDrones.length > 0 ? selectedDrones : null,
+        mission_label: missionLabel || null,
+        mission_profile: missionProfileId === 'custom' ? 'custom' : missionProfileId,
+        mission_brief: missionBrief || null,
         return_behavior: returnBehavior,
       };
       const response = await sarApi.computePlan(request);
@@ -434,7 +444,7 @@ const QuickScoutPage = () => {
     } finally {
       setComputing(false);
     }
-  }, [refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, selectedDrones, surveyConfig]);
+  }, [missionBrief, missionLabel, missionProfileId, refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, selectedDrones, surveyConfig]);
 
   const handleLaunchMission = useCallback(async () => {
     if (!missionId) return;
@@ -512,7 +522,9 @@ const QuickScoutPage = () => {
           {missionId && (
             <div className="qs-page-chip">
               <span className="qs-page-chip-label">Mission</span>
-              <span className="qs-page-chip-value">{missionId}</span>
+              <span className="qs-page-chip-value" title={currentMissionDisplayName}>
+                {currentMissionDisplayName}
+              </span>
               {currentMissionState && (
                 <span className={`qs-state-badge ${currentMissionState}`}>
                   {currentMissionState}
@@ -664,6 +676,10 @@ const QuickScoutPage = () => {
             launching={launching}
             missionProfileId={missionProfileId}
             onMissionProfileChange={handleMissionProfileChange}
+            missionLabel={missionLabel}
+            onMissionLabelChange={setMissionLabel}
+            missionBrief={missionBrief}
+            onMissionBriefChange={setMissionBrief}
             returnBehavior={returnBehavior}
             onReturnBehaviorChange={setReturnBehavior}
             missionCatalog={missionCatalog}

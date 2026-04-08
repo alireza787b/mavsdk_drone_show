@@ -105,6 +105,9 @@ def make_plan_request(pos_ids=None):
             "survey_speed_ms": 5,
             "use_terrain_following": False,
         },
+        "mission_label": "Harbor sweep",
+        "mission_profile": "rapid_search",
+        "mission_brief": "Search quay perimeter",
     }
     if pos_ids is not None:
         req["pos_ids"] = pos_ids
@@ -155,6 +158,17 @@ class TestPlanMission:
                 assert -180 <= wp["lng"] <= 180
                 assert wp["alt_msl"] > 0
                 assert wp["speed_ms"] > 0
+
+    def test_plan_persists_operator_metadata_for_recovery(self, client):
+        resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
+        mission_id = resp.json()["mission_id"]
+
+        workspace = client.get(f"/api/sar/mission/{mission_id}/workspace")
+        assert workspace.status_code == 200
+        operation = workspace.json()["operation"]
+        assert operation["mission_label"] == "Harbor sweep"
+        assert operation["mission_profile"] == "rapid_search"
+        assert operation["mission_brief"] == "Search quay perimeter"
 
 
 class TestMissionStatus:

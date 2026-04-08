@@ -23,6 +23,8 @@ const formatMissionId = (missionId) => {
   return `${missionId.slice(0, 8)}…${missionId.slice(-6)}`;
 };
 
+const getMissionDisplayName = (mission) => mission?.mission_label || formatMissionId(mission?.mission_id);
+
 const MissionRecoveryPanel = ({
   missions = [],
   currentMissionId = null,
@@ -80,7 +82,7 @@ const MissionRecoveryPanel = ({
                 <div className="qs-mission-card-header">
                   <div className="qs-mission-name-row">
                     <span className="qs-mission-name" title={mission.mission_id}>
-                      {formatMissionId(mission.mission_id)}
+                      {getMissionDisplayName(mission)}
                     </span>
                     <span className={`qs-state-badge ${mission.state}`}>
                       {mission.state}
