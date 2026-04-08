@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout runtime-validation checkpoint note documenting the live launch-path debugging chain, the fresh-container Hetzner validator pass, the local regression additions for the mission executor, and the remaining next-slice QuickScout execution work
 - a 2026-04-08 QuickScout execution-semantics phase 13 checkpoint note documenting the new operator-facing mission phases, honest control-availability contract, follow-up-planning guidance, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout point-geometry phase 9 checkpoint note documenting the point-search geometry utility, the point-centered map radius preview, the derived footprint guidance, and the focused Hetzner frontend validation/build results
 - a 2026-04-08 QuickScout template-foundation phase 8 checkpoint note documenting the new mission-template contract, the first `last_known_point` search flow, the template-aware workspace recovery/signature logic, and the paired local/Hetzner validation results
@@ -86,6 +87,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- QuickScout launch validation no longer stalls in a false "executing/searching" state on fresh SITL: the mission executor now boots its own MAVSDK server on the canonical gRPC port, coerces runtime CLI/action payloads safely, aligns mission items with the vendored MAVSDK signature, normalizes optional numeric fields such as `yaw_deg`, gates startup on the same local readiness/home signals the rest of the stack already trusts, marks the first mission item as a takeoff item, and passes the live Hetzner launch-hold-abort-reset validator end to end
 - QuickScout monitor status no longer collapses every live mission into coarse generic survey state: the GCS now derives operator-facing phases such as `ready_to_launch`, `launch_partial`, `holding`, and `return_commanded`, and the live status payload carries compact summary/guidance text plus resolved control availability for UI, automation, and future MCP consumers
 - QuickScout no longer advertises a fake direct resume path for paused coverage packages: `/api/sar/mission/{mission_id}/resume` now returns explicit `replan_required` guidance without mutating mission state, the monitor action bar prioritizes follow-up planning, and monitor mode surfaces the same doctrine to operators
 - QuickScout per-drone monitor cards now carry compact runtime notes from launch/control/progress updates, so operators can tell “launch not accepted”, “holding on operator command”, “executing assigned search track”, and mission-end return behavior apart without decoding raw state transitions
