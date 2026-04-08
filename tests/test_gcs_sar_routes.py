@@ -214,6 +214,7 @@ def test_sar_workspace_returns_persisted_operation_and_status():
     assert payload["operation"]["mission_id"] == mission_id
     assert payload["status"]["mission_id"] == mission_id
     assert payload["operation"]["plans"]
+    assert payload["status"]["operation_phase"] == "ready_to_launch"
 
 
 def test_sar_abort_respects_hold_position_behavior():
@@ -234,6 +235,26 @@ def test_sar_abort_respects_hold_position_behavior():
     assert payload["success"] is True
     assert payload["return_behavior"] == "hold_position"
     assert payload["command"]["mission_type"] == Mission.HOLD.value
+    assert payload["effect"] == "command_accepted"
+
+
+def test_sar_resume_returns_replan_guidance():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=_plan_request())
+        mission_id = planned.json()["mission_id"]
+        client.post("/api/sar/mission/launch", params={"mission_id": mission_id})
+        client.post(f"/api/sar/mission/{mission_id}/pause")
+        response = client.post(f"/api/sar/mission/{mission_id}/resume")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is False
+    assert payload["effect"] == "replan_required"
+    assert "follow-up package" in payload["operator_guidance"].lower()
 
 
 def test_sar_plan_accepts_last_known_point_template():

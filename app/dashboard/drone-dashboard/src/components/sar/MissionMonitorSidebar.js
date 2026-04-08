@@ -10,6 +10,7 @@ import {
   buildQuickScoutGeometrySummary,
   formatQuickScoutArea,
   formatQuickScoutDuration,
+  getQuickScoutMissionPhaseLabel,
   getQuickScoutMissionTemplateLabel,
 } from '../../utilities/quickScoutMissionPresentation';
 
@@ -38,6 +39,10 @@ const MissionMonitorSidebar = ({
   const sortedDrones = Object.values(droneStates).sort((a, b) =>
     (a.hw_id || '').localeCompare(b.hw_id || '')
   );
+  const operationPhase = missionStatus?.operation_phase || 'planning';
+  const statusSummary = missionStatus?.status_summary || '';
+  const operatorGuidance = missionStatus?.recommended_operator_action || '';
+  const lastCommandSummary = missionStatus?.last_command_summary || null;
   const geometrySummary = buildQuickScoutGeometrySummary({
     missionTemplate,
     totalAreaSqM,
@@ -83,12 +88,26 @@ const MissionMonitorSidebar = ({
                 </strong>
               </div>
               <div className="qs-launch-review__metric">
+                <span className="qs-launch-review__metric-label">Phase</span>
+                <strong className="qs-launch-review__metric-value">
+                  {getQuickScoutMissionPhaseLabel(operationPhase)}
+                </strong>
+              </div>
+              <div className="qs-launch-review__metric">
                 <span className="qs-launch-review__metric-label">Coverage Time</span>
                 <strong className="qs-launch-review__metric-value">
                   {formatQuickScoutDuration(estimatedCoverageTimeS)}
                 </strong>
               </div>
             </div>
+
+            {statusSummary ? (
+              <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+                <span className="qs-launch-review__brief-label">Operational Status</span>
+                <p>{statusSummary}</p>
+                {operatorGuidance ? <p style={{ marginTop: 6 }}>{operatorGuidance}</p> : null}
+              </div>
+            ) : null}
 
             <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
               <span className="qs-launch-review__brief-label">{geometrySummary.title}</span>
@@ -103,6 +122,28 @@ const MissionMonitorSidebar = ({
             {missionBrief ? (
               <div className="qs-empty-copy" style={{ marginTop: 8 }}>
                 {missionBrief}
+              </div>
+            ) : null}
+
+            {lastCommandSummary?.message ? (
+              <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+                <span className="qs-launch-review__brief-label">Last Control Outcome</span>
+                <div className="qs-launch-review__chip-row">
+                  {lastCommandSummary?.action ? (
+                    <span className="qs-inline-chip">
+                      {String(lastCommandSummary.action).replace(/_/g, ' ')}
+                    </span>
+                  ) : null}
+                  {lastCommandSummary?.effect ? (
+                    <span className="qs-inline-chip">
+                      {String(lastCommandSummary.effect).replace(/_/g, ' ')}
+                    </span>
+                  ) : null}
+                </div>
+                <p>{lastCommandSummary.message}</p>
+                {lastCommandSummary.operator_guidance ? (
+                  <p style={{ marginTop: 6 }}>{lastCommandSummary.operator_guidance}</p>
+                ) : null}
               </div>
             ) : null}
           </div>

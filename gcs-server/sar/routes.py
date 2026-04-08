@@ -74,7 +74,7 @@ def create_sar_router(deps: Any) -> APIRouter:
     async def pause_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
         return await get_quickscout_service().pause_and_command(deps, mission_id, pos_ids)
 
-    @router.post("/mission/{mission_id}/resume")
+    @router.post("/mission/{mission_id}/resume", response_model=QuickScoutMissionControlResponse)
     async def resume_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
         return get_quickscout_service().resume_and_record(deps, mission_id, pos_ids)
 

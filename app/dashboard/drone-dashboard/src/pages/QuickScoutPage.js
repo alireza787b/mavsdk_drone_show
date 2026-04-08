@@ -667,9 +667,9 @@ const QuickScoutPage = () => {
     if (!missionId) return;
     setLaunching(true);
     try {
-      await sarApi.launchMission(missionId);
+      const response = await sarApi.launchMission(missionId);
       await refreshMissionCatalog();
-      toast.success('Mission launched!');
+      toast.success(response?.message || 'Mission launched');
       setMode('monitor');
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
@@ -682,31 +682,33 @@ const QuickScoutPage = () => {
   const handlePause = useCallback(async () => {
     if (!missionId) return;
     try {
-      await sarApi.pauseMission(missionId);
+      const response = await sarApi.pauseMission(missionId);
       await refreshMissionCatalog();
-      toast.info('Mission paused');
+      if (response?.success) {
+        toast.info(response?.message || 'Mission paused');
+      } else {
+        toast.warning(response?.message || 'Pause was not accepted by the targeted drones');
+      }
     } catch (err) {
       toast.error('Pause failed');
     }
   }, [missionId, refreshMissionCatalog]);
 
-  const handleResume = useCallback(async () => {
-    if (!missionId) return;
-    try {
-      await sarApi.resumeMission(missionId);
-      await refreshMissionCatalog();
-      toast.success('Mission resumed');
-    } catch (err) {
-      toast.error('Resume failed');
-    }
-  }, [missionId, refreshMissionCatalog]);
+  const handleReplanFromCurrentState = useCallback(() => {
+    setMode('plan');
+    toast.info('Plan a follow-up QuickScout package from the current mission state.');
+  }, []);
 
   const handleAbort = useCallback(async () => {
     if (!missionId) return;
     try {
-      await sarApi.abortMission(missionId);
+      const response = await sarApi.abortMission(missionId);
       await refreshMissionCatalog();
-      toast.warning('Mission aborted');
+      if (response?.success) {
+        toast.warning(response?.message || 'Mission aborted');
+      } else {
+        toast.error(response?.message || 'Abort was not accepted by the targeted drones');
+      }
     } catch (err) {
       toast.error('Abort failed');
     }
@@ -1014,8 +1016,9 @@ const QuickScoutPage = () => {
           {mode === 'monitor' && (
             <MissionActionBar
               missionState={missionStatus?.state}
+              controlAvailability={missionStatus?.control_availability}
               returnBehavior={returnBehavior}
-              onResume={handleResume}
+              onReplan={handleReplanFromCurrentState}
               onPause={handlePause}
               onAbort={handleAbort}
             />

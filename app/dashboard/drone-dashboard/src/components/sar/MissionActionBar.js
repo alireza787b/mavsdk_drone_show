@@ -1,9 +1,20 @@
 // src/components/sar/MissionActionBar.js
 import React from 'react';
-import { FaPlay, FaPause, FaHome, FaArrowDown, FaPauseCircle } from 'react-icons/fa';
+import { FaMapMarkedAlt, FaPause, FaHome, FaArrowDown, FaPauseCircle } from 'react-icons/fa';
 
-const MissionActionBar = ({ onResume, onPause, onAbort, missionState, returnBehavior = 'return_home' }) => {
+const MissionActionBar = ({
+  onReplan,
+  onPause,
+  onAbort,
+  missionState,
+  controlAvailability = null,
+  returnBehavior = 'return_home',
+}) => {
   if (!missionState || missionState === 'planning' || missionState === 'ready') return null;
+
+  const pauseEnabled = controlAvailability?.pause_enabled ?? (missionState === 'executing');
+  const replanEnabled = controlAvailability?.replan_enabled ?? (missionState === 'paused');
+  const abortEnabled = controlAvailability?.abort_enabled ?? true;
 
   const returnBehaviorMeta = {
     return_home: {
@@ -31,17 +42,17 @@ const MissionActionBar = ({ onResume, onPause, onAbort, missionState, returnBeha
     <div className="qs-action-bar">
       <button
         className="qs-action-btn resume"
-        onClick={onResume}
-        title="Resume Mission"
-        disabled={missionState !== 'paused'}
+        onClick={onReplan}
+        title={controlAvailability?.replan_reason || 'Create a follow-up package from current aircraft state'}
+        disabled={!replanEnabled}
       >
-        <FaPlay />
+        <FaMapMarkedAlt />
       </button>
       <button
         className="qs-action-btn pause"
         onClick={onPause}
-        title="Pause Mission"
-        disabled={missionState !== 'executing'}
+        title={controlAvailability?.pause_reason || 'Hold mission'}
+        disabled={!pauseEnabled}
       >
         <FaPause />
       </button>
@@ -53,6 +64,7 @@ const MissionActionBar = ({ onResume, onPause, onAbort, missionState, returnBeha
           }
         }}
         title={returnBehaviorMeta.title}
+        disabled={!abortEnabled}
       >
         {returnBehaviorMeta.icon}
       </button>

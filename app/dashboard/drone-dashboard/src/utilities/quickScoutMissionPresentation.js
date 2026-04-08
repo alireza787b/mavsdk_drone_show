@@ -54,6 +54,31 @@ export function getQuickScoutMissionTemplateLabel(missionTemplate) {
   return 'Area Sweep';
 }
 
+export function getQuickScoutMissionPhaseLabel(operationPhase) {
+  if (operationPhase === 'ready_to_launch') {
+    return 'Ready to Launch';
+  }
+  if (operationPhase === 'launch_partial') {
+    return 'Launch Partial';
+  }
+  if (operationPhase === 'searching') {
+    return 'Searching';
+  }
+  if (operationPhase === 'holding') {
+    return 'Holding';
+  }
+  if (operationPhase === 'return_commanded') {
+    return 'Return Commanded';
+  }
+  if (operationPhase === 'completed') {
+    return 'Completed';
+  }
+  if (operationPhase === 'aborted') {
+    return 'Aborted';
+  }
+  return 'Planning';
+}
+
 function formatCoordinate(point) {
   if (!Number.isFinite(Number(point?.lat)) || !Number.isFinite(Number(point?.lng))) {
     return '--';

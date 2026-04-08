@@ -3,7 +3,7 @@ QuickScout SAR Module - Pydantic Schemas
 """
 
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 from enum import Enum
 
 from schemas import SubmitCommandResponse
@@ -28,6 +28,34 @@ class SurveyState(str, Enum):
     PAUSED = "paused"
     COMPLETED = "completed"
     ABORTED = "aborted"
+
+
+class QuickScoutMissionPhase(str, Enum):
+    PLANNING = "planning"
+    READY_TO_LAUNCH = "ready_to_launch"
+    LAUNCH_PARTIAL = "launch_partial"
+    SEARCHING = "searching"
+    HOLDING = "holding"
+    RETURN_COMMANDED = "return_commanded"
+    COMPLETED = "completed"
+    ABORTED = "aborted"
+
+
+class QuickScoutControlEffect(str, Enum):
+    COMMAND_ACCEPTED = "command_accepted"
+    COMMAND_REJECTED = "command_rejected"
+    REPLAN_REQUIRED = "replan_required"
+
+
+class QuickScoutControlAvailability(BaseModel):
+    """Resolved operator control availability for the active mission."""
+
+    pause_enabled: bool = Field(default=False, description="Whether HOLD/pause is currently available")
+    pause_reason: Optional[str] = Field(None, description="Why pause is unavailable")
+    replan_enabled: bool = Field(default=False, description="Whether follow-up planning is currently recommended")
+    replan_reason: Optional[str] = Field(None, description="Why follow-up planning is recommended or unavailable")
+    abort_enabled: bool = Field(default=False, description="Whether abort/end-mission control is currently available")
+    abort_reason: Optional[str] = Field(None, description="Why abort is unavailable")
 
 
 class POIType(str, Enum):
@@ -181,6 +209,8 @@ class DroneSurveyState(BaseModel):
     coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Coverage completion (%)")
     distance_covered_m: float = Field(default=0.0, ge=0, description="Distance covered (m)")
     estimated_remaining_s: Optional[float] = Field(None, ge=0, description="Estimated time remaining (s)")
+    status_note: Optional[str] = Field(None, description="Compact operator-facing status detail")
+    last_update_at: Optional[float] = Field(None, ge=0, description="Last progress/control update timestamp (Unix epoch)")
 
 
 class MissionStatus(BaseModel):
@@ -189,11 +219,29 @@ class MissionStatus(BaseModel):
 
     mission_id: str = Field(..., description="Mission unique identifier")
     state: SurveyState = Field(default=SurveyState.PLANNING, description="Overall mission state")
+    operation_phase: QuickScoutMissionPhase = Field(
+        default=QuickScoutMissionPhase.PLANNING,
+        description="Derived operator-facing mission phase",
+    )
     drone_states: Dict[str, DroneSurveyState] = Field(default_factory=dict, description="Per-drone states keyed by hw_id")
     pois: List[POI] = Field(default_factory=list, description="Points of interest")
     total_coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Total coverage (%)")
     elapsed_time_s: float = Field(default=0.0, ge=0, description="Elapsed time (s)")
     started_at: Optional[float] = Field(None, description="Mission start timestamp (Unix epoch)")
+    status_summary: str = Field(default="", description="Compact operator-facing mission status summary")
+    recommended_operator_action: Optional[str] = Field(
+        None,
+        description="Suggested next operator action for degraded or transitional states",
+    )
+    control_availability: QuickScoutControlAvailability = Field(
+        default_factory=QuickScoutControlAvailability,
+        description="Resolved monitor/control affordances for the current mission state",
+    )
+    launch_summary: Optional[Dict[str, Any]] = Field(None, description="Latest launch batch summary for operator recovery")
+    last_command_summary: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Latest launch or control command summary for operator recovery",
+    )
 
 
 class QuickScoutMissionSummary(BaseModel):
@@ -265,6 +313,8 @@ class QuickScoutMissionControlResponse(BaseModel):
     success: bool = Field(..., description="Whether at least one targeted drone accepted the control command")
     mission_id: str = Field(..., description="Mission identifier")
     action: str = Field(..., description="Control action key such as 'pause' or 'abort'")
+    effect: QuickScoutControlEffect = Field(..., description="Resolved control outcome")
+    state_changed: bool = Field(..., description="Whether QuickScout mission state changed on the GCS")
     target_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs targeted by the control command")
     accepted_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that accepted the command")
     failed_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that did not accept the command")
@@ -273,6 +323,7 @@ class QuickScoutMissionControlResponse(BaseModel):
         description="Tracked command submission response when dispatch reached the command layer",
     )
     message: str = Field(..., description="Operator-facing summary")
+    operator_guidance: Optional[str] = Field(None, description="Suggested operator next step")
     return_behavior: Optional[str] = Field(None, description="Resolved abort return behavior when applicable")
 
 

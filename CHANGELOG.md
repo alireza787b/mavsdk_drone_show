@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout execution-semantics phase 13 checkpoint note documenting the new operator-facing mission phases, honest control-availability contract, follow-up-planning guidance, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout point-geometry phase 9 checkpoint note documenting the point-search geometry utility, the point-centered map radius preview, the derived footprint guidance, and the focused Hetzner frontend validation/build results
 - a 2026-04-08 QuickScout template-foundation phase 8 checkpoint note documenting the new mission-template contract, the first `last_known_point` search flow, the template-aware workspace recovery/signature logic, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout launch-review phase 7 checkpoint note documenting the new stale-package recompute gate, the shared preflight-backed launch-review card, the planning-signature and launch-readiness utilities, and the focused Hetzner frontend validation/build results
@@ -85,6 +86,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- QuickScout monitor status no longer collapses every live mission into coarse generic survey state: the GCS now derives operator-facing phases such as `ready_to_launch`, `launch_partial`, `holding`, and `return_commanded`, and the live status payload carries compact summary/guidance text plus resolved control availability for UI, automation, and future MCP consumers
+- QuickScout no longer advertises a fake direct resume path for paused coverage packages: `/api/sar/mission/{mission_id}/resume` now returns explicit `replan_required` guidance without mutating mission state, the monitor action bar prioritizes follow-up planning, and monitor mode surfaces the same doctrine to operators
+- QuickScout per-drone monitor cards now carry compact runtime notes from launch/control/progress updates, so operators can tell “launch not accepted”, “holding on operator command”, “executing assigned search track”, and mission-end return behavior apart without decoding raw state transitions
 - QuickScout planning and monitoring now expose mission end behavior explicitly instead of relying on an implicit backend default or implying fixed RTL semantics: plan requests now carry `return_behavior`, recovered missions restore it, and the monitor action bar reflects the configured end behavior
 - QuickScout no longer depends on one browser-local `missionId` after refresh: the page can now reopen persisted workspaces, auto-recover active missions, restore saved plan geometry/config/drone selections, and surface a shared saved-mission panel in both planning and monitor contexts
 - QuickScout now exposes durable mission-recovery surfaces instead of forcing the frontend to rely on one in-memory `missionId`: persisted missions can now be listed, a single workspace payload can reopen the stored mission package plus live-derived status, and the dashboard SAR service layer has matching recovery entrypoints for the later workspace redesign

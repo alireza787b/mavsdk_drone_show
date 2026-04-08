@@ -1,5 +1,6 @@
 // src/components/sar/MissionStatsBar.js
 import React from 'react';
+import { getQuickScoutMissionPhaseLabel } from '../../utilities/quickScoutMissionPresentation';
 
 const formatTime = (seconds) => {
   if (!seconds || seconds <= 0) return '--:--';
@@ -14,7 +15,10 @@ const MissionStatsBar = ({ missionStatus }) => {
   const coverage = missionStatus.total_coverage_percent || 0;
   const elapsed = missionStatus.elapsed_time_s || 0;
   const state = missionStatus.state || 'unknown';
+  const phase = missionStatus.operation_phase || 'planning';
   const droneCount = Object.keys(missionStatus.drone_states || {}).length;
+  const statusSummary = missionStatus.status_summary || 'Awaiting mission activity.';
+  const guidance = missionStatus.recommended_operator_action || null;
 
   return (
     <div className="qs-stats-bar">
@@ -23,6 +27,10 @@ const MissionStatsBar = ({ missionStatus }) => {
         <span className={`qs-stat-value ${state === 'executing' ? 'success' : state === 'paused' ? 'warning' : ''}`}>
           {state.toUpperCase()}
         </span>
+      </div>
+      <div className="qs-stat">
+        <span className="qs-stat-label">Phase:</span>
+        <span className="qs-stat-value">{getQuickScoutMissionPhaseLabel(phase)}</span>
       </div>
       <div className="qs-stat">
         <span className="qs-stat-label">Drones:</span>
@@ -38,6 +46,10 @@ const MissionStatsBar = ({ missionStatus }) => {
       <div className="qs-stat">
         <span className="qs-stat-label">Elapsed:</span>
         <span className="qs-stat-value">{formatTime(elapsed)}</span>
+      </div>
+      <div className="qs-empty-copy" style={{ marginLeft: 'auto', maxWidth: 420 }}>
+        {statusSummary}
+        {guidance ? ` ${guidance}` : ''}
       </div>
     </div>
   );

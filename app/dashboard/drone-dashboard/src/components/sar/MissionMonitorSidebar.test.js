@@ -14,8 +14,17 @@ describe('MissionMonitorSidebar', () => {
     render(
       <MissionMonitorSidebar
         missionStatus={{
+          operation_phase: 'holding',
+          status_summary: 'Assigned drones are holding on operator command.',
+          recommended_operator_action: 'Generate a follow-up package from current state.',
+          last_command_summary: {
+            action: 'resume',
+            effect: 'replan_required',
+            message: 'QuickScout coverage missions do not support direct resume in V1.',
+            operator_guidance: 'Open plan mode and generate a follow-up package from the current aircraft state.',
+          },
           drone_states: {
-            '1': { hw_id: '1', state: 'executing' },
+            '1': { hw_id: '1', state: 'paused', status_note: 'Holding on operator command' },
           },
         }}
         pois={[]}
@@ -43,10 +52,13 @@ describe('MissionMonitorSidebar', () => {
 
     expect(screen.getByText('Mission Package')).toBeInTheDocument();
     expect(screen.getByText('Corridor Search')).toBeInTheDocument();
+    expect(screen.getByText('Holding')).toBeInTheDocument();
     expect(screen.getByText('Route-centered corridor package')).toBeInTheDocument();
     expect(screen.getByText('Route 3 points')).toBeInTheDocument();
     expect(screen.getByText('Width 110 m')).toBeInTheDocument();
     expect(screen.getByText('Sweep the channel approach')).toBeInTheDocument();
+    expect(screen.getByText('Assigned drones are holding on operator command.')).toBeInTheDocument();
+    expect(screen.getByText('QuickScout coverage missions do not support direct resume in V1.')).toBeInTheDocument();
     expect(screen.getByTestId('drone-status-card')).toHaveTextContent('1');
   });
 });

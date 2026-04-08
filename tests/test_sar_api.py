@@ -289,6 +289,8 @@ class TestMissionStatus:
         data = resp.json()
         assert data["mission_id"] == mission_id
         assert data["state"] == SurveyState.READY.value
+        assert data["operation_phase"] == "ready_to_launch"
+        assert data["control_availability"]["pause_enabled"] is False
 
     def test_status_not_found(self, client):
         """GET /status for unknown mission should return 404."""
@@ -313,9 +315,12 @@ class TestMissionLifecycle:
 
         resp = client.post(f"/api/sar/mission/{mid}/pause")
         assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["effect"] in {"command_accepted", "command_rejected"}
+        assert isinstance(payload["state_changed"], bool)
 
     def test_resume_mission(self, client):
-        """POST /resume should succeed for paused mission."""
+        """POST /resume should return replan guidance for paused mission."""
         mid = self._plan_and_get_id(client)
         mgr = __import__('sar.mission_manager', fromlist=['get_mission_manager']).get_mission_manager()
         mgr.start_mission(mid)
@@ -323,6 +328,14 @@ class TestMissionLifecycle:
 
         resp = client.post(f"/api/sar/mission/{mid}/resume")
         assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["success"] is False
+        assert payload["effect"] == "replan_required"
+        assert payload["state_changed"] is False
+        assert "follow-up package" in payload["operator_guidance"].lower()
+        status = client.get(f"/api/sar/mission/{mid}/status").json()
+        assert status["state"] == SurveyState.PAUSED.value
+        assert status["operation_phase"] == "holding"
 
     def test_abort_mission(self, client):
         """POST /abort should succeed for existing mission."""
@@ -331,6 +344,7 @@ class TestMissionLifecycle:
         assert resp.status_code == 200
         data = resp.json()
         assert data["return_behavior"] == "return_home"
+        assert data["effect"] in {"command_accepted", "command_rejected"}
 
     def test_pause_not_found(self, client):
         """POST /pause for unknown mission should return 404."""
@@ -359,6 +373,7 @@ class TestMissionLifecycle:
         if drone_state:
             assert drone_state["current_waypoint_index"] == 5
             assert drone_state["coverage_percent"] == 25.0
+            assert drone_state["status_note"] == "Executing assigned search track"
 
 
 class TestPOIEndpoints:

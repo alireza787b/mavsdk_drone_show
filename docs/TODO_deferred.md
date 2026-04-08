@@ -105,21 +105,21 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 - `docs/guides/sitl-validation-platform.md` — document the new template and scenario coverage
 - `docs/guides/sitl-comprehensive.md` — link the new QuickScout validation path
 
-## TODO 7: QuickScout mission-batch launch identity and real resume command path
+## TODO 7: QuickScout mission-batch launch identity and optional true continue/resume adapter
 
 **Status:** Deferred — wait until the new QuickScout mission workspace and operator workflow settle
 
-**Problem:** QuickScout Phase 2 now uses the shared tracked command lifecycle for launch, pause, and abort, but two deliberate simplifications remain:
+**Problem:** QuickScout now uses the shared tracked command lifecycle for launch, hold, and abort, and monitor mode no longer pretends paused coverage packages can directly resume in V1. Two deliberate follow-up design questions still remain:
 
 - launch creates one tracked command per drone because each QuickScout plan payload is unique
-- `resume` still updates durable GCS mission state only and does not yet send a true FC-backed resume command
+- a true FC-backed continue/resume adapter does not exist; the current product doctrine is to hold, then plan a follow-up package from current state
 
 These are acceptable for the current subsystem maturity, but they should stay visible as follow-up design decisions rather than getting forgotten as accidental permanent behavior.
 
 **Solution:** Revisit both after the next QuickScout workflow/UI slices:
 
 - decide whether operators need a mission-batch launch identity that groups the per-drone launch commands under one mission-level launch record
-- design a real drone/runtime resume path only if the mission executor and operator workflow can support it cleanly
+- design a true continue/resume adapter only if the mission executor and operator workflow can support it cleanly without weakening the current honest hold-and-replan doctrine
 
 **Likely touch points:**
 

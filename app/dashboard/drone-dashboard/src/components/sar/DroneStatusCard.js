@@ -4,7 +4,14 @@ import React from 'react';
 const DroneStatusCard = ({ droneState, onClick }) => {
   if (!droneState) return null;
 
-  const { hw_id, state, coverage_percent, current_waypoint_index, total_waypoints } = droneState;
+  const {
+    hw_id,
+    state,
+    coverage_percent,
+    current_waypoint_index,
+    total_waypoints,
+    status_note,
+  } = droneState;
 
   return (
     <div className={`qs-drone-card ${state || 'ready'}`} onClick={onClick}>
@@ -24,6 +31,11 @@ const DroneStatusCard = ({ droneState, onClick }) => {
         <span>{(coverage_percent || 0).toFixed(1)}%</span>
         <span>WP {current_waypoint_index || 0}/{total_waypoints || 0}</span>
       </div>
+      {status_note ? (
+        <div className="qs-empty-copy" style={{ marginTop: 6 }}>
+          {status_note}
+        </div>
+      ) : null}
     </div>
   );
 };
