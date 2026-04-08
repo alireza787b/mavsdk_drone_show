@@ -209,6 +209,24 @@ class QuickScoutService:
         self,
         request: QuickScoutMissionRequest,
     ) -> Tuple[List[SearchAreaPoint], SearchArea]:
+        if request.mission_template == QuickScoutMissionTemplate.CORRIDOR_SEARCH:
+            path_points = list(request.search_area.path or [])
+            corridor_width_m = float(request.search_area.corridor_width_m or 0)
+            if len(path_points) < 2 or corridor_width_m <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Corridor-search missions require at least 2 route points and a positive corridor width",
+                )
+
+            polygon_points, corridor_area_sq_m = self._build_corridor_search_polygon(path_points, corridor_width_m)
+            resolved_area = request.search_area.model_copy(
+                update={
+                    "points": polygon_points,
+                    "area_sq_m": corridor_area_sq_m,
+                }
+            )
+            return polygon_points, resolved_area
+
         if request.mission_template == QuickScoutMissionTemplate.LAST_KNOWN_POINT:
             center = request.search_area.center
             radius_m = float(request.search_area.radius_m or 0)
@@ -228,6 +246,61 @@ class QuickScoutService:
             return polygon_points, resolved_area
 
         return request.search_area.points, request.search_area
+
+    @staticmethod
+    def _build_corridor_search_polygon(
+        path_points: List[SearchAreaPoint],
+        corridor_width_m: float,
+    ) -> Tuple[List[SearchAreaPoint], float]:
+        if corridor_width_m <= 0:
+            raise HTTPException(status_code=400, detail="Corridor-search width must be positive")
+
+        try:
+            from shapely.geometry import LineString
+        except ImportError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="shapely is required for corridor-search planning on the GCS server",
+            ) from exc
+
+        if len(path_points) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Corridor-search missions require at least 2 route points",
+            )
+
+        origin_lat = sum(point.lat for point in path_points) / len(path_points)
+        origin_lng = sum(point.lng for point in path_points) / len(path_points)
+        origin_alt = 0.0
+
+        enu_path = []
+        for point in path_points:
+            east, north, _ = pymap3d.geodetic2enu(
+                point.lat,
+                point.lng,
+                0,
+                origin_lat,
+                origin_lng,
+                origin_alt,
+            )
+            enu_path.append((east, north))
+
+        buffered = LineString(enu_path).buffer(
+            corridor_width_m / 2.0,
+            cap_style=2,
+            join_style=2,
+            resolution=8,
+        )
+        if buffered.is_empty:
+            raise HTTPException(status_code=400, detail="Corridor-search geometry produced no searchable area")
+
+        polygon_coords = list(buffered.exterior.coords)[:-1]
+        polygon_points = []
+        for east, north in polygon_coords:
+            lat, lng, _ = pymap3d.enu2geodetic(east, north, 0, origin_lat, origin_lng, origin_alt)
+            polygon_points.append(SearchAreaPoint(lat=float(lat), lng=float(lng)))
+
+        return polygon_points, float(buffered.area)
 
     async def plan_mission(self, deps: Any, request: QuickScoutMissionRequest) -> CoveragePlanResponse:
         """Compute and persist a QuickScout plan without launching it."""

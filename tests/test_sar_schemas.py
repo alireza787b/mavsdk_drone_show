@@ -62,6 +62,34 @@ class TestSearchArea:
         assert area.center.lat == 47.0
         assert area.radius_m == 120
 
+    def test_valid_line_search_area(self):
+        area = SearchArea(
+            type="line",
+            path=[
+                SearchAreaPoint(lat=47.0, lng=8.0),
+                SearchAreaPoint(lat=47.001, lng=8.002),
+            ],
+            corridor_width_m=80,
+        )
+
+        assert area.type == "line"
+        assert len(area.path) == 2
+        assert area.corridor_width_m == 80
+
+    def test_valid_line_search_area(self):
+        area = SearchArea(
+            type="line",
+            path=[
+                SearchAreaPoint(lat=47.0, lng=8.0),
+                SearchAreaPoint(lat=47.002, lng=8.004),
+            ],
+            corridor_width_m=90,
+        )
+
+        assert area.type == "line"
+        assert len(area.path) == 2
+        assert area.corridor_width_m == 90
+
 
 class TestSurveyConfig:
     def test_defaults(self):
@@ -122,6 +150,34 @@ class TestQuickScoutMissionRequest:
             ),
         )
         assert req.mission_template == QuickScoutMissionTemplate.LAST_KNOWN_POINT
+
+    def test_corridor_search_template(self):
+        req = QuickScoutMissionRequest(
+            mission_template=QuickScoutMissionTemplate.CORRIDOR_SEARCH,
+            search_area=SearchArea(
+                type="line",
+                path=[
+                    SearchAreaPoint(lat=47.0, lng=8.0),
+                    SearchAreaPoint(lat=47.001, lng=8.002),
+                ],
+                corridor_width_m=80,
+            ),
+        )
+        assert req.mission_template == QuickScoutMissionTemplate.CORRIDOR_SEARCH
+
+    def test_corridor_search_template(self):
+        req = QuickScoutMissionRequest(
+            mission_template=QuickScoutMissionTemplate.CORRIDOR_SEARCH,
+            search_area=SearchArea(
+                type="line",
+                path=[
+                    SearchAreaPoint(lat=47.0, lng=8.0),
+                    SearchAreaPoint(lat=47.002, lng=8.004),
+                ],
+                corridor_width_m=90,
+            ),
+        )
+        assert req.mission_template == QuickScoutMissionTemplate.CORRIDOR_SEARCH
 
 
 class TestCoverageWaypoint:

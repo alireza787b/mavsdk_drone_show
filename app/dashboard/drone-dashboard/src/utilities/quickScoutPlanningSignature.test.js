@@ -8,6 +8,11 @@ describe('buildQuickScoutPlanningSignature', () => {
     ],
     searchCenter: { lat: 37.0, lng: -122.0 },
     searchRadiusM: 120,
+    searchPath: [
+      { lat: 37.0, lng: -122.0 },
+      { lat: 37.002, lng: -122.002 },
+    ],
+    corridorWidthM: 90,
     surveyConfig: {
       algorithm: 'boustrophedon',
       sweep_width_m: 30,
@@ -52,6 +57,20 @@ describe('buildQuickScoutPlanningSignature', () => {
     const second = buildQuickScoutPlanningSignature({
       ...baseInput,
       missionTemplate: 'last_known_point',
+    });
+
+    expect(first).not.toBe(second);
+  });
+
+  it('changes when corridor path inputs change', () => {
+    const first = buildQuickScoutPlanningSignature({
+      ...baseInput,
+      missionTemplate: 'corridor_search',
+    });
+    const second = buildQuickScoutPlanningSignature({
+      ...baseInput,
+      missionTemplate: 'corridor_search',
+      corridorWidthM: 110,
     });
 
     expect(first).not.toBe(second);

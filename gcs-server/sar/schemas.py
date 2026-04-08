@@ -18,6 +18,7 @@ class ReturnBehavior(str, Enum):
 class QuickScoutMissionTemplate(str, Enum):
     AREA_SWEEP = "area_sweep"
     LAST_KNOWN_POINT = "last_known_point"
+    CORRIDOR_SEARCH = "corridor_search"
 
 
 class SurveyState(str, Enum):
@@ -53,11 +54,13 @@ class SearchAreaPoint(BaseModel):
 
 
 class SearchArea(BaseModel):
-    """Polygon definition for search area"""
+    """Template-aware search geometry definition."""
     type: str = Field(default="polygon", description="Search geometry type")
     points: List[SearchAreaPoint] = Field(default_factory=list, description="Polygon vertices when using area search")
     center: Optional[SearchAreaPoint] = Field(None, description="Center point for point-centered search templates")
     radius_m: Optional[float] = Field(None, gt=0, description="Point-search radius in meters")
+    path: List[SearchAreaPoint] = Field(default_factory=list, description="Ordered route points for corridor search")
+    corridor_width_m: Optional[float] = Field(None, gt=0, description="Total corridor width in meters")
     area_sq_m: Optional[float] = Field(None, ge=0, description="Computed area in square meters")
 
     @model_validator(mode="after")
@@ -72,6 +75,13 @@ class SearchArea(BaseModel):
                 raise ValueError("Point search areas require a center")
             if self.radius_m is None or self.radius_m <= 0:
                 raise ValueError("Point search areas require a positive radius")
+            return self
+
+        if self.type == "line":
+            if len(self.path) < 2:
+                raise ValueError("Line search areas require at least 2 path points")
+            if self.corridor_width_m is None or self.corridor_width_m <= 0:
+                raise ValueError("Line search areas require a positive corridor width")
             return self
 
         raise ValueError(f"Unsupported search area type: {self.type}")

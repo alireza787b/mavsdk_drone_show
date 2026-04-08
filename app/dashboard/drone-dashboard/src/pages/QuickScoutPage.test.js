@@ -24,6 +24,8 @@ jest.mock('leaflet', () => ({
 jest.mock('react-leaflet', () => ({
   Circle: () => <div data-testid="leaflet-circle" />,
   Marker: ({ children }) => <div data-testid="leaflet-marker">{children}</div>,
+  Polygon: () => <div data-testid="leaflet-polygon" />,
+  Polyline: () => <div data-testid="leaflet-polyline" />,
   useMap: () => ({ flyTo: jest.fn() }),
 }));
 
@@ -94,6 +96,9 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <button type="button" onClick={() => props.onMissionTemplateChange('last_known_point')}>
       Use last known point
     </button>
+    <button type="button" onClick={() => props.onMissionTemplateChange('corridor_search')}>
+      Use corridor search
+    </button>
     <button
       type="button"
       onClick={() => props.onSearchCenterChange({ lat: 37.25, lng: -122.15 })}
@@ -102,6 +107,19 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     </button>
     <button type="button" onClick={() => props.onSearchRadiusChange(180)}>
       Set search radius
+    </button>
+    <button
+      type="button"
+      onClick={() => props.onSearchPathChange([
+        { lat: 37.25, lng: -122.15 },
+        { lat: 37.255, lng: -122.145 },
+        { lat: 37.26, lng: -122.14 },
+      ])}
+    >
+      Set corridor path
+    </button>
+    <button type="button" onClick={() => props.onCorridorWidthChange(110)}>
+      Set corridor width
     </button>
     <button type="button" onClick={() => props.onReturnBehaviorChange('hold_position')}>
       Set hold return
@@ -399,6 +417,46 @@ describe('QuickScoutPage', () => {
     );
     expect(sarApi.computePlan.mock.calls[0][0].search_area.area_sq_m).toBeCloseTo(Math.PI * 180 * 180, 6);
     expect(screen.getByTestId('plan-template')).toHaveTextContent('last_known_point');
+  });
+
+  it('sends a corridor-search request with route geometry and width', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use corridor search' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set corridor path' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set corridor width' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.computePlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mission_template: 'corridor_search',
+          search_area: expect.objectContaining({
+            type: 'line',
+            corridor_width_m: 110,
+            path: [
+              { lat: 37.25, lng: -122.15 },
+              { lat: 37.255, lng: -122.145 },
+              { lat: 37.26, lng: -122.14 },
+            ],
+          }),
+        })
+      )
+    );
+    expect(sarApi.computePlan.mock.calls[0][0].search_area.area_sq_m).toBeGreaterThan(0);
+    expect(screen.getByTestId('plan-template')).toHaveTextContent('corridor_search');
   });
 
   it('marks the launch package stale when planning inputs change after compute', async () => {

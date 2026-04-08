@@ -947,3 +947,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Reworked Mission Config drone cards around compact indicator buttons for slot, link, git, and custom fields so operators see identity and status first, then tap into the exact detail panel they need.
 - Moved slot-source reconciliation, runtime transport/link data, and git diagnostics behind touch-friendly drilldowns instead of keeping verbose text permanently above the fold.
 - Added focused `DroneConfigCard` test coverage for the new indicator-to-detail workflow.
+
+# 2026-04-08
+
+### QuickScout Corridor Search Foundation
+- Added `corridor_search` as a real QuickScout mission template across schemas, persistence, workspace recovery, and operator planning state instead of treating QuickScout as polygon-plus-special-case search.
+- Added corridor route and width planning inputs, buffered search-footprint previews, and corridor-aware stale-plan detection on both Mapbox and Leaflet planning surfaces.
+- Generalized the shared QuickScout draw controls so area sweep can stay polygon-based while corridor search uses explicit line authoring instead of forcing route input through polygon-only code.
+- Fixed a duplicated corridor resolver branch in the QuickScout service so one canonical template-to-polygon flow now feeds the planner and persisted workspace.
+- Replaced the dashboard’s umbrella `@turf/turf` import with explicit geometry subpackages, updated the lockfile, and restored focused Jest coverage for QuickScout geometry helpers under the current CRA test stack.

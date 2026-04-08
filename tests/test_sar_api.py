@@ -203,6 +203,80 @@ class TestPlanMission:
         assert operation["search_area"]["radius_m"] == 120
         assert len(operation["search_area"]["points"]) >= 6
 
+    def test_plan_corridor_search_template(self, client):
+        request = {
+            "mission_template": "corridor_search",
+            "search_area": {
+                "type": "line",
+                "path": [
+                    {"lat": 47.0, "lng": 8.0},
+                    {"lat": 47.001, "lng": 8.001},
+                    {"lat": 47.003, "lng": 8.002},
+                ],
+                "corridor_width_m": 80,
+            },
+            "survey_config": {
+                "sweep_width_m": 30,
+                "overlap_percent": 10,
+                "cruise_altitude_msl": 50,
+                "survey_altitude_agl": 40,
+                "cruise_speed_ms": 10,
+                "survey_speed_ms": 5,
+                "use_terrain_following": False,
+            },
+            "pos_ids": [0],
+        }
+
+        resp = client.post("/api/sar/mission/plan", json=request)
+        assert resp.status_code == 200
+        mission_id = resp.json()["mission_id"]
+
+        workspace = client.get(f"/api/sar/mission/{mission_id}/workspace")
+        assert workspace.status_code == 200
+        operation = workspace.json()["operation"]
+        assert operation["mission_template"] == "corridor_search"
+        assert operation["search_area"]["type"] == "line"
+        assert operation["search_area"]["corridor_width_m"] == 80
+        assert len(operation["search_area"]["path"]) == 3
+        assert operation["search_area"]["area_sq_m"] > 0
+
+    def test_plan_corridor_search_template(self, client):
+        request = {
+            "mission_template": "corridor_search",
+            "search_area": {
+                "type": "line",
+                "path": [
+                    {"lat": 47.0, "lng": 8.0},
+                    {"lat": 47.002, "lng": 8.002},
+                    {"lat": 47.004, "lng": 8.004},
+                ],
+                "corridor_width_m": 90,
+            },
+            "survey_config": {
+                "sweep_width_m": 30,
+                "overlap_percent": 10,
+                "cruise_altitude_msl": 50,
+                "survey_altitude_agl": 40,
+                "cruise_speed_ms": 10,
+                "survey_speed_ms": 5,
+                "use_terrain_following": False,
+            },
+            "pos_ids": [0],
+        }
+
+        resp = client.post("/api/sar/mission/plan", json=request)
+        assert resp.status_code == 200
+        mission_id = resp.json()["mission_id"]
+
+        workspace = client.get(f"/api/sar/mission/{mission_id}/workspace")
+        assert workspace.status_code == 200
+        operation = workspace.json()["operation"]
+        assert operation["mission_template"] == "corridor_search"
+        assert operation["search_area"]["type"] == "line"
+        assert len(operation["search_area"]["path"]) == 3
+        assert operation["search_area"]["corridor_width_m"] == 90
+        assert len(operation["search_area"]["points"]) >= 6
+
 
 class TestMissionStatus:
     def test_status_after_plan(self, client):

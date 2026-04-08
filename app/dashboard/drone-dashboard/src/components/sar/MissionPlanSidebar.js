@@ -8,7 +8,11 @@ import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import QuickScoutLaunchReview from './QuickScoutLaunchReview';
 import { QUICKSCOUT_PROFILE_PRESETS } from '../../utilities/quickScoutProfiles';
-import { calculateCircularAreaSqM } from '../../utilities/quickScoutSearchGeometry';
+import {
+  calculateCircularAreaSqM,
+  calculateCorridorAreaSqM,
+  normalizeSearchPath,
+} from '../../utilities/quickScoutSearchGeometry';
 
 const MissionPlanSidebar = ({
   drones,
@@ -21,6 +25,13 @@ const MissionPlanSidebar = ({
   searchRadiusM,
   onSearchRadiusChange,
   onUseMapCenter,
+  searchPath,
+  onSearchPathChange,
+  corridorWidthM,
+  onCorridorWidthChange,
+  onAppendMapCenterToPath,
+  onUndoSearchPathPoint,
+  onClearSearchPath,
   surveyConfig,
   onConfigChange,
   onComputePlan,
@@ -54,10 +65,13 @@ const MissionPlanSidebar = ({
   const [showMissionBrief, setShowMissionBrief] = useState(false);
   const hasSearchCenter = Number.isFinite(Number(searchCenter?.lat))
     && Number.isFinite(Number(searchCenter?.lng));
+  const normalizedSearchPath = normalizeSearchPath(searchPath);
 
   const hasArea = missionTemplate === 'last_known_point'
     ? Boolean(hasSearchCenter && Number(searchRadiusM) > 0)
-    : Boolean(searchArea && searchArea.length >= 3);
+    : missionTemplate === 'corridor_search'
+      ? Boolean(normalizedSearchPath.length >= 2 && Number(corridorWidthM) > 0)
+      : Boolean(searchArea && searchArea.length >= 3);
   const hasSelection = selectedDrones && selectedDrones.length > 0;
   const canCompute = hasArea && hasSelection && !computing;
   const canLaunch = Boolean(
@@ -68,7 +82,9 @@ const MissionPlanSidebar = ({
   );
   const searchFootprintSqM = missionTemplate === 'last_known_point'
     ? calculateCircularAreaSqM(searchRadiusM)
-    : 0;
+    : missionTemplate === 'corridor_search'
+      ? calculateCorridorAreaSqM(normalizedSearchPath, corridorWidthM)
+      : 0;
   const searchFootprintHa = searchFootprintSqM > 0 ? searchFootprintSqM / 10000 : 0;
 
   const updateConfig = (key, value) => {
@@ -107,6 +123,14 @@ const MissionPlanSidebar = ({
             >
               <span className="qs-template-label">Last Known Point</span>
               <span className="qs-template-brief">Point-centered search package around a reported location and radius.</span>
+            </button>
+            <button
+              type="button"
+              className={`qs-template-card ${missionTemplate === 'corridor_search' ? 'active' : ''}`}
+              onClick={() => onMissionTemplateChange('corridor_search')}
+            >
+              <span className="qs-template-label">Corridor Search</span>
+              <span className="qs-template-brief">Route-centered search corridor along shoreline, trail, road, or trackline.</span>
             </button>
           </div>
         </div>
@@ -260,6 +284,62 @@ const MissionPlanSidebar = ({
               </div>
               <div className="qs-empty-copy" style={{ marginTop: 8 }}>
                 SearchBar selections also seed the last known point automatically.
+              </div>
+            </>
+          ) : missionTemplate === 'corridor_search' ? (
+            <>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Route points</span>
+                <span className="qs-stat-value">{normalizedSearchPath.length}</span>
+              </div>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Width</span>
+                <div>
+                  <input
+                    type="number"
+                    className="qs-config-input"
+                    value={corridorWidthM}
+                    onChange={(e) => onCorridorWidthChange(parseFloat(e.target.value) || 0)}
+                  />
+                  <span className="qs-config-unit">m</span>
+                </div>
+              </div>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Footprint</span>
+                <span className="qs-stat-value">
+                  {searchFootprintHa > 0 ? `${searchFootprintHa.toFixed(2)} ha` : 'Not set'}
+                </span>
+              </div>
+              <div className="qs-choice-row" style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="qs-choice-chip"
+                  onClick={onAppendMapCenterToPath}
+                >
+                  Add Map Center
+                </button>
+                <button
+                  type="button"
+                  className="qs-choice-chip"
+                  onClick={onUndoSearchPathPoint}
+                  disabled={normalizedSearchPath.length === 0}
+                >
+                  Undo Last
+                </button>
+                <button
+                  type="button"
+                  className="qs-choice-chip"
+                  onClick={onClearSearchPath}
+                  disabled={normalizedSearchPath.length === 0}
+                >
+                  Clear Route
+                </button>
+              </div>
+              <div className="qs-search-note" style={{ marginTop: 8 }}>
+                SearchBar selections append route points for the corridor. The mission package expands that route into a buffered search strip before partitioning aircraft assignments.
+              </div>
+              <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+                Add at least two ordered route points, then compute the corridor package.
               </div>
             </>
           ) : hasArea ? (

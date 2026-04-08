@@ -265,3 +265,73 @@ def test_sar_plan_accepts_last_known_point_template():
 
     assert response.status_code == 200
     assert response.json()["plans"]
+
+
+def test_sar_plan_accepts_corridor_search_template():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    request = {
+        "mission_template": "corridor_search",
+        "search_area": {
+            "type": "line",
+            "path": [
+                {"lat": 47.0, "lng": 8.0},
+                {"lat": 47.001, "lng": 8.001},
+                {"lat": 47.003, "lng": 8.002},
+            ],
+            "corridor_width_m": 80,
+        },
+        "survey_config": {
+            "sweep_width_m": 30,
+            "overlap_percent": 10,
+            "cruise_altitude_msl": 50,
+            "survey_altitude_agl": 40,
+            "cruise_speed_ms": 10,
+            "survey_speed_ms": 5,
+            "use_terrain_following": False,
+        },
+        "pos_ids": [0],
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/api/sar/mission/plan", json=request)
+
+    assert response.status_code == 200
+    assert response.json()["plans"]
+
+
+def test_sar_plan_accepts_corridor_search_template():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    request = {
+        "mission_template": "corridor_search",
+        "search_area": {
+            "type": "line",
+            "path": [
+                {"lat": 47.0, "lng": 8.0},
+                {"lat": 47.002, "lng": 8.002},
+                {"lat": 47.004, "lng": 8.004},
+            ],
+            "corridor_width_m": 90,
+        },
+        "survey_config": {
+            "sweep_width_m": 30,
+            "overlap_percent": 10,
+            "cruise_altitude_msl": 50,
+            "survey_altitude_agl": 40,
+            "cruise_speed_ms": 10,
+            "survey_speed_ms": 5,
+            "use_terrain_following": False,
+        },
+        "pos_ids": [0],
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/api/sar/mission/plan", json=request)
+
+    assert response.status_code == 200
+    assert response.json()["plans"]

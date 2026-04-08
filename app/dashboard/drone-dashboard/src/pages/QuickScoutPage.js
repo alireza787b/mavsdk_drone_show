@@ -35,7 +35,13 @@ import LeafletCoveragePreview from '../components/map/LeafletCoveragePreview';
 import LeafletPOIMarkers from '../components/map/LeafletPOIMarkers';
 import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
-import { Circle as LeafletCircle, Marker as LeafletMarker, useMap } from 'react-leaflet';
+import {
+  Circle as LeafletCircle,
+  Marker as LeafletMarker,
+  Polygon as LeafletPolygon,
+  Polyline as LeafletPolyline,
+  useMap,
+} from 'react-leaflet';
 import L from 'leaflet';
 import {
   DEFAULT_QUICKSCOUT_PROFILE_ID,
@@ -45,8 +51,12 @@ import {
 import { buildQuickScoutPlanningSignature } from '../utilities/quickScoutPlanningSignature';
 import { buildQuickScoutLaunchReadiness } from '../utilities/quickScoutLaunchReadiness';
 import {
+  buildCorridorGeoJSON,
+  buildCorridorPathGeoJSON,
   buildLastKnownPointGeoJSON,
+  calculateCorridorAreaSqM,
   calculateCircularAreaSqM,
+  normalizeSearchPath,
 } from '../utilities/quickScoutSearchGeometry';
 
 // Styles
@@ -81,6 +91,7 @@ const DEFAULT_SURVEY_CONFIG = {
   camera_interval_s: 2,
 };
 const DEFAULT_LAST_KNOWN_POINT_RADIUS_M = 120;
+const DEFAULT_CORRIDOR_WIDTH_M = 90;
 
 const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
 const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
@@ -125,6 +136,8 @@ const QuickScoutPage = () => {
   const [missionTemplate, setMissionTemplate] = useState('area_sweep');
   const [searchCenter, setSearchCenter] = useState(null);
   const [searchRadiusM, setSearchRadiusM] = useState(DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
+  const [searchPath, setSearchPath] = useState([]);
+  const [corridorWidthM, setCorridorWidthM] = useState(DEFAULT_CORRIDOR_WIDTH_M);
   const [surveyConfig, setSurveyConfig] = useState({ ...DEFAULT_SURVEY_CONFIG });
   const [missionProfileId, setMissionProfileId] = useState(DEFAULT_QUICKSCOUT_PROFILE_ID);
   const [missionLabel, setMissionLabel] = useState('');
@@ -168,6 +181,8 @@ const QuickScoutPage = () => {
     setMissionTemplate('area_sweep');
     setSearchCenter(null);
     setSearchRadiusM(DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
+    setSearchPath([]);
+    setCorridorWidthM(DEFAULT_CORRIDOR_WIDTH_M);
     setSurveyConfig({ ...DEFAULT_SURVEY_CONFIG });
     setMissionProfileId(DEFAULT_QUICKSCOUT_PROFILE_ID);
     setMissionLabel('');
@@ -222,6 +237,8 @@ const QuickScoutPage = () => {
     setMissionTemplate(operation.mission_template || 'area_sweep');
     setSearchCenter(operation.search_area?.center || null);
     setSearchRadiusM(operation.search_area?.radius_m || DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
+    setSearchPath(operation.search_area?.path || []);
+    setCorridorWidthM(operation.search_area?.corridor_width_m || DEFAULT_CORRIDOR_WIDTH_M);
     const recoveredSurveyConfig = {
       ...DEFAULT_SURVEY_CONFIG,
       ...(operation.survey_config || {}),
@@ -244,6 +261,8 @@ const QuickScoutPage = () => {
       searchArea: operation.search_area?.points || [],
       searchCenter: operation.search_area?.center || null,
       searchRadiusM: operation.search_area?.radius_m || DEFAULT_LAST_KNOWN_POINT_RADIUS_M,
+      searchPath: operation.search_area?.path || [],
+      corridorWidthM: operation.search_area?.corridor_width_m || DEFAULT_CORRIDOR_WIDTH_M,
       surveyConfig: recoveredSurveyConfig,
       selectedDrones: recoveredSelectedDrones,
       missionProfileId: operation.mission_profile || deriveQuickScoutProfileId(recoveredSurveyConfig),
@@ -402,6 +421,8 @@ const QuickScoutPage = () => {
       searchArea,
       searchCenter,
       searchRadiusM,
+      searchPath,
+      corridorWidthM,
       surveyConfig,
       selectedDrones,
       missionProfileId,
@@ -409,7 +430,7 @@ const QuickScoutPage = () => {
       missionBrief,
       returnBehavior,
     }),
-    [missionBrief, missionLabel, missionProfileId, missionTemplate, returnBehavior, searchArea, searchCenter, searchRadiusM, selectedDrones, surveyConfig],
+    [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, returnBehavior, searchArea, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig],
   );
   const activePlanTargetHwIds = useMemo(
     () => (coveragePlan?.plans || [])
@@ -431,6 +452,14 @@ const QuickScoutPage = () => {
   const pointSearchPreview = useMemo(
     () => buildLastKnownPointGeoJSON(searchCenter, searchRadiusM),
     [searchCenter, searchRadiusM],
+  );
+  const corridorSearchPreview = useMemo(
+    () => buildCorridorGeoJSON(searchPath, corridorWidthM),
+    [corridorWidthM, searchPath],
+  );
+  const corridorPathPreview = useMemo(
+    () => buildCorridorPathGeoJSON(searchPath),
+    [searchPath],
   );
   const planNeedsRecompute = Boolean(
     coveragePlan
@@ -461,13 +490,17 @@ const QuickScoutPage = () => {
     setLastPlannedSignature(null);
   }, []);
 
-  const handleResetArea = useCallback(() => {
-    setSearchArea([]);
-    setSearchAreaSqM(0);
+  const handleResetDrawGeometry = useCallback(() => {
+    if (missionTemplate === 'corridor_search') {
+      setSearchPath([]);
+    } else {
+      setSearchArea([]);
+      setSearchAreaSqM(0);
+    }
     setCoveragePlan(null);
     setLastPlannedSignature(null);
     drawControlRef.current?.reset();
-  }, []);
+  }, [missionTemplate]);
 
   const handleDroneToggle = useCallback((posId) => {
     setSelectedDrones(prev =>
@@ -520,6 +553,18 @@ const QuickScoutPage = () => {
     setLastPlannedSignature(null);
   }, []);
 
+  const handleSearchPathChange = useCallback((nextPath) => {
+    setSearchPath(normalizeSearchPath(nextPath));
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+  }, []);
+
+  const handleCorridorWidthChange = useCallback((nextWidthM) => {
+    setCorridorWidthM(nextWidthM);
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+  }, []);
+
   const handleUseMapCenter = useCallback(() => {
     if (!Number.isFinite(Number(viewport.latitude)) || !Number.isFinite(Number(viewport.longitude))) {
       return;
@@ -533,6 +578,28 @@ const QuickScoutPage = () => {
     setLastPlannedSignature(null);
   }, [viewport.latitude, viewport.longitude]);
 
+  const handleAppendMapCenterToPath = useCallback(() => {
+    if (!Number.isFinite(Number(viewport.latitude)) || !Number.isFinite(Number(viewport.longitude))) {
+      return;
+    }
+
+    handleSearchPathChange([
+      ...searchPath,
+      {
+        lat: Number(viewport.latitude),
+        lng: Number(viewport.longitude),
+      },
+    ]);
+  }, [handleSearchPathChange, searchPath, viewport.latitude, viewport.longitude]);
+
+  const handleUndoSearchPathPoint = useCallback(() => {
+    handleSearchPathChange(searchPath.slice(0, -1));
+  }, [handleSearchPathChange, searchPath]);
+
+  const handleClearSearchPath = useCallback(() => {
+    handleSearchPathChange([]);
+  }, [handleSearchPathChange]);
+
   const handleComputePlan = useCallback(async () => {
     setComputing(true);
     try {
@@ -543,6 +610,13 @@ const QuickScoutPage = () => {
           radius_m: searchRadiusM,
           area_sq_m: calculateCircularAreaSqM(searchRadiusM),
         }
+        : missionTemplate === 'corridor_search'
+          ? {
+            type: 'line',
+            path: searchPath,
+            corridor_width_m: corridorWidthM,
+            area_sq_m: calculateCorridorAreaSqM(searchPath, corridorWidthM),
+          }
         : {
           type: 'polygon',
           points: searchArea,
@@ -566,6 +640,8 @@ const QuickScoutPage = () => {
         searchArea,
         searchCenter,
         searchRadiusM,
+        searchPath,
+        corridorWidthM,
         surveyConfig,
         selectedDrones,
         missionProfileId,
@@ -585,7 +661,7 @@ const QuickScoutPage = () => {
     } finally {
       setComputing(false);
     }
-  }, [missionBrief, missionLabel, missionProfileId, missionTemplate, refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchRadiusM, selectedDrones, surveyConfig]);
+  }, [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig]);
 
   const handleLaunchMission = useCallback(async () => {
     if (!missionId) return;
@@ -648,12 +724,18 @@ const QuickScoutPage = () => {
     if (missionTemplate === 'last_known_point') {
       handleSearchCenterChange({ lat: latitude, lng: longitude });
     }
+    if (missionTemplate === 'corridor_search') {
+      handleSearchPathChange([
+        ...searchPath,
+        { lat: latitude, lng: longitude },
+      ]);
+    }
     if (!useLeaflet && mapRef.current) {
       mapRef.current.flyTo({ center: [longitude, latitude], zoom });
     } else {
       setFlyToTarget({ latitude, longitude, zoom });
     }
-  }, [handleSearchCenterChange, missionTemplate, useLeaflet]);
+  }, [handleSearchCenterChange, handleSearchPathChange, missionTemplate, searchPath, useLeaflet]);
 
   return (
     <div className="quickscout-page">
@@ -712,11 +794,14 @@ const QuickScoutPage = () => {
                 }
               }}
             >
-              {mode === 'plan' && missionTemplate === 'area_sweep' && (
+              {mode === 'plan' && (missionTemplate === 'area_sweep' || missionTemplate === 'corridor_search') && (
                 <DrawControl
-                  onAreaChange={handleAreaChange}
+                  key={`qs-mapbox-draw-${missionTemplate}`}
+                  onAreaChange={missionTemplate === 'corridor_search' ? handleSearchPathChange : handleAreaChange}
                   controlRef={drawControlRef}
+                  geometryMode={missionTemplate === 'corridor_search' ? 'line' : 'polygon'}
                   initialArea={searchArea}
+                  initialPoints={searchPath}
                 />
               )}
 
@@ -750,6 +835,45 @@ const QuickScoutPage = () => {
                   >
                     <div className="qs-search-center-marker" />
                   </Marker>
+                </>
+              )}
+
+              {mode === 'plan' && missionTemplate === 'corridor_search' && (
+                <>
+                  {Source && Layer && corridorSearchPreview && (
+                    <Source id="qs-corridor-search-preview" type="geojson" data={corridorSearchPreview}>
+                      <Layer
+                        id="qs-corridor-fill"
+                        type="fill"
+                        paint={{
+                          'fill-color': '#00d4ff',
+                          'fill-opacity': 0.08,
+                        }}
+                      />
+                      <Layer
+                        id="qs-corridor-outline"
+                        type="line"
+                        paint={{
+                          'line-color': '#00d4ff',
+                          'line-width': 2,
+                          'line-opacity': 0.72,
+                        }}
+                      />
+                    </Source>
+                  )}
+                  {Source && Layer && corridorPathPreview && (
+                    <Source id="qs-corridor-path-preview" type="geojson" data={corridorPathPreview}>
+                      <Layer
+                        id="qs-corridor-path"
+                        type="line"
+                        paint={{
+                          'line-color': '#facc15',
+                          'line-width': 3,
+                          'line-opacity': 0.88,
+                        }}
+                      />
+                    </Source>
+                  )}
                 </>
               )}
 
@@ -789,7 +913,14 @@ const QuickScoutPage = () => {
             >
               <LeafletFlyTo target={flyToTarget} />
 
-              {mode === 'plan' && missionTemplate === 'area_sweep' && <LeafletDrawControl onAreaChange={handleAreaChange} />}
+              {mode === 'plan' && (missionTemplate === 'area_sweep' || missionTemplate === 'corridor_search') && (
+                <LeafletDrawControl
+                  key={`qs-leaflet-draw-${missionTemplate}`}
+                  onAreaChange={missionTemplate === 'corridor_search' ? handleSearchPathChange : handleAreaChange}
+                  geometryMode={missionTemplate === 'corridor_search' ? 'line' : 'polygon'}
+                  initialPoints={missionTemplate === 'corridor_search' ? searchPath : searchArea}
+                />
+              )}
 
               {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
                 <>
@@ -815,6 +946,31 @@ const QuickScoutPage = () => {
                       iconAnchor: [10, 10],
                     })}
                   />
+                </>
+              )}
+
+              {mode === 'plan' && missionTemplate === 'corridor_search' && corridorSearchPreview?.features?.[0]?.geometry?.coordinates?.[0] && (
+                <>
+                  <LeafletPolygon
+                    positions={corridorSearchPreview.features[0].geometry.coordinates[0].map(([lng, lat]) => [lat, lng])}
+                    pathOptions={{
+                      color: '#00d4ff',
+                      weight: 2,
+                      opacity: 0.72,
+                      fillColor: '#00d4ff',
+                      fillOpacity: 0.08,
+                    }}
+                  />
+                  {corridorPathPreview?.features?.[0]?.geometry?.coordinates && (
+                    <LeafletPolyline
+                      positions={corridorPathPreview.features[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])}
+                      pathOptions={{
+                        color: '#facc15',
+                        weight: 3,
+                        opacity: 0.88,
+                      }}
+                    />
+                  )}
                 </>
               )}
 
@@ -844,10 +1000,12 @@ const QuickScoutPage = () => {
           )}
 
           {/* Mapbox draw instruction bar (plan mode) */}
-          {!useLeaflet && mode === 'plan' && missionTemplate === 'area_sweep' && (
+          {!useLeaflet && mode === 'plan' && (missionTemplate === 'area_sweep' || missionTemplate === 'corridor_search') && (
             <MapboxDrawActionBar
+              geometryMode={missionTemplate === 'corridor_search' ? 'line' : 'polygon'}
               searchArea={searchArea}
-              onReset={handleResetArea}
+              searchPath={searchPath}
+              onReset={handleResetDrawGeometry}
               onTrash={() => drawControlRef.current?.trash()}
             />
           )}
@@ -899,6 +1057,13 @@ const QuickScoutPage = () => {
             searchRadiusM={searchRadiusM}
             onSearchRadiusChange={handleSearchRadiusChange}
             onUseMapCenter={handleUseMapCenter}
+            searchPath={searchPath}
+            onSearchPathChange={handleSearchPathChange}
+            corridorWidthM={corridorWidthM}
+            onCorridorWidthChange={handleCorridorWidthChange}
+            onAppendMapCenterToPath={handleAppendMapCenterToPath}
+            onUndoSearchPathPoint={handleUndoSearchPathPoint}
+            onClearSearchPath={handleClearSearchPath}
             targetHwIds={activePlanTargetHwIds}
             targetDrones={activePlanTargetDrones}
             targetSummaryLabel={`${activePlanTargetHwIds.length || 0} assigned drone${activePlanTargetHwIds.length === 1 ? '' : 's'}`}
