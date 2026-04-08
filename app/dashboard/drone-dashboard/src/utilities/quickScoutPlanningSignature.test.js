@@ -6,6 +6,8 @@ describe('buildQuickScoutPlanningSignature', () => {
       { lat: 37.0, lng: -122.0 },
       { lat: 37.001, lng: -122.001 },
     ],
+    searchCenter: { lat: 37.0, lng: -122.0 },
+    searchRadiusM: 120,
     surveyConfig: {
       algorithm: 'boustrophedon',
       sweep_width_m: 30,
@@ -18,6 +20,7 @@ describe('buildQuickScoutPlanningSignature', () => {
       camera_interval_s: 2,
     },
     selectedDrones: [2, 1, 2],
+    missionTemplate: 'area_sweep',
     missionProfileId: 'rapid_search',
     missionLabel: 'Harbor sweep',
     missionBrief: 'Search quay perimeter',
@@ -39,6 +42,16 @@ describe('buildQuickScoutPlanningSignature', () => {
     const second = buildQuickScoutPlanningSignature({
       ...baseInput,
       missionLabel: 'Harbor sweep updated',
+    });
+
+    expect(first).not.toBe(second);
+  });
+
+  it('changes when the mission template changes', () => {
+    const first = buildQuickScoutPlanningSignature(baseInput);
+    const second = buildQuickScoutPlanningSignature({
+      ...baseInput,
+      missionTemplate: 'last_known_point',
     });
 
     expect(first).not.toBe(second);

@@ -41,7 +41,10 @@ function normalizeIds(values = []) {
 }
 
 export function buildQuickScoutPlanningSignature({
+  missionTemplate = 'area_sweep',
   searchArea = [],
+  searchCenter = null,
+  searchRadiusM = null,
   surveyConfig = {},
   selectedDrones = [],
   missionProfileId = '',
@@ -50,7 +53,10 @@ export function buildQuickScoutPlanningSignature({
   returnBehavior = 'return_home',
 } = {}) {
   return JSON.stringify({
+    missionTemplate: String(missionTemplate || 'area_sweep').trim(),
     searchArea: (Array.isArray(searchArea) ? searchArea : []).map(normalizePoint),
+    searchCenter: searchCenter ? normalizePoint(searchCenter) : null,
+    searchRadiusM: Number.isFinite(Number(searchRadiusM)) ? Number(searchRadiusM) : null,
     surveyConfig: normalizeSurveyConfig(surveyConfig),
     selectedDrones: normalizeIds(selectedDrones),
     missionProfileId: String(missionProfileId || '').trim(),

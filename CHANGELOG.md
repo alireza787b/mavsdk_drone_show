@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout template-foundation phase 8 checkpoint note documenting the new mission-template contract, the first `last_known_point` search flow, the template-aware workspace recovery/signature logic, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout launch-review phase 7 checkpoint note documenting the new stale-package recompute gate, the shared preflight-backed launch-review card, the planning-signature and launch-readiness utilities, and the focused Hetzner frontend validation/build results
 - a 2026-04-08 QuickScout mission-briefing phase 6 checkpoint note documenting the new durable mission label/profile/brief metadata, the recovered workspace hydration updates, the mission-catalog display improvements, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout operator setup phase 5 checkpoint note documenting the new planning profile presets, explicit QuickScout end-behavior controls, the operator-setup sidebar refactor, and the focused Hetzner validation/build results

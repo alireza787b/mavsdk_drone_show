@@ -13,6 +13,13 @@ const MissionPlanSidebar = ({
   drones,
   selectedDrones,
   onDroneToggle,
+  missionTemplate,
+  onMissionTemplateChange,
+  searchCenter,
+  onSearchCenterChange,
+  searchRadiusM,
+  onSearchRadiusChange,
+  onUseMapCenter,
   surveyConfig,
   onConfigChange,
   onComputePlan,
@@ -44,8 +51,12 @@ const MissionPlanSidebar = ({
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showMissionBrief, setShowMissionBrief] = useState(false);
+  const hasSearchCenter = Number.isFinite(Number(searchCenter?.lat))
+    && Number.isFinite(Number(searchCenter?.lng));
 
-  const hasArea = searchArea && searchArea.length >= 3;
+  const hasArea = missionTemplate === 'last_known_point'
+    ? Boolean(hasSearchCenter && Number(searchRadiusM) > 0)
+    : Boolean(searchArea && searchArea.length >= 3);
   const hasSelection = selectedDrones && selectedDrones.length > 0;
   const canCompute = hasArea && hasSelection && !computing;
   const canLaunch = Boolean(
@@ -72,6 +83,28 @@ const MissionPlanSidebar = ({
           onStartFreshPlan={onStartFreshPlan}
           showStartFresh={Boolean(currentMissionId)}
         />
+
+        <div className="qs-config-section">
+          <div className="qs-config-title">Mission Type</div>
+          <div className="qs-template-grid">
+            <button
+              type="button"
+              className={`qs-template-card ${missionTemplate === 'area_sweep' ? 'active' : ''}`}
+              onClick={() => onMissionTemplateChange('area_sweep')}
+            >
+              <span className="qs-template-label">Area Sweep</span>
+              <span className="qs-template-brief">Polygon search area with multi-drone coverage partitioning.</span>
+            </button>
+            <button
+              type="button"
+              className={`qs-template-card ${missionTemplate === 'last_known_point' ? 'active' : ''}`}
+              onClick={() => onMissionTemplateChange('last_known_point')}
+            >
+              <span className="qs-template-label">Last Known Point</span>
+              <span className="qs-template-brief">Point-centered search package around a reported location and radius.</span>
+            </button>
+          </div>
+        </div>
 
         <div className="qs-config-section">
           <div className="qs-config-title">Mission Setup</div>
@@ -154,7 +187,68 @@ const MissionPlanSidebar = ({
         {/* Search Area Status */}
         <div className="qs-config-section">
           <div className="qs-config-title">Search Area</div>
-          {hasArea ? (
+          {missionTemplate === 'last_known_point' ? (
+            <>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Center</span>
+                <span className="qs-stat-value">
+                  {hasSearchCenter
+                    ? `${Number(searchCenter.lat).toFixed(4)}, ${Number(searchCenter.lng).toFixed(4)}`
+                    : 'Not set'}
+                </span>
+              </div>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Latitude</span>
+                <div>
+                  <input
+                    type="number"
+                    className="qs-config-input qs-config-input-wide"
+                    value={searchCenter?.lat ?? ''}
+                    onChange={(e) => onSearchCenterChange({
+                      lat: parseFloat(e.target.value) || 0,
+                      lng: Number(searchCenter?.lng) || 0,
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Longitude</span>
+                <div>
+                  <input
+                    type="number"
+                    className="qs-config-input qs-config-input-wide"
+                    value={searchCenter?.lng ?? ''}
+                    onChange={(e) => onSearchCenterChange({
+                      lat: Number(searchCenter?.lat) || 0,
+                      lng: parseFloat(e.target.value) || 0,
+                    })}
+                  />
+                </div>
+              </div>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Radius</span>
+                <div>
+                  <input
+                    type="number"
+                    className="qs-config-input"
+                    value={searchRadiusM}
+                    onChange={(e) => onSearchRadiusChange(parseFloat(e.target.value) || 0)}
+                  />
+                  <span className="qs-config-unit">m</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="qs-btn qs-btn-secondary qs-btn-full"
+                onClick={onUseMapCenter}
+              >
+                Use Map Center
+              </button>
+              <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+                SearchBar selections also seed the last known point automatically.
+              </div>
+            </>
+          ) : hasArea ? (
             <div className="qs-config-row">
               <span className="qs-config-label">Polygon vertices</span>
               <span className="qs-stat-value">{searchArea.length}</span>

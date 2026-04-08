@@ -74,9 +74,16 @@ const DEFAULT_SURVEY_CONFIG = {
   use_terrain_following: true,
   camera_interval_s: 2,
 };
+const DEFAULT_LAST_KNOWN_POINT_RADIUS_M = 120;
 
 const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
 const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
+
+const hasFiniteCoordinate = (value) => Number.isFinite(Number(value));
+
+const hasDronePosition = (drone) => (
+  hasFiniteCoordinate(drone?.position_lat) && hasFiniteCoordinate(drone?.position_long)
+);
 
 // Create simple drone icon for Leaflet markers
 // Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
@@ -109,6 +116,9 @@ const QuickScoutPage = () => {
   // Plan state
   const [searchArea, setSearchArea] = useState([]);
   const [searchAreaSqM, setSearchAreaSqM] = useState(0);
+  const [missionTemplate, setMissionTemplate] = useState('area_sweep');
+  const [searchCenter, setSearchCenter] = useState(null);
+  const [searchRadiusM, setSearchRadiusM] = useState(DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
   const [surveyConfig, setSurveyConfig] = useState({ ...DEFAULT_SURVEY_CONFIG });
   const [missionProfileId, setMissionProfileId] = useState(DEFAULT_QUICKSCOUT_PROFILE_ID);
   const [missionLabel, setMissionLabel] = useState('');
@@ -149,6 +159,9 @@ const QuickScoutPage = () => {
     setMode('plan');
     setSearchArea([]);
     setSearchAreaSqM(0);
+    setMissionTemplate('area_sweep');
+    setSearchCenter(null);
+    setSearchRadiusM(DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
     setSurveyConfig({ ...DEFAULT_SURVEY_CONFIG });
     setMissionProfileId(DEFAULT_QUICKSCOUT_PROFILE_ID);
     setMissionLabel('');
@@ -200,6 +213,9 @@ const QuickScoutPage = () => {
     setPois(status.pois || []);
     setSearchArea(operation.search_area?.points || []);
     setSearchAreaSqM(operation.search_area?.area_sq_m || operation.total_area_sq_m || 0);
+    setMissionTemplate(operation.mission_template || 'area_sweep');
+    setSearchCenter(operation.search_area?.center || null);
+    setSearchRadiusM(operation.search_area?.radius_m || DEFAULT_LAST_KNOWN_POINT_RADIUS_M);
     const recoveredSurveyConfig = {
       ...DEFAULT_SURVEY_CONFIG,
       ...(operation.survey_config || {}),
@@ -218,7 +234,10 @@ const QuickScoutPage = () => {
       algorithm_used: operation.algorithm_used || DEFAULT_SURVEY_CONFIG.algorithm,
     });
     setLastPlannedSignature(buildQuickScoutPlanningSignature({
+      missionTemplate: operation.mission_template || 'area_sweep',
       searchArea: operation.search_area?.points || [],
+      searchCenter: operation.search_area?.center || null,
+      searchRadiusM: operation.search_area?.radius_m || DEFAULT_LAST_KNOWN_POINT_RADIUS_M,
       surveyConfig: recoveredSurveyConfig,
       selectedDrones: recoveredSelectedDrones,
       missionProfileId: operation.mission_profile || deriveQuickScoutProfileId(recoveredSurveyConfig),
@@ -373,7 +392,10 @@ const QuickScoutPage = () => {
   );
   const currentPlanningSignature = useMemo(
     () => buildQuickScoutPlanningSignature({
+      missionTemplate,
       searchArea,
+      searchCenter,
+      searchRadiusM,
       surveyConfig,
       selectedDrones,
       missionProfileId,
@@ -381,7 +403,7 @@ const QuickScoutPage = () => {
       missionBrief,
       returnBehavior,
     }),
-    [missionBrief, missionLabel, missionProfileId, returnBehavior, searchArea, selectedDrones, surveyConfig],
+    [missionBrief, missionLabel, missionProfileId, missionTemplate, returnBehavior, searchArea, searchCenter, searchRadiusM, selectedDrones, surveyConfig],
   );
   const activePlanTargetHwIds = useMemo(
     () => (coveragePlan?.plans || [])
@@ -411,7 +433,7 @@ const QuickScoutPage = () => {
   // Center map on first drone with GPS
   useEffect(() => {
     if (viewport.zoom > 5) return; // Already positioned
-    const droneWithGPS = drones.find(d => d.position_lat && d.position_long);
+    const droneWithGPS = drones.find((d) => hasDronePosition(d));
     if (droneWithGPS) {
       setViewport({
         longitude: droneWithGPS.position_long,
@@ -461,17 +483,66 @@ const QuickScoutPage = () => {
     setMissionProfileId(deriveQuickScoutProfileId(nextConfig));
   }, []);
 
+  const handleMissionTemplateChange = useCallback((templateId) => {
+    setMissionTemplate(templateId);
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+    if (templateId === 'last_known_point' && !searchCenter) {
+      const onlineDrone = mergedDrones.find((drone) => drone.online && hasDronePosition(drone));
+      if (onlineDrone) {
+        setSearchCenter({
+          lat: onlineDrone.position_lat,
+          lng: onlineDrone.position_long,
+        });
+      }
+    }
+  }, [mergedDrones, searchCenter]);
+
+  const handleSearchCenterChange = useCallback((nextCenter) => {
+    setSearchCenter(nextCenter);
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+  }, []);
+
+  const handleSearchRadiusChange = useCallback((nextRadiusM) => {
+    setSearchRadiusM(nextRadiusM);
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+  }, []);
+
+  const handleUseMapCenter = useCallback(() => {
+    if (!Number.isFinite(Number(viewport.latitude)) || !Number.isFinite(Number(viewport.longitude))) {
+      return;
+    }
+
+    setSearchCenter({
+      lat: Number(viewport.latitude),
+      lng: Number(viewport.longitude),
+    });
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+  }, [viewport.latitude, viewport.longitude]);
+
   const handleComputePlan = useCallback(async () => {
     setComputing(true);
     try {
-      const request = {
-        search_area: {
+      const requestSearchArea = missionTemplate === 'last_known_point'
+        ? {
+          type: 'point',
+          center: searchCenter,
+          radius_m: searchRadiusM,
+          area_sq_m: Math.PI * Number(searchRadiusM || 0) * Number(searchRadiusM || 0),
+        }
+        : {
           type: 'polygon',
           points: searchArea,
           area_sq_m: searchAreaSqM,
-        },
+        };
+      const request = {
+        search_area: requestSearchArea,
         survey_config: surveyConfig,
         pos_ids: selectedDrones.length > 0 ? selectedDrones : null,
+        mission_template: missionTemplate,
         mission_label: missionLabel || null,
         mission_profile: missionProfileId === 'custom' ? 'custom' : missionProfileId,
         mission_brief: missionBrief || null,
@@ -481,7 +552,10 @@ const QuickScoutPage = () => {
       setCoveragePlan(response);
       setMissionId(response.mission_id);
       setLastPlannedSignature(buildQuickScoutPlanningSignature({
+        missionTemplate,
         searchArea,
+        searchCenter,
+        searchRadiusM,
         surveyConfig,
         selectedDrones,
         missionProfileId,
@@ -501,7 +575,7 @@ const QuickScoutPage = () => {
     } finally {
       setComputing(false);
     }
-  }, [missionBrief, missionLabel, missionProfileId, refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, selectedDrones, surveyConfig]);
+  }, [missionBrief, missionLabel, missionProfileId, missionTemplate, refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchRadiusM, selectedDrones, surveyConfig]);
 
   const handleLaunchMission = useCallback(async () => {
     if (!missionId) return;
@@ -561,12 +635,15 @@ const QuickScoutPage = () => {
   const handleLocationSelect = useCallback((longitude, latitude, _altitude) => {
     const zoom = 15;
     setViewport({ longitude, latitude, zoom });
+    if (missionTemplate === 'last_known_point') {
+      handleSearchCenterChange({ lat: latitude, lng: longitude });
+    }
     if (!useLeaflet && mapRef.current) {
       mapRef.current.flyTo({ center: [longitude, latitude], zoom });
     } else {
       setFlyToTarget({ latitude, longitude, zoom });
     }
-  }, [useLeaflet]);
+  }, [handleSearchCenterChange, missionTemplate, useLeaflet]);
 
   return (
     <div className="quickscout-page">
@@ -625,12 +702,22 @@ const QuickScoutPage = () => {
                 }
               }}
             >
-              {mode === 'plan' && (
+              {mode === 'plan' && missionTemplate === 'area_sweep' && (
                 <DrawControl
                   onAreaChange={handleAreaChange}
                   controlRef={drawControlRef}
                   initialArea={searchArea}
                 />
+              )}
+
+              {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
+                <Marker
+                  latitude={searchCenter.lat}
+                  longitude={searchCenter.lng}
+                  anchor="center"
+                >
+                  <div className="qs-search-center-marker" />
+                </Marker>
               )}
 
               <CoveragePreview
@@ -647,7 +734,7 @@ const QuickScoutPage = () => {
               />
 
               {/* Drone position markers (online drones only) */}
-              {mergedDrones.filter(d => d.online && d.position_lat && d.position_long).map((drone) => (
+              {mergedDrones.filter((d) => d.online && hasDronePosition(d)).map((drone) => (
                 <Marker
                   key={drone.hw_ID}
                   latitude={drone.position_lat}
@@ -669,7 +756,19 @@ const QuickScoutPage = () => {
             >
               <LeafletFlyTo target={flyToTarget} />
 
-              {mode === 'plan' && <LeafletDrawControl onAreaChange={handleAreaChange} />}
+              {mode === 'plan' && missionTemplate === 'area_sweep' && <LeafletDrawControl onAreaChange={handleAreaChange} />}
+
+              {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
+                <LeafletMarker
+                  position={[searchCenter.lat, searchCenter.lng]}
+                  icon={L.divIcon({
+                    html: '<div class="qs-search-center-marker"></div>',
+                    className: '',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10],
+                  })}
+                />
+              )}
 
               <LeafletCoveragePreview
                 plans={coveragePlan?.plans}
@@ -684,7 +783,7 @@ const QuickScoutPage = () => {
               />
 
               {/* Drone position markers (online drones only) */}
-              {mergedDrones.filter(d => d.online && d.position_lat && d.position_long).map((drone) => (
+              {mergedDrones.filter((d) => d.online && hasDronePosition(d)).map((drone) => (
                 <LeafletMarker
                   key={drone.hw_ID}
                   position={[drone.position_lat, drone.position_long]}
@@ -697,7 +796,7 @@ const QuickScoutPage = () => {
           )}
 
           {/* Mapbox draw instruction bar (plan mode) */}
-          {!useLeaflet && mode === 'plan' && (
+          {!useLeaflet && mode === 'plan' && missionTemplate === 'area_sweep' && (
             <MapboxDrawActionBar
               searchArea={searchArea}
               onReset={handleResetArea}
@@ -745,6 +844,13 @@ const QuickScoutPage = () => {
             loadingMissionCatalog={loadingMissionCatalog}
             onRecoverMission={handleRecoverMission}
             onStartFreshPlan={resetWorkspace}
+            missionTemplate={missionTemplate}
+            onMissionTemplateChange={handleMissionTemplateChange}
+            searchCenter={searchCenter}
+            onSearchCenterChange={handleSearchCenterChange}
+            searchRadiusM={searchRadiusM}
+            onSearchRadiusChange={handleSearchRadiusChange}
+            onUseMapCenter={handleUseMapCenter}
             targetHwIds={activePlanTargetHwIds}
             targetDrones={activePlanTargetDrones}
             targetSummaryLabel={`${activePlanTargetHwIds.length || 0} assigned drone${activePlanTargetHwIds.length === 1 ? '' : 's'}`}
@@ -764,7 +870,7 @@ const QuickScoutPage = () => {
             onDroneClick={(hwId) => {
               // Center map on drone
               const drone = mergedDrones.find(d => d.hw_ID === hwId);
-              if (drone?.position_lat && drone?.position_long) {
+              if (hasDronePosition(drone)) {
                 setViewport({
                   longitude: drone.position_long,
                   latitude: drone.position_lat,

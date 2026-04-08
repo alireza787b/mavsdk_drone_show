@@ -73,6 +73,7 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <div data-testid="plan-current">{props.currentMissionId || ''}</div>
     <div data-testid="plan-catalog">{props.missionCatalog.length}</div>
     <div data-testid="plan-loading">{String(props.loadingMissionCatalog)}</div>
+    <div data-testid="plan-template">{props.missionTemplate}</div>
     <div data-testid="plan-return-behavior">{props.returnBehavior}</div>
     <div data-testid="plan-label">{props.missionLabel}</div>
     <div data-testid="plan-brief">{props.missionBrief}</div>
@@ -88,6 +89,18 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     </button>
     <button type="button" onClick={() => props.onMissionProfileChange('detailed_sweep')}>
       Use detailed profile
+    </button>
+    <button type="button" onClick={() => props.onMissionTemplateChange('last_known_point')}>
+      Use last known point
+    </button>
+    <button
+      type="button"
+      onClick={() => props.onSearchCenterChange({ lat: 37.25, lng: -122.15 })}
+    >
+      Set search center
+    </button>
+    <button type="button" onClick={() => props.onSearchRadiusChange(180)}>
+      Set search radius
     </button>
     <button type="button" onClick={() => props.onReturnBehaviorChange('hold_position')}>
       Set hold return
@@ -349,6 +362,41 @@ describe('QuickScoutPage', () => {
     expect(screen.getByTestId('plan-return-behavior')).toHaveTextContent('hold_position');
     expect(screen.getByTestId('plan-label')).toHaveTextContent('Harbor sweep');
     expect(screen.getByTestId('plan-brief')).toHaveTextContent('Search quay perimeter');
+  });
+
+  it('sends a point-centered request for last known point missions', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use last known point' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set search center' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set search radius' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.computePlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mission_template: 'last_known_point',
+          search_area: expect.objectContaining({
+            type: 'point',
+            center: { lat: 37.25, lng: -122.15 },
+            radius_m: 180,
+          }),
+        })
+      )
+    );
+    expect(screen.getByTestId('plan-template')).toHaveTextContent('last_known_point');
   });
 
   it('marks the launch package stale when planning inputs change after compute', async () => {

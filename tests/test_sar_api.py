@@ -170,6 +170,39 @@ class TestPlanMission:
         assert operation["mission_profile"] == "rapid_search"
         assert operation["mission_brief"] == "Search quay perimeter"
 
+    def test_plan_last_known_point_template(self, client):
+        request = {
+            "mission_template": "last_known_point",
+            "search_area": {
+                "type": "point",
+                "center": {"lat": 47.0, "lng": 8.0},
+                "radius_m": 120,
+            },
+            "survey_config": {
+                "sweep_width_m": 30,
+                "overlap_percent": 10,
+                "cruise_altitude_msl": 50,
+                "survey_altitude_agl": 40,
+                "cruise_speed_ms": 10,
+                "survey_speed_ms": 5,
+                "use_terrain_following": False,
+            },
+            "pos_ids": [0],
+        }
+
+        resp = client.post("/api/sar/mission/plan", json=request)
+        assert resp.status_code == 200
+        mission_id = resp.json()["mission_id"]
+
+        workspace = client.get(f"/api/sar/mission/{mission_id}/workspace")
+        assert workspace.status_code == 200
+        operation = workspace.json()["operation"]
+        assert operation["mission_template"] == "last_known_point"
+        assert operation["search_area"]["type"] == "point"
+        assert operation["search_area"]["center"]["lat"] == 47.0
+        assert operation["search_area"]["radius_m"] == 120
+        assert len(operation["search_area"]["points"]) >= 6
+
 
 class TestMissionStatus:
     def test_status_after_plan(self, client):

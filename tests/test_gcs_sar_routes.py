@@ -234,3 +234,34 @@ def test_sar_abort_respects_hold_position_behavior():
     assert payload["success"] is True
     assert payload["return_behavior"] == "hold_position"
     assert payload["command"]["mission_type"] == Mission.HOLD.value
+
+
+def test_sar_plan_accepts_last_known_point_template():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    request = {
+        "mission_template": "last_known_point",
+        "search_area": {
+            "type": "point",
+            "center": {"lat": 47.0, "lng": 8.0},
+            "radius_m": 120,
+        },
+        "survey_config": {
+            "sweep_width_m": 30,
+            "overlap_percent": 10,
+            "cruise_altitude_msl": 50,
+            "survey_altitude_agl": 40,
+            "cruise_speed_ms": 10,
+            "survey_speed_ms": 5,
+            "use_terrain_following": False,
+        },
+        "pos_ids": [0],
+    }
+
+    with TestClient(app) as client:
+        response = client.post("/api/sar/mission/plan", json=request)
+
+    assert response.status_code == 200
+    assert response.json()["plans"]

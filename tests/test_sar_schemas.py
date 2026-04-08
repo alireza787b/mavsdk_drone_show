@@ -13,7 +13,7 @@ from sar.schemas import (
     SearchAreaPoint, SearchArea, SurveyConfig, QuickScoutMissionRequest,
     CoverageWaypoint, DroneCoveragePlan, CoveragePlanResponse,
     POI, DroneSurveyState, MissionStatus, DroneProgressReport,
-    ReturnBehavior, SurveyState, POIType, POIPriority,
+    ReturnBehavior, SurveyState, POIType, POIPriority, QuickScoutMissionTemplate,
 )
 from pydantic import ValidationError
 
@@ -50,6 +50,17 @@ class TestSearchArea:
                 SearchAreaPoint(lat=0, lng=0),
                 SearchAreaPoint(lat=1, lng=0),
             ])
+
+    def test_valid_point_search_area(self):
+        area = SearchArea(
+            type="point",
+            center=SearchAreaPoint(lat=47.0, lng=8.0),
+            radius_m=120,
+        )
+
+        assert area.type == "point"
+        assert area.center.lat == 47.0
+        assert area.radius_m == 120
 
 
 class TestSurveyConfig:
@@ -100,6 +111,17 @@ class TestQuickScoutMissionRequest:
             ]),
         )
         assert req.survey_config.algorithm == "boustrophedon"
+
+    def test_last_known_point_template(self):
+        req = QuickScoutMissionRequest(
+            mission_template=QuickScoutMissionTemplate.LAST_KNOWN_POINT,
+            search_area=SearchArea(
+                type="point",
+                center=SearchAreaPoint(lat=47.0, lng=8.0),
+                radius_m=120,
+            ),
+        )
+        assert req.mission_template == QuickScoutMissionTemplate.LAST_KNOWN_POINT
 
 
 class TestCoverageWaypoint:

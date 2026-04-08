@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import time
 import uuid
+import math
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
@@ -35,11 +36,15 @@ from sar.schemas import (
     QuickScoutOperationRecord,
     QuickScoutMissionSummary,
     QuickScoutMissionWorkspaceResponse,
+    QuickScoutMissionTemplate,
     ReturnBehavior,
+    SearchArea,
+    SearchAreaPoint,
     SurveyState,
 )
 from sar.store import get_quickscout_store
 from sar.terrain import apply_terrain_following
+import pymap3d
 
 logger = get_logger("quickscout_service")
 
@@ -181,6 +186,49 @@ class QuickScoutService:
             return 0.0
         return sum(state.coverage_percent for state in drone_states.values()) / len(drone_states)
 
+    @staticmethod
+    def _build_last_known_point_polygon(
+        center: SearchAreaPoint,
+        radius_m: float,
+        *,
+        vertices: int = 8,
+    ) -> List[SearchAreaPoint]:
+        if radius_m <= 0:
+            raise HTTPException(status_code=400, detail="Last-known-point radius must be positive")
+
+        points: List[SearchAreaPoint] = []
+        for index in range(max(6, vertices)):
+            angle = (2 * math.pi * index) / max(6, vertices)
+            east = radius_m * math.cos(angle)
+            north = radius_m * math.sin(angle)
+            lat, lng, _ = pymap3d.enu2geodetic(east, north, 0, center.lat, center.lng, 0)
+            points.append(SearchAreaPoint(lat=float(lat), lng=float(lng)))
+        return points
+
+    def _resolve_search_area_for_planning(
+        self,
+        request: QuickScoutMissionRequest,
+    ) -> Tuple[List[SearchAreaPoint], SearchArea]:
+        if request.mission_template == QuickScoutMissionTemplate.LAST_KNOWN_POINT:
+            center = request.search_area.center
+            radius_m = float(request.search_area.radius_m or 0)
+            if center is None or radius_m <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Last-known-point missions require a center point and positive radius",
+                )
+
+            polygon_points = self._build_last_known_point_polygon(center, radius_m)
+            resolved_area = request.search_area.model_copy(
+                update={
+                    "points": polygon_points,
+                    "area_sq_m": request.search_area.area_sq_m or math.pi * radius_m * radius_m,
+                }
+            )
+            return polygon_points, resolved_area
+
+        return request.search_area.points, request.search_area
+
     async def plan_mission(self, deps: Any, request: QuickScoutMissionRequest) -> CoveragePlanResponse:
         """Compute and persist a QuickScout plan without launching it."""
         drone_positions = self._get_drone_gps_positions(deps, request.pos_ids)
@@ -190,9 +238,10 @@ class QuickScoutService:
                 detail="No live drone GPS positions available for mission planning",
             )
 
+        polygon_points, resolved_search_area = self._resolve_search_area_for_planning(request)
         planner = self.planner_factory()
         plans, total_area = planner.plan(
-            polygon_points=request.search_area.points,
+            polygon_points=polygon_points,
             drone_positions=drone_positions,
             config=request.survey_config,
         )
@@ -228,11 +277,12 @@ class QuickScoutService:
         now = time.time()
         operation = QuickScoutOperationRecord(
             mission_id=mission_id,
+            mission_template=request.mission_template,
             mission_label=request.mission_label,
             mission_profile=request.mission_profile,
             mission_brief=request.mission_brief,
             state=SurveyState.READY,
-            search_area=request.search_area,
+            search_area=resolved_search_area.model_copy(update={"area_sq_m": total_area}),
             survey_config=request.survey_config,
             pos_ids=request.pos_ids,
             return_behavior=request.return_behavior,
@@ -308,6 +358,7 @@ class QuickScoutService:
             summaries.append(
                 QuickScoutMissionSummary(
                     mission_id=operation.mission_id,
+                    mission_template=operation.mission_template,
                     mission_label=operation.mission_label,
                     mission_profile=operation.mission_profile,
                     state=operation.state,

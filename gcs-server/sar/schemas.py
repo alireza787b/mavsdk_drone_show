@@ -2,7 +2,7 @@
 QuickScout SAR Module - Pydantic Schemas
 """
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, List, Dict
 from enum import Enum
 
@@ -13,6 +13,11 @@ class ReturnBehavior(str, Enum):
     RETURN_HOME = "return_home"
     LAND_CURRENT = "land_current"
     HOLD_POSITION = "hold_position"
+
+
+class QuickScoutMissionTemplate(str, Enum):
+    AREA_SWEEP = "area_sweep"
+    LAST_KNOWN_POINT = "last_known_point"
 
 
 class SurveyState(str, Enum):
@@ -49,9 +54,27 @@ class SearchAreaPoint(BaseModel):
 
 class SearchArea(BaseModel):
     """Polygon definition for search area"""
-    type: str = Field(default="polygon", description="Area type (polygon)")
-    points: List[SearchAreaPoint] = Field(..., min_length=3, description="Polygon vertices (min 3)")
+    type: str = Field(default="polygon", description="Search geometry type")
+    points: List[SearchAreaPoint] = Field(default_factory=list, description="Polygon vertices when using area search")
+    center: Optional[SearchAreaPoint] = Field(None, description="Center point for point-centered search templates")
+    radius_m: Optional[float] = Field(None, gt=0, description="Point-search radius in meters")
     area_sq_m: Optional[float] = Field(None, ge=0, description="Computed area in square meters")
+
+    @model_validator(mode="after")
+    def validate_shape_requirements(self):
+        if self.type == "polygon":
+            if len(self.points) < 3:
+                raise ValueError("Polygon search areas require at least 3 points")
+            return self
+
+        if self.type == "point":
+            if self.center is None:
+                raise ValueError("Point search areas require a center")
+            if self.radius_m is None or self.radius_m <= 0:
+                raise ValueError("Point search areas require a positive radius")
+            return self
+
+        raise ValueError(f"Unsupported search area type: {self.type}")
 
 
 class SurveyConfig(BaseModel):
@@ -74,6 +97,10 @@ class QuickScoutMissionRequest(BaseModel):
     search_area: SearchArea = Field(..., description="Search area polygon")
     survey_config: SurveyConfig = Field(default_factory=SurveyConfig, description="Survey parameters")
     pos_ids: Optional[List[int]] = Field(None, description="Target drone position IDs (None = all)")
+    mission_template: QuickScoutMissionTemplate = Field(
+        default=QuickScoutMissionTemplate.AREA_SWEEP,
+        description="QuickScout mission template identifier",
+    )
     mission_label: Optional[str] = Field(None, max_length=80, description="Optional operator-visible mission label")
     mission_profile: Optional[str] = Field(None, max_length=64, description="Selected planning profile identifier")
     mission_brief: Optional[str] = Field(None, max_length=500, description="Optional operator mission brief")
@@ -163,6 +190,7 @@ class QuickScoutMissionSummary(BaseModel):
     """Compact persisted mission summary for list/reopen flows."""
 
     mission_id: str = Field(..., description="Mission identifier")
+    mission_template: QuickScoutMissionTemplate = Field(..., description="QuickScout mission template identifier")
     mission_label: Optional[str] = Field(None, description="Optional operator mission label")
     mission_profile: Optional[str] = Field(None, description="Selected planning profile identifier")
     state: SurveyState = Field(..., description="Overall mission state")
@@ -243,6 +271,10 @@ class QuickScoutOperationRecord(BaseModel):
     model_config = ConfigDict(extra='ignore')
 
     mission_id: str = Field(..., description="Mission unique identifier")
+    mission_template: QuickScoutMissionTemplate = Field(
+        default=QuickScoutMissionTemplate.AREA_SWEEP,
+        description="QuickScout mission template identifier",
+    )
     mission_label: Optional[str] = Field(None, description="Optional operator-visible mission label")
     mission_profile: Optional[str] = Field(None, description="Selected planning profile identifier")
     mission_brief: Optional[str] = Field(None, description="Optional operator mission brief")
