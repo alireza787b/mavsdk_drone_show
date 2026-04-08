@@ -76,6 +76,9 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <div data-testid="plan-return-behavior">{props.returnBehavior}</div>
     <div data-testid="plan-label">{props.missionLabel}</div>
     <div data-testid="plan-brief">{props.missionBrief}</div>
+    <div data-testid="plan-needs-recompute">{String(props.planNeedsRecompute)}</div>
+    <div data-testid="plan-launch-ready">{String(props.launchReadiness?.canLaunch ?? false)}</div>
+    <div data-testid="plan-target-count">{props.targetHwIds?.length || 0}</div>
     <button
       type="button"
       onClick={() => props.onRecoverMission(props.missionCatalog[0]?.mission_id)}
@@ -91,6 +94,9 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     </button>
     <button type="button" onClick={() => props.onMissionLabelChange('Harbor sweep')}>
       Set mission label
+    </button>
+    <button type="button" onClick={() => props.onMissionLabelChange('Updated label')}>
+      Change mission label
     </button>
     <button type="button" onClick={() => props.onMissionBriefChange('Search quay perimeter')}>
       Set mission brief
@@ -343,5 +349,67 @@ describe('QuickScoutPage', () => {
     expect(screen.getByTestId('plan-return-behavior')).toHaveTextContent('hold_position');
     expect(screen.getByTestId('plan-label')).toHaveTextContent('Harbor sweep');
     expect(screen.getByTestId('plan-brief')).toHaveTextContent('Search quay perimeter');
+  });
+
+  it('marks the launch package stale when planning inputs change after compute', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+    sarApi.computePlan.mockResolvedValue({
+      mission_id: 'mission-ready',
+      plans: [
+        {
+          hw_id: '1',
+          pos_id: 1,
+          assigned_area_sq_m: 1200,
+          estimated_duration_s: 180,
+          total_distance_m: 500,
+          waypoints: [{ lat: 37.0, lng: -122.0, alt_msl: 50, speed_ms: 5, sequence: 0 }],
+        },
+      ],
+      total_area_sq_m: 1200,
+      estimated_coverage_time_s: 180,
+      algorithm_used: 'boustrophedon',
+    });
+    getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        '1': {
+          hw_ID: '1',
+          hw_id: '1',
+          pos_id: 1,
+          position_lat: 37.0,
+          position_long: -122.0,
+          last_seen: Date.now(),
+          readiness_status: 'ready',
+          readiness_summary: 'Ready to fly',
+          is_ready_to_arm: true,
+          is_armed: false,
+          readiness_checks: [],
+          preflight_blockers: [],
+          preflight_warnings: [],
+          status_messages: [],
+        },
+      },
+    });
+    unwrapFleetTelemetryPayload.mockImplementation((payload) => payload);
+
+    await renderPage();
+    await flushAsyncState();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('plan-needs-recompute')).toHaveTextContent('false');
+      expect(screen.getByTestId('plan-target-count')).toHaveTextContent('1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change mission label' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('plan-needs-recompute')).toHaveTextContent('true');
+    });
   });
 });

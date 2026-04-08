@@ -42,6 +42,8 @@ import {
   deriveQuickScoutProfileId,
   getQuickScoutProfile,
 } from '../utilities/quickScoutProfiles';
+import { buildQuickScoutPlanningSignature } from '../utilities/quickScoutPlanningSignature';
+import { buildQuickScoutLaunchReadiness } from '../utilities/quickScoutLaunchReadiness';
 
 // Styles
 import '../styles/QuickScout.css';
@@ -119,6 +121,7 @@ const QuickScoutPage = () => {
   const [loadingMissionCatalog, setLoadingMissionCatalog] = useState(false);
   const [missionCatalog, setMissionCatalog] = useState([]);
   const [recoveringMissionId, setRecoveringMissionId] = useState(null);
+  const [lastPlannedSignature, setLastPlannedSignature] = useState(null);
 
   // Monitor state
   const [missionId, setMissionId] = useState(null);
@@ -153,6 +156,7 @@ const QuickScoutPage = () => {
     setReturnBehavior('return_home');
     setSelectedDrones([]);
     setCoveragePlan(null);
+    setLastPlannedSignature(null);
     setMissionId(null);
     setMissionStatus(null);
     setPois([]);
@@ -188,6 +192,9 @@ const QuickScoutPage = () => {
       return;
     }
 
+    const recoveredSelectedDrones = Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
+      ? operation.pos_ids
+      : (operation.plans || []).map((plan) => plan.pos_id);
     setMissionId(operation.mission_id);
     setMissionStatus(status);
     setPois(status.pois || []);
@@ -202,11 +209,7 @@ const QuickScoutPage = () => {
     setMissionLabel(operation.mission_label || '');
     setMissionBrief(operation.mission_brief || '');
     setReturnBehavior(operation.return_behavior || 'return_home');
-    setSelectedDrones(
-      Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
-        ? operation.pos_ids
-        : (operation.plans || []).map((plan) => plan.pos_id)
-    );
+    setSelectedDrones(recoveredSelectedDrones);
     setCoveragePlan({
       mission_id: operation.mission_id,
       plans: operation.plans || [],
@@ -214,6 +217,15 @@ const QuickScoutPage = () => {
       estimated_coverage_time_s: operation.estimated_coverage_time_s || 0,
       algorithm_used: operation.algorithm_used || DEFAULT_SURVEY_CONFIG.algorithm,
     });
+    setLastPlannedSignature(buildQuickScoutPlanningSignature({
+      searchArea: operation.search_area?.points || [],
+      surveyConfig: recoveredSurveyConfig,
+      selectedDrones: recoveredSelectedDrones,
+      missionProfileId: operation.mission_profile || deriveQuickScoutProfileId(recoveredSurveyConfig),
+      missionLabel: operation.mission_label || '',
+      missionBrief: operation.mission_brief || '',
+      returnBehavior: operation.return_behavior || 'return_home',
+    }));
 
     const recoveredState = status.state || operation.state;
     setMode(preferredMode || (MONITOR_MISSION_STATES.has(recoveredState) ? 'monitor' : 'plan'));
@@ -359,6 +371,40 @@ const QuickScoutPage = () => {
     () => missionCatalog.find((mission) => mission.mission_id === missionId) || null,
     [missionCatalog, missionId]
   );
+  const currentPlanningSignature = useMemo(
+    () => buildQuickScoutPlanningSignature({
+      searchArea,
+      surveyConfig,
+      selectedDrones,
+      missionProfileId,
+      missionLabel,
+      missionBrief,
+      returnBehavior,
+    }),
+    [missionBrief, missionLabel, missionProfileId, returnBehavior, searchArea, selectedDrones, surveyConfig],
+  );
+  const activePlanTargetHwIds = useMemo(
+    () => (coveragePlan?.plans || [])
+      .map((plan) => String(plan?.hw_id || '').trim())
+      .filter(Boolean),
+    [coveragePlan],
+  );
+  const activePlanTargetDrones = useMemo(() => {
+    const targetLookup = new Set(activePlanTargetHwIds);
+    return mergedDrones.filter((drone) => targetLookup.has(String(drone?.hw_ID || drone?.hw_id || '').trim()));
+  }, [activePlanTargetHwIds, mergedDrones]);
+  const launchReadiness = useMemo(
+    () => buildQuickScoutLaunchReadiness({
+      drones: mergedDrones,
+      targetHwIds: activePlanTargetHwIds,
+    }),
+    [activePlanTargetHwIds, mergedDrones],
+  );
+  const planNeedsRecompute = Boolean(
+    coveragePlan
+    && lastPlannedSignature
+    && currentPlanningSignature !== lastPlannedSignature
+  );
   const currentMissionState = missionStatus?.state || currentMissionSummary?.state || null;
   const currentMissionDisplayName = currentMissionSummary?.mission_label || missionLabel || missionId;
 
@@ -380,12 +426,14 @@ const QuickScoutPage = () => {
     setSearchArea(points);
     setSearchAreaSqM(areaSqM);
     setCoveragePlan(null); // Reset plan when area changes
+    setLastPlannedSignature(null);
   }, []);
 
   const handleResetArea = useCallback(() => {
     setSearchArea([]);
     setSearchAreaSqM(0);
     setCoveragePlan(null);
+    setLastPlannedSignature(null);
     drawControlRef.current?.reset();
   }, []);
 
@@ -432,6 +480,15 @@ const QuickScoutPage = () => {
       const response = await sarApi.computePlan(request);
       setCoveragePlan(response);
       setMissionId(response.mission_id);
+      setLastPlannedSignature(buildQuickScoutPlanningSignature({
+        searchArea,
+        surveyConfig,
+        selectedDrones,
+        missionProfileId,
+        missionLabel,
+        missionBrief,
+        returnBehavior,
+      }));
       await refreshMissionCatalog();
       toast.success(`Plan computed: ${response.plans.length} drones, ${(response.total_area_sq_m / 10000).toFixed(1)} ha`);
     } catch (err) {
@@ -688,6 +745,12 @@ const QuickScoutPage = () => {
             loadingMissionCatalog={loadingMissionCatalog}
             onRecoverMission={handleRecoverMission}
             onStartFreshPlan={resetWorkspace}
+            targetHwIds={activePlanTargetHwIds}
+            targetDrones={activePlanTargetDrones}
+            targetSummaryLabel={`${activePlanTargetHwIds.length || 0} assigned drone${activePlanTargetHwIds.length === 1 ? '' : 's'}`}
+            launchReadiness={launchReadiness}
+            planNeedsRecompute={planNeedsRecompute}
+            currentMissionState={currentMissionState}
           />
         ) : (
           <MissionMonitorSidebar

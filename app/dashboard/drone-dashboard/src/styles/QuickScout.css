@@ -417,6 +417,161 @@
     color: var(--color-primary);
 }
 
+.qs-launch-review {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.qs-launch-review__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.qs-launch-review__subtitle {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.45;
+}
+
+.qs-launch-review__banner {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-secondary);
+}
+
+.qs-launch-review__banner strong {
+    font-size: 13px;
+}
+
+.qs-launch-review__banner span {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    line-height: 1.45;
+}
+
+.qs-launch-review__banner--good {
+    border-color: rgba(46, 204, 113, 0.3);
+    background: color-mix(in srgb, var(--color-success) 12%, var(--color-bg-secondary));
+}
+
+.qs-launch-review__banner--warning {
+    border-color: rgba(245, 166, 35, 0.35);
+    background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-secondary));
+}
+
+.qs-launch-review__banner--danger {
+    border-color: rgba(255, 107, 107, 0.35);
+    background: color-mix(in srgb, var(--color-danger) 12%, var(--color-bg-secondary));
+}
+
+.qs-launch-review__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.qs-launch-review__metric {
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-secondary);
+}
+
+.qs-launch-review__metric-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
+}
+
+.qs-launch-review__metric-value {
+    display: block;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--color-text-primary);
+}
+
+.qs-launch-review__brief {
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-secondary);
+}
+
+.qs-launch-review__brief-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
+}
+
+.qs-launch-review__brief p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.qs-launch-review__details {
+    border-top: 1px solid var(--color-border-primary);
+    padding-top: 8px;
+}
+
+.qs-launch-review__details summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+}
+
+.qs-launch-review__chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.qs-launch-review__issue-group {
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 107, 107, 0.28);
+    background: color-mix(in srgb, var(--color-danger) 10%, var(--color-bg-secondary));
+}
+
+.qs-launch-review__issue-group--warning {
+    border-color: rgba(245, 166, 35, 0.28);
+    background: color-mix(in srgb, var(--color-warning) 10%, var(--color-bg-secondary));
+}
+
+.qs-launch-review__issue-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.qs-launch-review__issue-list {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
 /* === Action Bar (monitor mode) === */
 .qs-action-bar {
     position: absolute;
@@ -950,6 +1105,10 @@
     .qs-mission-card-header {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .qs-launch-review__grid {
+        grid-template-columns: 1fr;
     }
 }
 

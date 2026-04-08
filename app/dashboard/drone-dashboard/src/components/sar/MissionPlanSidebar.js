@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
+import QuickScoutLaunchReview from './QuickScoutLaunchReview';
 import { QUICKSCOUT_PROFILE_PRESETS } from '../../utilities/quickScoutProfiles';
 
 const MissionPlanSidebar = ({
@@ -34,6 +35,12 @@ const MissionPlanSidebar = ({
   loadingMissionCatalog,
   onRecoverMission,
   onStartFreshPlan,
+  targetHwIds,
+  targetDrones,
+  targetSummaryLabel,
+  launchReadiness,
+  planNeedsRecompute,
+  currentMissionState,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showMissionBrief, setShowMissionBrief] = useState(false);
@@ -41,7 +48,12 @@ const MissionPlanSidebar = ({
   const hasArea = searchArea && searchArea.length >= 3;
   const hasSelection = selectedDrones && selectedDrones.length > 0;
   const canCompute = hasArea && hasSelection && !computing;
-  const canLaunch = coveragePlan && !launching;
+  const canLaunch = Boolean(
+    coveragePlan
+    && !launching
+    && !planNeedsRecompute
+    && (launchReadiness?.canLaunch ?? true)
+  );
 
   const updateConfig = (key, value) => {
     onConfigChange({ ...surveyConfig, [key]: value });
@@ -291,6 +303,23 @@ const MissionPlanSidebar = ({
           )}
         </div>
 
+        {coveragePlan && (
+          <QuickScoutLaunchReview
+            coveragePlan={coveragePlan}
+            missionLabel={missionLabel}
+            missionBrief={missionBrief}
+            missionProfileId={missionProfileId}
+            returnBehavior={returnBehavior}
+            surveyConfig={surveyConfig}
+            targetHwIds={targetHwIds}
+            targetDrones={targetDrones}
+            targetSummaryLabel={targetSummaryLabel}
+            launchReadiness={launchReadiness}
+            planNeedsRecompute={planNeedsRecompute}
+            currentMissionState={currentMissionState}
+          />
+        )}
+
         {/* Action Buttons */}
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
@@ -298,12 +327,14 @@ const MissionPlanSidebar = ({
             onClick={onComputePlan}
             disabled={!canCompute}
           >
-            {computing ? 'Computing...' : 'Compute Plan'}
+            {computing ? 'Computing...' : planNeedsRecompute ? 'Recompute Plan' : 'Compute Plan'}
           </button>
 
           {coveragePlan && (
             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
-              {coveragePlan.plans?.length} drones, ~{(coveragePlan.estimated_coverage_time_s / 60).toFixed(1)} min
+              {planNeedsRecompute
+                ? 'Mission inputs changed after compute — regenerate the package before launch.'
+                : `${coveragePlan.plans?.length} drones, ~${(coveragePlan.estimated_coverage_time_s / 60).toFixed(1)} min`}
             </div>
           )}
 
