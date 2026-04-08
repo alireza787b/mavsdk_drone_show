@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict
 from enum import Enum
 
+from schemas import SubmitCommandResponse
+
 
 class ReturnBehavior(str, Enum):
     RETURN_HOME = "return_home"
@@ -154,6 +156,54 @@ class MissionStatus(BaseModel):
     started_at: Optional[float] = Field(None, description="Mission start timestamp (Unix epoch)")
 
 
+class QuickScoutLaunchSubmission(BaseModel):
+    """Single tracked command submission used to launch one drone's QuickScout plan."""
+
+    hw_id: str = Field(..., description="Target hardware ID")
+    pos_id: int = Field(..., ge=0, description="Target position ID")
+    accepted: bool = Field(..., description="Whether at least one target drone accepted the launch command")
+    command: Optional[SubmitCommandResponse] = Field(
+        None,
+        description="Tracked command submission response when dispatch reached the command layer",
+    )
+    error: Optional[str] = Field(None, description="Error when launch submission failed before dispatch")
+
+
+class QuickScoutMissionLaunchResponse(BaseModel):
+    """Response returned when launching a planned QuickScout mission."""
+
+    success: bool = Field(..., description="Whether at least one drone accepted the launch")
+    mission_id: str = Field(..., description="Mission identifier")
+    trigger_time: int = Field(..., ge=0, description="Shared mission trigger time (Unix epoch seconds)")
+    drones_requested: int = Field(..., ge=0, description="Number of per-drone plans requested for launch")
+    drones_launched: int = Field(..., ge=0, description="Number of drones that accepted launch")
+    drones_failed: int = Field(..., ge=0, description="Number of drones that failed launch submission")
+    launched_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that accepted launch")
+    failed_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that failed launch")
+    submissions: List[QuickScoutLaunchSubmission] = Field(
+        default_factory=list,
+        description="Per-drone tracked command submissions for the launch batch",
+    )
+    message: str = Field(..., description="Operator-facing summary")
+
+
+class QuickScoutMissionControlResponse(BaseModel):
+    """Response returned when sending a tracked QuickScout control command."""
+
+    success: bool = Field(..., description="Whether at least one targeted drone accepted the control command")
+    mission_id: str = Field(..., description="Mission identifier")
+    action: str = Field(..., description="Control action key such as 'pause' or 'abort'")
+    target_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs targeted by the control command")
+    accepted_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that accepted the command")
+    failed_hw_ids: List[str] = Field(default_factory=list, description="Hardware IDs that did not accept the command")
+    command: Optional[SubmitCommandResponse] = Field(
+        None,
+        description="Tracked command submission response when dispatch reached the command layer",
+    )
+    message: str = Field(..., description="Operator-facing summary")
+    return_behavior: Optional[str] = Field(None, description="Resolved abort return behavior when applicable")
+
+
 class QuickScoutOperationRecord(BaseModel):
     """Durable QuickScout operation record stored on the GCS."""
     model_config = ConfigDict(extra='ignore')
@@ -180,7 +230,11 @@ class QuickScoutOperationRecord(BaseModel):
     started_at: Optional[float] = Field(None, description="Mission launch timestamp (Unix epoch)")
     launch_summary: Optional[Dict] = Field(
         None,
-        description="Latest launch/control summary for operator recovery",
+        description="Latest launch batch summary for operator recovery",
+    )
+    last_command_summary: Optional[Dict] = Field(
+        None,
+        description="Latest launch or control command summary for operator recovery",
     )
 
 

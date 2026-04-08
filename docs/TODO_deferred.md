@@ -105,6 +105,29 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 - `docs/guides/sitl-validation-platform.md` — document the new template and scenario coverage
 - `docs/guides/sitl-comprehensive.md` — link the new QuickScout validation path
 
+## TODO 7: QuickScout mission-batch launch identity and real resume command path
+
+**Status:** Deferred — wait until the new QuickScout mission workspace and operator workflow settle
+
+**Problem:** QuickScout Phase 2 now uses the shared tracked command lifecycle for launch, pause, and abort, but two deliberate simplifications remain:
+
+- launch creates one tracked command per drone because each QuickScout plan payload is unique
+- `resume` still updates durable GCS mission state only and does not yet send a true FC-backed resume command
+
+These are acceptable for the current subsystem maturity, but they should stay visible as follow-up design decisions rather than getting forgotten as accidental permanent behavior.
+
+**Solution:** Revisit both after the next QuickScout workflow/UI slices:
+
+- decide whether operators need a mission-batch launch identity that groups the per-drone launch commands under one mission-level launch record
+- design a real drone/runtime resume path only if the mission executor and operator workflow can support it cleanly
+
+**Likely touch points:**
+
+- `gcs-server/sar/service.py`
+- `gcs-server/sar/schemas.py`
+- future QuickScout workspace/frontend components
+- QuickScout SITL validator once it exists
+
 ---
 
 ## TODO 7: Harder simultaneous mixed-mission and fault-injection SITL plans

@@ -12,6 +12,8 @@ from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
     POI, DroneProgressReport,
+    QuickScoutMissionControlResponse,
+    QuickScoutMissionLaunchResponse,
 )
 from .terrain import batch_get_elevations
 from .service import get_quickscout_service
@@ -39,10 +41,10 @@ def create_sar_router(deps: Any) -> APIRouter:
             logger.error(f"Coverage planning failed: {exc}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Coverage planning failed: {str(exc)}") from exc
 
-    @router.post("/mission/launch")
+    @router.post("/mission/launch", response_model=QuickScoutMissionLaunchResponse)
     async def launch_mission(mission_id: str = Query(..., description="Mission ID to launch")):
         """Launch a previously planned mission."""
-        return get_quickscout_service().launch_mission(deps, mission_id)
+        return await get_quickscout_service().launch_mission(deps, mission_id)
 
     @router.get("/mission/{mission_id}/status", response_model=MissionStatus)
     async def get_mission_status(mission_id: str):
@@ -51,21 +53,21 @@ def create_sar_router(deps: Any) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
         return status
 
-    @router.post("/mission/{mission_id}/pause")
+    @router.post("/mission/{mission_id}/pause", response_model=QuickScoutMissionControlResponse)
     async def pause_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
-        return get_quickscout_service().pause_and_command(deps, mission_id, pos_ids)
+        return await get_quickscout_service().pause_and_command(deps, mission_id, pos_ids)
 
     @router.post("/mission/{mission_id}/resume")
     async def resume_mission(mission_id: str, pos_ids: Optional[List[int]] = Query(None)):
         return get_quickscout_service().resume_and_record(deps, mission_id, pos_ids)
 
-    @router.post("/mission/{mission_id}/abort")
+    @router.post("/mission/{mission_id}/abort", response_model=QuickScoutMissionControlResponse)
     async def abort_mission(
         mission_id: str,
         pos_ids: Optional[List[int]] = Query(None),
         return_behavior: str = Query("return_home"),
     ):
-        return get_quickscout_service().abort_and_command(deps, mission_id, pos_ids, return_behavior)
+        return await get_quickscout_service().abort_and_command(deps, mission_id, pos_ids, return_behavior)
 
     @router.post("/mission/{mission_id}/progress")
     async def report_progress(mission_id: str, report: DroneProgressReport):

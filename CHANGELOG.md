@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout command-lifecycle phase 2 checkpoint note documenting the shared tracked-submit extraction, the new QuickScout tracked launch/control responses, the mission-scope targeting fix, the abort-behavior mapping fix, and the paired local/Hetzner validation results
 - a 2026-04-07 QuickScout foundation phase 1 checkpoint note documenting the new durable SQLite-backed QuickScout store, the backend service boundary that replaces the old in-memory mission/POI managers, the stricter live-GPS planning gate, the camera-interval waypoint persistence, and the focused backend validation results
 - a 2026-04-07 Mission Config launch-map polish checkpoint note documenting the Google-satellite default, tighter launch-layout fit behavior, zoom-adaptive marker styling, always-reviewable Origin status affordance, and the focused Hetzner React validation/build results
 - a 2026-04-07 Mission Config actionable-alert checkpoint note documenting the new clickable Mission Config review alerts, the origin-loading versus origin-missing distinction, the origin-workflow jump action, the zero-origin Mission Layout export fix, and the focused Hetzner React validation/build results
@@ -77,6 +78,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- QuickScout no longer bypasses the shared tracked command lifecycle for launch, pause, and abort: launch now returns per-drone tracked command submissions, pause/abort now return typed tracked control responses, and durable mission recovery data now includes compact last-command summaries instead of ephemeral route-local success dicts
+- QuickScout mission controls no longer default to all configured drones when no subset is provided; pause, resume, and abort now scope to mission participants by default, which removes a real cross-mission control hazard from the old PoC path
+- QuickScout abort now respects the selected return behavior instead of always sending RTL, mapping `return_home` to `RETURN_RTL`, `land_current` to `LAND`, and `hold_position` to `HOLD`
 - advanced SITL mixed-mode validation no longer fails because override missions clobber their own staged mission metadata: interrupting a running mission now preserves the replacement mission/state while the superseded process is terminated, so leader-only Swarm Trajectory overrides report `mission=4` correctly in fleet telemetry and the integrated operator drill stays observable end to end
 - Mission Config now opens on a tighter assignment wall instead of a long top-heavy explainer stack: the header copy is shorter, issue/origin warnings are compact alert rows, filters live in one ops rail, the visible-card summary is terse, and the right-side launch-review panel can switch between the default engineering plot and a real map view without leaving the workspace
 - Trajectory Planning and Swarm Trajectory now use their compact authoring-first behavior through tablet width as well as phone width, so route authoring no longer falls back to the verbose desktop layout on mid-sized operator screens

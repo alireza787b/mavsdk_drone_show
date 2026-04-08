@@ -16,8 +16,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
+from command_submission import submit_tracked_command
 from enums import Mission
 from mds_logging import get_logger
+from schemas import SubmitCommandRequest, SubmitCommandResponse
 from sar.coverage_planner import BoustrophedonPlanner
 from sar.schemas import (
     CoveragePlanResponse,
@@ -25,7 +27,10 @@ from sar.schemas import (
     DroneSurveyState,
     MissionStatus,
     POI,
+    QuickScoutLaunchSubmission,
     QuickScoutMissionRequest,
+    QuickScoutMissionControlResponse,
+    QuickScoutMissionLaunchResponse,
     QuickScoutOperationRecord,
     ReturnBehavior,
     SurveyState,
@@ -52,10 +57,16 @@ class QuickScoutService:
         self.store = store or get_quickscout_store()
         self.planner_factory = planner_factory
 
-    def _resolve_pos_ids_to_hw_ids(self, deps: Any, pos_ids: Optional[List[int]]) -> Optional[List[str]]:
-        """Resolve pos_ids to hw_ids using drone config. None means all drones."""
+    def _resolve_pos_ids_to_hw_ids(
+        self,
+        deps: Any,
+        pos_ids: Optional[List[int]],
+        *,
+        default_hw_ids: Optional[List[str]] = None,
+    ) -> Optional[List[str]]:
+        """Resolve pos_ids to hw_ids using drone config."""
         if pos_ids is None:
-            return None
+            return list(default_hw_ids) if default_hw_ids is not None else None
         try:
             drones_config = deps.load_config()
             hw_ids = []
@@ -67,21 +78,73 @@ class QuickScoutService:
         except Exception:
             return [str(pos_id) for pos_id in pos_ids]
 
-    def _send_control_command(self, deps: Any, mission_type_value: int, hw_ids: Optional[List[str]] = None) -> None:
-        """Send a control command (HOLD, RTL, etc.) through the shared command layer."""
-        try:
-            drones_config = deps.load_config()
-        except Exception as exc:
-            logger.error(f"Failed to load drone config for control command: {exc}")
-            return
+    @staticmethod
+    def _build_operator_label(action: str, mission_id: str, hw_id: Optional[str] = None) -> str:
+        suffix = f" {hw_id}" if hw_id else ""
+        return f"QuickScout {action} {mission_id[:8]}{suffix}"
 
-        target_ids = hw_ids or [str(drone.get("hw_id", "")) for drone in drones_config]
-        command_data = {"mission_type": mission_type_value}
-        for hw_id in target_ids:
-            try:
-                deps.send_commands_to_selected(drones_config, command_data, [hw_id])
-            except Exception as exc:
-                logger.warning(f"Control command {mission_type_value} to {hw_id} failed: {exc}")
+    @staticmethod
+    def _accepted_hw_ids_from_response(
+        response: SubmitCommandResponse,
+        fallback_targets: List[str],
+    ) -> List[str]:
+        ack_summary = response.ack_summary
+        details = ack_summary.details if ack_summary is not None else {}
+        accepted_hw_ids = [
+            str(hw_id)
+            for hw_id, detail in details.items()
+            if getattr(detail, "category", None) == "accepted"
+        ]
+        if accepted_hw_ids:
+            return accepted_hw_ids
+        if response.success and len(fallback_targets) == 1:
+            return list(fallback_targets)
+        return []
+
+    @staticmethod
+    def _summarize_command_response(response: Optional[SubmitCommandResponse]) -> Optional[Dict[str, Any]]:
+        if response is None:
+            return None
+        return {
+            "command_id": response.command_id,
+            "status": response.status,
+            "mission_type": response.mission_type,
+            "mission_name": response.mission_name,
+            "target_drones": list(response.target_drones),
+            "submitted_count": response.submitted_count,
+            "tracking_status": response.tracking_status.value if response.tracking_status else None,
+            "tracking_phase": response.tracking_phase.value if response.tracking_phase else None,
+            "tracking_outcome": response.tracking_outcome.value if response.tracking_outcome else None,
+            "tracking_timeout_ms": response.tracking_timeout_ms,
+            "message": response.message,
+            "timestamp": response.timestamp,
+        }
+
+    @staticmethod
+    def _resolve_abort_mission_type(return_behavior: ReturnBehavior) -> Mission:
+        if return_behavior == ReturnBehavior.LAND_CURRENT:
+            return Mission.LAND
+        if return_behavior == ReturnBehavior.HOLD_POSITION:
+            return Mission.HOLD
+        return Mission.RETURN_RTL
+
+    async def _submit_control_command(
+        self,
+        deps: Any,
+        *,
+        mission_type: Mission,
+        mission_id: str,
+        hw_ids: List[str],
+        action: str,
+    ) -> SubmitCommandResponse:
+        request = SubmitCommandRequest(
+            mission_type=mission_type.value,
+            trigger_time=0,
+            mission_id=mission_id,
+            target_drone_ids=hw_ids,
+            operator_label=self._build_operator_label(action, mission_id),
+        )
+        return await submit_tracked_command(deps, request)
 
     def _get_drone_gps_positions(self, deps: Any, pos_ids: Optional[List[int]] = None) -> Dict[str, Tuple[float, float]]:
         """Get current GPS positions. Returns {pos_id_str: (lat, lng)}."""
@@ -343,13 +406,74 @@ class QuickScoutService:
         self.store.save_operation(operation)
         return True
 
-    def launch_mission(self, deps: Any, mission_id: str) -> Dict[str, Any]:
+    def _persist_last_command_summary(
+        self,
+        mission_id: str,
+        summary: Dict[str, Any],
+        *,
+        update_launch_summary: bool = False,
+    ) -> None:
+        operation = self.store.get_operation(mission_id)
+        if operation is None:
+            return
+        operation.last_command_summary = summary
+        if update_launch_summary:
+            operation.launch_summary = summary
+        operation.updated_at = time.time()
+        self.store.save_operation(operation)
+
+    def _build_launch_summary_payload(
+        self,
+        response: QuickScoutMissionLaunchResponse,
+    ) -> Dict[str, Any]:
+        return {
+            "action": "launch",
+            "timestamp": time.time(),
+            "success": response.success,
+            "mission_id": response.mission_id,
+            "trigger_time": response.trigger_time,
+            "drones_requested": response.drones_requested,
+            "drones_launched": response.drones_launched,
+            "drones_failed": response.drones_failed,
+            "launched_hw_ids": list(response.launched_hw_ids),
+            "failed_hw_ids": list(response.failed_hw_ids),
+            "message": response.message,
+            "submissions": [
+                {
+                    "hw_id": submission.hw_id,
+                    "pos_id": submission.pos_id,
+                    "accepted": submission.accepted,
+                    "error": submission.error,
+                    "command": self._summarize_command_response(submission.command),
+                }
+                for submission in response.submissions
+            ],
+        }
+
+    def _build_control_summary_payload(
+        self,
+        response: QuickScoutMissionControlResponse,
+    ) -> Dict[str, Any]:
+        return {
+            "action": response.action,
+            "timestamp": time.time(),
+            "success": response.success,
+            "mission_id": response.mission_id,
+            "target_hw_ids": list(response.target_hw_ids),
+            "accepted_hw_ids": list(response.accepted_hw_ids),
+            "failed_hw_ids": list(response.failed_hw_ids),
+            "return_behavior": response.return_behavior,
+            "message": response.message,
+            "command": self._summarize_command_response(response.command),
+        }
+
+    async def launch_mission(self, deps: Any, mission_id: str) -> QuickScoutMissionLaunchResponse:
         operation = self.store.get_operation(mission_id)
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
 
         try:
-            drones_config = deps.load_config()
+            deps.load_config()
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Failed to load drone config: {exc}") from exc
 
@@ -357,83 +481,219 @@ class QuickScoutService:
         return_behavior = operation.return_behavior.value
         successes = 0
         failures = 0
+        submissions: List[QuickScoutLaunchSubmission] = []
         launched_hw_ids: List[str] = []
         failed_hw_ids: List[str] = []
 
         for plan in operation.plans:
-            waypoints_data = [waypoint.model_dump(mode="json") for waypoint in plan.waypoints]
-            command_data = {
-                "mission_type": Mission.QUICKSCOUT.value,
-                "trigger_time": trigger_time,
-                "mission_id": mission_id,
-                "waypoints": waypoints_data,
-                "return_behavior": return_behavior,
-            }
             hw_id = plan.hw_id
+            waypoints_data = [waypoint.model_dump(mode="json") for waypoint in plan.waypoints]
             try:
-                result = deps.send_commands_to_selected(drones_config, command_data, [hw_id])
-                logger.info(f"Command sent to drone {hw_id}: {result.get('result_summary', 'unknown')}")
-                if result.get("success", 0) > 0:
+                response = await submit_tracked_command(
+                    deps,
+                    SubmitCommandRequest(
+                        mission_type=Mission.QUICKSCOUT.value,
+                        trigger_time=trigger_time,
+                        mission_id=mission_id,
+                        waypoints=waypoints_data,
+                        return_behavior=return_behavior,
+                        target_drone_ids=[hw_id],
+                        operator_label=self._build_operator_label("launch", mission_id, hw_id),
+                    ),
+                )
+                accepted_hw_ids = self._accepted_hw_ids_from_response(response, [hw_id])
+                accepted = hw_id in accepted_hw_ids
+                if accepted:
                     successes += 1
                     launched_hw_ids.append(hw_id)
                 else:
                     failures += 1
                     failed_hw_ids.append(hw_id)
+                submissions.append(
+                    QuickScoutLaunchSubmission(
+                        hw_id=hw_id,
+                        pos_id=plan.pos_id,
+                        accepted=accepted,
+                        command=response,
+                    )
+                )
+            except HTTPException as exc:
+                logger.warning("QuickScout launch submission failed for hw_id=%s: %s", hw_id, exc.detail)
+                failures += 1
+                failed_hw_ids.append(hw_id)
+                submissions.append(
+                    QuickScoutLaunchSubmission(
+                        hw_id=hw_id,
+                        pos_id=plan.pos_id,
+                        accepted=False,
+                        error=str(exc.detail),
+                    )
+                )
             except Exception as exc:
                 logger.error(f"Failed to send command to drone {hw_id}: {exc}")
                 failures += 1
                 failed_hw_ids.append(hw_id)
+                submissions.append(
+                    QuickScoutLaunchSubmission(
+                        hw_id=hw_id,
+                        pos_id=plan.pos_id,
+                        accepted=False,
+                        error=str(exc),
+                    )
+                )
 
-        if successes == 0:
-            raise HTTPException(
-                status_code=502,
-                detail=f"All {failures} drone(s) failed to accept mission command",
-            )
-
-        summary = {
-            "success": True,
-            "mission_id": mission_id,
-            "drones_launched": successes,
-            "drones_failed": failures,
-            "trigger_time": trigger_time,
-            "message": f"Mission launched with {successes}/{successes + failures} drones",
-        }
-        self.start_mission(
-            mission_id,
+        response = QuickScoutMissionLaunchResponse(
+            success=successes > 0,
+            mission_id=mission_id,
+            trigger_time=trigger_time,
+            drones_requested=len(operation.plans),
+            drones_launched=successes,
+            drones_failed=failures,
             launched_hw_ids=launched_hw_ids,
             failed_hw_ids=failed_hw_ids,
-            launch_summary=summary,
+            submissions=submissions,
+            message=(
+                f"QuickScout launch accepted by {successes}/{len(operation.plans)} planned drone(s)."
+                if successes > 0
+                else f"QuickScout launch was not accepted by any of the {len(operation.plans)} planned drone(s)."
+            ),
         )
-        return summary
 
-    def pause_and_command(self, deps: Any, mission_id: str, pos_ids: Optional[List[int]] = None) -> Dict[str, Any]:
-        hw_ids = self._resolve_pos_ids_to_hw_ids(deps, pos_ids)
-        if not self.pause_mission(mission_id, hw_ids):
+        summary = self._build_launch_summary_payload(response)
+        if successes > 0:
+            self.start_mission(
+                mission_id,
+                launched_hw_ids=launched_hw_ids,
+                failed_hw_ids=failed_hw_ids,
+                launch_summary=summary,
+            )
+        self._persist_last_command_summary(
+            mission_id,
+            summary,
+            update_launch_summary=successes > 0,
+        )
+        return response
+
+    async def pause_and_command(
+        self,
+        deps: Any,
+        mission_id: str,
+        pos_ids: Optional[List[int]] = None,
+    ) -> QuickScoutMissionControlResponse:
+        operation = self.store.get_operation(mission_id)
+        if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
-        self._send_control_command(deps, Mission.HOLD.value, hw_ids)
-        return {"success": True, "message": "Mission paused"}
+
+        hw_ids = self._resolve_pos_ids_to_hw_ids(
+            deps,
+            pos_ids,
+            default_hw_ids=list(operation.drone_states.keys()),
+        )
+        if not hw_ids:
+            raise HTTPException(status_code=400, detail="No mission drones resolved for pause command")
+
+        response = await self._submit_control_command(
+            deps,
+            mission_type=Mission.HOLD,
+            mission_id=mission_id,
+            hw_ids=hw_ids,
+            action="pause",
+        )
+        accepted_hw_ids = self._accepted_hw_ids_from_response(response, hw_ids)
+        failed_hw_ids = [hw_id for hw_id in hw_ids if hw_id not in accepted_hw_ids]
+        if accepted_hw_ids:
+            self.pause_mission(mission_id, accepted_hw_ids)
+
+        payload = QuickScoutMissionControlResponse(
+            success=bool(accepted_hw_ids),
+            mission_id=mission_id,
+            action="pause",
+            target_hw_ids=hw_ids,
+            accepted_hw_ids=accepted_hw_ids,
+            failed_hw_ids=failed_hw_ids,
+            command=response,
+            message=(
+                f"Pause accepted by {len(accepted_hw_ids)}/{len(hw_ids)} targeted drone(s)."
+                if accepted_hw_ids
+                else "Pause command was not accepted by any targeted drone."
+            ),
+        )
+        self._persist_last_command_summary(mission_id, self._build_control_summary_payload(payload))
+        return payload
 
     def resume_and_record(self, deps: Any, mission_id: str, pos_ids: Optional[List[int]] = None) -> Dict[str, Any]:
-        hw_ids = self._resolve_pos_ids_to_hw_ids(deps, pos_ids)
+        operation = self.store.get_operation(mission_id)
+        if operation is None:
+            raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+
+        hw_ids = self._resolve_pos_ids_to_hw_ids(
+            deps,
+            pos_ids,
+            default_hw_ids=list(operation.drone_states.keys()),
+        )
         if not self.resume_mission(mission_id, hw_ids):
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
-        return {
+        payload = {
             "success": True,
             "message": "Mission resumed (GCS state updated, drone resume requires FC interaction)",
+            "mission_id": mission_id,
+            "target_hw_ids": hw_ids or [],
         }
+        self._persist_last_command_summary(
+            mission_id,
+            {"action": "resume_state_only", "timestamp": time.time(), **payload},
+        )
+        return payload
 
-    def abort_and_command(
+    async def abort_and_command(
         self,
         deps: Any,
         mission_id: str,
         pos_ids: Optional[List[int]] = None,
         return_behavior: str = "return_home",
-    ) -> Dict[str, Any]:
-        hw_ids = self._resolve_pos_ids_to_hw_ids(deps, pos_ids)
-        if not self.abort_mission(mission_id, hw_ids, return_behavior):
+    ) -> QuickScoutMissionControlResponse:
+        operation = self.store.get_operation(mission_id)
+        if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
-        self._send_control_command(deps, Mission.RETURN_RTL.value, hw_ids)
-        return {"success": True, "message": "Mission aborted", "return_behavior": return_behavior}
+
+        resolved_return_behavior = ReturnBehavior(return_behavior)
+        hw_ids = self._resolve_pos_ids_to_hw_ids(
+            deps,
+            pos_ids,
+            default_hw_ids=list(operation.drone_states.keys()),
+        )
+        if not hw_ids:
+            raise HTTPException(status_code=400, detail="No mission drones resolved for abort command")
+
+        response = await self._submit_control_command(
+            deps,
+            mission_type=self._resolve_abort_mission_type(resolved_return_behavior),
+            mission_id=mission_id,
+            hw_ids=hw_ids,
+            action="abort",
+        )
+        accepted_hw_ids = self._accepted_hw_ids_from_response(response, hw_ids)
+        failed_hw_ids = [hw_id for hw_id in hw_ids if hw_id not in accepted_hw_ids]
+        if accepted_hw_ids:
+            self.abort_mission(mission_id, accepted_hw_ids, resolved_return_behavior.value)
+
+        payload = QuickScoutMissionControlResponse(
+            success=bool(accepted_hw_ids),
+            mission_id=mission_id,
+            action="abort",
+            target_hw_ids=hw_ids,
+            accepted_hw_ids=accepted_hw_ids,
+            failed_hw_ids=failed_hw_ids,
+            command=response,
+            message=(
+                f"Abort accepted by {len(accepted_hw_ids)}/{len(hw_ids)} targeted drone(s)."
+                if accepted_hw_ids
+                else "Abort command was not accepted by any targeted drone."
+            ),
+            return_behavior=resolved_return_behavior.value,
+        )
+        self._persist_last_command_summary(mission_id, self._build_control_summary_payload(payload))
+        return payload
 
     def report_progress(self, mission_id: str, report: DroneProgressReport) -> Dict[str, Any]:
         success = self.update_drone_progress(
