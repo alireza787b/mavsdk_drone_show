@@ -350,6 +350,7 @@ async def run_mission(args):
                 acceptance_radius_m=3.0,
                 yaw_deg=yaw,
                 camera_photo_distance_m=float('nan'),
+                vehicle_action=MissionItem.VehicleAction.NONE,
             )
             mission_items.append(item)
 

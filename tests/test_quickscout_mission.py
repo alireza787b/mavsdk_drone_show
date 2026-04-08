@@ -19,6 +19,9 @@ class _FakeMissionItem:
         START_PHOTO_INTERVAL = "start"
         STOP_PHOTO_INTERVAL = "stop"
 
+    class VehicleAction:
+        NONE = "none"
+
     def __init__(self, **kwargs):
         self.kwargs = kwargs
 
