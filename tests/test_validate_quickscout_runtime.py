@@ -6,6 +6,7 @@ from tools.validate_quickscout_runtime import (
     _is_idle_reset_row,
     _telemetry_has_ids,
     build_last_known_point_request,
+    detect_foreign_active_commands,
     resolve_selected_ids,
     select_target_drones,
 )
@@ -98,3 +99,64 @@ def test_build_last_known_point_request_tracks_multi_drone_center_pos_ids_and_al
     assert payload["pos_ids"] == [7, 8]
     assert payload["survey_config"]["cruise_altitude_msl"] == 532.0
     assert payload["survey_config"]["survey_altitude_agl"] == 20.0
+
+
+def test_detect_foreign_active_commands_ignores_allowed_ids_and_unwatched_targets():
+    payload = {
+        "commands": [
+            {
+                "command_id": "known-launch",
+                "mission_name": "QUICKSCOUT",
+                "target_drones": ["1", "2"],
+                "status": "executing",
+                "phase": "in_progress",
+            },
+            {
+                "command_id": "other-scope",
+                "mission_name": "DRONE_SHOW_FROM_CSV",
+                "target_drones": ["9"],
+                "status": "executing",
+                "phase": "in_progress",
+            },
+        ]
+    }
+
+    conflicts = detect_foreign_active_commands(
+        payload,
+        allowed_command_ids={"known-launch"},
+        watch_drone_ids=[1, 2, 3],
+    )
+
+    assert conflicts == []
+
+
+def test_detect_foreign_active_commands_reports_overlap_with_watched_drones():
+    payload = {
+        "commands": [
+            {
+                "command_id": "foreign-show",
+                "mission_name": "DRONE_SHOW_FROM_CSV",
+                "mission_type": 1,
+                "target_drones": ["2", "3"],
+                "status": "executing",
+                "phase": "in_progress",
+            }
+        ]
+    }
+
+    conflicts = detect_foreign_active_commands(
+        payload,
+        allowed_command_ids={"known-launch"},
+        watch_drone_ids=[3],
+    )
+
+    assert conflicts == [
+        {
+            "command_id": "foreign-show",
+            "mission_name": "DRONE_SHOW_FROM_CSV",
+            "mission_type": 1,
+            "status": "executing",
+            "phase": "in_progress",
+            "target_drones": ["2", "3"],
+        }
+    ]

@@ -323,6 +323,16 @@ def wait_non_targets_idle(client: ApiClient, ids: list[int], timeout: int = 120)
         return {}
 
     def _ready():
+        conflicts = detect_foreign_active_commands(
+            client.get_json(GCS_ACTIVE_COMMANDS_ROUTE),
+            allowed_command_ids=set(),
+            watch_drone_ids=ids,
+        )
+        if conflicts:
+            raise RuntimeError(
+                "Detected foreign active command(s) targeting non-target drones during QuickScout validation: "
+                f"{json.dumps(conflicts, indent=2)}"
+            )
         telemetry = client.get_telemetry()
         if not _telemetry_has_ids(telemetry, ids):
             return False
@@ -341,8 +351,19 @@ def wait_target_airborne(
     baseline_altitude: float,
     min_gain: float,
     timeout: int = 180,
+    allowed_command_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     def _ready():
+        conflicts = detect_foreign_active_commands(
+            client.get_json(GCS_ACTIVE_COMMANDS_ROUTE),
+            allowed_command_ids=allowed_command_ids or set(),
+            watch_drone_ids=[target_id],
+        )
+        if conflicts:
+            raise RuntimeError(
+                "Detected foreign active command(s) targeting the QuickScout target drone during airborne wait: "
+                f"{json.dumps(conflicts, indent=2)}"
+            )
         telemetry = client.get_telemetry()
         row = telemetry.get(str(target_id))
         if row is None:
@@ -366,8 +387,19 @@ def wait_targets_airborne(
     baseline_altitudes: dict[int, float],
     min_gain: float,
     timeout: int = 180,
+    allowed_command_ids: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     def _ready():
+        conflicts = detect_foreign_active_commands(
+            client.get_json(GCS_ACTIVE_COMMANDS_ROUTE),
+            allowed_command_ids=allowed_command_ids or set(),
+            watch_drone_ids=target_ids,
+        )
+        if conflicts:
+            raise RuntimeError(
+                "Detected foreign active command(s) targeting QuickScout launch drones during airborne wait: "
+                f"{json.dumps(conflicts, indent=2)}"
+            )
         telemetry = client.get_telemetry()
         rows: dict[str, dict[str, Any]] = {}
         for target_id in target_ids:
@@ -393,6 +425,40 @@ def wait_active_commands_clear(client: ApiClient, timeout: int = 120) -> dict[st
         return payload if int(payload.get("total", 0) or 0) == 0 else False
 
     return wait_for(_ready, label="no active commands", timeout=timeout, interval=2.0)
+
+
+def detect_foreign_active_commands(
+    payload: dict[str, Any],
+    *,
+    allowed_command_ids: set[str],
+    watch_drone_ids: list[int],
+) -> list[dict[str, Any]]:
+    watched = {str(drone_id) for drone_id in watch_drone_ids}
+    if not watched:
+        return []
+
+    conflicts: list[dict[str, Any]] = []
+    for command in payload.get("commands", []):
+        command_id = str(command.get("command_id") or "")
+        if command_id and command_id in allowed_command_ids:
+            continue
+
+        target_drones = [str(drone_id) for drone_id in command.get("target_drones") or []]
+        if not watched.intersection(target_drones):
+            continue
+
+        conflicts.append(
+            {
+                "command_id": command_id or None,
+                "mission_name": command.get("mission_name"),
+                "mission_type": command.get("mission_type"),
+                "status": command.get("status"),
+                "phase": command.get("phase"),
+                "target_drones": target_drones,
+            }
+        )
+
+    return conflicts
 
 
 def wait_status_phase(
@@ -564,6 +630,11 @@ def main() -> int:
     artifacts["stages"]["launch_response"] = launch_response
     require(bool(launch_response.get("success")), f"QuickScout launch did not succeed: {json.dumps(launch_response, indent=2)}")
     launched_hw_ids = sorted(str(hw_id) for hw_id in launch_response.get("launched_hw_ids", []))
+    launch_command_ids = {
+        str((submission.get("command") or {}).get("command_id"))
+        for submission in launch_response.get("submissions", [])
+        if (submission.get("command") or {}).get("command_id")
+    }
     require(
         launched_hw_ids == target_hw_ids,
         f"QuickScout launched hw_ids mismatch. Expected {target_hw_ids}, got {launched_hw_ids}",
@@ -581,6 +652,7 @@ def main() -> int:
         target_ids,
         baseline_altitudes=baseline_altitudes,
         min_gain=args.airborne_min_gain,
+        allowed_command_ids=launch_command_ids,
     )
     artifacts["stages"]["target_airborne"] = airborne_rows
 
