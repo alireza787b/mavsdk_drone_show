@@ -476,6 +476,16 @@
     background: var(--color-primary);
 }
 
+.qs-search-note {
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border-primary));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-secondary));
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
 .qs-launch-review {
     display: flex;
     flex-direction: column;

@@ -22,6 +22,7 @@ jest.mock('leaflet', () => ({
 }));
 
 jest.mock('react-leaflet', () => ({
+  Circle: () => <div data-testid="leaflet-circle" />,
   Marker: ({ children }) => <div data-testid="leaflet-marker">{children}</div>,
   useMap: () => ({ flyTo: jest.fn() }),
 }));
@@ -396,6 +397,7 @@ describe('QuickScoutPage', () => {
         })
       )
     );
+    expect(sarApi.computePlan.mock.calls[0][0].search_area.area_sq_m).toBeCloseTo(Math.PI * 180 * 180, 6);
     expect(screen.getByTestId('plan-template')).toHaveTextContent('last_known_point');
   });
 

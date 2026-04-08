@@ -35,7 +35,7 @@ import LeafletCoveragePreview from '../components/map/LeafletCoveragePreview';
 import LeafletPOIMarkers from '../components/map/LeafletPOIMarkers';
 import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
-import { Marker as LeafletMarker, useMap } from 'react-leaflet';
+import { Circle as LeafletCircle, Marker as LeafletMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   DEFAULT_QUICKSCOUT_PROFILE_ID,
@@ -44,19 +44,25 @@ import {
 } from '../utilities/quickScoutProfiles';
 import { buildQuickScoutPlanningSignature } from '../utilities/quickScoutPlanningSignature';
 import { buildQuickScoutLaunchReadiness } from '../utilities/quickScoutLaunchReadiness';
+import {
+  buildLastKnownPointGeoJSON,
+  calculateCircularAreaSqM,
+} from '../utilities/quickScoutSearchGeometry';
 
 // Styles
 import '../styles/QuickScout.css';
 
 // Conditional Mapbox imports — only checks if npm package exists;
 // actual token/connectivity detection is handled by MapContext.
-let Map, Marker;
+let Map, Marker, Source, Layer;
 let mapboxLibAvailable = false;
 
 try {
   const rgl = require('react-map-gl');
   Map = rgl.Map || rgl.default;
   Marker = rgl.Marker;
+  Source = rgl.Source;
+  Layer = rgl.Layer;
   require('mapbox-gl/dist/mapbox-gl.css');
   mapboxLibAvailable = true;
 } catch (e) {
@@ -422,6 +428,10 @@ const QuickScoutPage = () => {
     }),
     [activePlanTargetHwIds, mergedDrones],
   );
+  const pointSearchPreview = useMemo(
+    () => buildLastKnownPointGeoJSON(searchCenter, searchRadiusM),
+    [searchCenter, searchRadiusM],
+  );
   const planNeedsRecompute = Boolean(
     coveragePlan
     && lastPlannedSignature
@@ -531,7 +541,7 @@ const QuickScoutPage = () => {
           type: 'point',
           center: searchCenter,
           radius_m: searchRadiusM,
-          area_sq_m: Math.PI * Number(searchRadiusM || 0) * Number(searchRadiusM || 0),
+          area_sq_m: calculateCircularAreaSqM(searchRadiusM),
         }
         : {
           type: 'polygon',
@@ -711,13 +721,36 @@ const QuickScoutPage = () => {
               )}
 
               {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
-                <Marker
-                  latitude={searchCenter.lat}
-                  longitude={searchCenter.lng}
-                  anchor="center"
-                >
-                  <div className="qs-search-center-marker" />
-                </Marker>
+                <>
+                  {Source && Layer && pointSearchPreview && (
+                    <Source id="qs-point-search-preview" type="geojson" data={pointSearchPreview}>
+                      <Layer
+                        id="qs-point-search-fill"
+                        type="fill"
+                        paint={{
+                          'fill-color': '#00d4ff',
+                          'fill-opacity': 0.08,
+                        }}
+                      />
+                      <Layer
+                        id="qs-point-search-outline"
+                        type="line"
+                        paint={{
+                          'line-color': '#00d4ff',
+                          'line-width': 2,
+                          'line-opacity': 0.75,
+                        }}
+                      />
+                    </Source>
+                  )}
+                  <Marker
+                    latitude={searchCenter.lat}
+                    longitude={searchCenter.lng}
+                    anchor="center"
+                  >
+                    <div className="qs-search-center-marker" />
+                  </Marker>
+                </>
               )}
 
               <CoveragePreview
@@ -759,15 +792,30 @@ const QuickScoutPage = () => {
               {mode === 'plan' && missionTemplate === 'area_sweep' && <LeafletDrawControl onAreaChange={handleAreaChange} />}
 
               {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
-                <LeafletMarker
-                  position={[searchCenter.lat, searchCenter.lng]}
-                  icon={L.divIcon({
-                    html: '<div class="qs-search-center-marker"></div>',
-                    className: '',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10],
-                  })}
-                />
+                <>
+                  {Number(searchRadiusM) > 0 && (
+                    <LeafletCircle
+                      center={[searchCenter.lat, searchCenter.lng]}
+                      radius={Number(searchRadiusM)}
+                      pathOptions={{
+                        color: '#00d4ff',
+                        weight: 2,
+                        opacity: 0.75,
+                        fillColor: '#00d4ff',
+                        fillOpacity: 0.08,
+                      }}
+                    />
+                  )}
+                  <LeafletMarker
+                    position={[searchCenter.lat, searchCenter.lng]}
+                    icon={L.divIcon({
+                      html: '<div class="qs-search-center-marker"></div>',
+                      className: '',
+                      iconSize: [20, 20],
+                      iconAnchor: [10, 10],
+                    })}
+                  />
+                </>
               )}
 
               <LeafletCoveragePreview

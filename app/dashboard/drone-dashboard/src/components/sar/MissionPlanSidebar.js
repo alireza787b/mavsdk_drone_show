@@ -8,6 +8,7 @@ import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import QuickScoutLaunchReview from './QuickScoutLaunchReview';
 import { QUICKSCOUT_PROFILE_PRESETS } from '../../utilities/quickScoutProfiles';
+import { calculateCircularAreaSqM } from '../../utilities/quickScoutSearchGeometry';
 
 const MissionPlanSidebar = ({
   drones,
@@ -65,6 +66,10 @@ const MissionPlanSidebar = ({
     && !planNeedsRecompute
     && (launchReadiness?.canLaunch ?? true)
   );
+  const searchFootprintSqM = missionTemplate === 'last_known_point'
+    ? calculateCircularAreaSqM(searchRadiusM)
+    : 0;
+  const searchFootprintHa = searchFootprintSqM > 0 ? searchFootprintSqM / 10000 : 0;
 
   const updateConfig = (key, value) => {
     onConfigChange({ ...surveyConfig, [key]: value });
@@ -237,6 +242,12 @@ const MissionPlanSidebar = ({
                   <span className="qs-config-unit">m</span>
                 </div>
               </div>
+              <div className="qs-config-row">
+                <span className="qs-config-label">Footprint</span>
+                <span className="qs-stat-value">
+                  {searchFootprintHa > 0 ? `${searchFootprintHa.toFixed(2)} ha` : 'Not set'}
+                </span>
+              </div>
               <button
                 type="button"
                 className="qs-btn qs-btn-secondary qs-btn-full"
@@ -244,6 +255,9 @@ const MissionPlanSidebar = ({
               >
                 Use Map Center
               </button>
+              <div className="qs-search-note" style={{ marginTop: 8 }}>
+                QuickScout will build a point-centered search envelope from this report and partition the resulting coverage package across the selected aircraft.
+              </div>
               <div className="qs-empty-copy" style={{ marginTop: 8 }}>
                 SearchBar selections also seed the last known point automatically.
               </div>
