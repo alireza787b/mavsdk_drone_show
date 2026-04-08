@@ -22,6 +22,7 @@ class _FakeMissionItem:
 
     class VehicleAction:
         NONE = "none"
+        TAKEOFF = "takeoff"
 
     def __init__(self, **kwargs):
         self.kwargs = kwargs
@@ -91,6 +92,12 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
     monkeypatch.setattr(qsm, "MissionPlan", _FakeMissionPlan)
     monkeypatch.setattr(qsm, "report_progress", MagicMock())
     monkeypatch.setattr(qsm.LEDController, "get_instance", MagicMock(return_value=fake_led))
+    monkeypatch.setattr(qsm, "wait_for_local_startup_ready", AsyncMock(return_value={"readiness_status": "ready"}))
+    monkeypatch.setattr(
+        qsm,
+        "get_local_home_position",
+        MagicMock(return_value={"latitude": 35.7243906, "longitude": 51.2756090, "altitude": 1278.238}),
+    )
 
     result = await qsm.run_mission(args)
 
@@ -103,6 +110,7 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
     fake_drone.mission.upload_mission.assert_awaited_once()
     uploaded_plan = fake_drone.mission.upload_mission.await_args.args[0]
     assert math.isnan(uploaded_plan.items[0].kwargs["yaw_deg"])
+    assert uploaded_plan.items[0].kwargs["vehicle_action"] == _FakeMissionItem.VehicleAction.TAKEOFF
     fake_drone.action.arm.assert_awaited_once()
     fake_drone.mission.start_mission.assert_awaited_once()
     qsm.stop_mavsdk_server.assert_called_once_with(fake_server)
@@ -136,6 +144,12 @@ async def test_run_mission_fails_fast_when_connection_confirmation_times_out(mon
     monkeypatch.setattr(qsm, "report_progress", MagicMock())
     monkeypatch.setattr(qsm.LEDController, "get_instance", MagicMock(return_value=fake_led))
     monkeypatch.setattr(qsm, "wait_for_drone_connection", AsyncMock(side_effect=TimeoutError("no connection")))
+    monkeypatch.setattr(qsm, "wait_for_local_startup_ready", AsyncMock(return_value={"readiness_status": "ready"}))
+    monkeypatch.setattr(
+        qsm,
+        "get_local_home_position",
+        MagicMock(return_value={"latitude": 35.7243906, "longitude": 51.2756090, "altitude": 1278.238}),
+    )
 
     result = await qsm.run_mission(args)
 

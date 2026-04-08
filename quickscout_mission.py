@@ -22,6 +22,7 @@ import subprocess
 
 import requests
 from mavsdk import System
+from mavsdk.action import ActionError
 from mavsdk.mission import MissionItem, MissionPlan
 
 try:
@@ -30,6 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised in lightweight envs 
     psutil = None
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
 from params import Params
 from led_controller import LEDController
 from mds_logging import get_logger
@@ -209,6 +211,69 @@ async def get_home_position(drone, timeout_sec):
         raise RuntimeError("Telemetry home-position stream ended before a sample was available.") from exc
 
 
+def get_local_home_position(timeout: float = 1.0) -> dict:
+    """Read the local drone API home position snapshot."""
+    response = requests.get(
+        f"http://127.0.0.1:{Params.drone_api_port}{DRONE_NAVIGATION_HOME_ROUTE}",
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("Local home-position route did not return an object payload.")
+    return payload
+
+
+async def wait_for_local_startup_ready(timeout_sec: float, poll_sec: float = 0.5) -> dict:
+    """Wait for the local drone API to report an armable, home-initialized startup state."""
+    deadline = time.monotonic() + timeout_sec
+    last_state = None
+
+    while time.monotonic() < deadline:
+        try:
+            response = requests.get(
+                f"http://127.0.0.1:{Params.drone_api_port}{DRONE_STATE_ROUTE}",
+                timeout=min(1.0, poll_sec),
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if isinstance(payload, dict):
+                last_state = payload
+                if (
+                    payload.get("is_ready_to_arm")
+                    and payload.get("home_position_set")
+                    and payload.get("readiness_status") == "ready"
+                ):
+                    return payload
+        except requests.RequestException:
+            pass
+
+        await asyncio.sleep(poll_sec)
+
+    raise TimeoutError(
+        "Timed out waiting for local mission startup readiness. "
+        f"Last state: {last_state!r}"
+    )
+
+
+async def arm_with_retry(drone, *, attempts: int = 3, retry_delay_sec: float = 2.0):
+    """Arm with bounded retries once local startup readiness is confirmed."""
+    last_error = None
+    for attempt in range(1, max(1, attempts) + 1):
+        try:
+            await drone.action.arm()
+            return
+        except ActionError as exc:
+            last_error = exc
+            logger.warning("Arm attempt %s/%s failed: %s", attempt, attempts, exc)
+            if attempt >= attempts:
+                raise
+            await asyncio.sleep(retry_delay_sec)
+
+    if last_error:
+        raise last_error
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='QuickScout Mission Executor')
     parser.add_argument('--waypoints-file', required=True, help='Path to waypoints JSON file')
@@ -299,16 +364,16 @@ async def run_mission(args):
         await wait_for_drone_connection(drone, connect_timeout)
         logger.info("Drone connected")
 
-        logger.info("Waiting for GPS fix...")
-        await wait_for_navigation_health(drone, readiness_timeout)
-        logger.info("GPS fix and home position OK")
+        logger.info("Waiting for local mission startup readiness...")
+        await wait_for_local_startup_ready(readiness_timeout)
+        logger.info("Local mission startup readiness confirmed")
 
-        home_position = await get_home_position(drone, connect_timeout)
-        home_alt_msl = home_position.absolute_altitude_m
+        home_position = get_local_home_position()
+        home_alt_msl = float(home_position["altitude"])
         logger.info(
             "Home position: %.6f, %.6f, alt=%.1fm MSL",
-            home_position.latitude_deg,
-            home_position.longitude_deg,
+            float(home_position["latitude"]),
+            float(home_position["longitude"]),
             home_alt_msl,
         )
 
@@ -357,7 +422,11 @@ async def run_mission(args):
                 acceptance_radius_m=3.0,
                 yaw_deg=yaw,
                 camera_photo_distance_m=float('nan'),
-                vehicle_action=MissionItem.VehicleAction.NONE,
+                vehicle_action=(
+                    MissionItem.VehicleAction.TAKEOFF
+                    if i == 0
+                    else MissionItem.VehicleAction.NONE
+                ),
             )
             mission_items.append(item)
 
@@ -370,7 +439,11 @@ async def run_mission(args):
             led.set_color(255, 255, 255)  # White: ready
 
         logger.info("Arming drone...")
-        await drone.action.arm()
+        await arm_with_retry(
+            drone,
+            attempts=max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3))),
+            retry_delay_sec=float(getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0)),
+        )
         logger.info("Drone armed")
 
         logger.info("Starting mission...")
