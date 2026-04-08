@@ -111,6 +111,32 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - `gcs-server/sar/service.py`
 - `gcs-server/sar/schemas.py`
 - future QuickScout workspace/frontend components
+
+## TODO 7: QuickScout evidence workflow and advanced mission retasking
+
+**Status:** Deferred — findings foundation is complete, but evidence and mid-mission retasking are not yet done
+
+**Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
+
+- evidence references and later media linkage for findings
+- operator handoff/export posture for reviewed findings
+- add-drone/remove-drone or follow-up package generation from the current airborne state
+- richer findings-in-the-loop SITL drills
+
+**Solution:** Revisit after the current findings checkpoint is merged into the active QuickScout stream:
+
+- add an evidence/reference model on top of the finding record
+- define operator export / handoff requirements before adding media upload
+- add planner/control seams for mid-mission reassignment only after the operator workflow is explicit
+- promote findings-aware SITL scenarios once the next control slice is stable
+
+**Likely touch points:**
+
+- `gcs-server/sar/{schemas,service,store,routes}.py`
+- `app/dashboard/drone-dashboard/src/pages/QuickScoutPage.js`
+- `app/dashboard/drone-dashboard/src/components/sar/*`
+- `tools/sitl_plans/*`
+- `tools/validate_quickscout_runtime.py`
 - `tools/validate_quickscout_runtime.py` and the checked-in `quickscout_runtime` / `quickscout_multi_runtime` plans if mission-batch launch identity or a true resume adapter is introduced
 
 ---

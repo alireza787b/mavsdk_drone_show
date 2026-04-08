@@ -221,7 +221,8 @@
 }
 
 .qs-config-text-input,
-.qs-config-textarea {
+.qs-config-textarea,
+.qs-config-select {
     width: 100%;
     padding: 8px 10px;
     background: var(--color-bg-secondary);
@@ -238,7 +239,8 @@
 }
 
 .qs-config-text-input:focus,
-.qs-config-textarea:focus {
+.qs-config-textarea:focus,
+.qs-config-select:focus {
     border-color: var(--color-primary);
     outline: none;
 }
@@ -744,39 +746,130 @@
     color: var(--color-text-secondary);
 }
 
-/* === POI System === */
-.qs-poi-list {
+/* === Findings System === */
+.qs-finding-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
 }
 
-.qs-poi-item {
+.qs-finding-item {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 6px 8px;
     background: var(--color-bg-primary);
     border-radius: var(--radius-sm);
+    border: 1px solid transparent;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background 0.15s, border-color 0.15s;
     font-size: 12px;
 }
 
-.qs-poi-item:hover {
+.qs-finding-item:hover,
+.qs-finding-item.selected {
     background: var(--color-bg-tertiary);
+    border-color: var(--color-border-primary);
 }
 
-.qs-poi-marker {
+.qs-finding-item__body {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.qs-finding-item__body strong {
+    font-size: 12px;
+    color: var(--color-text-primary);
+}
+
+.qs-finding-item__body span,
+.qs-finding-item__priority {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+    text-transform: capitalize;
+}
+
+.qs-finding-marker {
     width: 10px;
     height: 10px;
     border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
-.qs-poi-marker.critical { background: var(--color-danger); }
-.qs-poi-marker.high { background: #fd7e14; }
-.qs-poi-marker.medium { background: var(--color-warning); }
-.qs-poi-marker.low { background: var(--color-primary); }
+.qs-finding-marker.selected {
+    transform: scale(1.15);
+}
+
+.qs-finding-marker.critical { background: var(--color-danger); }
+.qs-finding-marker.high { background: #fd7e14; }
+.qs-finding-marker.medium { background: var(--color-warning); }
+.qs-finding-marker.low { background: var(--color-primary); }
+
+.qs-finding-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border-primary);
+}
+
+.qs-finding-detail--empty {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+}
+
+.qs-finding-detail__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.qs-finding-detail__meta {
+    font-size: 11px;
+    color: var(--color-text-secondary);
+}
+
+.qs-finding-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.qs-finding-form__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.qs-finding-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.qs-finding-detail__actions {
+    display: flex;
+    gap: 8px;
+}
+
+.qs-finding-popup {
+    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.qs-finding-popup__title {
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
 
 /* === Drone Marker Icon (Mapbox) === */
 .qs-drone-marker-icon {
@@ -1178,6 +1271,12 @@
 
     .qs-launch-review__grid {
         grid-template-columns: 1fr;
+    }
+
+    .qs-finding-form__grid,
+    .qs-finding-detail__actions {
+        grid-template-columns: 1fr;
+        flex-direction: column;
     }
 }
 

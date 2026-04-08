@@ -73,6 +73,27 @@ class POIPriority(str, Enum):
     CRITICAL = "critical"
 
 
+class FindingStatus(str, Enum):
+    NEW = "new"
+    UNDER_REVIEW = "under_review"
+    CONFIRMED = "confirmed"
+    DISMISSED = "dismissed"
+    HANDED_OFF = "handed_off"
+
+
+class FindingConfidence(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class FindingSource(str, Enum):
+    OPERATOR_MARK = "operator_mark"
+    DRONE_REPORT = "drone_report"
+    SYSTEM_DETECTION = "system_detection"
+    EXTERNAL_REPORT = "external_report"
+
+
 # --- Request Models ---
 
 class SearchAreaPoint(BaseModel):
@@ -189,11 +210,37 @@ class CoveragePlanResponse(BaseModel):
     algorithm_used: str = Field(..., description="Algorithm used for planning")
 
 
-class POI(BaseModel):
-    """Point of Interest"""
-    id: Optional[str] = Field(None, description="POI unique identifier")
-    type: POIType = Field(default=POIType.OTHER, description="POI type")
+class QuickScoutFinding(BaseModel):
+    """Operator-visible QuickScout finding."""
+
+    id: Optional[str] = Field(None, description="Finding unique identifier")
+    type: POIType = Field(default=POIType.OTHER, description="Finding classification")
     priority: POIPriority = Field(default=POIPriority.MEDIUM, description="Priority level")
+    summary: Optional[str] = Field(None, max_length=120, description="Short operator-facing finding summary")
+    confidence: FindingConfidence = Field(default=FindingConfidence.MEDIUM, description="Operator confidence level")
+    source: FindingSource = Field(default=FindingSource.OPERATOR_MARK, description="Finding source")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude (degrees)")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude (degrees)")
+    alt_msl: Optional[float] = Field(None, description="Altitude MSL (m)")
+    timestamp: Optional[float] = Field(None, description="Detection timestamp (Unix epoch)")
+    updated_at: Optional[float] = Field(None, description="Last update timestamp (Unix epoch)")
+    reported_by_drone: Optional[str] = Field(None, description="Reporting drone hw_id")
+    drone_position: Optional[Dict] = Field(None, description="Drone position at detection time")
+    notes: Optional[str] = Field(None, max_length=500, description="Operator notes")
+    status: FindingStatus = Field(default=FindingStatus.NEW, description="Finding lifecycle status")
+    mission_id: Optional[str] = Field(None, description="Associated mission ID")
+    evidence_refs: List[str] = Field(default_factory=list, description="Optional evidence or artifact references")
+
+
+class QuickScoutFindingCreate(BaseModel):
+    """Typed payload for creating a new QuickScout finding."""
+    model_config = ConfigDict(extra='forbid')
+
+    type: POIType = Field(default=POIType.OTHER, description="Finding classification")
+    priority: POIPriority = Field(default=POIPriority.MEDIUM, description="Priority level")
+    summary: Optional[str] = Field(None, max_length=120, description="Short operator-facing finding summary")
+    confidence: FindingConfidence = Field(default=FindingConfidence.MEDIUM, description="Operator confidence level")
+    source: FindingSource = Field(default=FindingSource.OPERATOR_MARK, description="Finding source")
     lat: float = Field(..., ge=-90, le=90, description="Latitude (degrees)")
     lng: float = Field(..., ge=-180, le=180, description="Longitude (degrees)")
     alt_msl: Optional[float] = Field(None, description="Altitude MSL (m)")
@@ -201,8 +248,31 @@ class POI(BaseModel):
     reported_by_drone: Optional[str] = Field(None, description="Reporting drone hw_id")
     drone_position: Optional[Dict] = Field(None, description="Drone position at detection time")
     notes: Optional[str] = Field(None, max_length=500, description="Operator notes")
-    status: str = Field(default="new", description="POI status (new/confirmed/dismissed)")
-    mission_id: Optional[str] = Field(None, description="Associated mission ID")
+    status: FindingStatus = Field(default=FindingStatus.NEW, description="Finding lifecycle status")
+    evidence_refs: List[str] = Field(default_factory=list, description="Optional evidence or artifact references")
+
+
+class QuickScoutFindingUpdate(BaseModel):
+    """Typed patch payload for updating an existing QuickScout finding."""
+    model_config = ConfigDict(extra='forbid')
+
+    type: Optional[POIType] = Field(None, description="Finding classification")
+    priority: Optional[POIPriority] = Field(None, description="Priority level")
+    summary: Optional[str] = Field(None, max_length=120, description="Short operator-facing finding summary")
+    confidence: Optional[FindingConfidence] = Field(None, description="Operator confidence level")
+    source: Optional[FindingSource] = Field(None, description="Finding source")
+    lat: Optional[float] = Field(None, ge=-90, le=90, description="Latitude (degrees)")
+    lng: Optional[float] = Field(None, ge=-180, le=180, description="Longitude (degrees)")
+    alt_msl: Optional[float] = Field(None, description="Altitude MSL (m)")
+    reported_by_drone: Optional[str] = Field(None, description="Reporting drone hw_id")
+    drone_position: Optional[Dict] = Field(None, description="Drone position at detection time")
+    notes: Optional[str] = Field(None, max_length=500, description="Operator notes")
+    status: Optional[FindingStatus] = Field(None, description="Finding lifecycle status")
+    evidence_refs: Optional[List[str]] = Field(None, description="Optional evidence or artifact references")
+
+
+# Compatibility alias while older callers/tests still import POI directly.
+POI = QuickScoutFinding
 
 
 class DroneSurveyState(BaseModel):
@@ -229,7 +299,11 @@ class MissionStatus(BaseModel):
         description="Derived operator-facing mission phase",
     )
     drone_states: Dict[str, DroneSurveyState] = Field(default_factory=dict, description="Per-drone states keyed by hw_id")
-    pois: List[POI] = Field(default_factory=list, description="Points of interest")
+    findings: List[QuickScoutFinding] = Field(default_factory=list, description="Operator findings linked to this mission")
+    pois: List[QuickScoutFinding] = Field(
+        default_factory=list,
+        description="Deprecated compatibility alias for findings",
+    )
     total_coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Total coverage (%)")
     elapsed_time_s: float = Field(default=0.0, ge=0, description="Elapsed time (s)")
     started_at: Optional[float] = Field(None, description="Mission start timestamp (Unix epoch)")
@@ -267,6 +341,7 @@ class QuickScoutMissionSummary(BaseModel):
     algorithm_used: str = Field(..., description="Planner algorithm used")
     return_behavior: ReturnBehavior = Field(..., description="Configured mission end behavior")
     total_coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Derived mission coverage (%)")
+    finding_count: int = Field(default=0, ge=0, description="Persisted finding count")
     poi_count: int = Field(default=0, ge=0, description="Persisted POI count")
     last_command_summary: Optional[Dict] = Field(
         None,

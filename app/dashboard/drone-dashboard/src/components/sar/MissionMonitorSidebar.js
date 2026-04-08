@@ -1,10 +1,11 @@
 // src/components/sar/MissionMonitorSidebar.js
 /**
- * Monitor mode sidebar: drone status cards and POI list.
+ * Monitor mode sidebar: drone status cards and findings review.
  */
 
 import React from 'react';
 import DroneStatusCard from './DroneStatusCard';
+import FindingReviewPanel from './FindingReviewPanel';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import {
   buildQuickScoutGeometrySummary,
@@ -16,9 +17,9 @@ import {
 
 const MissionMonitorSidebar = ({
   missionStatus,
-  pois,
+  findings,
   onDroneClick,
-  onPOIClick,
+  onFindingClick,
   missionCatalog,
   currentMissionId,
   recoveringMissionId,
@@ -34,6 +35,12 @@ const MissionMonitorSidebar = ({
   searchRadiusM,
   searchPath,
   corridorWidthM,
+  selectedFinding,
+  onFindingSelect,
+  savingFinding,
+  deletingFinding,
+  onSaveFinding,
+  onDeleteFinding,
 }) => {
   const droneStates = missionStatus?.drone_states || {};
   const sortedDrones = Object.values(droneStates).sort((a, b) =>
@@ -164,32 +171,52 @@ const MissionMonitorSidebar = ({
             </div>
           ) : (
             <div className="qs-empty-copy">
-              Select or reopen a mission to monitor live drone progress and POIs.
+              Select or reopen a mission to monitor live drone progress and findings.
             </div>
           )}
         </div>
 
-        {/* POI List */}
-        {pois && pois.length > 0 && (
-          <div className="qs-config-section">
-            <div className="qs-config-title">Points of Interest ({pois.length})</div>
-            <div className="qs-poi-list">
-              {pois.map((poi) => (
+        {/* Findings */}
+        <div className="qs-config-section">
+          <div className="qs-config-title">Findings ({findings?.length || 0})</div>
+          {findings && findings.length > 0 ? (
+            <div className="qs-finding-list">
+              {findings.map((finding) => (
                 <div
-                  key={poi.id}
-                  className="qs-poi-item"
-                  onClick={() => onPOIClick && onPOIClick(poi)}
+                  key={finding.id}
+                  className={`qs-finding-item ${selectedFinding?.id === finding.id ? 'selected' : ''}`}
+                  onClick={() => {
+                    onFindingSelect?.(finding);
+                    onFindingClick?.(finding);
+                  }}
                 >
-                  <div className={`qs-poi-marker ${poi.priority || 'medium'}`} />
-                  <span>{poi.type || 'Unknown'}</span>
-                  <span style={{ marginLeft: 'auto', color: 'var(--color-text-tertiary)' }}>
-                    {poi.priority}
+                  <div className={`qs-finding-marker ${finding.priority || 'medium'}`} />
+                  <div className="qs-finding-item__body">
+                    <strong>{finding.summary || 'Unreviewed observation'}</strong>
+                    <span>
+                      {(finding.type || 'other').replace(/_/g, ' ')} · {(finding.status || 'new').replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  <span className="qs-finding-item__priority">
+                    {finding.priority}
                   </span>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="qs-empty-copy" style={{ marginBottom: 10 }}>
+              Mark findings from the map to capture observations, triage them, and keep the mission handoff clean.
+            </div>
+          )}
+
+          <FindingReviewPanel
+            finding={selectedFinding}
+            saving={savingFinding}
+            deleting={deletingFinding}
+            onSaveFinding={onSaveFinding}
+            onDeleteFinding={onDeleteFinding}
+          />
+        </div>
       </div>
     </div>
   );

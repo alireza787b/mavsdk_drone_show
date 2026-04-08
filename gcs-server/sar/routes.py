@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Query
 from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
-    POI, DroneProgressReport,
+    QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate, POI, DroneProgressReport,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
@@ -90,26 +90,36 @@ def create_sar_router(deps: Any) -> APIRouter:
     async def report_progress(mission_id: str, report: DroneProgressReport):
         return get_quickscout_service().report_progress(mission_id, report)
 
-    @router.post("/poi", response_model=POI)
-    async def create_poi(poi: POI, mission_id: str = Query(..., description="Mission ID")):
-        return get_quickscout_service().add_poi(mission_id, poi)
+    async def _create_finding(
+        finding: QuickScoutFindingCreate,
+        mission_id: str = Query(..., description="Mission ID"),
+    ):
+        return get_quickscout_service().add_finding(mission_id, finding)
 
-    @router.get("/poi", response_model=List[POI])
-    async def list_pois(mission_id: str = Query(..., description="Mission ID")):
-        return get_quickscout_service().get_pois(mission_id)
+    async def _list_findings(mission_id: str = Query(..., description="Mission ID")):
+        return get_quickscout_service().get_findings(mission_id)
 
-    @router.patch("/poi/{poi_id}", response_model=POI)
-    async def update_poi(poi_id: str, updates: dict):
-        poi = get_quickscout_service().update_poi(poi_id, updates)
-        if not poi:
-            raise HTTPException(status_code=404, detail=f"POI {poi_id} not found")
-        return poi
+    async def _update_finding(finding_id: str, updates: QuickScoutFindingUpdate):
+        finding = get_quickscout_service().update_finding(finding_id, updates)
+        if not finding:
+            raise HTTPException(status_code=404, detail=f"Finding {finding_id} not found")
+        return finding
 
-    @router.delete("/poi/{poi_id}")
-    async def delete_poi(poi_id: str):
-        if not get_quickscout_service().delete_poi(poi_id):
-            raise HTTPException(status_code=404, detail=f"POI {poi_id} not found")
-        return {"success": True, "message": f"POI {poi_id} deleted"}
+    async def _delete_finding(finding_id: str):
+        if not get_quickscout_service().delete_finding(finding_id):
+            raise HTTPException(status_code=404, detail=f"Finding {finding_id} not found")
+        return {"success": True, "message": f"Finding {finding_id} deleted"}
+
+    router.add_api_route("/findings", _create_finding, methods=["POST"], response_model=QuickScoutFinding)
+    router.add_api_route("/findings", _list_findings, methods=["GET"], response_model=List[QuickScoutFinding])
+    router.add_api_route("/findings/{finding_id}", _update_finding, methods=["PATCH"], response_model=QuickScoutFinding)
+    router.add_api_route("/findings/{finding_id}", _delete_finding, methods=["DELETE"])
+
+    # Compatibility aliases for older POI callers. Hidden from schema on purpose.
+    router.add_api_route("/poi", _create_finding, methods=["POST"], response_model=POI, include_in_schema=False)
+    router.add_api_route("/poi", _list_findings, methods=["GET"], response_model=List[POI], include_in_schema=False)
+    router.add_api_route("/poi/{finding_id}", _update_finding, methods=["PATCH"], response_model=POI, include_in_schema=False)
+    router.add_api_route("/poi/{finding_id}", _delete_finding, methods=["DELETE"], include_in_schema=False)
 
     @router.post("/elevation/batch")
     async def batch_elevation(points: List[dict]):

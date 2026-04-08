@@ -27,7 +27,7 @@ describe('MissionMonitorSidebar', () => {
             '1': { hw_id: '1', state: 'paused', status_note: 'Holding on operator command' },
           },
         }}
-        pois={[]}
+        findings={[]}
         missionCatalog={[]}
         currentMissionId="mission-corridor"
         recoveringMissionId={null}
@@ -47,6 +47,12 @@ describe('MissionMonitorSidebar', () => {
           { lat: 37.002, lng: -122.002 },
         ]}
         corridorWidthM={110}
+        selectedFinding={null}
+        onFindingSelect={() => {}}
+        savingFinding={false}
+        deletingFinding={false}
+        onSaveFinding={() => {}}
+        onDeleteFinding={() => {}}
       />
     );
 
@@ -59,6 +65,7 @@ describe('MissionMonitorSidebar', () => {
     expect(screen.getByText('Sweep the channel approach')).toBeInTheDocument();
     expect(screen.getByText('Assigned drones are holding on operator command.')).toBeInTheDocument();
     expect(screen.getByText('QuickScout coverage missions do not support direct resume in V1.')).toBeInTheDocument();
+    expect(screen.getByText('Mark findings from the map to capture observations, triage them, and keep the mission handoff clean.')).toBeInTheDocument();
     expect(screen.getByTestId('drone-status-card')).toHaveTextContent('1');
   });
 });

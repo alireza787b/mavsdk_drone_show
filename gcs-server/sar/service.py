@@ -3,7 +3,7 @@
 QuickScout application service.
 
 This module centralizes QuickScout mission planning, durable operation state,
-launch/control orchestration, and POI handling. The current public API surface
+launch/control orchestration, and findings handling. The current public API surface
 stays backward-compatible while the subsystem is migrated away from the earlier
 in-memory PoC managers.
 """
@@ -26,6 +26,9 @@ from sar.schemas import (
     CoveragePlanResponse,
     DroneProgressReport,
     DroneSurveyState,
+    QuickScoutFinding,
+    QuickScoutFindingCreate,
+    QuickScoutFindingUpdate,
     MissionStatus,
     POI,
     QuickScoutControlAvailability,
@@ -543,7 +546,7 @@ class QuickScoutService:
             return None
 
         elapsed_time_s = time.time() - operation.started_at if operation.started_at else 0.0
-        pois = self.store.list_pois(mission_id)
+        findings = self.store.list_findings(mission_id)
         phase = self._derive_operation_phase(operation)
         status_summary, recommended_action = self._build_status_summary(operation, phase)
         return MissionStatus(
@@ -551,7 +554,8 @@ class QuickScoutService:
             state=operation.state,
             operation_phase=phase,
             drone_states=operation.drone_states,
-            pois=pois,
+            findings=findings,
+            pois=findings,
             total_coverage_percent=self._calculate_total_coverage(operation.drone_states),
             elapsed_time_s=max(0.0, elapsed_time_s),
             started_at=operation.started_at,
@@ -575,7 +579,7 @@ class QuickScoutService:
 
         summaries: List[QuickScoutMissionSummary] = []
         for operation in operations[: max(1, limit)]:
-            poi_count = len(self.store.list_pois(operation.mission_id))
+            finding_count = len(self.store.list_findings(operation.mission_id))
             summaries.append(
                 QuickScoutMissionSummary(
                     mission_id=operation.mission_id,
@@ -593,7 +597,8 @@ class QuickScoutService:
                     algorithm_used=operation.algorithm_used,
                     return_behavior=operation.return_behavior,
                     total_coverage_percent=self._calculate_total_coverage(operation.drone_states),
-                    poi_count=poi_count,
+                    finding_count=finding_count,
+                    poi_count=finding_count,
                     last_command_summary=operation.last_command_summary,
                 )
             )
@@ -1104,31 +1109,68 @@ class QuickScoutService:
             raise HTTPException(status_code=404, detail="Mission or drone not found")
         return {"success": True}
 
-    def add_poi(self, mission_id: str, poi: POI) -> POI:
+    def add_finding(
+        self,
+        mission_id: str,
+        finding: QuickScoutFindingCreate | QuickScoutFinding,
+    ) -> QuickScoutFinding:
         operation = self.store.get_operation(mission_id)
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
 
-        if not poi.id:
-            poi.id = str(uuid.uuid4())
-        if not poi.timestamp:
-            poi.timestamp = time.time()
-        poi.mission_id = mission_id
-        self.store.save_poi(mission_id, poi)
-        return poi
+        if isinstance(finding, QuickScoutFindingCreate):
+            finding = QuickScoutFinding.model_validate(finding.model_dump())
+
+        now = time.time()
+        if not finding.id:
+            finding.id = str(uuid.uuid4())
+        if not finding.timestamp:
+            finding.timestamp = now
+        finding.updated_at = now
+        finding.mission_id = mission_id
+        self.store.save_finding(mission_id, finding)
+        return finding
+
+    def get_findings(self, mission_id: str) -> List[QuickScoutFinding]:
+        return self.store.list_findings(mission_id)
+
+    def update_finding(
+        self,
+        finding_id: str,
+        updates: QuickScoutFindingUpdate | Dict[str, Any],
+    ) -> Optional[QuickScoutFinding]:
+        finding = self.store.get_finding(finding_id)
+        if finding is None:
+            return None
+
+        resolved_updates = updates
+        if isinstance(updates, QuickScoutFindingUpdate):
+            resolved_updates = updates.model_dump(exclude_unset=True)
+
+        merged_payload = finding.model_dump(mode="python")
+        for key, value in resolved_updates.items():
+            if key in ("id", "mission_id", "timestamp"):
+                continue
+            if key in merged_payload:
+                merged_payload[key] = value
+        merged_payload["updated_at"] = time.time()
+
+        updated_finding = QuickScoutFinding.model_validate(merged_payload)
+        self.store.save_finding(updated_finding.mission_id or "", updated_finding)
+        return updated_finding
+
+    def delete_finding(self, finding_id: str) -> bool:
+        return self.store.delete_finding(finding_id)
+
+    # Compatibility aliases while callers/docs migrate away from POI wording.
+    def add_poi(self, mission_id: str, poi: POI) -> POI:
+        return self.add_finding(mission_id, poi)
 
     def get_pois(self, mission_id: str) -> List[POI]:
-        return self.store.list_pois(mission_id)
+        return self.get_findings(mission_id)
 
     def update_poi(self, poi_id: str, updates: Dict[str, Any]) -> Optional[POI]:
-        poi = self.store.get_poi(poi_id)
-        if poi is None:
-            return None
-        for key, value in updates.items():
-            if hasattr(poi, key) and key not in ("id", "mission_id"):
-                setattr(poi, key, value)
-        self.store.save_poi(poi.mission_id or "", poi)
-        return poi
+        return self.update_finding(poi_id, updates)
 
     def delete_poi(self, poi_id: str) -> bool:
-        return self.store.delete_poi(poi_id)
+        return self.delete_finding(poi_id)

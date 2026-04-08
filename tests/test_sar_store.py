@@ -1,3 +1,5 @@
+import json
+import sqlite3
 import time
 
 from sar.schemas import (
@@ -80,19 +82,94 @@ def test_quickscout_store_persists_operations(tmp_path, monkeypatch):
     assert loaded.total_area_sq_m == 100.0
 
 
-def test_quickscout_store_persists_pois(tmp_path, monkeypatch):
+def test_quickscout_store_persists_findings(tmp_path, monkeypatch):
     monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(tmp_path / "quickscout.sqlite3"))
     store_module._store_instance = None
 
     store = store_module.get_quickscout_store()
     store.save_operation(_build_operation())
-    poi = POI(id="poi-1", lat=47.0, lng=8.0, notes="marker", mission_id="mission-1")
-    store.save_poi("mission-1", poi)
+    poi = POI(id="poi-1", lat=47.0, lng=8.0, notes="marker", mission_id="mission-1", summary="Dock contact")
+    store.save_finding("mission-1", poi)
 
     store_module._store_instance = None
     reopened = store_module.get_quickscout_store()
-    loaded = reopened.list_pois("mission-1")
+    loaded = reopened.list_findings("mission-1")
 
     assert len(loaded) == 1
     assert loaded[0].id == "poi-1"
     assert loaded[0].notes == "marker"
+    assert loaded[0].summary == "Dock contact"
+
+
+def test_quickscout_store_migrates_legacy_poi_rows(tmp_path, monkeypatch):
+    db_path = tmp_path / "quickscout.sqlite3"
+    monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(db_path))
+    store_module._store_instance = None
+
+    operation = _build_operation()
+    payload = POI(
+        id="legacy-poi-1",
+        lat=47.0,
+        lng=8.0,
+        summary="Legacy dock contact",
+        mission_id=operation.mission_id,
+    ).model_dump(mode="json")
+
+    connection = sqlite3.connect(db_path)
+    connection.execute(
+        """
+        CREATE TABLE quickscout_operations (
+            mission_id TEXT PRIMARY KEY,
+            state TEXT NOT NULL,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            payload_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        CREATE TABLE quickscout_pois (
+            poi_id TEXT PRIMARY KEY,
+            mission_id TEXT NOT NULL,
+            timestamp REAL NOT NULL,
+            updated_at REAL NOT NULL,
+            payload_json TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO quickscout_operations (mission_id, state, created_at, updated_at, payload_json)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            operation.mission_id,
+            operation.state.value,
+            float(operation.created_at),
+            float(operation.updated_at),
+            json.dumps(operation.model_dump(mode="json"), sort_keys=True),
+        ),
+    )
+    connection.execute(
+        """
+        INSERT INTO quickscout_pois (poi_id, mission_id, timestamp, updated_at, payload_json)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            payload["id"],
+            operation.mission_id,
+            float(payload.get("timestamp") or operation.created_at),
+            float(operation.updated_at),
+            json.dumps(payload, sort_keys=True),
+        ),
+    )
+    connection.commit()
+    connection.close()
+
+    reopened = store_module.get_quickscout_store()
+    loaded = reopened.list_findings(operation.mission_id)
+
+    assert len(loaded) == 1
+    assert loaded[0].id == "legacy-poi-1"
+    assert loaded[0].summary == "Legacy dock contact"

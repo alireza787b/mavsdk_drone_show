@@ -82,28 +82,34 @@ export const abortMission = async (missionId, posIds = null, returnBehavior = 'r
   return response.data;
 };
 
-export const createPOI = async (missionId, poi) => {
+export const createFinding = async (missionId, finding) => {
   const response = await axios.post(
-    buildSarUrl(`/poi${buildQueryString({ mission_id: missionId })}`),
-    poi
+    buildSarUrl(`/findings${buildQueryString({ mission_id: missionId })}`),
+    finding
   );
   return response.data;
 };
 
-export const getPOIs = async (missionId) => {
-  const response = await axios.get(buildSarUrl(`/poi${buildQueryString({ mission_id: missionId })}`));
+export const getFindings = async (missionId) => {
+  const response = await axios.get(buildSarUrl(`/findings${buildQueryString({ mission_id: missionId })}`));
   return response.data;
 };
 
-export const updatePOI = async (poiId, updates) => {
-  const response = await axios.patch(buildSarUrl(`/poi/${encodeURIComponent(poiId)}`), updates);
+export const updateFinding = async (findingId, updates) => {
+  const response = await axios.patch(buildSarUrl(`/findings/${encodeURIComponent(findingId)}`), updates);
   return response.data;
 };
 
-export const deletePOI = async (poiId) => {
-  const response = await axios.delete(buildSarUrl(`/poi/${encodeURIComponent(poiId)}`));
+export const deleteFinding = async (findingId) => {
+  const response = await axios.delete(buildSarUrl(`/findings/${encodeURIComponent(findingId)}`));
   return response.data;
 };
+
+// Compatibility aliases while QuickScout callers migrate away from POI naming.
+export const createPOI = createFinding;
+export const getPOIs = getFindings;
+export const updatePOI = updateFinding;
+export const deletePOI = deleteFinding;
 
 export const batchElevation = async (points) => {
   const response = await axios.post(buildSarUrl('/elevation/batch'), points);

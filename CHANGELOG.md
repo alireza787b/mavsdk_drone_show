@@ -974,3 +974,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Added a shared QuickScout presentation utility so template labels, geometry summaries, and package metrics stay consistent between launch review and monitor mode.
 - Updated monitor mode to keep mission-package context visible after launch, including template, footprint, coverage-time estimate, geometry summary, and mission brief.
 - Added focused monitor-sidebar coverage so reopened corridor, point, and polygon missions retain operator context instead of collapsing to drone-state-only monitoring.
+
+### QuickScout Findings Foundation
+- Finished the QuickScout findings pivot by adding typed create/update finding payloads and using canonical `/api/sar/findings` bodies instead of raw dict patches.
+- Migrated the QuickScout durable store onto a real `quickscout_findings` table with automatic import from the older `quickscout_pois` table so persistence is no longer half-renamed.
+- Removed the redundant monitor-mode findings poll so QuickScout now rehydrates findings from the mission-status payload instead of making an extra request every cycle.
+- Moved finding save/delete writes back into the QuickScout page container so the subsystem keeps one mutation path instead of hiding API writes inside leaf UI components.
+- Added focused backend schema/store/route coverage plus Hetzner React tests and production build proof for the findings review flow.

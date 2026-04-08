@@ -3,9 +3,10 @@ import {
   abortMission,
   batchElevation,
   computePlan,
+  getFindings,
   getMissionWorkspace,
   listMissions,
-  updatePOI,
+  updateFinding,
 } from './sarApiService';
 import { buildSarUrl } from './gcsApiService';
 
@@ -66,15 +67,26 @@ describe('sarApiService', () => {
     );
   });
 
-  it('encodes POI ids and delegates payload updates through the shared SAR route builder', async () => {
-    axios.patch.mockResolvedValue({ data: { id: 'poi/1', label: 'updated' } });
+  it('encodes finding ids and delegates payload updates through the shared SAR route builder', async () => {
+    axios.patch.mockResolvedValue({ data: { id: 'finding/1', summary: 'updated' } });
 
-    await updatePOI('poi/1', { label: 'updated' });
+    await updateFinding('finding/1', { summary: 'updated' });
 
-    expect(buildSarUrl).toHaveBeenCalledWith('/poi/poi%2F1');
+    expect(buildSarUrl).toHaveBeenCalledWith('/findings/finding%2F1');
     expect(axios.patch).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/sar/poi/poi%2F1',
-      { label: 'updated' }
+      'http://gcs.test:5000/api/sar/findings/finding%2F1',
+      { summary: 'updated' }
+    );
+  });
+
+  it('lists findings through the canonical SAR findings route', async () => {
+    axios.get.mockResolvedValue({ data: [] });
+
+    await getFindings('mission-1');
+
+    expect(buildSarUrl).toHaveBeenCalledWith('/findings?mission_id=mission-1');
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/sar/findings?mission_id=mission-1'
     );
   });
 

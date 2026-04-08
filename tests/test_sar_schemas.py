@@ -12,8 +12,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'gcs-server'))
 from sar.schemas import (
     SearchAreaPoint, SearchArea, SurveyConfig, QuickScoutMissionRequest,
     CoverageWaypoint, DroneCoveragePlan, CoveragePlanResponse,
-    POI, DroneSurveyState, MissionStatus, DroneProgressReport,
+    POI, QuickScoutFindingCreate, QuickScoutFindingUpdate,
+    DroneSurveyState, MissionStatus, DroneProgressReport,
     ReturnBehavior, SurveyState, POIType, POIPriority, QuickScoutMissionTemplate,
+    FindingConfidence, FindingSource, FindingStatus,
 )
 from pydantic import ValidationError
 
@@ -220,12 +222,36 @@ class TestPOI:
     def test_valid_poi(self):
         poi = POI(lat=40.0, lng=-74.0, type=POIType.PERSON, priority=POIPriority.HIGH)
         assert poi.type == POIType.PERSON
-        assert poi.status == "new"
+        assert poi.status == FindingStatus.NEW
+        assert poi.confidence == FindingConfidence.MEDIUM
+        assert poi.source == FindingSource.OPERATOR_MARK
 
     def test_default_values(self):
         poi = POI(lat=0, lng=0)
         assert poi.type == POIType.OTHER
         assert poi.priority == POIPriority.MEDIUM
+        assert poi.evidence_refs == []
+
+    def test_valid_finding_create(self):
+        finding = QuickScoutFindingCreate(
+            lat=40.0,
+            lng=-74.0,
+            summary="Possible person in water",
+            type=POIType.PERSON,
+        )
+
+        assert finding.summary == "Possible person in water"
+        assert finding.type == POIType.PERSON
+
+    def test_valid_finding_update(self):
+        updates = QuickScoutFindingUpdate(summary="Reviewed contact", status=FindingStatus.CONFIRMED)
+
+        assert updates.summary == "Reviewed contact"
+        assert updates.status == FindingStatus.CONFIRMED
+
+    def test_finding_update_rejects_unknown_fields(self):
+        with pytest.raises(ValidationError):
+            QuickScoutFindingUpdate(summary="Reviewed contact", unknown_field="x")
 
 
 class TestDroneSurveyState:
@@ -244,6 +270,8 @@ class TestMissionStatus:
         assert ms.state == SurveyState.PLANNING
         assert ms.total_coverage_percent == 0.0
         assert ms.drone_states == {}
+        assert ms.findings == []
+        assert ms.pois == []
 
 
 class TestDroneProgressReport:

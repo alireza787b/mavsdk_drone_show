@@ -2,7 +2,7 @@
 """
 QuickScout persistent store.
 
-This replaces the earlier in-memory-only mission and POI state for the GCS side
+This replaces the earlier in-memory-only mission and finding state for the GCS side
 of QuickScout with a small SQLite-backed store. The schema intentionally keeps
 the JSON payloads flexible so the subsystem can keep evolving without a large
 database migration burden while the feature is still being redesigned.
@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Iterable, Optional
 
-from sar.schemas import POI, QuickScoutOperationRecord
+from sar.schemas import POI, QuickScoutFinding, QuickScoutOperationRecord
 from mds_logging import get_logger
 
 logger = get_logger("quickscout_store")
@@ -37,7 +37,7 @@ def get_quickscout_store() -> "QuickScoutStore":
 
 
 class QuickScoutStore:
-    """SQLite-backed durable store for QuickScout operations and POIs."""
+    """SQLite-backed durable store for QuickScout operations and findings."""
 
     def __init__(self, db_path: str | None = None):
         self.db_path = Path(db_path or self._resolve_default_db_path())
@@ -76,8 +76,8 @@ class QuickScoutStore:
                 CREATE INDEX IF NOT EXISTS idx_quickscout_operations_state
                 ON quickscout_operations (state);
 
-                CREATE TABLE IF NOT EXISTS quickscout_pois (
-                    poi_id TEXT PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS quickscout_findings (
+                    finding_id TEXT PRIMARY KEY,
                     mission_id TEXT NOT NULL,
                     timestamp REAL NOT NULL,
                     updated_at REAL NOT NULL,
@@ -86,10 +86,28 @@ class QuickScoutStore:
                         ON DELETE CASCADE
                 );
 
-                CREATE INDEX IF NOT EXISTS idx_quickscout_pois_mission
-                ON quickscout_pois (mission_id, timestamp);
+                CREATE INDEX IF NOT EXISTS idx_quickscout_findings_mission
+                ON quickscout_findings (mission_id, timestamp);
                 """
             )
+            legacy_table_exists = connection.execute(
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table' AND name = 'quickscout_pois'
+                """
+            ).fetchone()
+            if legacy_table_exists:
+                connection.execute(
+                    """
+                    INSERT OR IGNORE INTO quickscout_findings (
+                        finding_id, mission_id, timestamp, updated_at, payload_json
+                    )
+                    SELECT
+                        poi_id, mission_id, timestamp, updated_at, payload_json
+                    FROM quickscout_pois
+                    """
+                )
 
     def save_operation(self, operation: QuickScoutOperationRecord) -> QuickScoutOperationRecord:
         payload = operation.model_dump(mode="json")
@@ -135,63 +153,88 @@ class QuickScoutStore:
             )
         return cursor.rowcount > 0
 
-    def save_poi(self, mission_id: str, poi: POI) -> POI:
-        timestamp = float(poi.timestamp or time.time())
-        payload = poi.model_dump(mode="json")
-        poi_id = payload["id"]
+    def save_finding(self, mission_id: str, finding: QuickScoutFinding) -> QuickScoutFinding:
+        timestamp = float(finding.timestamp or time.time())
+        payload = finding.model_dump(mode="json")
+        finding_id = payload["id"]
         with self._write_lock, self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO quickscout_pois (
-                    poi_id, mission_id, timestamp, updated_at, payload_json
+                INSERT INTO quickscout_findings (
+                    finding_id, mission_id, timestamp, updated_at, payload_json
                 ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(poi_id) DO UPDATE SET
+                ON CONFLICT(finding_id) DO UPDATE SET
                     mission_id = excluded.mission_id,
                     timestamp = excluded.timestamp,
                     updated_at = excluded.updated_at,
                     payload_json = excluded.payload_json
                 """,
                 (
-                    poi_id,
+                    finding_id,
                     mission_id,
                     timestamp,
                     time.time(),
                     json.dumps(payload, sort_keys=True),
                 ),
             )
-        return poi
+        return finding
 
-    def list_pois(self, mission_id: str) -> list[POI]:
+    def list_findings(self, mission_id: str) -> list[QuickScoutFinding]:
         with self._connect() as connection:
             rows = connection.execute(
                 """
                 SELECT payload_json
-                FROM quickscout_pois
+                FROM quickscout_findings
                 WHERE mission_id = ?
-                ORDER BY timestamp ASC, poi_id ASC
+                ORDER BY timestamp ASC, finding_id ASC
                 """,
                 (mission_id,),
             ).fetchall()
-        return [POI.model_validate(json.loads(row["payload_json"])) for row in rows]
+        return [QuickScoutFinding.model_validate(json.loads(row["payload_json"])) for row in rows]
 
-    def get_poi(self, poi_id: str) -> Optional[POI]:
+    def get_finding(self, finding_id: str) -> Optional[QuickScoutFinding]:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT payload_json FROM quickscout_pois WHERE poi_id = ?",
-                (poi_id,),
+                "SELECT payload_json FROM quickscout_findings WHERE finding_id = ?",
+                (finding_id,),
             ).fetchone()
         if row is None:
             return None
-        return POI.model_validate(json.loads(row["payload_json"]))
+        return QuickScoutFinding.model_validate(json.loads(row["payload_json"]))
+
+    def delete_finding(self, finding_id: str) -> bool:
+        with self._write_lock, self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM quickscout_findings WHERE finding_id = ?",
+                (finding_id,),
+            )
+        return cursor.rowcount > 0
+
+    # Compatibility aliases while older callers still use POI naming.
+    def save_poi(self, mission_id: str, poi: POI) -> POI:
+        return self.save_finding(mission_id, poi)
+
+    def list_pois(self, mission_id: str) -> list[POI]:
+        return self.list_findings(mission_id)
+
+    def get_poi(self, poi_id: str) -> Optional[POI]:
+        return self.get_finding(poi_id)
 
     def delete_poi(self, poi_id: str) -> bool:
-        with self._write_lock, self._connect() as connection:
-            cursor = connection.execute("DELETE FROM quickscout_pois WHERE poi_id = ?", (poi_id,))
-        return cursor.rowcount > 0
+        return self.delete_finding(poi_id)
 
     def reset_all(self) -> None:
         with self._write_lock, self._connect() as connection:
-            connection.execute("DELETE FROM quickscout_pois")
+            connection.execute("DELETE FROM quickscout_findings")
+            legacy_table_exists = connection.execute(
+                """
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'table' AND name = 'quickscout_pois'
+                """
+            ).fetchone()
+            if legacy_table_exists:
+                connection.execute("DELETE FROM quickscout_pois")
             connection.execute("DELETE FROM quickscout_operations")
 
     def list_operations(self) -> Iterable[QuickScoutOperationRecord]:

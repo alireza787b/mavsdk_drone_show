@@ -2,7 +2,7 @@
 /**
  * QuickScout SAR - Main page composition.
  * Plan mode: draw polygon, select drones, configure, compute plan, launch.
- * Monitor mode: watch mission progress, manage POIs, control drones.
+ * Monitor mode: watch mission progress, manage findings, control drones.
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -21,7 +21,7 @@ import MissionPlanSidebar from '../components/sar/MissionPlanSidebar';
 import MissionMonitorSidebar from '../components/sar/MissionMonitorSidebar';
 import MissionActionBar from '../components/sar/MissionActionBar';
 import CoveragePreview from '../components/sar/CoveragePreview';
-import POIMarkerSystem from '../components/sar/POIMarkerSystem';
+import FindingMarkerSystem from '../components/sar/FindingMarkerSystem';
 import DrawControl, { MapboxSetupInstructions, MapboxDrawActionBar } from '../components/sar/SearchAreaDrawer';
 
 // SearchBar
@@ -32,7 +32,7 @@ import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from '../components/map/LeafletMapBase';
 import LeafletDrawControl from '../components/map/LeafletDrawControl';
 import LeafletCoveragePreview from '../components/map/LeafletCoveragePreview';
-import LeafletPOIMarkers from '../components/map/LeafletPOIMarkers';
+import LeafletFindingMarkers from '../components/map/LeafletFindingMarkers';
 import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
 import {
@@ -155,8 +155,11 @@ const QuickScoutPage = () => {
   // Monitor state
   const [missionId, setMissionId] = useState(null);
   const [missionStatus, setMissionStatus] = useState(null);
-  const [pois, setPois] = useState([]);
-  const [addingPOI, setAddingPOI] = useState(false);
+  const [findings, setFindings] = useState([]);
+  const [markingFinding, setMarkingFinding] = useState(false);
+  const [selectedFinding, setSelectedFinding] = useState(null);
+  const [savingFinding, setSavingFinding] = useState(false);
+  const [deletingFinding, setDeletingFinding] = useState(false);
 
   // Telemetry
   const [drones, setDrones] = useState([]);
@@ -168,7 +171,7 @@ const QuickScoutPage = () => {
   const [viewport, setViewport] = useState({
     longitude: 0, latitude: 0, zoom: 3,
   });
-  const poiClickRef = useRef(null);
+  const findingClickRef = useRef(null);
   const mapRef = useRef(null);
   const drawControlRef = useRef(null);
   const [flyToTarget, setFlyToTarget] = useState(null);
@@ -193,8 +196,11 @@ const QuickScoutPage = () => {
     setLastPlannedSignature(null);
     setMissionId(null);
     setMissionStatus(null);
-    setPois([]);
-    setAddingPOI(false);
+    setFindings([]);
+    setMarkingFinding(false);
+    setSelectedFinding(null);
+    setSavingFinding(false);
+    setDeletingFinding(false);
     setRecoveringMissionId(null);
     drawControlRef.current?.reset();
   }, []);
@@ -229,9 +235,11 @@ const QuickScoutPage = () => {
     const recoveredSelectedDrones = Array.isArray(operation.pos_ids) && operation.pos_ids.length > 0
       ? operation.pos_ids
       : (operation.plans || []).map((plan) => plan.pos_id);
+    const recoveredFindings = status.findings || status.pois || [];
     setMissionId(operation.mission_id);
     setMissionStatus(status);
-    setPois(status.pois || []);
+    setFindings(recoveredFindings);
+    setSelectedFinding(recoveredFindings[0] || null);
     setSearchArea(operation.search_area?.points || []);
     setSearchAreaSqM(operation.search_area?.area_sq_m || operation.total_area_sq_m || 0);
     setMissionTemplate(operation.mission_template || 'area_sweep');
@@ -398,10 +406,15 @@ const QuickScoutPage = () => {
     const pollStatus = async () => {
       try {
         const status = await sarApi.getMissionStatus(missionId);
+        const findingsData = status?.findings || status?.pois || [];
         setMissionStatus(status);
-
-        const poisData = await sarApi.getPOIs(missionId);
-        setPois(poisData);
+        setFindings(findingsData);
+        setSelectedFinding((current) => {
+          if (!current) {
+            return findingsData[0] || null;
+          }
+          return findingsData.find((finding) => finding.id === current.id) || null;
+        });
       } catch (e) {
         // Mission may not exist yet
       }
@@ -714,10 +727,49 @@ const QuickScoutPage = () => {
     }
   }, [missionId, refreshMissionCatalog]);
 
-  const handlePOIAdded = useCallback((poi) => {
-    setPois(prev => [...prev, poi]);
-    setAddingPOI(false);
+  const handleFindingAdded = useCallback((finding) => {
+    setFindings((prev) => [...prev, finding]);
+    setSelectedFinding(finding);
+    setMarkingFinding(false);
   }, []);
+
+  const handleFindingUpdated = useCallback((updatedFinding) => {
+    setFindings((prev) => prev.map((finding) => (
+      finding.id === updatedFinding.id ? updatedFinding : finding
+    )));
+    setSelectedFinding(updatedFinding);
+  }, []);
+
+  const handleFindingDeleted = useCallback((findingId) => {
+    setFindings((prev) => prev.filter((finding) => finding.id !== findingId));
+    setSelectedFinding((current) => (current?.id === findingId ? null : current));
+  }, []);
+
+  const handleSaveFinding = useCallback(async (findingId, updates) => {
+    setSavingFinding(true);
+    try {
+      const updated = await sarApi.updateFinding(findingId, updates);
+      handleFindingUpdated(updated);
+      toast.success('Finding updated');
+    } catch (error) {
+      toast.error('Unable to update finding');
+    } finally {
+      setSavingFinding(false);
+    }
+  }, [handleFindingUpdated]);
+
+  const handleDeleteFinding = useCallback(async (findingId) => {
+    setDeletingFinding(true);
+    try {
+      await sarApi.deleteFinding(findingId);
+      handleFindingDeleted(findingId);
+      toast.success('Finding removed');
+    } catch (error) {
+      toast.error('Unable to remove finding');
+    } finally {
+      setDeletingFinding(false);
+    }
+  }, [handleFindingDeleted]);
 
   // SearchBar location select handler
   const handleLocationSelect = useCallback((longitude, latitude, _altitude) => {
@@ -766,11 +818,11 @@ const QuickScoutPage = () => {
         </div>
         {mode === 'monitor' && missionId && (
           <button
-            className={`qs-btn ${addingPOI ? 'qs-btn-warning' : 'qs-btn-primary'}`}
-            onClick={() => setAddingPOI(!addingPOI)}
+            className={`qs-btn ${markingFinding ? 'qs-btn-warning' : 'qs-btn-primary'}`}
+            onClick={() => setMarkingFinding(!markingFinding)}
             style={{ fontSize: 12, padding: '4px 12px' }}
           >
-            {addingPOI ? 'Cancel POI' : '+ Add POI'}
+            {markingFinding ? 'Cancel Mark' : 'Mark Finding'}
           </button>
         )}
       </div>
@@ -791,8 +843,8 @@ const QuickScoutPage = () => {
               mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
               style={{ width: '100%', height: '100%' }}
               onClick={(e) => {
-                if (addingPOI && poiClickRef.current) {
-                  poiClickRef.current(e);
+                if (markingFinding && findingClickRef.current) {
+                  findingClickRef.current(e);
                 }
               }}
             >
@@ -884,12 +936,14 @@ const QuickScoutPage = () => {
                 missionStatus={missionStatus}
               />
 
-              <POIMarkerSystem
-                pois={pois}
+              <FindingMarkerSystem
+                findings={findings}
                 missionId={missionId}
-                onPOIAdded={handlePOIAdded}
-                addingPOI={addingPOI}
-                onMapClick={poiClickRef}
+                onFindingAdded={handleFindingAdded}
+                markingFinding={markingFinding}
+                onMapClick={findingClickRef}
+                selectedFindingId={selectedFinding?.id || null}
+                onFindingSelect={setSelectedFinding}
               />
 
               {/* Drone position markers (online drones only) */}
@@ -981,11 +1035,13 @@ const QuickScoutPage = () => {
                 missionStatus={missionStatus}
               />
 
-              <LeafletPOIMarkers
-                pois={pois}
+              <LeafletFindingMarkers
+                findings={findings}
                 missionId={missionId}
-                onPOIAdded={handlePOIAdded}
-                addingPOI={addingPOI}
+                onFindingAdded={handleFindingAdded}
+                markingFinding={markingFinding}
+                selectedFindingId={selectedFinding?.id || null}
+                onFindingSelect={setSelectedFinding}
               />
 
               {/* Drone position markers (online drones only) */}
@@ -1077,7 +1133,7 @@ const QuickScoutPage = () => {
         ) : (
           <MissionMonitorSidebar
             missionStatus={missionStatus}
-            pois={pois}
+            findings={findings}
             missionCatalog={missionCatalog}
             currentMissionId={missionId}
             recoveringMissionId={recoveringMissionId}
@@ -1104,9 +1160,15 @@ const QuickScoutPage = () => {
                 });
               }
             }}
-            onPOIClick={(poi) => {
-              setViewport({ longitude: poi.lng, latitude: poi.lat, zoom: 17 });
+            onFindingClick={(finding) => {
+              setViewport({ longitude: finding.lng, latitude: finding.lat, zoom: 17 });
             }}
+            selectedFinding={selectedFinding}
+            onFindingSelect={setSelectedFinding}
+            savingFinding={savingFinding}
+            deletingFinding={deletingFinding}
+            onSaveFinding={handleSaveFinding}
+            onDeleteFinding={handleDeleteFinding}
           />
         )}
       </div>

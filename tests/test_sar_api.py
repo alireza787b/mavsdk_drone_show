@@ -376,69 +376,87 @@ class TestMissionLifecycle:
             assert drone_state["status_note"] == "Executing assigned search track"
 
 
-class TestPOIEndpoints:
+class TestFindingEndpoints:
     def _plan_and_get_id(self, client):
         resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
         assert resp.status_code == 200
         return resp.json()["mission_id"]
 
-    def test_create_and_list_pois(self, client):
-        """POST /poi + GET /poi lifecycle."""
+    def test_create_and_list_findings(self, client):
+        """POST /findings + GET /findings lifecycle."""
         mission_id = self._plan_and_get_id(client)
-        poi_data = {
+        finding_data = {
             "lat": 47.001, "lng": 8.001,
             "type": "person", "priority": "high",
-            "notes": "Test POI",
+            "summary": "Possible survivor",
+            "notes": "Test finding",
         }
-        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": mission_id})
+        resp = client.post("/api/sar/findings", json=finding_data, params={"mission_id": mission_id})
         assert resp.status_code == 200
-        poi = resp.json()
-        assert poi["lat"] == 47.001
-        assert poi["type"] == "person"
-        assert poi["id"] is not None
+        finding = resp.json()
+        assert finding["lat"] == 47.001
+        assert finding["type"] == "person"
+        assert finding["summary"] == "Possible survivor"
+        assert finding["id"] is not None
 
-        # List POIs
-        resp = client.get("/api/sar/poi", params={"mission_id": mission_id})
+        resp = client.get("/api/sar/findings", params={"mission_id": mission_id})
         assert resp.status_code == 200
-        pois = resp.json()
-        assert len(pois) == 1
-        assert pois[0]["id"] == poi["id"]
+        findings = resp.json()
+        assert len(findings) == 1
+        assert findings[0]["id"] == finding["id"]
 
-    def test_update_poi(self, client):
-        """PATCH /poi/{id} should update fields."""
+    def test_update_finding(self, client):
+        """PATCH /findings/{id} should update fields."""
         mission_id = self._plan_and_get_id(client)
-        poi_data = {"lat": 47.0, "lng": 8.0}
-        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": mission_id})
-        poi_id = resp.json()["id"]
+        finding_data = {"lat": 47.0, "lng": 8.0}
+        resp = client.post("/api/sar/findings", json=finding_data, params={"mission_id": mission_id})
+        finding_id = resp.json()["id"]
 
-        resp = client.patch(f"/api/sar/poi/{poi_id}", json={"notes": "Updated"})
+        resp = client.patch(f"/api/sar/findings/{finding_id}", json={"notes": "Updated"})
         assert resp.status_code == 200
         assert resp.json()["notes"] == "Updated"
 
-    def test_delete_poi(self, client):
-        """DELETE /poi/{id} should remove POI."""
+    def test_update_finding_rejects_unknown_fields(self, client):
         mission_id = self._plan_and_get_id(client)
-        poi_data = {"lat": 47.0, "lng": 8.0}
-        resp = client.post("/api/sar/poi", json=poi_data, params={"mission_id": mission_id})
-        poi_id = resp.json()["id"]
+        finding_data = {"lat": 47.0, "lng": 8.0}
+        resp = client.post("/api/sar/findings", json=finding_data, params={"mission_id": mission_id})
+        finding_id = resp.json()["id"]
 
-        resp = client.delete(f"/api/sar/poi/{poi_id}")
+        resp = client.patch(f"/api/sar/findings/{finding_id}", json={"unknown_field": "x"})
+        assert resp.status_code == 422
+
+    def test_delete_finding(self, client):
+        """DELETE /findings/{id} should remove a finding."""
+        mission_id = self._plan_and_get_id(client)
+        finding_data = {"lat": 47.0, "lng": 8.0}
+        resp = client.post("/api/sar/findings", json=finding_data, params={"mission_id": mission_id})
+        finding_id = resp.json()["id"]
+
+        resp = client.delete(f"/api/sar/findings/{finding_id}")
         assert resp.status_code == 200
 
         # Verify it's gone
-        resp = client.get("/api/sar/poi", params={"mission_id": mission_id})
+        resp = client.get("/api/sar/findings", params={"mission_id": mission_id})
         assert len(resp.json()) == 0
 
-    def test_delete_poi_not_found(self, client):
-        """DELETE /poi/{id} for unknown POI should return 404."""
-        resp = client.delete("/api/sar/poi/nonexistent")
+    def test_delete_finding_not_found(self, client):
+        """DELETE /findings/{id} for unknown finding should return 404."""
+        resp = client.delete("/api/sar/findings/nonexistent")
         assert resp.status_code == 404
 
-    def test_list_pois_empty(self, client):
-        """GET /poi for mission with no POIs should return empty list."""
-        resp = client.get("/api/sar/poi", params={"mission_id": "empty-mission"})
+    def test_list_findings_empty(self, client):
+        """GET /findings for mission with no findings should return empty list."""
+        resp = client.get("/api/sar/findings", params={"mission_id": "empty-mission"})
         assert resp.status_code == 200
         assert resp.json() == []
+
+    def test_poi_alias_remains_available(self, client):
+        mission_id = self._plan_and_get_id(client)
+        resp = client.post("/api/sar/poi", json={"lat": 47.0, "lng": 8.0}, params={"mission_id": mission_id})
+        assert resp.status_code == 200
+        resp = client.get("/api/sar/poi", params={"mission_id": mission_id})
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
 
 
 class TestElevationBatch:

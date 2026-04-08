@@ -38,10 +38,10 @@ jest.mock('../services/sarApiService', () => ({
   pauseMission: jest.fn(),
   resumeMission: jest.fn(),
   abortMission: jest.fn(),
-  createPOI: jest.fn(),
-  getPOIs: jest.fn(),
-  updatePOI: jest.fn(),
-  deletePOI: jest.fn(),
+  createFinding: jest.fn(),
+  getFindings: jest.fn(),
+  updateFinding: jest.fn(),
+  deleteFinding: jest.fn(),
   batchElevation: jest.fn(),
 }));
 
@@ -152,7 +152,7 @@ jest.mock('../components/sar/MissionMonitorSidebar', () => (props) => (
 
 jest.mock('../components/sar/MissionActionBar', () => () => <div data-testid="mission-action-bar" />);
 jest.mock('../components/sar/CoveragePreview', () => () => <div data-testid="coverage-preview" />);
-jest.mock('../components/sar/POIMarkerSystem', () => () => <div data-testid="poi-marker-system" />);
+jest.mock('../components/sar/FindingMarkerSystem', () => () => <div data-testid="finding-marker-system" />);
 jest.mock('../components/sar/SearchAreaDrawer', () => {
   const DrawControl = () => <div data-testid="draw-control" />;
   const MapboxSetupInstructions = () => <div data-testid="mapbox-setup" />;
@@ -168,7 +168,7 @@ jest.mock('../components/trajectory/SearchBar', () => () => <div data-testid="se
 jest.mock('../components/map/LeafletMapBase', () => ({ children }) => <div data-testid="leaflet-map">{children}</div>);
 jest.mock('../components/map/LeafletDrawControl', () => () => <div data-testid="leaflet-draw" />);
 jest.mock('../components/map/LeafletCoveragePreview', () => () => <div data-testid="leaflet-coverage" />);
-jest.mock('../components/map/LeafletPOIMarkers', () => () => <div data-testid="leaflet-poi" />);
+jest.mock('../components/map/LeafletFindingMarkers', () => () => <div data-testid="leaflet-finding" />);
 jest.mock('../components/map/MapFallbackBanner', () => () => <div data-testid="map-fallback" />);
 jest.mock('../components/map/MapProviderToggle', () => () => <div data-testid="map-provider-toggle" />);
 
@@ -244,6 +244,7 @@ const buildWorkspace = (overrides = {}) => {
       mission_id: missionId,
       state,
       drone_states: {},
+      findings: [],
       pois: [],
       total_coverage_percent: state === 'executing' ? 22 : 0,
       elapsed_time_s: state === 'executing' ? 45 : 0,
@@ -292,12 +293,12 @@ describe('QuickScoutPage', () => {
       mission_id: 'mission-exec',
       state: 'executing',
       drone_states: {},
+      findings: [],
       pois: [],
       total_coverage_percent: 22,
       elapsed_time_s: 45,
       started_at: 1_700_000_110,
     });
-    sarApi.getPOIs.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -346,6 +347,8 @@ describe('QuickScoutPage', () => {
       expect(screen.getByTestId('monitor-sidebar')).toBeInTheDocument();
       expect(screen.getByTestId('monitor-current')).toHaveTextContent('mission-exec');
     });
+
+    expect(sarApi.getFindings).not.toHaveBeenCalled();
   });
 
   it('includes the configured return behavior when computing a plan', async () => {
