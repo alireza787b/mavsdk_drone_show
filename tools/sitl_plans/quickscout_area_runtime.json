@@ -1,0 +1,17 @@
+{
+  "title": "QuickScout Area Runtime",
+  "description": "Run the stable QuickScout polygon area-sweep runtime drill on one selected drone, including hold, finding/handoff validation, resume rejection, abort, and clean fleet reset.",
+  "tags": ["quickscout", "sar", "runtime", "stable", "area-sweep"],
+  "steps": [
+    {
+      "validator": "quickscout",
+      "options": {
+        "quickscout_mission_template": "area_sweep",
+        "quickscout_launch_drone_count": 1,
+        "quickscout_polygon_width_m": 180.0,
+        "quickscout_polygon_height_m": 140.0,
+        "quickscout_min_estimated_coverage_s": 60.0
+      }
+    }
+  ]
+}

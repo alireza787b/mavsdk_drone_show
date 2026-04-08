@@ -1,0 +1,17 @@
+{
+  "title": "QuickScout Corridor Runtime",
+  "description": "Run the stable QuickScout corridor-search runtime drill on one selected drone, including hold, finding/handoff validation, resume rejection, abort, and clean fleet reset.",
+  "tags": ["quickscout", "sar", "runtime", "stable", "corridor-search"],
+  "steps": [
+    {
+      "validator": "quickscout",
+      "options": {
+        "quickscout_mission_template": "corridor_search",
+        "quickscout_launch_drone_count": 1,
+        "quickscout_corridor_leg_length_m": 220.0,
+        "quickscout_corridor_width_m": 80.0,
+        "quickscout_min_estimated_coverage_s": 60.0
+      }
+    }
+  ]
+}

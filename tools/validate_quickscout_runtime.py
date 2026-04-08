@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Validate the QuickScout workflow against a live GCS/SITL stack.
 
-The validator supports both:
-
-1. the stable single-drone last-known-point drill
-2. a broader multi-drone launch drill using the same mission template
+The validator supports all current QuickScout mission templates and both
+single-drone and partial-fleet launch drills.
 
 In both cases it validates the same operator-facing lifecycle:
 
@@ -23,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 import urllib.error
 import urllib.parse
@@ -256,36 +255,48 @@ def select_target_drones(
     )
 
 
-def build_last_known_point_request(
-    target_rows: list[dict[str, Any]],
+def build_runtime_search_center(target_rows: list[dict[str, Any]]) -> tuple[float, float, float]:
+    require(bool(target_rows), "At least one target row is required for QuickScout plan construction")
+    center_lat = sum(float(row["position_lat"]) for row in target_rows) / len(target_rows)
+    center_lng = sum(float(row["position_long"]) for row in target_rows) / len(target_rows)
+    current_alt_msl = max(float(row.get("position_alt", 0.0) or 0.0) for row in target_rows)
+    return center_lat, center_lng, current_alt_msl
+
+
+def offset_geodetic_point(lat: float, lng: float, *, east_m: float, north_m: float) -> dict[str, float]:
+    try:
+        import pymap3d
+
+        shifted_lat, shifted_lng, _ = pymap3d.enu2geodetic(east_m, north_m, 0, lat, lng, 0)
+        return {"lat": float(shifted_lat), "lng": float(shifted_lng)}
+    except ImportError:
+        meters_per_deg_lat = 111_320.0
+        meters_per_deg_lng = max(1.0, 111_320.0 * math.cos(math.radians(lat)))
+        return {
+            "lat": float(lat + (north_m / meters_per_deg_lat)),
+            "lng": float(lng + (east_m / meters_per_deg_lng)),
+        }
+
+
+def build_runtime_request_base(
     *,
+    mission_template: str,
+    search_area: dict[str, Any],
     pos_ids: list[int],
-    radius_m: float,
     altitude_gain_m: float,
     sweep_width_m: float,
     overlap_percent: float,
     cruise_speed_ms: float,
     survey_speed_ms: float,
+    current_alt_msl: float,
+    mission_label: str,
+    mission_profile: str,
+    mission_brief: str,
 ) -> dict[str, Any]:
-    require(bool(target_rows), "At least one target row is required for QuickScout plan construction")
-    require(
-        len(target_rows) == len(pos_ids),
-        f"Target row / pos_id mismatch: {len(target_rows)} rows for {len(pos_ids)} pos_ids",
-    )
-    center_lat = sum(float(row["position_lat"]) for row in target_rows) / len(target_rows)
-    center_lng = sum(float(row["position_long"]) for row in target_rows) / len(target_rows)
-    current_alt_msl = max(float(row.get("position_alt", 0.0) or 0.0) for row in target_rows)
     cruise_altitude_msl = max(20.0, current_alt_msl + float(altitude_gain_m))
     return {
-        "mission_template": "last_known_point",
-        "search_area": {
-            "type": "point",
-            "center": {
-                "lat": center_lat,
-                "lng": center_lng,
-            },
-            "radius_m": float(radius_m),
-        },
+        "mission_template": mission_template,
+        "search_area": search_area,
         "survey_config": {
             "algorithm": "boustrophedon",
             "sweep_width_m": float(sweep_width_m),
@@ -298,11 +309,198 @@ def build_last_known_point_request(
             "camera_interval_s": 2.0,
         },
         "pos_ids": [int(pos_id) for pos_id in pos_ids],
-        "mission_label": "QuickScout Runtime Validator",
-        "mission_profile": "runtime_last_known_point",
-        "mission_brief": "Runtime validator search package",
+        "mission_label": mission_label,
+        "mission_profile": mission_profile,
+        "mission_brief": mission_brief,
         "return_behavior": "return_home",
     }
+
+
+def build_last_known_point_request(
+    target_rows: list[dict[str, Any]],
+    *,
+    pos_ids: list[int],
+    radius_m: float,
+    altitude_gain_m: float,
+    sweep_width_m: float,
+    overlap_percent: float,
+    cruise_speed_ms: float,
+    survey_speed_ms: float,
+) -> dict[str, Any]:
+    require(
+        len(target_rows) == len(pos_ids),
+        f"Target row / pos_id mismatch: {len(target_rows)} rows for {len(pos_ids)} pos_ids",
+    )
+    center_lat, center_lng, current_alt_msl = build_runtime_search_center(target_rows)
+    return build_runtime_request_base(
+        mission_template="last_known_point",
+        search_area={
+            "type": "point",
+            "center": {
+                "lat": center_lat,
+                "lng": center_lng,
+            },
+            "radius_m": float(radius_m),
+        },
+        pos_ids=pos_ids,
+        altitude_gain_m=altitude_gain_m,
+        sweep_width_m=sweep_width_m,
+        overlap_percent=overlap_percent,
+        cruise_speed_ms=cruise_speed_ms,
+        survey_speed_ms=survey_speed_ms,
+        current_alt_msl=current_alt_msl,
+        mission_label="QuickScout Runtime Validator",
+        mission_profile="runtime_last_known_point",
+        mission_brief="Runtime validator last-known-point search package",
+    )
+
+
+def build_area_sweep_request(
+    target_rows: list[dict[str, Any]],
+    *,
+    pos_ids: list[int],
+    area_width_m: float,
+    area_height_m: float,
+    altitude_gain_m: float,
+    sweep_width_m: float,
+    overlap_percent: float,
+    cruise_speed_ms: float,
+    survey_speed_ms: float,
+) -> dict[str, Any]:
+    require(
+        len(target_rows) == len(pos_ids),
+        f"Target row / pos_id mismatch: {len(target_rows)} rows for {len(pos_ids)} pos_ids",
+    )
+    require(area_width_m > 0, f"Area width must be positive, got {area_width_m}")
+    require(area_height_m > 0, f"Area height must be positive, got {area_height_m}")
+    center_lat, center_lng, current_alt_msl = build_runtime_search_center(target_rows)
+    half_width = float(area_width_m) / 2.0
+    half_height = float(area_height_m) / 2.0
+    polygon_points = [
+        offset_geodetic_point(center_lat, center_lng, east_m=-half_width, north_m=-half_height),
+        offset_geodetic_point(center_lat, center_lng, east_m=half_width, north_m=-half_height),
+        offset_geodetic_point(center_lat, center_lng, east_m=half_width, north_m=half_height),
+        offset_geodetic_point(center_lat, center_lng, east_m=-half_width, north_m=half_height),
+    ]
+    return build_runtime_request_base(
+        mission_template="area_sweep",
+        search_area={
+            "type": "polygon",
+            "points": polygon_points,
+        },
+        pos_ids=pos_ids,
+        altitude_gain_m=altitude_gain_m,
+        sweep_width_m=sweep_width_m,
+        overlap_percent=overlap_percent,
+        cruise_speed_ms=cruise_speed_ms,
+        survey_speed_ms=survey_speed_ms,
+        current_alt_msl=current_alt_msl,
+        mission_label="QuickScout Area Runtime Validator",
+        mission_profile="runtime_area_sweep",
+        mission_brief="Runtime validator polygon area search package",
+    )
+
+
+def build_corridor_search_request(
+    target_rows: list[dict[str, Any]],
+    *,
+    pos_ids: list[int],
+    corridor_leg_length_m: float,
+    corridor_width_m: float,
+    altitude_gain_m: float,
+    sweep_width_m: float,
+    overlap_percent: float,
+    cruise_speed_ms: float,
+    survey_speed_ms: float,
+) -> dict[str, Any]:
+    require(
+        len(target_rows) == len(pos_ids),
+        f"Target row / pos_id mismatch: {len(target_rows)} rows for {len(pos_ids)} pos_ids",
+    )
+    require(corridor_leg_length_m > 0, f"Corridor leg length must be positive, got {corridor_leg_length_m}")
+    require(corridor_width_m > 0, f"Corridor width must be positive, got {corridor_width_m}")
+    center_lat, center_lng, current_alt_msl = build_runtime_search_center(target_rows)
+    half_leg = float(corridor_leg_length_m) / 2.0
+    path_points = [
+        offset_geodetic_point(center_lat, center_lng, east_m=-half_leg, north_m=0.0),
+        offset_geodetic_point(center_lat, center_lng, east_m=0.0, north_m=0.0),
+        offset_geodetic_point(center_lat, center_lng, east_m=half_leg, north_m=0.0),
+    ]
+    return build_runtime_request_base(
+        mission_template="corridor_search",
+        search_area={
+            "type": "line",
+            "path": path_points,
+            "corridor_width_m": float(corridor_width_m),
+        },
+        pos_ids=pos_ids,
+        altitude_gain_m=altitude_gain_m,
+        sweep_width_m=sweep_width_m,
+        overlap_percent=overlap_percent,
+        cruise_speed_ms=cruise_speed_ms,
+        survey_speed_ms=survey_speed_ms,
+        current_alt_msl=current_alt_msl,
+        mission_label="QuickScout Corridor Runtime Validator",
+        mission_profile="runtime_corridor_search",
+        mission_brief="Runtime validator corridor search package",
+    )
+
+
+def build_quickscout_runtime_request(
+    *,
+    mission_template: str,
+    target_rows: list[dict[str, Any]],
+    pos_ids: list[int],
+    point_radius_m: float,
+    corridor_leg_length_m: float,
+    corridor_width_m: float,
+    polygon_width_m: float,
+    polygon_height_m: float,
+    altitude_gain_m: float,
+    sweep_width_m: float,
+    overlap_percent: float,
+    cruise_speed_ms: float,
+    survey_speed_ms: float,
+) -> dict[str, Any]:
+    if mission_template == "last_known_point":
+        return build_last_known_point_request(
+            target_rows,
+            pos_ids=pos_ids,
+            radius_m=point_radius_m,
+            altitude_gain_m=altitude_gain_m,
+            sweep_width_m=sweep_width_m,
+            overlap_percent=overlap_percent,
+            cruise_speed_ms=cruise_speed_ms,
+            survey_speed_ms=survey_speed_ms,
+        )
+
+    if mission_template == "corridor_search":
+        return build_corridor_search_request(
+            target_rows,
+            pos_ids=pos_ids,
+            corridor_leg_length_m=corridor_leg_length_m,
+            corridor_width_m=corridor_width_m,
+            altitude_gain_m=altitude_gain_m,
+            sweep_width_m=sweep_width_m,
+            overlap_percent=overlap_percent,
+            cruise_speed_ms=cruise_speed_ms,
+            survey_speed_ms=survey_speed_ms,
+        )
+
+    if mission_template == "area_sweep":
+        return build_area_sweep_request(
+            target_rows,
+            pos_ids=pos_ids,
+            area_width_m=polygon_width_m,
+            area_height_m=polygon_height_m,
+            altitude_gain_m=altitude_gain_m,
+            sweep_width_m=sweep_width_m,
+            overlap_percent=overlap_percent,
+            cruise_speed_ms=cruise_speed_ms,
+            survey_speed_ms=survey_speed_ms,
+        )
+
+    raise RuntimeError(f"Unsupported QuickScout runtime mission template: {mission_template}")
 
 
 def wait_api_ready(client: ApiClient, timeout: int = 60) -> dict[str, Any]:
@@ -673,7 +871,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to observe")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to observe")
     parser.add_argument("--launch-drone-count", type=int, default=1, help="How many selected drones to include in the QuickScout launch package")
+    parser.add_argument(
+        "--mission-template",
+        default="last_known_point",
+        choices=["area_sweep", "last_known_point", "corridor_search"],
+        help="QuickScout mission template to validate",
+    )
     parser.add_argument("--point-radius-m", type=float, default=120.0, help="Last-known-point search radius in metres")
+    parser.add_argument("--corridor-width-m", type=float, default=80.0, help="Corridor-search total width in metres")
+    parser.add_argument("--corridor-leg-length-m", type=float, default=220.0, help="Corridor-search centerline length in metres")
+    parser.add_argument("--polygon-width-m", type=float, default=180.0, help="Area-sweep polygon width in metres")
+    parser.add_argument("--polygon-height-m", type=float, default=140.0, help="Area-sweep polygon height in metres")
     parser.add_argument("--altitude-gain-m", type=float, default=20.0, help="Requested survey altitude gain used in the planning payload")
     parser.add_argument("--airborne-min-gain", type=float, default=6.0, help="Minimum observed altitude gain required after launch")
     parser.add_argument("--sweep-width-m", type=float, default=25.0, help="Sweep width used for the runtime search package")
@@ -698,6 +906,7 @@ def main() -> int:
     artifacts: dict[str, Any] = {
         "selected_drone_ids": selected_ids,
         "launch_drone_count": int(args.launch_drone_count),
+        "mission_template": args.mission_template,
         "base_url": args.base_url,
         "stages": {},
     }
@@ -727,10 +936,15 @@ def main() -> int:
     }
     artifacts["stages"]["launch_probe_ready"] = wait_targets_launch_probe_ready(client, target_ids)
 
-    plan_request = build_last_known_point_request(
-        target_row_payloads,
+    plan_request = build_quickscout_runtime_request(
+        mission_template=args.mission_template,
+        target_rows=target_row_payloads,
         pos_ids=target_pos_ids,
-        radius_m=args.point_radius_m,
+        point_radius_m=args.point_radius_m,
+        corridor_leg_length_m=args.corridor_leg_length_m,
+        corridor_width_m=args.corridor_width_m,
+        polygon_width_m=args.polygon_width_m,
+        polygon_height_m=args.polygon_height_m,
         altitude_gain_m=args.altitude_gain_m,
         sweep_width_m=args.sweep_width_m,
         overlap_percent=args.overlap_percent,
@@ -740,7 +954,7 @@ def main() -> int:
     artifacts["stages"]["plan_request"] = plan_request
     log(
         "PLANNING QuickScout runtime mission for "
-        f"hw_ids={target_ids} pos_ids={target_pos_ids}"
+        f"template={args.mission_template} hw_ids={target_ids} pos_ids={target_pos_ids}"
     )
     plan_response = client.post_json("/api/sar/mission/plan", plan_request)
     artifacts["stages"]["plan_response"] = plan_response
@@ -754,7 +968,10 @@ def main() -> int:
     artifacts["stages"]["workspace"] = workspace
     operation = workspace.get("operation") or {}
     plans = operation.get("plans") or []
-    require(operation.get("mission_template") == "last_known_point", "Workspace did not persist the last_known_point template")
+    require(
+        operation.get("mission_template") == args.mission_template,
+        f"Workspace template mismatch. Expected {args.mission_template}, got {operation.get('mission_template')}",
+    )
     require(
         sorted(int(pos_id) for pos_id in operation.get("pos_ids") or []) == sorted(target_pos_ids),
         f"Workspace target pos_ids mismatch: {operation.get('pos_ids')}",

@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-08 QuickScout template-complete runtime-validation phase 18 checkpoint note documenting the new area/corridor runtime builders, the reusable template-regression SITL plans, the live Hetzner area/corridor drills, and the passing reset-backed QuickScout template regression suite
 - a 2026-04-08 QuickScout findings-aware runtime-validation phase 17 checkpoint note documenting the live single-drone and multi-drone handoff/evidence validator passes, the updated reusable QuickScout plan semantics, and the narrowed remaining post-v1 QuickScout debt
 - a 2026-04-08 QuickScout findings cleanup and follow-up checkpoint note documenting the findings-only contract cleanup, the removal of public `/api/sar/poi` aliases, the finding-led follow-up search seed flow, the map focus fix, and the paired local/Hetzner validation results
 - a 2026-04-08 QuickScout multi-drone SITL-platform checkpoint note documenting the new reusable `quickscout` validator mode, the stable bundled `quickscout_runtime` plan, the multi-drone last-known-point runtime drill, and the paired local/Hetzner validation results

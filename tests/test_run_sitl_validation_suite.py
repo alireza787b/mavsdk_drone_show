@@ -69,7 +69,12 @@ def _build_args(suite, tmp_path, **overrides):
         "integrated_precision_move_tolerance": 0.9,
         "integrated_precision_move_start_threshold": 1.0,
         "quickscout_launch_drone_count": 1,
+        "quickscout_mission_template": "last_known_point",
         "quickscout_point_radius_m": 120.0,
+        "quickscout_corridor_width_m": 80.0,
+        "quickscout_corridor_leg_length_m": 220.0,
+        "quickscout_polygon_width_m": 180.0,
+        "quickscout_polygon_height_m": 140.0,
         "quickscout_altitude_gain_m": 20.0,
         "quickscout_airborne_min_gain": 6.0,
         "quickscout_sweep_width_m": 25.0,
@@ -357,6 +362,8 @@ def test_build_suite_steps_supports_quickscout_mode(tmp_path):
         template=suite.TEMPLATE_QUICKSCOUT_ONLY,
         modes=[suite.MODE_QUICKSCOUT],
         quickscout_launch_drone_count=2,
+        quickscout_mission_template="corridor_search",
+        quickscout_corridor_width_m=90.0,
         quickscout_min_estimated_coverage_s=60.0,
     )
 
@@ -371,4 +378,6 @@ def test_build_suite_steps_supports_quickscout_mode(tmp_path):
     assert steps[1].json_path == tmp_path / "artifacts" / "quickscout.json"
     assert "tools/validate_quickscout_runtime.py" in steps[1].command
     assert steps[1].command[steps[1].command.index("--launch-drone-count") + 1] == "2"
+    assert steps[1].command[steps[1].command.index("--mission-template") + 1] == "corridor_search"
+    assert steps[1].command[steps[1].command.index("--corridor-width-m") + 1] == "90.0"
     assert steps[1].command[steps[1].command.index("--min-estimated-coverage-s") + 1] == "60.0"

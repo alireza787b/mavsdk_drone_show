@@ -52,6 +52,12 @@ The current plan library is split into three classes:
   - short-profile process, launch, formation, cleanup
 - `quickscout_runtime`
   - stable single-drone QuickScout last-known-point launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
+- `quickscout_area_runtime`
+  - stable single-drone QuickScout polygon area-sweep launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
+- `quickscout_corridor_runtime`
+  - stable single-drone QuickScout corridor-search launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
+- `quickscout_template_regression`
+  - fresh-reset single-drone QuickScout area-sweep, last-known-point, and corridor-search acceptance in one reusable plan
 - `mission_regression`
   - Drone Show, Smart Swarm, Swarm Trajectory, QuickScout
 - `operator_regression`

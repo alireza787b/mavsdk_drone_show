@@ -394,8 +394,18 @@ def build_quickscout_command(
         *[str(drone_id) for drone_id in drone_ids],
         "--launch-drone-count",
         str(option_value(args, options, "quickscout_launch_drone_count")),
+        "--mission-template",
+        str(option_value(args, options, "quickscout_mission_template")),
         "--point-radius-m",
         str(option_value(args, options, "quickscout_point_radius_m")),
+        "--corridor-width-m",
+        str(option_value(args, options, "quickscout_corridor_width_m")),
+        "--corridor-leg-length-m",
+        str(option_value(args, options, "quickscout_corridor_leg_length_m")),
+        "--polygon-width-m",
+        str(option_value(args, options, "quickscout_polygon_width_m")),
+        "--polygon-height-m",
+        str(option_value(args, options, "quickscout_polygon_height_m")),
         "--altitude-gain-m",
         str(option_value(args, options, "quickscout_altitude_gain_m")),
         "--airborne-min-gain",
@@ -916,7 +926,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--integrated-precision-move-tolerance", type=float, default=0.9, help="Leader precision-move settle tolerance used by the integrated mixed-mode validator")
     parser.add_argument("--integrated-precision-move-start-threshold", type=float, default=1.0, help="Leader minimum displacement before treating integrated precision move as active")
     parser.add_argument("--quickscout-launch-drone-count", type=int, default=1, help="How many selected drones the QuickScout runtime validator should include in the launch package")
+    parser.add_argument("--quickscout-mission-template", default="last_known_point", choices=["area_sweep", "last_known_point", "corridor_search"], help="QuickScout mission template used by the runtime validator")
     parser.add_argument("--quickscout-point-radius-m", type=float, default=120.0, help="Last-known-point search radius used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-corridor-width-m", type=float, default=80.0, help="Corridor-search width used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-corridor-leg-length-m", type=float, default=220.0, help="Corridor-search centerline length used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-polygon-width-m", type=float, default=180.0, help="Area-sweep polygon width used by the QuickScout runtime validator")
+    parser.add_argument("--quickscout-polygon-height-m", type=float, default=140.0, help="Area-sweep polygon height used by the QuickScout runtime validator")
     parser.add_argument("--quickscout-altitude-gain-m", type=float, default=20.0, help="Requested survey altitude gain used by the QuickScout runtime validator")
     parser.add_argument("--quickscout-airborne-min-gain", type=float, default=6.0, help="Minimum observed altitude gain required after QuickScout launch")
     parser.add_argument("--quickscout-sweep-width-m", type=float, default=25.0, help="Sweep width used by the QuickScout runtime validator")

@@ -114,7 +114,7 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 ## TODO 7: QuickScout advanced retasking and findings-aware SITL expansion
 
-**Status:** Deferred — findings foundation, evidence refs, handoff/export, finding-seeded follow-up planning, and findings-aware single/multi-drone runtime validation are complete, but mid-mission retasking and deeper advanced drills are not yet done
+**Status:** Deferred — findings foundation, evidence refs, handoff/export, finding-seeded follow-up planning, and template-complete findings-aware runtime validation are complete, but mid-mission retasking and deeper advanced drills are not yet done
 
 **Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
 

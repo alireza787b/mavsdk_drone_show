@@ -5,6 +5,8 @@ from tools.validate_quickscout_runtime import (
     _is_idle_baseline_row,
     _is_idle_reset_row,
     _telemetry_has_ids,
+    build_area_sweep_request,
+    build_corridor_search_request,
     build_last_known_point_request,
     detect_foreign_active_commands,
     resolve_selected_ids,
@@ -99,6 +101,63 @@ def test_build_last_known_point_request_tracks_multi_drone_center_pos_ids_and_al
     assert payload["pos_ids"] == [7, 8]
     assert payload["survey_config"]["cruise_altitude_msl"] == 532.0
     assert payload["survey_config"]["survey_altitude_agl"] == 20.0
+
+
+def test_build_area_sweep_request_tracks_polygon_dimensions_and_template():
+    rows = [
+        {
+            "position_lat": 47.2,
+            "position_long": 8.3,
+            "position_alt": 500.0,
+        }
+    ]
+
+    payload = build_area_sweep_request(
+        rows,
+        pos_ids=[5],
+        area_width_m=180.0,
+        area_height_m=140.0,
+        altitude_gain_m=20.0,
+        sweep_width_m=25.0,
+        overlap_percent=10.0,
+        cruise_speed_ms=8.0,
+        survey_speed_ms=4.0,
+    )
+
+    assert payload["mission_template"] == "area_sweep"
+    assert payload["search_area"]["type"] == "polygon"
+    assert len(payload["search_area"]["points"]) == 4
+    assert payload["pos_ids"] == [5]
+    assert payload["mission_profile"] == "runtime_area_sweep"
+
+
+def test_build_corridor_search_request_tracks_path_width_and_template():
+    rows = [
+        {
+            "position_lat": 47.2,
+            "position_long": 8.3,
+            "position_alt": 500.0,
+        }
+    ]
+
+    payload = build_corridor_search_request(
+        rows,
+        pos_ids=[9],
+        corridor_leg_length_m=220.0,
+        corridor_width_m=80.0,
+        altitude_gain_m=20.0,
+        sweep_width_m=25.0,
+        overlap_percent=10.0,
+        cruise_speed_ms=8.0,
+        survey_speed_ms=4.0,
+    )
+
+    assert payload["mission_template"] == "corridor_search"
+    assert payload["search_area"]["type"] == "line"
+    assert len(payload["search_area"]["path"]) == 3
+    assert payload["search_area"]["corridor_width_m"] == 80.0
+    assert payload["pos_ids"] == [9]
+    assert payload["mission_profile"] == "runtime_corridor_search"
 
 
 def test_detect_foreign_active_commands_ignores_allowed_ids_and_unwatched_targets():

@@ -1,0 +1,51 @@
+{
+  "title": "QuickScout Template Regression",
+  "description": "Run fresh-reset QuickScout runtime acceptance for polygon area-sweep, last-known-point, and corridor-search templates on one selected drone each.",
+  "tags": ["quickscout", "sar", "runtime", "stable", "template-regression"],
+  "steps": [
+    {
+      "kind": "reset",
+      "name": "reset_before_area_runtime"
+    },
+    {
+      "validator": "quickscout",
+      "name": "quickscout_area_runtime",
+      "options": {
+        "quickscout_mission_template": "area_sweep",
+        "quickscout_launch_drone_count": 1,
+        "quickscout_polygon_width_m": 180.0,
+        "quickscout_polygon_height_m": 140.0,
+        "quickscout_min_estimated_coverage_s": 60.0
+      }
+    },
+    {
+      "kind": "reset",
+      "name": "reset_before_point_runtime"
+    },
+    {
+      "validator": "quickscout",
+      "name": "quickscout_last_known_point_runtime",
+      "options": {
+        "quickscout_mission_template": "last_known_point",
+        "quickscout_launch_drone_count": 1,
+        "quickscout_point_radius_m": 120.0,
+        "quickscout_min_estimated_coverage_s": 60.0
+      }
+    },
+    {
+      "kind": "reset",
+      "name": "reset_before_corridor_runtime"
+    },
+    {
+      "validator": "quickscout",
+      "name": "quickscout_corridor_runtime",
+      "options": {
+        "quickscout_mission_template": "corridor_search",
+        "quickscout_launch_drone_count": 1,
+        "quickscout_corridor_leg_length_m": 220.0,
+        "quickscout_corridor_width_m": 80.0,
+        "quickscout_min_estimated_coverage_s": 60.0
+      }
+    }
+  ]
+}

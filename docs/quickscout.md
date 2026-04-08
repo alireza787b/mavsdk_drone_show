@@ -157,7 +157,7 @@ QuickScout is significantly more mature than the original PoC, but it is still a
 - durable findings workflow with operator review
 - evidence-reference editing on findings
 - canonical mission handoff/export bundle plus monitor-mode brief/export workflow
-- reusable findings-aware single-drone and multi-drone QuickScout SITL validators covering launch, hold, resume rejection, abort, evidence refs, and mission handoff/export
+- reusable findings-aware, template-complete QuickScout SITL validators covering `area_sweep`, `last_known_point`, and `corridor_search`, plus single-drone and multi-drone launch-control drills with evidence refs and mission handoff/export
 
 Still deferred:
 
