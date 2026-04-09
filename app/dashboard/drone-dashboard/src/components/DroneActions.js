@@ -51,7 +51,7 @@ const ACTION_SECTIONS = [
     key: 'maintenance',
     title: 'Service',
     description: 'Repo, identity, restart.',
-    actions: ['UPDATE_CODE', 'INIT_SYSID', 'APPLY_COMMON_PARAMS', 'REBOOT_FC', 'REBOOT_SYS'],
+    actions: ['UPDATE_CODE', 'INIT_SYSID', 'REBOOT_FC', 'REBOOT_SYS'],
   },
   {
     key: 'danger',

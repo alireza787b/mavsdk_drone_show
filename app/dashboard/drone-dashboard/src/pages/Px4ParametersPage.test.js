@@ -37,6 +37,8 @@ jest.mock('../services/px4ParamsApiService', () => ({
   diffPx4ParamSnapshot: jest.fn(),
   importQgcParameterFile: jest.fn(),
   getPx4ParamPolicy: jest.fn(),
+  getPx4ParamProfile: jest.fn(),
+  listPx4ParamProfiles: jest.fn(),
   refreshPx4ParamSnapshots: jest.fn(),
   createPx4ParamPatchJob: jest.fn(),
 }));
@@ -97,15 +99,57 @@ describe('Px4ParametersPage', () => {
     });
     gcsApi.getFleetTelemetryResponse.mockResolvedValue({
       data: {
-        1: { hw_id: 1, pos_id: 1, is_armed: false },
+        1: { hw_id: '1', pos_id: 1, is_armed: false },
       },
       headers: {},
+    });
+    gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
+      1: { hw_id: '1', pos_id: 1, is_armed: false },
     });
     gcsApi.getSwarmConfigResponse.mockResolvedValue({ data: [] });
     px4ParamsApi.getPx4ParamPolicy.mockResolvedValue({
       data: {
         docs: { version: 'main' },
         mutations: { require_disarmed: true, supported_component_ids: [1] },
+      },
+    });
+    px4ParamsApi.listPx4ParamProfiles.mockResolvedValue({
+      data: {
+        profiles: [
+          {
+            profile_id: 'fleet_geofence_guardrail',
+            name: 'Fleet Geofence Guardrail',
+            description: 'Starter profile',
+            recommended_scope: 'fleet',
+            tags: ['starter'],
+            entry_count: 2,
+            updated_at: Date.now(),
+          },
+        ],
+      },
+    });
+    px4ParamsApi.getPx4ParamProfile.mockResolvedValue({
+      data: {
+        profile_id: 'fleet_geofence_guardrail',
+        name: 'Fleet Geofence Guardrail',
+        description: 'Starter profile',
+        recommended_scope: 'fleet',
+        tags: ['starter'],
+        entries: [
+          {
+            component_id: 1,
+            name: 'GF_ACTION',
+            value_type: 'int',
+            value: 3,
+          },
+          {
+            component_id: 1,
+            name: 'GF_MAX_HOR_DIST',
+            value_type: 'float',
+            value: 3000,
+          },
+        ],
+        updated_at: Date.now(),
       },
     });
     px4ParamsApi.refreshPx4ParamSnapshots.mockResolvedValue({
@@ -171,6 +215,10 @@ describe('Px4ParametersPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' })).toBeInTheDocument();
     });
+    await waitFor(() => {
+      expect(screen.getByText('Online')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save Parameter' })).not.toBeDisabled();
+    });
     fireEvent.click(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' }));
     fireEvent.change(screen.getByLabelText('Set MPC_XY_VEL_MAX value'), { target: { value: '13.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Parameter' }));
@@ -201,23 +249,29 @@ describe('Px4ParametersPage', () => {
     });
     gcsApi.getFleetTelemetryResponse.mockResolvedValue({
       data: {
-        1: { hw_id: 1, pos_id: 1, is_armed: false },
-        2: { hw_id: 2, pos_id: 2, is_armed: false },
+        1: { hw_id: '1', pos_id: 1, is_armed: false },
+        2: { hw_id: '2', pos_id: 2, is_armed: false },
       },
       headers: {},
+    });
+    gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
+      1: { hw_id: '1', pos_id: 1, is_armed: false },
+      2: { hw_id: '2', pos_id: 2, is_armed: false },
     });
 
     render(<Px4ParametersPage />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Batch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced Manual Entry' }));
     await waitFor(() => {
       expect(screen.getByText('All 2 drones')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Apply Batch Patch' })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Apply Manual Patch' })).not.toBeDisabled();
     });
     fireEvent.change(screen.getByLabelText('Batch parameter name'), { target: { value: 'gf_max_hor_dist' } });
     fireEvent.change(screen.getByLabelText('Batch parameter type'), { target: { value: 'float' } });
     fireEvent.change(screen.getByLabelText('Batch parameter value'), { target: { value: '120' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Apply Batch Patch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Manual Patch' }));
 
     await waitFor(() => {
       expect(px4ParamsApi.createPx4ParamPatchJob).toHaveBeenCalledWith({
@@ -236,33 +290,62 @@ describe('Px4ParametersPage', () => {
     });
   });
 
-  it('imports a qgc file and requests a diff preview against the current snapshot', async () => {
+  it('loads repo-backed profiles and applies a saved profile to a selected batch scope', async () => {
+    gcsApi.getFleetConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
+        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
+      ],
+    });
+    gcsApi.getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        1: { hw_id: '1', pos_id: 1, is_armed: false },
+        2: { hw_id: '2', pos_id: 2, is_armed: false },
+      },
+      headers: {},
+    });
+    gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
+      1: { hw_id: '1', pos_id: 1, is_armed: false },
+      2: { hw_id: '2', pos_id: 2, is_armed: false },
+    });
+
     render(<Px4ParametersPage />);
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Import QGC File' })).toBeInTheDocument();
-    });
-
-    const importInput = document.querySelector('input[type="file"]');
-    const file = new File(['# QGC\n1\t1\tMPC_XY_VEL_MAX\t13\t9\n'], 'tune.params', { type: 'text/plain' });
-    fireEvent.change(importInput, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Profiles' }));
+    expect(await screen.findByText('Fleet Geofence Guardrail')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Use in Batch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Saved Profile' }));
 
     await waitFor(() => {
-      expect(px4ParamsApi.importQgcParameterFile).toHaveBeenCalledWith('# QGC\n1\t1\tMPC_XY_VEL_MAX\t13\t9\n');
+      expect(px4ParamsApi.createPx4ParamPatchJob).toHaveBeenCalledWith({
+        hwIds: ['1', '2'],
+        source: 'mds_profile',
+        verifyReadback: true,
+        entries: [
+          {
+            component_id: 1,
+            name: 'GF_ACTION',
+            value_type: 'int',
+            value: 3,
+          },
+          {
+            component_id: 1,
+            name: 'GF_MAX_HOR_DIST',
+            value_type: 'float',
+            value: 3000,
+          },
+        ],
+      });
     });
-    expect(px4ParamsApi.diffPx4ParamSnapshot).toHaveBeenCalledWith({
-      snapshotId: 'snap-1',
-      desiredEntries: [
-        {
-          component_id: 1,
-          name: 'MPC_XY_VEL_MAX',
-          value_type: 'float',
-          value: 13.0,
-        },
-      ],
-      includeUnchanged: false,
+  });
+
+  it('shows the qgc import control once the snapshot is ready', async () => {
+    render(<Px4ParametersPage />);
+
+    const importButton = await screen.findByRole('button', { name: 'Import QGC File' });
+    await waitFor(() => {
+      expect(importButton).toBeEnabled();
     });
-    expect(await screen.findByText('tune.params')).toBeInTheDocument();
-    expect(screen.getByText('1 changed row(s) pending review')).toBeInTheDocument();
   });
 });

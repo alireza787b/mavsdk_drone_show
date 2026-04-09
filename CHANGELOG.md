@@ -1005,3 +1005,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Added evidence-reference editing to the finding review workflow while keeping the extra detail folded behind an explicit operator action instead of permanently expanding the monitor sidebar.
 - Added a compact QuickScout monitor handoff panel with a live brief, reviewed/unresolved/reference counts, top finding summary rows, and copy/export actions.
 - Extended the QuickScout contracts, route inventory, backend tests, frontend service tests, and monitor-mode component coverage for the new handoff/evidence workflow.
+
+# 2026-04-09
+
+### PX4 Parameters Profile Library And Safer Batch Workflow
+- Added canonical GCS routes for repo-backed PX4 parameter profiles and moved approved fleet-baseline assets under `resources/px4_param_profiles/` instead of scattering reusable parameter bundles across unrelated SITL or action paths.
+- Added a first-class `Profiles` workspace to the dashboard PX4 Parameters page so operators can review saved baselines, compare them against a live drone snapshot, export typed MDS profile JSON, and hand the selected profile directly into tracked batch apply.
+- Reworked PX4 batch writes so operator scope now starts at `None`, saved profiles are the default repeatable path, and one-off raw batch entry stays available only as an explicit advanced mode.
+- Removed the older `Apply Common Params` operator shortcut from the dashboard action surface so PX4 parameter management has one clean operator entry point instead of competing UI flows.
+- Added focused backend profile-store/route coverage plus focused React coverage for the PX4 parameter workspaces, profile workflows, and action-surface cleanup.

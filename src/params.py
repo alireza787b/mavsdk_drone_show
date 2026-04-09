@@ -304,6 +304,7 @@ class Params:
     PX4_PARAMETER_MAVLINK_HEARTBEAT_TIMEOUT_SEC = 5.0
     PX4_PARAMETER_MAVLINK_SNAPSHOT_TIMEOUT_SEC = 45.0
     PX4_PARAMETER_MAVLINK_IDLE_TIMEOUT_SEC = 1.5
+    PX4_PARAMETER_PROFILE_DIR = os.environ.get("MDS_PX4_PARAMETER_PROFILE_DIR", "resources/px4_param_profiles")
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45       # Minimum wait budget for LAND action to fully disarm

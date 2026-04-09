@@ -3,6 +3,7 @@ jest.mock('./gcsApiService', () => ({
   buildGcsUrl: jest.fn((routeOrPath) => {
     const routeMap = {
       px4ParamsPolicy: '/api/v1/px4-params/policy',
+      px4ParamsProfiles: '/api/v1/px4-params/profiles',
       px4ParamsSnapshots: '/api/v1/px4-params/snapshots',
       px4ParamsPatchJobs: '/api/v1/px4-params/patch-jobs',
     };
@@ -10,14 +11,16 @@ jest.mock('./gcsApiService', () => ({
     return `http://gcs.test:5000${resolved}`;
   }),
   GCS_ROUTE_KEYS: {
-    px4ParamsBase: 'px4ParamsBase',
-    px4ParamsPolicy: 'px4ParamsPolicy',
-    px4ParamsSnapshots: 'px4ParamsSnapshots',
-    px4ParamsPatchJobs: 'px4ParamsPatchJobs',
+      px4ParamsBase: 'px4ParamsBase',
+      px4ParamsPolicy: 'px4ParamsPolicy',
+      px4ParamsProfiles: 'px4ParamsProfiles',
+      px4ParamsSnapshots: 'px4ParamsSnapshots',
+      px4ParamsPatchJobs: 'px4ParamsPatchJobs',
   },
   GCS_ROUTES: {
     px4ParamsBase: '/api/v1/px4-params',
     px4ParamsPolicy: '/api/v1/px4-params/policy',
+    px4ParamsProfiles: '/api/v1/px4-params/profiles',
     px4ParamsSnapshots: '/api/v1/px4-params/snapshots',
     px4ParamsPatchJobs: '/api/v1/px4-params/patch-jobs',
   },
@@ -44,6 +47,16 @@ describe('px4ParamsApiService', () => {
     await service.getPx4ParamPolicy();
 
     expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/v1/px4-params/policy');
+  });
+
+  it('loads repo-backed profile resources from canonical routes', async () => {
+    axios.get.mockResolvedValue({ data: { profiles: [] } });
+
+    await service.listPx4ParamProfiles();
+    await service.getPx4ParamProfile('fleet/guard');
+
+    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5000/api/v1/px4-params/profiles');
+    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5000/api/v1/px4-params/profiles/fleet%2Fguard');
   });
 
   it('refreshes snapshots for explicit hw ids', async () => {

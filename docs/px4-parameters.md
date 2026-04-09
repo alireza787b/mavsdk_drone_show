@@ -16,6 +16,9 @@ Design rules:
   runtime
 - QGroundControl `.params` interoperability is supported, but MDS keeps a typed
   internal patch format for automation and future MCP workflows
+- repo-backed parameter profiles live under `resources/px4_param_profiles/` so
+  fleet baselines follow the same repo-managed asset model as other operator
+  configuration artifacts
 
 ## Current v1 Capabilities
 
@@ -34,11 +37,24 @@ Design rules:
 ### Batch Workspace
 
 - reuse the shared MDS fleet/cluster/selected-drone scope model
+- batch scope defaults to `None` until the operator explicitly selects a target
 - dispatch one typed parameter patch to:
   - all drones
   - one Smart Swarm cluster
   - an explicit selected subset
 - track per-drone apply/verify outcomes through one GCS patch-job response
+- prefer saved profile bundles for repeatable fleet baselines; keep manual
+  single-parameter entry for one-off overrides only
+
+### Profiles Workspace
+
+- browse repo-backed PX4 parameter profiles from `resources/px4_param_profiles/`
+- review entry count, scope guidance, tags, and per-entry target values
+- export a selected profile as typed MDS JSON for automation or repo reuse
+- preview a saved profile against the currently selected drone snapshot
+- load the selected profile directly into the Batch workspace for tracked apply
+- use this workspace as the operator-facing home for repeatable fleet baselines
+  instead of the older one-off `Apply Common Params` action path
 
 ## Metadata Source Rules
 
@@ -69,10 +85,13 @@ inventing one.
 ## Operator Notes
 
 - use `Single Drone` for QGC-style inspection and targeted tuning
+- use `Profiles` to review approved fleet baselines before applying them
 - use `Batch` for deliberate fleet-wide or cluster-wide settings
 - refresh a snapshot before making decisions from stale values
 - treat reboot-required flags as advisory from PX4 metadata; they are shown
   when the vehicle reports them
+- keep repeatable fleet policies in repo-backed profiles instead of relying on
+  ad hoc CSVs or one-off manual batch entry
 
 ## Deferred Follow-Up
 

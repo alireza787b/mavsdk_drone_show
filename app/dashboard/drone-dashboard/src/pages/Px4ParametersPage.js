@@ -13,9 +13,12 @@ import {
   importQgcParameterFile,
   createPx4ParamPatchJob,
   getPx4ParamPolicy,
+  getPx4ParamProfile,
+  listPx4ParamProfiles,
   refreshPx4ParamSnapshots,
 } from '../services/px4ParamsApiService';
 import { buildQgcParameterFile } from '../utilities/px4ParameterFiles';
+import { buildMdsParameterProfileFile } from '../utilities/px4ParameterProfiles';
 import { getDroneDisplayIdentity, matchesDroneSearchQuery } from '../utilities/dronePresentation';
 import { normalizeTelemetryResponse, FIELD_NAMES } from '../constants/fieldMappings';
 import ClusterScopeBar from '../components/ClusterScopeBar';
@@ -25,6 +28,7 @@ import {
   filterClustersByScope,
 } from '../utilities/swarmDesignUtils';
 import Px4ParamInspector from '../components/px4/Px4ParamInspector';
+import Px4ParamProfilePanel from '../components/px4/Px4ParamProfilePanel';
 import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
@@ -43,16 +47,47 @@ function formatRelativeSnapshotAge(snapshot) {
   return `${minutes}m ago`;
 }
 
-function deriveWriteBlockedReason(policy, selectedDrone) {
+function isSnapshotStale(snapshot) {
+  if (!snapshot?.created_at || !snapshot?.stale_after_ms) {
+    return false;
+  }
+  return Date.now() - snapshot.created_at > snapshot.stale_after_ms;
+}
+
+function deriveWriteBlockedReason(policy, selectedDrone, snapshotSummary = null) {
   if (!selectedDrone) {
     return 'Select a target drone first.';
+  }
+
+  if (!selectedDrone.online) {
+    return 'PX4 parameter writes are blocked while the target drone is offline.';
   }
 
   if (policy?.mutations?.require_disarmed && selectedDrone[FIELD_NAMES.IS_ARMED]) {
     return 'PX4 parameter writes are blocked while the target drone is armed.';
   }
 
+  if (isSnapshotStale(snapshotSummary)) {
+    return 'Refresh the PX4 snapshot before writing stale values.';
+  }
+
   return '';
+}
+
+function getSnapshotStatusLabel({ selectedDrone, writeBlockedReason, snapshotSummary }) {
+  if (!selectedDrone) {
+    return 'No target';
+  }
+  if (!selectedDrone.online) {
+    return 'Offline';
+  }
+  if (writeBlockedReason) {
+    return 'Read only';
+  }
+  if (isSnapshotStale(snapshotSummary)) {
+    return 'Stale snapshot';
+  }
+  return 'Writable';
 }
 
 function parseDraftValue(row, draftValue) {
@@ -95,14 +130,22 @@ const Px4ParametersPage = () => {
   const [sessionChangedNames, setSessionChangedNames] = useState(() => new Set());
   const [importPreview, setImportPreview] = useState(null);
   const [importing, setImporting] = useState(false);
-  const [batchTargetMode, setBatchTargetMode] = useState('all');
+  const [batchTargetMode, setBatchTargetMode] = useState('');
   const [batchSelectedDrones, setBatchSelectedDrones] = useState([]);
   const [batchClusterScope, setBatchClusterScope] = useState('');
+  const [batchComposerMode, setBatchComposerMode] = useState('profile');
   const [batchParamName, setBatchParamName] = useState('');
   const [batchValueType, setBatchValueType] = useState('float');
   const [batchDraftValue, setBatchDraftValue] = useState('');
   const [batchApplying, setBatchApplying] = useState(false);
   const [batchJobResult, setBatchJobResult] = useState(null);
+  const [profileSummaries, setProfileSummaries] = useState([]);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileDiffPreview, setProfileDiffPreview] = useState(null);
+  const [profileDiffLoading, setProfileDiffLoading] = useState(false);
   const fileInputRef = useRef(null);
 
   const deferredDroneQuery = useDeferredValue(droneQuery);
@@ -123,6 +166,33 @@ const Px4ParametersPage = () => {
     }
 
     loadPolicy();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfiles() {
+      setProfilesLoading(true);
+      try {
+        const response = await listPx4ParamProfiles();
+        if (!active) {
+          return;
+        }
+        const profiles = Array.isArray(response.data?.profiles) ? response.data.profiles : [];
+        setProfileSummaries(profiles);
+      } catch (error) {
+        toast.error('Failed to load PX4 parameter profiles.');
+      } finally {
+        if (active) {
+          setProfilesLoading(false);
+        }
+      }
+    }
+
+    loadProfiles();
     return () => {
       active = false;
     };
@@ -256,15 +326,61 @@ const Px4ParametersPage = () => {
     if (!filteredDrones.length) {
       return;
     }
-    if (!selectedHwId || !filteredDrones.some((drone) => String(drone.hw_id) === String(selectedHwId))) {
+    if (!selectedHwId) {
       setSelectedHwId(String(filteredDrones[0].hw_id));
     }
   }, [filteredDrones, selectedHwId]);
 
   useEffect(() => {
+    if (!profileSummaries.length) {
+      setSelectedProfileId('');
+      return;
+    }
+    if (!selectedProfileId || !profileSummaries.some((profile) => profile.profile_id === selectedProfileId)) {
+      setSelectedProfileId(profileSummaries[0].profile_id);
+    }
+  }, [profileSummaries, selectedProfileId]);
+
+  useEffect(() => {
+    if (!selectedProfileId) {
+      setSelectedProfile(null);
+      return;
+    }
+
+    let active = true;
+    async function loadProfile() {
+      setProfileLoading(true);
+      try {
+        const response = await getPx4ParamProfile(selectedProfileId);
+        if (active) {
+          setSelectedProfile(response.data);
+        }
+      } catch (error) {
+        if (active) {
+          toast.error('Failed to load the selected PX4 parameter profile.');
+          setSelectedProfile(null);
+        }
+      } finally {
+        if (active) {
+          setProfileLoading(false);
+        }
+      }
+    }
+
+    loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [selectedProfileId]);
+
+  useEffect(() => {
+    setProfileDiffPreview(null);
+  }, [selectedProfileId, snapshotResponse?.snapshot?.snapshot_id]);
+
+  useEffect(() => {
     if (!batchClusterOptions.length) {
       if (batchTargetMode === 'cluster') {
-        setBatchTargetMode('all');
+        setBatchTargetMode('');
       }
       if (batchClusterScope) {
         setBatchClusterScope('');
@@ -313,9 +429,7 @@ const Px4ParametersPage = () => {
           if (!currentName) {
             return snapshot.rows[0]?.name || '';
           }
-          return snapshot.rows.some((row) => row.name === currentName)
-            ? currentName
-            : (snapshot.rows[0]?.name || '');
+          return snapshot.rows.some((row) => row.name === currentName) ? currentName : '';
         });
       }
     } catch (error) {
@@ -371,8 +485,30 @@ const Px4ParametersPage = () => {
     });
   }, [deferredParamQuery, sessionChangedNames, showModifiedOnly, showRebootOnly, showSessionChangesOnly, snapshotResponse?.rows]);
 
-  const writeBlockedReason = deriveWriteBlockedReason(policy, selectedDrone);
+  const writeBlockedReason = deriveWriteBlockedReason(policy, selectedDrone, snapshotResponse?.snapshot);
+  const snapshotStatusLabel = getSnapshotStatusLabel({
+    selectedDrone,
+    writeBlockedReason,
+    snapshotSummary: snapshotResponse?.snapshot,
+  });
+  const modifiedRowCount = useMemo(
+    () => (snapshotResponse?.rows || []).filter((row) => row.default_value !== null
+      && row.default_value !== undefined
+      && row.default_value !== row.value).length,
+    [snapshotResponse?.rows],
+  );
+  const rebootFlaggedCount = useMemo(
+    () => (snapshotResponse?.rows || []).filter((row) => row.reboot_required).length,
+    [snapshotResponse?.rows],
+  );
+  const selectedHiddenByFilter = Boolean(
+    selectedDrone && deferredDroneQuery && !filteredDrones.some((drone) => String(drone.hw_id) === String(selectedHwId)),
+  );
+  const compareTargetLabel = selectedIdentity?.primary || '';
   const batchTargetHwIds = useMemo(() => {
+    if (!batchTargetMode) {
+      return [];
+    }
     if (batchTargetMode === 'selected') {
       return batchSelectedDrones.map((value) => String(value));
     }
@@ -381,14 +517,23 @@ const Px4ParametersPage = () => {
     }
     return mergedDrones.map((drone) => String(drone.hw_id));
   }, [batchClusterTargetIds, batchSelectedDrones, batchTargetMode, mergedDrones]);
-  const batchTargetLabel = batchTargetMode === 'selected'
+  const batchTargetLabel = !batchTargetMode
+    ? 'No scope selected'
+    : batchTargetMode === 'selected'
     ? `${batchSelectedDrones.length} selected drone${batchSelectedDrones.length === 1 ? '' : 's'}`
     : batchTargetMode === 'cluster'
       ? `${batchClusterOptions.find((option) => String(option.id) === String(batchClusterScope))?.label || 'Cluster'} · ${batchClusterTargetIds.length} drones`
       : `All ${mergedDrones.length} drones`;
   const batchWriteBlockedReason = useMemo(() => {
+    if (!batchTargetMode) {
+      return 'Choose a target scope before applying batch parameter changes.';
+    }
     if (batchTargetHwIds.length === 0) {
       return 'Choose at least one target drone.';
+    }
+    const offlineTargets = mergedDrones.filter((drone) => batchTargetHwIds.includes(String(drone.hw_id)) && !drone.online);
+    if (offlineTargets.length > 0) {
+      return `${offlineTargets.length} target drone${offlineTargets.length === 1 ? '' : 's'} are offline. Batch writes are blocked.`;
     }
     if (!policy?.mutations?.require_disarmed) {
       return '';
@@ -398,7 +543,7 @@ const Px4ParametersPage = () => {
       return `${armedTargets.length} target drone${armedTargets.length === 1 ? '' : 's'} are armed. Batch writes are blocked.`;
     }
     return '';
-  }, [batchTargetHwIds, mergedDrones, policy?.mutations?.require_disarmed]);
+  }, [batchTargetHwIds, batchTargetMode, mergedDrones, policy?.mutations?.require_disarmed]);
 
   const handleSave = async () => {
     if (!selectedRow || !selectedDrone) {
@@ -539,6 +684,39 @@ const Px4ParametersPage = () => {
     }
   };
 
+  const handlePreviewProfileDiff = async () => {
+    if (!selectedProfile?.entries?.length || !snapshotResponse?.snapshot?.snapshot_id) {
+      toast.info('Refresh a drone snapshot before comparing a saved profile.');
+      return;
+    }
+
+    setProfileDiffLoading(true);
+    try {
+      const response = await diffPx4ParamSnapshot({
+        snapshotId: snapshotResponse.snapshot.snapshot_id,
+        desiredEntries: selectedProfile.entries,
+        includeUnchanged: false,
+      });
+      setProfileDiffPreview(response.data);
+      if ((response.data?.total_changed || 0) === 0) {
+        toast.info('The selected profile already matches the current drone snapshot.');
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Failed to compare the selected profile against the current drone snapshot.');
+    } finally {
+      setProfileDiffLoading(false);
+    }
+  };
+
+  const handleExportProfile = () => {
+    if (!selectedProfile) {
+      return;
+    }
+    const exportBundle = buildMdsParameterProfileFile(selectedProfile);
+    downloadTextFile(exportBundle.filename, exportBundle.text);
+    toast.success('Exported typed MDS parameter profile JSON.');
+  };
+
   const handleBatchTargetToggle = (hwId) => {
     setBatchSelectedDrones((current) => {
       const normalized = String(hwId);
@@ -593,6 +771,33 @@ const Px4ParametersPage = () => {
     }
   };
 
+  const handleApplyBatchProfile = async () => {
+    if (!selectedProfile?.entries?.length) {
+      toast.error('Choose a saved profile before applying a profile patch.');
+      return;
+    }
+    if (batchWriteBlockedReason) {
+      toast.error(batchWriteBlockedReason);
+      return;
+    }
+
+    setBatchApplying(true);
+    try {
+      const response = await createPx4ParamPatchJob({
+        hwIds: batchTargetHwIds,
+        source: 'mds_profile',
+        verifyReadback: true,
+        entries: selectedProfile.entries,
+      });
+      setBatchJobResult(response.data);
+      toast.success(`Profile patch dispatched to ${batchTargetHwIds.length} drone(s).`);
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Failed to apply the selected PX4 profile.');
+    } finally {
+      setBatchApplying(false);
+    }
+  };
+
   const rows = filteredRows.map((row) => ({
     id: row.name,
     ...row,
@@ -624,12 +829,13 @@ const Px4ParametersPage = () => {
           <span className="px4-parameters-page__eyebrow">Vehicle Tuning</span>
           <h1>PX4 Parameters</h1>
           <p>
-            Refresh one aircraft snapshot, inspect live PX4 values, and apply verified parameter edits through the GCS.
+            Inspect live PX4 values, review reusable fleet profiles, and apply verified parameter changes through the GCS without switching to QGC.
           </p>
         </div>
         <div className="px4-parameters-page__policy">
           <span>{policy?.docs?.version ? `Docs ${policy.docs.version}` : 'Docs loading'}</span>
           <span>{policy?.mutations?.require_disarmed ? 'Writes require disarm' : 'Writes allowed when linked'}</span>
+          <span>{profileSummaries.length} repo profile{profileSummaries.length === 1 ? '' : 's'}</span>
         </div>
       </header>
 
@@ -648,6 +854,13 @@ const Px4ParametersPage = () => {
         >
           Batch
         </button>
+        <button
+          type="button"
+          className={workspaceMode === 'profiles' ? 'active' : ''}
+          onClick={() => setWorkspaceMode('profiles')}
+        >
+          Profiles
+        </button>
       </div>
 
       {workspaceMode === 'single' ? (
@@ -665,6 +878,11 @@ const Px4ParametersPage = () => {
               placeholder="Search, P1|H1, pos 1-5, or hw 2,4"
               aria-label="Search drones"
             />
+            {selectedHiddenByFilter ? (
+              <div className="px4-inline-notice">
+                Current target {selectedIdentity?.primary} is hidden by the active drone filter.
+              </div>
+            ) : null}
             <div className="px4-parameters-page__drone-list">
               {filteredDrones.map((drone) => {
                 const identity = getDroneDisplayIdentity(drone);
@@ -700,16 +918,20 @@ const Px4ParametersPage = () => {
                 <strong>{selectedIdentity?.primary || 'No drone selected'}</strong>
               </div>
               <div>
-                <span>Freshness</span>
+                <span>Last fetched snapshot</span>
                 <strong>{formatRelativeSnapshotAge(snapshotResponse?.snapshot)}</strong>
               </div>
               <div>
                 <span>Status</span>
-                <strong>
-                  {selectedDrone?.online
-                    ? (writeBlockedReason ? 'Read only' : 'Writable')
-                    : (writeBlockedReason ? 'Read only' : 'Telemetry delayed')}
-                </strong>
+                <strong>{snapshotStatusLabel}</strong>
+              </div>
+              <div>
+                <span>Default delta</span>
+                <strong>{modifiedRowCount}</strong>
+              </div>
+              <div>
+                <span>Reboot flagged</span>
+                <strong>{rebootFlaggedCount}</strong>
               </div>
             </div>
             <div className="px4-parameters-page__snapshot-actions">
@@ -721,6 +943,9 @@ const Px4ParametersPage = () => {
               </button>
               <button type="button" onClick={handleChooseImportFile} disabled={!snapshotResponse || importing}>
                 {importing ? 'Importing…' : 'Import QGC File'}
+              </button>
+              <button type="button" onClick={() => setWorkspaceMode('profiles')} disabled={!profileSummaries.length}>
+                Review Profiles
               </button>
               <input
                 ref={fileInputRef}
@@ -766,6 +991,11 @@ const Px4ParametersPage = () => {
               <h2>Parameter Table</h2>
               <span>{rows.length} rows shown</span>
             </div>
+            {selectedRow ? (
+              <div className="px4-selection-banner">
+                Editing {selectedIdentity?.primary || 'target'} → {selectedRow.name}
+              </div>
+            ) : null}
             <div className="px4-parameters-page__toolbar">
               <input
                 className="px4-page-input"
@@ -811,6 +1041,7 @@ const Px4ParametersPage = () => {
                 columnHeaderHeight={38}
                 disableColumnMenu
                 disableRowSelectionOnClick
+                rowSelectionModel={selectedParamName ? [selectedParamName] : []}
                 onRowClick={(params) => setSelectedParamName(params.row.name)}
                 pageSizeOptions={[25, 50, 100]}
                 initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
@@ -847,7 +1078,7 @@ const Px4ParametersPage = () => {
           </div>
         </section>
       </section>
-      ) : (
+      ) : workspaceMode === 'batch' ? (
         <section className="px4-parameters-page__workspace">
           <aside className="px4-parameters-page__sidebar">
             <div className="px4-panel">
@@ -856,6 +1087,7 @@ const Px4ParametersPage = () => {
                 <span>{batchTargetLabel}</span>
               </div>
               <div className="px4-parameters-page__scope-toggle">
+                <button type="button" className={batchTargetMode === '' ? 'active' : ''} onClick={() => setBatchTargetMode('')}>None</button>
                 <button type="button" className={batchTargetMode === 'all' ? 'active' : ''} onClick={() => setBatchTargetMode('all')}>All</button>
                 <button type="button" className={batchTargetMode === 'cluster' ? 'active' : ''} onClick={() => setBatchTargetMode('cluster')}>Cluster</button>
                 <button type="button" className={batchTargetMode === 'selected' ? 'active' : ''} onClick={() => setBatchTargetMode('selected')}>Selected</button>
@@ -911,41 +1143,100 @@ const Px4ParametersPage = () => {
                 <h2>Batch Patch Composer</h2>
                 <span>{batchTargetHwIds.length} targets</span>
               </div>
-              <div className="px4-batch-form">
-                <label className="px4-param-inspector__field">
-                  <span>Parameter Name</span>
-                  <input
-                    type="text"
-                    value={batchParamName}
-                    onChange={(event) => setBatchParamName(event.target.value.toUpperCase())}
-                    placeholder="e.g. MPC_XY_VEL_MAX"
-                    aria-label="Batch parameter name"
-                  />
-                </label>
-                <label className="px4-param-inspector__field">
-                  <span>Value Type</span>
-                  <select
-                    className="px4-page-input"
-                    value={batchValueType}
-                    onChange={(event) => setBatchValueType(event.target.value)}
-                    aria-label="Batch parameter type"
-                  >
-                    <option value="int">INT</option>
-                    <option value="float">FLOAT</option>
-                    <option value="custom">CUSTOM</option>
-                  </select>
-                </label>
-                <label className="px4-param-inspector__field">
-                  <span>Value</span>
-                  <input
-                    type={batchValueType === 'custom' ? 'text' : 'number'}
-                    step={batchValueType === 'int' ? '1' : 'any'}
-                    value={batchDraftValue}
-                    onChange={(event) => setBatchDraftValue(event.target.value)}
-                    aria-label="Batch parameter value"
-                  />
-                </label>
+              <div className="px4-parameters-page__scope-toggle px4-parameters-page__composer-toggle">
+                <button
+                  type="button"
+                  className={batchComposerMode === 'profile' ? 'active' : ''}
+                  onClick={() => setBatchComposerMode('profile')}
+                >
+                  Saved Profile
+                </button>
+                <button
+                  type="button"
+                  className={batchComposerMode === 'manual' ? 'active' : ''}
+                  onClick={() => setBatchComposerMode('manual')}
+                >
+                  Advanced Manual Entry
+                </button>
               </div>
+              {batchComposerMode === 'profile' ? (
+                <div className="px4-profile-apply">
+                  <label className="px4-param-inspector__field">
+                    <span>Profile</span>
+                    <select
+                      className="px4-page-input"
+                      value={selectedProfileId}
+                      onChange={(event) => setSelectedProfileId(event.target.value)}
+                      aria-label="Saved PX4 profile"
+                    >
+                      {profileSummaries.map((profile) => (
+                        <option key={profile.profile_id} value={profile.profile_id}>
+                          {profile.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedProfile ? (
+                    <>
+                      <div className="px4-profile-apply__summary">
+                        <strong>{selectedProfile.name}</strong>
+                        <span>{selectedProfile.entries.length} row(s) · Recommended {selectedProfile.recommended_scope}</span>
+                      </div>
+                      <div className="px4-import-preview__list">
+                        {selectedProfile.entries.slice(0, 6).map((entry) => (
+                          <div key={`${entry.component_id}:${entry.name}`} className="px4-import-preview__row">
+                            <strong>{entry.name}</strong>
+                            <span>{String(entry.value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="px4-inline-notice">Select a saved profile to review and apply it to the chosen scope.</div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="px4-batch-form">
+                    <label className="px4-param-inspector__field">
+                      <span>Parameter Name</span>
+                      <input
+                        type="text"
+                        value={batchParamName}
+                        onChange={(event) => setBatchParamName(event.target.value.toUpperCase())}
+                        placeholder="e.g. MPC_XY_VEL_MAX"
+                        aria-label="Batch parameter name"
+                      />
+                    </label>
+                    <label className="px4-param-inspector__field">
+                      <span>Value Type</span>
+                      <select
+                        className="px4-page-input"
+                        value={batchValueType}
+                        onChange={(event) => setBatchValueType(event.target.value)}
+                        aria-label="Batch parameter type"
+                      >
+                        <option value="int">INT</option>
+                        <option value="float">FLOAT</option>
+                        <option value="custom">CUSTOM</option>
+                      </select>
+                    </label>
+                    <label className="px4-param-inspector__field">
+                      <span>Value</span>
+                      <input
+                        type={batchValueType === 'custom' ? 'text' : 'number'}
+                        step={batchValueType === 'int' ? '1' : 'any'}
+                        value={batchDraftValue}
+                        onChange={(event) => setBatchDraftValue(event.target.value)}
+                        aria-label="Batch parameter value"
+                      />
+                    </label>
+                  </div>
+                  <div className="px4-inline-notice">
+                    Use manual batch entry only for one-off overrides. Saved profiles remain the clean source of truth for repeatable fleet baselines.
+                  </div>
+                </>
+              )}
               {batchWriteBlockedReason ? (
                 <div className="px4-param-inspector__notice px4-param-inspector__notice--warning">
                   {batchWriteBlockedReason}
@@ -955,10 +1246,17 @@ const Px4ParametersPage = () => {
                 <button
                   type="button"
                   className="primary"
-                  onClick={handleApplyBatchPatch}
-                  disabled={batchApplying || Boolean(batchWriteBlockedReason)}
+                  onClick={batchComposerMode === 'profile' ? handleApplyBatchProfile : handleApplyBatchPatch}
+                  disabled={batchApplying || Boolean(batchWriteBlockedReason) || (batchComposerMode === 'profile' && !selectedProfile)}
                 >
-                  {batchApplying ? 'Applying…' : 'Apply Batch Patch'}
+                  {batchApplying
+                    ? 'Applying…'
+                    : batchComposerMode === 'profile'
+                      ? 'Apply Saved Profile'
+                      : 'Apply Manual Patch'}
+                </button>
+                <button type="button" onClick={() => setWorkspaceMode('profiles')} disabled={!profileSummaries.length}>
+                  Open Profile Library
                 </button>
               </div>
             </div>
@@ -979,6 +1277,84 @@ const Px4ParametersPage = () => {
                 </div>
               </div>
             ) : null}
+          </section>
+        </section>
+      ) : (
+        <section className="px4-parameters-page__workspace">
+          <aside className="px4-parameters-page__sidebar">
+            <div className="px4-panel">
+              <div className="px4-panel__header">
+                <h2>Repo Profiles</h2>
+                <span>{profileSummaries.length} available</span>
+              </div>
+              {profilesLoading ? (
+                <div className="px4-profile-panel__empty">Loading profiles…</div>
+              ) : (
+                <div className="px4-parameters-page__drone-list">
+                  {profileSummaries.map((profile) => (
+                    <button
+                      key={profile.profile_id}
+                      type="button"
+                      className={`px4-drone-option ${selectedProfileId === profile.profile_id ? 'active' : ''}`}
+                      onClick={() => setSelectedProfileId(profile.profile_id)}
+                    >
+                      <div>
+                        <strong>{profile.name}</strong>
+                        <span>{profile.description || `${profile.entry_count} row(s)`}</span>
+                      </div>
+                      <span className="px4-drone-option__status online">
+                        {profile.entry_count} rows
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="px4-panel">
+              <div className="px4-panel__header">
+                <h2>Compare Target</h2>
+                <span>{selectedIdentity?.primary || 'No drone'}</span>
+              </div>
+              <div className="px4-parameters-page__snapshot-meta">
+                <div>
+                  <span>Scope</span>
+                  <strong>{selectedIdentity?.primary || 'Select in Single Drone mode'}</strong>
+                </div>
+                <div>
+                  <span>Snapshot</span>
+                  <strong>{formatRelativeSnapshotAge(snapshotResponse?.snapshot)}</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>{snapshotStatusLabel}</strong>
+                </div>
+              </div>
+              <div className="px4-param-inspector__actions">
+                <button type="button" className="primary" onClick={refreshSnapshot} disabled={!selectedHwId || snapshotLoading}>
+                  {snapshotLoading ? 'Refreshing…' : 'Refresh Snapshot'}
+                </button>
+                <button type="button" onClick={() => setWorkspaceMode('single')}>
+                  Open Single Drone
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          <section className="px4-parameters-page__main">
+            <Px4ParamProfilePanel
+              profile={selectedProfile}
+              loading={profileLoading}
+              compareTargetLabel={compareTargetLabel}
+              compareResult={profileDiffPreview}
+              compareLoading={profileDiffLoading}
+              onPreviewDiff={handlePreviewProfileDiff}
+              onUseInBatch={() => {
+                setBatchComposerMode('profile');
+                setWorkspaceMode('batch');
+              }}
+              onExportProfile={handleExportProfile}
+            />
           </section>
         </section>
       )}

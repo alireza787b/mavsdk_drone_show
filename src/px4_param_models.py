@@ -28,6 +28,17 @@ class Px4ParamPatchSource(str, Enum):
     API = "api"
 
 
+class Px4ParamProfileScope(str, Enum):
+    SINGLE = "single"
+    SELECTED = "selected"
+    CLUSTER = "cluster"
+    FLEET = "fleet"
+
+
+class Px4ParamProfileSource(str, Enum):
+    REPO = "repo"
+
+
 class Px4ParamPolicyDocs(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -93,6 +104,56 @@ class Px4ParamRow(BaseModel):
         if not normalized:
             raise ValueError("parameter name must not be blank")
         return normalized
+
+
+class Px4ParamProfileSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    source: Px4ParamProfileSource = Px4ParamProfileSource.REPO
+    recommended_scope: Px4ParamProfileScope = Px4ParamProfileScope.FLEET
+    tags: List[str] = Field(default_factory=list)
+    entry_count: int = Field(0, ge=0)
+    updated_at: int
+
+    @field_validator("profile_id", mode="before")
+    @classmethod
+    def _normalize_profile_id(cls, value: Any) -> str:
+        normalized = str(value or "").strip().lower().replace(" ", "_")
+        if not normalized:
+            raise ValueError("profile_id must not be blank")
+        return normalized
+
+
+class Px4ParamProfileResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profile_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    source: Px4ParamProfileSource = Px4ParamProfileSource.REPO
+    recommended_scope: Px4ParamProfileScope = Px4ParamProfileScope.FLEET
+    tags: List[str] = Field(default_factory=list)
+    entries: List["Px4ParamPatchEntry"] = Field(..., min_length=1)
+    updated_at: int
+
+    @field_validator("profile_id", mode="before")
+    @classmethod
+    def _normalize_profile_response_id(cls, value: Any) -> str:
+        normalized = str(value or "").strip().lower().replace(" ", "_")
+        if not normalized:
+            raise ValueError("profile_id must not be blank")
+        return normalized
+
+
+class Px4ParamProfileListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    profiles: List[Px4ParamProfileSummary]
+    total_profiles: int
+    timestamp: int
 
 
 class Px4ParamSnapshotRequest(BaseModel):
@@ -236,6 +297,20 @@ class Px4ParamPatchEntry(BaseModel):
         if not normalized:
             raise ValueError("parameter name must not be blank")
         return normalized
+
+    @model_validator(mode="after")
+    def _validate_type_and_value(self) -> "Px4ParamPatchEntry":
+        if self.value_type == Px4ParamValueType.INT:
+            if isinstance(self.value, bool) or not isinstance(self.value, int):
+                raise ValueError("int parameter patches require an integer value")
+        elif self.value_type == Px4ParamValueType.FLOAT:
+            if isinstance(self.value, bool) or not isinstance(self.value, (int, float)):
+                raise ValueError("float parameter patches require a numeric value")
+            self.value = float(self.value)
+        elif self.value_type == Px4ParamValueType.CUSTOM:
+            if not isinstance(self.value, str):
+                raise ValueError("custom parameter patches require a string value")
+        return self
 
 
 class Px4ParamPatchApplyRequest(BaseModel):

@@ -70,6 +70,8 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/origin/deviations",
         "/api/v1/origin/launch-positions",
         "/api/v1/px4-params/policy",
+        "/api/v1/px4-params/profiles",
+        "/api/v1/px4-params/profiles/{profile_id}",
         "/api/v1/px4-params/patch-jobs/{job_id}",
         "/api/v1/px4-params/snapshots/{snapshot_id}",
         "/api/v1/px4-params/snapshots/{snapshot_id}/rows",

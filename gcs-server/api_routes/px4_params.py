@@ -9,10 +9,12 @@ from px4_param_store import (
     build_px4_param_policy_payload,
     build_snapshot_rows_response,
     fetch_snapshots_for_targets,
+    get_repo_profile,
     get_patch_job,
     get_snapshot,
     import_mds_patch,
     import_qgc_parameter_file,
+    list_repo_profiles,
     run_patch_job_for_targets,
 )
 from src.gcs_api_routes import (
@@ -21,6 +23,8 @@ from src.gcs_api_routes import (
     GCS_PX4_PARAMS_PATCH_JOB_ROUTE_TEMPLATE,
     GCS_PX4_PARAMS_PATCH_JOBS_ROUTE,
     GCS_PX4_PARAMS_POLICY_ROUTE,
+    GCS_PX4_PARAMS_PROFILE_ROUTE_TEMPLATE,
+    GCS_PX4_PARAMS_PROFILES_ROUTE,
     GCS_PX4_PARAMS_QGC_IMPORT_ROUTE,
     GCS_PX4_PARAMS_SNAPSHOT_ROUTE_TEMPLATE,
     GCS_PX4_PARAMS_SNAPSHOT_ROWS_ROUTE_TEMPLATE,
@@ -36,6 +40,8 @@ from src.px4_param_models import (
     Px4ParamPatchJobRequest,
     Px4ParamPatchJobResponse,
     Px4ParamPolicyResponse,
+    Px4ParamProfileListResponse,
+    Px4ParamProfileResponse,
     Px4ParamSnapshotResponse,
     Px4ParamSnapshotRowsResponse,
 )
@@ -47,6 +53,25 @@ def create_px4_params_router(deps: Any) -> APIRouter:
     @router.get(GCS_PX4_PARAMS_POLICY_ROUTE, response_model=Px4ParamPolicyResponse, tags=["PX4 Parameters"])
     async def get_px4_param_policy():
         return build_px4_param_policy_payload(deps.Params)
+
+    @router.get(GCS_PX4_PARAMS_PROFILES_ROUTE, response_model=Px4ParamProfileListResponse, tags=["PX4 Parameters"])
+    async def get_px4_param_profiles():
+        try:
+            return list_repo_profiles(deps.Params)
+        except Exception as exc:
+            deps.log_system_error(f"PX4 param profile listing failed: {exc}", "px4_params")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.get(GCS_PX4_PARAMS_PROFILE_ROUTE_TEMPLATE, response_model=Px4ParamProfileResponse, tags=["PX4 Parameters"])
+    async def get_px4_param_profile(profile_id: str = PathParam(..., description="Profile identifier")):
+        try:
+            profile = get_repo_profile(deps.Params, profile_id)
+        except Exception as exc:
+            deps.log_system_error(f"PX4 param profile load failed: {exc}", "px4_params")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        if profile is None:
+            raise HTTPException(status_code=404, detail=f"PX4 param profile {profile_id} not found")
+        return profile
 
     @router.post(GCS_PX4_PARAMS_SNAPSHOTS_ROUTE, response_model=Px4ParamFleetSnapshotResponse, tags=["PX4 Parameters"])
     async def create_px4_param_snapshots(request: Px4ParamFleetSnapshotRequest):

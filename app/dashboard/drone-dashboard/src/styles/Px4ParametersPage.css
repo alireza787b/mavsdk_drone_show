@@ -76,6 +76,15 @@
   color: var(--color-warning);
 }
 
+.px4-inline-notice,
+.px4-selection-banner {
+  padding: 10px 12px;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+}
+
 .px4-parameters-page__workspace,
 .px4-parameters-page__content {
   display: grid;
@@ -136,7 +145,8 @@
 }
 
 .px4-page-input,
-.px4-param-inspector__field input {
+.px4-param-inspector__field input,
+.px4-param-inspector__field select {
   width: 100%;
   padding: 10px 12px;
   border-radius: var(--border-radius-sm);
@@ -148,6 +158,10 @@
 
 .px4-hidden-input {
   display: none;
+}
+
+.px4-parameters-page__composer-toggle {
+  margin-bottom: var(--spacing-sm);
 }
 
 .px4-parameters-page__drone-list {
@@ -195,14 +209,15 @@
 
 .px4-parameters-page__snapshot-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
 }
 
 .px4-parameters-page__snapshot-actions,
 .px4-param-inspector__actions,
-.px4-parameters-page__toolbar {
+.px4-parameters-page__toolbar,
+.px4-profile-panel__actions {
   display: flex;
   gap: var(--spacing-sm);
   flex-wrap: wrap;
@@ -276,6 +291,50 @@
 .px4-param-inspector__summary,
 .px4-param-inspector__detail {
   margin: var(--spacing-sm) 0 0;
+}
+
+.px4-profile-panel__summary {
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text-secondary);
+}
+
+.px4-profile-panel__entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-md);
+}
+
+.px4-profile-panel__entry,
+.px4-profile-apply__summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-light);
+}
+
+.px4-profile-panel__entry span,
+.px4-profile-apply__summary span {
+  color: var(--color-text-secondary);
+}
+
+.px4-profile-panel__entry code {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.px4-profile-panel__empty {
+  color: var(--color-text-secondary);
+}
+
+.px4-profile-apply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
 }
 
 .px4-param-inspector__grid {
@@ -379,5 +438,14 @@
 
   .px4-batch-form {
     grid-template-columns: 1fr;
+  }
+
+  .px4-profile-panel__entry,
+  .px4-profile-apply__summary,
+  .px4-import-preview__header,
+  .px4-import-preview__row,
+  .px4-import-preview__actions {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

@@ -1,0 +1,27 @@
+{
+  "profile_id": "sitl_link_loss_relaxed",
+  "name": "SITL Link-Loss Relaxed",
+  "description": "SITL-only baseline that disables link-loss failsafes for deterministic validation drills.",
+  "recommended_scope": "selected",
+  "tags": ["sitl", "debug", "validation"],
+  "entries": [
+    {
+      "component_id": 1,
+      "name": "COM_DL_LOSS_T",
+      "value_type": "float",
+      "value": 0.0
+    },
+    {
+      "component_id": 1,
+      "name": "NAV_DLL_ACT",
+      "value_type": "int",
+      "value": 0
+    },
+    {
+      "component_id": 1,
+      "name": "NAV_RCL_ACT",
+      "value_type": "int",
+      "value": 0
+    }
+  ]
+}

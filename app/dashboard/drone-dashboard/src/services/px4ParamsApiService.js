@@ -9,6 +9,14 @@ export async function getPx4ParamPolicy() {
   return axios.get(buildGcsUrl(GCS_ROUTE_KEYS.px4ParamsPolicy));
 }
 
+export async function listPx4ParamProfiles() {
+  return axios.get(buildGcsUrl(GCS_ROUTE_KEYS.px4ParamsProfiles));
+}
+
+export async function getPx4ParamProfile(profileId) {
+  return axios.get(buildPx4ParamsUrl(`/profiles/${encodeURIComponent(profileId)}`));
+}
+
 export async function refreshPx4ParamSnapshots({ hwIds, componentId = 1 }) {
   return axios.post(buildGcsUrl(GCS_ROUTE_KEYS.px4ParamsSnapshots), {
     hw_ids: hwIds,

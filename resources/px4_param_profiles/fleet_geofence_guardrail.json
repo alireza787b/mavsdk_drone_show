@@ -1,0 +1,33 @@
+{
+  "profile_id": "fleet_geofence_guardrail",
+  "name": "Fleet Geofence Guardrail",
+  "description": "Starter fleet geofence and RC-exception baseline for rehearsals and controlled operations.",
+  "recommended_scope": "fleet",
+  "tags": ["starter", "safety", "geofence"],
+  "entries": [
+    {
+      "component_id": 1,
+      "name": "COM_RCL_EXCEPT",
+      "value_type": "int",
+      "value": 7
+    },
+    {
+      "component_id": 1,
+      "name": "GF_ACTION",
+      "value_type": "int",
+      "value": 3
+    },
+    {
+      "component_id": 1,
+      "name": "GF_MAX_HOR_DIST",
+      "value_type": "float",
+      "value": 3000.0
+    },
+    {
+      "component_id": 1,
+      "name": "GF_MAX_VER_DIST",
+      "value_type": "float",
+      "value": 120.0
+    }
+  ]
+}

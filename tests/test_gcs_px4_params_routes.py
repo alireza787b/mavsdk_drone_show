@@ -32,6 +32,8 @@ def test_px4_params_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/v1/px4-params/policy" in routes
+    assert "/api/v1/px4-params/profiles" in routes
+    assert "/api/v1/px4-params/profiles/{profile_id}" in routes
     assert "/api/v1/px4-params/snapshots" in routes
     assert "/api/v1/px4-params/snapshots/{snapshot_id}" in routes
     assert "/api/v1/px4-params/snapshots/{snapshot_id}/rows" in routes
@@ -57,6 +59,61 @@ def test_px4_params_router_policy_uses_runtime_params():
     assert body["docs"]["version"] == "v1.16"
     assert body["docs"]["base_url"] == "https://docs.px4.io/v1.16/en/advanced_config/parameter_reference.html"
     assert body["mutations"]["require_disarmed"] is True
+
+
+def test_px4_params_router_profile_routes_use_repo_store(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_px4_params_router(deps))
+
+    profile_list_payload = {
+        "profiles": [
+            {
+                "profile_id": "fleet_guard",
+                "name": "Fleet Guard",
+                "description": "Starter profile",
+                "source": "repo",
+                "recommended_scope": "fleet",
+                "tags": ["starter"],
+                "entry_count": 1,
+                "updated_at": 5,
+            }
+        ],
+        "total_profiles": 1,
+        "timestamp": 6,
+    }
+    profile_payload = {
+        "profile_id": "fleet_guard",
+        "name": "Fleet Guard",
+        "description": "Starter profile",
+        "source": "repo",
+        "recommended_scope": "fleet",
+        "tags": ["starter"],
+        "entries": [
+            {
+                "component_id": 1,
+                "name": "GF_ACTION",
+                "value_type": "int",
+                "value": 3,
+            }
+        ],
+        "updated_at": 5,
+    }
+
+    monkeypatch.setattr("api_routes.px4_params.list_repo_profiles", lambda params: profile_list_payload)
+    monkeypatch.setattr(
+        "api_routes.px4_params.get_repo_profile",
+        lambda params, profile_id: profile_payload if profile_id == "fleet_guard" else None,
+    )
+
+    with TestClient(app) as client:
+        list_response = client.get("/api/v1/px4-params/profiles")
+        profile_response = client.get("/api/v1/px4-params/profiles/fleet_guard")
+
+    assert list_response.status_code == 200
+    assert list_response.json()["profiles"][0]["profile_id"] == "fleet_guard"
+    assert profile_response.status_code == 200
+    assert profile_response.json()["entries"][0]["name"] == "GF_ACTION"
 
 
 def test_px4_params_router_snapshot_routes_use_live_store(monkeypatch):
