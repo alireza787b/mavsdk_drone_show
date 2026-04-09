@@ -280,7 +280,7 @@ class Px4ParamService:
 
         try:
             float_params = await component_information.access_float_params()
-        except (AttributeError, ComponentInformationError, RuntimeError):
+        except Exception:
             return {}
 
         return {

@@ -75,6 +75,11 @@ class FakeComponentInformation:
         ]
 
 
+class BrokenComponentInformation:
+    async def access_float_params(self):
+        raise ValueError("component information unavailable")
+
+
 def _build_service():
     params = SimpleNamespace(
         PX4_PARAMETER_DOCS_VERSION="main",
@@ -145,6 +150,34 @@ async def test_build_snapshot_falls_back_to_mavlink_listing_when_bulk_rpc_is_una
     assert snapshot.snapshot.total_params == 2
     assert [row.name for row in snapshot.rows] == ["MAV_SYS_ID", "MPC_XY_CRUISE"]
     assert next(row for row in snapshot.rows if row.name == "MPC_XY_CRUISE").default_value == 5.0
+
+
+async def test_build_snapshot_treats_component_information_failures_as_best_effort():
+    service = _build_service()
+
+    class _UnavailableBulkParamPlugin:
+        async def get_all_params(self):
+            raise RuntimeError("GetAllParams unimplemented")
+
+    drone = SimpleNamespace(
+        param=_UnavailableBulkParamPlugin(),
+        component_information=BrokenComponentInformation(),
+    )
+
+    service._collect_mavlink_param_entries_blocking = lambda component_id: [
+        {
+            "name": "MAV_SYS_ID",
+            "value_type": Px4ParamValueType.INT,
+            "value": 7,
+        }
+    ]
+
+    snapshot = await service.build_snapshot(drone)
+
+    assert snapshot.snapshot.total_params == 1
+    row = snapshot.rows[0]
+    assert row.name == "MAV_SYS_ID"
+    assert row.short_description is None
 
 
 async def test_get_param_value_auto_detects_type():
