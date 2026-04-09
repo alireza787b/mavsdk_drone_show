@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Px4ParametersPage from './Px4ParametersPage';
 import * as gcsApi from '../services/gcsApiService';
 import * as px4ParamsApi from '../services/px4ParamsApiService';
+import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 
 jest.mock('react-toastify', () => ({
   toast: {
@@ -26,6 +27,11 @@ jest.mock('@mui/x-data-grid', () => ({
 }));
 
 jest.mock('../services/gcsApiService', () => ({
+  buildGcsUrl: jest.fn((value) => `/mock${value}`),
+  buildShowPlotUrl: jest.fn((filename) => `/mock/plots/${filename}`),
+  GCS_ROUTE_KEYS: {
+    customShowImage: '/custom-show/image',
+  },
   getFleetConfigResponse: jest.fn(),
   getFleetTelemetryResponse: jest.fn(),
   getSwarmConfigResponse: jest.fn(),
@@ -41,6 +47,10 @@ jest.mock('../services/px4ParamsApiService', () => ({
   listPx4ParamProfiles: jest.fn(),
   refreshPx4ParamSnapshots: jest.fn(),
   createPx4ParamPatchJob: jest.fn(),
+}));
+
+jest.mock('../utilities/commandLifecycleFeedback', () => ({
+  submitCommandWithLifecycleFeedback: jest.fn(),
 }));
 
 const snapshotPayload = {
@@ -94,6 +104,7 @@ const snapshotPayload = {
 describe('Px4ParametersPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.innerWidth = 1280;
     gcsApi.getFleetConfigResponse.mockResolvedValue({
       data: [{ hw_id: 1, pos_id: 1, ip: '10.0.0.11' }],
     });
@@ -195,6 +206,15 @@ describe('Px4ParametersPage', () => {
         results: [{ hw_id: '1', applied: true, verified: true, error: null }],
       },
     });
+    submitCommandWithLifecycleFeedback.mockResolvedValue({
+      commandId: 'cmd-1',
+      isTerminal: true,
+      outcome: 'completed',
+      progress: {
+        label: 'Completed',
+        message: 'PX4 reboot completed.',
+      },
+    });
   });
 
   it('loads the first selected drone and renders refreshed parameter rows', async () => {
@@ -216,7 +236,7 @@ describe('Px4ParametersPage', () => {
       expect(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' })).toBeInTheDocument();
     });
     await waitFor(() => {
-      expect(screen.getByText('Online')).toBeInTheDocument();
+      expect(screen.getByText('Snapshot ready')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Save Parameter' })).not.toBeDisabled();
     });
     fireEvent.click(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' }));
@@ -346,6 +366,90 @@ describe('Px4ParametersPage', () => {
     const importButton = await screen.findByRole('button', { name: 'Import QGC File' });
     await waitFor(() => {
       expect(importButton).toBeEnabled();
+    });
+  });
+
+  it('opens the parameter inspector in a compact dialog on narrow viewports', async () => {
+    window.innerWidth = 640;
+
+    render(<Px4ParametersPage />);
+
+    const rowButton = await screen.findByRole('button', { name: /MPC_XY_VEL_MAX/i });
+    fireEvent.click(rowButton);
+
+    expect(await screen.findByRole('dialog', { name: /MPC_XY_VEL_MAX parameter details/i })).toBeInTheDocument();
+    expect(screen.getByText('Default')).toBeInTheDocument();
+    expect(screen.getByText('Maximum')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'PX4 Docs' })).toBeInTheDocument();
+  });
+
+  it('allows batch profile apply to online drones only when some targets are offline', async () => {
+    gcsApi.getFleetConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
+        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
+      ],
+    });
+    gcsApi.getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        1: { hw_id: '1', pos_id: 1, is_armed: false },
+      },
+      headers: {},
+    });
+    gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
+      1: { hw_id: '1', pos_id: 1, is_armed: false },
+    });
+
+    render(<Px4ParametersPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Batch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    const skipOffline = await screen.findByLabelText(/Apply to online drones only and skip 1 offline target/i);
+    fireEvent.click(skipOffline);
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Saved Profile' }));
+
+    await waitFor(() => {
+      expect(px4ParamsApi.createPx4ParamPatchJob).toHaveBeenCalledWith({
+        hwIds: ['1'],
+        source: 'mds_profile',
+        verifyReadback: true,
+        entries: [
+          {
+            component_id: 1,
+            name: 'GF_ACTION',
+            value_type: 'int',
+            value: 3,
+          },
+          {
+            component_id: 1,
+            name: 'GF_MAX_HOR_DIST',
+            value_type: 'float',
+            value: 3000,
+          },
+        ],
+      });
+    });
+  });
+
+  it('dispatches a reboot px4 command from the single-drone workspace', async () => {
+    render(<Px4ParametersPage />);
+
+    const rebootButton = await screen.findByRole('button', { name: 'Reboot PX4' });
+    await waitFor(() => {
+      expect(screen.getByText('Snapshot ready')).toBeInTheDocument();
+      expect(rebootButton).not.toBeDisabled();
+    });
+    fireEvent.click(rebootButton);
+
+    await waitFor(() => {
+      expect(submitCommandWithLifecycleFeedback).toHaveBeenCalledWith({
+        missionType: '6',
+        target_drones: ['1'],
+        triggerTime: '0',
+        uiMeta: {
+          operatorLabel: 'Reboot PX4',
+        },
+      }, expect.any(Object));
     });
   });
 });

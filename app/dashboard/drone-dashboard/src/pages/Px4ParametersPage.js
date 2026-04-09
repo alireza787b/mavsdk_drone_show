@@ -19,8 +19,15 @@ import {
 } from '../services/px4ParamsApiService';
 import { buildQgcParameterFile } from '../utilities/px4ParameterFiles';
 import { buildMdsParameterProfileFile } from '../utilities/px4ParameterProfiles';
-import { getDroneDisplayIdentity, matchesDroneSearchQuery } from '../utilities/dronePresentation';
+import {
+  DRONE_SEARCH_HELP_TEXT,
+  DRONE_SEARCH_PLACEHOLDER,
+  getDroneDisplayIdentity,
+  matchesDroneSearchQuery,
+} from '../utilities/dronePresentation';
+import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { normalizeTelemetryResponse, FIELD_NAMES } from '../constants/fieldMappings';
+import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import {
   buildClusterScopeOptions,
@@ -32,6 +39,7 @@ import Px4ParamProfilePanel from '../components/px4/Px4ParamProfilePanel';
 import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
+const COMPACT_BREAKPOINT = 960;
 
 function formatRelativeSnapshotAge(snapshot) {
   if (!snapshot?.created_at) {
@@ -90,6 +98,120 @@ function getSnapshotStatusLabel({ selectedDrone, writeBlockedReason, snapshotSum
   return 'Writable';
 }
 
+function renderValueSummary(value) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  return String(value);
+}
+
+function buildNotice(tone, title, detail = '') {
+  return { tone, title, detail };
+}
+
+function buildTrackingNotice(snapshot, fallbackTitle = 'Command update') {
+  if (!snapshot) {
+    return buildNotice('info', fallbackTitle);
+  }
+
+  const tone = snapshot.trackingIssue
+    ? 'warning'
+    : snapshot.isTerminal
+      ? snapshot.outcome === 'completed'
+        ? 'success'
+        : snapshot.outcome === 'partial'
+          ? 'warning'
+          : 'danger'
+      : 'info';
+
+  return buildNotice(
+    tone,
+    snapshot.progress?.label || fallbackTitle,
+    snapshot.progress?.message || '',
+  );
+}
+
+function summarizeBatchResults(results = []) {
+  const total = results.length;
+  const applied = results.filter((result) => result.applied).length;
+  const verified = results.filter((result) => result.verified).length;
+  const failed = results.filter((result) => result.error || !result.applied).length;
+  return {
+    total,
+    applied,
+    verified,
+    failed,
+  };
+}
+
+const StatusNotice = ({ notice, className = '' }) => {
+  if (!notice) {
+    return null;
+  }
+
+  return (
+    <div
+      className={`px4-inline-notice px4-inline-notice--${notice.tone || 'info'} ${className}`.trim()}
+      role="status"
+      aria-live="polite"
+    >
+      <strong>{notice.title}</strong>
+      {notice.detail ? <span>{notice.detail}</span> : null}
+    </div>
+  );
+};
+
+const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
+  if (!rows.length) {
+    return (
+      <div className="px4-compact-list__empty">
+        No parameters match the current filters.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px4-compact-list">
+      {rows.map((row) => {
+        const active = row.name === selectedParamName;
+        return (
+          <button
+            key={row.id}
+            type="button"
+            className={`px4-compact-card ${active ? 'active' : ''}`}
+            onClick={() => onSelect(row.name)}
+          >
+            <div className="px4-compact-card__header">
+              <div>
+                <strong>{row.name}</strong>
+                <span>{row.summary || 'No summary available.'}</span>
+              </div>
+              <div className="px4-compact-card__value">
+                <strong>{renderValueSummary(row.value)}</strong>
+                <small>{row.unit || row.value_type.toUpperCase()}</small>
+              </div>
+            </div>
+            <div className="px4-param-inspector__chips">
+              <span className="px4-param-chip">{row.value_type.toUpperCase()}</span>
+              {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot</span> : null}
+              {row.default_value !== null && row.default_value !== undefined && row.default_value !== row.value ? (
+                <span className="px4-param-chip">Default Δ</span>
+              ) : null}
+              {row.docs_url ? <span className="px4-param-chip">Docs</span> : null}
+            </div>
+            <div className="px4-compact-card__meta">
+              {row.range && row.range !== '—' ? <span>Range {row.range}</span> : null}
+              {row.default_value !== null && row.default_value !== undefined ? (
+                <span>Default {renderValueSummary(row.default_value)}</span>
+              ) : null}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 function parseDraftValue(row, draftValue) {
   if (row.value_type === 'int') {
     return Number.parseInt(draftValue, 10);
@@ -146,10 +268,28 @@ const Px4ParametersPage = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileDiffPreview, setProfileDiffPreview] = useState(null);
   const [profileDiffLoading, setProfileDiffLoading] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(
+    () => typeof window !== 'undefined' ? window.innerWidth <= COMPACT_BREAKPOINT : false,
+  );
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [singleNotice, setSingleNotice] = useState(null);
+  const [batchNotice, setBatchNotice] = useState(null);
+  const [profileNotice, setProfileNotice] = useState(null);
+  const [allowOfflineSkip, setAllowOfflineSkip] = useState(false);
+  const [rebootingPx4, setRebootingPx4] = useState(false);
   const fileInputRef = useRef(null);
 
   const deferredDroneQuery = useDeferredValue(droneQuery);
   const deferredParamQuery = useDeferredValue(paramQuery);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsCompactViewport(window.innerWidth <= COMPACT_BREAKPOINT);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -378,6 +518,18 @@ const Px4ParametersPage = () => {
   }, [selectedProfileId, snapshotResponse?.snapshot?.snapshot_id]);
 
   useEffect(() => {
+    if (!isCompactViewport) {
+      setInspectorOpen(false);
+    }
+  }, [isCompactViewport]);
+
+  useEffect(() => {
+    if (workspaceMode !== 'single') {
+      setInspectorOpen(false);
+    }
+  }, [workspaceMode]);
+
+  useEffect(() => {
     if (!batchClusterOptions.length) {
       if (batchTargetMode === 'cluster') {
         setBatchTargetMode('');
@@ -409,6 +561,7 @@ const Px4ParametersPage = () => {
     }
 
     setSnapshotLoading(true);
+    setSingleNotice(buildNotice('info', 'Refreshing snapshot', `Reading PX4 parameters for ${selectedIdentity?.primary || `H${selectedHwId}`}.`));
     try {
       const response = await refreshPx4ParamSnapshots({
         hwIds: [String(selectedHwId)],
@@ -420,6 +573,7 @@ const Px4ParametersPage = () => {
       if (error && !snapshot) {
         toast.error(error.error || 'Failed to refresh PX4 parameter snapshot.');
         setSnapshotResponse(null);
+        setSingleNotice(buildNotice('danger', 'Snapshot refresh failed', error.error || 'No snapshot was returned.'));
         return;
       }
 
@@ -431,13 +585,23 @@ const Px4ParametersPage = () => {
           }
           return snapshot.rows.some((row) => row.name === currentName) ? currentName : '';
         });
+        setSingleNotice(buildNotice(
+          'success',
+          'Snapshot ready',
+          `${snapshot.rows.length} parameter row(s) loaded for ${selectedIdentity?.primary || `H${selectedHwId}`}.`,
+        ));
       }
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to refresh PX4 parameter snapshot.');
+      setSingleNotice(buildNotice(
+        'danger',
+        'Snapshot refresh failed',
+        error?.response?.data?.detail || 'Unable to read PX4 parameters from the selected drone.',
+      ));
     } finally {
       setSnapshotLoading(false);
     }
-  }, [policy?.mutations?.supported_component_ids, selectedHwId]);
+  }, [policy?.mutations?.supported_component_ids, selectedHwId, selectedIdentity?.primary]);
 
   useEffect(() => {
     if (!selectedHwId) {
@@ -524,6 +688,34 @@ const Px4ParametersPage = () => {
     : batchTargetMode === 'cluster'
       ? `${batchClusterOptions.find((option) => String(option.id) === String(batchClusterScope))?.label || 'Cluster'} · ${batchClusterTargetIds.length} drones`
       : `All ${mergedDrones.length} drones`;
+  const offlineBatchTargets = useMemo(
+    () => mergedDrones.filter((drone) => batchTargetHwIds.includes(String(drone.hw_id)) && !drone.online),
+    [batchTargetHwIds, mergedDrones],
+  );
+  const onlineBatchTargetHwIds = useMemo(
+    () => batchTargetHwIds.filter((hwId) => !offlineBatchTargets.some((drone) => String(drone.hw_id) === String(hwId))),
+    [batchTargetHwIds, offlineBatchTargets],
+  );
+  const effectiveBatchTargetHwIds = useMemo(
+    () => (allowOfflineSkip ? onlineBatchTargetHwIds : batchTargetHwIds),
+    [allowOfflineSkip, batchTargetHwIds, onlineBatchTargetHwIds],
+  );
+  const batchTargetWarning = useMemo(() => {
+    if (offlineBatchTargets.length === 0) {
+      return '';
+    }
+    if (allowOfflineSkip) {
+      return `${offlineBatchTargets.length} offline target drone${offlineBatchTargets.length === 1 ? '' : 's'} will be skipped.`;
+    }
+    return `${offlineBatchTargets.length} target drone${offlineBatchTargets.length === 1 ? '' : 's'} are offline. Confirm that you want to skip them or adjust the scope.`;
+  }, [allowOfflineSkip, offlineBatchTargets.length]);
+
+  useEffect(() => {
+    if (offlineBatchTargets.length === 0 && allowOfflineSkip) {
+      setAllowOfflineSkip(false);
+    }
+  }, [allowOfflineSkip, offlineBatchTargets.length]);
+
   const batchWriteBlockedReason = useMemo(() => {
     if (!batchTargetMode) {
       return 'Choose a target scope before applying batch parameter changes.';
@@ -531,19 +723,52 @@ const Px4ParametersPage = () => {
     if (batchTargetHwIds.length === 0) {
       return 'Choose at least one target drone.';
     }
-    const offlineTargets = mergedDrones.filter((drone) => batchTargetHwIds.includes(String(drone.hw_id)) && !drone.online);
-    if (offlineTargets.length > 0) {
-      return `${offlineTargets.length} target drone${offlineTargets.length === 1 ? '' : 's'} are offline. Batch writes are blocked.`;
+    if (offlineBatchTargets.length > 0 && !allowOfflineSkip) {
+      return 'Offline drones are included in the current target scope. Enable skip-offline mode or adjust the scope.';
+    }
+    if (effectiveBatchTargetHwIds.length === 0) {
+      return 'No online target drones remain after applying the current scope rules.';
     }
     if (!policy?.mutations?.require_disarmed) {
       return '';
     }
-    const armedTargets = mergedDrones.filter((drone) => batchTargetHwIds.includes(String(drone.hw_id)) && drone[FIELD_NAMES.IS_ARMED]);
+    const armedTargets = mergedDrones.filter((drone) => effectiveBatchTargetHwIds.includes(String(drone.hw_id)) && drone[FIELD_NAMES.IS_ARMED]);
     if (armedTargets.length > 0) {
       return `${armedTargets.length} target drone${armedTargets.length === 1 ? '' : 's'} are armed. Batch writes are blocked.`;
     }
     return '';
-  }, [batchTargetHwIds, batchTargetMode, mergedDrones, policy?.mutations?.require_disarmed]);
+  }, [
+    allowOfflineSkip,
+    batchTargetHwIds,
+    batchTargetMode,
+    effectiveBatchTargetHwIds,
+    mergedDrones,
+    offlineBatchTargets.length,
+    policy?.mutations?.require_disarmed,
+  ]);
+  const batchResultSummary = useMemo(
+    () => summarizeBatchResults(batchJobResult?.results || []),
+    [batchJobResult?.results],
+  );
+  const rebootBlockedReason = useMemo(() => {
+    if (!selectedDrone) {
+      return 'Select a target drone first.';
+    }
+    if (!selectedDrone.online) {
+      return 'PX4 reboot is blocked while the target drone is offline.';
+    }
+    if (selectedDrone[FIELD_NAMES.IS_ARMED]) {
+      return 'PX4 reboot is blocked while the target drone is armed.';
+    }
+    return '';
+  }, [selectedDrone]);
+
+  const handleSelectParameter = (paramName) => {
+    setSelectedParamName(paramName);
+    if (isCompactViewport) {
+      setInspectorOpen(true);
+    }
+  };
 
   const handleSave = async () => {
     if (!selectedRow || !selectedDrone) {
@@ -557,6 +782,7 @@ const Px4ParametersPage = () => {
     }
 
     setSaving(true);
+    setSingleNotice(buildNotice('info', 'Writing and verifying', `${selectedRow.name} → ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`));
     try {
       const response = await createPx4ParamPatchJob({
         hwIds: [String(selectedDrone.hw_id)],
@@ -581,8 +807,10 @@ const Px4ParametersPage = () => {
 
       if (result.verified) {
         toast.success(`${selectedRow.name} updated and verified.`);
+        setSingleNotice(buildNotice('success', 'Parameter saved', `${selectedRow.name} updated and verified on ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`));
       } else {
         toast.warn(`${selectedRow.name} was written, but verification did not fully confirm the readback.`);
+        setSingleNotice(buildNotice('warning', 'Parameter saved with verification warning', `${selectedRow.name} was written, but readback verification was incomplete.`));
       }
 
       setSessionChangedNames((current) => {
@@ -593,6 +821,11 @@ const Px4ParametersPage = () => {
       await refreshSnapshot();
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to apply PX4 parameter patch job.');
+      setSingleNotice(buildNotice(
+        'danger',
+        'Parameter save failed',
+        error?.response?.data?.detail || 'The patch job did not complete successfully.',
+      ));
     } finally {
       setSaving(false);
     }
@@ -623,6 +856,7 @@ const Px4ParametersPage = () => {
     }
 
     setImporting(true);
+    setSingleNotice(buildNotice('info', 'Reading imported file', `Comparing ${file.name} against the current drone snapshot.`));
     try {
       const content = await file.text();
       const importResponse = await importQgcParameterFile(content);
@@ -640,11 +874,18 @@ const Px4ParametersPage = () => {
 
       if ((diffResponse.data?.total_changed || 0) === 0) {
         toast.info('Imported file matches the current PX4 snapshot. No changes are pending.');
+        setSingleNotice(buildNotice('info', 'Imported file matches current snapshot', `${file.name} does not change any parameter values.`));
       } else {
         toast.success(`Imported ${importResponse.data.total_entries} parameter row(s) for review.`);
+        setSingleNotice(buildNotice('success', 'Imported file ready for review', `${diffResponse.data.total_changed} changed row(s) are ready to apply.`));
       }
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to import and compare the QGC parameter file.');
+      setSingleNotice(buildNotice(
+        'danger',
+        'Import failed',
+        error?.response?.data?.detail || 'The QGC parameter file could not be parsed or compared.',
+      ));
     } finally {
       setImporting(false);
     }
@@ -656,6 +897,7 @@ const Px4ParametersPage = () => {
     }
 
     setSaving(true);
+    setSingleNotice(buildNotice('info', 'Applying imported changes', `${importPreview.importResponse.entries.length} imported row(s) are being written and verified.`));
     try {
       const response = await createPx4ParamPatchJob({
         hwIds: [String(selectedDrone.hw_id)],
@@ -670,6 +912,7 @@ const Px4ParametersPage = () => {
       }
 
       toast.success(`Applied ${importPreview.importResponse.entries.length} imported parameter row(s).`);
+      setSingleNotice(buildNotice('success', 'Imported changes applied', `${importPreview.importResponse.entries.length} parameter row(s) were applied successfully.`));
       setSessionChangedNames((current) => {
         const next = new Set(current);
         importPreview.importResponse.entries.forEach((entry) => next.add(entry.name));
@@ -679,6 +922,11 @@ const Px4ParametersPage = () => {
       await refreshSnapshot();
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to apply imported PX4 parameter patch.');
+      setSingleNotice(buildNotice(
+        'danger',
+        'Imported changes failed',
+        error?.response?.data?.detail || 'The imported patch could not be applied.',
+      ));
     } finally {
       setSaving(false);
     }
@@ -691,6 +939,7 @@ const Px4ParametersPage = () => {
     }
 
     setProfileDiffLoading(true);
+    setProfileNotice(buildNotice('info', 'Comparing profile', `Reviewing ${selectedProfile.name} against ${compareTargetLabel || 'the selected drone snapshot'}.`));
     try {
       const response = await diffPx4ParamSnapshot({
         snapshotId: snapshotResponse.snapshot.snapshot_id,
@@ -700,9 +949,17 @@ const Px4ParametersPage = () => {
       setProfileDiffPreview(response.data);
       if ((response.data?.total_changed || 0) === 0) {
         toast.info('The selected profile already matches the current drone snapshot.');
+        setProfileNotice(buildNotice('info', 'Profile already matches', `${selectedProfile.name} does not change the current snapshot.`));
+      } else {
+        setProfileNotice(buildNotice('success', 'Profile diff ready', `${response.data.total_changed} changed row(s) are ready for review.`));
       }
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to compare the selected profile against the current drone snapshot.');
+      setProfileNotice(buildNotice(
+        'danger',
+        'Profile compare failed',
+        error?.response?.data?.detail || 'Unable to compare the selected profile against the current drone snapshot.',
+      ));
     } finally {
       setProfileDiffLoading(false);
     }
@@ -732,7 +989,7 @@ const Px4ParametersPage = () => {
       toast.error('Enter a PX4 parameter name for the batch patch.');
       return;
     }
-    if (!batchTargetHwIds.length) {
+    if (!effectiveBatchTargetHwIds.length) {
       toast.error('Choose at least one target drone for the batch patch.');
       return;
     }
@@ -748,9 +1005,14 @@ const Px4ParametersPage = () => {
     }
 
     setBatchApplying(true);
+    setBatchNotice(buildNotice(
+      'info',
+      'Applying manual patch',
+      `Dispatching ${normalizedName} to ${effectiveBatchTargetHwIds.length} target drone(s)${offlineBatchTargets.length > 0 && allowOfflineSkip ? ` and skipping ${offlineBatchTargets.length} offline target(s)` : ''}.`,
+    ));
     try {
       const response = await createPx4ParamPatchJob({
-        hwIds: batchTargetHwIds,
+        hwIds: effectiveBatchTargetHwIds,
         source: 'manual',
         verifyReadback: true,
         entries: [
@@ -763,9 +1025,20 @@ const Px4ParametersPage = () => {
         ],
       });
       setBatchJobResult(response.data);
-      toast.success(`Batch patch dispatched to ${batchTargetHwIds.length} drone(s).`);
+      const summary = summarizeBatchResults(response.data?.results || []);
+      toast.success(`Batch patch dispatched to ${effectiveBatchTargetHwIds.length} drone(s).`);
+      setBatchNotice(buildNotice(
+        summary.failed > 0 ? 'warning' : 'success',
+        'Batch patch finished',
+        `${summary.applied}/${summary.total} applied, ${summary.verified}/${summary.total} verified${offlineBatchTargets.length > 0 && allowOfflineSkip ? `, ${offlineBatchTargets.length} offline skipped` : ''}.`,
+      ));
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to apply the PX4 batch patch.');
+      setBatchNotice(buildNotice(
+        'danger',
+        'Batch patch failed',
+        error?.response?.data?.detail || 'The batch patch could not be applied.',
+      ));
     } finally {
       setBatchApplying(false);
     }
@@ -782,19 +1055,70 @@ const Px4ParametersPage = () => {
     }
 
     setBatchApplying(true);
+    setBatchNotice(buildNotice(
+      'info',
+      'Applying saved profile',
+      `Dispatching ${selectedProfile.name} to ${effectiveBatchTargetHwIds.length} target drone(s)${offlineBatchTargets.length > 0 && allowOfflineSkip ? ` and skipping ${offlineBatchTargets.length} offline target(s)` : ''}.`,
+    ));
     try {
       const response = await createPx4ParamPatchJob({
-        hwIds: batchTargetHwIds,
+        hwIds: effectiveBatchTargetHwIds,
         source: 'mds_profile',
         verifyReadback: true,
         entries: selectedProfile.entries,
       });
       setBatchJobResult(response.data);
-      toast.success(`Profile patch dispatched to ${batchTargetHwIds.length} drone(s).`);
+      const summary = summarizeBatchResults(response.data?.results || []);
+      toast.success(`Profile patch dispatched to ${effectiveBatchTargetHwIds.length} drone(s).`);
+      setBatchNotice(buildNotice(
+        summary.failed > 0 ? 'warning' : 'success',
+        'Profile apply finished',
+        `${summary.applied}/${summary.total} applied, ${summary.verified}/${summary.total} verified${offlineBatchTargets.length > 0 && allowOfflineSkip ? `, ${offlineBatchTargets.length} offline skipped` : ''}.`,
+      ));
     } catch (error) {
       toast.error(error?.response?.data?.detail || 'Failed to apply the selected PX4 profile.');
+      setBatchNotice(buildNotice(
+        'danger',
+        'Profile apply failed',
+        error?.response?.data?.detail || 'The selected profile could not be applied.',
+      ));
     } finally {
       setBatchApplying(false);
+    }
+  };
+
+  const handleRebootPx4 = async () => {
+    if (!selectedDrone || rebootBlockedReason) {
+      toast.error(rebootBlockedReason || 'Select a target drone first.');
+      setSingleNotice(buildNotice('warning', 'PX4 reboot blocked', rebootBlockedReason || 'No target drone is selected.'));
+      return;
+    }
+
+    setRebootingPx4(true);
+    setSingleNotice(buildNotice('info', 'Dispatching PX4 reboot', `Submitting reboot for ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`));
+    try {
+      await submitCommandWithLifecycleFeedback({
+        missionType: String(DRONE_ACTION_TYPES.REBOOT_FC),
+        target_drones: [String(selectedDrone.hw_id)],
+        triggerTime: '0',
+        uiMeta: {
+          operatorLabel: 'Reboot PX4',
+        },
+      }, {
+        onCommandAccepted: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot accepted')),
+        onStatusUpdate: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot update')),
+        onTrackingComplete: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot complete')),
+        onTrackingUnavailable: (snapshot) => setSingleNotice(buildTrackingNotice(snapshot, 'PX4 reboot status unavailable')),
+      });
+    } catch (error) {
+      toast.error(error?.response?.data?.detail || 'Failed to dispatch PX4 reboot.');
+      setSingleNotice(buildNotice(
+        'danger',
+        'PX4 reboot failed',
+        error?.response?.data?.detail || 'The reboot command could not be dispatched.',
+      ));
+    } finally {
+      setRebootingPx4(false);
     }
   };
 
@@ -829,7 +1153,7 @@ const Px4ParametersPage = () => {
           <span className="px4-parameters-page__eyebrow">Vehicle Tuning</span>
           <h1>PX4 Parameters</h1>
           <p>
-            Inspect live PX4 values, review reusable fleet profiles, and apply verified parameter changes through the GCS without switching to QGC.
+            Inspect live PX4 values, review approved fleet profiles, and apply verified changes through the GCS.
           </p>
         </div>
         <div className="px4-parameters-page__policy">
@@ -875,36 +1199,68 @@ const Px4ParametersPage = () => {
               className="px4-page-input"
               value={droneQuery}
               onChange={(event) => setDroneQuery(event.target.value)}
-              placeholder="Search, P1|H1, pos 1-5, or hw 2,4"
+              placeholder={DRONE_SEARCH_PLACEHOLDER}
               aria-label="Search drones"
             />
+            <p className="px4-panel__hint">{DRONE_SEARCH_HELP_TEXT}</p>
             {selectedHiddenByFilter ? (
               <div className="px4-inline-notice">
                 Current target {selectedIdentity?.primary} is hidden by the active drone filter.
               </div>
             ) : null}
-            <div className="px4-parameters-page__drone-list">
-              {filteredDrones.map((drone) => {
-                const identity = getDroneDisplayIdentity(drone);
-                const active = String(drone.hw_id) === String(selectedHwId);
-                return (
-                  <button
-                    key={drone.hw_id}
-                    type="button"
-                    className={`px4-drone-option ${active ? 'active' : ''}`}
-                    onClick={() => setSelectedHwId(String(drone.hw_id))}
-                  >
-                    <div>
-                      <strong>{identity.primary}</strong>
-                      <span>{identity.secondary}</span>
-                    </div>
-                    <span className={`px4-drone-option__status ${drone.online ? 'online' : 'offline'}`}>
-                      {drone.online ? 'Online' : 'Offline'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            <label className="px4-param-inspector__field">
+              <span>Filtered target</span>
+              <select
+                className="px4-page-input"
+                value={selectedHwId}
+                onChange={(event) => setSelectedHwId(event.target.value)}
+                aria-label="Filtered target drone"
+              >
+                {filteredDrones.map((drone) => {
+                  const identity = getDroneDisplayIdentity(drone);
+                  return (
+                    <option key={drone.hw_id} value={String(drone.hw_id)}>
+                      {identity.primary} · {drone.online ? 'Online' : 'Offline'}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            {selectedIdentity ? (
+              <div className="px4-target-summary">
+                <div>
+                  <strong>{selectedIdentity.primary}</strong>
+                  <span>{selectedIdentity.secondary}</span>
+                </div>
+                <span className={`px4-drone-option__status ${selectedDrone?.online ? 'online' : 'offline'}`}>
+                  {selectedDrone?.online ? 'Online' : 'Offline'}
+                </span>
+              </div>
+            ) : null}
+            {!isCompactViewport ? (
+              <div className="px4-parameters-page__drone-list">
+                {filteredDrones.map((drone) => {
+                  const identity = getDroneDisplayIdentity(drone);
+                  const active = String(drone.hw_id) === String(selectedHwId);
+                  return (
+                    <button
+                      key={drone.hw_id}
+                      type="button"
+                      className={`px4-drone-option ${active ? 'active' : ''}`}
+                      onClick={() => setSelectedHwId(String(drone.hw_id))}
+                    >
+                      <div>
+                        <strong>{identity.primary}</strong>
+                        <span>{identity.secondary}</span>
+                      </div>
+                      <span className={`px4-drone-option__status ${drone.online ? 'online' : 'offline'}`}>
+                        {drone.online ? 'Online' : 'Offline'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="px4-panel">
@@ -947,6 +1303,9 @@ const Px4ParametersPage = () => {
               <button type="button" onClick={() => setWorkspaceMode('profiles')} disabled={!profileSummaries.length}>
                 Review Profiles
               </button>
+              <button type="button" onClick={handleRebootPx4} disabled={rebootingPx4 || Boolean(rebootBlockedReason)}>
+                {rebootingPx4 ? 'Rebooting…' : 'Reboot PX4'}
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -955,6 +1314,13 @@ const Px4ParametersPage = () => {
                 onChange={handleImportFile}
               />
             </div>
+            <StatusNotice notice={singleNotice} />
+            {rebootBlockedReason && !rebootingPx4 ? (
+              <div className="px4-inline-notice">
+                <strong>Reboot safety</strong>
+                <span>{rebootBlockedReason}</span>
+              </div>
+            ) : null}
 
             {importPreview ? (
               <div className="px4-import-preview">
@@ -986,14 +1352,20 @@ const Px4ParametersPage = () => {
         </aside>
 
         <section className="px4-parameters-page__main">
-          <div className="px4-panel px4-panel--toolbar">
-            <div className="px4-panel__header">
-              <h2>Parameter Table</h2>
-              <span>{rows.length} rows shown</span>
-            </div>
-            {selectedRow ? (
-              <div className="px4-selection-banner">
-                Editing {selectedIdentity?.primary || 'target'} → {selectedRow.name}
+            <div className="px4-panel px4-panel--toolbar">
+              <div className="px4-panel__header">
+                <h2>Parameter Table</h2>
+                <span>{rows.length} rows shown</span>
+              </div>
+              <div className="px4-inline-notice">
+                <strong>{isCompactViewport ? 'Tap a parameter' : 'Select a parameter'}</strong>
+                <span>
+                  Review current value, defaults, range, reboot flag, and the official PX4 docs link before writing changes.
+                </span>
+              </div>
+              {selectedRow ? (
+                <div className="px4-selection-banner">
+                  Editing {selectedIdentity?.primary || 'target'} → {selectedRow.name}
               </div>
             ) : null}
             <div className="px4-parameters-page__toolbar">
@@ -1033,48 +1405,58 @@ const Px4ParametersPage = () => {
 
           <div className="px4-parameters-page__content">
             <div className="px4-panel px4-panel--table">
-              <DataGrid
-                rows={rows}
-                columns={columns}
-                density="compact"
-                rowHeight={32}
-                columnHeaderHeight={38}
-                disableColumnMenu
-                disableRowSelectionOnClick
-                rowSelectionModel={selectedParamName ? [selectedParamName] : []}
-                onRowClick={(params) => setSelectedParamName(params.row.name)}
-                pageSizeOptions={[25, 50, 100]}
-                initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
-                sx={{
-                  border: 'none',
-                  '& .MuiDataGrid-cell': {
-                    color: 'var(--color-text-primary)',
-                  },
-                  '& .MuiDataGrid-columnHeader': {
-                    color: 'var(--color-text-secondary)',
-                    backgroundColor: 'var(--color-bg-tertiary)',
-                  },
-                  '& .MuiDataGrid-footerContainer': {
-                    color: 'var(--color-text-secondary)',
-                    borderTopColor: 'var(--color-border-primary)',
-                  },
-                  '& .MuiDataGrid-row.Mui-selected': {
-                    backgroundColor: 'var(--color-primary-light)',
-                  },
-                }}
-              />
+              {isCompactViewport ? (
+                <CompactParameterList
+                  rows={rows}
+                  selectedParamName={selectedParamName}
+                  onSelect={handleSelectParameter}
+                />
+              ) : (
+                <DataGrid
+                  rows={rows}
+                  columns={columns}
+                  density="compact"
+                  rowHeight={32}
+                  columnHeaderHeight={38}
+                  disableColumnMenu
+                  disableRowSelectionOnClick
+                  rowSelectionModel={selectedParamName ? [selectedParamName] : []}
+                  onRowClick={(params) => handleSelectParameter(params.row.name)}
+                  pageSizeOptions={[25, 50, 100]}
+                  initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
+                  sx={{
+                    border: 'none',
+                    '& .MuiDataGrid-cell': {
+                      color: 'var(--color-text-primary)',
+                    },
+                    '& .MuiDataGrid-columnHeader': {
+                      color: 'var(--color-text-secondary)',
+                      backgroundColor: 'var(--color-bg-tertiary)',
+                    },
+                    '& .MuiDataGrid-footerContainer': {
+                      color: 'var(--color-text-secondary)',
+                      borderTopColor: 'var(--color-border-primary)',
+                    },
+                    '& .MuiDataGrid-row.Mui-selected': {
+                      backgroundColor: 'var(--color-primary-light)',
+                    },
+                  }}
+                />
+              )}
             </div>
 
-            <Px4ParamInspector
-              row={selectedRow}
-              draftValue={draftValue}
-              onDraftValueChange={setDraftValue}
-              onResetToCurrent={() => setDraftValue(selectedRow ? String(selectedRow.value ?? '') : '')}
-              onResetToDefault={() => setDraftValue(selectedRow && selectedRow.default_value !== null && selectedRow.default_value !== undefined ? String(selectedRow.default_value) : '')}
-              onSave={handleSave}
-              saving={saving}
-              writeBlockedReason={writeBlockedReason}
-            />
+            {!isCompactViewport ? (
+              <Px4ParamInspector
+                row={selectedRow}
+                draftValue={draftValue}
+                onDraftValueChange={setDraftValue}
+                onResetToCurrent={() => setDraftValue(selectedRow ? String(selectedRow.value ?? '') : '')}
+                onResetToDefault={() => setDraftValue(selectedRow && selectedRow.default_value !== null && selectedRow.default_value !== undefined ? String(selectedRow.default_value) : '')}
+                onSave={handleSave}
+                saving={saving}
+                writeBlockedReason={writeBlockedReason}
+              />
+            ) : null}
           </div>
         </section>
       </section>
@@ -1107,9 +1489,10 @@ const Px4ParametersPage = () => {
                     className="px4-page-input"
                     value={droneQuery}
                     onChange={(event) => setDroneQuery(event.target.value)}
-                    placeholder="Search, P1|H1, pos 1-5, or hw 2,4"
+                    placeholder={DRONE_SEARCH_PLACEHOLDER}
                     aria-label="Search drones"
                   />
+                  <p className="px4-panel__hint">{DRONE_SEARCH_HELP_TEXT}</p>
                   <div className="px4-parameters-page__drone-list">
                     {filteredDrones.map((drone) => {
                       const identity = getDroneDisplayIdentity(drone);
@@ -1178,11 +1561,15 @@ const Px4ParametersPage = () => {
                   </label>
                   {selectedProfile ? (
                     <>
-                      <div className="px4-profile-apply__summary">
-                        <strong>{selectedProfile.name}</strong>
-                        <span>{selectedProfile.entries.length} row(s) · Recommended {selectedProfile.recommended_scope}</span>
-                      </div>
-                      <div className="px4-import-preview__list">
+                  <div className="px4-profile-apply__summary">
+                    <strong>{selectedProfile.name}</strong>
+                    <span>{selectedProfile.entries.length} row(s) · Recommended {selectedProfile.recommended_scope}</span>
+                  </div>
+                  <div className="px4-inline-notice">
+                    <strong>Profile library</strong>
+                    <span>Profiles are repo-managed under <code>resources/px4_param_profiles/</code>. Review and apply here; add or edit them through the repo workflow.</span>
+                  </div>
+                  <div className="px4-import-preview__list">
                         {selectedProfile.entries.slice(0, 6).map((entry) => (
                           <div key={`${entry.component_id}:${entry.name}`} className="px4-import-preview__row">
                             <strong>{entry.name}</strong>
@@ -1237,6 +1624,23 @@ const Px4ParametersPage = () => {
                   </div>
                 </>
               )}
+              <StatusNotice notice={batchNotice} />
+              {batchTargetWarning ? (
+                <div className="px4-inline-notice px4-inline-notice--warning">
+                  <strong>Batch scope warning</strong>
+                  <span>{batchTargetWarning}</span>
+                </div>
+              ) : null}
+              {offlineBatchTargets.length > 0 ? (
+                <label className="px4-toggle px4-toggle--checkbox">
+                  <input
+                    type="checkbox"
+                    checked={allowOfflineSkip}
+                    onChange={(event) => setAllowOfflineSkip(event.target.checked)}
+                  />
+                  <span>Apply to online drones only and skip {offlineBatchTargets.length} offline target{offlineBatchTargets.length === 1 ? '' : 's'}</span>
+                </label>
+              ) : null}
               {batchWriteBlockedReason ? (
                 <div className="px4-param-inspector__notice px4-param-inspector__notice--warning">
                   {batchWriteBlockedReason}
@@ -1265,7 +1669,11 @@ const Px4ParametersPage = () => {
               <div className="px4-panel">
                 <div className="px4-panel__header">
                   <h2>Last Batch Result</h2>
-                  <span>{batchJobResult.status}</span>
+                  <span>{batchResultSummary.applied}/{batchResultSummary.total} applied</span>
+                </div>
+                <div className="px4-inline-notice">
+                  <strong>Result summary</strong>
+                  <span>{batchResultSummary.verified}/{batchResultSummary.total} verified, {batchResultSummary.failed} failed.</span>
                 </div>
                 <div className="px4-import-preview__list">
                   {(batchJobResult.results || []).map((result) => (
@@ -1338,10 +1746,15 @@ const Px4ParametersPage = () => {
                   Open Single Drone
                 </button>
               </div>
+              <StatusNotice notice={profileNotice} />
             </div>
           </aside>
 
           <section className="px4-parameters-page__main">
+            <div className="px4-inline-notice">
+              <strong>Repo-managed profiles</strong>
+              <span>Use the browser to review, diff, and apply profiles. Add or revise them in <code>resources/px4_param_profiles/</code> so the approved library stays reviewable.</span>
+            </div>
             <Px4ParamProfilePanel
               profile={selectedProfile}
               loading={profileLoading}
@@ -1358,6 +1771,41 @@ const Px4ParametersPage = () => {
           </section>
         </section>
       )}
+
+      {isCompactViewport && inspectorOpen ? (
+        <div
+          className="px4-inspector-dialog-backdrop"
+          onClick={() => setInspectorOpen(false)}
+        >
+          <div
+            className="px4-inspector-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label={selectedRow ? `${selectedRow.name} parameter details` : 'Parameter details'}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="px4-inspector-dialog__header">
+              <div>
+                <strong>{selectedRow?.name || 'Parameter details'}</strong>
+                <span>{selectedIdentity?.primary || 'Selected drone'}</span>
+              </div>
+              <button type="button" onClick={() => setInspectorOpen(false)}>
+                Close
+              </button>
+            </div>
+            <Px4ParamInspector
+              row={selectedRow}
+              draftValue={draftValue}
+              onDraftValueChange={setDraftValue}
+              onResetToCurrent={() => setDraftValue(selectedRow ? String(selectedRow.value ?? '') : '')}
+              onResetToDefault={() => setDraftValue(selectedRow && selectedRow.default_value !== null && selectedRow.default_value !== undefined ? String(selectedRow.default_value) : '')}
+              onSave={handleSave}
+              saving={saving}
+              writeBlockedReason={writeBlockedReason}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

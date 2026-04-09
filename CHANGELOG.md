@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-09 PX4 Parameters responsive handoff refinement note documenting
+  the compact/mobile inspector flow, the explicit skip-offline batch behavior,
+  the tracked single-drone PX4 reboot control, and the refreshed Hetzner
+  frontend validation/build results
 - a 2026-04-09 PX4 parameter workspace phase 2 checkpoint note documenting the GCS diff/import/patch-job routes, the new dashboard `PX4 Parameters` page, the reusable runtime validator scaffold, the batch scope reuse, and the paired backend/Hetzner frontend validation results
 - `docs/px4-parameters.md`, a dedicated operator/developer guide for the new GCS-managed PX4 parameter workflow, metadata source rules, QGC interoperability, and current deferred follow-up items
 - a 2026-04-09 PX4 parameter-management foundation checkpoint note documenting the new shared `px4-params` models, the drone-local MAVSDK param facade, the canonical drone/GCS snapshot routes, the runtime docs-link policy envelope, and the focused `50 passed` backend validation batch
@@ -96,6 +100,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the PX4 Parameters page no longer collapses into a desktop-only workflow on
+  phone/tablet: compact view now uses searchable target selection, parameter
+  cards, and a focused detail dialog instead of an unreadable grid-plus-inline
+  inspector layout
+- PX4 parameter metadata is no longer effectively hidden on compact screens:
+  current/default/range/reboot/docs affordances now stay visible in the compact
+  flow, and the single-drone workspace surfaces tracked inline status for
+  snapshot refresh, write/import, and reboot operations
+- batch PX4 profile/patch apply no longer hard-blocks the whole scope when some
+  selected drones are offline; operators now get an explicit skip-offline
+  confirmation path plus a clearer per-drone result summary
 - PX4 parameter snapshots no longer depend solely on MAVSDK `GetAllParams`: drone-local snapshot refresh now waits for the target drone HTTP API to become healthy in live SITL, and the drone-side service falls back to the MAVLink parameter microservice on the routed local `14569` endpoint when the runtime MAVSDK server does not implement bulk parameter listing
 - the PX4 parameter-management runtime no longer depends on a stale gRPC pin: `requirements.txt` now aligns with the installed `mavsdk 3.10.2` generated stubs by pinning `grpcio==1.71.0`, which fixes the live Hetzner backend import failure exposed during the first clean-sync PX4 smoke attempt
 - the PX4 Parameters batch workspace test now waits for the fleet scope to finish loading before dispatching a patch, matching the real operator flow and preventing a false zero-target no-op during Jest validation

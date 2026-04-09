@@ -28,6 +28,8 @@ Design rules:
 
 - refresh a live PX4 snapshot for one drone
 - search and filter parameters
+- use a compact card list plus detail drawer on phone/tablet, and a sticky
+  side inspector on larger screens
 - inspect current/default/min/max metadata when available
 - edit one parameter with readback verification
 - open the exact official PX4 parameter-reference page anchor for that
@@ -35,6 +37,10 @@ Design rules:
 - export the current snapshot as a QGC-compatible `.params` file
 - import a QGC `.params` file, diff it against the current snapshot, and apply
   the reviewed changes
+- dispatch a single-drone `Reboot PX4` action through the normal tracked
+  command path when the target drone is online, disarmed, and on the ground
+- show compact inline status notices for snapshot refresh, import, write,
+  verification, and reboot tracking instead of burying feedback in toasts only
 
 ### Batch Workspace
 
@@ -44,6 +50,8 @@ Design rules:
   - all drones
   - one Smart Swarm cluster
   - an explicit selected subset
+- if the chosen scope includes offline drones, require explicit operator
+  confirmation before applying only to the online subset
 - track per-drone apply/verify outcomes through one GCS patch-job response
 - prefer saved profile bundles for repeatable fleet baselines; keep manual
   single-parameter entry for one-off overrides only
@@ -89,11 +97,15 @@ inventing one.
 - use `Single Drone` for QGC-style inspection and targeted tuning
 - use `Profiles` to review approved fleet baselines before applying them
 - use `Batch` for deliberate fleet-wide or cluster-wide settings
+- on compact screens, tap a parameter row/card to open the detail drawer; on
+  larger screens, the inspector stays docked beside the table
 - refresh a snapshot before making decisions from stale values
 - treat reboot-required flags as advisory from PX4 metadata; they are shown
   when the vehicle reports them
 - keep repeatable fleet policies in repo-backed profiles instead of relying on
   ad hoc CSVs or one-off manual batch entry
+- profile creation/edit/save-new remains repo-managed in v1; the browser is
+  currently for review, diff, apply, export, and tracked runtime operations
 
 ## Storage Layout
 
