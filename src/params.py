@@ -295,6 +295,12 @@ class Params:
     PRECISION_MOVE_CONTROL_RATE_HZ = 10.0
     PRECISION_MOVE_MAX_TRANSLATION_M = 100.0
     PRECISION_MOVE_MIN_AIRBORNE_ALTITUDE_M = 0.3
+    PX4_PARAMETER_DOCS_VERSION = "main"
+    PX4_PARAMETER_DOCS_BASE_TEMPLATE = "https://docs.px4.io/{version}/en/advanced_config/parameter_reference.html"
+    PX4_PARAMETER_DEFAULT_COMPONENT_ID = 1
+    PX4_PARAMETER_SNAPSHOT_MAX_AGE_SEC = 60.0
+    PX4_PARAMETER_MUTATION_REQUIRE_DISARMED = True
+    PX4_PARAMETER_FLOAT_VERIFY_TOLERANCE = 1e-6
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60  # Allow slower multi-drone SITL climbs before declaring takeoff failure
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45       # Minimum wait budget for LAND action to fully disarm

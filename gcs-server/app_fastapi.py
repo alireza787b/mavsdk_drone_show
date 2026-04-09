@@ -98,6 +98,7 @@ from api_routes.core import create_core_router
 from api_routes.git_status import create_git_router
 from api_routes.management import create_management_router
 from api_routes.origin import create_origin_router
+from api_routes.px4_params import create_px4_params_router
 from api_routes.show_management import create_show_management_router
 from api_routes.static_assets import create_static_assets_router
 from api_routes.swarm import create_swarm_router
@@ -522,6 +523,7 @@ app.include_router(create_configuration_router(sys.modules[__name__]), responses
 app.include_router(create_git_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_origin_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_px4_params_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_show_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_static_assets_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_swarm_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)

@@ -201,6 +201,125 @@ class TestDroneState:
         assert response.status_code == 404
         assert 'detail' in response.json()
 
+    def test_get_px4_param_policy(self, test_client):
+        response = test_client.get("/api/v1/px4-params/policy")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["subsystem"] == "px4_params"
+        assert data["docs"]["base_url"].startswith("https://docs.px4.io/")
+
+    def test_refresh_px4_param_snapshot_success(self, test_client, api_server, monkeypatch):
+        class FakeParamPlugin:
+            async def get_all_params(self):
+                from mavsdk.param import AllParams, IntParam
+
+                return AllParams(
+                    int_params=[IntParam("MAV_SYS_ID", 1)],
+                    float_params=[],
+                    custom_params=[],
+                )
+
+        class FakeComponentInformation:
+            async def access_float_params(self):
+                return []
+
+        fake_drone = type(
+            "FakeDrone",
+            (),
+            {
+                "param": FakeParamPlugin(),
+                "component_information": FakeComponentInformation(),
+            },
+        )()
+
+        async def fake_with_local_system(operation):
+            return await operation(fake_drone)
+
+        monkeypatch.setattr(api_server, "_with_local_mavsdk_system", fake_with_local_system)
+
+        response = test_client.post("/api/v1/px4-params/snapshots/refresh", json={})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["snapshot"]["total_params"] == 1
+        assert data["rows"][0]["name"] == "MAV_SYS_ID"
+
+        cached = test_client.get("/api/v1/px4-params/snapshots/current")
+        assert cached.status_code == 200
+        assert cached.json()["snapshot"]["total_params"] == 1
+
+    def test_set_px4_param_value_rejected_while_armed(self, test_client, mock_drone_config):
+        mock_drone_config.is_armed = True
+
+        response = test_client.request(
+            "PATCH",
+            "/api/v1/px4-params/values/MAV_SYS_ID",
+            json={
+                "component_id": 1,
+                "value_type": "int",
+                "value": 3,
+                "verify_readback": True,
+            },
+        )
+
+        assert response.status_code == 409
+        assert "armed" in response.json()["detail"]
+
+    def test_apply_px4_param_patch_success(self, test_client, api_server, monkeypatch):
+        class FakeParamPlugin:
+            def __init__(self):
+                self.values = {"MAV_SYS_ID": 1}
+
+            async def set_param_int(self, name, value):
+                self.values[name] = int(value)
+
+            async def get_param_int(self, name):
+                return self.values[name]
+
+            async def get_param_float(self, name):
+                raise RuntimeError("wrong type")
+
+            async def get_param_custom(self, name):
+                raise RuntimeError("wrong type")
+
+        fake_drone = type(
+            "FakeDrone",
+            (),
+            {
+                "param": FakeParamPlugin(),
+                "component_information": None,
+            },
+        )()
+
+        async def fake_with_local_system(operation):
+            return await operation(fake_drone)
+
+        monkeypatch.setattr(api_server, "_with_local_mavsdk_system", fake_with_local_system)
+
+        response = test_client.post(
+            "/api/v1/px4-params/patches/apply",
+            json={
+                "source": "api",
+                "verify_readback": True,
+                "entries": [
+                    {
+                        "component_id": 1,
+                        "name": "MAV_SYS_ID",
+                        "value_type": "int",
+                        "value": 42,
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["applied_count"] == 1
+        assert data["failed_count"] == 0
+        assert data["verified_count"] == 1
+        assert data["results"][0]["actual_value"] == 42
+
 
 class TestCommands:
     """Test command endpoint"""

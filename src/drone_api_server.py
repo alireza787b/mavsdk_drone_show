@@ -62,6 +62,11 @@ from src.drone_api_routes import (
     DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
     DRONE_NAVIGATION_HOME_ROUTE,
     DRONE_NETWORK_STATUS_ROUTE,
+    DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE,
+    DRONE_PX4_PARAMS_POLICY_ROUTE,
+    DRONE_PX4_PARAMS_SNAPSHOT_CURRENT_ROUTE,
+    DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE,
+    DRONE_PX4_PARAM_VALUE_ROUTE_TEMPLATE,
     DRONE_POSITION_DEVIATION_ROUTE,
     DRONE_STATE_ROUTE,
     DRONE_SWARM_CONFIG_ROUTE,
@@ -73,6 +78,17 @@ from src.gcs_api_routes import (
     GCS_ORIGIN_BOOTSTRAP_ROUTE,
 )
 from src.mission_startup import probe_offboard_armability
+from src.px4_param_models import (
+    Px4ParamPatchApplyRequest,
+    Px4ParamPatchApplyResponse,
+    Px4ParamPolicyResponse,
+    Px4ParamSetRequest,
+    Px4ParamSetResponse,
+    Px4ParamSnapshotRequest,
+    Px4ParamSnapshotResponse,
+    Px4ParamValueResponse,
+)
+from src.px4_params.service import Px4ParamService
 from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
@@ -315,6 +331,12 @@ class DroneAPIServer:
         self.active_websockets: List[WebSocket] = []
         self.last_state_hash = None  # Track state changes
         self._live_probe_lock = asyncio.Lock()
+        self._px4_param_lock = asyncio.Lock()
+        self._px4_param_snapshot_cache: Optional[Px4ParamSnapshotResponse] = None
+        self._px4_param_service = Px4ParamService(
+            params,
+            hw_id=str(getattr(drone_config, "hw_id", "unknown")),
+        )
 
         self.setup_routes()
 
@@ -479,6 +501,41 @@ class DroneAPIServer:
                 "timestamp": int(time.time() * 1000),
                 "probe_error": str(exc),
             }
+
+    async def _with_local_mavsdk_system(self, operation):
+        """Run an async operation against the local PX4 instance over MAVSDK."""
+        async with self._px4_param_lock:
+            grpc_port, system_address = self._resolve_live_probe_connection()
+            udp_port = safe_int(getattr(self.params, "mavsdk_port", 14540), 14540)
+            mavsdk_server, started_server = await self._ensure_live_probe_server(grpc_port, udp_port)
+
+            try:
+                drone = System(
+                    mavsdk_server_address="127.0.0.1",
+                    port=grpc_port,
+                )
+                await asyncio.wait_for(
+                    drone.connect(system_address=system_address),
+                    timeout=safe_float(
+                        getattr(self.params, "LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC", 5.0),
+                        5.0,
+                    ),
+                )
+                await self._wait_for_mavsdk_connection(drone)
+                return await operation(drone)
+            finally:
+                if started_server:
+                    self._stop_live_probe_server(mavsdk_server)
+
+    def _assert_px4_param_mutation_allowed(self) -> None:
+        require_disarmed = bool(
+            getattr(self.params, "PX4_PARAMETER_MUTATION_REQUIRE_DISARMED", True)
+        )
+        if require_disarmed and bool(getattr(self.drone_config, "is_armed", False)):
+            raise HTTPException(
+                status_code=409,
+                detail="PX4 parameter writes are blocked while the vehicle is armed.",
+            )
 
     @staticmethod
     def _serialize_drone_state_payload(drone_state: Dict[str, Any]) -> Dict[str, Any]:
@@ -984,6 +1041,93 @@ class DroneAPIServer:
             except Exception as e:
                 logger.error(f"Error retrieving LOCAL_POSITION_NED: {e}")
                 raise HTTPException(status_code=500, detail="Failed to retrieve NED position")
+
+        @self.app.get(DRONE_PX4_PARAMS_POLICY_ROUTE, response_model=Px4ParamPolicyResponse)
+        async def get_px4_param_policy():
+            """Return the local PX4 parameter subsystem policy envelope."""
+            return self._px4_param_service.build_policy()
+
+        @self.app.post(DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE, response_model=Px4ParamSnapshotResponse)
+        async def refresh_px4_param_snapshot(request: Px4ParamSnapshotRequest):
+            """Fetch a fresh PX4 parameter snapshot from the local vehicle."""
+            try:
+                snapshot = await self._with_local_mavsdk_system(
+                    lambda drone: self._px4_param_service.build_snapshot(
+                        drone,
+                        component_id=request.component_id,
+                    )
+                )
+                self._px4_param_snapshot_cache = snapshot
+                return snapshot
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.error(f"Error refreshing PX4 parameter snapshot: {exc}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to refresh PX4 parameter snapshot: {exc}",
+                ) from exc
+
+        @self.app.get(DRONE_PX4_PARAMS_SNAPSHOT_CURRENT_ROUTE, response_model=Px4ParamSnapshotResponse)
+        async def get_current_px4_param_snapshot():
+            """Return the latest locally cached PX4 parameter snapshot."""
+            if self._px4_param_snapshot_cache is None:
+                raise HTTPException(status_code=404, detail="No PX4 parameter snapshot cached yet")
+            return self._px4_param_snapshot_cache
+
+        @self.app.get(DRONE_PX4_PARAM_VALUE_ROUTE_TEMPLATE, response_model=Px4ParamValueResponse)
+        async def get_px4_param_value(name: str):
+            """Read one PX4 parameter directly from the local vehicle."""
+            try:
+                return await self._with_local_mavsdk_system(
+                    lambda drone: self._px4_param_service.get_param_value(drone, name)
+                )
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.error(f"Error reading PX4 parameter {name}: {exc}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to read PX4 parameter {name}: {exc}",
+                ) from exc
+
+        @self.app.patch(DRONE_PX4_PARAM_VALUE_ROUTE_TEMPLATE, response_model=Px4ParamSetResponse)
+        async def set_px4_param_value(name: str, request: Px4ParamSetRequest):
+            """Write one PX4 parameter and optionally verify readback."""
+            self._assert_px4_param_mutation_allowed()
+            try:
+                response = await self._with_local_mavsdk_system(
+                    lambda drone: self._px4_param_service.set_param_value(drone, name, request)
+                )
+                self._px4_param_snapshot_cache = None
+                return response
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.error(f"Error writing PX4 parameter {name}: {exc}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to write PX4 parameter {name}: {exc}",
+                ) from exc
+
+        @self.app.post(DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE, response_model=Px4ParamPatchApplyResponse)
+        async def apply_px4_param_patch(request: Px4ParamPatchApplyRequest):
+            """Apply a batch parameter patch to the local PX4 vehicle."""
+            self._assert_px4_param_mutation_allowed()
+            try:
+                response = await self._with_local_mavsdk_system(
+                    lambda drone: self._px4_param_service.apply_patch(drone, request)
+                )
+                self._px4_param_snapshot_cache = None
+                return response
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.error(f"Error applying PX4 parameter patch: {exc}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to apply PX4 parameter patch: {exc}",
+                ) from exc
 
         # ====================================================================
         # WebSocket Endpoint for Real-Time Telemetry Streaming
