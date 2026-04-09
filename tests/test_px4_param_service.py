@@ -1,3 +1,4 @@
+import json
 import struct
 from types import SimpleNamespace
 
@@ -90,6 +91,7 @@ def _build_service():
         PX4_PARAMETER_MAVLINK_HEARTBEAT_TIMEOUT_SEC=5.0,
         PX4_PARAMETER_MAVLINK_SNAPSHOT_TIMEOUT_SEC=45.0,
         PX4_PARAMETER_MAVLINK_IDLE_TIMEOUT_SEC=1.5,
+        PX4_PARAMETER_METADATA_CATALOG_PATHS="",
         local_mavlink2rest_port=14569,
     )
     return Px4ParamService(params, hw_id="7")
@@ -118,6 +120,42 @@ async def test_build_snapshot_returns_sorted_rows_with_docs_and_float_metadata()
     assert float_row.default_value == 5.0
     assert float_row.min_value == 0.0
     assert float_row.max_value == 20.0
+
+
+async def test_build_snapshot_uses_catalog_metadata_for_non_float_rows(tmp_path):
+    catalog_path = tmp_path / "parameters.json"
+    catalog_path.write_text(json.dumps({
+        "version": 1,
+        "parameters": [
+            {
+                "name": "MAV_SYS_ID",
+                "shortDesc": "System ID",
+                "longDesc": "MAVLink system identifier.",
+                "default": 1,
+                "min": 1,
+                "max": 255,
+                "rebootRequired": True,
+                "group": "MAVLink",
+                "category": "Standard",
+                "type": "Int32",
+            }
+        ],
+    }))
+    service = _build_service()
+    service.params.PX4_PARAMETER_METADATA_CATALOG_PATHS = str(catalog_path)
+    drone = _build_drone()
+
+    snapshot = await service.build_snapshot(drone)
+
+    mav_sys_id = next(row for row in snapshot.rows if row.name == "MAV_SYS_ID")
+    assert mav_sys_id.short_description == "System ID"
+    assert mav_sys_id.long_description == "MAVLink system identifier."
+    assert mav_sys_id.default_value == 1
+    assert mav_sys_id.min_value == 1
+    assert mav_sys_id.max_value == 255
+    assert mav_sys_id.reboot_required is True
+    assert mav_sys_id.group == "MAVLink"
+    assert "px4_build_catalog" in mav_sys_id.metadata_sources
 
 
 async def test_build_snapshot_falls_back_to_mavlink_listing_when_bulk_rpc_is_unavailable():

@@ -100,6 +100,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- the PX4 Parameters workspace no longer depends on MAVSDK’s older float-only
+  component-information path for most metadata: drone-side snapshot rows now
+  prefer PX4’s generated `parameters.json` catalog when available, which brings
+  defaults, range, descriptions, units, reboot flags, and grouped metadata
+  across integer and float parameters instead of leaving most rows value-only
+- PX4 Parameters no longer falls back to the wrong desktop interaction model on
+  touch devices that request browser “desktop mode”: compact card selection and
+  the focused detail dialog now remain active on coarse-pointer narrow-physical
+  devices, which keeps the page readable on phones/tablets
 - the PX4 Parameters page no longer collapses into a desktop-only workflow on
   phone/tablet: compact view now uses searchable target selection, parameter
   cards, and a focused detail dialog instead of an unreadable grid-plus-inline

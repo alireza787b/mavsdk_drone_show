@@ -86,6 +86,7 @@ const Px4ParamInspector = ({
             <span className="px4-param-chip">{row.value_type.toUpperCase()}</span>
             {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot</span> : null}
             {row.unit ? <span className="px4-param-chip">{row.unit}</span> : null}
+            {row.group ? <span className="px4-param-chip">{row.group}</span> : null}
           </div>
         </div>
         {row.docs_url ? (
@@ -117,7 +118,11 @@ const Px4ParamInspector = ({
         </div>
         <div>
           <span>Restart</span>
-          <strong>{row.reboot_required ? 'Required' : 'Not required'}</strong>
+          <strong>
+            {row.reboot_required === null || row.reboot_required === undefined
+              ? 'Not declared'
+              : (row.reboot_required ? 'Required' : 'Not required')}
+          </strong>
         </div>
       </div>
 
@@ -166,6 +171,8 @@ Px4ParamInspector.propTypes = {
     short_description: PropTypes.string,
     long_description: PropTypes.string,
     docs_url: PropTypes.string,
+    group: PropTypes.string,
+    category: PropTypes.string,
   }),
   draftValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   onDraftValueChange: PropTypes.func.isRequired,

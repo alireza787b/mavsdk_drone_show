@@ -105,6 +105,16 @@ describe('Px4ParametersPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     window.innerWidth = 1280;
+    window.matchMedia = jest.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
     gcsApi.getFleetConfigResponse.mockResolvedValue({
       data: [{ hw_id: 1, pos_id: 1, ip: '10.0.0.11' }],
     });
@@ -382,6 +392,37 @@ describe('Px4ParametersPage', () => {
     expect(screen.getByText('Range')).toBeInTheDocument();
     expect(screen.getByText('Restart')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'PX4 Docs' })).toBeInTheDocument();
+  });
+
+  it('keeps touch desktop-mode view in the compact dialog workflow', async () => {
+    window.innerWidth = 1280;
+    window.matchMedia = jest.fn().mockImplementation((query) => ({
+      matches: query === '(pointer: coarse)',
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+
+    render(<Px4ParametersPage />);
+
+    const rowButton = await screen.findByRole('button', { name: /MPC_XY_VEL_MAX/i });
+    fireEvent.click(rowButton);
+
+    expect(await screen.findByRole('dialog', { name: /MPC_XY_VEL_MAX parameter details/i })).toBeInTheDocument();
+  });
+
+  it('shows metadata facts in compact cards when available', async () => {
+    window.innerWidth = 640;
+
+    render(<Px4ParametersPage />);
+
+    expect(await screen.findByText('Range 1 – 255')).toBeInTheDocument();
+    expect(screen.getByText('Default 1')).toBeInTheDocument();
+    expect(screen.getByText('Restart required')).toBeInTheDocument();
   });
 
   it('allows batch profile apply to online drones only when some targets are offline', async () => {

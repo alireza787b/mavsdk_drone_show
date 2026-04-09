@@ -40,6 +40,25 @@ import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
 const COMPACT_BREAKPOINT = 1120;
+const TOUCH_COMPACT_BREAKPOINT = 1400;
+
+function isTouchViewport() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const coarsePointer = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(pointer: coarse)').matches
+    : false;
+  return coarsePointer || (window.navigator?.maxTouchPoints || 0) > 0;
+}
+
+function isCompactParameterViewport() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const compactLimit = isTouchViewport() ? TOUCH_COMPACT_BREAKPOINT : COMPACT_BREAKPOINT;
+  return window.innerWidth <= compactLimit;
+}
 
 function trimTrailingZeros(value) {
   return String(value)
@@ -230,27 +249,28 @@ const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
             onClick={() => onSelect(row.name)}
           >
             <div className="px4-compact-card__header">
-              <div>
+              <div className="px4-compact-card__identity">
                 <strong>{row.name}</strong>
                 {row.summary ? <span>{row.summary}</span> : null}
-              </div>
-              <div className="px4-compact-card__value">
-                <strong>{row.value}</strong>
-                <small>{row.unit || row.value_type.toUpperCase()}</small>
+                {row.group || row.category ? (
+                  <small>{[row.group, row.category].filter(Boolean).join(' · ')}</small>
+                ) : null}
               </div>
             </div>
-            <div className="px4-param-inspector__chips">
-              <span className="px4-param-chip">{row.value_type.toUpperCase()}</span>
-              {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot req</span> : null}
-              {row.default_value !== null && row.default_value !== undefined && row.default_value !== row.value ? (
-                <span className="px4-param-chip">Default Δ</span>
-              ) : null}
-              {row.docs_url ? <span className="px4-param-chip">PX4 Docs</span> : null}
+            <div className="px4-compact-card__reading">
+              <strong>{row.value}</strong>
+              <small>{row.unit || row.value_type.toUpperCase()}</small>
             </div>
-            <div className="px4-compact-card__meta">
-              {row.range && row.range !== '—' ? <span>Range {row.range}</span> : null}
+            <div className="px4-compact-card__facts">
+              <span className="px4-compact-fact">{row.value_type.toUpperCase()}</span>
+              {row.range && row.range !== '—' ? <span className="px4-compact-fact">Range {row.range}</span> : null}
               {row.default_display && row.default_display !== '—' ? (
-                <span>Default {row.default_display}</span>
+                <span className="px4-compact-fact">Default {row.default_display}</span>
+              ) : null}
+              {row.reboot_required ? <span className="px4-compact-fact px4-compact-fact--warning">Restart required</span> : null}
+              {row.docs_url ? <span className="px4-compact-fact">PX4 Docs</span> : null}
+              {!row.docs_url && (!row.range || row.range === '—') && (!row.default_display || row.default_display === '—') ? (
+                <span className="px4-compact-fact">Vehicle value only</span>
               ) : null}
             </div>
           </button>
@@ -317,7 +337,7 @@ const Px4ParametersPage = () => {
   const [profileDiffPreview, setProfileDiffPreview] = useState(null);
   const [profileDiffLoading, setProfileDiffLoading] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(
-    () => typeof window !== 'undefined' ? window.innerWidth <= COMPACT_BREAKPOINT : false,
+    () => isCompactParameterViewport(),
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [singleNotice, setSingleNotice] = useState(null);
@@ -332,7 +352,7 @@ const Px4ParametersPage = () => {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsCompactViewport(window.innerWidth <= COMPACT_BREAKPOINT);
+      setIsCompactViewport(isCompactParameterViewport());
     };
 
     window.addEventListener('resize', handleResize);
@@ -1182,6 +1202,8 @@ const Px4ParametersPage = () => {
     session: sessionChangedNames.has(row.name) ? 'Edited' : '',
     reboot: row.reboot_required ? 'Reboot' : '',
     summary: row.short_description || row.long_description || '',
+    group: row.group || '',
+    category: row.category || '',
   }));
 
   const columns = [
@@ -1455,6 +1477,12 @@ const Px4ParametersPage = () => {
 
           <div className="px4-parameters-page__content">
             <div className="px4-panel px4-panel--table">
+              {snapshotLoading ? (
+                <div className="px4-table-loading" role="status" aria-live="polite">
+                  <span className="px4-table-loading__dot" aria-hidden="true" />
+                  <span>Loading latest snapshot…</span>
+                </div>
+              ) : null}
               {isCompactViewport ? (
                 <CompactParameterList
                   rows={rows}
@@ -1465,6 +1493,7 @@ const Px4ParametersPage = () => {
                 <DataGrid
                   rows={rows}
                   columns={columns}
+                  loading={snapshotLoading}
                   density="compact"
                   rowHeight={32}
                   columnHeaderHeight={38}

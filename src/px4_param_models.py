@@ -17,6 +17,7 @@ class Px4ParamValueType(str, Enum):
 class Px4ParamMetadataSource(str, Enum):
     VEHICLE = "vehicle"
     COMPONENT_INFORMATION = "component_information"
+    PX4_BUILD_CATALOG = "px4_build_catalog"
     PX4_DOCS = "px4_docs"
     UNKNOWN = "unknown"
 
@@ -88,11 +89,15 @@ class Px4ParamRow(BaseModel):
     short_description: Optional[str] = None
     long_description: Optional[str] = None
     unit: Optional[str] = None
+    group: Optional[str] = None
+    category: Optional[str] = None
     decimal_places: Optional[int] = None
+    increment: Optional[int | float] = None
     default_value: Optional[int | float | str] = None
     min_value: Optional[int | float] = None
     max_value: Optional[int | float] = None
     reboot_required: Optional[bool] = None
+    enum_values: List[Dict[str, Any]] = Field(default_factory=list)
     metadata_sources: List[Px4ParamMetadataSource] = Field(default_factory=list)
 
     @field_validator("name", mode="before")

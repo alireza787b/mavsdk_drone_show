@@ -77,8 +77,13 @@ MDS does not hardcode parameter metadata to one firmware snapshot.
 - bulk snapshot refresh prefers MAVSDK bulk listing and falls back to the local
   MAVLink parameter protocol on the routed `14569` endpoint when the runtime
   does not implement MAVSDK `GetAllParams`
-- defaults, ranges, decimal hints, and reboot-required flags come from the
-  vehicle/component-information path when PX4 exposes them
+- rich parameter metadata prefers the generated PX4 parameter catalog
+  (`parameters.json`) when it is present in the runtime, because that carries
+  defaults, min/max, reboot flags, units, descriptions, and enum values across
+  more than just float parameters
+- if the generated catalog is not available, MDS falls back to the older
+  vehicle/component-information path for float-parameter hints that PX4
+  exposes through MAVSDK
 - official docs links are generated from the configured docs version plus the
   parameter anchor, for example:
   - `https://docs.px4.io/main/en/advanced_config/parameter_reference.html#GF_MAX_HOR_DIST`
@@ -101,9 +106,11 @@ inventing one.
 - use `Batch` for deliberate fleet-wide or cluster-wide settings
 - on compact screens, tap a parameter row/card to open the detail drawer; on
   larger screens, the inspector stays docked beside the table
+- touch devices in browser “desktop mode” still stay on the compact card +
+  dialog workflow to avoid forcing a tiny inline desktop inspector onto a phone
 - refresh a snapshot before making decisions from stale values
 - treat reboot-required flags as advisory from PX4 metadata; they are shown
-  when the vehicle reports them
+  when the generated PX4 catalog or vehicle metadata reports them
 - keep repeatable fleet policies in repo-backed profiles instead of relying on
   ad hoc CSVs or one-off manual batch entry
 - profile creation/edit/save-new remains repo-managed in v1; the browser is

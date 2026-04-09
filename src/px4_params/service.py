@@ -9,8 +9,6 @@ import uuid
 from typing import Any, Dict, Iterable, Optional
 
 from pymavlink import mavutil
-from mavsdk.component_information import ComponentInformationError
-from mavsdk.param import ParamError
 
 from src.px4_param_models import (
     Px4ParamMetadataSource,
@@ -29,6 +27,7 @@ from src.px4_param_models import (
     Px4ParamValueResponse,
     Px4ParamValueType,
 )
+from src.px4_params.catalog import Px4ParamCatalogEntry, load_px4_param_catalog_index
 
 
 class Px4ParamService:
@@ -48,10 +47,10 @@ class Px4ParamService:
                 base_url=docs_base,
             ),
             metadata=Px4ParamPolicyMetadata(
-                runtime_values="mavsdk_param",
-                float_metadata="mavsdk_component_information_float_only",
-                docs_links="px4_parameter_reference",
-                reboot_required="unknown_until_catalog",
+                runtime_values="mavsdk_param_or_mavlink_param_protocol",
+                float_metadata="px4_catalog_then_mavsdk_component_information",
+                docs_links="px4_parameter_reference_anchor",
+                reboot_required="px4_catalog_when_available",
             ),
             mutations=Px4ParamPolicyMutations(
                 require_disarmed=self._safe_bool("PX4_PARAMETER_MUTATION_REQUIRE_DISARMED", True),
@@ -61,10 +60,12 @@ class Px4ParamService:
 
     async def build_snapshot(self, drone: Any, *, component_id: int = 1) -> Px4ParamSnapshotResponse:
         float_metadata = await self._load_float_metadata(drone)
+        catalog_metadata = self._load_catalog_metadata()
         rows = await self._build_snapshot_rows(
             drone,
             component_id=component_id,
             float_metadata=float_metadata,
+            catalog_metadata=catalog_metadata,
         )
         rows.sort(key=lambda row: row.name)
 
@@ -87,6 +88,7 @@ class Px4ParamService:
         *,
         component_id: int,
         float_metadata: Dict[str, Any],
+        catalog_metadata: Dict[str, Px4ParamCatalogEntry],
     ) -> list[Px4ParamRow]:
         try:
             all_params = await drone.param.get_all_params()
@@ -105,6 +107,7 @@ class Px4ParamService:
                 entries=entries,
                 component_id=component_id,
                 float_metadata=float_metadata,
+                catalog_metadata=catalog_metadata,
             )
 
         rows = []
@@ -114,6 +117,7 @@ class Px4ParamService:
                 component_id=component_id,
                 value_type=Px4ParamValueType.INT,
                 float_metadata=float_metadata,
+                catalog_metadata=catalog_metadata,
             )
         )
         rows.extend(
@@ -122,6 +126,7 @@ class Px4ParamService:
                 component_id=component_id,
                 value_type=Px4ParamValueType.FLOAT,
                 float_metadata=float_metadata,
+                catalog_metadata=catalog_metadata,
             )
         )
         rows.extend(
@@ -130,6 +135,7 @@ class Px4ParamService:
                 component_id=component_id,
                 value_type=Px4ParamValueType.CUSTOM,
                 float_metadata=float_metadata,
+                catalog_metadata=catalog_metadata,
             )
         )
         return rows
@@ -143,14 +149,14 @@ class Px4ParamService:
     ) -> Px4ParamValueResponse:
         normalized_name = self._normalize_name(name)
         value, value_type = await self._read_param_auto(drone, normalized_name)
-        metadata_sources = [Px4ParamMetadataSource.VEHICLE, Px4ParamMetadataSource.PX4_DOCS]
-        row = Px4ParamRow(
+        float_metadata = await self._load_float_metadata(drone) if value_type == Px4ParamValueType.FLOAT else {}
+        row = self._compose_row(
             component_id=component_id,
             name=normalized_name,
             value_type=value_type,
             value=value,
-            docs_url=self._build_docs_url(normalized_name),
-            metadata_sources=metadata_sources,
+            float_meta=float_metadata.get(normalized_name),
+            catalog_entry=self._load_catalog_metadata().get(normalized_name),
         )
         return Px4ParamValueResponse(row=row, timestamp=int(time.time() * 1000))
 
@@ -296,31 +302,21 @@ class Px4ParamService:
         component_id: int,
         value_type: Px4ParamValueType,
         float_metadata: Dict[str, Any],
+        catalog_metadata: Dict[str, Px4ParamCatalogEntry],
     ) -> list[Px4ParamRow]:
         rows = []
         for item in params:
             name = self._normalize_name(getattr(item, "name", ""))
             value = getattr(item, "value", None)
-            metadata_sources = [Px4ParamMetadataSource.VEHICLE, Px4ParamMetadataSource.PX4_DOCS]
             float_meta = float_metadata.get(name) if value_type == Px4ParamValueType.FLOAT else None
-            if float_meta is not None:
-                metadata_sources.insert(1, Px4ParamMetadataSource.COMPONENT_INFORMATION)
-
             rows.append(
-                Px4ParamRow(
+                self._compose_row(
                     component_id=component_id,
                     name=name,
                     value_type=value_type,
                     value=value,
-                    docs_url=self._build_docs_url(name),
-                    short_description=getattr(float_meta, "short_description", None),
-                    long_description=getattr(float_meta, "long_description", None),
-                    unit=getattr(float_meta, "unit", None),
-                    decimal_places=getattr(float_meta, "decimal_places", None),
-                    default_value=getattr(float_meta, "default_value", None),
-                    min_value=getattr(float_meta, "min_value", None),
-                    max_value=getattr(float_meta, "max_value", None),
-                    metadata_sources=metadata_sources,
+                    float_meta=float_meta,
+                    catalog_entry=catalog_metadata.get(name),
                 )
             )
         return rows
@@ -331,6 +327,7 @@ class Px4ParamService:
         entries: Iterable[dict[str, Any]],
         component_id: int,
         float_metadata: Dict[str, Any],
+        catalog_metadata: Dict[str, Px4ParamCatalogEntry],
     ) -> list[Px4ParamRow]:
         rows = []
         for entry in entries:
@@ -338,29 +335,93 @@ class Px4ParamService:
             value_type = entry.get("value_type")
             if not isinstance(value_type, Px4ParamValueType):
                 value_type = Px4ParamValueType(str(value_type))
-            metadata_sources = [Px4ParamMetadataSource.VEHICLE, Px4ParamMetadataSource.PX4_DOCS]
             float_meta = float_metadata.get(name) if value_type == Px4ParamValueType.FLOAT else None
-            if float_meta is not None:
-                metadata_sources.insert(1, Px4ParamMetadataSource.COMPONENT_INFORMATION)
-
             rows.append(
-                Px4ParamRow(
+                self._compose_row(
                     component_id=component_id,
                     name=name,
                     value_type=value_type,
                     value=entry.get("value"),
-                    docs_url=self._build_docs_url(name),
-                    short_description=getattr(float_meta, "short_description", None),
-                    long_description=getattr(float_meta, "long_description", None),
-                    unit=getattr(float_meta, "unit", None),
-                    decimal_places=getattr(float_meta, "decimal_places", None),
-                    default_value=getattr(float_meta, "default_value", None),
-                    min_value=getattr(float_meta, "min_value", None),
-                    max_value=getattr(float_meta, "max_value", None),
-                    metadata_sources=metadata_sources,
+                    float_meta=float_meta,
+                    catalog_entry=catalog_metadata.get(name),
                 )
             )
         return rows
+
+    def _load_catalog_metadata(self) -> Dict[str, Px4ParamCatalogEntry]:
+        return load_px4_param_catalog_index(self.params)
+
+    def _compose_row(
+        self,
+        *,
+        component_id: int,
+        name: str,
+        value_type: Px4ParamValueType,
+        value: int | float | str,
+        float_meta: Any,
+        catalog_entry: Px4ParamCatalogEntry | None,
+    ) -> Px4ParamRow:
+        metadata_sources = [Px4ParamMetadataSource.VEHICLE]
+        if catalog_entry is not None:
+            metadata_sources.append(Px4ParamMetadataSource.PX4_BUILD_CATALOG)
+        if float_meta is not None:
+            metadata_sources.append(Px4ParamMetadataSource.COMPONENT_INFORMATION)
+        metadata_sources.append(Px4ParamMetadataSource.PX4_DOCS)
+
+        return Px4ParamRow(
+            component_id=component_id,
+            name=name,
+            value_type=value_type,
+            value=value,
+            docs_url=self._build_docs_url(name),
+            short_description=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "short_description"),
+                getattr(float_meta, "short_description", None),
+            ),
+            long_description=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "long_description"),
+                getattr(float_meta, "long_description", None),
+            ),
+            unit=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "unit"),
+                getattr(float_meta, "unit", None),
+            ),
+            group=self._catalog_attr(catalog_entry, "group"),
+            category=self._catalog_attr(catalog_entry, "category"),
+            decimal_places=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "decimal_places"),
+                getattr(float_meta, "decimal_places", None),
+            ),
+            increment=self._catalog_attr(catalog_entry, "increment"),
+            default_value=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "default_value"),
+                getattr(float_meta, "default_value", None),
+            ),
+            min_value=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "min_value"),
+                getattr(float_meta, "min_value", None),
+            ),
+            max_value=self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "max_value"),
+                getattr(float_meta, "max_value", None),
+            ),
+            reboot_required=self._catalog_attr(catalog_entry, "reboot_required"),
+            enum_values=list(self._catalog_attr(catalog_entry, "enum_values") or []),
+            metadata_sources=metadata_sources,
+        )
+
+    @staticmethod
+    def _catalog_attr(entry: Px4ParamCatalogEntry | None, attribute: str) -> Any:
+        if entry is None:
+            return None
+        return getattr(entry, attribute, None)
+
+    @staticmethod
+    def _pick_metadata_value(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
 
     def _collect_mavlink_param_entries_blocking(self, component_id: int) -> list[dict[str, Any]]:
         mavlink_port = self._safe_int("local_mavlink2rest_port", 14569)

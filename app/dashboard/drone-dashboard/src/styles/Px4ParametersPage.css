@@ -167,6 +167,7 @@
 .px4-panel {
   padding: var(--spacing-md);
   min-width: 0;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
 .px4-panel__header {
@@ -240,6 +241,7 @@
   color: var(--color-text-primary);
   text-align: left;
   cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
 .px4-drone-option.active {
@@ -342,6 +344,7 @@
 }
 
 .px4-panel--table {
+  position: relative;
   min-height: 620px;
   overflow: hidden;
 }
@@ -349,6 +352,7 @@
 .px4-param-inspector {
   padding: var(--spacing-md);
   min-width: 0;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
 }
 
 .px4-parameters-page__main > .px4-param-inspector {
@@ -376,6 +380,10 @@
 .px4-param-inspector__summary,
 .px4-param-inspector__detail {
   margin: var(--spacing-sm) 0 0;
+}
+
+.px4-param-inspector__detail {
+  white-space: pre-wrap;
 }
 
 .px4-profile-panel__summary {
@@ -428,6 +436,9 @@
   border-radius: var(--border-radius-sm);
   border: 1px solid var(--color-border-primary);
   background: var(--color-bg-tertiary);
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  animation: px4-card-enter 180ms ease-out;
 }
 
 .px4-compact-card.active {
@@ -440,33 +451,53 @@
 }
 
 .px4-compact-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--spacing-sm);
-}
-
-.px4-compact-card__header strong,
-.px4-compact-card__value strong {
   display: block;
 }
 
-.px4-compact-card__header span,
-.px4-compact-card__value small,
-.px4-compact-card__meta span {
+.px4-compact-card__identity {
+  display: grid;
+  gap: 4px;
+}
+
+.px4-compact-card__identity strong,
+.px4-compact-card__reading strong {
+  display: block;
+}
+
+.px4-compact-card__identity span,
+.px4-compact-card__identity small,
+.px4-compact-card__reading small,
+.px4-compact-card__facts span {
   color: var(--color-text-secondary);
 }
 
-.px4-compact-card__value {
-  min-width: 88px;
-  text-align: right;
+.px4-compact-card__reading {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: flex-start;
 }
 
-.px4-compact-card__meta {
+.px4-compact-card__facts {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
   font-size: var(--font-size-xs);
+}
+
+.px4-compact-fact {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-light);
+  background: color-mix(in srgb, var(--color-bg-primary) 76%, transparent);
+}
+
+.px4-compact-fact--warning {
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-light);
+  color: var(--color-warning);
 }
 
 .px4-profile-panel__entries {
@@ -560,6 +591,31 @@
   border-radius: var(--border-radius-sm);
   background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border-light);
+}
+
+.px4-table-loading {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-primary);
+  background: color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-secondary);
+  backdrop-filter: blur(6px);
+}
+
+.px4-table-loading__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  animation: px4-loading-pulse 0.9s ease-in-out infinite;
 }
 
 .px4-param-inspector__notice--warning {
@@ -664,6 +720,31 @@
   }
 }
 
+@keyframes px4-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes px4-loading-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (max-width: 1120px) {
   .px4-parameters-page__workspace,
   .px4-parameters-page__content {
@@ -712,14 +793,9 @@
   }
 
   .px4-target-summary,
-  .px4-compact-card__header {
+  .px4-compact-card__reading {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .px4-compact-card__value {
-    min-width: 0;
-    text-align: left;
   }
 
   .px4-inspector-dialog-backdrop {
@@ -734,5 +810,20 @@
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .px4-panel,
+  .px4-param-inspector,
+  .px4-drone-option,
+  .px4-compact-card {
+    transition: none;
+    animation: none;
+  }
+
+  .px4-inline-notice__spinner,
+  .px4-table-loading__dot {
+    animation: none;
   }
 }
