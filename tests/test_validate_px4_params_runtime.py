@@ -4,6 +4,7 @@ from tools.validate_px4_params_runtime import (
     _selected_drone_api_health_snapshot,
     build_qgc_file,
     choose_param_value,
+    select_baseline_rows,
 )
 
 
@@ -81,3 +82,15 @@ def test_selected_drone_api_health_snapshot_returns_false_when_probe_is_unreacha
             raise urllib.error.URLError("connection refused")
 
     assert _selected_drone_api_health_snapshot(_Client(), [1]) is False
+
+
+def test_select_baseline_rows_normalizes_selected_ids_to_string_keys():
+    baseline_rows = {
+        "1": {"name": "PARAM_A"},
+        "2": {"name": "PARAM_B"},
+    }
+
+    assert select_baseline_rows(baseline_rows, [1, 2]) == {
+        "1": {"name": "PARAM_A"},
+        "2": {"name": "PARAM_B"},
+    }

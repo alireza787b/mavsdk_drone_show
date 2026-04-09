@@ -314,6 +314,16 @@ def validate_snapshot_value(snapshot: dict[str, Any], *, param_name: str, expect
     require(int(actual_value) == int(expected_value), f"{param_name} expected {expected_value}, got {actual_value}")
 
 
+def select_baseline_rows(
+    baseline_rows: dict[str, dict[str, Any]],
+    drone_ids: list[int],
+) -> dict[str, dict[str, Any]]:
+    return {
+        str(drone_id): baseline_rows[str(drone_id)]
+        for drone_id in drone_ids
+    }
+
+
 def main() -> int:
     args = parse_args()
     selected_ids = resolve_selected_ids(args)
@@ -365,10 +375,7 @@ def main() -> int:
     refreshed_primary = refresh_snapshots(client, [int(primary_hw_id)], component_id=component_id)[primary_hw_id]
     validate_snapshot_value(refreshed_primary, param_name=param_name, expected_value=single_value)
 
-    batch_rows = {
-        hw_id: baseline_rows[str(hw_id)]
-        for hw_id in selected_ids
-    }
+    batch_rows = select_baseline_rows(baseline_rows, selected_ids)
     batch_value = choose_param_value(batch_rows[str(selected_ids[-1])], delta=args.float_delta + 0.5)
     batch_entry = {
         "component_id": component_id,
