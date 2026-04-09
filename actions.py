@@ -28,7 +28,7 @@ Usage Examples:
    and reboot the flight controller:
    python3 actions.py --action init_sysid
 
-6) Apply common parameters from 'common_params.csv' in the project root folder:
+6) Apply common parameters from the repo-managed common params CSV:
    python3 actions.py --action apply_common_params
    (Optionally add --reboot_after to reboot the flight controller right after)
 
@@ -41,8 +41,8 @@ This script executes various drone actions using MAVSDK:
  - Provides logging, exit codes, LED status feedback, and robust error handling.
  - Supports setting multiple PX4 parameters in a single run via repeated --param.
  - Supports automatically setting MAV_SYS_ID based on a local .hwID file with 'init_sysid'.
- - Now supports applying a shared set of parameters stored in a 'common_params.csv' file
-   via the 'apply_common_params' action.
+ - Now supports applying a shared set of parameters stored in the repo-managed
+   common params CSV via the 'apply_common_params' action.
 
 ---------------------------------------------------------------
 """
@@ -727,8 +727,8 @@ async def set_parameters(drone, parameters):
 
 async def apply_common_params(drone, reboot_after=False):
     """
-    Reads a 'common_params.csv' file from the project root, applies each parameter to
-    the drone, and optionally reboots the flight controller.
+    Reads the configured common-params CSV, applies each parameter to the drone,
+    and optionally reboots the flight controller.
     
     The expected CSV format is:
       param_name,param_value
@@ -739,7 +739,7 @@ async def apply_common_params(drone, reboot_after=False):
       GF_MAX_VER_DIST,120
     """
     led_controller = LEDController.get_instance()
-    common_file = 'common_params.csv'
+    common_file = Params.COMMON_PARAMS_FILE
 
     # Indicate start with a distinct LED color (e.g., magenta)
     led_controller.set_color(255, 0, 255)
@@ -750,7 +750,7 @@ async def apply_common_params(drone, reboot_after=False):
         fail()
         return
 
-    logger.info(f"Loading common parameters from {common_file} ...")
+        logger.info(f"Loading common parameters from {common_file} ...")
     try:
         common_params = {}
         with open(common_file, newline='') as csvfile:

@@ -19,6 +19,8 @@ Design rules:
 - repo-backed parameter profiles live under `resources/px4_param_profiles/` so
   fleet baselines follow the same repo-managed asset model as other operator
   configuration artifacts
+- the older common-params CSV compatibility path defaults to
+  `resources/common_params.csv`, not an ad hoc project-root file
 
 ## Current v1 Capabilities
 
@@ -92,6 +94,18 @@ inventing one.
   when the vehicle reports them
 - keep repeatable fleet policies in repo-backed profiles instead of relying on
   ad hoc CSVs or one-off manual batch entry
+
+## Storage Layout
+
+- live fleet config remains in root `config*.json` / `swarm*.json`
+- reviewed PX4 parameter profiles live in `resources/px4_param_profiles/`
+- the legacy `APPLY_COMMON_PARAMS` action reads `resources/common_params.csv`
+  by default until the action pipeline is fully converged
+- generated mission outputs belong under `shapes/` or `shapes_sitl/`, not in
+  the PX4 profile library
+
+See [Repo Asset Layout](guides/repo-asset-layout.md) for the full storage
+doctrine.
 
 ## Deferred Follow-Up
 

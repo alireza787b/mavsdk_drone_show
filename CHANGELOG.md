@@ -1014,3 +1014,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Reworked PX4 batch writes so operator scope now starts at `None`, saved profiles are the default repeatable path, and one-off raw batch entry stays available only as an explicit advanced mode.
 - Removed the older `Apply Common Params` operator shortcut from the dashboard action surface so PX4 parameter management has one clean operator entry point instead of competing UI flows.
 - Added focused backend profile-store/route coverage plus focused React coverage for the PX4 parameter workspaces, profile workflows, and action-surface cleanup.
+## 2026-04-09
+
+### Added
+- **PX4 Parameters Profile Library And Safer Batch Workflow**
+  - repo-backed PX4 parameter profiles now live under `resources/px4_param_profiles/`
+  - new `Profiles` workspace in the dashboard for review, diff, export, and batch handoff
+  - new storage-layout guide: `docs/guides/repo-asset-layout.md`
+  - new `resources/README.md` documenting the intended repo-backed asset layout
+
+### Changed
+- **PX4 Parameter Storage Clarification**
+  - live fleet config remains rooted at `config*.json` / `swarm*.json`
+  - generated mission artifacts remain under `shapes/` / `shapes_sitl/`
+  - legacy `APPLY_COMMON_PARAMS` compatibility now defaults to `resources/common_params.csv`

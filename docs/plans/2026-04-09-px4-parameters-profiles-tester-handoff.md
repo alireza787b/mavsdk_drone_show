@@ -15,6 +15,10 @@ top of the already validated runtime slice:
 - saved profiles are the default repeatable fleet path
 - raw manual batch entry remains available only as an explicit advanced mode
 - the older `Apply Common Params` shortcut is no longer shown in the action UI
+- repo storage is now explicit:
+  - live fleet config stays in root `config*.json` / `swarm*.json`
+  - reviewed PX4 parameter profiles live in `resources/px4_param_profiles/`
+  - the legacy compatibility CSV defaults to `resources/common_params.csv`
 
 ## Operator Workflow
 
@@ -91,3 +95,4 @@ top of the already validated runtime slice:
 - richer profile revisioning / approval workflow
 - final retirement of the legacy backend `APPLY_COMMON_PARAMS` path after the
   broader action-pipeline audit
+- in-browser profile authoring/preset management for fleet/sample config JSONs
