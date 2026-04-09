@@ -39,7 +39,59 @@ import Px4ParamProfilePanel from '../components/px4/Px4ParamProfilePanel';
 import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
-const COMPACT_BREAKPOINT = 960;
+const COMPACT_BREAKPOINT = 1120;
+
+function trimTrailingZeros(value) {
+  return String(value)
+    .replace(/(\.\d*?[1-9])0+$/, '$1')
+    .replace(/\.0+$/, '')
+    .replace(/^-0$/, '0');
+}
+
+function formatParameterValue(value, row = null) {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (row?.value_type === 'int') {
+      return String(Math.trunc(value));
+    }
+
+    if (row?.value_type === 'float') {
+      const decimalPlaces = Number.isFinite(Number(row?.decimal_places))
+        ? Math.min(Math.max(Number(row.decimal_places), 0), 6)
+        : null;
+
+      if (decimalPlaces !== null) {
+        return trimTrailingZeros(value.toFixed(decimalPlaces));
+      }
+
+      return trimTrailingZeros(value.toFixed(4));
+    }
+  }
+
+  return String(value);
+}
+
+function formatParameterRange(row = null) {
+  const hasMin = row?.min_value !== null && row?.min_value !== undefined;
+  const hasMax = row?.max_value !== null && row?.max_value !== undefined;
+
+  if (!hasMin && !hasMax) {
+    return '—';
+  }
+
+  if (hasMin && hasMax) {
+    return `${formatParameterValue(row.min_value, row)} – ${formatParameterValue(row.max_value, row)}`;
+  }
+
+  if (hasMin) {
+    return `≥ ${formatParameterValue(row.min_value, row)}`;
+  }
+
+  return `≤ ${formatParameterValue(row.max_value, row)}`;
+}
 
 function formatRelativeSnapshotAge(snapshot) {
   if (!snapshot?.created_at) {
@@ -98,15 +150,8 @@ function getSnapshotStatusLabel({ selectedDrone, writeBlockedReason, snapshotSum
   return 'Writable';
 }
 
-function renderValueSummary(value) {
-  if (value === null || value === undefined || value === '') {
-    return '—';
-  }
-  return String(value);
-}
-
-function buildNotice(tone, title, detail = '') {
-  return { tone, title, detail };
+function buildNotice(tone, title, detail = '', busy = false) {
+  return { tone, title, detail, busy };
 }
 
 function buildTrackingNotice(snapshot, fallbackTitle = 'Command update') {
@@ -155,7 +200,10 @@ const StatusNotice = ({ notice, className = '' }) => {
       role="status"
       aria-live="polite"
     >
-      <strong>{notice.title}</strong>
+      <strong>
+        {notice.busy ? <span className="px4-inline-notice__spinner" aria-hidden="true" /> : null}
+        {notice.title}
+      </strong>
       {notice.detail ? <span>{notice.detail}</span> : null}
     </div>
   );
@@ -184,25 +232,25 @@ const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
             <div className="px4-compact-card__header">
               <div>
                 <strong>{row.name}</strong>
-                <span>{row.summary || 'No summary available.'}</span>
+                {row.summary ? <span>{row.summary}</span> : null}
               </div>
               <div className="px4-compact-card__value">
-                <strong>{renderValueSummary(row.value)}</strong>
+                <strong>{row.value}</strong>
                 <small>{row.unit || row.value_type.toUpperCase()}</small>
               </div>
             </div>
             <div className="px4-param-inspector__chips">
               <span className="px4-param-chip">{row.value_type.toUpperCase()}</span>
-              {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot</span> : null}
+              {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot req</span> : null}
               {row.default_value !== null && row.default_value !== undefined && row.default_value !== row.value ? (
                 <span className="px4-param-chip">Default Δ</span>
               ) : null}
-              {row.docs_url ? <span className="px4-param-chip">Docs</span> : null}
+              {row.docs_url ? <span className="px4-param-chip">PX4 Docs</span> : null}
             </div>
             <div className="px4-compact-card__meta">
               {row.range && row.range !== '—' ? <span>Range {row.range}</span> : null}
-              {row.default_value !== null && row.default_value !== undefined ? (
-                <span>Default {renderValueSummary(row.default_value)}</span>
+              {row.default_display && row.default_display !== '—' ? (
+                <span>Default {row.default_display}</span>
               ) : null}
             </div>
           </button>
@@ -561,7 +609,7 @@ const Px4ParametersPage = () => {
     }
 
     setSnapshotLoading(true);
-    setSingleNotice(buildNotice('info', 'Refreshing snapshot', `Reading PX4 parameters for ${selectedIdentity?.primary || `H${selectedHwId}`}.`));
+    setSingleNotice(buildNotice('info', 'Refreshing snapshot', `Reading PX4 parameters for ${selectedIdentity?.primary || `H${selectedHwId}`}.`, true));
     try {
       const response = await refreshPx4ParamSnapshots({
         hwIds: [String(selectedHwId)],
@@ -782,7 +830,7 @@ const Px4ParametersPage = () => {
     }
 
     setSaving(true);
-    setSingleNotice(buildNotice('info', 'Writing and verifying', `${selectedRow.name} → ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`));
+    setSingleNotice(buildNotice('info', 'Writing and verifying', `${selectedRow.name} → ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`, true));
     try {
       const response = await createPx4ParamPatchJob({
         hwIds: [String(selectedDrone.hw_id)],
@@ -856,7 +904,7 @@ const Px4ParametersPage = () => {
     }
 
     setImporting(true);
-    setSingleNotice(buildNotice('info', 'Reading imported file', `Comparing ${file.name} against the current drone snapshot.`));
+    setSingleNotice(buildNotice('info', 'Reading imported file', `Comparing ${file.name} against the current drone snapshot.`, true));
     try {
       const content = await file.text();
       const importResponse = await importQgcParameterFile(content);
@@ -897,7 +945,7 @@ const Px4ParametersPage = () => {
     }
 
     setSaving(true);
-    setSingleNotice(buildNotice('info', 'Applying imported changes', `${importPreview.importResponse.entries.length} imported row(s) are being written and verified.`));
+    setSingleNotice(buildNotice('info', 'Applying imported changes', `${importPreview.importResponse.entries.length} imported row(s) are being written and verified.`, true));
     try {
       const response = await createPx4ParamPatchJob({
         hwIds: [String(selectedDrone.hw_id)],
@@ -939,7 +987,7 @@ const Px4ParametersPage = () => {
     }
 
     setProfileDiffLoading(true);
-    setProfileNotice(buildNotice('info', 'Comparing profile', `Reviewing ${selectedProfile.name} against ${compareTargetLabel || 'the selected drone snapshot'}.`));
+    setProfileNotice(buildNotice('info', 'Comparing profile', `Reviewing ${selectedProfile.name} against ${compareTargetLabel || 'the selected drone snapshot'}.`, true));
     try {
       const response = await diffPx4ParamSnapshot({
         snapshotId: snapshotResponse.snapshot.snapshot_id,
@@ -1009,6 +1057,7 @@ const Px4ParametersPage = () => {
       'info',
       'Applying manual patch',
       `Dispatching ${normalizedName} to ${effectiveBatchTargetHwIds.length} target drone(s)${offlineBatchTargets.length > 0 && allowOfflineSkip ? ` and skipping ${offlineBatchTargets.length} offline target(s)` : ''}.`,
+      true,
     ));
     try {
       const response = await createPx4ParamPatchJob({
@@ -1059,6 +1108,7 @@ const Px4ParametersPage = () => {
       'info',
       'Applying saved profile',
       `Dispatching ${selectedProfile.name} to ${effectiveBatchTargetHwIds.length} target drone(s)${offlineBatchTargets.length > 0 && allowOfflineSkip ? ` and skipping ${offlineBatchTargets.length} offline target(s)` : ''}.`,
+      true,
     ));
     try {
       const response = await createPx4ParamPatchJob({
@@ -1095,7 +1145,7 @@ const Px4ParametersPage = () => {
     }
 
     setRebootingPx4(true);
-    setSingleNotice(buildNotice('info', 'Dispatching PX4 reboot', `Submitting reboot for ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`));
+    setSingleNotice(buildNotice('info', 'Dispatching PX4 reboot', `Submitting reboot for ${selectedIdentity?.primary || `H${selectedDrone.hw_id}`}.`, true));
     try {
       await submitCommandWithLifecycleFeedback({
         missionType: String(DRONE_ACTION_TYPES.REBOOT_FC),
@@ -1125,9 +1175,9 @@ const Px4ParametersPage = () => {
   const rows = filteredRows.map((row) => ({
     id: row.name,
     ...row,
-    range: [row.min_value, row.max_value].every((value) => value !== null && value !== undefined)
-      ? `${row.min_value} – ${row.max_value}`
-      : '—',
+    value: formatParameterValue(row.value, row),
+    default_display: formatParameterValue(row.default_value, row),
+    range: formatParameterRange(row),
     modified: row.default_value !== null && row.default_value !== undefined && row.default_value !== row.value ? 'Yes' : '',
     session: sessionChangedNames.has(row.name) ? 'Edited' : '',
     reboot: row.reboot_required ? 'Reboot' : '',

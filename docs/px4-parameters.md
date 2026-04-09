@@ -31,6 +31,8 @@ Design rules:
 - use a compact card list plus detail drawer on phone/tablet, and a sticky
   side inspector on larger screens
 - inspect current/default/min/max metadata when available
+- display numeric values with PX4 decimal hints when available, otherwise use a
+  trimmed operator-readable precision instead of raw full-float output
 - edit one parameter with readback verification
 - open the exact official PX4 parameter-reference page anchor for that
   parameter

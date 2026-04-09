@@ -111,6 +111,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - batch PX4 profile/patch apply no longer hard-blocks the whole scope when some
   selected drones are offline; operators now get an explicit skip-offline
   confirmation path plus a clearer per-drone result summary
+- PX4 Parameters no longer floods operators with raw floating-point precision:
+  parameter values now use PX4 decimal hints when available and otherwise fall
+  back to trimmed display precision, while compact/tablet widths keep the
+  focused dialog flow instead of collapsing back into a below-table inspector
 - PX4 parameter snapshots no longer depend solely on MAVSDK `GetAllParams`: drone-local snapshot refresh now waits for the target drone HTTP API to become healthy in live SITL, and the drone-side service falls back to the MAVLink parameter microservice on the routed local `14569` endpoint when the runtime MAVSDK server does not implement bulk parameter listing
 - the PX4 parameter-management runtime no longer depends on a stale gRPC pin: `requirements.txt` now aligns with the installed `mavsdk 3.10.2` generated stubs by pinning `grpcio==1.71.0`, which fixes the live Hetzner backend import failure exposed during the first clean-sync PX4 smoke attempt
 - the PX4 Parameters batch workspace test now waits for the fleet scope to finish loading before dispatching a patch, matching the real operator flow and preventing a false zero-target no-op during Jest validation

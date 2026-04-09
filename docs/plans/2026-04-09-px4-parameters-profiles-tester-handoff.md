@@ -17,11 +17,15 @@ top of the already validated runtime slice:
 - the older `Apply Common Params` shortcut is no longer shown in the action UI
 - phone/tablet now use a compact parameter card list plus detail dialog instead
   of forcing a desktop table/inline inspector layout
+- compact widths now stay on the dialog flow through tablet / narrow-desktop
+  ranges instead of collapsing back into a below-table inspector too early
 - batch apply can now skip offline drones only after explicit operator
   confirmation
 - single-drone runtime now has a tracked `Reboot PX4` control on the page
 - snapshot/write/import/batch/reboot operations now show minimal inline status
   notices, not only transient toasts
+- parameter values are now rounded for operator readability instead of showing
+  raw long floating-point tails
 - repo storage is now explicit:
   - live fleet config stays in root `config*.json` / `swarm*.json`
   - reviewed PX4 parameter profiles live in `resources/px4_param_profiles/`

@@ -1,11 +1,54 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-const renderValueSummary = (value) => {
+const trimTrailingZeros = (value) => String(value)
+  .replace(/(\.\d*?[1-9])0+$/, '$1')
+  .replace(/\.0+$/, '')
+  .replace(/^-0$/, '0');
+
+const formatParameterValue = (value, row) => {
   if (value === null || value === undefined || value === '') {
     return '—';
   }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (row?.value_type === 'int') {
+      return String(Math.trunc(value));
+    }
+
+    if (row?.value_type === 'float') {
+      const decimalPlaces = Number.isFinite(Number(row?.decimal_places))
+        ? Math.min(Math.max(Number(row.decimal_places), 0), 6)
+        : null;
+
+      if (decimalPlaces !== null) {
+        return trimTrailingZeros(value.toFixed(decimalPlaces));
+      }
+
+      return trimTrailingZeros(value.toFixed(4));
+    }
+  }
+
   return String(value);
+};
+
+const formatParameterRange = (row) => {
+  const hasMin = row?.min_value !== null && row?.min_value !== undefined;
+  const hasMax = row?.max_value !== null && row?.max_value !== undefined;
+
+  if (!hasMin && !hasMax) {
+    return '—';
+  }
+
+  if (hasMin && hasMax) {
+    return `${formatParameterValue(row.min_value, row)} – ${formatParameterValue(row.max_value, row)}`;
+  }
+
+  if (hasMin) {
+    return `≥ ${formatParameterValue(row.min_value, row)}`;
+  }
+
+  return `≤ ${formatParameterValue(row.max_value, row)}`;
 };
 
 const Px4ParamInspector = ({
@@ -62,19 +105,19 @@ const Px4ParamInspector = ({
       <div className="px4-param-inspector__grid">
         <div>
           <span>Current</span>
-          <strong>{renderValueSummary(row.value)}</strong>
+          <strong>{formatParameterValue(row.value, row)}</strong>
         </div>
         <div>
           <span>Default</span>
-          <strong>{renderValueSummary(row.default_value)}</strong>
+          <strong>{formatParameterValue(row.default_value, row)}</strong>
         </div>
         <div>
-          <span>Minimum</span>
-          <strong>{renderValueSummary(row.min_value)}</strong>
+          <span>Range</span>
+          <strong>{formatParameterRange(row)}</strong>
         </div>
         <div>
-          <span>Maximum</span>
-          <strong>{renderValueSummary(row.max_value)}</strong>
+          <span>Restart</span>
+          <strong>{row.reboot_required ? 'Required' : 'Not required'}</strong>
         </div>
       </div>
 

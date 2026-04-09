@@ -379,7 +379,8 @@ describe('Px4ParametersPage', () => {
 
     expect(await screen.findByRole('dialog', { name: /MPC_XY_VEL_MAX parameter details/i })).toBeInTheDocument();
     expect(screen.getByText('Default')).toBeInTheDocument();
-    expect(screen.getByText('Maximum')).toBeInTheDocument();
+    expect(screen.getByText('Range')).toBeInTheDocument();
+    expect(screen.getByText('Restart')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'PX4 Docs' })).toBeInTheDocument();
   });
 
