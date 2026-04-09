@@ -87,6 +87,7 @@ const Px4ParamInspector = ({
             {row.reboot_required ? <span className="px4-param-chip px4-param-chip--warning">Reboot</span> : null}
             {row.unit ? <span className="px4-param-chip">{row.unit}</span> : null}
             {row.group ? <span className="px4-param-chip">{row.group}</span> : null}
+            {row.category ? <span className="px4-param-chip">{row.category}</span> : null}
           </div>
         </div>
         {row.docs_url ? (
@@ -96,14 +97,21 @@ const Px4ParamInspector = ({
         ) : null}
       </header>
 
-      {row.short_description ? (
-        <p className="px4-param-inspector__summary">{row.short_description}</p>
-      ) : null}
-      {row.long_description ? (
-        <p className="px4-param-inspector__detail">{row.long_description}</p>
+      {(row.short_description || row.long_description) ? (
+        <section className="px4-param-inspector__section">
+          <span className="px4-param-inspector__section-label">Description</span>
+          {row.short_description ? (
+            <p className="px4-param-inspector__summary">{row.short_description}</p>
+          ) : null}
+          {row.long_description ? (
+            <p className="px4-param-inspector__detail">{row.long_description}</p>
+          ) : null}
+        </section>
       ) : null}
 
-      <div className="px4-param-inspector__grid">
+      <section className="px4-param-inspector__section">
+        <span className="px4-param-inspector__section-label">Current metadata</span>
+        <div className="px4-param-inspector__grid">
         <div>
           <span>Current</span>
           <strong>{formatParameterValue(row.value, row)}</strong>
@@ -124,10 +132,37 @@ const Px4ParamInspector = ({
               : (row.reboot_required ? 'Required' : 'Not required')}
           </strong>
         </div>
-      </div>
+        {row.increment !== null && row.increment !== undefined ? (
+          <div>
+            <span>Step</span>
+            <strong>{formatParameterValue(row.increment, row)}</strong>
+          </div>
+        ) : null}
+        {Array.isArray(row.enum_values) && row.enum_values.length > 0 ? (
+          <div>
+            <span>Enum values</span>
+            <strong>{row.enum_values.length}</strong>
+          </div>
+        ) : null}
+        </div>
+      </section>
+
+      {Array.isArray(row.enum_values) && row.enum_values.length > 0 ? (
+        <section className="px4-param-inspector__section">
+          <span className="px4-param-inspector__section-label">Declared enum values</span>
+          <div className="px4-param-inspector__enum-list">
+          {row.enum_values.slice(0, 8).map((entry) => (
+            <div key={`${row.name}:${entry.value}`} className="px4-param-inspector__enum-item">
+              <strong>{String(entry.value)}</strong>
+              <span>{entry.description || 'Declared by PX4'}</span>
+            </div>
+          ))}
+          </div>
+        </section>
+      ) : null}
 
       <label className="px4-param-inspector__field">
-        <span>New Value</span>
+        <span>New value</span>
         <input
           type={inputType}
           step={inputStep}
@@ -173,6 +208,11 @@ Px4ParamInspector.propTypes = {
     docs_url: PropTypes.string,
     group: PropTypes.string,
     category: PropTypes.string,
+    increment: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    enum_values: PropTypes.arrayOf(PropTypes.shape({
+      value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      description: PropTypes.string,
+    })),
   }),
   draftValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   onDraftValueChange: PropTypes.func.isRequired,

@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-09 PX4 Parameters scan-first UI refinement note documenting the
+  dialog-first desktop/mobile inspection flow, the reduced compact-card and
+  desktop-table density, the cleaner metadata grouping, the refreshed Hetzner
+  browser stack, and the focused frontend validation/build results
 - explicit PX4 parameter metadata-source-order guidance documenting the
   production doctrine for vehicle-served metadata, local PX4 catalog fallback,
   optional read-only docs caching, and the deferred hardware-grade metadata

@@ -241,6 +241,7 @@ const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
     <div className="px4-compact-list">
       {rows.map((row) => {
         const active = row.name === selectedParamName;
+        const metaLine = [row.group, row.category].filter(Boolean).join(' · ');
         return (
           <button
             key={row.id}
@@ -251,27 +252,20 @@ const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
             <div className="px4-compact-card__header">
               <div className="px4-compact-card__identity">
                 <strong>{row.name}</strong>
-                {row.summary ? <span>{row.summary}</span> : null}
-                {row.group || row.category ? (
-                  <small>{[row.group, row.category].filter(Boolean).join(' · ')}</small>
-                ) : null}
+                {metaLine ? <span>{metaLine}</span> : null}
               </div>
-            </div>
-            <div className="px4-compact-card__reading">
-              <strong>{row.value}</strong>
-              <small>{row.unit || row.value_type.toUpperCase()}</small>
+              <div className="px4-compact-card__reading">
+                <strong>{row.value}</strong>
+                <small>{row.unit || row.value_type.toUpperCase()}</small>
+              </div>
             </div>
             <div className="px4-compact-card__facts">
               <span className="px4-compact-fact">{row.value_type.toUpperCase()}</span>
-              {row.range && row.range !== '—' ? <span className="px4-compact-fact">Range {row.range}</span> : null}
-              {row.default_display && row.default_display !== '—' ? (
-                <span className="px4-compact-fact">Default {row.default_display}</span>
-              ) : null}
               {row.reboot_required ? <span className="px4-compact-fact px4-compact-fact--warning">Restart required</span> : null}
-              {row.docs_url ? <span className="px4-compact-fact">PX4 Docs</span> : null}
-              {!row.docs_url && (!row.range || row.range === '—') && (!row.default_display || row.default_display === '—') ? (
-                <span className="px4-compact-fact">Vehicle value only</span>
-              ) : null}
+              {row.docs_url ? <span className="px4-compact-fact">Docs</span> : null}
+            </div>
+            <div className="px4-compact-card__footer">
+              <span>{active ? 'Editing details' : 'Open details'}</span>
             </div>
           </button>
         );
@@ -586,12 +580,6 @@ const Px4ParametersPage = () => {
   }, [selectedProfileId, snapshotResponse?.snapshot?.snapshot_id]);
 
   useEffect(() => {
-    if (!isCompactViewport) {
-      setInspectorOpen(false);
-    }
-  }, [isCompactViewport]);
-
-  useEffect(() => {
     if (workspaceMode !== 'single') {
       setInspectorOpen(false);
     }
@@ -833,9 +821,7 @@ const Px4ParametersPage = () => {
 
   const handleSelectParameter = (paramName) => {
     setSelectedParamName(paramName);
-    if (isCompactViewport) {
-      setInspectorOpen(true);
-    }
+    setInspectorOpen(true);
   };
 
   const handleSave = async () => {
@@ -1207,15 +1193,12 @@ const Px4ParametersPage = () => {
   }));
 
   const columns = [
-    { field: 'name', headerName: 'Name', minWidth: 150, flex: 0.9 },
-    { field: 'value', headerName: 'Value', minWidth: 120, flex: 0.9 },
-    { field: 'value_type', headerName: 'Type', minWidth: 90, flex: 0.5 },
-    { field: 'unit', headerName: 'Unit', minWidth: 90, flex: 0.5 },
-    { field: 'range', headerName: 'Range', minWidth: 140, flex: 0.8 },
-    { field: 'modified', headerName: 'Default Δ', minWidth: 100, flex: 0.55 },
-    { field: 'session', headerName: 'Session', minWidth: 90, flex: 0.55 },
-    { field: 'reboot', headerName: 'Reboot', minWidth: 90, flex: 0.55 },
-    { field: 'summary', headerName: 'Summary', minWidth: 220, flex: 1.4 },
+    { field: 'name', headerName: 'Name', minWidth: 170, flex: 0.95 },
+    { field: 'value', headerName: 'Current', minWidth: 120, flex: 0.7 },
+    { field: 'value_type', headerName: 'Type', minWidth: 90, flex: 0.45 },
+    { field: 'unit', headerName: 'Unit', minWidth: 80, flex: 0.4 },
+    { field: 'group', headerName: 'Group', minWidth: 170, flex: 1.05 },
+    { field: 'reboot', headerName: 'Restart', minWidth: 100, flex: 0.5 },
   ];
 
   return (
@@ -1430,9 +1413,9 @@ const Px4ParametersPage = () => {
                 <span>{rows.length} rows shown</span>
               </div>
               <div className="px4-inline-notice">
-                <strong>{isCompactViewport ? 'Tap a parameter' : 'Select a parameter'}</strong>
+                <strong>{isCompactViewport ? 'Tap a parameter' : 'Select a row'}</strong>
                 <span>
-                  Review current value, defaults, range, reboot flag, and the official PX4 docs link before writing changes.
+                  Keep the list for scanning. Open one parameter at a time to review description, defaults, range, restart flags, and PX4 docs before writing.
                 </span>
               </div>
               {selectedRow ? (
@@ -1495,11 +1478,12 @@ const Px4ParametersPage = () => {
                   columns={columns}
                   loading={snapshotLoading}
                   density="compact"
-                  rowHeight={32}
+                  rowHeight={36}
                   columnHeaderHeight={38}
                   disableColumnMenu
                   disableRowSelectionOnClick
                   rowSelectionModel={selectedParamName ? [selectedParamName] : []}
+                  getRowClassName={(params) => (params.indexRelativeToCurrentPage % 2 === 0 ? 'px4-grid-row-even' : 'px4-grid-row-odd')}
                   onRowClick={(params) => handleSelectParameter(params.row.name)}
                   pageSizeOptions={[25, 50, 100]}
                   initialState={{ pagination: { paginationModel: { pageSize: 25 } } }}
@@ -1512,6 +1496,12 @@ const Px4ParametersPage = () => {
                       color: 'var(--color-text-secondary)',
                       backgroundColor: 'var(--color-bg-tertiary)',
                     },
+                    '& .MuiDataGrid-row.px4-grid-row-odd': {
+                      backgroundColor: 'color-mix(in srgb, var(--color-bg-tertiary) 58%, transparent)',
+                    },
+                    '& .MuiDataGrid-row:hover': {
+                      backgroundColor: 'color-mix(in srgb, var(--color-primary-light) 45%, var(--color-bg-secondary))',
+                    },
                     '& .MuiDataGrid-footerContainer': {
                       color: 'var(--color-text-secondary)',
                       borderTopColor: 'var(--color-border-primary)',
@@ -1523,19 +1513,6 @@ const Px4ParametersPage = () => {
                 />
               )}
             </div>
-
-            {!isCompactViewport ? (
-              <Px4ParamInspector
-                row={selectedRow}
-                draftValue={draftValue}
-                onDraftValueChange={setDraftValue}
-                onResetToCurrent={() => setDraftValue(selectedRow ? String(selectedRow.value ?? '') : '')}
-                onResetToDefault={() => setDraftValue(selectedRow && selectedRow.default_value !== null && selectedRow.default_value !== undefined ? String(selectedRow.default_value) : '')}
-                onSave={handleSave}
-                saving={saving}
-                writeBlockedReason={writeBlockedReason}
-              />
-            ) : null}
           </div>
         </section>
       </section>
@@ -1851,7 +1828,7 @@ const Px4ParametersPage = () => {
         </section>
       )}
 
-      {isCompactViewport && inspectorOpen ? (
+      {selectedRow && inspectorOpen ? (
         <div
           className="px4-inspector-dialog-backdrop"
           onClick={() => setInspectorOpen(false)}

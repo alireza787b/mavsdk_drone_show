@@ -74,12 +74,16 @@ const snapshotPayload = {
       short_description: 'System id',
       long_description: null,
       unit: null,
+      group: 'MAVLink',
+      category: 'System',
       decimal_places: null,
+      increment: 1,
       default_value: 1,
       min_value: 1,
       max_value: 255,
       reboot_required: true,
       metadata_sources: ['vehicle'],
+      enum_values: [],
     },
     {
       component_id: 1,
@@ -91,12 +95,16 @@ const snapshotPayload = {
       short_description: 'Horizontal velocity cap',
       long_description: null,
       unit: 'm/s',
+      group: 'Multicopter Position Control',
+      category: 'Standard',
       decimal_places: 2,
+      increment: 0.5,
       default_value: 10.0,
       min_value: 0,
       max_value: 20,
       reboot_required: false,
       metadata_sources: ['vehicle', 'component_information'],
+      enum_values: [],
     },
   ],
 };
@@ -247,9 +255,10 @@ describe('Px4ParametersPage', () => {
     });
     await waitFor(() => {
       expect(screen.getByText('Snapshot ready')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Save Parameter' })).not.toBeDisabled();
     });
     fireEvent.click(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' }));
+    expect(await screen.findByRole('dialog', { name: /MPC_XY_VEL_MAX parameter details/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save Parameter' })).not.toBeDisabled();
     fireEvent.change(screen.getByLabelText('Set MPC_XY_VEL_MAX value'), { target: { value: '13.5' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Parameter' }));
 
@@ -394,6 +403,17 @@ describe('Px4ParametersPage', () => {
     expect(screen.getByRole('link', { name: 'PX4 Docs' })).toBeInTheDocument();
   });
 
+  it('opens the parameter inspector in a dialog on wide desktop layouts too', async () => {
+    render(<Px4ParametersPage />);
+
+    const rowButton = await screen.findByRole('button', { name: /MAV_SYS_ID/i });
+    fireEvent.click(rowButton);
+
+    expect(await screen.findByRole('dialog', { name: /MAV_SYS_ID parameter details/i })).toBeInTheDocument();
+    expect(screen.getByText('Current')).toBeInTheDocument();
+    expect(screen.getByText('Step')).toBeInTheDocument();
+  });
+
   it('keeps touch desktop-mode view in the compact dialog workflow', async () => {
     window.innerWidth = 1280;
     window.matchMedia = jest.fn().mockImplementation((query) => ({
@@ -420,9 +440,9 @@ describe('Px4ParametersPage', () => {
 
     render(<Px4ParametersPage />);
 
-    expect(await screen.findByText('Range 1 – 255')).toBeInTheDocument();
-    expect(screen.getByText('Default 1')).toBeInTheDocument();
+    expect(await screen.findByText('MAVLink · System')).toBeInTheDocument();
     expect(screen.getByText('Restart required')).toBeInTheDocument();
+    expect(screen.getAllByText('Docs').length).toBeGreaterThan(0);
   });
 
   it('allows batch profile apply to online drones only when some targets are offline', async () => {
