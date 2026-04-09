@@ -218,6 +218,30 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 **Files to revisit:**
 - `src/action_runners/precision_move.py`
+
+---
+
+## TODO 11: Hardware-grade PX4 parameter metadata discovery and caching
+
+**Priority:** Medium
+**Status:** Deferred — current PX4 Parameters v1 is correct for SITL and managed local-runtime deployments
+
+**Problem:** The current PX4 parameter workspace uses vehicle values plus the best metadata available in the current runtime. In SITL and managed companion environments, the generated PX4 `parameters.json` catalog is available locally and is the strongest metadata source. On real hardware fleets, the long-term best-practice source should be vehicle-served PX4 metadata via the MAVLink Component Metadata / MAVLink FTP path, cached by firmware identity or metadata CRC.
+
+**Solution:** Add a hardware-grade metadata resolver layer that:
+
+- requests PX4 component metadata from the connected vehicle when supported
+- downloads and caches parameter metadata by CRC / firmware identity
+- prefers that cached vehicle-served metadata over local build artifacts
+- keeps official PX4 docs links as operator-reference fallback only, not as the machine-readable authority
+- preserves the current local-catalog path for SITL and controlled embedded deployments
+
+**Files to revisit:**
+- `src/px4_params/catalog.py`
+- `src/px4_params/service.py`
+- `src/px4_param_models.py`
+- `docs/px4-parameters.md`
+- future GCS-side metadata cache storage/docs once the hardware path is implemented
 - `src/command_contract.py`
 - `app/dashboard/drone-dashboard/src/components/PrecisionMoveDialog.js`
 - future manual-control/MCP docs and validators

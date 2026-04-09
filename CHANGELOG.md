@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- explicit PX4 parameter metadata-source-order guidance documenting the
+  production doctrine for vehicle-served metadata, local PX4 catalog fallback,
+  optional read-only docs caching, and the deferred hardware-grade metadata
+  cache follow-up
 - a 2026-04-09 PX4 Parameters responsive handoff refinement note documenting
   the compact/mobile inspector flow, the explicit skip-offline batch behavior,
   the tracked single-drone PX4 reboot control, and the refreshed Hetzner

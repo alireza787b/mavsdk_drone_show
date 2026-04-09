@@ -91,6 +91,34 @@ MDS does not hardcode parameter metadata to one firmware snapshot.
 If PX4 does not provide a metadata field, MDS leaves it empty instead of
 inventing one.
 
+### Recommended Source Order
+
+For a production-grade fleet, the intended metadata source order is:
+
+1. live parameter values from the vehicle
+2. vehicle-served PX4 parameter metadata if the firmware exposes it through the
+   MAVLink Component Metadata / MAVLink FTP path
+3. a local generated PX4 catalog available on the companion/runtime host
+   (`parameters.json`) for SITL or tightly managed embedded deployments
+4. MAVSDK component-information float hints as a weaker fallback
+5. official PX4 docs links for operator reference only
+
+The important rule is that online docs should not become the authority for
+runtime parameter semantics. They are useful as a human-readable reference and
+can be cached for convenience, but the authoritative machine-readable metadata
+should come from the connected PX4 firmware or its shipped metadata bundle.
+
+### Caching Guidance
+
+- cache static parameter metadata by firmware identity or metadata CRC, not by
+  parameter name alone
+- do not refetch static metadata on every snapshot refresh; only live values
+  need frequent reads
+- treat metadata as effectively invariant for one boot / firmware build unless
+  the vehicle advertises a changed metadata file or firmware version
+- keep online docs caching optional and read-only; stale docs must not block
+  parameter inspection or mutation
+
 ## Safety Policy
 
 - writes are blocked while the target drone is explicitly armed when
@@ -134,5 +162,8 @@ doctrine.
 - tracked long-running patch jobs if real fleets need asynchronous apply flows
 - migration or retirement of the older `APPLY_COMMON_PARAMS` workflow after the
   action-pipeline audit
+- hardware-grade metadata discovery and caching via PX4 Component Metadata /
+  MAVLink FTP, keyed by firmware identity or metadata CRC instead of relying on
+  local build artifacts alone
 - advanced SITL drills beyond the validated single-drone plus two-drone
   snapshot/apply/restore gate
