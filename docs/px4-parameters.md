@@ -80,4 +80,5 @@ inventing one.
 - tracked long-running patch jobs if real fleets need asynchronous apply flows
 - migration or retirement of the older `APPLY_COMMON_PARAMS` workflow after the
   action-pipeline audit
-- SITL validator coverage for end-to-end parameter mutation drills
+- advanced SITL drills beyond the validated single-drone plus two-drone
+  snapshot/apply/restore gate
