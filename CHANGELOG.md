@@ -10,6 +10,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-09 PX4 parameter-management design brief documenting the current raw-MAVSDK-only state, the recommended dedicated `px4-params` subsystem, the planned single-drone and batch workflows, the QGC/PX4/MAVLink research findings, and the phased implementation plan
 - a 2026-04-08 QuickScout tester-handoff checkpoint note documenting the implemented v1 feature set, the shared map/workspace consistency review versus Swarm Trajectory, the current post-v1 debt, and the recommended browser test flows and expected outcomes
 - a 2026-04-08 QuickScout template-complete runtime-validation phase 18 checkpoint note documenting the new area/corridor runtime builders, the reusable template-regression SITL plans, the live Hetzner area/corridor drills, and the passing reset-backed QuickScout template regression suite
 - a 2026-04-08 QuickScout findings-aware runtime-validation phase 17 checkpoint note documenting the live single-drone and multi-drone handoff/evidence validator passes, the updated reusable QuickScout plan semantics, and the narrowed remaining post-v1 QuickScout debt
