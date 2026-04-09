@@ -105,6 +105,159 @@ Stable operational alias for quick liveness probes.
 
 ---
 
+### PX4 Parameters
+
+The PX4 parameter subsystem is a dedicated GCS-orchestrated workflow. The dashboard should talk only to GCS, and GCS fans out to drone-local MAVSDK param access when a fresh snapshot is needed.
+
+Current routes:
+
+#### `GET /api/v1/px4-params/policy`
+Return the live policy envelope for the subsystem, including:
+- documentation base/version configuration
+- mutation safety policy
+- metadata-source expectations
+
+**Response:**
+```json
+{
+  "subsystem": "px4_params",
+  "docs": {
+    "provider": "px4_parameter_reference",
+    "version": "main",
+    "base_url": "https://docs.px4.io/main/en/advanced_config/parameter_reference.html",
+    "param_anchor_supported": true
+  },
+  "metadata": {
+    "runtime_values": "mavsdk_param",
+    "float_metadata": "component_information",
+    "docs_links": "px4_parameter_reference",
+    "reboot_required": "component_information"
+  },
+  "mutations": {
+    "require_disarmed": true,
+    "supports_batch_apply": true,
+    "supports_qgc_import": true,
+    "supports_mds_profiles": true,
+    "supported_component_ids": [1]
+  }
+}
+```
+
+#### `POST /api/v1/px4-params/snapshots`
+Request fresh parameter snapshots from one or more configured drones.
+
+**Request:**
+```json
+{
+  "hw_ids": ["1", "2"],
+  "component_id": 1
+}
+```
+
+**Response:**
+```json
+{
+  "snapshots": [
+    {
+      "snapshot": {
+        "snapshot_id": "px4-params-1-1712659200000",
+        "hw_id": "1",
+        "component_id": 1,
+        "px4_docs_version": "main",
+        "total_params": 2,
+        "created_at": 1712659200000,
+        "stale_after_ms": 60000
+      },
+      "rows": [
+        {
+          "component_id": 1,
+          "name": "MAV_SYS_ID",
+          "value_type": "int",
+          "value": 1,
+          "writable": true,
+          "docs_url": "https://docs.px4.io/main/en/advanced_config/parameter_reference.html#MAV_SYS_ID",
+          "short_description": null,
+          "long_description": null,
+          "unit": null,
+          "decimal_places": null,
+          "default_value": null,
+          "min_value": null,
+          "max_value": null,
+          "reboot_required": null,
+          "metadata_sources": ["vehicle", "px4_docs"]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "total_targets": 2,
+  "timestamp": 1712659200000
+}
+```
+
+#### `GET /api/v1/px4-params/snapshots/{snapshot_id}`
+Return one stored GCS-managed snapshot envelope.
+
+#### `GET /api/v1/px4-params/snapshots/{snapshot_id}/rows`
+Return the row collection for a stored snapshot.
+
+#### `POST /api/v1/px4-params/diff`
+Compare a desired parameter set against one stored snapshot and return only the rows that would change by default.
+
+**Request:**
+```json
+{
+  "snapshot_id": "px4-params-1-1712659200000",
+  "desired_entries": [
+    {
+      "component_id": 1,
+      "name": "GF_MAX_HOR_DIST",
+      "value_type": "float",
+      "value": 120.0
+    }
+  ],
+  "include_unchanged": false
+}
+```
+
+#### `POST /api/v1/px4-params/imports/qgc`
+Parse a QGroundControl `.params` file into typed patch entries without writing them.
+
+#### `POST /api/v1/px4-params/imports/mds`
+Parse a typed MDS JSON patch payload into patch entries without writing them.
+
+#### `POST /api/v1/px4-params/patch-jobs`
+Apply one patch set to one or more drones through the GCS.
+
+**Request:**
+```json
+{
+  "hw_ids": ["1", "2"],
+  "source": "manual",
+  "verify_readback": true,
+  "entries": [
+    {
+      "component_id": 1,
+      "name": "GF_MAX_HOR_DIST",
+      "value_type": "float",
+      "value": 120.0
+    }
+  ]
+}
+```
+
+#### `GET /api/v1/px4-params/patch-jobs/{job_id}`
+Return the tracked result envelope for one GCS patch job.
+
+Notes:
+- full parameter retrieval happens between GCS and drones, not between dashboard and drones
+- docs links are generated from the configured PX4 docs version and parameter anchor
+- QGC interoperability is supported through import/export helpers, but MDS keeps its own typed patch format for automation and future MCP use
+- metadata such as defaults, min/max limits, decimal hints, and reboot-required flags are best-effort and may be null when PX4 does not expose them through the live vehicle/component-information path
+- the current dashboard workspace supports single-drone snapshot inspection/editing plus batch patch dispatch; dashboard clients still do not talk directly to drone APIs
+
+---
+
 ### Configuration Management
 
 The older verb-style GCS configuration aliases were retired on 2026-04-03. Use the canonical `/api/v1/config/fleet*` routes below.

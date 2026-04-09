@@ -44,6 +44,7 @@ const ManageDroneShow = lazy(() => import('./pages/ManageDroneShow'));
 const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectory'));
 const TrajectoryPlanning = lazy(() => import('./pages/TrajectoryPlanning'));
 const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
+const Px4ParametersPage = lazy(() => import('./pages/Px4ParametersPage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
 
 /**
@@ -154,6 +155,7 @@ const App = () => {
                       <Route path="/custom-show" element={<CustomShowPage />} />
                       <Route path="/globe-view" element={<GlobeView />} />
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
+                      <Route path="/px4-parameters" element={<Px4ParametersPage />} />
 
                       {/* Enhanced Trajectory Planning Route with unified design system */}
                       <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />

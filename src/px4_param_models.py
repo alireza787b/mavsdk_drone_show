@@ -280,11 +280,43 @@ class Px4ParamDiffEntry(BaseModel):
     changed: bool = False
 
 
+class Px4ParamDiffRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: str
+    desired_entries: List[Px4ParamPatchEntry] = Field(..., min_length=1)
+    include_unchanged: bool = False
+
+
 class Px4ParamDiffResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     differences: List[Px4ParamDiffEntry]
     total_changed: int
+    timestamp: int
+
+
+class Px4ParamImportWarning(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    line: Optional[int] = None
+    message: str
+
+
+class Px4ParamImportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    content: str = Field(..., min_length=1)
+
+
+class Px4ParamImportResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    entries: List[Px4ParamPatchEntry]
+    warnings: List[Px4ParamImportWarning] = Field(default_factory=list)
+    skipped_count: int = 0
+    total_entries: int = 0
     timestamp: int
 
 

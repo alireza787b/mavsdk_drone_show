@@ -58,6 +58,8 @@ The current plan library is split into three classes:
   - stable single-drone QuickScout corridor-search launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
 - `quickscout_template_regression`
   - fresh-reset single-drone QuickScout area-sweep, last-known-point, and corridor-search acceptance in one reusable plan
+- `px4_params_runtime`
+  - refresh live PX4 parameter snapshots, QGC import/diff, verified single-drone write, verified multi-drone batch write, and restore
 - `mission_regression`
   - Drone Show, Smart Swarm, Swarm Trajectory, QuickScout
 - `operator_regression`

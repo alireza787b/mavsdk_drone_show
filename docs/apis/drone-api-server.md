@@ -219,6 +219,53 @@ Preferred mission encoding:
 
 ---
 
+### 5. PX4 Parameters
+
+The drone-side PX4 parameter routes are the vehicle-local MAVSDK facade behind the higher-level GCS workflow. Operators and dashboard clients should use the GCS `px4-params` routes instead of calling these directly.
+
+#### `GET /api/v1/px4-params/policy`
+Return the local policy envelope, including docs-link configuration and mutation safety policy.
+
+#### `POST /api/v1/px4-params/snapshots/refresh`
+Fetch a fresh snapshot directly from the local PX4 vehicle.
+
+**Request:**
+```json
+{
+  "component_id": 1
+}
+```
+
+#### `GET /api/v1/px4-params/snapshots/current`
+Return the most recent locally cached snapshot. Returns `404` if no snapshot has been refreshed yet.
+
+#### `GET /api/v1/px4-params/values/{name}`
+Read one PX4 parameter directly from the local vehicle.
+
+#### `PATCH /api/v1/px4-params/values/{name}`
+Write one PX4 parameter and optionally verify readback.
+
+**Request:**
+```json
+{
+  "component_id": 1,
+  "value_type": "int",
+  "value": 4,
+  "verify_readback": true
+}
+```
+
+#### `POST /api/v1/px4-params/patches/apply`
+Apply a multi-parameter patch to the local PX4 vehicle.
+
+Notes:
+- the default safety policy blocks writes while armed
+- docs links are generated from the configured PX4 docs version and the parameter anchor, not from live web scraping
+- metadata beyond live name/type/value is best-effort in v1 and may come from component information when available
+- these routes exist as the vehicle-local MAVSDK facade; dashboard and operator flows should still go through the GCS `px4-params` routes so snapshots, diffs, imports, and batch jobs stay tracked in one place
+
+---
+
 ### 5. Get Git Status
 
 **Endpoint:** `GET /api/v1/git/status`

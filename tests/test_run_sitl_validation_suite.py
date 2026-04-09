@@ -83,6 +83,8 @@ def _build_args(suite, tmp_path, **overrides):
         "quickscout_survey_speed_ms": 4.0,
         "quickscout_min_estimated_coverage_s": 90.0,
         "quickscout_abort_return_behavior": "return_home",
+        "px4_params_param_name": "MPC_XY_VEL_MAX",
+        "px4_params_float_delta": 1.0,
     }
     values.update(overrides)
 
@@ -202,10 +204,12 @@ def test_list_templates_mentions_operator_and_actions_templates():
     assert suite.TEMPLATE_CONFIG_ONLY in output
     assert suite.TEMPLATE_INTEGRATED_ONLY in output
     assert suite.TEMPLATE_QUICKSCOUT_ONLY in output
+    assert suite.TEMPLATE_PX4_PARAMS_ONLY in output
     assert suite.MODE_ACTIONS in output
     assert suite.MODE_CONFIGURATION in output
     assert suite.MODE_INTEGRATED_RUNTIME in output
     assert suite.MODE_QUICKSCOUT in output
+    assert suite.MODE_PX4_PARAMS in output
 
 
 def test_write_suite_summary_skips_side_effects_in_dry_run(tmp_path):
@@ -381,3 +385,28 @@ def test_build_suite_steps_supports_quickscout_mode(tmp_path):
     assert steps[1].command[steps[1].command.index("--mission-template") + 1] == "corridor_search"
     assert steps[1].command[steps[1].command.index("--corridor-width-m") + 1] == "90.0"
     assert steps[1].command[steps[1].command.index("--min-estimated-coverage-s") + 1] == "60.0"
+
+
+def test_build_suite_steps_supports_px4_params_mode(tmp_path):
+    suite = _load_module()
+    args = _build_args(
+        suite,
+        tmp_path,
+        template=suite.TEMPLATE_PX4_PARAMS_ONLY,
+        modes=[suite.MODE_PX4_PARAMS],
+        px4_params_param_name="NAV_ACC_RAD",
+        px4_params_float_delta=0.5,
+    )
+
+    steps = suite.build_suite_steps(args, tmp_path / "artifacts")
+
+    assert [step.name for step in steps] == [
+        "reset_before_suite",
+        suite.MODE_PX4_PARAMS,
+        "reset_after_suite",
+    ]
+    assert steps[1].validator == suite.MODE_PX4_PARAMS
+    assert steps[1].json_path == tmp_path / "artifacts" / "px4_params.json"
+    assert "tools/validate_px4_params_runtime.py" in steps[1].command
+    assert steps[1].command[steps[1].command.index("--param-name") + 1] == "NAV_ACC_RAD"
+    assert steps[1].command[steps[1].command.index("--float-delta") + 1] == "0.5"

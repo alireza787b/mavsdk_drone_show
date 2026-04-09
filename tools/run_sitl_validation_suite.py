@@ -43,6 +43,7 @@ MODE_SMART_SWARM = "smart_swarm"
 MODE_SWARM_TRAJECTORY = "swarm_trajectory"
 MODE_INTEGRATED_RUNTIME = "integrated_runtime"
 MODE_QUICKSCOUT = "quickscout"
+MODE_PX4_PARAMS = "px4_params"
 VALIDATION_MODES = (
     MODE_CONFIGURATION,
     MODE_DRONE_SHOW,
@@ -51,6 +52,7 @@ VALIDATION_MODES = (
     MODE_SWARM_TRAJECTORY,
     MODE_INTEGRATED_RUNTIME,
     MODE_QUICKSCOUT,
+    MODE_PX4_PARAMS,
 )
 
 TEMPLATE_OPERATOR_REGRESSION = "operator_regression"
@@ -59,6 +61,7 @@ TEMPLATE_ACTIONS_ONLY = "actions_only"
 TEMPLATE_CONFIG_ONLY = "config_only"
 TEMPLATE_INTEGRATED_ONLY = "integrated_only"
 TEMPLATE_QUICKSCOUT_ONLY = "quickscout_only"
+TEMPLATE_PX4_PARAMS_ONLY = "px4_params_only"
 
 TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
     TEMPLATE_OPERATOR_REGRESSION: {
@@ -103,6 +106,12 @@ TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "Reset plus the dedicated QuickScout runtime validator only.",
         "steps": [
             {"validator": MODE_QUICKSCOUT},
+        ],
+    },
+    TEMPLATE_PX4_PARAMS_ONLY: {
+        "description": "Reset plus the dedicated PX4 parameter-management runtime validator only.",
+        "steps": [
+            {"validator": MODE_PX4_PARAMS},
         ],
     },
 }
@@ -425,6 +434,29 @@ def build_quickscout_command(
     ]
 
 
+def build_px4_params_command(
+    args: argparse.Namespace,
+    json_path: Path,
+    *,
+    drone_ids: tuple[int, ...],
+    options: dict[str, Any],
+) -> list[str]:
+    return [
+        args.python,
+        "tools/validate_px4_params_runtime.py",
+        "--base-url",
+        args.base_url,
+        "--json-output",
+        str(json_path),
+        "--drone-ids",
+        *[str(drone_id) for drone_id in drone_ids],
+        "--param-name",
+        str(option_value(args, options, "px4_params_param_name")),
+        "--float-delta",
+        str(option_value(args, options, "px4_params_float_delta")),
+    ]
+
+
 VALIDATOR_BUILDERS = {
     MODE_CONFIGURATION: build_configuration_command,
     MODE_DRONE_SHOW: build_drone_show_command,
@@ -433,6 +465,7 @@ VALIDATOR_BUILDERS = {
     MODE_SWARM_TRAJECTORY: build_swarm_trajectory_command,
     MODE_INTEGRATED_RUNTIME: build_integrated_runtime_command,
     MODE_QUICKSCOUT: build_quickscout_command,
+    MODE_PX4_PARAMS: build_px4_params_command,
 }
 
 
@@ -940,6 +973,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--quickscout-survey-speed-ms", type=float, default=4.0, help="Survey speed used by the QuickScout runtime validator")
     parser.add_argument("--quickscout-min-estimated-coverage-s", type=float, default=90.0, help="Minimum planned duration required before the QuickScout validator launches")
     parser.add_argument("--quickscout-abort-return-behavior", default="return_home", choices=["return_home", "land_current", "hold_position"], help="Mission-end behavior used during the QuickScout abort drill")
+    parser.add_argument("--px4-params-param-name", default="MPC_XY_VEL_MAX", help="PX4 parameter name used by the PX4 parameter-management runtime validator")
+    parser.add_argument("--px4-params-float-delta", type=float, default=1.0, help="Float delta used when choosing temporary PX4 parameter test values")
     parser.add_argument("--artifact-dir", type=Path, default=None, help="Directory for suite logs and per-step JSON reports")
     parser.add_argument("--dry-run", action="store_true", help="Print the suite plan without executing it")
     args = parser.parse_args()

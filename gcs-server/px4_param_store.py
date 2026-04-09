@@ -12,10 +12,17 @@ import requests
 from src.drone_api_routes import DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE
 from src.drone_api_routes import DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE
 from src.px4_param_models import (
+    Px4ParamDiffEntry,
+    Px4ParamDiffRequest,
+    Px4ParamDiffResponse,
     Px4ParamFleetSnapshotError,
     Px4ParamFleetSnapshotRequest,
     Px4ParamFleetSnapshotResponse,
+    Px4ParamImportRequest,
+    Px4ParamImportResponse,
+    Px4ParamImportWarning,
     Px4ParamPatchApplyResponse,
+    Px4ParamPatchEntry,
     Px4ParamPatchJobDroneResult,
     Px4ParamPatchJobRequest,
     Px4ParamPatchJobResponse,
@@ -30,6 +37,8 @@ _SNAPSHOT_STORE: dict[str, Px4ParamSnapshotResponse] = {}
 _SNAPSHOT_STORE_LOCK = threading.Lock()
 _PATCH_JOB_STORE: dict[str, Px4ParamPatchJobResponse] = {}
 _PATCH_JOB_STORE_LOCK = threading.Lock()
+_MAV_PARAM_INT_TYPES = {1, 2, 3, 4, 5, 6, 7, 8}
+_MAV_PARAM_FLOAT_TYPES = {9, 10}
 
 
 def build_px4_param_policy_payload(params: Any) -> Px4ParamPolicyResponse:
@@ -227,3 +236,127 @@ def run_patch_job_for_targets(deps: Any, request: Px4ParamPatchJobRequest) -> Px
     )
     save_patch_job(job)
     return job
+
+
+def import_qgc_parameter_file(request: Px4ParamImportRequest) -> Px4ParamImportResponse:
+    entries: list[Px4ParamPatchEntry] = []
+    warnings: list[Px4ParamImportWarning] = []
+    skipped_count = 0
+
+    for line_number, raw_line in enumerate(str(request.content).splitlines(), start=1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        parts = [part.strip() for part in line.split("\t")]
+        if len(parts) != 5:
+            parts = [part.strip() for part in line.split(",")]
+        if len(parts) != 5:
+            warnings.append(Px4ParamImportWarning(line=line_number, message="Skipping malformed parameter file row"))
+            skipped_count += 1
+            continue
+
+        _, component_id_raw, name, value_raw, type_raw = parts
+        try:
+            component_id = int(component_id_raw)
+            mav_type = int(type_raw)
+        except ValueError:
+            warnings.append(Px4ParamImportWarning(line=line_number, message="Skipping row with invalid component/type columns"))
+            skipped_count += 1
+            continue
+
+        if mav_type in _MAV_PARAM_INT_TYPES:
+            try:
+                value = int(float(value_raw))
+                value_type = "int"
+            except ValueError:
+                warnings.append(Px4ParamImportWarning(line=line_number, message=f"Skipping {name}: invalid integer value"))
+                skipped_count += 1
+                continue
+        elif mav_type in _MAV_PARAM_FLOAT_TYPES:
+            try:
+                value = float(value_raw)
+                value_type = "float"
+            except ValueError:
+                warnings.append(Px4ParamImportWarning(line=line_number, message=f"Skipping {name}: invalid float value"))
+                skipped_count += 1
+                continue
+        else:
+            warnings.append(Px4ParamImportWarning(line=line_number, message=f"Skipping {name}: unsupported MAV_PARAM_TYPE {mav_type}"))
+            skipped_count += 1
+            continue
+
+        entries.append(
+            Px4ParamPatchEntry(
+                component_id=component_id,
+                name=name,
+                value_type=value_type,
+                value=value,
+            )
+        )
+
+    return Px4ParamImportResponse(
+        source="qgc",
+        entries=entries,
+        warnings=warnings,
+        skipped_count=skipped_count,
+        total_entries=len(entries),
+        timestamp=int(time.time() * 1000),
+    )
+
+
+def import_mds_patch(request: Px4ParamImportRequest) -> Px4ParamImportResponse:
+    import json
+
+    try:
+        payload = json.loads(request.content)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid MDS patch JSON: {exc}") from exc
+
+    raw_entries = payload.get("entries") if isinstance(payload, dict) else payload
+    if not isinstance(raw_entries, list) or not raw_entries:
+        raise ValueError("MDS patch import requires a non-empty entries list")
+
+    entries = [Px4ParamPatchEntry.model_validate(entry) for entry in raw_entries]
+    return Px4ParamImportResponse(
+        source="mds",
+        entries=entries,
+        warnings=[],
+        skipped_count=0,
+        total_entries=len(entries),
+        timestamp=int(time.time() * 1000),
+    )
+
+
+def build_param_diff_response(request: Px4ParamDiffRequest) -> Px4ParamDiffResponse:
+    snapshot = get_snapshot(request.snapshot_id)
+    if snapshot is None:
+        raise KeyError(request.snapshot_id)
+
+    current_rows = {
+        (row.component_id, row.name): row
+        for row in snapshot.rows
+    }
+    differences = []
+
+    for entry in request.desired_entries:
+        current_row = current_rows.get((entry.component_id, entry.name))
+        current_value = current_row.value if current_row else None
+        changed = current_row is None or current_value != entry.value
+        if changed or request.include_unchanged:
+            differences.append(
+                Px4ParamDiffEntry(
+                    name=entry.name,
+                    component_id=entry.component_id,
+                    value_type=entry.value_type,
+                    current_value=current_value,
+                    desired_value=entry.value,
+                    changed=changed,
+                )
+            )
+
+    return Px4ParamDiffResponse(
+        differences=differences,
+        total_changed=sum(1 for difference in differences if difference.changed),
+        timestamp=int(time.time() * 1000),
+    )

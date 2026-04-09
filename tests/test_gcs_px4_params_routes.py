@@ -35,6 +35,9 @@ def test_px4_params_router_registers_expected_routes():
     assert "/api/v1/px4-params/snapshots" in routes
     assert "/api/v1/px4-params/snapshots/{snapshot_id}" in routes
     assert "/api/v1/px4-params/snapshots/{snapshot_id}/rows" in routes
+    assert "/api/v1/px4-params/diff" in routes
+    assert "/api/v1/px4-params/imports/qgc" in routes
+    assert "/api/v1/px4-params/imports/mds" in routes
     assert "/api/v1/px4-params/patch-jobs" in routes
     assert "/api/v1/px4-params/patch-jobs/{job_id}" in routes
 
@@ -202,3 +205,164 @@ def test_px4_params_router_patch_job_routes_use_live_store(monkeypatch):
     assert create_response.json()["job_id"] == "job-1"
     assert status_response.status_code == 200
     assert status_response.json()["results"][0]["result"]["results"][0]["name"] == "MPC_XY_VEL_MAX"
+
+
+def test_px4_params_router_import_and_diff_routes(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_px4_params_router(deps))
+
+    qgc_import_payload = {
+        "source": "qgc",
+        "entries": [
+            {
+                "component_id": 1,
+                "name": "MPC_XY_VEL_MAX",
+                "value_type": "float",
+                "value": 12.0,
+            }
+        ],
+        "warnings": [],
+        "skipped_count": 0,
+        "total_entries": 1,
+        "timestamp": 4,
+    }
+    mds_import_payload = {**qgc_import_payload, "source": "mds"}
+    diff_payload = {
+        "differences": [
+            {
+                "name": "MPC_XY_VEL_MAX",
+                "component_id": 1,
+                "value_type": "float",
+                "current_value": 10.0,
+                "desired_value": 12.0,
+                "changed": True,
+            }
+        ],
+        "total_changed": 1,
+        "timestamp": 5,
+    }
+
+    monkeypatch.setattr("api_routes.px4_params.import_qgc_parameter_file", lambda request: qgc_import_payload)
+    monkeypatch.setattr("api_routes.px4_params.import_mds_patch", lambda request: mds_import_payload)
+    monkeypatch.setattr("api_routes.px4_params.build_param_diff_response", lambda request: diff_payload)
+
+    with TestClient(app) as client:
+        qgc_response = client.post(
+            "/api/v1/px4-params/imports/qgc",
+            json={"content": "# QGC\n1\t1\tMPC_XY_VEL_MAX\t12\t9\n"},
+        )
+        mds_response = client.post(
+            "/api/v1/px4-params/imports/mds",
+            json={"content": "{\"entries\": [{\"component_id\": 1, \"name\": \"MPC_XY_VEL_MAX\", \"value_type\": \"float\", \"value\": 12.0}]}"},
+        )
+        diff_response = client.post(
+            "/api/v1/px4-params/diff",
+            json={
+                "snapshot_id": "snap-1",
+                "desired_entries": [
+                    {
+                        "component_id": 1,
+                        "name": "MPC_XY_VEL_MAX",
+                        "value_type": "float",
+                        "value": 12.0,
+                    }
+                ],
+                "include_unchanged": False,
+            },
+        )
+
+    assert qgc_response.status_code == 200
+    assert qgc_response.json()["source"] == "qgc"
+    assert mds_response.status_code == 200
+    assert mds_response.json()["source"] == "mds"
+    assert diff_response.status_code == 200
+    assert diff_response.json()["total_changed"] == 1
+
+
+def test_px4_params_router_import_and_diff_routes_use_store_helpers(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_px4_params_router(deps))
+
+    monkeypatch.setattr(
+        "api_routes.px4_params.import_qgc_parameter_file",
+        lambda request: {
+            "source": "qgc",
+            "entries": [
+                {
+                    "component_id": 1,
+                    "name": "MPC_XY_VEL_MAX",
+                    "value_type": "float",
+                    "value": 12.0,
+                }
+            ],
+            "warnings": [],
+            "skipped_count": 0,
+            "total_entries": 1,
+            "timestamp": 5,
+        },
+    )
+    monkeypatch.setattr(
+        "api_routes.px4_params.import_mds_patch",
+        lambda request: {
+            "source": "mds",
+            "entries": [
+                {
+                    "component_id": 1,
+                    "name": "MPC_XY_VEL_MAX",
+                    "value_type": "float",
+                    "value": 12.0,
+                }
+            ],
+            "warnings": [],
+            "skipped_count": 0,
+            "total_entries": 1,
+            "timestamp": 6,
+        },
+    )
+    monkeypatch.setattr(
+        "api_routes.px4_params.build_param_diff_response",
+        lambda request: {
+            "differences": [
+                {
+                    "name": "MPC_XY_VEL_MAX",
+                    "component_id": 1,
+                    "value_type": "float",
+                    "current_value": 10.0,
+                    "desired_value": 12.0,
+                    "changed": True,
+                }
+            ],
+            "total_changed": 1,
+            "timestamp": 7,
+        },
+    )
+
+    with TestClient(app) as client:
+        qgc_response = client.post("/api/v1/px4-params/imports/qgc", json={"content": "# file\n1\t1\tMPC_XY_VEL_MAX\t12.0\t9"})
+        mds_response = client.post(
+            "/api/v1/px4-params/imports/mds",
+            json={"content": "{\"entries\":[{\"component_id\":1,\"name\":\"MPC_XY_VEL_MAX\",\"value_type\":\"float\",\"value\":12.0}]}"},
+        )
+        diff_response = client.post(
+            "/api/v1/px4-params/diff",
+            json={
+                "snapshot_id": "snap-1",
+                "desired_entries": [
+                    {
+                        "component_id": 1,
+                        "name": "MPC_XY_VEL_MAX",
+                        "value_type": "float",
+                        "value": 12.0,
+                    }
+                ],
+            },
+        )
+
+    assert qgc_response.status_code == 200
+    assert qgc_response.json()["source"] == "qgc"
+    assert mds_response.status_code == 200
+    assert mds_response.json()["source"] == "mds"
+    assert diff_response.status_code == 200
+    assert diff_response.json()["total_changed"] == 1

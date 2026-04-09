@@ -1,0 +1,10 @@
+{
+  "title": "PX4 Parameters Runtime",
+  "description": "Refresh live PX4 parameter snapshots, import/diff a QGC patch, apply a verified single-drone write, apply a verified multi-drone batch write, and restore the original values.",
+  "tags": ["px4-params", "configuration", "runtime", "stable"],
+  "steps": [
+    {
+      "validator": "px4_params"
+    }
+  ]
+}
