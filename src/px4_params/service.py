@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import struct
 import time
 import uuid
 from typing import Any, Dict, Iterable, Optional
 
+from pymavlink import mavutil
 from mavsdk.component_information import ComponentInformationError
 from mavsdk.param import ParamError
 
@@ -57,8 +60,52 @@ class Px4ParamService:
         )
 
     async def build_snapshot(self, drone: Any, *, component_id: int = 1) -> Px4ParamSnapshotResponse:
-        all_params = await drone.param.get_all_params()
         float_metadata = await self._load_float_metadata(drone)
+        rows = await self._build_snapshot_rows(
+            drone,
+            component_id=component_id,
+            float_metadata=float_metadata,
+        )
+        rows.sort(key=lambda row: row.name)
+
+        now_ms = int(time.time() * 1000)
+        stale_after_ms = int(self._safe_float("PX4_PARAMETER_SNAPSHOT_MAX_AGE_SEC", 60.0) * 1000)
+        snapshot = Px4ParamSnapshotSummary(
+            snapshot_id=f"px4-{self.hw_id}-{uuid.uuid4().hex[:12]}",
+            hw_id=self.hw_id,
+            component_id=component_id,
+            px4_docs_version=self._safe_docs_version(),
+            total_params=len(rows),
+            created_at=now_ms,
+            stale_after_ms=stale_after_ms,
+        )
+        return Px4ParamSnapshotResponse(snapshot=snapshot, rows=rows)
+
+    async def _build_snapshot_rows(
+        self,
+        drone: Any,
+        *,
+        component_id: int,
+        float_metadata: Dict[str, Any],
+    ) -> list[Px4ParamRow]:
+        try:
+            all_params = await drone.param.get_all_params()
+        except Exception as bulk_exc:
+            try:
+                entries = await asyncio.to_thread(
+                    self._collect_mavlink_param_entries_blocking,
+                    component_id,
+                )
+            except Exception as fallback_exc:
+                raise RuntimeError(
+                    "PX4 parameter snapshot failed via MAVSDK bulk listing "
+                    f"({bulk_exc}); MAVLink fallback also failed ({fallback_exc})"
+                ) from fallback_exc
+            return self._build_rows_from_entries(
+                entries=entries,
+                component_id=component_id,
+                float_metadata=float_metadata,
+            )
 
         rows = []
         rows.extend(
@@ -85,21 +132,7 @@ class Px4ParamService:
                 float_metadata=float_metadata,
             )
         )
-
-        rows.sort(key=lambda row: row.name)
-
-        now_ms = int(time.time() * 1000)
-        stale_after_ms = int(self._safe_float("PX4_PARAMETER_SNAPSHOT_MAX_AGE_SEC", 60.0) * 1000)
-        snapshot = Px4ParamSnapshotSummary(
-            snapshot_id=f"px4-{self.hw_id}-{uuid.uuid4().hex[:12]}",
-            hw_id=self.hw_id,
-            component_id=component_id,
-            px4_docs_version=self._safe_docs_version(),
-            total_params=len(rows),
-            created_at=now_ms,
-            stale_after_ms=stale_after_ms,
-        )
-        return Px4ParamSnapshotResponse(snapshot=snapshot, rows=rows)
+        return rows
 
     async def get_param_value(
         self,
@@ -291,6 +324,158 @@ class Px4ParamService:
                 )
             )
         return rows
+
+    def _build_rows_from_entries(
+        self,
+        *,
+        entries: Iterable[dict[str, Any]],
+        component_id: int,
+        float_metadata: Dict[str, Any],
+    ) -> list[Px4ParamRow]:
+        rows = []
+        for entry in entries:
+            name = self._normalize_name(entry.get("name", ""))
+            value_type = entry.get("value_type")
+            if not isinstance(value_type, Px4ParamValueType):
+                value_type = Px4ParamValueType(str(value_type))
+            metadata_sources = [Px4ParamMetadataSource.VEHICLE, Px4ParamMetadataSource.PX4_DOCS]
+            float_meta = float_metadata.get(name) if value_type == Px4ParamValueType.FLOAT else None
+            if float_meta is not None:
+                metadata_sources.insert(1, Px4ParamMetadataSource.COMPONENT_INFORMATION)
+
+            rows.append(
+                Px4ParamRow(
+                    component_id=component_id,
+                    name=name,
+                    value_type=value_type,
+                    value=entry.get("value"),
+                    docs_url=self._build_docs_url(name),
+                    short_description=getattr(float_meta, "short_description", None),
+                    long_description=getattr(float_meta, "long_description", None),
+                    unit=getattr(float_meta, "unit", None),
+                    decimal_places=getattr(float_meta, "decimal_places", None),
+                    default_value=getattr(float_meta, "default_value", None),
+                    min_value=getattr(float_meta, "min_value", None),
+                    max_value=getattr(float_meta, "max_value", None),
+                    metadata_sources=metadata_sources,
+                )
+            )
+        return rows
+
+    def _collect_mavlink_param_entries_blocking(self, component_id: int) -> list[dict[str, Any]]:
+        mavlink_port = self._safe_int("local_mavlink2rest_port", 14569)
+        heartbeat_timeout = self._safe_float("PX4_PARAMETER_MAVLINK_HEARTBEAT_TIMEOUT_SEC", 5.0)
+        snapshot_timeout = self._safe_float("PX4_PARAMETER_MAVLINK_SNAPSHOT_TIMEOUT_SEC", 45.0)
+        idle_timeout = self._safe_float("PX4_PARAMETER_MAVLINK_IDLE_TIMEOUT_SEC", 1.5)
+        connection = mavutil.mavlink_connection(
+            f"udpin:127.0.0.1:{mavlink_port}",
+            source_system=255,
+            source_component=190,
+        )
+        try:
+            heartbeat = connection.wait_heartbeat(timeout=heartbeat_timeout)
+            if heartbeat is None:
+                raise RuntimeError("No MAVLink heartbeat received for PX4 parameter snapshot fallback")
+
+            connection.target_system = int(getattr(heartbeat, "srcSystem", connection.target_system) or connection.target_system)
+            connection.target_component = int(component_id or getattr(heartbeat, "srcComponent", 1) or 1)
+            connection.param_fetch_all()
+
+            entries: dict[str, dict[str, Any]] = {}
+            expected_count: int | None = None
+            deadline = time.time() + snapshot_timeout
+
+            while time.time() < deadline:
+                message = connection.recv_match(type="PARAM_VALUE", blocking=True, timeout=idle_timeout)
+                if message is None:
+                    if expected_count is not None and len(entries) >= expected_count:
+                        break
+                    continue
+
+                name = self._normalize_param_id(getattr(message, "param_id", ""))
+                value_type, decoded_value = self._decode_mavlink_param_value(
+                    getattr(message, "param_type", None),
+                    getattr(message, "param_value", None),
+                )
+                entries[name] = {
+                    "name": name,
+                    "value_type": value_type,
+                    "value": decoded_value,
+                }
+
+                raw_expected_count = getattr(message, "param_count", None)
+                if raw_expected_count is not None:
+                    expected_count = max(int(raw_expected_count), expected_count or 0)
+
+                if expected_count is not None and len(entries) >= expected_count:
+                    drain_deadline = time.time() + idle_timeout
+                    while time.time() < drain_deadline:
+                        extra = connection.recv_match(type="PARAM_VALUE", blocking=True, timeout=0.2)
+                        if extra is None:
+                            break
+                        name = self._normalize_param_id(getattr(extra, "param_id", ""))
+                        value_type, decoded_value = self._decode_mavlink_param_value(
+                            getattr(extra, "param_type", None),
+                            getattr(extra, "param_value", None),
+                        )
+                        entries[name] = {
+                            "name": name,
+                            "value_type": value_type,
+                            "value": decoded_value,
+                        }
+                    break
+
+            if not entries:
+                raise RuntimeError("MAVLink fallback did not receive any PARAM_VALUE messages")
+
+            if expected_count is not None and len(entries) < expected_count:
+                raise RuntimeError(
+                    f"MAVLink fallback received only {len(entries)} of {expected_count} PX4 parameters"
+                )
+
+            return list(entries.values())
+        finally:
+            try:
+                connection.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _normalize_param_id(raw_name: Any) -> str:
+        if isinstance(raw_name, bytes):
+            decoded = raw_name.decode("utf-8", errors="ignore")
+        else:
+            decoded = str(raw_name or "")
+        return decoded.split("\x00", 1)[0].strip().upper()
+
+    @staticmethod
+    def _decode_mavlink_param_value(
+        param_type: Any,
+        raw_value: Any,
+    ) -> tuple[Px4ParamValueType, int | float]:
+        type_id = int(param_type)
+        float_value = float(raw_value)
+        packed = struct.pack(">f", float_value)
+        mavlink = mavutil.mavlink
+
+        integer_unpackers = {
+            mavlink.MAV_PARAM_TYPE_UINT8: ">xxxB",
+            mavlink.MAV_PARAM_TYPE_INT8: ">xxxb",
+            mavlink.MAV_PARAM_TYPE_UINT16: ">xxH",
+            mavlink.MAV_PARAM_TYPE_INT16: ">xxh",
+            mavlink.MAV_PARAM_TYPE_UINT32: ">I",
+            mavlink.MAV_PARAM_TYPE_INT32: ">i",
+        }
+        if type_id in integer_unpackers:
+            return Px4ParamValueType.INT, int(struct.unpack(integer_unpackers[type_id], packed)[0])
+
+        if type_id in {
+            mavlink.MAV_PARAM_TYPE_REAL32,
+            getattr(mavlink, "MAV_PARAM_TYPE_REAL64", mavlink.MAV_PARAM_TYPE_REAL32),
+        }:
+            return Px4ParamValueType.FLOAT, float_value
+
+        raise RuntimeError(f"Unsupported MAVLink PX4 parameter type {type_id}")
 
     @staticmethod
     def _normalize_name(name: Any) -> str:

@@ -16,17 +16,21 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 try:
+    from src.drone_api_routes import DRONE_SYSTEM_HEALTH_ROUTE
     from src.gcs_api_routes import (
         GCS_PX4_PARAMS_DIFF_ROUTE,
         GCS_PX4_PARAMS_PATCH_JOBS_ROUTE,
         GCS_PX4_PARAMS_POLICY_ROUTE,
         GCS_PX4_PARAMS_QGC_IMPORT_ROUTE,
         GCS_PX4_PARAMS_SNAPSHOTS_ROUTE,
+        GCS_FLEET_TELEMETRY_ROUTE,
         GCS_SYSTEM_HEALTH_ROUTE,
     )
     from tools.runtime_validation_support import normalize_drone_ids, parse_csv_drone_ids, write_json_report
 except Exception:  # pragma: no cover - fallback only
+    DRONE_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
     GCS_SYSTEM_HEALTH_ROUTE = "/api/v1/system/health"
+    GCS_FLEET_TELEMETRY_ROUTE = "/api/v1/fleet/telemetry"
     GCS_PX4_PARAMS_POLICY_ROUTE = "/api/v1/px4-params/policy"
     GCS_PX4_PARAMS_SNAPSHOTS_ROUTE = "/api/v1/px4-params/snapshots"
     GCS_PX4_PARAMS_QGC_IMPORT_ROUTE = "/api/v1/px4-params/imports/qgc"
@@ -102,6 +106,18 @@ class ApiClient:
     def get_json(self, path: str, *, timeout: float = 20.0) -> dict[str, Any]:
         return self.request_json("GET", path, timeout=timeout)
 
+    def get_drone_json(self, drone_ip: str, path: str, *, timeout: float = 20.0) -> dict[str, Any]:
+        try:
+            with urllib.request.urlopen(f"http://{drone_ip}:7070{path}", timeout=timeout) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            raise RuntimeError(format_http_error(exc)) from exc
+
+    def get_telemetry(self) -> dict[str, dict[str, Any]]:
+        payload = self.get_json(GCS_FLEET_TELEMETRY_ROUTE)
+        telemetry = payload.get("telemetry", {})
+        return {str(key): value for key, value in telemetry.items()}
+
     def post_json(self, path: str, payload: dict[str, Any], *, timeout: float = 60.0) -> dict[str, Any]:
         return self.request_json("POST", path, payload=payload, timeout=timeout)
 
@@ -134,6 +150,54 @@ def get_policy(client: ApiClient) -> dict[str, Any]:
     policy = client.get_json(GCS_PX4_PARAMS_POLICY_ROUTE)
     require(policy.get("subsystem") == "px4_params", f"Unexpected policy payload: {policy}")
     return policy
+
+
+def wait_for(predicate, *, label: str, timeout: int = 90, interval: float = 1.0):
+    deadline = time.time() + timeout
+    last_value = None
+    while time.time() < deadline:
+        last_value = predicate()
+        if last_value:
+            log(f"WAIT OK: {label}")
+            return last_value
+        time.sleep(interval)
+    raise RuntimeError(f"Timed out waiting for {label}. Last value: {last_value!r}")
+
+
+def _selected_drone_api_health_snapshot(client: ApiClient, drone_ids: list[int]) -> dict[str, dict[str, Any]] | bool:
+    telemetry = client.get_telemetry()
+    for drone_id in drone_ids:
+        row = telemetry.get(str(drone_id))
+        if row is None:
+            return False
+
+        drone_ip = str(row.get("ip") or "").strip()
+        if not drone_ip or drone_ip.upper() == "N/A":
+            return False
+
+        try:
+            health = client.get_drone_json(drone_ip, DRONE_SYSTEM_HEALTH_ROUTE, timeout=5.0)
+        except (RuntimeError, urllib.error.URLError, TimeoutError):
+            return False
+
+        if health.get("status") != "ok":
+            return False
+
+    return telemetry
+
+
+def wait_for_selected_drone_api_health(
+    client: ApiClient,
+    drone_ids: list[int],
+    *,
+    timeout: int = 120,
+) -> dict[str, dict[str, Any]]:
+    return wait_for(
+        lambda: _selected_drone_api_health_snapshot(client, drone_ids),
+        label=f"drone-local API health for PX4 param targets {drone_ids}",
+        timeout=timeout,
+        interval=2.0,
+    )
 
 
 def refresh_snapshots(client: ApiClient, drone_ids: list[int], *, component_id: int) -> dict[str, dict[str, Any]]:
@@ -259,6 +323,7 @@ def main() -> int:
     wait_for_health(client)
     policy = get_policy(client)
     component_id = int(policy.get("mutations", {}).get("supported_component_ids", [1])[0])
+    wait_for_selected_drone_api_health(client, selected_ids)
 
     snapshots = refresh_snapshots(client, selected_ids, component_id=component_id)
     baseline_rows = {

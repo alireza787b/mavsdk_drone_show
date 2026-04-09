@@ -1,5 +1,7 @@
+import struct
 from types import SimpleNamespace
 
+from pymavlink import mavutil
 from mavsdk.component_information import FloatParam as ComponentFloatParam
 from mavsdk.param import AllParams, CustomParam, FloatParam, IntParam
 
@@ -80,6 +82,10 @@ def _build_service():
         PX4_PARAMETER_MUTATION_REQUIRE_DISARMED=True,
         PX4_PARAMETER_SNAPSHOT_MAX_AGE_SEC=60.0,
         PX4_PARAMETER_FLOAT_VERIFY_TOLERANCE=1e-6,
+        PX4_PARAMETER_MAVLINK_HEARTBEAT_TIMEOUT_SEC=5.0,
+        PX4_PARAMETER_MAVLINK_SNAPSHOT_TIMEOUT_SEC=45.0,
+        PX4_PARAMETER_MAVLINK_IDLE_TIMEOUT_SEC=1.5,
+        local_mavlink2rest_port=14569,
     )
     return Px4ParamService(params, hw_id="7")
 
@@ -107,6 +113,38 @@ async def test_build_snapshot_returns_sorted_rows_with_docs_and_float_metadata()
     assert float_row.default_value == 5.0
     assert float_row.min_value == 0.0
     assert float_row.max_value == 20.0
+
+
+async def test_build_snapshot_falls_back_to_mavlink_listing_when_bulk_rpc_is_unavailable():
+    service = _build_service()
+
+    class _UnavailableBulkParamPlugin:
+        async def get_all_params(self):
+            raise RuntimeError("GetAllParams unimplemented")
+
+    drone = SimpleNamespace(
+        param=_UnavailableBulkParamPlugin(),
+        component_information=FakeComponentInformation(),
+    )
+
+    service._collect_mavlink_param_entries_blocking = lambda component_id: [
+        {
+            "name": "MAV_SYS_ID",
+            "value_type": Px4ParamValueType.INT,
+            "value": 7,
+        },
+        {
+            "name": "MPC_XY_CRUISE",
+            "value_type": Px4ParamValueType.FLOAT,
+            "value": 4.5,
+        },
+    ]
+
+    snapshot = await service.build_snapshot(drone)
+
+    assert snapshot.snapshot.total_params == 2
+    assert [row.name for row in snapshot.rows] == ["MAV_SYS_ID", "MPC_XY_CRUISE"]
+    assert next(row for row in snapshot.rows if row.name == "MPC_XY_CRUISE").default_value == 5.0
 
 
 async def test_get_param_value_auto_detects_type():
@@ -170,3 +208,22 @@ async def test_apply_patch_reports_partial_failures():
     assert response.verified_count == 1
     assert response.results[0].applied is True
     assert response.results[1].applied is False
+
+
+def test_decode_mavlink_param_value_handles_integer_and_float_payloads():
+    service = _build_service()
+
+    encoded_int = struct.unpack(">f", struct.pack(">i", 42))[0]
+    int_type, int_value = service._decode_mavlink_param_value(
+        mavutil.mavlink.MAV_PARAM_TYPE_INT32,
+        encoded_int,
+    )
+    float_type, float_value = service._decode_mavlink_param_value(
+        mavutil.mavlink.MAV_PARAM_TYPE_REAL32,
+        12.75,
+    )
+
+    assert int_type == Px4ParamValueType.INT
+    assert int_value == 42
+    assert float_type == Px4ParamValueType.FLOAT
+    assert float_value == 12.75

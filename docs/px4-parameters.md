@@ -10,7 +10,10 @@ Design rules:
 
 - dashboard talks only to GCS
 - GCS orchestrates snapshots, diffs, imports, and tracked patch jobs
-- drone-local MAVSDK access remains the single vehicle-facing source of truth
+- drone-local vehicle access stays drone-owned: targeted read/write operations
+  use MAVSDK, while bulk snapshot enumeration may fall back to the local
+  MAVLink parameter microservice when MAVSDK bulk listing is unavailable in the
+  runtime
 - QGroundControl `.params` interoperability is supported, but MDS keeps a typed
   internal patch format for automation and future MCP workflows
 
@@ -41,7 +44,11 @@ Design rules:
 
 MDS does not hardcode parameter metadata to one firmware snapshot.
 
-- live parameter values come from the drone through MAVSDK param APIs
+- live single-parameter reads/writes come from the drone through MAVSDK param
+  APIs
+- bulk snapshot refresh prefers MAVSDK bulk listing and falls back to the local
+  MAVLink parameter protocol on the routed `14569` endpoint when the runtime
+  does not implement MAVSDK `GetAllParams`
 - defaults, ranges, decimal hints, and reboot-required flags come from the
   vehicle/component-information path when PX4 exposes them
 - official docs links are generated from the configured docs version plus the
