@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 consolidated node-enrollment and identity-alignment brief
+  documenting the current bootstrap/candidate/enrollment workflows, the
+  scenario-by-scenario operator guidance, the `hw_id` / `pos_id` / `mav_sys_id`
+  doctrine for cross-mode consistency, the public standards references checked,
+  and the explicit post-v1 `mavlink-anywhere` / identity-model follow-up debt
 - a 2026-04-10 node-bootstrap and fleet-enrollment v1 recap note documenting
   the implemented workflow boundaries, the operator scenarios for accept /
   replace / recover, the current post-v1 deferred items, and the tester-facing
