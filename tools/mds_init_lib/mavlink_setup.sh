@@ -40,7 +40,7 @@ readonly MDS_DEFAULT_ENDPOINTS="127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550"
 # MAVLINK SETUP GLOBAL VARIABLES
 # =============================================================================
 
-# These can be set via CLI arguments to mds_init.sh
+# These can be set via CLI arguments to mds_node_init.sh
 MAVLINK_AUTO="${MAVLINK_AUTO:-false}"
 MAVLINK_SKIP="${MAVLINK_SKIP:-false}"
 MAVLINK_UART="${MAVLINK_UART:-}"
@@ -684,7 +684,7 @@ display_manual_serial_instructions() {
     echo -e "${CYAN}│${NC}    5. Reboot to apply changes                                              ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}  ${BOLD}After reboot, re-run this script:${NC}                                        ${CYAN}│${NC}"
-    echo -e "${CYAN}│${NC}    ${GREEN}sudo ./tools/mds_init.sh --resume${NC}                                       ${CYAN}│${NC}"
+    echo -e "${CYAN}│${NC}    ${GREEN}sudo ./tools/mds_node_init.sh --resume${NC}                                       ${CYAN}│${NC}"
     echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
     echo -e "${CYAN}└────────────────────────────────────────────────────────────────────────────┘${NC}"
     echo ""
@@ -701,7 +701,7 @@ display_reboot_prompt() {
     echo -e "${YELLOW}│${NC}  the changes to take effect.                                               ${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}                                                                            ${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}  After reboot, re-run this script with:                                    ${YELLOW}│${NC}"
-    echo -e "${YELLOW}│${NC}    ${GREEN}sudo ./tools/mds_init.sh --resume${NC}                                       ${YELLOW}│${NC}"
+    echo -e "${YELLOW}│${NC}    ${GREEN}sudo ./tools/mds_node_init.sh --resume${NC}                                       ${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}                                                                            ${YELLOW}│${NC}"
     echo -e "${YELLOW}└────────────────────────────────────────────────────────────────────────────┘${NC}"
     echo ""

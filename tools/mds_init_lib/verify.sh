@@ -487,7 +487,7 @@ display_netbird_summary() {
             echo -e "${CYAN}│${NC}  Status:     ${YELLOW}Not installed${NC}                                                 ${CYAN}│${NC}"
             echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
             echo -e "${CYAN}│${NC}  ${DIM}NetBird VPN is recommended for drone/GCS communication.${NC}                   ${CYAN}│${NC}"
-            echo -e "${CYAN}│${NC}  ${DIM}Run: sudo ./tools/mds_init.sh --netbird-key YOUR_KEY${NC}                      ${CYAN}│${NC}"
+            echo -e "${CYAN}│${NC}  ${DIM}Run: sudo ./tools/mds_node_init.sh --netbird-key YOUR_KEY${NC}                      ${CYAN}│${NC}"
         else
             echo -e "${CYAN}│${NC}  Status:     ${YELLOW}${details}${NC}                                                   ${CYAN}│${NC}"
             echo -e "${CYAN}│${NC}                                                                            ${CYAN}│${NC}"
@@ -516,7 +516,7 @@ display_next_steps() {
     echo -e "${DIM}$(printf '%.0s─' {1..78})${NC}"
 
     if [[ "$has_failures" == "true" ]]; then
-        echo -e "  ${CROSS} Review failed components above and re-run: ${GREEN}sudo ./mds_init.sh --resume${NC}"
+        echo -e "  ${CROSS} Review failed components above and re-run: ${GREEN}sudo ./mds_node_init.sh --resume${NC}"
     elif [[ "$has_warnings" == "true" ]]; then
         echo -e "  ${WARN} Warnings detected - review above, but system should be operational"
     fi
@@ -525,7 +525,7 @@ display_next_steps() {
     if [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not installed"* ]] || [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not configured"* ]]; then
         echo ""
         echo -e "  ${ARROW} Configure mavlink-router for MAVLink routing:"
-        echo -e "      ${GREEN}sudo ./tools/mds_init.sh --resume --mavlink-auto${NC}"
+        echo -e "      ${GREEN}sudo ./tools/mds_node_init.sh --resume --mavlink-auto${NC}"
         echo -e "      ${DIM}Or manually:${NC}"
         echo -e "      ${GREEN}cd /opt/mavlink-anywhere && sudo ./configure_mavlink_router.sh --auto${NC}"
     fi

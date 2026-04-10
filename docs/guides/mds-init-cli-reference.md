@@ -1,11 +1,11 @@
 # MDS Init CLI Reference
 
-Complete reference for all command-line arguments and environment variables for `mds_init.sh`.
+Complete reference for all command-line arguments and environment variables for `mds_node_init.sh`, the companion-node bootstrap entrypoint.
 
 ## Synopsis
 
 ```bash
-sudo ./mds_init.sh [OPTIONS]
+sudo ./tools/mds_node_init.sh [OPTIONS]
 ```
 
 ## Required Parameters
@@ -61,6 +61,7 @@ Use these flags to skip specific phases:
 |--------|-------------|
 | `-y, --yes` | Non-interactive mode (use defaults, no prompts) |
 | `--dry-run` | Show what would be done without making changes |
+| `--report-json PATH` | Write a machine-readable bootstrap report to `PATH` (`-` prints JSON to stdout) |
 | `--resume` | Resume from last checkpoint |
 | `--force` | Force re-run all phases (ignore state) |
 | `-v, --verbose` | Verbose output |
@@ -90,34 +91,34 @@ The script respects these environment variables (override CLI defaults):
 
 Interactive mode with prompts:
 ```bash
-sudo ./tools/mds_init.sh
+sudo ./tools/mds_node_init.sh
 ```
 
 Non-interactive with drone ID:
 ```bash
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 ### Repository Configuration
 
 Using HTTPS (no SSH key needed):
 ```bash
-sudo ./tools/mds_init.sh -d 1 --https -y
+sudo ./tools/mds_node_init.sh -d 1 --https -y
 ```
 
 Using your own fork (simple method):
 ```bash
-sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
+sudo ./tools/mds_node_init.sh -d 1 --fork yourusername -y
 ```
 
 Using a customer org/private repo path:
 ```bash
-sudo ./tools/mds_init.sh -d 1 --fork yourorg/customer-mds -y
+sudo ./tools/mds_node_init.sh -d 1 --fork yourorg/customer-mds -y
 ```
 
 Custom repository and branch:
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     -r git@github.com:yourorg/customer-mds.git \
     -b customer-demo \
     -y
@@ -127,7 +128,7 @@ sudo ./tools/mds_init.sh -d 1 \
 
 With static IP:
 ```bash
-sudo ./tools/mds_init.sh -d 5 \
+sudo ./tools/mds_node_init.sh -d 5 \
     --static-ip 192.168.1.105/24 \
     --gateway 192.168.1.1 \
     -y
@@ -135,14 +136,14 @@ sudo ./tools/mds_init.sh -d 5 \
 
 With Netbird VPN:
 ```bash
-sudo ./tools/mds_init.sh -d 5 \
+sudo ./tools/mds_node_init.sh -d 5 \
     --netbird-key "nkey-XXXXX" \
     -y
 ```
 
 Full network setup:
 ```bash
-sudo ./tools/mds_init.sh -d 5 \
+sudo ./tools/mds_node_init.sh -d 5 \
     --netbird-key "nkey-XXXXX" \
     --static-ip 192.168.1.105/24 \
     --gateway 192.168.1.1 \
@@ -154,14 +155,14 @@ sudo ./tools/mds_init.sh -d 5 \
 
 Specific MAVSDK version:
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     --mavsdk-version v3.15.0 \
     -y
 ```
 
 Direct MAVSDK URL:
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     --mavsdk-url "https://example.com/mavsdk_server" \
     -y
 ```
@@ -170,7 +171,7 @@ sudo ./tools/mds_init.sh -d 1 \
 
 Skip firewall and NTP:
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     --skip-firewall \
     --skip-ntp \
     -y
@@ -178,7 +179,7 @@ sudo ./tools/mds_init.sh -d 1 \
 
 Only repository and identity (minimal):
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     --skip-firewall \
     --skip-netbird \
     --skip-ntp \
@@ -192,29 +193,29 @@ sudo ./tools/mds_init.sh -d 1 \
 
 Dry run (preview changes):
 ```bash
-sudo ./tools/mds_init.sh -d 1 --dry-run
+sudo ./tools/mds_node_init.sh -d 1 --dry-run
 ```
 
 Verbose output:
 ```bash
-sudo ./tools/mds_init.sh -d 1 -v -y
+sudo ./tools/mds_node_init.sh -d 1 -v -y
 ```
 
 Debug output:
 ```bash
-sudo ./tools/mds_init.sh -d 1 --debug -y
+sudo ./tools/mds_node_init.sh -d 1 --debug -y
 ```
 
 ### Recovery
 
 Resume interrupted installation:
 ```bash
-sudo ./tools/mds_init.sh --resume
+sudo ./tools/mds_node_init.sh --resume
 ```
 
 Force complete reinstall:
 ```bash
-sudo ./tools/mds_init.sh -d 1 --force -y
+sudo ./tools/mds_node_init.sh -d 1 --force -y
 ```
 
 ## State Management
@@ -247,14 +248,15 @@ cat /var/lib/mds/init_state.json | jq
 
 ```bash
 sudo rm /var/lib/mds/init_state.json
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 ## Configuration Paths
 
 | Path | Description |
 |------|-------------|
-| `/etc/mds/local.env` | Per-drone configuration |
+| `/etc/mds/local.env` | Per-node runtime overrides |
+| `/etc/mds/node_identity.json` | Structured node manifest for automation, enrollment, and diagnostics |
 | `/var/lib/mds/init_state.json` | Installation state |
 | `/var/log/mds/mds_init.log` | Installation log |
 | `/home/droneshow/mavsdk_drone_show/` | MDS installation directory |
@@ -266,7 +268,7 @@ The following changes affect users upgrading from older versions:
 
 | Change | Migration |
 |--------|-----------|
-| `raspberry_setup.sh` deprecated | Use `mds_init.sh` instead |
+| `raspberry_setup.sh` retired | Use `mds_node_init.sh` instead |
 | `--skip-gpio` removed | GPIO always configured |
 | `--skip-sudoers` removed | Sudoers always configured |
 | `-u/--management-url` renamed | Use `--netbird-url` |
@@ -278,12 +280,18 @@ The following changes affect users upgrading from older versions:
 - [Headless Automation](headless-automation.md) - Fleet deployment
 - [Troubleshooting](mds-init-troubleshooting.md) - Common issues
 
-## Bootstrap Installer (install_rpi.sh)
+## Bootstrap Installer (install_mds_node.sh)
 
-For fresh Raspberry Pi installations, use the bootstrap installer:
+For fresh companion-computer installations, use the bootstrap installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
+```
+
+To emit a machine-readable report for Ansible or an AI agent:
+
+```bash
+sudo ./tools/mds_node_init.sh -d 12 --https --report-json /var/lib/mds/bootstrap-report.json -y
 ```
 
 ### Bootstrap-Specific Options
@@ -295,7 +303,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 | `--fork OWNER[/REPO]` | Use GitHub fork shorthand or explicit owner/repo path |
 | `-h, --help` | Show bootstrap help |
 
-All other options are passed through to `mds_init.sh`.
+All other options are passed through to `mds_node_init.sh`.
 
 ### Bootstrap Examples
 

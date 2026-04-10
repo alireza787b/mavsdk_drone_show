@@ -1,10 +1,10 @@
-# MDS Raspberry Pi Setup Guide
+# MDS Companion Node Setup Guide
 
-Complete step-by-step guide for initializing a Raspberry Pi for the MDS drone swarm platform.
+Complete step-by-step guide for initializing a Linux-based companion computer for the MDS drone swarm platform.
 
 ## Overview
 
-The `mds_init.sh` script is an enterprise-grade initialization system that configures a fresh Raspberry Pi for use in MDS drone swarm operations. It handles:
+The `mds_node_init.sh` script is an enterprise-grade bootstrap system that configures a fresh companion-computer node for use in MDS drone swarm operations. It handles:
 
 - System prerequisites and validation
 - Repository cloning with SSH/HTTPS support (custom repo selection included)
@@ -21,13 +21,14 @@ The `mds_init.sh` script is an enterprise-grade initialization system that confi
 ### Hardware Requirements
 
 - Raspberry Pi 4 or 5 (4GB+ RAM recommended)
+- Other Debian-family companion computers are also supported when they can host the same services and MAVLink routing stack
 - 16GB+ SD card (32GB recommended)
 - Stable power supply (5V 3A minimum)
 - Network connection (Ethernet or WiFi)
 
 ### Software Requirements
 
-- Raspberry Pi OS (64-bit recommended)
+- Raspberry Pi OS or another Debian-family Linux distribution (64-bit recommended)
 - Python 3.11 or later (included in latest Raspberry Pi OS)
 - Internet connectivity for package downloads
 
@@ -35,48 +36,48 @@ The `mds_init.sh` script is an enterprise-grade initialization system that confi
 
 ### Option 1: One-Line Installation (Recommended)
 
-The fastest way to set up a fresh Raspberry Pi:
+The fastest way to set up a fresh companion-computer node:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
 ```
 
 **With drone ID (non-interactive):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- -d 1 -y
 ```
 
 **Using your own fork or org repo:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourusername -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --fork yourusername -d 1 -y
 ```
 
 For confidentiality-sensitive customers, prefer an org-owned private repo instead of assuming a normal GitHub fork will be private.
 
 **Using a customer org/private repo path:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
 ```
 
 For a first-time private SSH bootstrap, omit `-y` unless the deploy key is already authorized on GitHub. Non-interactive `-y` is safe only after that prerequisite is already satisfied.
 
 **Using an explicit repository URL:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
 ```
 
 ### Option 2: Manual Installation
 
-#### Step 1: Flash Raspberry Pi OS
+#### Step 1: Prepare the OS Image
 
-1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Flash Raspberry Pi OS (64-bit) to your SD card
-3. Configure WiFi and SSH in the imager settings
-4. Boot the Raspberry Pi
+1. Prepare a supported Debian-family image for your companion computer
+2. If you are using Raspberry Pi, [Raspberry Pi Imager](https://www.raspberrypi.com/software/) is the recommended path
+3. Configure network access and SSH
+4. Boot the companion computer
 
 #### Step 2: Initial System Setup
 
-SSH into your Raspberry Pi:
+SSH into the companion computer:
 
 ```bash
 ssh pi@raspberrypi.local
@@ -109,25 +110,25 @@ cd customer-mds
 **Interactive mode (recommended for first-time setup):**
 
 ```bash
-sudo ./tools/mds_init.sh
+sudo ./tools/mds_node_init.sh
 ```
 
 **Non-interactive mode with drone ID:**
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 **Using your own fork or custom repo:**
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
+sudo ./tools/mds_node_init.sh -d 1 --fork yourusername -y
 ```
 
 Or fully explicit:
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     --repo-url git@github.com:yourorg/customer-mds.git \
     --branch customer-demo \
     -y
@@ -142,7 +143,7 @@ The script runs through these phases automatically:
 | 1. Prerequisites | Validates system requirements, creates directories |
 | 2. MAVLink Guidance | Provides mavlink-anywhere setup instructions |
 | 3. Repository | Clones/updates repository, manages SSH keys |
-| 4. Identity | Configures drone ID and local.env file |
+| 4. Identity | Configures drone ID, `local.env`, and `node_identity.json` |
 | 5. Environment | Sets up environment variables |
 | 6. Firewall | Configures UFW rules for MDS services |
 | 7. Python Environment | Creates venv, installs requirements |
@@ -160,7 +161,7 @@ The script runs through these phases automatically:
 For a single drone with ID 1:
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 ### Scenario 2: Custom Repository
@@ -168,13 +169,13 @@ sudo ./tools/mds_init.sh -d 1 -y
 For using a forked repository or org-owned repo (simple shorthand):
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 --fork yourusername -y
+sudo ./tools/mds_node_init.sh -d 1 --fork yourusername -y
 ```
 
 Or with a customer org/private repo:
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 \
+sudo ./tools/mds_node_init.sh -d 1 \
     --repo-url git@github.com:yourorg/customer-mds.git \
     --branch customer-demo \
     -y
@@ -185,7 +186,7 @@ For the full cross-target workflow, see [Custom Repo Workflow](custom-repo-workf
 ### Scenario 3: Full Setup with VPN and Static IP
 
 ```bash
-sudo ./tools/mds_init.sh -d 5 \
+sudo ./tools/mds_node_init.sh -d 5 \
     --netbird-key "YOUR_NETBIRD_SETUP_KEY" \
     --static-ip 192.168.1.105/24 \
     --gateway 192.168.1.1 \
@@ -197,7 +198,7 @@ sudo ./tools/mds_init.sh -d 5 \
 If the script was interrupted, resume from the last checkpoint:
 
 ```bash
-sudo ./tools/mds_init.sh --resume
+sudo ./tools/mds_node_init.sh --resume
 ```
 
 ### Scenario 5: Dry Run (Test Mode)
@@ -205,7 +206,7 @@ sudo ./tools/mds_init.sh --resume
 See what would happen without making changes:
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 --dry-run
+sudo ./tools/mds_node_init.sh -d 1 --dry-run
 ```
 
 ## Post-Installation
@@ -251,7 +252,8 @@ After installation, key configuration files are:
 
 | File | Purpose |
 |------|---------|
-| `/etc/mds/local.env` | Per-drone configuration (drone ID, GCS IP, etc.) |
+| `/etc/mds/local.env` | Per-node runtime overrides (drone ID, GCS IP, repo/branch overrides, etc.) |
+| `/etc/mds/node_identity.json` | Structured machine-readable node manifest for automation, enrollment, and diagnostics |
 | `/var/lib/mds/init_state.json` | Installation state tracking |
 | `~/mavsdk_drone_show/config.json` | Drone hardware configuration |
 | `~/mavsdk_drone_show/src/params.py` | Global parameters |
@@ -273,12 +275,12 @@ See [MDS Init Troubleshooting Guide](mds-init-troubleshooting.md) for common iss
 
 **Script fails to start:**
 ```bash
-chmod +x tools/mds_init.sh
+chmod +x tools/mds_node_init.sh
 ```
 
 **Permission denied:**
 ```bash
-sudo ./tools/mds_init.sh
+sudo ./tools/mds_node_init.sh
 ```
 
 **Check installation state:**

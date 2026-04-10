@@ -1,6 +1,6 @@
-# Raspberry Pi Service Architecture
+# Companion Node Service Architecture
 
-This guide documents the systemd service architecture for MDS drones running on Raspberry Pi hardware.
+This guide documents the systemd service architecture for MDS drones running on companion-computer hardware.
 
 ## Service Boot Order
 
@@ -154,7 +154,7 @@ MDS_LOG_LEVEL=DEBUG
 
 ## Installing Services
 
-The services are installed by `tools/mds_init.sh` (the enterprise initialization script). To manually install:
+The services are installed by `tools/mds_node_init.sh` (the enterprise initialization script). To manually install:
 
 ```bash
 # Copy service files

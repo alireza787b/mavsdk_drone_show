@@ -9,8 +9,8 @@ Scope: real-hardware companion-computer bootstrap, fleet registration, replaceme
 
 The product already has a serious but fragmented hardware-onboarding stack:
 
-- a real bootstrap wrapper: `tools/install_rpi.sh`
-- a real modular init engine: `tools/mds_init.sh` plus `tools/mds_init_lib/*`
+- a real bootstrap wrapper: `tools/install_mds_node.sh`
+- a real modular init engine: `tools/mds_node_init.sh` plus `tools/mds_init_lib/*`
 - heartbeat-based spare-drone detection in the dashboard
 - a simple `ReplaceDroneWizard`
 
@@ -42,12 +42,12 @@ This should be treated as a cross-cutting subsystem, not a small script patch.
 
 The current intended provisioning path is already:
 
-- `tools/install_rpi.sh`
+- `tools/install_mds_node.sh`
   - thin bootstrap wrapper
   - creates `droneshow` user
   - clones repo
-  - hands off to `tools/mds_init.sh`
-- `tools/mds_init.sh`
+  - hands off to `tools/mds_node_init.sh`
+- `tools/mds_node_init.sh`
   - modular init engine
   - supports non-interactive mode, `--resume`, `--dry-run`
   - supports repo/fork/branch overrides
@@ -181,8 +181,8 @@ That separation is the most important design rule for this subsystem.
 
 ### Keep
 
-- `tools/install_rpi.sh` as the public one-line bootstrap entry
-- `tools/mds_init.sh` as the main provisioning engine
+- `tools/install_mds_node.sh` as the public one-line bootstrap entry
+- `tools/mds_node_init.sh` as the main provisioning engine
 
 ### Retire / Remove
 
@@ -196,10 +196,10 @@ Do not invent a second provisioning script.
 
 Instead:
 
-- modernize `mds_init.sh`
+- modernize `mds_node_init.sh`
 - tighten its contracts
 - make it the only supported engine
-- keep `install_rpi.sh` as a thin convenience wrapper
+- keep `install_mds_node.sh` as a thin convenience wrapper
 
 ### 2. Node Identity Model
 
@@ -497,8 +497,8 @@ This is also why the redesign should keep GCS acceptance and node bootstrap sepa
 Use three layers:
 
 1. **Bootstrap CLI**
-   - `install_rpi.sh`
-   - `mds_init.sh`
+   - `install_mds_node.sh`
+   - `mds_node_init.sh`
    - required for on-device provisioning
 
 2. **Fleet Orchestration**
@@ -528,9 +528,9 @@ Official guidance relevant here:
 
 ### Recommended Bootstrap Outputs
 
-`mds_init.sh` should gain machine-friendly output modes:
+`mds_node_init.sh` should gain machine-friendly output modes:
 
-- `--json-report`
+- `--report-json`
 - deterministic exit codes
 - stable phase/result structure
 
@@ -592,8 +592,8 @@ This avoids mixing:
 
 ### Keep And Evolve
 
-- `install_rpi.sh`
-- `mds_init.sh`
+- `install_mds_node.sh`
+- `mds_node_init.sh`
 - `mds_init_lib/*`
 - heartbeat network-info reporting
 - repo/branch override model
@@ -615,7 +615,7 @@ This avoids mixing:
 ### Phase 1: Audit Cleanup And Contract Lock
 
 - retire `raspberry_setup.sh`
-- update docs to name `install_rpi.sh -> mds_init.sh` as the only bootstrap path
+- update docs to name `install_mds_node.sh -> mds_node_init.sh` as the only bootstrap path
 - add structured node manifest design
 - add JSON-report contract to bootstrap design
 
@@ -711,7 +711,7 @@ Mitigation:
 
 These are the defaults I recommend unless you want to override them:
 
-1. keep `install_rpi.sh` and `mds_init.sh`
+1. keep `install_mds_node.sh` and `mds_node_init.sh`
 2. retire `raspberry_setup.sh`
 3. create a new `Fleet Enrollment` page instead of hiding everything in Mission Config
 4. remove heartbeat-driven auto-add of unknown drones
@@ -741,7 +741,7 @@ Treat it as a product subsystem:
 - **Replacement / Recovery**
 - **Automation Contracts**
 
-The cleanest path is to converge onto the current `install_rpi.sh` / `mds_init.sh` foundation, remove unsafe implicit registration behavior, and build an explicit GCS-side candidate workflow on top of it.
+The cleanest path is to converge onto the current `install_mds_node.sh` / `mds_node_init.sh` foundation, remove unsafe implicit registration behavior, and build an explicit GCS-side candidate workflow on top of it.
 
 That gives you:
 

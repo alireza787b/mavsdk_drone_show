@@ -122,7 +122,7 @@ This is set via:
 
 ```
 [Setup Time]
-  mds_init.sh → creates {N}.hwID file
+  mds_node_init.sh → creates {N}.hwID file
   Operator → edits config.json (hw_id → pos_id mapping)
 
 [Boot Time]

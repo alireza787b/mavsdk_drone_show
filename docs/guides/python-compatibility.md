@@ -28,12 +28,12 @@ The latest Raspberry Pi OS now ships with Python 3.13. We've updated MDS to work
 
 ## Installation
 
-### For Raspberry Pi (Hardware)
+### For Companion Nodes (Hardware)
 
-Run the setup script:
+Run the bootstrap script:
 
 ```bash
-bash tools/raspberry_setup.sh -d <drone_id> -k <netbird_key>
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- -d <drone_id> -y
 ```
 
 The script will:
@@ -81,12 +81,12 @@ sudo apt-get install -y \
 
 **Problem:** Older versions of the setup script used `--no-deps` flag.
 
-**Solution:** Update to latest version and reinstall:
+**Solution:** Update to the latest version and reinstall:
 
 ```bash
 cd ~/mavsdk_drone_show
 git pull origin main-candidate
-bash tools/raspberry_setup.sh -d <your_drone_id> -k <your_key>
+sudo ./tools/mds_node_init.sh -d <your_drone_id> -y
 ```
 
 ### Performance Issues

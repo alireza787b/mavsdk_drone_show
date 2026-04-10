@@ -1,14 +1,14 @@
 #!/bin/bash
 # =============================================================================
-# MDS Raspberry Pi Initialization Script
+# MDS Companion Node Bootstrap Script
 # =============================================================================
 # Version: 4.5.0
 # Description: Production-ready, enterprise-grade initialization for drone swarm nodes
 # Author: MDS Team
 # Repository: https://github.com/alireza787b/mavsdk_drone_show
 #
-# This script initializes a fresh Raspberry Pi for use in the MDS drone swarm
-# platform. It handles all aspects of setup including:
+# This script initializes a fresh Linux-based companion-computer node for use
+# in the MDS drone swarm platform. It handles all aspects of setup including:
 #   - Prerequisites and system validation
 #   - mavlink-anywhere automated setup (NEW in v4.5)
 #   - Repository cloning/updating with SSH key management
@@ -20,9 +20,9 @@
 #   - NTP time synchronization
 #   - Optional: Netbird VPN, Static IP
 #
-# Usage: sudo ./mds_init.sh [OPTIONS]
+# Usage: sudo ./mds_node_init.sh [OPTIONS]
 #
-# For detailed help: ./mds_init.sh --help
+# For detailed help: ./mds_node_init.sh --help
 # =============================================================================
 
 set -euo pipefail
@@ -95,6 +95,7 @@ RESUME="false"
 FORCE="false"
 VERBOSE="false"
 DEBUG="false"
+REPORT_JSON=""
 
 # MAVLink Configuration (NEW in v4.5)
 MAVLINK_AUTO="false"
@@ -138,14 +139,15 @@ enable_non_interactive_without_tty() {
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Initialization Script v4.5.0
+MDS Companion Node Bootstrap Script v4.5.0
 
 USAGE:
-    sudo ./mds_init.sh [OPTIONS]
+    sudo ./mds_node_init.sh [OPTIONS]
 
 DESCRIPTION:
-    Initialize a Raspberry Pi for the MDS drone swarm platform.
-    Handles all aspects of setup from fresh Raspbian OS to production-ready node.
+    Initialize a Linux-based companion-computer node for the MDS drone swarm
+    platform. Handles all aspects of setup from a fresh Debian-family host to a
+    production-ready node.
 
 REQUIRED (interactive prompts if missing):
     -d, --drone-id ID           Hardware ID for this drone (1-999)
@@ -190,6 +192,8 @@ SKIP FLAGS:
 CONTROL OPTIONS:
     -y, --yes                   Non-interactive mode (use defaults)
     --dry-run                   Show what would be done without making changes
+    --report-json PATH          Write machine-readable bootstrap report
+                                Use '-' to print the report JSON to stdout
     --resume                    Resume from last checkpoint
     --force                     Force re-run all phases (ignore state)
     -v, --verbose               Verbose output
@@ -198,34 +202,34 @@ CONTROL OPTIONS:
 
 EXAMPLES:
     # Interactive setup
-    sudo ./mds_init.sh
+    sudo ./mds_node_init.sh
 
     # Non-interactive with drone ID
-    sudo ./mds_init.sh -d 42 -y
+    sudo ./mds_node_init.sh -d 42 -y
 
     # Custom fork with HTTPS (using --fork shorthand)
-    sudo ./mds_init.sh -d 1 --fork myuser --branch main
+    sudo ./mds_node_init.sh -d 1 --fork myuser --branch main
 
     # Custom org/private repo path (using --fork shorthand)
-    sudo ./mds_init.sh -d 1 --fork myorg/customer-mds --branch main-candidate
+    sudo ./mds_node_init.sh -d 1 --fork myorg/customer-mds --branch main-candidate
 
     # Or with full URL
-    sudo ./mds_init.sh -d 1 --https -r https://github.com/myuser/myfork.git -b main
+    sudo ./mds_node_init.sh -d 1 --https -r https://github.com/myuser/myfork.git -b main
 
     # Full setup with VPN and static IP
-    sudo ./mds_init.sh -d 5 --netbird-key "XXXXX" --static-ip 192.168.1.105/24 --gateway 192.168.1.1
+    sudo ./mds_node_init.sh -d 5 --netbird-key "XXXXX" --static-ip 192.168.1.105/24 --gateway 192.168.1.1
 
     # Auto-configure mavlink-router with GCS IP (NEW)
-    sudo ./mds_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
 
     # Headless mavlink configuration
-    sudo ./mds_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
 
     # Dry run to see what would happen
-    sudo ./mds_init.sh -d 1 --dry-run
+    sudo ./mds_node_init.sh -d 1 --dry-run
 
     # Resume interrupted installation
-    sudo ./mds_init.sh --resume
+    sudo ./mds_node_init.sh --resume
 
 ENVIRONMENT VARIABLES:
     MDS_REPO_URL                Override repository URL
@@ -236,7 +240,8 @@ STATE FILE:
     /var/lib/mds/init_state.json    Persistent state tracking
 
 CONFIG FILE:
-    /etc/mds/local.env              Per-drone configuration
+    /etc/mds/local.env              Per-node runtime overrides
+    /etc/mds/node_identity.json     Structured node identity manifest
 
 For more information, see: https://github.com/alireza787b/mavsdk_drone_show
 EOF
@@ -250,8 +255,8 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,resume,force,verbose,debug,help \
-        -n 'mds_init.sh' -- "$@") || {
+        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,resume,force,verbose,debug,help \
+        -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
     }
@@ -374,6 +379,10 @@ parse_args() {
                 DRY_RUN="true"
                 shift
                 ;;
+            --report-json)
+                REPORT_JSON="$2"
+                shift 2
+                ;;
             --resume)
                 RESUME="true"
                 shift
@@ -413,7 +422,7 @@ parse_args() {
     export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS
     export MAVLINK_INPUT_TYPE MAVLINK_INPUT_PORT
     export SKIP_FIREWALL SKIP_NETBIRD SKIP_NTP SKIP_SERVICES SKIP_MAVSDK SKIP_VENV
-    export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
+    export NON_INTERACTIVE DRY_RUN REPORT_JSON RESUME FORCE VERBOSE DEBUG
 }
 
 # =============================================================================
@@ -603,6 +612,13 @@ main() {
 
     # Final status
     echo ""
+    if [[ $exit_code -eq 0 ]]; then
+        write_node_identity_manifest "${DRONE_ID:-$(state_get_value hw_id "")}" "completed" || true
+    else
+        write_node_identity_manifest "${DRONE_ID:-$(state_get_value hw_id "")}" "completed_with_errors" || true
+    fi
+    write_bootstrap_report "$exit_code" || true
+
     if [[ $exit_code -eq 0 ]]; then
         log_success "MDS initialization completed successfully!"
         set_led_state "STARTUP_COMPLETE"

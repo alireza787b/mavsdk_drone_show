@@ -1,15 +1,15 @@
 #!/bin/bash
 # =============================================================================
-# MDS Raspberry Pi Bootstrap Installer
+# MDS Companion Node Bootstrap Installer
 # =============================================================================
-# Version: 4.4.0
-# Description: Bootstrap installer for fresh Raspberry Pi setup
-#              Downloads and runs mds_init.sh
+# Version: 4.5.0
+# Description: Bootstrap installer for a fresh companion-computer setup
+#              Downloads and runs mds_node_init.sh
 # Author: MDS Team
 # =============================================================================
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
 #
 #   Or with options:
 #   curl -fsSL ... | sudo bash -s -- -d 1 --fork myuser
@@ -93,9 +93,9 @@ print_banner() {
     echo -e "${CYAN}|  |   |  ||  '--'  /.-'    | ${NC}"
     echo -e "${CYAN}\`--'   \`--'\`-------' \`-----'  ${NC}"
     echo ""
-    echo -e "${WHITE}MAVSDK Drone Show - Raspberry Pi Bootstrap${NC}"
+    echo -e "${WHITE}MAVSDK Drone Show - Companion Node Bootstrap${NC}"
     echo "================================================================"
-    echo -e "Version:  ${WHITE}4.4.0${NC}"
+    echo -e "Version:  ${WHITE}4.5.0${NC}"
     echo -e "Branch:   ${WHITE}$BRANCH${NC}"
     echo "================================================================"
     echo -e "${DIM}           Enterprise Drone Swarm Platform${NC}"
@@ -134,7 +134,7 @@ check_os() {
             log_warn "Ubuntu detected - not officially supported but may work"
             ;;
         *)
-            log_error "Unsupported OS: ${ID:-unknown}. Raspberry Pi OS or Debian required."
+            log_error "Unsupported OS: ${ID:-unknown}. Debian-family Linux required."
             exit 1
             ;;
     esac
@@ -267,7 +267,7 @@ clone_repository() {
 # =============================================================================
 
 run_init_script() {
-    local init_script="${INSTALL_DIR}/tools/mds_init.sh"
+    local init_script="${INSTALL_DIR}/tools/mds_node_init.sh"
 
     if [[ ! -f "$init_script" ]]; then
         log_error "Init script not found: $init_script"
@@ -279,7 +279,7 @@ run_init_script() {
     log_info "Running MDS initialization script..."
     echo ""
     echo -e "${CYAN}================================================================${NC}"
-    echo -e "${WHITE}Handing off to mds_init.sh...${NC}"
+    echo -e "${WHITE}Handing off to mds_node_init.sh...${NC}"
     echo -e "${CYAN}================================================================${NC}"
     echo ""
 
@@ -296,7 +296,7 @@ run_init_script() {
 
 show_help() {
     cat << 'EOF'
-MDS Raspberry Pi Bootstrap Installer (v4.4.0)
+MDS Companion Node Bootstrap Installer (v4.5.0)
 
 USAGE:
     curl -fsSL <url> | sudo bash
@@ -308,17 +308,18 @@ BOOTSTRAP OPTIONS:
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     -h, --help          Show this help message
 
-    All other options are passed to mds_init.sh
+    All other options are passed to mds_node_init.sh
 
-PASSTHROUGH OPTIONS (to mds_init.sh):
+PASSTHROUGH OPTIONS (to mds_node_init.sh):
     -d, --drone-id ID   Hardware ID for this drone (1-999)
     -y, --yes           Non-interactive mode
     --https             Use HTTPS for git operations
     --netbird-key KEY   Netbird VPN setup key
     --static-ip IP      Static IP address (CIDR format)
+    --report-json PATH  Write machine-readable bootstrap report to PATH ('-' = stdout)
     --dry-run           Show what would be done
 
-    See mds_init.sh --help for all options
+    See mds_node_init.sh --help for all options
 
 ENVIRONMENT VARIABLES:
     MDS_REPO_URL        Git repository URL
@@ -326,7 +327,7 @@ ENVIRONMENT VARIABLES:
 
 EXAMPLES:
     # Basic installation (interactive)
-    curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | sudo bash
+    curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
 
     # With drone ID (non-interactive)
     curl -fsSL ... | sudo bash -s -- -d 1 -y
@@ -350,7 +351,7 @@ WHAT THIS SCRIPT DOES:
     1. Creates 'droneshow' user if needed
     2. Installs git, curl, jq prerequisites
     3. Clones the MDS repository
-    4. Runs the full mds_init.sh initialization
+    4. Runs the full mds_node_init.sh initialization
 
 For more information: https://github.com/alireza787b/mavsdk_drone_show
 EOF
@@ -430,7 +431,7 @@ main() {
 
     print_banner
 
-    log_info "Starting Raspberry Pi bootstrap installation..."
+    log_info "Starting companion-node bootstrap installation..."
     log_info "Date: $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""
 

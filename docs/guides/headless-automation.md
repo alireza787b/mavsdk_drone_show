@@ -6,7 +6,7 @@ If your fleet follows a customer-owned repo or private branch, read [Custom Repo
 
 ## Overview
 
-The `mds_init.sh` script supports fully automated, non-interactive installation for:
+The `mds_node_init.sh` script supports fully automated, non-interactive installation for:
 
 - Fleet provisioning of multiple drones
 - CI/CD pipeline integration
@@ -18,7 +18,7 @@ The `mds_init.sh` script supports fully automated, non-interactive installation 
 Enable non-interactive mode with the `-y` or `--yes` flag:
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 ### Requirements for Non-Interactive Mode
@@ -32,7 +32,7 @@ sudo ./tools/mds_init.sh -d 1 -y
 ```bash
 # Avoid SSH key prompts for unattended installs.
 # Pin the repo and branch explicitly.
-sudo ./tools/mds_init.sh \
+sudo ./tools/mds_node_init.sh \
     -d ${DRONE_ID} \
     --https \
     --repo-url https://github.com/YOURORG/YOURREPO.git \
@@ -68,7 +68,7 @@ fi
 cd /home/droneshow/mavsdk_drone_show
 
 # Run initialization
-sudo ./tools/mds_init.sh \
+sudo ./tools/mds_node_init.sh \
     -d "$DRONE_ID" \
     --https \
     --repo-url https://github.com/YOURORG/YOURREPO.git \
@@ -103,7 +103,7 @@ for entry in "${DRONES[@]}"; do
         git fetch origin customer-demo
         git checkout customer-demo
         git reset --hard origin/customer-demo
-        sudo ./tools/mds_init.sh -d $drone_id --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
+        sudo ./tools/mds_node_init.sh -d $drone_id --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
 EOF
 
     if [[ $? -eq 0 ]]; then
@@ -142,7 +142,7 @@ done
 
     - name: Run MDS initialization
       command: >
-        ./tools/mds_init.sh
+        ./tools/mds_node_init.sh
         -d {{ drone_id }}
         --https
         -y
@@ -205,7 +205,7 @@ jobs:
             git fetch origin customer-demo
             git checkout customer-demo
             git reset --hard origin/customer-demo
-            sudo ./tools/mds_init.sh \
+            sudo ./tools/mds_node_init.sh \
               -d ${{ github.event.inputs.drone_id }} \
               --https \
               --repo-url https://github.com/YOURORG/YOURREPO.git \
@@ -225,7 +225,7 @@ deploy_drone:
         git fetch origin customer-demo &&
         git checkout customer-demo &&
         git reset --hard origin/customer-demo &&
-        sudo ./tools/mds_init.sh -d ${DRONE_ID} --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
+        sudo ./tools/mds_node_init.sh -d ${DRONE_ID} --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
       "
   only:
     - customer-demo
@@ -236,14 +236,15 @@ deploy_drone:
 
 ### Creating a Golden Image
 
-1. Set up a reference Raspberry Pi with base configuration:
+1. Set up a reference companion-computer node with base configuration:
 
 ```bash
 # On reference Pi
-sudo ./tools/mds_init.sh \
+sudo ./tools/mds_node_init.sh \
     -d 999 \              # Placeholder ID
     --https \
     --skip-netbird \      # Skip VPN (configure per-drone)
+    --report-json /var/lib/mds/bootstrap-report.json \
     -y
 ```
 
@@ -253,6 +254,7 @@ sudo ./tools/mds_init.sh \
 # Reset state for next boot
 sudo rm /var/lib/mds/init_state.json
 sudo rm /etc/mds/local.env
+sudo rm -f /etc/mds/node_identity.json
 
 # Clear machine-specific data
 sudo rm -rf /home/droneshow/.ssh/id_rsa*
@@ -284,7 +286,7 @@ DRONE_ID=$(hostname | grep -oP '\d+$')
 
 if [[ -n "$DRONE_ID" ]]; then
     cd /home/droneshow/mavsdk_drone_show
-    sudo ./tools/mds_init.sh -d "$DRONE_ID" --https --resume -y
+    sudo ./tools/mds_node_init.sh -d "$DRONE_ID" --https --resume -y
 fi
 ```
 
@@ -316,8 +318,13 @@ export MDS_REPO_URL="https://github.com/myorg/customer-mds.git"
 export MDS_BRANCH="production"
 export MDS_GCS_IP="192.168.1.100"
 
-sudo -E ./tools/mds_init.sh -d 1 --https -y
+sudo -E ./tools/mds_node_init.sh -d 1 --https --report-json /var/lib/mds/bootstrap-report.json -y
 ```
+
+Credential handling guidance:
+- store Git HTTPS tokens, SSH deploy keys, and NetBird setup keys in Ansible Vault or your CI/CD secret store
+- pass them into the bootstrap as environment variables, mounted files, or runtime inventory variables
+- do not bake customer secrets into golden images, repo files, or shell history
 
 ## Verification and Monitoring
 
@@ -325,7 +332,7 @@ sudo -E ./tools/mds_init.sh -d 1 --https -y
 
 ```bash
 # Check exit code
-sudo ./tools/mds_init.sh -d 1 --https -y
+sudo ./tools/mds_node_init.sh -d 1 --https -y
 echo "Exit code: $?"
 
 # Check state file
@@ -386,7 +393,7 @@ RETRY_DELAY=30
 for i in $(seq 1 $MAX_RETRIES); do
     echo "Attempt $i of $MAX_RETRIES..."
 
-    sudo ./tools/mds_init.sh -d 1 --https -y
+    sudo ./tools/mds_node_init.sh -d 1 --https -y
 
     if [[ $? -eq 0 ]]; then
         echo "Success!"
@@ -425,7 +432,7 @@ Never commit secrets in scripts. Use:
 Example with environment secrets:
 ```bash
 # Netbird key from environment
-sudo ./tools/mds_init.sh \
+sudo ./tools/mds_node_init.sh \
     -d 1 \
     --netbird-key "${NETBIRD_KEY}" \
     --https \

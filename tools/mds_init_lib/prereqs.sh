@@ -89,7 +89,7 @@ check_os() {
             return 0
             ;;
         *)
-            log_error "Unsupported OS: $os_name. Raspberry Pi OS or Debian required."
+            log_error "Unsupported OS: $os_name. Debian-family Linux required."
             return 1
             ;;
     esac
@@ -127,7 +127,7 @@ check_architecture() {
 
 # Check if running on Raspberry Pi hardware
 check_raspberry_pi() {
-    log_step "Checking for Raspberry Pi hardware..."
+    log_step "Checking companion-computer hardware hints..."
 
     if is_raspberry_pi; then
         local model
@@ -138,12 +138,12 @@ check_raspberry_pi() {
     fi
 
     if [[ "$(get_architecture)" == "x86_64" ]]; then
-        log_warn "Not running on Raspberry Pi - assuming SITL/development mode"
+        log_warn "Not running on a known companion-computer board - assuming SITL/development mode"
         state_set_value "hardware_model" "SITL/x86_64"
         return 0
     fi
 
-    log_warn "Raspberry Pi hardware not detected"
+    log_warn "Known Raspberry Pi hardware not detected - board-specific tweaks may need manual review"
     return 0  # Don't fail, just warn
 }
 

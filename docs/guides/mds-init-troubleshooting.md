@@ -1,6 +1,6 @@
 # MDS Init Troubleshooting Guide
 
-Solutions for common issues encountered during MDS Raspberry Pi initialization.
+Solutions for common issues encountered during MDS companion-node bootstrap and initialization.
 
 ## Quick Diagnostics
 
@@ -9,6 +9,9 @@ Solutions for common issues encountered during MDS Raspberry Pi initialization.
 ```bash
 # View installation state
 cat /var/lib/mds/init_state.json | jq
+
+# View structured node identity
+cat /etc/mds/node_identity.json | jq
 
 # View installation log
 cat /var/log/mds/mds_init.log
@@ -29,13 +32,13 @@ systemctl status coordinator
 
 **Symptom:**
 ```
--bash: ./tools/mds_init.sh: Permission denied
+-bash: ./tools/mds_node_init.sh: Permission denied
 ```
 
 **Solution:**
 ```bash
-chmod +x tools/mds_init.sh
-sudo ./tools/mds_init.sh
+chmod +x tools/mds_node_init.sh
+sudo ./tools/mds_node_init.sh
 ```
 
 ### Issue: "This script must be run as root"
@@ -47,7 +50,7 @@ Error: This script must be run as root (use sudo)
 
 **Solution:**
 ```bash
-sudo ./tools/mds_init.sh
+sudo ./tools/mds_node_init.sh
 ```
 
 ### Issue: Script fails at SSH key generation
@@ -61,7 +64,7 @@ sudo ./tools/mds_init.sh
 
 1. **Use HTTPS instead (recommended for automation):**
    ```bash
-   sudo ./tools/mds_init.sh -d 1 --https -y
+   sudo ./tools/mds_node_init.sh -d 1 --https -y
    ```
 
 2. **Add SSH key to GitHub first:**
@@ -109,12 +112,12 @@ git ls-remote "$(grep '^MDS_REPO_URL=' /etc/mds/local.env | cut -d= -f2-)"
 2. **SSH authentication issue:**
    ```bash
    # Use HTTPS instead
-   sudo ./tools/mds_init.sh -d 1 --https -y
+   sudo ./tools/mds_node_init.sh -d 1 --https -y
    ```
 
 3. **Retry with verbose output:**
    ```bash
-   sudo ./tools/mds_init.sh -d 1 --debug -y
+   sudo ./tools/mds_node_init.sh -d 1 --debug -y
    ```
 
 4. **If this is a customer/private repo deployment:**
@@ -158,7 +161,7 @@ cd ~/mavsdk_drone_show
 3. **Broken venv:**
    ```bash
    rm -rf ~/mavsdk_drone_show/venv
-   sudo ./tools/mds_init.sh --resume
+   sudo ./tools/mds_node_init.sh --resume
    ```
 
 ### Issue: MAVSDK download fails
@@ -192,7 +195,7 @@ curl -I https://github.com/mavlink/MAVSDK/releases/...
 
 3. **Skip and install later:**
    ```bash
-   sudo ./tools/mds_init.sh -d 1 --skip-mavsdk -y
+   sudo ./tools/mds_node_init.sh -d 1 --skip-mavsdk -y
    ```
 
 ### Issue: Services fail to start
@@ -230,7 +233,7 @@ ls -la ~/mavsdk_drone_show/venv/bin/python
    cat /etc/mds/local.env
 
    # Create if missing
-   sudo ./tools/mds_init.sh -d 1 --resume
+   sudo ./tools/mds_node_init.sh -d 1 --resume
    ```
 
 3. **Wrong permissions:**
@@ -249,7 +252,7 @@ jq: parse error: ...
 ```bash
 # Script auto-recovers, but to manually reset:
 sudo rm /var/lib/mds/init_state.json
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 ### Issue: Resume doesn't work
@@ -268,12 +271,12 @@ cat /var/lib/mds/init_state.json
    ```bash
    # Normal - means no previous run or was reset
    # Run without --resume
-   sudo ./tools/mds_init.sh -d 1 -y
+   sudo ./tools/mds_node_init.sh -d 1 -y
    ```
 
 2. **Force fresh start:**
    ```bash
-   sudo ./tools/mds_init.sh -d 1 --force -y
+   sudo ./tools/mds_node_init.sh -d 1 --force -y
    ```
 
 ### Issue: Firewall blocks services
@@ -289,7 +292,7 @@ sudo ufw status verbose
 **Solution:**
 ```bash
 # Reset firewall to MDS defaults
-sudo ./tools/mds_init.sh --resume
+sudo ./tools/mds_node_init.sh --resume
 
 # Or manually open ports
 sudo ufw allow 5000/tcp    # Flask backend
@@ -330,7 +333,7 @@ sudo rm -rf /etc/mds
 rm -rf ~/mavsdk_drone_show/venv
 
 # Fresh install
-sudo ./tools/mds_init.sh -d 1 -y
+sudo ./tools/mds_node_init.sh -d 1 -y
 ```
 
 ### Partial Reset
@@ -343,7 +346,7 @@ sudo nano /var/lib/mds/init_state.json
 # Change "completed" to "pending" for desired phase
 
 # Resume
-sudo ./tools/mds_init.sh --resume
+sudo ./tools/mds_node_init.sh --resume
 ```
 
 ### Service Recovery
@@ -370,7 +373,7 @@ sudo systemctl restart coordinator git_sync_mds
 ### Enable Debug Mode
 
 ```bash
-sudo ./tools/mds_init.sh -d 1 --debug -y
+sudo ./tools/mds_node_init.sh -d 1 --debug -y
 ```
 
 ### Collect Diagnostics
@@ -408,10 +411,10 @@ tar -czf mds_diagnostics.tar.gz \
 ```bash
 cd ~/mavsdk_drone_show
 git pull
-sudo ./tools/mds_init.sh --resume
+sudo ./tools/mds_node_init.sh --resume
 ```
 
-### Q: What if my Raspberry Pi doesn't have internet?
+### Q: What if my companion computer doesn't have internet?
 
 **A:** You'll need to:
 1. Download packages on another machine
@@ -420,7 +423,7 @@ sudo ./tools/mds_init.sh --resume
 
 ### Q: Can I run this on Jetson?
 
-**A:** The script is designed for Raspberry Pi but may work on other Linux platforms. Some hardware-specific features (GPIO, etc.) may not work.
+**A:** The script is designed for Debian-family companion computers and works best when the required services and MAVLink routing stack are available. Some board-specific features (GPIO, serial console auto-fixes, etc.) may still require hardware-specific review.
 
 ## Getting Help
 

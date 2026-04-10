@@ -10,8 +10,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 node-bootstrap phase 1 foundation checkpoint note documenting
+  the generic companion-node bootstrap cleanup, the new
+  `/etc/mds/node_identity.json` manifest, the optional `--report-json` machine
+  output seam, the active-doc alignment for cloning/automation workflows, and
+  the validation boundary before candidate-enrollment work begins
 - a 2026-04-10 node-bootstrap and fleet-enrollment design brief documenting
-  the current `install_rpi.sh` / `mds_init.sh` provisioning stack audit, the
+  the current `install_mds_node.sh` / `mds_node_init.sh` provisioning stack audit, the
   recommendation to retire heartbeat-driven auto-add and the deprecated
   `raspberry_setup.sh` path, the proposed candidate-registration workflow,
   the real-hardware replacement/recovery scenarios, and the phased automation /
@@ -559,7 +564,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - retired the public GCS show-management legacy routes `/import-show`, `/download-raw-show`, `/download-processed-show`, `/get-show-info`, `/get-custom-show-info`, `/import-custom-show`, `/get-comprehensive-metrics`, `/get-safety-report`, `/validate-trajectory`, `/deploy-show`, `/get-show-plots`, `/get-show-plots/{filename}`, and `/get-custom-show-image`, leaving the canonical `/api/v1/shows/skybrush*` and `/api/v1/shows/custom*` surfaces as the only supported GCS contract for show workflows
 - retired the public GCS configuration/swarm legacy routes `/get-config-data`, `/save-config-data`, `/validate-config`, `/get-drone-positions`, `/get-trajectory-first-row`, `/get-swarm-data`, `/save-swarm-data`, and `/request-new-leader`, leaving the canonical `/api/v1/config/fleet*` and `/api/v1/config/swarm*` surfaces as the only supported GCS contract for those domains
 - `Show Design` / `Custom Show` operator guidance, Mission Details, and the Drone Show guide now reflect the current split between the normal SkyBrush import pipeline and the expert-only Custom CSV override
-- Bootstrap installers now propagate custom repo/branch selections all the way into `mds_gcs_init.sh` / `mds_init.sh`, including explicit `--repo-url` support and correct persistence of custom branch settings in later config/state
+- Bootstrap installers now propagate custom repo/branch selections all the way into `mds_gcs_init.sh` / `mds_node_init.sh`, including explicit `--repo-url` support and correct persistence of custom branch settings in later config/state
 - Root `README.md` and `docs/README.md` now use a cleaner "start here" / role-based navigation model so testers, operators, deployers, and maintainers can reach the right guide with less duplication and less scrolling
 - Drone git sync now uses the same repo/branch source of truth in both boot-time sync and operator-triggered `UPDATE_CODE` flows by loading `/etc/mds/local.env` before resolving `MDS_REPO_URL` / `MDS_BRANCH`
 - Bootstrap and setup flows now accept `--fork OWNER` or `--fork OWNER/REPO`, so customer org/private repo paths no longer require ad hoc URL rewriting
@@ -718,7 +723,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - `tools/install_gcs.sh`: Replaced box-drawing banner with unified banner
   - `tools/mds_gcs_init.sh`: Uses shared banner with git info
   - `tools/mds_gcs_init_lib/gcs_common.sh`: Sources shared banner
-  - `tools/mds_init.sh`: Uses shared banner with git info
+  - `tools/mds_node_init.sh`: Uses shared banner with git info
   - `tools/mds_init_lib/common.sh`: Sources shared banner
   - `app/linux_dashboard_start.sh`: Replaced wide ASCII with unified banner
 - **Version Synchronization**: All version numbers updated to 4.2.0
@@ -743,7 +748,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [4.0] - 2026-01-20
 
 ### Added
-- **Enterprise Raspberry Pi Initialization**: Production-ready `mds_init.sh`
+- **Enterprise Raspberry Pi Initialization**: Production-ready `mds_node_init.sh`
   - Modular library architecture in `mds_init_lib/`
   - 13 installation phases with state tracking
   - Resume capability for interrupted installations

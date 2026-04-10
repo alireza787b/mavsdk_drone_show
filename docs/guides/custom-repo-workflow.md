@@ -45,7 +45,7 @@ Use the same variable names everywhere:
 | Target | Source of truth | Keys |
 |--------|-----------------|------|
 | GCS | `/etc/mds/gcs.env` | `MDS_REPO_URL`, `MDS_BRANCH`, `MDS_GIT_AUTO_PUSH` |
-| Real drone hardware | `/etc/mds/local.env` | `MDS_REPO_URL`, `MDS_BRANCH` |
+| Real drone hardware | `/etc/mds/local.env` and `/etc/mds/node_identity.json` | `MDS_REPO_URL`, `MDS_BRANCH`, node-local bootstrap identity |
 | SITL runtime | exported shell env before launch | `MDS_REPO_URL`, `MDS_BRANCH`, optional `MDS_GIT_AUTH_TOKEN_FILE`, optional `MDS_DOCKER_IMAGE` |
 | GCS backend defaults | `src/params.py` | fallback only when env files are absent |
 
@@ -172,7 +172,7 @@ That is the correct safe setting for evaluation setups.
 For a drone that should follow the customer repo:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | \
   sudo bash -s -- \
   -d 1 \
   --fork yourorg/customer-mds \
@@ -183,7 +183,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 Or:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_rpi.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | \
   sudo bash -s -- \
   -d 1 \
   --repo-url git@github.com:yourorg/customer-mds.git \
@@ -194,7 +194,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 Or from an already-cloned repo:
 
 ```bash
-sudo ./tools/mds_init.sh \
+sudo ./tools/mds_node_init.sh \
   -d 1 \
   --repo-url git@github.com:yourorg/customer-mds.git \
   --branch customer-demo \
@@ -203,6 +203,7 @@ sudo ./tools/mds_init.sh \
 
 What matters after install:
 - `/etc/mds/local.env` stores the chosen `MDS_REPO_URL` and `MDS_BRANCH`
+- `/etc/mds/node_identity.json` keeps the machine-readable node identity separate from fleet enrollment state
 - boot-time `git_sync_mds.service` sources `/etc/mds/local.env`
 - operator-triggered `UPDATE_CODE` now also loads `/etc/mds/local.env`, so boot sync and runtime sync use the same repo/branch
 - repo-local `core.sshCommand` is pinned when SSH is used, so pre-existing host SSH config does not silently override the intended deploy key

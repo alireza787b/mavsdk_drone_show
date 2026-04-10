@@ -19,7 +19,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
-| deploy Raspberry Pi hardware | [MDS Init Setup](guides/mds-init-setup.md) |
+| deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
 | build or redistribute a validated custom SITL image | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
 | inspect logs | [Logging System Guide](guides/logging-system.md) |
 
@@ -140,11 +140,11 @@ See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 - NVIDIA Jetson series
 - Any Linux-based companion computer
 
-### Hardware Setup Guides (Raspberry Pi)
+### Hardware Setup Guides
 
 | Guide | Description |
 |-------|-------------|
-| **[MDS Init Setup](guides/mds-init-setup.md)** | Complete step-by-step Raspberry Pi initialization |
+| **[MDS Init Setup](guides/mds-init-setup.md)** | Complete step-by-step companion-node bootstrap |
 | **[CLI Reference](guides/mds-init-cli-reference.md)** | All CLI arguments, environment variables, examples |
 | **[Headless Automation](guides/headless-automation.md)** | Fleet provisioning, CI/CD, batch deployment |
 | **[Troubleshooting](guides/mds-init-troubleshooting.md)** | Common issues, recovery procedures, FAQ |

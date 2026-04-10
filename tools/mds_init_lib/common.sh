@@ -3,7 +3,7 @@
 # MDS Initialization Library: Common Utilities
 # =============================================================================
 # Version: 4.5.0
-# Description: Core utilities for mds_init.sh - colors, logging, state, branding
+# Description: Core utilities for mds_node_init.sh - colors, logging, state, branding
 # Author: MDS Team
 # =============================================================================
 
@@ -20,6 +20,7 @@ readonly MDS_STATE_DIR="/var/lib/mds"
 readonly MDS_STATE_FILE="${MDS_STATE_DIR}/init_state.json"
 readonly MDS_CONFIG_DIR="/etc/mds"
 readonly MDS_LOCAL_ENV="${MDS_CONFIG_DIR}/local.env"
+readonly MDS_NODE_IDENTITY_FILE="${MDS_CONFIG_DIR}/node_identity.json"
 readonly MDS_INSTALL_DIR="/home/droneshow/mavsdk_drone_show"
 readonly MDS_USER="droneshow"
 readonly MDS_LOG_DIR="/var/log/mds"
@@ -157,7 +158,7 @@ print_banner() {
 
     # Use shared banner if available
     if type print_mds_banner &>/dev/null; then
-        print_mds_banner "Raspberry Pi Drone" "${MDS_VERSION}" "${branch}" "${commit}"
+        print_mds_banner "Companion Node" "${MDS_VERSION}" "${branch}" "${commit}"
     else
         # Fallback to inline banner
         echo -e "${CYAN}"
@@ -167,7 +168,7 @@ print_banner() {
         echo "|  |   |  ||  '--'  /.-'    | "
         echo "\`--'   \`--'\`-------' \`-----'  "
         echo -e "${NC}"
-        echo -e "${WHITE}MAVSDK Drone Show - Raspberry Pi Drone${NC}"
+        echo -e "${WHITE}MAVSDK Drone Show - Companion Node${NC}"
         echo "================================================"
         echo -e "Version:  ${WHITE}${MDS_VERSION}${NC}"
         [[ -n "$branch" ]] && echo -e "Branch:   ${WHITE}$branch${NC}"
@@ -637,5 +638,5 @@ cleanup_handler() {
 # EXPORT FOR SUBSHELLS
 # =============================================================================
 
-export MDS_VERSION MDS_STATE_DIR MDS_STATE_FILE MDS_CONFIG_DIR MDS_LOCAL_ENV
+export MDS_VERSION MDS_STATE_DIR MDS_STATE_FILE MDS_CONFIG_DIR MDS_LOCAL_ENV MDS_NODE_IDENTITY_FILE
 export MDS_INSTALL_DIR MDS_USER MDS_LOG_DIR MDS_LOG_FILE
