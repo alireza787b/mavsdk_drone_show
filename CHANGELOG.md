@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- deferred guidance for converging `INIT_SYSID` onto the shared PX4 parameter
+  service later, while keeping it out of the main runtime PX4 Parameters page
+  until the broader action-pipeline audit is active, plus explicit deferral of
+  firmware/build identity display until a clean vehicle-served source is added
 - a 2026-04-09 PX4 Parameters scan-first UI refinement note documenting the
   dialog-first desktop/mobile inspection flow, the reduced compact-card and
   desktop-table density, the cleaner metadata grouping, the refreshed Hetzner

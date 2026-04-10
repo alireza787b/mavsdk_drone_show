@@ -28,8 +28,8 @@ Design rules:
 
 - refresh a live PX4 snapshot for one drone
 - search and filter parameters
-- use a compact card list plus detail drawer on phone/tablet, and a sticky
-  side inspector on larger screens
+- use a scan-first list/table plus one consistent detail dialog across phone,
+  tablet, and desktop widths
 - inspect current/default/min/max metadata when available
 - display numeric values with PX4 decimal hints when available, otherwise use a
   trimmed operator-readable precision instead of raw full-float output
@@ -132,10 +132,11 @@ should come from the connected PX4 firmware or its shipped metadata bundle.
 - use `Single Drone` for QGC-style inspection and targeted tuning
 - use `Profiles` to review approved fleet baselines before applying them
 - use `Batch` for deliberate fleet-wide or cluster-wide settings
-- on compact screens, tap a parameter row/card to open the detail drawer; on
-  larger screens, the inspector stays docked beside the table
+- tap or click a parameter row/card to open the detail dialog; keep the main
+  list/table for scanning, not for reading every metadata field inline
 - touch devices in browser “desktop mode” still stay on the compact card +
-  dialog workflow to avoid forcing a tiny inline desktop inspector onto a phone
+  dialog workflow to avoid forcing a cramped pseudo-desktop inspector onto a
+  phone
 - refresh a snapshot before making decisions from stale values
 - treat reboot-required flags as advisory from PX4 metadata; they are shown
   when the generated PX4 catalog or vehicle metadata reports them
@@ -162,6 +163,12 @@ doctrine.
 - tracked long-running patch jobs if real fleets need asynchronous apply flows
 - migration or retirement of the older `APPLY_COMMON_PARAMS` workflow after the
   action-pipeline audit
+- convergence of the older `INIT_SYSID` action onto the same shared PX4
+  parameter write path, while keeping it a maintenance control rather than
+  duplicating it inside the main runtime parameter workspace
+- optional firmware/build identity reporting only after there is one clean
+  vehicle-served source for PX4 version data; do not invent or hardcode it in
+  the page
 - hardware-grade metadata discovery and caching via PX4 Component Metadata /
   MAVLink FTP, keyed by firmware identity or metadata CRC instead of relying on
   local build artifacts alone

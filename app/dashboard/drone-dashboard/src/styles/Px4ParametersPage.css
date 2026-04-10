@@ -150,6 +150,7 @@
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-primary-text);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 58%, transparent);
 }
 
 .px4-parameters-page__workspace {
@@ -312,9 +313,32 @@
   color: var(--color-primary-text);
 }
 
+.px4-parameters-page button:hover:not(:disabled),
+.px4-param-link:hover {
+  border-color: var(--color-primary-border);
+  background: color-mix(in srgb, var(--color-primary-light) 32%, var(--color-bg-tertiary));
+}
+
+.px4-parameters-page button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 88%, black);
+  border-color: color-mix(in srgb, var(--color-primary) 88%, black);
+}
+
+.px4-parameters-page button:focus-visible,
+.px4-param-link:focus-visible,
+.px4-compact-card:focus-visible,
+.px4-drone-option:focus-visible {
+  outline: none;
+  border-color: var(--color-primary-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-light) 72%, transparent);
+}
+
 .px4-parameters-page button:disabled {
-  opacity: 0.55;
+  opacity: 0.7;
   cursor: not-allowed;
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-bg-tertiary) 78%, transparent);
+  border-color: var(--color-border-light);
 }
 
 .px4-toggle {
@@ -330,6 +354,7 @@
 
 .px4-toggle input {
   margin: 0;
+  accent-color: var(--color-primary);
 }
 
 .px4-toggle--checkbox {

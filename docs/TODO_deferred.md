@@ -118,6 +118,38 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 
 **Problem:** QuickScout now has real mission templates, tracked execution semantics, durable findings, and reusable SITL gates, but it still lacks the next operational layer:
 
+---
+
+## TODO 8: Converge maintenance identity / firmware reporting into PX4 parameter workflows deliberately
+
+**Priority:** Medium
+**Status:** Deferred — do not duplicate or hardcode before there is one clean shared contract
+
+**Problem:** The product now has a proper `PX4 Parameters` workspace, but two related maintenance concerns still sit outside that finished operator model:
+
+- `INIT_SYSID` is still a legacy maintenance action that writes `MAV_SYS_ID`
+  directly in the action pipeline instead of going through the newer shared
+  PX4 parameter service surface
+- operators may want PX4 firmware/build identity beside parameter operations,
+  but MDS should not guess or hardcode that from mixed sources
+
+**Solution:**
+
+- migrate `INIT_SYSID` onto the shared PX4 parameter write path when the action
+  pipeline audit is active, but keep it as a maintenance workflow, not a second
+  overlapping runtime control surface inside the main parameter table
+- only add firmware/build identity to the PX4 Parameters page after there is a
+  clean vehicle-served source, ideally PX4 component metadata / autopilot
+  version semantics cached by vehicle identity
+
+**Likely touch points:**
+
+- `actions.py`
+- `src/drone_setup.py`
+- `src/px4_params/service.py`
+- `app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js`
+- future hardware-grade metadata cache / vehicle identity services
+
 - add-drone/remove-drone or deeper follow-up package generation from the current airborne state
 - richer retask / fault-injection SITL drills beyond the validated findings-aware launch-control path
 
