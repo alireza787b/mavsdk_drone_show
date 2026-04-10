@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 combined node-enrollment and `mavlink-anywhere` review note
+  documenting the final bootstrap/enrollment scenario guidance, the clarified
+  `hw_id` / `pos_id` targeting doctrine, the current on-device identity files,
+  the QuickScout slot-selection consistency fix, and the non-breaking
+  improvement plan for `mavlink-anywhere`
 - explicit 2026-04-10 identity-targeting doctrine guidance documenting when
   MDS should stay `hw_id`-anchored versus when high-level mission planners may
   remain `pos_id`-anchored and resolve to current hardware at launch, plus
