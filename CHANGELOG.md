@@ -1068,3 +1068,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - live fleet config remains rooted at `config*.json` / `swarm*.json`
   - generated mission artifacts remain under `shapes/` / `shapes_sitl/`
   - legacy `APPLY_COMMON_PARAMS` compatibility now defaults to `resources/common_params.csv`
+
+# 2026-04-10
+
+### PX4 Parameters Compact Grouping And Touch Layout Refinement
+- Reworked the PX4 Parameters compact/touch list into a grouped scan-first layout so phone, tablet, and touch desktop-mode sessions browse by PX4 section instead of reading a squeezed pseudo-table.
+- Reduced compact row clutter by moving rich metadata back into the detail dialog and keeping inline rows focused on name, current value, and safety/reference icons.
+- Fixed the compact group state so operators can manually open a different PX4 section without the UI snapping back to the previously selected parameter group.
+- Added focused React coverage for grouped compact browsing plus the shared dialog flow across narrow and touch-coarse viewports.

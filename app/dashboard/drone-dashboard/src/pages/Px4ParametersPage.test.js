@@ -393,8 +393,9 @@ describe('Px4ParametersPage', () => {
 
     render(<Px4ParametersPage />);
 
-    const rowButton = await screen.findByRole('button', { name: /MPC_XY_VEL_MAX/i });
-    fireEvent.click(rowButton);
+    const groupButton = await screen.findByRole('button', { name: /Multicopter Position Control/i });
+    fireEvent.click(groupButton);
+    fireEvent.click(await screen.findByRole('button', { name: /Open details for MPC_XY_VEL_MAX/i }));
 
     expect(await screen.findByRole('dialog', { name: /MPC_XY_VEL_MAX parameter details/i })).toBeInTheDocument();
     expect(screen.getByText('Default')).toBeInTheDocument();
@@ -429,8 +430,9 @@ describe('Px4ParametersPage', () => {
 
     render(<Px4ParametersPage />);
 
-    const rowButton = await screen.findByRole('button', { name: /MPC_XY_VEL_MAX/i });
-    fireEvent.click(rowButton);
+    const groupButton = await screen.findByRole('button', { name: /Multicopter Position Control/i });
+    fireEvent.click(groupButton);
+    fireEvent.click(await screen.findByRole('button', { name: /Open details for MPC_XY_VEL_MAX/i }));
 
     expect(await screen.findByRole('dialog', { name: /MPC_XY_VEL_MAX parameter details/i })).toBeInTheDocument();
   });
@@ -440,9 +442,9 @@ describe('Px4ParametersPage', () => {
 
     render(<Px4ParametersPage />);
 
-    expect(await screen.findByText('MAVLink · System')).toBeInTheDocument();
-    expect(screen.getByText('Restart required')).toBeInTheDocument();
-    expect(screen.getAllByText('Docs').length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: /MAVLink/i })).toBeInTheDocument();
+    expect(screen.getByLabelText('Restart required')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('PX4 Docs available').length).toBeGreaterThan(0);
   });
 
   it('allows batch profile apply to online drones only when some targets are offline', async () => {

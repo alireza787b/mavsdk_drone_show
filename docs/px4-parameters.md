@@ -30,6 +30,8 @@ Design rules:
 - search and filter parameters
 - use a scan-first list/table plus one consistent detail dialog across phone,
   tablet, and desktop widths
+- group compact/touch browsing by PX4 section when no parameter search is
+  active, then flatten matching rows automatically during search
 - inspect current/default/min/max metadata when available
 - display numeric values with PX4 decimal hints when available, otherwise use a
   trimmed operator-readable precision instead of raw full-float output
@@ -134,6 +136,9 @@ should come from the connected PX4 firmware or its shipped metadata bundle.
 - use `Batch` for deliberate fleet-wide or cluster-wide settings
 - tap or click a parameter row/card to open the detail dialog; keep the main
   list/table for scanning, not for reading every metadata field inline
+- on compact/touch layouts, treat PX4 groups as the primary browsing surface
+  and keep inline rows minimal: name, current value, and a few safety/reference
+  icons
 - touch devices in browser “desktop mode” still stay on the compact card +
   dialog workflow to avoid forcing a cramped pseudo-desktop inspector onto a
   phone
@@ -159,7 +164,6 @@ doctrine.
 
 ## Deferred Follow-Up
 
-- richer grouped/category views if PX4 metadata quality proves strong enough
 - tracked long-running patch jobs if real fleets need asynchronous apply flows
 - migration or retirement of the older `APPLY_COMMON_PARAMS` workflow after the
   action-pipeline audit

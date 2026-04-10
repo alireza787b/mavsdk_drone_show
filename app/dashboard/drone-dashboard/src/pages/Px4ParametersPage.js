@@ -2,6 +2,12 @@ import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'r
 import { DataGrid } from '@mui/x-data-grid';
 import { toast } from 'react-toastify';
 import {
+  FaBook,
+  FaChevronDown,
+  FaChevronRight,
+  FaRedoAlt,
+} from 'react-icons/fa';
+import {
   getFleetConfigResponse,
   getFleetTelemetryResponse,
   getSwarmConfigResponse,
@@ -228,7 +234,68 @@ const StatusNotice = ({ notice, className = '' }) => {
   );
 };
 
-const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
+const CompactParameterRow = ({
+  row,
+  active,
+  onSelect,
+  showGroupLabel = false,
+}) => {
+  const metaLine = [showGroupLabel ? row.group : null, row.category].filter(Boolean).join(' · ');
+  const valueMeta = [row.unit, row.value_type?.toUpperCase()].filter(Boolean).join(' · ');
+
+  return (
+    <button
+      key={row.id}
+      type="button"
+      className={`px4-compact-card ${active ? 'active' : ''}`}
+      onClick={() => onSelect(row.name)}
+      aria-label={`Open details for ${row.name}`}
+    >
+      <div className="px4-compact-card__identity">
+        <strong>{row.name}</strong>
+        {metaLine ? <span>{metaLine}</span> : null}
+      </div>
+      <div className="px4-compact-card__reading">
+        <strong>{row.value}</strong>
+        {valueMeta ? <small>{valueMeta}</small> : null}
+      </div>
+      <div className="px4-compact-card__signals">
+        {row.reboot_required ? (
+          <span
+            className="px4-compact-signal px4-compact-signal--warning"
+            title="Restart required"
+            role="img"
+            aria-label="Restart required"
+          >
+            <FaRedoAlt />
+          </span>
+        ) : null}
+        {row.docs_url ? (
+          <span
+            className="px4-compact-signal"
+            title="PX4 Docs available"
+            role="img"
+            aria-label="PX4 Docs available"
+          >
+            <FaBook />
+          </span>
+        ) : null}
+        <span className="px4-compact-signal px4-compact-signal--chevron" aria-hidden="true">
+          <FaChevronRight />
+        </span>
+      </div>
+    </button>
+  );
+};
+
+const CompactParameterList = ({
+  rows,
+  selectedParamName,
+  onSelect,
+  grouped = false,
+  expandedGroup = '',
+  onToggleGroup = () => {},
+}) => {
   if (!rows.length) {
     return (
       <div className="px4-compact-list__empty">
@@ -237,37 +304,64 @@ const CompactParameterList = ({ rows, selectedParamName, onSelect }) => {
     );
   }
 
+  if (!grouped) {
+    return (
+      <div className="px4-compact-list">
+        {rows.map((row) => (
+          <CompactParameterRow
+            key={row.id}
+            row={row}
+            active={row.name === selectedParamName}
+            onSelect={onSelect}
+            showGroupLabel
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const groupedRows = rows.reduce((accumulator, row) => {
+    const groupLabel = row.group || row.category || 'Ungrouped';
+    if (!accumulator.has(groupLabel)) {
+      accumulator.set(groupLabel, []);
+    }
+    accumulator.get(groupLabel).push(row);
+    return accumulator;
+  }, new Map());
+
   return (
     <div className="px4-compact-list">
-      {rows.map((row) => {
-        const active = row.name === selectedParamName;
-        const metaLine = [row.group, row.category].filter(Boolean).join(' · ');
+      {Array.from(groupedRows.entries()).map(([groupLabel, groupRows]) => {
+        const groupActive = expandedGroup === groupLabel;
         return (
-          <button
-            key={row.id}
-            type="button"
-            className={`px4-compact-card ${active ? 'active' : ''}`}
-            onClick={() => onSelect(row.name)}
-          >
-            <div className="px4-compact-card__header">
-              <div className="px4-compact-card__identity">
-                <strong>{row.name}</strong>
-                {metaLine ? <span>{metaLine}</span> : null}
+          <section key={groupLabel} className={`px4-compact-group ${groupActive ? 'active' : ''}`}>
+            <button
+              type="button"
+              className={`px4-compact-group__header ${groupActive ? 'active' : ''}`}
+              onClick={() => onToggleGroup(groupLabel)}
+              aria-expanded={groupActive}
+            >
+              <div className="px4-compact-group__title">
+                <span className="px4-compact-group__chevron" aria-hidden="true">
+                  {groupActive ? <FaChevronDown /> : <FaChevronRight />}
+                </span>
+                <strong>{groupLabel}</strong>
               </div>
-              <div className="px4-compact-card__reading">
-                <strong>{row.value}</strong>
-                <small>{row.unit || row.value_type.toUpperCase()}</small>
+              <span className="px4-compact-group__count">{groupRows.length}</span>
+            </button>
+            {groupActive ? (
+              <div className="px4-compact-group__rows">
+                {groupRows.map((row) => (
+                  <CompactParameterRow
+                    key={row.id}
+                    row={row}
+                    active={row.name === selectedParamName}
+                    onSelect={onSelect}
+                  />
+                ))}
               </div>
-            </div>
-            <div className="px4-compact-card__facts">
-              <span className="px4-compact-fact">{row.value_type.toUpperCase()}</span>
-              {row.reboot_required ? <span className="px4-compact-fact px4-compact-fact--warning">Restart required</span> : null}
-              {row.docs_url ? <span className="px4-compact-fact">Docs</span> : null}
-            </div>
-            <div className="px4-compact-card__footer">
-              <span>{active ? 'Editing details' : 'Open details'}</span>
-            </div>
-          </button>
+            ) : null}
+          </section>
         );
       })}
     </div>
@@ -339,6 +433,7 @@ const Px4ParametersPage = () => {
   const [profileNotice, setProfileNotice] = useState(null);
   const [allowOfflineSkip, setAllowOfflineSkip] = useState(false);
   const [rebootingPx4, setRebootingPx4] = useState(false);
+  const [expandedCompactGroup, setExpandedCompactGroup] = useState('');
   const fileInputRef = useRef(null);
 
   const deferredDroneQuery = useDeferredValue(droneQuery);
@@ -704,6 +799,28 @@ const Px4ParametersPage = () => {
         .includes(query);
     });
   }, [deferredParamQuery, sessionChangedNames, showModifiedOnly, showRebootOnly, showSessionChangesOnly, snapshotResponse?.rows]);
+
+  const compactGroupingEnabled = isCompactViewport && !String(deferredParamQuery || '').trim();
+
+  useEffect(() => {
+    if (!compactGroupingEnabled || !filteredRows.length) {
+      return;
+    }
+    const availableGroups = new Set(
+      filteredRows.map((row) => row.group || row.category || 'Ungrouped'),
+    );
+    if (expandedCompactGroup && availableGroups.has(expandedCompactGroup)) {
+      return;
+    }
+    const selectedGroup = filteredRows.find((row) => row.name === selectedParamName)?.group
+      || filteredRows.find((row) => row.name === selectedParamName)?.category
+      || filteredRows[0]?.group
+      || filteredRows[0]?.category
+      || 'Ungrouped';
+    if (selectedGroup && expandedCompactGroup !== selectedGroup) {
+      setExpandedCompactGroup(selectedGroup);
+    }
+  }, [compactGroupingEnabled, expandedCompactGroup, filteredRows, selectedParamName]);
 
   const writeBlockedReason = deriveWriteBlockedReason(policy, selectedDrone, snapshotResponse?.snapshot);
   const snapshotStatusLabel = getSnapshotStatusLabel({
@@ -1415,7 +1532,7 @@ const Px4ParametersPage = () => {
               <div className="px4-inline-notice">
                 <strong>{isCompactViewport ? 'Tap a parameter' : 'Select a row'}</strong>
                 <span>
-                  Keep the list for scanning. Open one parameter at a time to review description, defaults, range, restart flags, and PX4 docs before writing.
+                  Keep the list for scanning. Search flattens matching rows; otherwise compact screens stay grouped by PX4 section.
                 </span>
               </div>
               {selectedRow ? (
@@ -1471,6 +1588,9 @@ const Px4ParametersPage = () => {
                   rows={rows}
                   selectedParamName={selectedParamName}
                   onSelect={handleSelectParameter}
+                  grouped={compactGroupingEnabled}
+                  expandedGroup={expandedCompactGroup}
+                  onToggleGroup={(groupLabel) => setExpandedCompactGroup((current) => (current === groupLabel ? '' : groupLabel))}
                 />
               ) : (
                 <DataGrid

@@ -435,6 +435,51 @@
   gap: var(--spacing-sm);
 }
 
+.px4-compact-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.px4-compact-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--color-border-primary);
+  background: color-mix(in srgb, var(--color-bg-tertiary) 82%, transparent);
+}
+
+.px4-compact-group__header.active {
+  border-color: var(--color-primary-border);
+  background: color-mix(in srgb, var(--color-primary-light) 28%, var(--color-bg-tertiary));
+}
+
+.px4-compact-group__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.px4-compact-group__chevron,
+.px4-compact-group__count {
+  color: var(--color-text-secondary);
+}
+
+.px4-compact-group__count {
+  font-size: var(--font-size-xs);
+}
+
+.px4-compact-group__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .px4-compact-list__empty {
   padding: var(--spacing-lg);
   text-align: center;
@@ -446,7 +491,10 @@
 
 .px4-compact-card {
   display: grid;
-  gap: var(--spacing-sm);
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
+  justify-items: stretch;
+  gap: 8px 12px;
   width: 100%;
   padding: 12px;
   text-align: left;
@@ -461,23 +509,19 @@
 .px4-compact-card.active {
   border-color: var(--color-primary-border);
   background: var(--color-primary-light);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 26%, transparent);
 }
 
 .px4-compact-card:hover {
   border-color: var(--color-primary-border);
-}
-
-.px4-compact-card__header {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
-  align-items: flex-start;
+  box-shadow: var(--shadow-sm);
 }
 
 .px4-compact-card__identity {
   display: grid;
   gap: 4px;
   min-width: 0;
+  align-self: start;
 }
 
 .px4-compact-card__identity strong,
@@ -486,8 +530,7 @@
 }
 
 .px4-compact-card__identity span,
-.px4-compact-card__reading small,
-.px4-compact-card__facts span {
+.px4-compact-card__reading small {
   color: var(--color-text-secondary);
 }
 
@@ -496,43 +539,57 @@
 }
 
 .px4-compact-card__reading {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-start;
+  display: grid;
   gap: 2px;
   flex-shrink: 0;
+  min-width: 92px;
+  align-self: start;
+  text-align: right;
 }
 
-.px4-compact-card__facts {
+.px4-compact-card__reading strong {
+  font-size: var(--font-size-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.px4-compact-card__signals {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: var(--font-size-xs);
+  justify-content: flex-end;
+  align-items: flex-start;
+  align-self: start;
+  gap: 6px;
+  padding-top: 2px;
 }
 
-.px4-compact-fact {
+.px4-compact-signal {
   display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   border: 1px solid var(--color-border-light);
-  background: color-mix(in srgb, var(--color-bg-primary) 76%, transparent);
+  background: color-mix(in srgb, var(--color-bg-primary) 78%, transparent);
+  color: var(--color-text-secondary);
 }
 
-.px4-compact-fact--warning {
+.px4-compact-signal--warning {
   border-color: var(--color-warning-border);
   background: var(--color-warning-light);
   color: var(--color-warning);
 }
 
-.px4-compact-card__footer {
-  display: flex;
-  justify-content: flex-end;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  padding-top: 4px;
-  border-top: 1px solid color-mix(in srgb, var(--color-border-light) 82%, transparent);
+.px4-compact-signal--chevron {
+  border-color: transparent;
+  background: transparent;
+}
+
+.px4-compact-group__header strong {
+  text-align: left;
+}
+
+.px4-compact-group__rows .px4-compact-card + .px4-compact-card {
+  margin-top: 2px;
 }
 
 .px4-profile-panel__entries {
@@ -875,11 +932,28 @@
     flex-basis: 100%;
   }
 
-  .px4-target-summary,
-  .px4-compact-card__header,
-  .px4-compact-card__reading {
+  .px4-target-summary {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .px4-compact-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .px4-compact-card__reading {
+    grid-column: 2 / 3;
+    grid-row: 1 / 2;
+    min-width: 82px;
+    align-self: start;
+  }
+
+  .px4-compact-card__signals {
+    grid-column: 1 / -1;
+    grid-row: 2 / 3;
+    justify-content: flex-start;
+    padding-top: 0;
   }
 
   .px4-param-inspector__grid {
