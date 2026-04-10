@@ -668,6 +668,32 @@ class TestGitStatus:
         assert 'status' in data
         assert data['status'] == 'clean'
 
+    def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
+        """Drone git status should expose a usable branch name from detached worktrees."""
+        def mock_execute_git_command(self, command):
+            git_responses = {
+                ('git', 'rev-parse', '--abbrev-ref', 'HEAD'): 'HEAD',
+                ('git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'): '',
+                ('git', 'for-each-ref', '--format=%(refname:short)', '--contains', 'HEAD', 'refs/remotes'): 'origin/HEAD\norigin/main-candidate',
+                ('git', 'rev-parse', 'HEAD'): 'abc123def456',
+                ('git', 'show', '-s', '--format=%an', 'abc123def456'): 'Test User',
+                ('git', 'show', '-s', '--format=%ae', 'abc123def456'): 'test@example.com',
+                ('git', 'show', '-s', '--format=%cd', '--date=iso-strict', 'abc123def456'): '2025-11-22T10:00:00+00:00',
+                ('git', 'show', '-s', '--format=%B', 'abc123def456'): 'test commit',
+                ('git', 'config', '--get', 'remote.origin.url'): 'git@github.com:test/repo.git',
+                ('git', 'status', '--porcelain'): ''
+            }
+            return git_responses.get(tuple(command), '')
+
+        from src.drone_api_server import DroneAPIServer
+        monkeypatch.setattr(DroneAPIServer, '_execute_git_command', mock_execute_git_command)
+
+        response = test_client.get("/api/v1/git/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['branch'] == 'main-candidate'
+
 
 class TestNetworkStatus:
     """Test network status endpoint"""

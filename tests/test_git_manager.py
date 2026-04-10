@@ -165,6 +165,40 @@ class TestGetLocalGitReport:
 
         assert 'error' in result
 
+    @patch('functions.git_manager.execute_git_command')
+    def test_get_local_git_report_resolves_detached_head_from_remote_ref(self, mock_exec):
+        """Detached worktrees should still resolve a useful branch name."""
+        from functions.git_manager import get_local_git_report
+
+        def mock_git_cmd(cmd, cwd=None):
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', 'HEAD']:
+                return 'HEAD'
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']:
+                return None
+            if cmd == ['git', 'for-each-ref', '--format=%(refname:short)', '--contains', 'HEAD', 'refs/remotes']:
+                return 'origin/HEAD\norigin/main-candidate'
+            if cmd == ['git', 'rev-parse', 'HEAD']:
+                return 'abc123def456789'
+            if '--format=%an' in cmd:
+                return 'Test Author'
+            if '--format=%ae' in cmd:
+                return 'test@example.com'
+            if '--format=%cd' in cmd:
+                return '2026-04-10T10:00:00+00:00'
+            if '--format=%B' in cmd:
+                return 'Detached commit'
+            if 'remote.origin.url' in cmd:
+                return 'git@github.com:test/repo.git'
+            if '--porcelain' in cmd:
+                return ''
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        result = get_local_git_report()
+
+        assert result['branch'] == 'main-candidate'
+
 
 class TestGetLocalGitShortStatus:
     """Test abbreviated git status"""
@@ -230,6 +264,28 @@ class TestGetLocalGitShortStatus:
         result = get_local_git_short_status()
 
         assert result['status'] == 'clean'
+
+    @patch('functions.git_manager.execute_git_command')
+    def test_get_short_status_resolves_detached_head_from_tracking_branch(self, mock_exec):
+        """Short status should resolve a detached head via upstream when available."""
+        from functions.git_manager import get_local_git_short_status
+
+        def mock_git_cmd(cmd, cwd=None):
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', 'HEAD']:
+                return 'HEAD'
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']:
+                return 'origin/main-candidate'
+            if cmd == ['git', 'rev-parse', '--short', 'HEAD']:
+                return 'abc1234'
+            if cmd == ['git', 'status', '--porcelain']:
+                return ''
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        result = get_local_git_short_status()
+
+        assert result['branch'] == 'main-candidate'
 
 
 class TestGetRemoteGitStatus:

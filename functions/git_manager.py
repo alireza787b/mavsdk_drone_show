@@ -28,6 +28,70 @@ IGNORED_UNCOMMITTED_PATHS = {
 }
 
 
+def normalize_branch_name(raw_branch: Optional[str]) -> str:
+    """Strip remote prefixes and detached-name noise from a git branch reference."""
+    if not raw_branch:
+        return ''
+
+    branch = raw_branch.strip()
+    for prefix in ('refs/remotes/', 'refs/heads/', 'remotes/'):
+        if branch.startswith(prefix):
+            branch = branch[len(prefix):]
+    if branch.startswith('origin/'):
+        branch = branch[len('origin/'):]
+    if branch.endswith('^0'):
+        branch = branch[:-2]
+    return branch
+
+
+def resolve_current_git_branch(
+    command_executor,
+    *,
+    cwd: Optional[str] = None,
+) -> Optional[str]:
+    """
+    Resolve the current branch even when Git is running from a detached HEAD worktree.
+
+    Prefers the direct branch name when available, then falls back to upstream,
+    remote refs that contain HEAD, and finally a name-rev hint.
+    """
+    branch = command_executor(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=cwd)
+    if branch and branch != 'HEAD':
+        return normalize_branch_name(branch)
+
+    tracking_branch = command_executor(
+        ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+        cwd=cwd,
+    )
+    if tracking_branch:
+        normalized = normalize_branch_name(tracking_branch)
+        if normalized and normalized != 'HEAD':
+            return normalized
+
+    remote_refs_output = command_executor(
+        ['git', 'for-each-ref', '--format=%(refname:short)', '--contains', 'HEAD', 'refs/remotes'],
+        cwd=cwd,
+    ) or ''
+    remote_refs = [
+        normalize_branch_name(line)
+        for line in remote_refs_output.splitlines()
+        if line.strip() and not line.strip().endswith('/HEAD')
+    ]
+    if remote_refs:
+        preferred = next(
+            (ref for ref in remote_refs if ref in {'main-candidate', 'main', 'master'}),
+            remote_refs[0],
+        )
+        return preferred
+
+    name_rev = command_executor(['git', 'name-rev', '--name-only', 'HEAD'], cwd=cwd)
+    normalized_name_rev = normalize_branch_name(name_rev)
+    if normalized_name_rev and normalized_name_rev not in {'HEAD', 'undefined'}:
+        return normalized_name_rev
+
+    return None
+
+
 def filter_git_status_lines(status_lines: list[str]) -> list[str]:
     """Remove generated runtime metadata that should not mark the repo dirty."""
     filtered_lines: list[str] = []
@@ -105,7 +169,7 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
     """
     try:
         # Get current branch
-        branch = execute_git_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=repo_path)
+        branch = resolve_current_git_branch(execute_git_command, cwd=repo_path)
         if not branch:
             return {'error': 'Failed to get current branch'}
 
@@ -178,9 +242,7 @@ def get_local_git_short_status(repo_path: Optional[str] = None) -> Dict[str, Any
         - status: 'clean' or 'dirty'
     """
     try:
-        branch = execute_git_command(
-            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'], cwd=repo_path
-        )
+        branch = resolve_current_git_branch(execute_git_command, cwd=repo_path)
         commit = execute_git_command(
             ['git', 'rev-parse', '--short', 'HEAD'], cwd=repo_path
         )

@@ -89,6 +89,7 @@ from src.px4_param_models import (
     Px4ParamValueResponse,
 )
 from src.px4_params.service import Px4ParamService
+from functions.git_manager import resolve_current_git_branch
 from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
@@ -864,7 +865,9 @@ class DroneAPIServer:
             """
             try:
                 # Retrieve git information
-                branch = self._execute_git_command(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
+                branch = resolve_current_git_branch(
+                    lambda cmd, cwd=None: self._execute_git_command(cmd)
+                )
                 commit = self._execute_git_command(['git', 'rev-parse', 'HEAD'])
                 author_name = self._execute_git_command(['git', 'show', '-s', '--format=%an', commit])
                 author_email = self._execute_git_command(['git', 'show', '-s', '--format=%ae', commit])
