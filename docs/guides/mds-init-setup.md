@@ -14,6 +14,7 @@ The `mds_node_init.sh` script is an enterprise-grade bootstrap system that confi
 - Systemd service installation
 - Firewall configuration with SSH port detection
 - NTP time synchronization
+- Candidate announce to the GCS enrollment registry when the API is reachable
 - Optional: NetBird VPN (official or self-hosted), Static IP
 
 ## Prerequisites
@@ -134,6 +135,14 @@ sudo ./tools/mds_node_init.sh -d 1 \
     -y
 ```
 
+With an explicit GCS API URL for candidate announce:
+
+```bash
+sudo ./tools/mds_node_init.sh -d 1 \
+    --gcs-api-url https://gcs.example/api \
+    -y
+```
+
 ## Initialization Phases
 
 The script runs through these phases automatically:
@@ -153,6 +162,7 @@ The script runs through these phases automatically:
 | 11. Netbird | (Optional) Configures VPN access |
 | 12. Static IP | (Optional) Configures static IP address |
 | 13. Verify | Final verification of installation |
+| 14. Candidate Announce | Sends the node identity to the GCS enrollment registry when reachable |
 
 ## Common Setup Scenarios
 
@@ -209,6 +219,14 @@ See what would happen without making changes:
 sudo ./tools/mds_node_init.sh -d 1 --dry-run
 ```
 
+### Scenario 6: Re-send Candidate Announce Only
+
+If the node is provisioned but the GCS was unavailable during bootstrap:
+
+```bash
+sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5000
+```
+
 ## Post-Installation
 
 ### Verify Installation
@@ -252,7 +270,7 @@ After installation, key configuration files are:
 
 | File | Purpose |
 |------|---------|
-| `/etc/mds/local.env` | Per-node runtime overrides (drone ID, GCS IP, repo/branch overrides, etc.) |
+| `/etc/mds/local.env` | Per-node runtime overrides (drone ID, GCS IP, optional GCS API URL, repo/branch overrides, etc.) |
 | `/etc/mds/node_identity.json` | Structured machine-readable node manifest for automation, enrollment, and diagnostics |
 | `/var/lib/mds/init_state.json` | Installation state tracking |
 | `~/mavsdk_drone_show/config.json` | Drone hardware configuration |
@@ -265,6 +283,12 @@ To change drone-specific settings:
 ```bash
 sudo nano /etc/mds/local.env
 sudo systemctl restart coordinator
+```
+
+To preview or resend the candidate announce payload:
+
+```bash
+sudo ./tools/mds_node_announce.sh --dry-run --report-json -
 ```
 
 ## Troubleshooting

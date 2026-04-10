@@ -64,6 +64,7 @@ source_library "mavsdk.sh"
 source_library "services.sh"
 source_library "network.sh"
 source_library "verify.sh"
+source_library "announce.sh"
 
 # =============================================================================
 # GLOBAL VARIABLES
@@ -79,6 +80,7 @@ NETBIRD_URL=""
 STATIC_IP=""
 GATEWAY=""
 GCS_IP=""
+GCS_API_URL=""
 MAVSDK_VERSION=""
 MAVSDK_URL=""
 
@@ -96,6 +98,8 @@ FORCE="false"
 VERBOSE="false"
 DEBUG="false"
 REPORT_JSON=""
+ANNOUNCE_REPORT_JSON=""
+ANNOUNCE_TIMEOUT_SEC="${DEFAULT_ANNOUNCE_TIMEOUT_SEC}"
 
 # MAVLink Configuration (NEW in v4.5)
 MAVLINK_AUTO="false"
@@ -166,6 +170,7 @@ OPTIONAL COMPONENTS:
     --static-ip IP/CIDR         Static IP address (e.g., 192.168.1.42/24)
     --gateway IP                Gateway for static IP
     --gcs-ip IP                 Override GCS IP address
+    --gcs-api-url URL           Override GCS API base URL for candidate announce
 
 MAVSDK OPTIONS:
     --mavsdk-version VERSION    Specific MAVSDK version (e.g., v3.15.0)
@@ -194,6 +199,9 @@ CONTROL OPTIONS:
     --dry-run                   Show what would be done without making changes
     --report-json PATH          Write machine-readable bootstrap report
                                 Use '-' to print the report JSON to stdout
+    --announce-report-json PATH Write candidate-announce report JSON
+                                Use '-' to print the report JSON to stdout
+    --announce-timeout SEC      Candidate-announce HTTP timeout (default: 15)
     --resume                    Resume from last checkpoint
     --force                     Force re-run all phases (ignore state)
     -v, --verbose               Verbose output
@@ -219,6 +227,9 @@ EXAMPLES:
     # Full setup with VPN and static IP
     sudo ./mds_node_init.sh -d 5 --netbird-key "XXXXX" --static-ip 192.168.1.105/24 --gateway 192.168.1.1
 
+    # Explicit GCS API URL for candidate announce
+    sudo ./mds_node_init.sh -d 5 --gcs-api-url https://gcs.example/api -y
+
     # Auto-configure mavlink-router with GCS IP (NEW)
     sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
 
@@ -235,6 +246,7 @@ ENVIRONMENT VARIABLES:
     MDS_REPO_URL                Override repository URL
     MDS_BRANCH                  Override git branch
     MDS_GCS_IP                  Override GCS IP address
+    MDS_GCS_API_BASE_URL        Override candidate-announce API base URL
 
 STATE FILE:
     /var/lib/mds/init_state.json    Persistent state tracking
@@ -255,7 +267,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
         -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -309,6 +321,10 @@ parse_args() {
                 ;;
             --gcs-ip)
                 GCS_IP="$2"
+                shift 2
+                ;;
+            --gcs-api-url)
+                GCS_API_URL="$2"
                 shift 2
                 ;;
             --mavsdk-version)
@@ -383,6 +399,14 @@ parse_args() {
                 REPORT_JSON="$2"
                 shift 2
                 ;;
+            --announce-report-json)
+                ANNOUNCE_REPORT_JSON="$2"
+                shift 2
+                ;;
+            --announce-timeout)
+                ANNOUNCE_TIMEOUT_SEC="$2"
+                shift 2
+                ;;
             --resume)
                 RESUME="true"
                 shift
@@ -417,12 +441,12 @@ parse_args() {
 
     # Export all configuration for use by libraries
     export DRONE_ID REPO_URL BRANCH USE_HTTPS
-    export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP
+    export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP GCS_API_URL
     export MAVSDK_VERSION MAVSDK_URL
     export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS
     export MAVLINK_INPUT_TYPE MAVLINK_INPUT_PORT
     export SKIP_FIREWALL SKIP_NETBIRD SKIP_NTP SKIP_SERVICES SKIP_MAVSDK SKIP_VENV
-    export NON_INTERACTIVE DRY_RUN REPORT_JSON RESUME FORCE VERBOSE DEBUG
+    export NON_INTERACTIVE DRY_RUN REPORT_JSON ANNOUNCE_REPORT_JSON ANNOUNCE_TIMEOUT_SEC RESUME FORCE VERBOSE DEBUG
 }
 
 # =============================================================================
@@ -444,7 +468,10 @@ declare -a PHASES=(
     "netbird"
     "static_ip"
     "verify"
+    "candidate_announce"
 )
+
+MDS_TOTAL_PHASES="${#PHASES[@]}"
 
 # Run a specific phase
 run_phase() {
@@ -506,6 +533,9 @@ run_phase() {
             ;;
         verify)
             run_verify_phase || result=$?
+            ;;
+        candidate_announce)
+            run_candidate_announce_phase || result=$?
             ;;
         *)
             log_error "Unknown phase: $phase"

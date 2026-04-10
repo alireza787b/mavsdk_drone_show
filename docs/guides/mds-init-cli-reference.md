@@ -34,6 +34,7 @@ These parameters are required but can be provided interactively if omitted:
 | `--static-ip IP/CIDR` | Static IP address (e.g., `192.168.1.42/24`) |
 | `--gateway IP` | Gateway for static IP |
 | `--gcs-ip IP` | Override GCS IP address |
+| `--gcs-api-url URL` | Override GCS API base URL used for candidate announce |
 
 ## MAVSDK Options
 
@@ -62,6 +63,8 @@ Use these flags to skip specific phases:
 | `-y, --yes` | Non-interactive mode (use defaults, no prompts) |
 | `--dry-run` | Show what would be done without making changes |
 | `--report-json PATH` | Write a machine-readable bootstrap report to `PATH` (`-` prints JSON to stdout) |
+| `--announce-report-json PATH` | Write a machine-readable candidate-announce report to `PATH` (`-` prints JSON to stdout) |
+| `--announce-timeout SEC` | Candidate-announce HTTP timeout in seconds |
 | `--resume` | Resume from last checkpoint |
 | `--force` | Force re-run all phases (ignore state) |
 | `-v, --verbose` | Verbose output |
@@ -77,6 +80,7 @@ The script respects these environment variables (override CLI defaults):
 | `MDS_REPO_URL` | Override repository URL | CLI or default |
 | `MDS_BRANCH` | Override git branch | CLI or default |
 | `MDS_GCS_IP` | Override GCS IP address | From params.py |
+| `MDS_GCS_API_BASE_URL` | Override candidate-announce API base URL | Derived from `MDS_GCS_IP` |
 
 ## Exit Codes
 
@@ -148,6 +152,14 @@ sudo ./tools/mds_node_init.sh -d 5 \
     --static-ip 192.168.1.105/24 \
     --gateway 192.168.1.1 \
     --gcs-ip 192.168.1.100 \
+    -y
+```
+
+Explicit candidate-announce API URL:
+```bash
+sudo ./tools/mds_node_init.sh -d 5 \
+    --gcs-api-url https://gcs.example/api \
+    --announce-report-json /var/lib/mds/announce-report.json \
     -y
 ```
 
@@ -257,6 +269,24 @@ sudo ./tools/mds_node_init.sh -d 1 -y
 |------|-------------|
 | `/etc/mds/local.env` | Per-node runtime overrides |
 | `/etc/mds/node_identity.json` | Structured node manifest for automation, enrollment, and diagnostics |
+
+## Candidate Announce Helper
+
+The bootstrap can announce directly to the GCS enrollment registry when a GCS
+API URL or `MDS_GCS_IP` is available. You can also re-run that discovery step
+later without repeating the whole bootstrap:
+
+```bash
+sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5000
+sudo ./tools/mds_node_announce.sh --dry-run --report-json -
+```
+
+URL resolution order:
+
+1. `--gcs-api-url`
+2. `MDS_GCS_API_BASE_URL`
+3. `MDS_GCS_API_BASE_URL` from `/etc/mds/local.env`
+4. `MDS_GCS_IP` / `--gcs-ip` with default port `5000`
 | `/var/lib/mds/init_state.json` | Installation state |
 | `/var/log/mds/mds_init.log` | Installation log |
 | `/home/droneshow/mavsdk_drone_show/` | MDS installation directory |

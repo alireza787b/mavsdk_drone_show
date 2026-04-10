@@ -316,7 +316,9 @@ PASSTHROUGH OPTIONS (to mds_node_init.sh):
     --https             Use HTTPS for git operations
     --netbird-key KEY   Netbird VPN setup key
     --static-ip IP      Static IP address (CIDR format)
+    --gcs-api-url URL   Explicit GCS API base URL for candidate announce
     --report-json PATH  Write machine-readable bootstrap report to PATH ('-' = stdout)
+    --announce-report-json PATH  Write candidate-announce report to PATH ('-' = stdout)
     --dry-run           Show what would be done
 
     See mds_node_init.sh --help for all options
@@ -346,6 +348,9 @@ EXAMPLES:
 
     # Full setup with VPN
     curl -fsSL ... | sudo bash -s -- -d 5 --netbird-key "XXXXX" -y
+
+    # Explicit GCS API URL for enrollment announce
+    curl -fsSL ... | sudo bash -s -- -d 5 --gcs-api-url https://gcs.example/api -y
 
 WHAT THIS SCRIPT DOES:
     1. Creates 'droneshow' user if needed

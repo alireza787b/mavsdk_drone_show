@@ -279,3 +279,42 @@ These are acceptable for the current subsystem maturity, but they should stay vi
 - future manual-control/MCP docs and validators
 
 ---
+
+## TODO 12: Named bootstrap profiles and fleet automation assets
+
+**Priority:** Medium
+**Status:** Deferred — node bootstrap, candidate announce, and Fleet Enrollment are now canonical, but named preset files and automation assets are not yet first-class repo resources
+
+**Problem:** The companion bootstrap and enrollment workflow is now coherent, but operators and automation still assemble provisioning inputs from CLI args, environment variables, and external inventory tooling. There is not yet one checked-in preset system for repeatable fleet classes such as:
+
+- `netbird_managed`
+- `static_local`
+- `manual_router`
+- customer-specific repo / branch defaults
+
+**Solution:** Add a bootstrap-profile layer on top of the current canonical scripts instead of introducing a second provisioning path. Likely assets:
+
+- `resources/bootstrap_profiles/`
+- documented JSON/YAML schema for profile values
+- examples for Ansible inventory / vault-backed usage
+- optional `--profile` support in `mds_node_init.sh`
+
+This is post-v1 hardening, not missing core functionality.
+
+---
+
+## TODO 13: mavlink-anywhere integration review and automation polish
+
+**Priority:** Medium
+**Status:** Deferred — current MDS bootstrap already integrates with `mavlink-anywhere`, but the external repo has not yet been reviewed and tightened as part of this enrollment redesign
+
+**Problem:** The companion bootstrap depends on `mavlink-anywhere` for the recommended real-hardware routing path. The MDS side is now cleaner, but the cross-repo automation, docs, and machine-friendly integration seams have not been fully audited yet.
+
+**Solution:** Review the `mavlink-anywhere` repo as a follow-up and improve only where it materially helps MDS deployment:
+
+- cleaner non-interactive install/config flow
+- clearer outputs for AI/automation/MCP use
+- docs alignment with `mds_node_init.sh`
+- optional tagging/release guidance if real changes are made there
+
+---

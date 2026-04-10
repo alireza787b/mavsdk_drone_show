@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 node-bootstrap candidate-announce checkpoint note documenting
+  the new canonical `mds_node_announce.sh` helper, the `mds_node_init.sh`
+  announce integration, the expanded node manifest/bootstrap report fields, the
+  active docs/headless-automation cleanup, and the paired local / Hetzner
+  validation results
 - a 2026-04-10 fleet-enrollment operator-workflow checkpoint note
   documenting the dedicated `Fleet Enrollment` page, the new same-hardware
   recovery route, the retirement of the old `ReplaceDroneWizard`, the Mission

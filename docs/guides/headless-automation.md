@@ -245,6 +245,7 @@ sudo ./tools/mds_node_init.sh \
     --https \
     --skip-netbird \      # Skip VPN (configure per-drone)
     --report-json /var/lib/mds/bootstrap-report.json \
+    --announce-report-json /var/lib/mds/announce-report.json \
     -y
 ```
 
@@ -317,6 +318,7 @@ Set these before running the script:
 export MDS_REPO_URL="https://github.com/myorg/customer-mds.git"
 export MDS_BRANCH="production"
 export MDS_GCS_IP="192.168.1.100"
+export MDS_GCS_API_BASE_URL="http://192.168.1.100:5000"
 
 sudo -E ./tools/mds_node_init.sh -d 1 --https --report-json /var/lib/mds/bootstrap-report.json -y
 ```
@@ -325,6 +327,15 @@ Credential handling guidance:
 - store Git HTTPS tokens, SSH deploy keys, and NetBird setup keys in Ansible Vault or your CI/CD secret store
 - pass them into the bootstrap as environment variables, mounted files, or runtime inventory variables
 - do not bake customer secrets into golden images, repo files, or shell history
+
+Announce behavior guidance:
+- the bootstrap now attempts a canonical candidate announce when it can resolve a GCS API URL
+- `MDS_GCS_API_BASE_URL` is the most explicit automation-friendly way to control that endpoint
+- if the GCS is unavailable during bootstrap, rerun:
+
+```bash
+sudo ./tools/mds_node_announce.sh --report-json /var/lib/mds/announce-report.json
+```
 
 ## Verification and Monitoring
 

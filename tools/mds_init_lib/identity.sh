@@ -190,6 +190,7 @@ setup_local_env() {
     local gcs_ip="${2:-}"
     local repo_url="${3:-}"
     local branch="${4:-}"
+    local gcs_api_url="${5:-}"
 
     log_step "Setting up local environment configuration..."
 
@@ -223,6 +224,12 @@ MDS_GCS_IP=${gcs_ip}
 "
     fi
 
+    if [[ -n "$gcs_api_url" ]]; then
+        content+="# Ground Control Station API base URL override
+MDS_GCS_API_BASE_URL=${gcs_api_url}
+"
+    fi
+
     if [[ -n "$repo_url" ]]; then
         content+="# Repository URL override (for custom forks)
 MDS_REPO_URL=${repo_url}
@@ -243,6 +250,7 @@ MDS_BRANCH=${branch}
 # MDS_BACKUP_COUNT=20
 # MDS_SIM_MODE=false
 # MDS_MAVLINK_PORT=14540
+# MDS_GCS_API_PORT=5000
 "
 
     # Write the file
@@ -402,7 +410,7 @@ write_node_identity_manifest() {
 
     local node_uuid hostname repo_url branch network_mode primary_control_ip
     local mavlink_routing_mode mavlink_input_type mavlink_input_device role_hint
-    local netbird_enabled generated_at
+    local netbird_enabled generated_at created_at
 
     node_uuid=$(get_or_create_node_uuid)
     hostname=$(hostname 2>/dev/null || echo "unknown")
@@ -415,6 +423,12 @@ write_node_identity_manifest() {
     mavlink_input_device=$(detect_mavlink_input_device)
     role_hint=$(get_local_env_value "MDS_ROLE_HINT" "")
     generated_at=$(date -Iseconds)
+    created_at=""
+
+    if [[ -f "${MDS_NODE_IDENTITY_FILE}" ]] && command -v jq &>/dev/null; then
+        created_at=$(jq -r '.created_at // .updated_at // ""' "${MDS_NODE_IDENTITY_FILE}" 2>/dev/null || echo "")
+    fi
+    [[ -z "$created_at" || "$created_at" == "null" ]] && created_at="$generated_at"
 
     if [[ -n "$(state_get_value "netbird_ip" "")" ]]; then
         netbird_enabled="true"
@@ -448,6 +462,7 @@ write_node_identity_manifest() {
         --arg mavlink_routing_mode "$mavlink_routing_mode" \
         --arg mavlink_input_type "$mavlink_input_type" \
         --arg mavlink_input_device "$mavlink_input_device" \
+        --arg created_at "$created_at" \
         --arg generated_at "$generated_at" \
         --arg local_env_file "$MDS_LOCAL_ENV" \
         --arg node_identity_file "$MDS_NODE_IDENTITY_FILE" \
@@ -462,6 +477,8 @@ write_node_identity_manifest() {
             branch: (if $branch == "" then null else $branch end),
             bootstrap_version: $bootstrap_version,
             bootstrap_status: $bootstrap_status,
+            created_at: $created_at,
+            last_bootstrap_at: $generated_at,
             network_mode: $network_mode,
             primary_control_ip: (if $primary_control_ip == "" then null else $primary_control_ip end),
             netbird_enabled: $netbird_enabled,
@@ -499,6 +516,12 @@ write_bootstrap_report() {
         --arg repo_url "${REPO_URL:-$(state_get_value repo_url "")}" \
         --arg branch "${BRANCH:-$(state_get_value repo_branch "")}" \
         --arg node_uuid "$(state_get_value node_uuid "")" \
+        --arg gcs_api_url "${GCS_API_URL:-$(state_get_value announce_url "")}" \
+        --arg announce_status "$(state_get_value announce_status "")" \
+        --arg announce_http_status "$(state_get_value announce_http_status "")" \
+        --arg announce_candidate_id "$(state_get_value announce_candidate_id "")" \
+        --arg announce_registration_state "$(state_get_value announce_registration_state "")" \
+        --arg announce_message "$(state_get_value announce_message "")" \
         --arg state_file "$MDS_STATE_FILE" \
         --arg local_env_file "$MDS_LOCAL_ENV" \
         --arg node_identity_file "$MDS_NODE_IDENTITY_FILE" \
@@ -513,6 +536,12 @@ write_bootstrap_report() {
             repo_url: (if $repo_url == "" then null else $repo_url end),
             branch: (if $branch == "" then null else $branch end),
             node_uuid: (if $node_uuid == "" then null else $node_uuid end),
+            gcs_api_url: (if $gcs_api_url == "" then null else $gcs_api_url end),
+            announce_status: (if $announce_status == "" then null else $announce_status end),
+            announce_http_status: (if $announce_http_status == "" then null else ($announce_http_status | tonumber) end),
+            announce_candidate_id: (if $announce_candidate_id == "" then null else $announce_candidate_id end),
+            announce_registration_state: (if $announce_registration_state == "" then null else $announce_registration_state end),
+            announce_message: (if $announce_message == "" then null else $announce_message end),
             state_file: $state_file,
             local_env_file: $local_env_file,
             node_identity_file: $node_identity_file
@@ -594,7 +623,7 @@ run_identity_phase() {
     print_section "Environment Configuration"
 
     # Setup local.env
-    setup_local_env "$drone_id" "${GCS_IP:-}" "${REPO_URL:-}" "${BRANCH:-}" || return 1
+    setup_local_env "$drone_id" "${GCS_IP:-}" "${REPO_URL:-}" "${BRANCH:-}" "${GCS_API_URL:-}" || return 1
     write_node_identity_manifest "$drone_id" "identity_configured" || return 1
 
     echo ""

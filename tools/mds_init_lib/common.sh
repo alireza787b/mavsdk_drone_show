@@ -183,7 +183,7 @@ print_banner() {
 print_phase_header() {
     local phase_num="$1"
     local phase_name="$2"
-    local total_phases="${3:-13}"
+    local total_phases="${3:-${MDS_TOTAL_PHASES:-13}}"
 
     echo ""
     echo -e "${CYAN}+==============================================================================+${NC}"
