@@ -27,23 +27,23 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 
 ---
 
-## TODO 2: Auto-update swarm follow chains on role swap
+## TODO 2: Clarify deliberate slot reassignment versus Smart Swarm follow ownership
 
 **Priority:** Medium
 **Status:** Deferred — needs UX design for swarm mode interaction
 
-**Problem:** `swarm.json` `follow` field references `hw_id`. If drone hw_id=2 fails and spare hw_id=10 takes pos_id=2, followers still reference `follow=2` (the dead drone). Operators must manually edit swarm.json.
+**Problem:** `swarm.json` `follow` references `hw_id`, not `pos_id`. That is the correct model for live Smart Swarm leader/follower control, but it still creates one operator-education gap: a deliberate Mission Config slot reassignment (`pos_id` change while the same physical drones stay in service) does **not** remap Smart Swarm follow chains. Dedicated spare replacement through Fleet Enrollment already rewrites the affected `hw_id` / `follow` references, so the remaining gap is generic slot-reassignment clarity, not replacement correctness.
 
-**Solution:** When operator changes a drone's pos_id in config.json (via UI), detect if swarm.json follow chains reference the old hw_id and offer to auto-update. Options:
-- (a) Change `follow` column to reference pos_id instead of hw_id
-- (b) Keep hw_id reference but add UI warning + auto-update on role swap
-- (c) Option (b) is recommended — minimal data model change, smart UI
+**Solution:** Keep Smart Swarm data model `hw_id`-anchored, but make the operator semantics explicit. The likely product path is:
+- (a) leave deliberate slot reassignments as Mission Config only, with an explicit warning that Smart Swarm topology is unchanged
+- (b) add a guided shortcut from Mission Config into Swarm Design when a slot reassignment likely requires follow-chain review
+- (c) only add an optional follow-chain rewrite helper if operators prove they need it as a separate explicit action
 
 **Files to modify:**
-- `gcs-server/config.py` — add swarm chain validation in `validate_and_process_config()`
-- `gcs-server/app_fastapi.py` — endpoint to update swarm follow chains
-- Frontend `SwarmDesign.js` — warning when follow target is offline/replaced
-- Frontend `SaveReviewDialog.js` — warn about broken follow chains
+- `app/dashboard/drone-dashboard/src/pages/MissionConfig.js` — keep slot-swap guidance explicit
+- `app/dashboard/drone-dashboard/src/pages/SwarmDesign.js` — keep Smart Swarm topology guidance explicit
+- `docs/features/smart-swarm.md` — preserve the slot-swap vs replacement doctrine
+- optional future helper only if a separate explicit rewrite workflow is accepted
 
 ---
 

@@ -236,4 +236,29 @@ describe('MissionConfig origin review surface', () => {
     expect(screen.getByRole('button', { name: /review enrollment queue/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /review candidate/i })).toBeInTheDocument();
   });
+
+  test('keeps slot reassignment and spare replacement guidance distinct in the identity guide', () => {
+    const fetchResponses = buildFetchResponseMap({
+      data: { lat: 35.7, lon: 51.2 },
+      loading: false,
+      error: null,
+    });
+
+    useFetch.mockImplementation((endpoint) => fetchResponses[endpoint] || { data: null, loading: false, error: null });
+
+    renderMissionConfig();
+
+    fireEvent.click(screen.getByText('Identity guide').closest('summary'));
+
+    expect(
+      screen.getAllByText((_, element) => (
+        element?.textContent?.includes('Slot reassignment in Mission Config changes show-slot ownership only.') ?? false
+      )).length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText((_, element) => (
+        element?.textContent?.includes('Physical replacement uses Fleet Enrollment') ?? false
+      )).length
+    ).toBeGreaterThan(0);
+  });
 });

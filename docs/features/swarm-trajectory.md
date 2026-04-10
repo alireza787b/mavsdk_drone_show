@@ -24,6 +24,12 @@
 
 The **Swarm Trajectory Feature** enables coordinated drone swarm missions where top leaders follow pre-defined waypoint trajectories while followers maintain precise formations using configured offsets. This creates sophisticated swarm choreography with minimal user input.
 
+Identity rule:
+
+- authoring and route ownership are slot-oriented (`pos_id`)
+- execution still targets the currently assigned physical drones (`hw_id`)
+- dense operator surfaces should keep showing both when that context matters, using compact `Pn|Hm` style display where appropriate
+
 ### Key Capabilities
 
 - **Leader-Follower Architecture**: Top leaders follow uploaded CSV trajectories, followers calculated automatically

@@ -4,6 +4,15 @@
 **Status:** Implementation Complete (2026-03-05) — see resolved markers below
 **Scope:** All MDS modules — drone show, smart swarm, search & rescue, leader-follower
 
+> 2026-04-10 alignment note: this research document remains useful background,
+> but the settled product doctrine is now:
+> - dedicated Fleet Enrollment replacement rewrites Smart Swarm replacement
+>   references when a spare takes over a failed slot
+> - deliberate Mission Config slot swaps do not auto-remap Smart Swarm follow
+>   chains
+> - `hw_id` remains the physical/runtime identity while `pos_id` remains the
+>   mission/show-slot identity
+
 ---
 
 ## Table of Contents
@@ -286,7 +295,16 @@ The decoupling enables:
 - **Option B: Use pos_id in swarm.json** — Better for hot-swap (spare drone inherits all relationships). But semantically changes the meaning of "follow".
 - **Option C: UI auto-resolves** — Keep hw_id in swarm.json but have the UI/backend auto-update follow references when a role swap is made.
 
-**Recommendation:** Option C — Keep the data model (hw_id), but add smart UI that warns/auto-updates when role swaps break follow chains.
+**Recommendation (2026-03-05 research):** Option C — Keep the data model
+(`hw_id`), but add smart UI that warns/auto-updates when role swaps break
+follow chains.
+
+**Final product stance (2026-04-10):**
+
+- dedicated spare replacement now rewrites the affected Smart Swarm references
+- generic slot swaps remain Mission Config semantics only
+- optional slot-swap guidance/helpers may still be added later, but generic
+  automatic remapping is not currently part of the settled operator workflow
 
 ### 5.4 Port Derivation from hw_id
 
@@ -411,13 +429,18 @@ This means hw_id determines network ports. This is fine for small fleets but:
 
 ### 7.3 Architectural Improvements
 
-1. **Auto-update swarm follow chains on role swap** — When operator changes a drone's pos_id in config.json, warn if swarm.json follow chains reference the old hw_id and offer to update.
+1. **Clarify deliberate slot swaps vs Smart Swarm follow ownership** — keep
+   spare replacement on the dedicated Fleet Enrollment rewrite path; if later
+   needed, add an explicit slot-swap guidance/helper workflow instead of
+   silently remapping Smart Swarm topology behind Mission Config edits.
 2. **Validate config.json on drone boot** — Currently drones load config without validation. Add startup check for duplicate pos_ids.
 3. **Hot-swap workflow in UI** — Add a dedicated "Replace Drone" workflow:
    - Select failed drone (hw_id=3)
    - Select spare drone (hw_id=10)
    - Auto-assign pos_id=3 to hw_id=10
    - Auto-update swarm.json follow references if needed
+
+This specific replacement workflow is now implemented through Fleet Enrollment.
    - Push config via git
 
 ### 7.4 Future Considerations

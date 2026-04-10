@@ -90,9 +90,15 @@ Returns: [{"hw_id": 1, "pos_id": 1, "x": -5.0, "y": 2.5}, ...]
 → Drone 7 flies Position 1's show (hw_id=7, pos_id=1)
 
 **Use Cases**:
-- Hardware replacement (broken drone)
+- Deliberate slot swap for Drone Show / Swarm Trajectory planning
 - Testing/debugging
-- Flexible swarm reconfiguration
+- Flexible show-slot reassignment without changing the physical node identity
+
+**Not the same as**:
+- Hardware replacement (broken drone) — use Fleet Enrollment replacement so the
+  slot stays the same while the physical drone identity changes
+- Smart Swarm leader/follower reassignment — use Swarm Design, because follow
+  chains stay anchored to physical `hw_id`
 
 ---
 
@@ -324,7 +330,9 @@ A: Edit the trajectory CSV file for that pos_id (via Drone Show Designer).
 A: The drone will fly the new pos_id's trajectory. Position comes from that trajectory's CSV file.
 
 **Q: Can I still do role swaps?**
-A: Yes! Set hw_id ≠ pos_id. The drone flies the pos_id's trajectory, not its own.
+A: Yes. Set `hw_id ≠ pos_id`. The drone flies the selected `pos_id` trajectory,
+not its own. This changes slot ownership for Drone Show / Swarm Trajectory. It
+does **not** rewrite Smart Swarm follow chains, which remain `hw_id`-based.
 
 **Q: How do I revert to old system?**
 A: Not recommended. The old x,y fields caused bugs. Use trajectory CSV as source of truth.

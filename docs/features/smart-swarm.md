@@ -18,6 +18,12 @@ Smart Swarm is the live, cooperative formation mode in MDS. Each drone uses a sa
 
 Unlike the time-synchronized **Swarm Trajectory** mode, Smart Swarm is designed for live clustered operations where operators may change leaders, offsets, frames, or relay roles while drones are airborne.
 
+Identity rule:
+
+- Mission Config slot reassignment changes show-slot ownership only
+- Smart Swarm follow chains stay `hw_id`-anchored
+- true spare replacement belongs in Fleet Enrollment, which is where follow references are rewritten for the new hardware identity
+
 The current Smart Swarm inner loop is a hybrid model:
 
 - leader telemetry arrives as global `lat/lon/alt`
@@ -112,6 +118,63 @@ Important operator rule:
 - formation plots are not live flight views
 - runtime start still performs final gating at command dispatch time
 - if a target drone is not ready, fix that on `Overview` or `Mission Config` before start
+
+## Slot Reassignment vs Spare Replacement
+
+These scenarios are intentionally not the same workflow.
+
+### Slot reassignment
+
+Example:
+
+- `H5` is reassigned from `P5` to `P6`
+- `H6` is reassigned from `P6` to `P5`
+
+Use:
+
+- `Mission Config`
+
+Effect:
+
+- Drone Show / Swarm Trajectory slot ownership changes
+- launch plots and `Drone {pos_id}.csv` mapping change
+- Smart Swarm follow chains do **not** change automatically
+
+Why:
+
+- Smart Swarm topology is about which physical aircraft follows which physical
+  leader, so `follow` remains `hw_id`-anchored
+
+### Spare replacement
+
+Example:
+
+- failed fleet member `H12`
+- spare airframe `H101` must take over slot `P12`
+
+Use:
+
+- `Fleet Enrollment` → `Replace existing slot`
+
+Effect:
+
+- slot `P12` is preserved
+- the new physical drone takes over that fleet slot
+- replacement rewrites the affected Smart Swarm `hw_id` / `follow`
+  references so the spared-in aircraft becomes the new physical leader target
+  where needed
+
+### Same airframe, new companion image
+
+Use:
+
+- `Fleet Enrollment` → `Recover existing node`
+
+Effect:
+
+- same `hw_id`
+- same `pos_id`
+- refreshed IP / companion metadata only
 
 ## Runtime Behavior
 

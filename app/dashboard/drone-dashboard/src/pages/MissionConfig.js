@@ -716,9 +716,9 @@ const MissionConfig = () => {
       counts.roleSwaps > 0
         ? {
             id: 'roleSwaps',
-            label: 'Role swaps',
+            label: 'Slot reassignments',
             count: counts.roleSwaps,
-            description: 'Show deliberate slot swap assignments.',
+            description: 'Show assignments where hardware identity and slot ownership differ.',
           }
         : null,
       counts.offline > 0
@@ -1084,11 +1084,12 @@ const MissionConfig = () => {
             >
               <FontAwesomeIcon icon={faExchangeAlt} />
               <div>
-                <strong>{roleSwaps.length} role swap{roleSwaps.length === 1 ? '' : 's'} active</strong>
+                <strong>{roleSwaps.length} slot reassignment{roleSwaps.length === 1 ? '' : 's'} active</strong>
                 <span>
                   {roleSwaps.slice(0, 3).map((drone) => (
                     `${formatDroneLabel(drone.hw_id)} → ${formatShowSlotLabel(drone.pos_id)}`
                   )).join(' • ')}
+                  {roleSwaps.length > 0 ? ' • Smart Swarm follow-links stay on hardware IDs.' : ''}
                 </span>
               </div>
               <span className="mission-config-alert__action">{roleSwaps.length > 3 ? 'View all' : 'Review'}</span>
@@ -1376,7 +1377,7 @@ const MissionConfig = () => {
         <details className="mission-config-secondary-panel">
           <summary>
             <span>Identity guide</span>
-            <small>Slot ownership, role swaps, optional metadata</small>
+            <small>Slot ownership, slot reassignment, optional metadata</small>
           </summary>
           <div className="mission-identity-guide__grid">
             <div className="identity-brief-card">
@@ -1392,7 +1393,10 @@ const MissionConfig = () => {
             <div className="identity-brief-card identity-brief-card-wide">
               <span className="identity-brief-label">Operational rule</span>
               <strong>Follow-links still use Hardware ID.</strong>
-              <p>Role swaps change slot ownership only. Smart Swarm follow-chains still reference physical leader hardware IDs.</p>
+              <p>
+                Slot reassignment in Mission Config changes show-slot ownership only. Physical replacement uses
+                Fleet Enrollment so the slot stays intact and Smart Swarm follow references move to the new hardware.
+              </p>
             </div>
             <div className="identity-brief-card">
               <span className="identity-brief-label">Additional fields</span>

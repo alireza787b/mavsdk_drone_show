@@ -150,6 +150,38 @@ Use the same flow as scenario B:
 
 Do not create a second “field replacement” procedure in docs or UI.
 
+### Scenario F: Quick Slot Reassignment Between Two Ready Drones
+
+Example:
+
+- `H5` currently flies `P5`
+- `H6` currently flies `P6`
+- operator wants `H5 -> P6` and `H6 -> P5`
+
+Use:
+
+- `Mission Config`
+
+Do not use:
+
+- `Fleet Enrollment`
+
+Why:
+
+- no physical node identity changed
+- this is a role / slot ownership change, not new-node acceptance or spare replacement
+
+System result:
+
+- `config.json` changes the `pos_id` assignments
+- Drone Show and trajectory ownership follow the new `pos_id` mapping
+- Smart Swarm follow chains do not silently change just because slot ownership changed
+
+Operational note:
+
+- if Smart Swarm topology should also change, review and update it explicitly in `Swarm Design`
+- if a spare physically replaces a failed airframe, use Scenario B / E instead
+
 ## Identity Doctrine: Final Recommendation
 
 This is the correct MDS identity model and should stay consistent across Drone
@@ -216,6 +248,7 @@ That means:
 - QuickScout planning: slot-oriented UI is acceptable if launch resolves to the
   actual current `hw_id` set
 - Smart Swarm: still `hw_id`-based for follow chains today
+- Mission Config slot reassignment: valid for show/trajectory role changes, but it is not a hidden Smart Swarm topology editor
 - PX4 Parameters / enrollment / maintenance: `hw_id`-anchored
 
 ## Current On-Device Identity Files

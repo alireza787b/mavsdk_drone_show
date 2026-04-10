@@ -69,4 +69,36 @@ describe('DroneConfigCard', () => {
     expect(screen.getByText('Full Hash')).toBeInTheDocument();
     expect(screen.getByText('abcdef1234567890')).toBeInTheDocument();
   });
+
+  it('uses reassigned-slot wording when hardware and slot differ', () => {
+    render(
+      <DroneConfigCard
+        drone={{
+          hw_id: '5',
+          pos_id: '6',
+          ip: '10.0.0.15',
+          mavlink_port: '14555',
+          serial_port: '',
+          baudrate: '0',
+        }}
+        gitStatus={null}
+        gcsGitStatus={null}
+        configData={[
+          {
+            hw_id: '5',
+            pos_id: '6',
+          },
+        ]}
+        availableHwIds={['5', '6']}
+        editingDroneId={null}
+        setEditingDroneId={jest.fn()}
+        saveChanges={jest.fn()}
+        removeDrone={jest.fn()}
+        networkInfo={null}
+        heartbeatData={null}
+      />
+    );
+
+    expect(screen.getByText('Reassigned slot')).toBeInTheDocument();
+  });
 });

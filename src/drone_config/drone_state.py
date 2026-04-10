@@ -147,9 +147,11 @@ class DroneState:
         """
         Determine which drone this drone should follow in a swarm.
 
-        TODO(deferred): Auto-update follow chains when role swaps occur.
-        Currently follow references hw_id; if a drone is replaced, followers
-        lose their target. See docs/TODO_deferred.md #2
+        TODO(deferred): Deliberate Mission Config slot swaps do not auto-remap
+        Smart Swarm follow chains. The dedicated Fleet Enrollment replacement
+        flow already rewrites swarm `hw_id` / `follow` references when a spare
+        replaces a failed airframe, but generic role-swap UX guidance and any
+        optional helper remain deferred. See docs/TODO_deferred.md #2.
 
         Args:
             hw_id: This drone's hardware ID

@@ -6,6 +6,12 @@ Template-driven rapid-search mission mode for SAR and reconnaissance workflows, 
 
 QuickScout adds a new mission mode (`QUICKSCOUT = 5`) for rapid search operations. The GCS plans a mission package, partitions assigned coverage across selected drones, launches via the shared tracked-command pipeline, and keeps a durable mission workspace for recovery, monitoring, and findings review.
 
+Identity rule:
+
+- planning may be operator-facing in slot terms (`pos_id`)
+- launch resolves those assigned slots to the currently assigned physical drones (`hw_id`)
+- mission package state and monitor mode should preserve both role context and hardware identity instead of blurring them
+
 ## Architecture
 
 ```

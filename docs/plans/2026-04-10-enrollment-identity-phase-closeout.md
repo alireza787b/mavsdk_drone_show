@@ -159,14 +159,15 @@ Deferred next step:
 - local backend replacement/recovery registry batch
 - focused Hetzner frontend validation for Mission Config / Fleet Enrollment /
   QuickScout identity wording surfaces
+- Hetzner production build for the validation tree
 
 Notes:
 
 - the focused Hetzner frontend tests for this identity/enrollment wording pass
   are green
-- a fresh Hetzner CRA production build could not be reconfirmed cleanly in this
-  closeout slice because the remote build runner was being terminated/hung
-  before returning a final success/failure result
+- the Hetzner CRA production build did complete, but only after clearing a
+  stale concurrent remote build and giving the validation-tree build more time
+  on the low-free-space host
 - no backend flight/runtime logic changed in this closeout slice, so no new
   SITL runtime gate was required beyond the already-validated earlier
   replacement/recovery logic
