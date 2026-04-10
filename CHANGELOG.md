@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 node-enrollment phase closeout note documenting the final
+  `hw_id` / `pos_id` / `mav_sys_id` doctrine, the operator decision tree for
+  new-node acceptance versus same-airframe recovery versus spare replacement
+  versus ordinary slot swaps, the Smart Swarm `hw_id` rationale, and the
+  remaining explicit post-v1 debt
 - a 2026-04-10 combined node-enrollment and `mavlink-anywhere` review note
   documenting the final bootstrap/enrollment scenario guidance, the clarified
   `hw_id` / `pos_id` targeting doctrine, the current on-device identity files,

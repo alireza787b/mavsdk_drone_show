@@ -74,6 +74,15 @@ Practical examples:
   hardware at launch
 - Smart Swarm follow chains remain `hw_id`-based today
 
+Operational scenario rule:
+
+- swapping two already-enrolled drones between slots is a Mission Config role
+  change (`pos_id` update)
+- replacing a failed airframe with a different spare is a Fleet Enrollment
+  replacement workflow, not a manual slot edit
+- Smart Swarm follow chains are rewritten by the dedicated replacement flow,
+  not by ordinary slot reassignments
+
 Dense operator surfaces use the compact shorthand `Pn|Hm` to show both without
 losing context.
 
@@ -138,6 +147,11 @@ The dashboard supports both JSON (primary) and CSV (legacy) import/export:
 - Dense operator surfaces use the compact shorthand `Pn|Hm`
 - Example: `P1|H7` means `Position ID 1 | Hardware ID 7`
 - Compact shorthand is for dashboards, scopes, clusters, and plots only; edit forms keep the explicit labels `Position ID` and `Hardware ID`
+- Deliberate slot reassignments belong in Mission Config: changing `pos_id` changes which
+  show / trajectory slot a physical drone flies
+- Spare replacement belongs in Fleet Enrollment: the replacement workflow keeps
+  the target `pos_id` and moves that slot onto new hardware while preserving the
+  physical maintenance identity model
 
 ## Validation
 

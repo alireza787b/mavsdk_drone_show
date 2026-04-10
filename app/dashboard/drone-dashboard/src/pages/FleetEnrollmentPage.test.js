@@ -82,6 +82,7 @@ describe('FleetEnrollmentPage', () => {
     renderPage();
 
     expect(screen.getByText(/same hardware id already exists in fleet config/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/different spare airframe is taking over the slot/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /recover existing node/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /add as new fleet member/i })).toBeDisabled();
   });

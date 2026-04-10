@@ -152,6 +152,10 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
                 </li>
               ))}
             </ul>
+            <p className="info-hint">
+              <FontAwesomeIcon icon={faInfoCircle} />
+              {' '}Use slot edits only for role ownership inside the current fleet. If a different spare airframe is taking over a failed slot, use Fleet Enrollment → Replace existing slot instead. Smart Swarm follow-links remain hardware-based.
+            </p>
           </div>
         )}
 
@@ -162,6 +166,10 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             <p className="info-hint">
               <FontAwesomeIcon icon={faInfoCircle} />
               {' '}Trajectory positions come from the assigned show slot CSV file (single source of truth)
+            </p>
+            <p className="info-hint">
+              <FontAwesomeIcon icon={faInfoCircle} />
+              {' '}These changes swap mission slots only. They do not replace fleet hardware and they do not rewrite Smart Swarm follow-links.
             </p>
             <table className="changes-table">
               <thead>

@@ -697,7 +697,7 @@ function FleetEnrollmentPage() {
                   >
                     <FaArrowRight />
                     <strong>Replace existing slot</strong>
-                    <span>Preserve the target slot while swapping in a spare airframe or spare companion.</span>
+                    <span>Preserve the target slot while swapping in a different spare airframe.</span>
                   </button>
                   <button
                     type="button"

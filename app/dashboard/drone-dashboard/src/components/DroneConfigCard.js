@@ -561,9 +561,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <div className="identity-meta-row">
             <span
               className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}
-              title={isRoleSwap ? 'Hardware ID and assigned show slot differ.' : 'Hardware ID and assigned show slot match.'}
+              title={isRoleSwap ? 'Hardware ID and assigned show slot differ. This is a slot reassignment, not a physical replacement.' : 'Hardware ID and assigned show slot match.'}
             >
-              {isRoleSwap ? 'Slot swap' : 'Own slot'}
+              {isRoleSwap ? 'Reassigned slot' : 'Own slot'}
             </span>
             <span className={`identity-runtime-chip ${runtimeBadgeTone}`}>
               {runtimeModeLabel}
@@ -866,6 +866,9 @@ const DroneEditForm = memo(function DroneEditForm({
             </p>
             <p>
               This changes which trajectory file the drone will fly. Show slots are loaded from trajectory CSV files.
+            </p>
+            <p>
+              If a different spare airframe is taking over this slot, use Fleet Enrollment → Replace existing slot instead of editing the slot here.
             </p>
             <p style={{ marginTop: '1rem' }}>Do you want to proceed?</p>
             <div className="dialog-buttons">
