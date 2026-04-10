@@ -1076,3 +1076,4 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Reduced compact row clutter by moving rich metadata back into the detail dialog and keeping inline rows focused on name, current value, and safety/reference icons.
 - Fixed the compact group state so operators can manually open a different PX4 section without the UI snapping back to the previously selected parameter group.
 - Added focused React coverage for grouped compact browsing plus the shared dialog flow across narrow and touch-coarse viewports.
+- Followed up the compact list alignment so rows now read as a proper operator list: parameter identity stays left-aligned, current value and state icons trail on the right, and snapshot refresh no longer auto-selects a parameter before the operator chooses one.

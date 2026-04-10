@@ -255,34 +255,36 @@ const CompactParameterRow = ({
         <strong>{row.name}</strong>
         {metaLine ? <span>{metaLine}</span> : null}
       </div>
-      <div className="px4-compact-card__reading">
-        <strong>{row.value}</strong>
-        {valueMeta ? <small>{valueMeta}</small> : null}
-      </div>
-      <div className="px4-compact-card__signals">
-        {row.reboot_required ? (
-          <span
-            className="px4-compact-signal px4-compact-signal--warning"
-            title="Restart required"
-            role="img"
-            aria-label="Restart required"
-          >
-            <FaRedoAlt />
+      <div className="px4-compact-card__aside">
+        <div className="px4-compact-card__reading">
+          <strong>{row.value}</strong>
+          {valueMeta ? <small>{valueMeta}</small> : null}
+        </div>
+        <div className="px4-compact-card__signals">
+          {row.reboot_required ? (
+            <span
+              className="px4-compact-signal px4-compact-signal--warning"
+              title="Restart required"
+              role="img"
+              aria-label="Restart required"
+            >
+              <FaRedoAlt />
+            </span>
+          ) : null}
+          {row.docs_url ? (
+            <span
+              className="px4-compact-signal"
+              title="PX4 Docs available"
+              role="img"
+              aria-label="PX4 Docs available"
+            >
+              <FaBook />
+            </span>
+          ) : null}
+          <span className="px4-compact-signal px4-compact-signal--chevron" aria-hidden="true">
+            <FaChevronRight />
           </span>
-        ) : null}
-        {row.docs_url ? (
-          <span
-            className="px4-compact-signal"
-            title="PX4 Docs available"
-            role="img"
-            aria-label="PX4 Docs available"
-          >
-            <FaBook />
-          </span>
-        ) : null}
-        <span className="px4-compact-signal px4-compact-signal--chevron" aria-hidden="true">
-          <FaChevronRight />
-        </span>
+        </div>
       </div>
     </button>
   );
@@ -731,9 +733,6 @@ const Px4ParametersPage = () => {
       if (snapshot) {
         setSnapshotResponse(snapshot);
         setSelectedParamName((currentName) => {
-          if (!currentName) {
-            return snapshot.rows[0]?.name || '';
-          }
           return snapshot.rows.some((row) => row.name === currentName) ? currentName : '';
         });
         setSingleNotice(buildNotice(
@@ -1310,12 +1309,12 @@ const Px4ParametersPage = () => {
   }));
 
   const columns = [
-    { field: 'name', headerName: 'Name', minWidth: 170, flex: 0.95 },
-    { field: 'value', headerName: 'Current', minWidth: 120, flex: 0.7 },
-    { field: 'value_type', headerName: 'Type', minWidth: 90, flex: 0.45 },
-    { field: 'unit', headerName: 'Unit', minWidth: 80, flex: 0.4 },
-    { field: 'group', headerName: 'Group', minWidth: 170, flex: 1.05 },
-    { field: 'reboot', headerName: 'Restart', minWidth: 100, flex: 0.5 },
+    { field: 'name', headerName: 'Name', minWidth: 170, flex: 0.95, headerAlign: 'left', align: 'left' },
+    { field: 'value', headerName: 'Current', minWidth: 120, flex: 0.7, headerAlign: 'right', align: 'right' },
+    { field: 'value_type', headerName: 'Type', minWidth: 90, flex: 0.45, headerAlign: 'left', align: 'left' },
+    { field: 'unit', headerName: 'Unit', minWidth: 80, flex: 0.4, headerAlign: 'left', align: 'left' },
+    { field: 'group', headerName: 'Group', minWidth: 170, flex: 1.05, headerAlign: 'left', align: 'left' },
+    { field: 'reboot', headerName: 'Restart', minWidth: 100, flex: 0.5, headerAlign: 'center', align: 'center' },
   ];
 
   return (
