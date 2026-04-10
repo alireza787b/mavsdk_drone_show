@@ -181,7 +181,7 @@ health_check() {
     # Check git repo
     echo ""
     echo "2. Git Repository:"
-    if [[ -d "$REPO_DIR/.git" ]]; then
+    if git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         cd "$REPO_DIR"
         local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
         local commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")

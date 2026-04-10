@@ -732,7 +732,7 @@ main() {
         log_error_and_exit "VALIDATION" "Repository directory does not exist: $REPO_DIR"
     fi
     
-    if [[ ! -d "$REPO_DIR/.git" ]]; then
+    if ! git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         log_error_and_exit "VALIDATION" "Not a git repository: $REPO_DIR"
     fi
     

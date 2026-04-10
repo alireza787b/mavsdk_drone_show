@@ -49,7 +49,7 @@ verify_real_mode() {
 
 # Verify repository
 verify_repository() {
-    if [[ ! -d "${MDS_INSTALL_DIR}/.git" ]]; then
+    if ! git -C "${MDS_INSTALL_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         VERIFY_RESULTS["repository"]="FAIL:Not a git repository"
         return 1
     fi
