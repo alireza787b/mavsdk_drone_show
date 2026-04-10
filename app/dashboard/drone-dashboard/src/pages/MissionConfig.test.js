@@ -38,7 +38,6 @@ jest.mock('../components/MissionLayout', () => () => <div data-testid="mission-l
 jest.mock('../components/GcsConfigModal', () => () => <div data-testid="gcs-config-modal" />);
 jest.mock('../components/DronePositionMap', () => () => <div data-testid="drone-position-map" />);
 jest.mock('../components/SaveReviewDialog', () => () => <div data-testid="save-review-dialog" />);
-jest.mock('../components/ReplaceDroneWizard', () => () => <div data-testid="replace-drone-wizard" />);
 jest.mock('../components/ClusterScopeBar', () => () => <div data-testid="cluster-scope-bar" />);
 jest.mock('../components/OriginModal', () => {
   function MockOriginModal({ isOpen }) {
@@ -234,5 +233,7 @@ describe('MissionConfig origin review surface', () => {
     expect(screen.getAllByTestId('drone-config-card')).toHaveLength(1);
     expect(screen.getByText(/1 detected, not enrolled/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Drone 99/).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /review enrollment queue/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /review candidate/i })).toBeInTheDocument();
   });
 });

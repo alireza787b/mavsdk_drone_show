@@ -4,6 +4,7 @@ from fleet_candidates import FleetCandidateRegistry
 from schemas import (
     FleetCandidateAcceptRequest,
     FleetCandidateAnnounceRequest,
+    FleetCandidateRecoverRequest,
     FleetCandidateReplaceRequest,
     FleetCandidateState,
 )
@@ -159,3 +160,45 @@ def test_replace_candidate_rewrites_config_and_swarm_follow_references(tmp_path:
     assert config_rows[0]["pos_id"] == 12
     assert swarm_rows[0]["hw_id"] == 101
     assert swarm_rows[1]["follow"] == 101
+
+
+def test_recover_candidate_updates_existing_config_for_same_hw_id(tmp_path: Path):
+    registry = FleetCandidateRegistry(
+        state_path=str(tmp_path / "fleet_candidates.json"),
+        events_path=str(tmp_path / "fleet_candidate_events.jsonl"),
+    )
+
+    config_rows = [
+        {"hw_id": 12, "pos_id": 12, "ip": "10.0.0.12", "mavlink_port": 14550, "serial_port": "", "baudrate": 0},
+    ]
+
+    registry.announce_candidate(
+        FleetCandidateAnnounceRequest(
+            node_uuid="node-12b",
+            hw_id="12",
+            hostname="drone12b",
+            primary_control_ip="10.0.0.212",
+        ),
+        load_config=lambda: list(config_rows),
+    )
+
+    candidate, warnings = registry.recover_candidate(
+        "node-12b",
+        FleetCandidateRecoverRequest(
+            mavlink_port=14620,
+            notes="Recovered same airframe with new companion",
+        ),
+        load_config=lambda: list(config_rows),
+        save_config=lambda updated: config_rows.__setitem__(slice(None), updated),
+        validate_and_process_config=_validate_stub,
+    )
+
+    assert candidate.registration_state == FleetCandidateState.ACCEPTED
+    assert candidate.resolution == "recovered_existing"
+    assert candidate.replacement_target_hw_id == "12"
+    assert candidate.replacement_target_pos_id == "12"
+    assert warnings == []
+    assert config_rows[0]["hw_id"] == 12
+    assert config_rows[0]["ip"] == "10.0.0.212"
+    assert config_rows[0]["mavlink_port"] == 14620
+    assert config_rows[0]["notes"] == "Recovered same airframe with new companion"

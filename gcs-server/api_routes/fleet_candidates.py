@@ -18,6 +18,7 @@ from schemas import (
     FleetCandidateActionRequest,
     FleetCandidateAnnounceRequest,
     FleetCandidateListResponse,
+    FleetCandidateRecoverRequest,
     FleetCandidateMutationResponse,
     FleetCandidateRecord,
     FleetCandidateReplaceRequest,
@@ -27,6 +28,7 @@ from src.gcs_api_routes import (
     GCS_FLEET_CANDIDATE_ACCEPT_ROUTE_TEMPLATE,
     GCS_FLEET_CANDIDATE_ANNOUNCE_ROUTE,
     GCS_FLEET_CANDIDATE_IGNORE_ROUTE_TEMPLATE,
+    GCS_FLEET_CANDIDATE_RECOVER_ROUTE_TEMPLATE,
     GCS_FLEET_CANDIDATE_REJECT_ROUTE_TEMPLATE,
     GCS_FLEET_CANDIDATE_REPLACE_ROUTE_TEMPLATE,
     GCS_FLEET_CANDIDATE_ROUTE_TEMPLATE,
@@ -141,6 +143,35 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
             )
         except Exception as exc:
             deps.log_system_error(f"Fleet candidate replacement failed: {exc}", "fleet_enrollment")
+            raise _translate_candidate_error(exc) from exc
+
+    @router.post(GCS_FLEET_CANDIDATE_RECOVER_ROUTE_TEMPLATE, response_model=FleetCandidateMutationResponse, tags=["Fleet Enrollment"])
+    async def recover_fleet_candidate(
+        payload: FleetCandidateRecoverRequest,
+        candidate_id: str = PathParam(..., description="Candidate identifier"),
+        commit: Optional[bool] = Query(None, description="Commit and push repo changes after recovery"),
+    ):
+        try:
+            candidate, warnings = deps.recover_fleet_candidate(candidate_id, payload)
+            git_result = None
+            should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
+            if should_commit:
+                loop = asyncio.get_running_loop()
+                git_result = await loop.run_in_executor(
+                    None,
+                    deps.git_operations,
+                    deps.BASE_DIR,
+                    f"fleet: recover candidate {candidate.hw_id} into existing fleet member",
+                )
+            return FleetCandidateMutationResponse(
+                status="success",
+                message=f"Candidate {candidate.candidate_id} recovered existing fleet member hw_id {candidate.hw_id}",
+                candidate=candidate,
+                warnings=warnings,
+                git_result=git_result,
+            )
+        except Exception as exc:
+            deps.log_system_error(f"Fleet candidate recovery failed: {exc}", "fleet_enrollment")
             raise _translate_candidate_error(exc) from exc
 
     @router.post(GCS_FLEET_CANDIDATE_REJECT_ROUTE_TEMPLATE, response_model=FleetCandidateMutationResponse, tags=["Fleet Enrollment"])

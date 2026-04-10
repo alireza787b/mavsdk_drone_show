@@ -463,6 +463,14 @@ button.mission-config-alert {
     gap: var(--spacing-base);
 }
 
+.mission-config-pending-panel__header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
 .mission-config-pending-panel__header h3 {
     margin: 0 0 0.35rem 0;
     color: var(--color-text-primary);
@@ -540,6 +548,11 @@ button.mission-config-alert {
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-medium);
+}
+
+.mission-config-pending-card__actions {
+    display: flex;
+    justify-content: flex-start;
 }
 
 .mission-config-pending-status {

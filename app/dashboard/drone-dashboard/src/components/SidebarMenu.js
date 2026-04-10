@@ -20,6 +20,7 @@ import {
   FaClipboardList,
   FaSatelliteDish,
   FaSlidersH,
+  FaUserCheck,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -43,6 +44,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
       items: [
         { to: '/', icon: FaTachometerAlt, label: 'Dashboard' },
         { to: '/mission-config', icon: FaCog, label: 'Mission Config' },
+        { to: '/fleet-enrollment', icon: FaUserCheck, label: 'Fleet Enrollment' },
         { to: '/px4-parameters', icon: FaSlidersH, label: 'PX4 Parameters' },
         { to: '/globe-view', icon: FaGlobe, label: '3D Globe View' },
       ],

@@ -62,6 +62,10 @@ def _make_deps():
             _candidate_record(candidate_id=candidate_id, registration_state=FleetCandidateState.ACCEPTED, resolution="replaced_existing", replacement_target_hw_id=str(payload.target_hw_id), replacement_target_pos_id="12"),
             [],
         ),
+        recover_fleet_candidate=lambda candidate_id, payload: (
+            _candidate_record(candidate_id=candidate_id, registration_state=FleetCandidateState.ACCEPTED, resolution="recovered_existing", replacement_target_hw_id="12", replacement_target_pos_id="12"),
+            [],
+        ),
         set_fleet_candidate_state=lambda candidate_id, state, reason=None: _candidate_record(candidate_id=candidate_id, registration_state=state, notes=reason),
         log_system_error=lambda *args, **kwargs: None,
     )
@@ -79,6 +83,7 @@ def test_fleet_candidates_router_registers_expected_routes():
     assert "/api/v1/fleet/candidates/announce" in routes
     assert "/api/v1/fleet/candidates/{candidate_id}/accept" in routes
     assert "/api/v1/fleet/candidates/{candidate_id}/replace" in routes
+    assert "/api/v1/fleet/candidates/{candidate_id}/recover" in routes
     assert "/api/v1/fleet/candidates/{candidate_id}/reject" in routes
     assert "/api/v1/fleet/candidates/{candidate_id}/ignore" in routes
 
@@ -135,4 +140,21 @@ def test_fleet_candidates_router_replaces_candidate():
     assert response.status_code == 200
     body = response.json()
     assert body["candidate"]["resolution"] == "replaced_existing"
+    assert body["candidate"]["replacement_target_hw_id"] == "12"
+
+
+def test_fleet_candidates_router_recovers_candidate():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_fleet_candidates_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/fleet/candidates/node-12b/recover",
+            json={"mavlink_port": 14620},
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["candidate"]["resolution"] == "recovered_existing"
     assert body["candidate"]["replacement_target_hw_id"] == "12"

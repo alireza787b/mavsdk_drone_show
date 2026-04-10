@@ -2048,6 +2048,7 @@ class TestAPIV1Aliases:
             "/api/v1/fleet/candidates/announce",
             "/api/v1/fleet/candidates/{candidate_id}/accept",
             "/api/v1/fleet/candidates/{candidate_id}/replace",
+            "/api/v1/fleet/candidates/{candidate_id}/recover",
             "/api/v1/fleet/candidates/{candidate_id}/reject",
             "/api/v1/fleet/candidates/{candidate_id}/ignore",
             "/api/v1/fleet/network-status",

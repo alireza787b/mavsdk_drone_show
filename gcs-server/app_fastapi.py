@@ -432,6 +432,17 @@ def replace_fleet_candidate(candidate_id: str, payload: FleetCandidateReplaceReq
     )
 
 
+def recover_fleet_candidate(candidate_id: str, payload: FleetCandidateRecoverRequest):
+    """Recover an existing configured fleet member using the same hardware ID."""
+    return fleet_candidate_registry.recover_candidate(
+        candidate_id,
+        payload,
+        load_config=load_config,
+        save_config=save_config,
+        validate_and_process_config=validate_and_process_config,
+    )
+
+
 def set_fleet_candidate_state(
     candidate_id: str,
     new_state: FleetCandidateState,

@@ -45,6 +45,7 @@ const SwarmTrajectory = lazy(() => import('./pages/SwarmTrajectory'));
 const TrajectoryPlanning = lazy(() => import('./pages/TrajectoryPlanning'));
 const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
 const Px4ParametersPage = lazy(() => import('./pages/Px4ParametersPage'));
+const FleetEnrollmentPage = lazy(() => import('./pages/FleetEnrollmentPage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
 
 /**
@@ -150,6 +151,7 @@ const App = () => {
                       <Route path="/drone-show-design" element={<ManageDroneShow />} />
                       <Route path="/swarm-design" element={<SwarmDesign />} />
                       <Route path="/mission-config" element={<MissionConfig />} />
+                      <Route path="/fleet-enrollment" element={<FleetEnrollmentPage />} />
                       <Route path="/drone-detail" element={<Detail drone={selectedDrone} goBack={() => setSelectedDrone(null)} />} />
                       <Route path="/manage-drone-show" element={<ManageDroneShow />} />
                       <Route path="/custom-show" element={<CustomShowPage />} />

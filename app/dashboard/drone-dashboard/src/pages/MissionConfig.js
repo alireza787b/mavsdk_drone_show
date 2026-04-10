@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import '../styles/MissionConfig.css';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 // Components
 import PositionTabs from '../components/PositionTabs';
@@ -13,7 +13,6 @@ import OriginModal from '../components/OriginModal';
 import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
-import ReplaceDroneWizard from '../components/ReplaceDroneWizard';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 
 // Hooks
@@ -73,6 +72,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const cardRefs = useRef({});
   const assignmentWallRef = useRef(null);
@@ -122,9 +122,6 @@ const MissionConfig = () => {
   const [showSaveReviewDialog, setShowSaveReviewDialog] = useState(false);
   const [validationReport, setValidationReport] = useState(null);
 
-  // Replace Drone Wizard
-  const [replaceDroneModalOpen, setReplaceDroneModalOpen] = useState(false);
-  const [replaceDroneTarget, setReplaceDroneTarget] = useState(null);
   const [trajectoryPositionsByPosId, setTrajectoryPositionsByPosId] = useState({});
   const [missionConfigSearch, setMissionConfigSearch] = useState('');
   const [clusterScope, setClusterScope] = useState('all');
@@ -136,6 +133,17 @@ const MissionConfig = () => {
 
   const applyNormalizedConfigData = (nextConfig) => {
     setConfigData(normalizeDroneConfigData(nextConfig));
+  };
+
+  const openFleetEnrollment = ({ candidateId = null, replaceTargetHwId = null } = {}) => {
+    const nextParams = new URLSearchParams();
+    if (candidateId) {
+      nextParams.set('candidate', candidateId);
+    }
+    if (replaceTargetHwId) {
+      nextParams.set('replace', normalizeComparableId(replaceTargetHwId));
+    }
+    navigate(`/fleet-enrollment${nextParams.toString() ? `?${nextParams.toString()}` : ''}`);
   };
 
   // -----------------------------------------------------
@@ -1121,9 +1129,18 @@ const MissionConfig = () => {
                 workflows, but they are not written into fleet config automatically.
               </p>
             </div>
-            <span className="mission-config-pending-panel__count">
-              {pendingEnrollmentDrones.length} candidate{pendingEnrollmentDrones.length === 1 ? '' : 's'}
-            </span>
+            <div className="mission-config-pending-panel__header-actions">
+              <span className="mission-config-pending-panel__count">
+                {pendingEnrollmentDrones.length} candidate{pendingEnrollmentDrones.length === 1 ? '' : 's'}
+              </span>
+              <button
+                type="button"
+                className="mission-config-primary-button mission-config-primary-button--add"
+                onClick={() => openFleetEnrollment()}
+              >
+                Review enrollment queue
+              </button>
+            </div>
           </div>
           <div className="mission-config-pending-grid">
             {pendingEnrollmentDrones.map((candidate) => (
@@ -1151,6 +1168,15 @@ const MissionConfig = () => {
                     ? `Conflict: ${candidate.conflict_reasons.join(', ')}. Review before changing fleet config.`
                     : 'Use “Replace drone” on a failed slot to map this standby node into service, or review it explicitly before adding a new fleet entry.'}
                 </p>
+                <div className="mission-config-pending-card__actions">
+                  <button
+                    type="button"
+                    className="mission-config-primary-button mission-config-primary-button--add"
+                    onClick={() => openFleetEnrollment({ candidateId: candidate.candidate_id })}
+                  >
+                    Review candidate
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -1264,10 +1290,7 @@ const MissionConfig = () => {
                   setEditingDroneId={setEditingDroneId}
                   saveChanges={saveChanges}
                   removeDrone={removeDrone}
-                  onReplace={(hwId) => {
-                    setReplaceDroneTarget(normalizeComparableId(hwId));
-                    setReplaceDroneModalOpen(true);
-                  }}
+                  onReplace={(hwId) => openFleetEnrollment({ replaceTargetHwId: hwId })}
                   networkInfo={
                     networkInfo.find(
                       (info) => normalizeComparableId(info.hw_id) === normalizeComparableId(drone.hw_id)
@@ -1418,23 +1441,6 @@ const MissionConfig = () => {
           </div>
         </details>
       </section>
-
-      {/* Replace Drone Wizard */}
-      <ReplaceDroneWizard
-        isOpen={replaceDroneModalOpen}
-        onClose={() => {
-          setReplaceDroneModalOpen(false);
-          setReplaceDroneTarget(null);
-        }}
-        configData={configData}
-        heartbeats={heartbeats}
-        pendingEnrollmentDrones={pendingEnrollmentDrones}
-        preselectedHwId={replaceDroneTarget}
-        onSave={(updatedConfig) => {
-          applyNormalizedConfigData(updatedConfig);
-          toast.success('Drone replacement applied. Remember to save your changes.');
-        }}
-      />
 
       {/* Save Review Dialog */}
       <SaveReviewDialog

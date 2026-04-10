@@ -15,6 +15,7 @@ from mds_logging import get_logger
 from schemas import (
     FleetCandidateAcceptRequest,
     FleetCandidateAnnounceRequest,
+    FleetCandidateRecoverRequest,
     FleetCandidateRecord,
     FleetCandidateReplaceRequest,
     FleetCandidateState,
@@ -598,6 +599,82 @@ class FleetCandidateRegistry:
             missing_trajectories = summary.get("missing_trajectories_count", 0) or 0
             if missing_trajectories:
                 warnings.append(f"{missing_trajectories} trajectory file warning(s) remain after replacement")
+
+            return refreshed, warnings
+
+    def recover_candidate(
+        self,
+        candidate_id: str,
+        request: FleetCandidateRecoverRequest,
+        *,
+        load_config,
+        save_config,
+        validate_and_process_config,
+    ) -> tuple[FleetCandidateRecord, list[str]]:
+        with self._lock:
+            record = self._require_candidate_locked(candidate_id)
+            candidate_hw_id = _normalize_hw_id_int(record.get("hw_id"))
+            config_entries = list(load_config())
+
+            target_index = next(
+                (idx for idx, entry in enumerate(config_entries) if _normalize_string(entry.get("hw_id")) == str(candidate_hw_id)),
+                None,
+            )
+            if target_index is None:
+                raise FleetCandidateNotFoundError(
+                    f"Fleet member hw_id {candidate_hw_id} not found for recovery"
+                )
+
+            target_entry = dict(config_entries[target_index])
+            updated_entry = dict(target_entry)
+            resolved_ip = _normalize_ip(request.ip) or _normalize_ip(record.get("primary_control_ip"))
+            if resolved_ip:
+                updated_entry["ip"] = resolved_ip
+            if request.mavlink_port is not None:
+                updated_entry["mavlink_port"] = int(request.mavlink_port)
+            if request.serial_port is not None:
+                updated_entry["serial_port"] = request.serial_port
+            if request.baudrate is not None:
+                updated_entry["baudrate"] = int(request.baudrate)
+            if request.notes is not None:
+                updated_entry["notes"] = request.notes
+
+            proposed_config = list(config_entries)
+            proposed_config[target_index] = updated_entry
+            report = validate_and_process_config(proposed_config)
+            summary = report.get("summary", {})
+            if int(summary.get("duplicate_hw_ids_count", 0) or 0) > 0:
+                raise FleetCandidateConflictError("Recovery would create duplicate hw_id entries")
+            if int(summary.get("duplicates_count", 0) or 0) > 0:
+                raise FleetCandidateConflictError("Recovery would create duplicate pos_id assignments")
+
+            save_config(report["updated_config"])
+
+            record["registration_state"] = FleetCandidateState.ACCEPTED.value
+            record["resolution"] = "recovered_existing"
+            record["replacement_target_hw_id"] = str(candidate_hw_id)
+            record["replacement_target_pos_id"] = _normalize_string(target_entry.get("pos_id"))
+            record["primary_control_ip"] = _normalize_ip(updated_entry.get("ip")) or record.get("primary_control_ip")
+            record["conflict_reasons"] = []
+            if request.notes:
+                record["notes"] = request.notes
+
+            refreshed = self._refresh_candidate_state_locked(
+                record,
+                config_entries=report["updated_config"],
+                now_ms=_now_ms(),
+            )
+            self._candidates[refreshed.candidate_id] = refreshed.model_dump(mode="json")
+            self._persist_state_locked()
+            self._append_event_locked("candidate.recovered", refreshed.candidate_id, refreshed.model_dump(mode="json"))
+
+            warnings = []
+            missing_trajectories = summary.get("missing_trajectories_count", 0) or 0
+            role_swaps = summary.get("role_swaps_count", 0) or 0
+            if missing_trajectories:
+                warnings.append(f"{missing_trajectories} trajectory file warning(s) remain after recovery")
+            if role_swaps:
+                warnings.append(f"{role_swaps} role-swap warning(s) remain after recovery")
 
             return refreshed, warnings
 

@@ -284,6 +284,17 @@ class FleetCandidateReplaceRequest(BaseModel):
     notes: Optional[str] = Field(None, description="Operator note describing the replacement")
 
 
+class FleetCandidateRecoverRequest(BaseModel):
+    """Recover an existing configured fleet member using the same hardware ID."""
+    model_config = ConfigDict(extra='forbid')
+
+    ip: Optional[str] = Field(None, description="Override control-plane IP to save into config")
+    mavlink_port: Optional[int] = Field(None, ge=1, description="Override MAVLink UDP port to save into config")
+    serial_port: Optional[str] = Field(None, description="Override serial device path")
+    baudrate: Optional[int] = Field(None, ge=0, description="Override serial baudrate")
+    notes: Optional[str] = Field(None, description="Operator note describing the recovery")
+
+
 class FleetCandidateMutationResponse(BaseModel):
     """Response for candidate enrollment/replacement state changes."""
     status: str = Field(..., description="Mutation status")
