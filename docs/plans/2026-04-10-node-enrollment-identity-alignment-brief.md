@@ -32,6 +32,29 @@ This new brief is the consolidated one.
 The node bootstrap + fleet enrollment v1 stream is complete on `main-candidate`
 at `56221f43`.
 
+## Which Script To Run
+
+There are not two competing bootstrap workflows now. There is one canonical
+stack with two entrypoints for different starting conditions:
+
+- `tools/install_mds_node.sh`
+  - use on a fresh host with no local repo clone yet
+  - this is a thin bootstrap wrapper
+- `tools/mds_node_init.sh`
+  - use when the repo already exists on the node
+  - this is the real provisioning engine
+- `tools/mds_node_announce.sh`
+  - use when the node is already provisioned and only GCS discovery / candidate
+    announce must be retried
+
+Operational rule:
+
+- fresh image -> `install_mds_node.sh`
+- existing node / repair / resume -> `mds_node_init.sh`
+- already provisioned but GCS was offline -> `mds_node_announce.sh`
+- fleet replacement / recover / slot reassignment -> Fleet Enrollment, not a
+  second bootstrap path
+
 Implemented:
 
 - one canonical bootstrap path:
@@ -79,6 +102,18 @@ Properties:
 - should not change just because the drone flies a different slot
 - should be the anchor for runtime health, git sync, telemetry ownership, and
   operator maintenance history
+
+Current on-device persistence:
+
+- runtime marker: `~/mavsdk_drone_show/<N>.hwID`
+- shell/service overrides: `/etc/mds/local.env`
+- machine-readable node manifest: `/etc/mds/node_identity.json`
+
+Operator-friendly rule:
+
+- `.hwID` is still the current runtime marker the drone code reads
+- `local.env` and `node_identity.json` are the files people and automation
+  should inspect first
 
 ### 2. `pos_id`
 
@@ -188,7 +223,8 @@ Correct doctrine:
 
 Correct doctrine:
 
-- operator chooses participating physical drones
+- operator can choose participating assigned slots in the planning UI
+- launch resolves those slot selections to the currently assigned hardware set
 - UI should still surface role / slot context where relevant
 - mission package state should never blur hardware identity and slot identity
 

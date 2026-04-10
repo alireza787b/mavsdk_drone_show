@@ -13,6 +13,13 @@ The `mds_node_init.sh` script supports fully automated, non-interactive installa
 - Unattended installations
 - Image-based deployment
 
+Use the bootstrap scripts this way:
+
+- `install_mds_node.sh` on a fresh host with no local repo clone yet
+- `mds_node_init.sh` when the repo is already present on the node
+- `mds_node_announce.sh` when bootstrap already succeeded but GCS discovery must
+  be retried
+
 ## Non-Interactive Mode
 
 Enable non-interactive mode with the `-y` or `--yes` flag:
@@ -37,8 +44,21 @@ sudo ./tools/mds_node_init.sh \
     --https \
     --repo-url https://github.com/YOURORG/YOURREPO.git \
     -b customer-demo \
+    --report-json /var/lib/mds/bootstrap-report.json \
+    --announce-report-json /var/lib/mds/announce-report.json \
     -y
 ```
+
+### Machine-Readable Outputs
+
+For CI, MCP, and AI-agent workflows, prefer:
+
+- `--report-json`
+- `--announce-report-json`
+
+Those reports are the canonical structured outputs for bootstrap and candidate
+discovery status. Avoid scraping colored terminal output when automation can use
+the JSON reports directly.
 
 ## Fleet Provisioning
 

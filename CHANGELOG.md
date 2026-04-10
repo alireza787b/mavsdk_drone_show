@@ -10,6 +10,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- explicit 2026-04-10 identity-targeting doctrine guidance documenting when
+  MDS should stay `hw_id`-anchored versus when high-level mission planners may
+  remain `pos_id`-anchored and resolve to current hardware at launch, plus
+  clarified bootstrap-wrapper versus init-engine usage and on-device identity
+  file locations
 - a 2026-04-10 consolidated node-enrollment and identity-alignment brief
   documenting the current bootstrap/candidate/enrollment workflows, the
   scenario-by-scenario operator guidance, the `hw_id` / `pos_id` / `mav_sys_id`

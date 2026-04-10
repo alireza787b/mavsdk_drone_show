@@ -51,6 +51,32 @@ Any additional fields are preserved. Recommended pattern:
 
 Examples: `"maintenance_tag": "A2"`, `"payload_type": "smoke"`, `"ready_for_show": true`.
 
+## Identity And Targeting Doctrine
+
+MDS intentionally keeps three different identity concepts separate:
+
+- `hw_id`: persistent physical/node identity
+- `pos_id`: assigned mission/show slot identity
+- `mav_sys_id`: MAVLink transport identity
+
+Current production doctrine:
+
+- maintenance, enrollment, PX4 parameter management, telemetry ownership, git
+  sync, and low-level command dispatch are `hw_id`-anchored
+- mission/show authoring and role/slot displays are `pos_id`-anchored
+- high-level mission planners may accept `pos_id` selection in the UI, then
+  resolve that to the currently assigned `hw_id` set before launch
+
+Practical examples:
+
+- Drone Show trajectories are resolved by `pos_id`
+- QuickScout planning may select assigned slots, then resolve to current
+  hardware at launch
+- Smart Swarm follow chains remain `hw_id`-based today
+
+Dense operator surfaces use the compact shorthand `Pn|Hm` to show both without
+losing context.
+
 ## swarm.json / swarm_sitl.json
 
 ```json

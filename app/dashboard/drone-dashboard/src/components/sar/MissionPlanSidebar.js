@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import QuickScoutLaunchReview from './QuickScoutLaunchReview';
+import { formatCompactDroneIdentity } from '../../utilities/missionIdentityUtils';
 import { QUICKSCOUT_PROFILE_PRESETS } from '../../utilities/quickScoutProfiles';
 import {
   calculateCircularAreaSqM,
@@ -356,7 +357,7 @@ const MissionPlanSidebar = ({
 
         {/* Drone Selection */}
         <div className="qs-config-section">
-          <div className="qs-config-title">Drones ({selectedDrones.length} selected)</div>
+          <div className="qs-config-title">Assigned Drones ({selectedDrones.length} selected)</div>
           <div className="qs-drone-list">
             {drones.map((drone) => (
               <label key={drone.hw_ID || drone.hw_id} className="qs-drone-item">
@@ -365,7 +366,13 @@ const MissionPlanSidebar = ({
                   checked={selectedDrones.includes(drone.pos_id ?? drone.pos_ID)}
                   onChange={() => onDroneToggle(drone.pos_id ?? drone.pos_ID)}
                 />
-                <span className="qs-drone-id">#{drone.hw_ID || drone.hw_id}</span>
+                <span className="qs-drone-id">
+                  {formatCompactDroneIdentity(
+                    drone.pos_id ?? drone.pos_ID,
+                    drone.hw_ID || drone.hw_id,
+                    `H${drone.hw_ID || drone.hw_id || '?'}`
+                  )}
+                </span>
                 <span className={`qs-drone-status ${drone.online ? 'online' : 'offline'}`}>
                   {drone.online ? 'Online' : 'Offline'}
                 </span>
@@ -376,6 +383,9 @@ const MissionPlanSidebar = ({
                 No drones configured &mdash; add drones in Mission Config
               </div>
             )}
+          </div>
+          <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+            QuickScout planning selects assigned slots and resolves them to the current hardware fleet at launch.
           </div>
         </div>
 

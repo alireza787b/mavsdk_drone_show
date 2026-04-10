@@ -37,6 +37,9 @@ The `mds_node_init.sh` script is an enterprise-grade bootstrap system that confi
 
 ### Option 1: One-Line Installation (Recommended)
 
+Use this on a fresh companion-computer host that does not already have the MDS
+repo cloned locally. This is the public bootstrap wrapper.
+
 The fastest way to set up a fresh companion-computer node:
 
 ```bash
@@ -68,6 +71,20 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 ```
 
 ### Option 2: Manual Installation
+
+Use this when the repo is already present on the node, or when you are
+repairing, resuming, or deliberately re-running configuration on an existing
+node.
+
+### Which Script Should I Run?
+
+| Scenario | Recommended entrypoint |
+|------|--------------------------|
+| Fresh OS image, no repo cloned yet | `install_mds_node.sh` |
+| Repo already cloned on the node | `mds_node_init.sh` |
+| Resume or repair an interrupted init on the same node | `mds_node_init.sh --resume` |
+| Provisioned node could not reach GCS during bootstrap | `mds_node_announce.sh` |
+| Replace / recover / reassign a drone in the fleet manifest | Use **Fleet Enrollment** after announce; do not rerun full bootstrap unless the node itself needs reprovisioning |
 
 #### Step 1: Prepare the OS Image
 
@@ -150,7 +167,7 @@ The script runs through these phases automatically:
 | Phase | Description |
 |-------|-------------|
 | 1. Prerequisites | Validates system requirements, creates directories |
-| 2. MAVLink Guidance | Provides mavlink-anywhere setup instructions |
+| 2. MAVLink Router Setup | Auto-configures `mavlink-anywhere` when requested, or preserves intentional manual routing |
 | 3. Repository | Clones/updates repository, manages SSH keys |
 | 4. Identity | Configures drone ID, `local.env`, and `node_identity.json` |
 | 5. Environment | Sets up environment variables |
@@ -244,17 +261,33 @@ Check the installation log:
 cat /var/log/mds/mds_init.log
 ```
 
-### Configure mavlink-anywhere
+### Configure MAVLink Routing
 
-The script provides guidance but does not install mavlink-anywhere. Complete this step manually:
+Current best practice:
+
+- use `mds_node_init.sh --mavlink-auto` for the default managed path
+- or provide explicit headless routing flags such as `--mavlink-uart` and
+  `--mavlink-endpoints`
+- use manual routing only when you intentionally manage `mavlink-anywhere`
+  yourself
+
+Managed examples:
 
 ```bash
-cd ~
-git clone https://github.com/alireza787b/mavlink-anywhere.git
-cd mavlink-anywhere
-sudo ./install_mavlink_router.sh
-sudo ./configure_mavlink_router.sh
+sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 100.96.32.75 -y
 ```
+
+```bash
+sudo ./tools/mds_node_init.sh \
+  -d 1 \
+  --mavlink-uart /dev/ttyS0 \
+  --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,100.96.32.75:24550" \
+  -y
+```
+
+If you intentionally keep routing manual, bootstrap and enrollment still work.
+In that case, manage `mavlink-anywhere` yourself and keep that routing profile
+documented for the fleet.
 
 ### Reboot
 
@@ -273,6 +306,7 @@ After installation, key configuration files are:
 | `/etc/mds/local.env` | Per-node runtime overrides (drone ID, GCS IP, optional GCS API URL, repo/branch overrides, etc.) |
 | `/etc/mds/node_identity.json` | Structured machine-readable node manifest for automation, enrollment, and diagnostics |
 | `/var/lib/mds/init_state.json` | Installation state tracking |
+| `~/mavsdk_drone_show/<N>.hwID` | Current runtime hardware-ID marker read by the drone runtime |
 | `~/mavsdk_drone_show/config.json` | Drone hardware configuration |
 | `~/mavsdk_drone_show/src/params.py` | Global parameters |
 
@@ -314,7 +348,7 @@ cat /var/lib/mds/init_state.json | jq
 
 ## Next Steps
 
-1. Configure mavlink-anywhere for flight controller communication
+1. Confirm MAVLink routing mode (`--mavlink-auto`, explicit headless flags, or intentional manual mode)
 2. Set up WiFi manager if using wireless networks
 3. Test drone connectivity with the GCS
 4. Run first system test
@@ -328,4 +362,4 @@ cat /var/lib/mds/init_state.json | jq
 
 ---
 
-**Version:** 4.4.0 | **Last Updated:** January 2026
+**Version:** 4.5.0 | **Last Updated:** 2026-04-10
