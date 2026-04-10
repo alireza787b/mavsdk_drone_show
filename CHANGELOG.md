@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 node-bootstrap and fleet-enrollment v1 recap note documenting
+  the implemented workflow boundaries, the operator scenarios for accept /
+  replace / recover, the current post-v1 deferred items, and the tester-facing
+  caveats for hardware rollout and future automation
 - a 2026-04-10 node-bootstrap candidate-announce checkpoint note documenting
   the new canonical `mds_node_announce.sh` helper, the `mds_node_init.sh`
   announce integration, the expanded node manifest/bootstrap report fields, the
