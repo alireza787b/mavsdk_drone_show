@@ -253,6 +253,61 @@ export function getOnlineDroneCount(heartbeats = {}, staleThresholdSeconds = 20)
   }).length;
 }
 
+export function buildPendingEnrollmentCandidates(
+  configData = [],
+  heartbeats = {},
+  onlineThresholdSeconds = 20,
+  offlineThresholdSeconds = 60,
+) {
+  const now = Date.now();
+  const configuredHwIds = new Set(
+    normalizeDroneConfigData(configData)
+      .map((drone) => normalizeComparableId(drone.hw_id))
+      .filter(Boolean)
+  );
+
+  return Object.entries(heartbeats)
+    .map(([fallbackHwId, heartbeat]) => {
+      const hwId = normalizeComparableId(heartbeat?.hw_id ?? fallbackHwId);
+      if (!hwId || configuredHwIds.has(hwId)) {
+        return null;
+      }
+
+      const timestamp = getHeartbeatTimestamp(heartbeat);
+      const heartbeatAgeSec = timestamp === null
+        ? null
+        : Math.floor((now - timestamp) / 1000);
+
+      let heartbeatStatus = 'Unknown';
+      let heartbeatTone = 'neutral';
+      if (heartbeatAgeSec !== null) {
+        if (heartbeatAgeSec < onlineThresholdSeconds) {
+          heartbeatStatus = 'Online';
+          heartbeatTone = 'good';
+        } else if (heartbeatAgeSec < offlineThresholdSeconds) {
+          heartbeatStatus = 'Stale';
+          heartbeatTone = 'warning';
+        } else {
+          heartbeatStatus = 'Offline';
+          heartbeatTone = 'danger';
+        }
+      }
+
+      return {
+        hw_id: hwId,
+        pos_id: normalizeComparableId(heartbeat?.pos_id),
+        detected_pos_id: normalizeComparableId(heartbeat?.detected_pos_id),
+        ip: normalizeRuntimeIp(heartbeat?.ip),
+        mavlink_port: toTrimmedString(heartbeat?.mavlink_port),
+        heartbeatAgeSec,
+        heartbeatStatus,
+        heartbeatTone,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => compareMissionIds(left.hw_id, right.hw_id));
+}
+
 export function toBackendConfigDrone(drone = {}) {
   const normalized = normalizeDroneConfigEntry(drone);
   if (!normalized) {

@@ -443,6 +443,127 @@ button.mission-config-alert {
     background: var(--color-info-light);
 }
 
+.mission-config-pending-panel {
+    display: grid;
+    gap: var(--spacing-base);
+    margin-bottom: var(--spacing-lg);
+    padding: var(--spacing-base);
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-md);
+    background:
+        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.06), transparent 72%),
+        var(--color-surface-muted);
+    box-shadow: var(--shadow-sm);
+}
+
+.mission-config-pending-panel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-base);
+}
+
+.mission-config-pending-panel__header h3 {
+    margin: 0 0 0.35rem 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+}
+
+.mission-config-pending-panel__header p {
+    margin: 0;
+    max-width: 48rem;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.45;
+}
+
+.mission-config-pending-panel__count {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    padding: 0.4rem 0.7rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-info-border);
+    background: var(--color-info-light);
+    color: var(--color-info-text);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.mission-config-pending-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.mission-config-pending-card {
+    display: grid;
+    gap: 0.6rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--color-border-primary);
+    border-radius: var(--border-radius-base);
+    background: var(--color-bg-primary);
+}
+
+.mission-config-pending-card__identity {
+    display: grid;
+    gap: 0.2rem;
+}
+
+.mission-config-pending-card__identity strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}
+
+.mission-config-pending-card__identity span,
+.mission-config-pending-card__note {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+}
+
+.mission-config-pending-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.mission-config-pending-card__meta > span {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.55rem;
+    border-radius: var(--border-radius-full);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+}
+
+.mission-config-pending-status {
+    border: 1px solid var(--color-border-secondary);
+}
+
+.mission-config-pending-status--good {
+    border-color: var(--color-success-border);
+    background: var(--color-success-light);
+    color: var(--color-success-text);
+}
+
+.mission-config-pending-status--warning {
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-light);
+    color: var(--color-warning-text);
+}
+
+.mission-config-pending-status--danger {
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-light);
+    color: var(--color-danger-text);
+}
+
 .role-swap-more-link {
     border: none;
     background: transparent;
@@ -768,6 +889,10 @@ button.mission-config-alert {
     .mission-config-primary-bar__actions {
         justify-content: stretch;
     }
+
+    .mission-config-pending-panel__header {
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 768px) {
@@ -819,6 +944,10 @@ button.mission-config-alert {
     .mission-config-card-panel-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .mission-config-pending-grid {
+        grid-template-columns: 1fr;
     }
 
     .initial-launch-plot {

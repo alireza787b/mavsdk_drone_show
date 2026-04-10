@@ -102,6 +102,8 @@ The current flow is not safe enough for real operations because:
   - stale/reimaged node
   - same-airframe companion replacement
   - spare-airframe hot swap
+  - standby-node reassignment into an existing mission slot without inventing a
+    second workflow
 
 ## Primary Product Goals
 
@@ -120,6 +122,9 @@ This subsystem needs to support five real workflows cleanly:
    - failed airframe replaced by spare airframe / spare companion
    - existing `pos_id` preserved
    - new physical `hw_id` takes the role
+   - example: standby `H101` is accepted as the replacement for failed slot
+     `P12`; this uses the same candidate-enrollment and replacement workflow,
+     not a Drone Show-specific side path
 
 4. Companion-computer replacement on the same physical drone
    - same physical drone

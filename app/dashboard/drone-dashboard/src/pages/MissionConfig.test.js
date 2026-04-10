@@ -30,7 +30,9 @@ jest.mock('../utilities/missionConfigUtilities', () => ({
 }));
 
 jest.mock('../components/PositionTabs', () => () => <div data-testid="position-tabs" />);
-jest.mock('../components/DroneConfigCard', () => () => <div data-testid="drone-config-card" />);
+jest.mock('../components/DroneConfigCard', () => ({ drone }) => (
+  <div data-testid="drone-config-card">{drone.hw_id}</div>
+));
 jest.mock('../components/ControlButtons', () => () => <div data-testid="control-buttons" />);
 jest.mock('../components/MissionLayout', () => () => <div data-testid="mission-layout" />);
 jest.mock('../components/GcsConfigModal', () => () => <div data-testid="gcs-config-modal" />);
@@ -77,7 +79,7 @@ const renderMissionConfig = () => render(
   </MemoryRouter>
 );
 
-const buildFetchResponseMap = (originResponse) => ({
+const buildFetchResponseMap = (originResponse, overrides = {}) => ({
   fleetConfig: {
     data: [],
     loading: false,
@@ -95,6 +97,7 @@ const buildFetchResponseMap = (originResponse) => ({
   fleetHeartbeats: { data: { heartbeats: [] }, loading: false, error: null },
   dronePositions: { data: [], loading: false, error: null },
   swarmConfig: { data: [], loading: false, error: null },
+  ...overrides,
 });
 
 describe('MissionConfig origin review surface', () => {
@@ -167,5 +170,55 @@ describe('MissionConfig origin review surface', () => {
     );
 
     expect(screen.getByTestId('origin-modal')).toBeInTheDocument();
+  });
+
+  test('shows heartbeat-only nodes as pending enrollment instead of injecting assignment cards', () => {
+    const now = Date.now();
+    const fetchResponses = buildFetchResponseMap(
+      {
+        data: { lat: 35.7, lon: 51.2 },
+        loading: false,
+        error: null,
+      },
+      {
+        fleetConfig: {
+          data: [
+            {
+              hw_id: 1,
+              pos_id: 1,
+              ip: '10.0.0.1',
+              mavlink_port: 14551,
+              serial_port: '',
+              baudrate: 0,
+            },
+          ],
+          loading: false,
+          error: null,
+        },
+        fleetHeartbeats: {
+          data: {
+            heartbeats: [
+              { hw_id: 1, last_heartbeat: now - 3_000, ip: '10.0.0.1' },
+              { hw_id: 99, last_heartbeat: now - 5_000, ip: '10.0.0.99', mavlink_port: 14599 },
+            ],
+          },
+          loading: false,
+          error: null,
+        },
+        dronePositions: {
+          data: [{ pos_id: 1, x: 0, y: 0 }],
+          loading: false,
+          error: null,
+        },
+      }
+    );
+
+    useFetch.mockImplementation((endpoint) => fetchResponses[endpoint] || { data: null, loading: false, error: null });
+
+    renderMissionConfig();
+
+    expect(screen.getAllByTestId('drone-config-card')).toHaveLength(1);
+    expect(screen.getByText(/1 detected, not enrolled/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Drone 99/).length).toBeGreaterThan(0);
   });
 });

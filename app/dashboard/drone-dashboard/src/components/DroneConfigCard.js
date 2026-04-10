@@ -546,8 +546,8 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   return (
     <>
       {isNew && (
-        <div className="new-drone-badge" aria-label="Newly Detected Drone">
-          <FontAwesomeIcon icon={faPlusCircle} /> Newly Detected
+        <div className="new-drone-badge" aria-label="Draft Assignment">
+          <FontAwesomeIcon icon={faPlusCircle} /> Draft assignment
         </div>
       )}
 

@@ -35,6 +35,7 @@ import {
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
 import {
+  buildPendingEnrollmentCandidates,
   buildSuggestedHwIds,
   compareMissionIds,
   formatDroneLabel,
@@ -77,6 +78,7 @@ const MissionConfig = () => {
   const cardRefs = useRef({});
   const assignmentWallRef = useRef(null);
   const missionPreviewPanelRef = useRef(null);
+  const pendingEnrollmentPanelRef = useRef(null);
   const handledRouteDroneRef = useRef('');
 
   // -----------------------------------------------------
@@ -339,48 +341,6 @@ const MissionConfig = () => {
   }, [configData, trajectoryPositionsByPosId]);
 
   // -----------------------------------------------------
-  // Detect & add "new" drones by heartbeat
-  // -----------------------------------------------------
-  useEffect(() => {
-    const heartbeatHwIds = Object.keys(heartbeats);
-    const configuredHwIds = new Set(
-      configData.map((drone) => normalizeComparableId(drone.hw_id)).filter(Boolean)
-    );
-
-    const newDrones = [];
-    for (const hbHwId of heartbeatHwIds) {
-      const normalizedHwId = normalizeComparableId(hbHwId);
-      if (!normalizedHwId || configuredHwIds.has(normalizedHwId)) {
-        continue;
-      }
-
-      const hb = heartbeats[hbHwId];
-      const normalizedDrone = normalizeDroneConfigEntry({
-        hw_id: normalizedHwId,
-        pos_id: hb.pos_id || normalizedHwId,
-        ip: hb.ip || '',
-        x: '0',
-        y: '0',
-        mavlink_port: String(14550 + parseInt(normalizedHwId, 10)),
-        serial_port: '/dev/ttyS0',  // Default for Raspberry Pi 4
-        baudrate: '57600',           // Standard baudrate
-        isNew: true,
-      });
-
-      if (normalizedDrone) {
-        newDrones.push(normalizedDrone);
-        configuredHwIds.add(normalizedHwId);
-      }
-    }
-
-    if (newDrones.length > 0) {
-      setConfigData((prev) => [...prev, ...newDrones]);
-      toast.info(`${newDrones.length} new drone(s) detected and added.`);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [heartbeats, configData]);
-
-  // -----------------------------------------------------
   // CRUD operations
   // -----------------------------------------------------
   const saveChanges = (originalHwId, updatedData) => {
@@ -406,7 +366,7 @@ const MissionConfig = () => {
     setConfigData((prevConfig) =>
       prevConfig.map((drone) =>
         normalizeComparableId(drone.hw_id) === normalizedOriginalHwId
-          ? { ...normalizedUpdatedDrone, isNew: false }
+          ? { ...normalizedUpdatedDrone, isNew: Boolean(drone.isNew) }
           : drone
       )
     );
@@ -439,7 +399,7 @@ const MissionConfig = () => {
     }
 
     setConfigData((prevConfig) => [...prevConfig, newDrone]);
-    toast.success(`New ${formatDroneLabel(newHwId)} added.`);
+    toast.success(`Draft ${formatDroneLabel(newHwId)} added.`);
   };
 
   const removeDrone = (hw_id) => {
@@ -628,6 +588,10 @@ const MissionConfig = () => {
       visibleClusters.flatMap((cluster) => cluster.drones.map((drone) => normalizeComparableId(drone.hw_id)))
     );
   }, [clusterScope, visibleClusters]);
+  const pendingEnrollmentDrones = useMemo(
+    () => buildPendingEnrollmentCandidates(configData, heartbeats),
+    [configData, heartbeats]
+  );
   const getHeartbeatAgeSec = (heartbeatData) => {
     const timestamp = Number(heartbeatData?.timestamp);
     if (!Number.isFinite(timestamp)) {
@@ -646,18 +610,18 @@ const MissionConfig = () => {
     const slotPresentation = buildMissionSlotStatusPresentation(configPosId, assignedPosId, autoPosId);
     const isRoleSwap = Boolean(hwId && configPosId && hwId !== configPosId);
     const isOffline = heartbeatAgeSec !== null && heartbeatAgeSec >= 60;
-    const isNew = Boolean(drone.isNew);
+    const isDraft = Boolean(drone.isNew);
     const needsAttention = (
       duplicateHwIdSet.has(hwId)
       || duplicatePosIdSet.has(configPosId)
       || isRoleSwap
-      || isNew
+      || isDraft
       || isOffline
       || slotPresentation.tone === 'review'
     );
 
     return {
-      isNew,
+      isDraft,
       isRoleSwap,
       isOffline,
       needsAttention,
@@ -669,7 +633,7 @@ const MissionConfig = () => {
       attention: 0,
       roleSwaps: 0,
       offline: 0,
-      new: 0,
+      draft: 0,
     };
 
     sortedConfigData.forEach((drone) => {
@@ -683,8 +647,8 @@ const MissionConfig = () => {
       if (signals.isOffline) {
         counts.offline += 1;
       }
-      if (signals.isNew) {
-        counts.new += 1;
+      if (signals.isDraft) {
+        counts.draft += 1;
       }
     });
 
@@ -719,12 +683,12 @@ const MissionConfig = () => {
             description: 'Show drones that have gone offline.',
           }
         : null,
-      counts.new > 0
+      counts.draft > 0
         ? {
-            id: 'new',
-            label: 'New',
-            count: counts.new,
-            description: 'Show newly detected drones.',
+            id: 'draft',
+            label: 'Draft',
+            count: counts.draft,
+            description: 'Show unsaved draft assignments.',
           }
         : null,
     ].filter(Boolean);
@@ -758,21 +722,23 @@ const MissionConfig = () => {
           return signals.isRoleSwap;
         case 'offline':
           return signals.isOffline;
-        case 'new':
-          return signals.isNew;
+        case 'draft':
+          return signals.isDraft;
         default:
           return true;
       }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [assignmentFilter, missionConfigSearch, sortedConfigData, visibleClusterHwIds, heartbeats, duplicateHwIdSet, duplicatePosIdSet]);
+  const draftAssignmentCount = configData.filter((drone) => drone.isNew).length;
   const missionWorkspaceStats = useMemo(
     () => [
       { label: 'Visible', value: filteredConfigData.length },
       { label: 'Online', value: onlineDroneCount },
       { label: 'Role swaps', value: roleSwaps.length },
       { label: 'Duplicate slots', value: duplicatePosIds.length },
-      { label: 'New', value: configData.filter((drone) => drone.isNew).length },
+      { label: 'Draft', value: draftAssignmentCount },
+      { label: 'Pending', value: pendingEnrollmentDrones.length },
       {
         label: 'Origin',
         value: originStatus === 'ready'
@@ -786,11 +752,13 @@ const MissionConfig = () => {
         actionLabel: originStatus === 'ready' ? 'Review' : 'Open',
       },
     ],
-    [configData, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originStatus, roleSwaps.length]
+    [draftAssignmentCount, duplicatePosIds.length, filteredConfigData.length, onlineDroneCount, originStatus, pendingEnrollmentDrones.length, roleSwaps.length]
   );
   const missionAttentionCount = duplicateHwIds.length
     + duplicatePosIds.length
     + roleSwaps.length
+    + draftAssignmentCount
+    + pendingEnrollmentDrones.length
     + (originStatus === 'ready' || originStatus === 'checking' ? 0 : 1);
   const missionWorkspaceHeadline = missionAttentionCount > 0
     ? `${missionAttentionCount} active review item${missionAttentionCount === 1 ? '' : 's'}`
@@ -855,6 +823,10 @@ const MissionConfig = () => {
       setRoleSwapData(roleSwaps);
       setShowRoleSwapModal(true);
     }
+  };
+
+  const reviewPendingEnrollmentCandidates = () => {
+    scrollNodeIntoView(pendingEnrollmentPanelRef.current, 'start');
   };
 
   useEffect(() => {
@@ -1005,8 +977,25 @@ const MissionConfig = () => {
         </section>
       </section>
 
-      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || (originStatus !== 'ready' && originStatus !== 'checking')) && (
+      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || pendingEnrollmentDrones.length > 0 || (originStatus !== 'ready' && originStatus !== 'checking')) && (
         <div className="mission-config-alert-stack">
+          {pendingEnrollmentDrones.length > 0 && (
+            <button
+              type="button"
+              className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
+              onClick={reviewPendingEnrollmentCandidates}
+            >
+              <FontAwesomeIcon icon={faPlus} />
+              <div>
+                <strong>{pendingEnrollmentDrones.length} detected, not enrolled</strong>
+                <span>
+                  {pendingEnrollmentDrones.slice(0, 3).map((candidate) => formatDroneLabel(candidate.hw_id)).join(' • ')}
+                  {pendingEnrollmentDrones.length > 3 ? ` • +${pendingEnrollmentDrones.length - 3} more` : ''}
+                </span>
+              </div>
+              <span className="mission-config-alert__action">Review</span>
+            </button>
+          )}
           {duplicateHwIds.length > 0 && (
             <button
               type="button"
@@ -1078,6 +1067,55 @@ const MissionConfig = () => {
             </button>
           )}
         </div>
+      )}
+
+      {pendingEnrollmentDrones.length > 0 && (
+        <section
+          ref={pendingEnrollmentPanelRef}
+          className="mission-config-pending-panel"
+          aria-label="Detected nodes pending enrollment"
+        >
+          <div className="mission-config-pending-panel__header">
+            <div>
+              <h3>Detected, not enrolled</h3>
+              <p>
+                These nodes are reaching GCS by heartbeat only. They are available for replacement
+                workflows, but they are not written into fleet config automatically.
+              </p>
+            </div>
+            <span className="mission-config-pending-panel__count">
+              {pendingEnrollmentDrones.length} candidate{pendingEnrollmentDrones.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="mission-config-pending-grid">
+            {pendingEnrollmentDrones.map((candidate) => (
+              <article key={candidate.hw_id} className="mission-config-pending-card">
+                <div className="mission-config-pending-card__identity">
+                  <strong>{formatDroneLabel(candidate.hw_id)}</strong>
+                  <span>
+                    {candidate.pos_id
+                      ? `${formatShowSlotLabel(candidate.pos_id)} reported`
+                      : candidate.detected_pos_id
+                        ? `${formatShowSlotLabel(candidate.detected_pos_id)} detected`
+                        : 'No slot hint reported'}
+                  </span>
+                </div>
+                <div className="mission-config-pending-card__meta">
+                  <span>{candidate.ip ? `IP ${candidate.ip}` : 'IP pending'}</span>
+                  <span>{candidate.mavlink_port ? `Port ${candidate.mavlink_port}` : 'Port pending'}</span>
+                  <span className={`mission-config-pending-status mission-config-pending-status--${candidate.heartbeatTone}`}>
+                    {candidate.heartbeatStatus}
+                    {candidate.heartbeatAgeSec !== null ? ` · ${candidate.heartbeatAgeSec}s` : ''}
+                  </span>
+                </div>
+                <p className="mission-config-pending-card__note">
+                  Use “Replace drone” on a failed slot to map this standby node into service,
+                  or review it explicitly before adding a new fleet entry.
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Origin Modal */}
@@ -1351,6 +1389,7 @@ const MissionConfig = () => {
         }}
         configData={configData}
         heartbeats={heartbeats}
+        pendingEnrollmentDrones={pendingEnrollmentDrones}
         preselectedHwId={replaceDroneTarget}
         onSave={(updatedConfig) => {
           applyNormalizedConfigData(updatedConfig);

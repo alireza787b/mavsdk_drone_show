@@ -20,6 +20,7 @@ export default function ReplaceDroneWizard({
   onClose,
   configData,
   heartbeats,
+  pendingEnrollmentDrones,
   onSave,
   preselectedHwId,
 }) {
@@ -49,17 +50,15 @@ export default function ReplaceDroneWizard({
     }
   }, [isOpen, preselectedHwId]);
 
-  // Spare drones: detected via heartbeat but NOT in configData
-  const spareDrones = useMemo(() => {
-    const configHwIds = new Set(configData.map((drone) => normalizeComparableId(drone.hw_id)).filter(Boolean));
-    return Object.entries(heartbeats)
-      .filter(([hwId]) => !configHwIds.has(normalizeComparableId(hwId)))
-      .map(([hwId, hb]) => ({
-        hw_id: normalizeComparableId(hwId),
-        ip: hb.ip || '',
-        port: hb.mavlink_port || '',
-      }));
-  }, [configData, heartbeats]);
+  const pendingCandidates = useMemo(() => (
+    Array.isArray(pendingEnrollmentDrones)
+      ? pendingEnrollmentDrones.map((candidate) => ({
+          hw_id: normalizeComparableId(candidate.hw_id),
+          ip: candidate.ip || '',
+          port: candidate.mavlink_port || '',
+        }))
+      : []
+  ), [pendingEnrollmentDrones]);
 
   // Helper: get heartbeat status label for a drone
   const getStatusLabel = (hwId) => {
@@ -237,7 +236,7 @@ export default function ReplaceDroneWizard({
             </div>
 
             {/* Option B: Select from spares */}
-            {spareDrones.length > 0 && (
+            {pendingCandidates.length > 0 && (
               <div className="replacement-section">
                 <label className="section-label">
                   <input
@@ -245,11 +244,11 @@ export default function ReplaceDroneWizard({
                     checked={!useManualEntry}
                     onChange={() => setUseManualEntry(false)}
                   />
-                  Select from detected spare drones ({spareDrones.length} available)
+                  Select from detected standby nodes ({pendingCandidates.length} available)
                 </label>
                 {!useManualEntry && (
                   <div className="spare-drone-list">
-                    {spareDrones.map((spare) => (
+                    {pendingCandidates.map((spare) => (
                       <div
                         key={spare.hw_id}
                         className={`spare-drone-item ${normalizeComparableId(newHwId) === normalizeComparableId(spare.hw_id) ? 'selected' : ''}`}
@@ -367,6 +366,12 @@ ReplaceDroneWizard.propTypes = {
   onClose: PropTypes.func.isRequired,
   configData: PropTypes.array.isRequired,
   heartbeats: PropTypes.object.isRequired,
+  pendingEnrollmentDrones: PropTypes.array,
   onSave: PropTypes.func.isRequired,
   preselectedHwId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+};
+
+ReplaceDroneWizard.defaultProps = {
+  pendingEnrollmentDrones: [],
+  preselectedHwId: null,
 };
