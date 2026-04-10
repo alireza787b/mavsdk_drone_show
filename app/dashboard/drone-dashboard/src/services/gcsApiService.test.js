@@ -82,6 +82,7 @@ describe('gcsApiService', () => {
   it('maps active canonical and retained compatibility paths back to route keys', () => {
     expect(resolveGcsRouteKey('/api/v1/fleet/telemetry')).toBe(GCS_ROUTE_KEYS.fleetTelemetry);
     expect(resolveGcsRouteKey('/api/v1/fleet/heartbeats')).toBe(GCS_ROUTE_KEYS.fleetHeartbeats);
+    expect(resolveGcsRouteKey('/api/v1/fleet/candidates')).toBe(GCS_ROUTE_KEYS.fleetCandidates);
     expect(resolveGcsRouteKey('/api/v1/config/fleet')).toBe(GCS_ROUTE_KEYS.fleetConfig);
     expect(resolveGcsRouteKey('/api/v1/config/swarm')).toBe(GCS_ROUTE_KEYS.swarmConfig);
     expect(resolveGcsRouteKey('/api/v1/git/status')).toBe(GCS_ROUTE_KEYS.gitStatus);

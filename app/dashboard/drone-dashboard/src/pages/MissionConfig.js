@@ -35,7 +35,6 @@ import {
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
 import {
-  buildPendingEnrollmentCandidates,
   buildSuggestedHwIds,
   compareMissionIds,
   formatDroneLabel,
@@ -153,6 +152,7 @@ const MissionConfig = () => {
   const { data: gitStatusDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 20000);
   const { data: networkInfoFetched } = useFetch(GCS_ROUTE_KEYS.networkInfo, 10000);
   const { data: heartbeatsFetched } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
+  const { data: fleetCandidatesFetched } = useFetch(GCS_ROUTE_KEYS.fleetCandidates, 5000);
   const { data: savedDronePositionsFetched } = useFetch(GCS_ROUTE_KEYS.dronePositions, 10000);
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
@@ -588,10 +588,48 @@ const MissionConfig = () => {
       visibleClusters.flatMap((cluster) => cluster.drones.map((drone) => normalizeComparableId(drone.hw_id)))
     );
   }, [clusterScope, visibleClusters]);
-  const pendingEnrollmentDrones = useMemo(
-    () => buildPendingEnrollmentCandidates(configData, heartbeats),
-    [configData, heartbeats]
-  );
+  const pendingEnrollmentDrones = useMemo(() => {
+    const candidates = Array.isArray(fleetCandidatesFetched?.candidates)
+      ? fleetCandidatesFetched.candidates
+      : [];
+
+    return candidates.map((candidate) => {
+      const heartbeatStatus = String(candidate.heartbeat_status || 'unknown');
+      const registrationState = String(candidate.registration_state || 'pending_operator_review');
+      const heartbeatTone = registrationState === 'conflict'
+        ? 'warning'
+        : heartbeatStatus === 'online'
+          ? 'good'
+          : heartbeatStatus === 'stale'
+            ? 'warning'
+            : heartbeatStatus === 'offline'
+              ? 'danger'
+              : 'neutral';
+      const readableHeartbeatStatus = registrationState === 'conflict'
+        ? 'Needs review'
+        : heartbeatStatus === 'online'
+          ? 'Online'
+          : heartbeatStatus === 'stale'
+            ? 'Stale'
+            : heartbeatStatus === 'offline'
+              ? 'Offline'
+              : 'Unknown';
+
+      return {
+        candidate_id: candidate.candidate_id,
+        hw_id: normalizeComparableId(candidate.hw_id),
+        pos_id: normalizeComparableId(candidate.reported_pos_id),
+        detected_pos_id: normalizeComparableId(candidate.detected_pos_id),
+        ip: candidate.primary_control_ip || candidate.ip_addresses?.[0] || '',
+        mavlink_port: '',
+        heartbeatAgeSec: Number.isFinite(candidate.heartbeat_age_sec) ? candidate.heartbeat_age_sec : null,
+        heartbeatStatus: readableHeartbeatStatus,
+        heartbeatTone,
+        conflict_reasons: Array.isArray(candidate.conflict_reasons) ? candidate.conflict_reasons : [],
+        registration_state: registrationState,
+      };
+    });
+  }, [fleetCandidatesFetched]);
   const getHeartbeatAgeSec = (heartbeatData) => {
     const timestamp = Number(heartbeatData?.timestamp);
     if (!Number.isFinite(timestamp)) {
@@ -1109,8 +1147,9 @@ const MissionConfig = () => {
                   </span>
                 </div>
                 <p className="mission-config-pending-card__note">
-                  Use “Replace drone” on a failed slot to map this standby node into service,
-                  or review it explicitly before adding a new fleet entry.
+                  {candidate.registration_state === 'conflict'
+                    ? `Conflict: ${candidate.conflict_reasons.join(', ')}. Review before changing fleet config.`
+                    : 'Use “Replace drone” on a failed slot to map this standby node into service, or review it explicitly before adding a new fleet entry.'}
                 </p>
               </article>
             ))}

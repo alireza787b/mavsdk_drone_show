@@ -164,6 +164,136 @@ class ConfigUpdateResponse(BaseModel):
 
 
 # ============================================================================
+# Fleet Candidate / Enrollment Schemas
+# ============================================================================
+
+class FleetCandidateState(str, Enum):
+    """Registration lifecycle state for a discovered or announced node."""
+    PENDING_OPERATOR_REVIEW = "pending_operator_review"
+    CONFLICT = "conflict"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    IGNORED = "ignored"
+    SUPERSEDED = "superseded"
+
+
+class FleetCandidateRecord(BaseModel):
+    """Durable GCS-side candidate record for onboarding, replacement, and recovery."""
+    model_config = ConfigDict(extra='ignore')
+
+    candidate_id: str = Field(..., description="Stable candidate identifier")
+    node_uuid: Optional[str] = Field(None, description="Node-local bootstrap UUID if reported")
+    hw_id: Optional[str] = Field(None, description="Candidate hardware ID")
+    hostname: Optional[str] = Field(None, description="Candidate hostname")
+    reported_pos_id: Optional[str] = Field(None, description="Explicit pos_id reported by the node heartbeat")
+    detected_pos_id: Optional[str] = Field(None, description="Auto-detected position hint from the node heartbeat")
+    first_seen: int = Field(..., ge=0, description="First time the candidate was observed (Unix ms)")
+    last_seen: int = Field(..., ge=0, description="Last time the candidate was observed by GCS (Unix ms)")
+    last_heartbeat: Optional[int] = Field(None, ge=0, description="Last heartbeat timestamp seen for this candidate (Unix ms)")
+    last_announce: Optional[int] = Field(None, ge=0, description="Last explicit announce timestamp for this candidate (Unix ms)")
+    heartbeat_age_sec: Optional[int] = Field(None, ge=0, description="Derived heartbeat age in seconds")
+    heartbeat_status: Optional[str] = Field(None, description="Derived heartbeat presence status")
+    ip_addresses: List[str] = Field(default_factory=list, description="Unique observed candidate IP addresses")
+    primary_control_ip: Optional[str] = Field(None, description="Preferred control-plane IP for the candidate")
+    network_mode: Optional[str] = Field(None, description="Provisioned network mode")
+    netbird_ip: Optional[str] = Field(None, description="NetBird-assigned overlay IP if present")
+    repo_url: Optional[str] = Field(None, description="Provisioned repository URL")
+    branch: Optional[str] = Field(None, description="Provisioned git branch")
+    commit: Optional[str] = Field(None, description="Provisioned git revision if reported")
+    bootstrap_version: Optional[str] = Field(None, description="Bootstrap script version if reported")
+    bootstrap_status: Optional[str] = Field(None, description="Bootstrap status string")
+    role_hint: Optional[str] = Field(None, description="Optional node role hint")
+    mavlink_routing_mode: Optional[str] = Field(None, description="MAVLink routing mode")
+    mavlink_input_type: Optional[str] = Field(None, description="MAVLink input type")
+    mavlink_input_device: Optional[str] = Field(None, description="MAVLink input device path or URI")
+    autopilot_link_state: Optional[str] = Field(None, description="Best-effort autopilot link health summary")
+    registration_state: FleetCandidateState = Field(..., description="Current registration lifecycle state")
+    conflict_reasons: List[str] = Field(default_factory=list, description="Active conflict reasons, if any")
+    resolution: Optional[str] = Field(None, description="Latest accepted resolution path such as accepted_as_new or replaced_existing")
+    replacement_target_hw_id: Optional[str] = Field(None, description="Existing fleet hw_id targeted by a replacement action")
+    replacement_target_pos_id: Optional[str] = Field(None, description="Existing fleet pos_id preserved by a replacement action")
+    notes: Optional[str] = Field(None, description="Operator or automation notes")
+
+
+class FleetCandidateListResponse(BaseModel):
+    """Response for listing fleet enrollment candidates."""
+    candidates: List[FleetCandidateRecord] = Field(..., description="Candidate records")
+    total_candidates: int = Field(..., ge=0, description="Number of returned candidate records")
+    state_counts: Dict[str, int] = Field(default_factory=dict, description="Counts grouped by registration_state")
+    timestamp: int = Field(..., ge=0, description="Response timestamp (Unix ms)")
+
+
+class FleetCandidateAnnounceRequest(BaseModel):
+    """Machine-friendly node bootstrap / identity announce payload."""
+    model_config = ConfigDict(extra='forbid')
+
+    node_uuid: Optional[str] = Field(None, description="Node-local bootstrap UUID")
+    hw_id: Optional[Union[int, str]] = Field(None, description="Candidate hardware ID")
+    hostname: Optional[str] = Field(None, description="Companion hostname")
+    role_hint: Optional[str] = Field(None, description="Optional node role hint")
+    repo_url: Optional[str] = Field(None, description="Provisioned repository URL")
+    branch: Optional[str] = Field(None, description="Provisioned git branch")
+    bootstrap_version: Optional[str] = Field(None, description="Bootstrap script version")
+    bootstrap_status: Optional[str] = Field(None, description="Bootstrap status")
+    network_mode: Optional[str] = Field(None, description="Provisioned network mode")
+    primary_control_ip: Optional[str] = Field(None, description="Preferred control-plane IP")
+    mavlink_routing_mode: Optional[str] = Field(None, description="MAVLink routing mode")
+    mavlink_input_type: Optional[str] = Field(None, description="MAVLink input type")
+    mavlink_input_device: Optional[str] = Field(None, description="MAVLink input device path or URI")
+    timestamp: Optional[int] = Field(None, ge=0, description="Announce timestamp (Unix ms)")
+
+    @field_validator("hw_id", mode="before")
+    @classmethod
+    def normalize_candidate_hw_id(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = value.strip()
+        return str(value) if value not in {"", None} else None
+
+
+class FleetCandidateActionRequest(BaseModel):
+    """Base request for simple candidate state mutations."""
+    model_config = ConfigDict(extra='forbid')
+
+    reason: Optional[str] = Field(None, description="Optional operator or automation note")
+
+
+class FleetCandidateAcceptRequest(BaseModel):
+    """Accept a pending candidate as a new fleet member."""
+    model_config = ConfigDict(extra='forbid')
+
+    pos_id: int = Field(..., ge=1, description="Assigned fleet position ID for the accepted candidate")
+    ip: Optional[str] = Field(None, description="Override control-plane IP to save into config")
+    mavlink_port: int = Field(..., ge=1, description="MAVLink UDP port to save into config")
+    serial_port: str = Field('', description="Serial device path, empty for non-serial routing")
+    baudrate: int = Field(0, ge=0, description="Serial baudrate")
+    color: Optional[str] = Field(None, pattern=r'^#[0-9a-fA-F]{6}$', description="Optional UI color")
+    notes: Optional[str] = Field(None, description="Operator notes to save into config")
+
+
+class FleetCandidateReplaceRequest(BaseModel):
+    """Replace an existing configured fleet member with a pending candidate."""
+    model_config = ConfigDict(extra='forbid')
+
+    target_hw_id: int = Field(..., ge=1, description="Existing fleet hardware ID to replace")
+    ip: Optional[str] = Field(None, description="Override control-plane IP to save into config")
+    mavlink_port: Optional[int] = Field(None, ge=1, description="Override MAVLink UDP port to save into config")
+    serial_port: Optional[str] = Field(None, description="Override serial device path")
+    baudrate: Optional[int] = Field(None, ge=0, description="Override serial baudrate")
+    notes: Optional[str] = Field(None, description="Operator note describing the replacement")
+
+
+class FleetCandidateMutationResponse(BaseModel):
+    """Response for candidate enrollment/replacement state changes."""
+    status: str = Field(..., description="Mutation status")
+    message: str = Field(..., description="Operator-facing summary")
+    candidate: FleetCandidateRecord = Field(..., description="Updated candidate record")
+    warnings: List[str] = Field(default_factory=list, description="Non-blocking warnings")
+    git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if auto-push was requested")
+
+
+# ============================================================================
 # Telemetry Schemas
 # ============================================================================
 

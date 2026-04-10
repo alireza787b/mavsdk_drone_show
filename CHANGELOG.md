@@ -1087,6 +1087,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 # 2026-04-10
 
+### Fleet Candidate Registry Foundation
+- Added a durable GCS-side fleet candidate registry under `runtime_data/` so heartbeat-visible or explicitly announced nodes now have one canonical pending-enrollment source of truth instead of Mission Config inferring candidates in the browser.
+- Added canonical `/api/v1/fleet/candidates/*` routes for list, announce, accept, replace, reject, and ignore actions, with typed schemas for future CLI/MCP/operator automation.
+- Wired heartbeat acceptance to observe unknown nodes into the candidate registry without reviving silent config enrollment, while keeping heartbeat acceptance itself the primary path.
+- Reworked replacement semantics so a spare like `H101` taking over failed slot `P12` rewrites both `config.json` and `swarm.json` follow references instead of treating replacement as a browser-only config edit.
+- Cut Mission Config over to the backend candidate registry so pending enrollment cards now come from GCS state, not a second local heartbeat-diff algorithm.
+- Narrowed the announce contract to node identity / bootstrap fields only, keeping GCS-derived state out of the bootstrap payload and avoiding another mixed source-of-truth surface.
+
 ### PX4 Parameters Compact Grouping And Touch Layout Refinement
 - Reworked the PX4 Parameters compact/touch list into a grouped scan-first layout so phone, tablet, and touch desktop-mode sessions browse by PX4 section instead of reading a squeezed pseudo-table.
 - Reduced compact row clutter by moving rich metadata back into the detail dialog and keeping inline rows focused on name, current value, and safety/reference icons.

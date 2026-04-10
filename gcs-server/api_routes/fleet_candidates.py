@@ -1,0 +1,188 @@
+"""Fleet candidate enrollment and replacement routes."""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from typing import Any, Optional
+
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+
+from fleet_candidates import (
+    FleetCandidateConflictError,
+    FleetCandidateNotFoundError,
+    FleetCandidateValidationError,
+)
+from schemas import (
+    FleetCandidateAcceptRequest,
+    FleetCandidateActionRequest,
+    FleetCandidateAnnounceRequest,
+    FleetCandidateListResponse,
+    FleetCandidateMutationResponse,
+    FleetCandidateRecord,
+    FleetCandidateReplaceRequest,
+    FleetCandidateState,
+)
+from src.gcs_api_routes import (
+    GCS_FLEET_CANDIDATE_ACCEPT_ROUTE_TEMPLATE,
+    GCS_FLEET_CANDIDATE_ANNOUNCE_ROUTE,
+    GCS_FLEET_CANDIDATE_IGNORE_ROUTE_TEMPLATE,
+    GCS_FLEET_CANDIDATE_REJECT_ROUTE_TEMPLATE,
+    GCS_FLEET_CANDIDATE_REPLACE_ROUTE_TEMPLATE,
+    GCS_FLEET_CANDIDATE_ROUTE_TEMPLATE,
+    GCS_FLEET_CANDIDATES_ROUTE,
+)
+
+
+def _translate_candidate_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, FleetCandidateNotFoundError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, FleetCandidateConflictError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, FleetCandidateValidationError):
+        return HTTPException(status_code=400, detail=str(exc))
+    return HTTPException(status_code=500, detail=str(exc))
+
+
+def _build_list_response(candidates: list[FleetCandidateRecord]) -> FleetCandidateListResponse:
+    state_counts: dict[str, int] = {}
+    for candidate in candidates:
+        state = candidate.registration_state.value
+        state_counts[state] = state_counts.get(state, 0) + 1
+    return FleetCandidateListResponse(
+        candidates=candidates,
+        total_candidates=len(candidates),
+        state_counts=state_counts,
+        timestamp=int(time.time() * 1000),
+    )
+
+
+def create_fleet_candidates_router(deps: Any) -> APIRouter:
+    router = APIRouter()
+
+    @router.get(GCS_FLEET_CANDIDATES_ROUTE, response_model=FleetCandidateListResponse, tags=["Fleet Enrollment"])
+    async def list_fleet_candidates(include_inactive: bool = Query(False, description="Include resolved candidates")):
+        try:
+            candidates = deps.list_fleet_candidates(include_inactive=include_inactive)
+            return _build_list_response(candidates)
+        except Exception as exc:
+            raise _translate_candidate_error(exc) from exc
+
+    @router.get(GCS_FLEET_CANDIDATE_ROUTE_TEMPLATE, response_model=FleetCandidateRecord, tags=["Fleet Enrollment"])
+    async def get_fleet_candidate(
+        candidate_id: str = PathParam(..., description="Candidate identifier"),
+    ):
+        try:
+            return deps.get_fleet_candidate(candidate_id)
+        except Exception as exc:
+            raise _translate_candidate_error(exc) from exc
+
+    @router.post(GCS_FLEET_CANDIDATE_ANNOUNCE_ROUTE, response_model=FleetCandidateRecord, tags=["Fleet Enrollment"])
+    async def announce_fleet_candidate(payload: FleetCandidateAnnounceRequest):
+        try:
+            return deps.announce_fleet_candidate(payload)
+        except Exception as exc:
+            deps.log_system_error(f"Fleet candidate announce failed: {exc}", "fleet_enrollment")
+            raise _translate_candidate_error(exc) from exc
+
+    @router.post(GCS_FLEET_CANDIDATE_ACCEPT_ROUTE_TEMPLATE, response_model=FleetCandidateMutationResponse, tags=["Fleet Enrollment"])
+    async def accept_fleet_candidate(
+        payload: FleetCandidateAcceptRequest,
+        candidate_id: str = PathParam(..., description="Candidate identifier"),
+        commit: Optional[bool] = Query(None, description="Commit and push repo changes after acceptance"),
+    ):
+        try:
+            candidate, warnings = deps.accept_fleet_candidate(candidate_id, payload)
+            git_result = None
+            should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
+            if should_commit:
+                loop = asyncio.get_running_loop()
+                git_result = await loop.run_in_executor(
+                    None,
+                    deps.git_operations,
+                    deps.BASE_DIR,
+                    f"fleet: accept candidate {candidate.hw_id} as new fleet member",
+                )
+            return FleetCandidateMutationResponse(
+                status="success",
+                message=f"Candidate {candidate.candidate_id} accepted as a new fleet member",
+                candidate=candidate,
+                warnings=warnings,
+                git_result=git_result,
+            )
+        except Exception as exc:
+            deps.log_system_error(f"Fleet candidate accept failed: {exc}", "fleet_enrollment")
+            raise _translate_candidate_error(exc) from exc
+
+    @router.post(GCS_FLEET_CANDIDATE_REPLACE_ROUTE_TEMPLATE, response_model=FleetCandidateMutationResponse, tags=["Fleet Enrollment"])
+    async def replace_fleet_candidate(
+        payload: FleetCandidateReplaceRequest,
+        candidate_id: str = PathParam(..., description="Candidate identifier"),
+        commit: Optional[bool] = Query(None, description="Commit and push repo changes after replacement"),
+    ):
+        try:
+            candidate, warnings = deps.replace_fleet_candidate(candidate_id, payload)
+            git_result = None
+            should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
+            if should_commit:
+                loop = asyncio.get_running_loop()
+                git_result = await loop.run_in_executor(
+                    None,
+                    deps.git_operations,
+                    deps.BASE_DIR,
+                    f"fleet: replace hw_id {payload.target_hw_id} with candidate {candidate.hw_id}",
+                )
+            return FleetCandidateMutationResponse(
+                status="success",
+                message=f"Candidate {candidate.candidate_id} replaced fleet member hw_id {payload.target_hw_id}",
+                candidate=candidate,
+                warnings=warnings,
+                git_result=git_result,
+            )
+        except Exception as exc:
+            deps.log_system_error(f"Fleet candidate replacement failed: {exc}", "fleet_enrollment")
+            raise _translate_candidate_error(exc) from exc
+
+    @router.post(GCS_FLEET_CANDIDATE_REJECT_ROUTE_TEMPLATE, response_model=FleetCandidateMutationResponse, tags=["Fleet Enrollment"])
+    async def reject_fleet_candidate(
+        payload: FleetCandidateActionRequest | None = None,
+        candidate_id: str = PathParam(..., description="Candidate identifier"),
+    ):
+        try:
+            candidate = deps.set_fleet_candidate_state(
+                candidate_id,
+                FleetCandidateState.REJECTED,
+                reason=(payload.reason if payload else None),
+            )
+            return FleetCandidateMutationResponse(
+                status="success",
+                message=f"Candidate {candidate.candidate_id} rejected",
+                candidate=candidate,
+                warnings=[],
+                git_result=None,
+            )
+        except Exception as exc:
+            raise _translate_candidate_error(exc) from exc
+
+    @router.post(GCS_FLEET_CANDIDATE_IGNORE_ROUTE_TEMPLATE, response_model=FleetCandidateMutationResponse, tags=["Fleet Enrollment"])
+    async def ignore_fleet_candidate(
+        payload: FleetCandidateActionRequest | None = None,
+        candidate_id: str = PathParam(..., description="Candidate identifier"),
+    ):
+        try:
+            candidate = deps.set_fleet_candidate_state(
+                candidate_id,
+                FleetCandidateState.IGNORED,
+                reason=(payload.reason if payload else None),
+            )
+            return FleetCandidateMutationResponse(
+                status="success",
+                message=f"Candidate {candidate.candidate_id} ignored",
+                candidate=candidate,
+                warnings=[],
+                git_result=None,
+            )
+        except Exception as exc:
+            raise _translate_candidate_error(exc) from exc
+
+    return router

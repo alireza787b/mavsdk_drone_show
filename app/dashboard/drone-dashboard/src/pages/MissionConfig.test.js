@@ -58,6 +58,7 @@ jest.mock('../services/gcsApiService', () => ({
     gitStatus: 'gitStatus',
     networkInfo: 'networkInfo',
     fleetHeartbeats: 'fleetHeartbeats',
+    fleetCandidates: 'fleetCandidates',
     dronePositions: 'dronePositions',
     swarmConfig: 'swarmConfig',
   },
@@ -95,6 +96,7 @@ const buildFetchResponseMap = (originResponse, overrides = {}) => ({
   fleetTelemetry: { data: {}, loading: false, error: null },
   networkInfo: { data: [], loading: false, error: null },
   fleetHeartbeats: { data: { heartbeats: [] }, loading: false, error: null },
+  fleetCandidates: { data: { candidates: [] }, loading: false, error: null },
   dronePositions: { data: [], loading: false, error: null },
   swarmConfig: { data: [], loading: false, error: null },
   ...overrides,
@@ -195,11 +197,23 @@ describe('MissionConfig origin review surface', () => {
           loading: false,
           error: null,
         },
-        fleetHeartbeats: {
+        fleetCandidates: {
           data: {
-            heartbeats: [
-              { hw_id: 1, last_heartbeat: now - 3_000, ip: '10.0.0.1' },
-              { hw_id: 99, last_heartbeat: now - 5_000, ip: '10.0.0.99', mavlink_port: 14599 },
+            candidates: [
+              {
+                candidate_id: 'hw-99',
+                hw_id: '99',
+                reported_pos_id: null,
+                detected_pos_id: '99',
+                primary_control_ip: '10.0.0.99',
+                ip_addresses: ['10.0.0.99'],
+                heartbeat_age_sec: 5,
+                heartbeat_status: 'online',
+                registration_state: 'pending_operator_review',
+                conflict_reasons: [],
+                first_seen: now - 5_000,
+                last_seen: now - 5_000,
+              },
             ],
           },
           loading: false,

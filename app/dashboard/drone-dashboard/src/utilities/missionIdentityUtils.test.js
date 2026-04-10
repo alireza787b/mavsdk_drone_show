@@ -1,6 +1,5 @@
 import {
   areGitRevisionsEquivalent,
-  buildPendingEnrollmentCandidates,
   buildSuggestedHwIds,
   formatCompactDroneIdentity,
   formatDroneLabel,
@@ -80,36 +79,6 @@ describe('missionIdentityUtils', () => {
     };
 
     expect(getOnlineDroneCount(heartbeats)).toBe(2);
-  });
-
-  test('buildPendingEnrollmentCandidates excludes configured drones and annotates heartbeat state', () => {
-    const now = Date.now();
-    const pending = buildPendingEnrollmentCandidates(
-      [
-        { hw_id: '1', pos_id: '1' },
-      ],
-      {
-        '1': { hw_id: '1', last_heartbeat: now - 5_000, ip: '10.0.0.1' },
-        '9': { hw_id: '9', last_heartbeat: now - 10_000, ip: '10.0.0.9', mavlink_port: 14559 },
-        '10': { hw_id: '10', last_heartbeat: now - 40_000, ip: '10.0.0.10' },
-      }
-    );
-
-    expect(pending).toEqual([
-      expect.objectContaining({
-        hw_id: '9',
-        ip: '10.0.0.9',
-        mavlink_port: '14559',
-        heartbeatStatus: 'Online',
-        heartbeatTone: 'good',
-      }),
-      expect.objectContaining({
-        hw_id: '10',
-        ip: '10.0.0.10',
-        heartbeatStatus: 'Stale',
-        heartbeatTone: 'warning',
-      }),
-    ]);
   });
 
   test('toBackendConfigDrone coerces numeric identity fields back to integers', () => {

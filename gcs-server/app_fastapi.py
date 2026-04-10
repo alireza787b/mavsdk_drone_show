@@ -86,11 +86,13 @@ from heartbeat import (
     last_heartbeats,
     last_heartbeats_lock,
 )
+from fleet_candidates import get_fleet_candidate_registry
 from git_status import git_status_data_all_drones, data_lock_git_status
 from command_tracker import get_command_tracker, init_command_tracker
 from src import __version__ as MDS_VERSION
 
 # Import SAR router
+from api_routes.fleet_candidates import create_fleet_candidates_router
 from sar.routes import create_sar_router
 from api_routes.commands import create_command_router
 from api_routes.configuration import create_configuration_router
@@ -343,6 +345,7 @@ class BackgroundServices:
 
 # Global background services instance
 background_services = BackgroundServices()
+fleet_candidate_registry = get_fleet_candidate_registry()
 
 
 def _normalize_heartbeat_first_seen(value: Any) -> Optional[int]:
@@ -380,6 +383,68 @@ def _normalize_update_time_ms(value: Any) -> Optional[int]:
         numeric_value *= 1000.0
 
     return int(numeric_value)
+
+
+def observe_fleet_candidate_heartbeat(heartbeat: dict[str, Any]):
+    """Update the durable fleet-candidate registry from a live heartbeat."""
+    return fleet_candidate_registry.observe_heartbeat(heartbeat, load_config=load_config)
+
+
+def list_fleet_candidates(*, include_inactive: bool = False):
+    """List durable fleet-candidate records."""
+    return fleet_candidate_registry.list_candidates(
+        load_config=load_config,
+        include_inactive=include_inactive,
+    )
+
+
+def get_fleet_candidate(candidate_id: str):
+    """Fetch one durable fleet-candidate record."""
+    return fleet_candidate_registry.get_candidate(candidate_id, load_config=load_config)
+
+
+def announce_fleet_candidate(payload: FleetCandidateAnnounceRequest):
+    """Merge an explicit bootstrap/node announce payload into the candidate registry."""
+    return fleet_candidate_registry.announce_candidate(payload, load_config=load_config)
+
+
+def accept_fleet_candidate(candidate_id: str, payload: FleetCandidateAcceptRequest):
+    """Accept a candidate as a new fleet member."""
+    return fleet_candidate_registry.accept_candidate(
+        candidate_id,
+        payload,
+        load_config=load_config,
+        save_config=save_config,
+        validate_and_process_config=validate_and_process_config,
+    )
+
+
+def replace_fleet_candidate(candidate_id: str, payload: FleetCandidateReplaceRequest):
+    """Replace an existing configured fleet member with a pending candidate."""
+    return fleet_candidate_registry.replace_candidate(
+        candidate_id,
+        payload,
+        load_config=load_config,
+        save_config=save_config,
+        load_swarm=load_swarm,
+        save_swarm=save_swarm,
+        validate_and_process_config=validate_and_process_config,
+    )
+
+
+def set_fleet_candidate_state(
+    candidate_id: str,
+    new_state: FleetCandidateState,
+    *,
+    reason: Optional[str] = None,
+):
+    """Mutate one candidate's resolved state without changing fleet config."""
+    return fleet_candidate_registry.update_candidate_state(
+        candidate_id,
+        new_state=new_state,
+        load_config=load_config,
+        reason=reason,
+    )
 
 
 def _local_mavlink_stale_threshold_ms() -> int:
@@ -520,6 +585,7 @@ app.include_router(create_sar_router(sys.modules[__name__]))
 app.include_router(create_command_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_core_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_configuration_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_fleet_candidates_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_git_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_origin_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)

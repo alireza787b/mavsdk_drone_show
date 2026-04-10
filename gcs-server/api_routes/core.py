@@ -113,15 +113,33 @@ def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) 
     heartbeat_ip = heartbeat.ip.strip() if heartbeat.ip else None
     if heartbeat_ip in {"", "unknown", "n/a", "none"}:
         heartbeat_ip = None
+    observed_ip = heartbeat_ip or client_ip
 
     deps.handle_heartbeat_post(
         pos_id=heartbeat.pos_id,
         hw_id=heartbeat.hw_id,
         detected_pos_id=heartbeat.detected_pos_id,
-        ip=heartbeat_ip or client_ip,
+        ip=observed_ip,
         timestamp=heartbeat.timestamp,
         network_info=heartbeat.network_info,
     )
+
+    observer = getattr(deps, "observe_fleet_candidate_heartbeat", None)
+    if callable(observer):
+        try:
+            observer(
+                {
+                    "pos_id": heartbeat.pos_id,
+                    "hw_id": heartbeat.hw_id,
+                    "detected_pos_id": heartbeat.detected_pos_id,
+                    "ip": observed_ip,
+                    "timestamp": heartbeat.timestamp,
+                    "network_info": heartbeat.network_info,
+                }
+            )
+        except Exception as exc:  # pragma: no cover - heartbeat acceptance remains primary
+            deps.log_system_error(f"Fleet candidate heartbeat observation failed: {exc}", "fleet_enrollment")
+
     return HeartbeatPostResponse(
         success=True,
         message="Heartbeat received",
