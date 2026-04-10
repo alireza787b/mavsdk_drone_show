@@ -780,11 +780,17 @@ main() {
     
     # Switch to target branch
     local current_branch
+    local detached_target=false
     current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     if [[ "$current_branch" != "$BRANCH_NAME" ]]; then
         log_info "GIT-BRANCH" "Switching from '$current_branch' to '$BRANCH_NAME'"
         if ! git checkout "$BRANCH_NAME"; then
-            log_error_and_exit "GIT-BRANCH" "Failed to checkout branch '$BRANCH_NAME'"
+            log_warn "GIT-BRANCH" "Local branch checkout failed; attempting detached origin/$BRANCH_NAME checkout (worktree-safe)"
+            if git checkout --detach "origin/$BRANCH_NAME"; then
+                detached_target=true
+            else
+                log_error_and_exit "GIT-BRANCH" "Failed to checkout branch '$BRANCH_NAME'"
+            fi
         fi
     fi
     
@@ -794,10 +800,15 @@ main() {
         log_error_and_exit "GIT-RESET" "Failed to reset branch $BRANCH_NAME"
     fi
     
-    # Final pull to ensure we're up to date
-    log_info "GIT-PULL" "Performing final pull on $BRANCH_NAME"
-    if ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
-        log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
+    # Final pull to ensure we're up to date.
+    # Detached worktrees already match origin/$BRANCH_NAME via fetch + reset.
+    if [[ "$detached_target" == "true" || "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)" == "HEAD" ]]; then
+        log_info "GIT-PULL" "Skipping git pull because runtime is using a detached worktree checkout of origin/$BRANCH_NAME"
+    else
+        log_info "GIT-PULL" "Performing final pull on $BRANCH_NAME"
+        if ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
+            log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
+        fi
     fi
 
     # Post-sync checks: service files and requirements
