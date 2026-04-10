@@ -48,6 +48,10 @@
   text-transform: uppercase;
 }
 
+.drone-position-map__doctrine {
+  margin-top: -0.15rem;
+}
+
 .drone-position-map__canvas {
   height: 420px;
   min-height: 420px;

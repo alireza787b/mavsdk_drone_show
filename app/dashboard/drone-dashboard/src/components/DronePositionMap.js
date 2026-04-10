@@ -11,6 +11,7 @@ import {
 import L from 'leaflet';
 import LatLon from 'geodesy/latlon-spherical';
 
+import IdentityDoctrineStrip from './IdentityDoctrineStrip';
 import LeafletMapBase from './map/LeafletMapBase';
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import '../styles/DronePositionMap.css';
@@ -439,6 +440,8 @@ const DronePositionMap = ({
           {mapState.summary.errors > 0 && <span>{mapState.summary.errors} error</span>}
         </div>
       </div>
+
+      <IdentityDoctrineStrip surface="launch-map" className="drone-position-map__doctrine" />
 
       <div className="drone-position-map__canvas">
         <LeafletMapBase

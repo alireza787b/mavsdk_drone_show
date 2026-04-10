@@ -1,6 +1,7 @@
 from tools.validate_configuration_runtime import (
     build_collision_validation_payload,
     build_fleet_metadata_update,
+    build_slot_reassignment_update,
     build_swarm_patch_update,
     build_swarm_put_update,
     select_origin_compute_source,
@@ -48,6 +49,22 @@ def test_select_swarm_target_prefers_followers_in_selected_set():
 
     assert select_swarm_target(assignments, [1, 2, 3]) == 2
     assert select_swarm_target(assignments, [1]) == 1
+
+
+def test_build_slot_reassignment_update_swaps_selected_slots_without_mutating_source():
+    entries = [
+        {"hw_id": 1, "pos_id": 1, "callsign": "A"},
+        {"hw_id": 2, "pos_id": 7, "callsign": "B"},
+        {"hw_id": 3, "pos_id": 3, "callsign": "C"},
+    ]
+
+    payload, swapped_slots, swapped_pair = build_slot_reassignment_update(entries, [1, 2, 3])
+
+    assert swapped_pair == (1, 2)
+    assert swapped_slots == {1: 7, 2: 1}
+    assert payload[0]["pos_id"] == 7
+    assert payload[1]["pos_id"] == 1
+    assert entries[0]["pos_id"] == 1
 
 
 def test_swarm_put_and_patch_updates_return_expected_assignment_shapes():

@@ -4,6 +4,7 @@ import {
   formatCompactDroneIdentity,
   formatDroneLabel,
   formatShowSlotLabel,
+  getIdentityDoctrineCopy,
   getDuplicateAssignments,
   getOnlineDroneCount,
   normalizeRuntimeIp,
@@ -43,6 +44,26 @@ describe('missionIdentityUtils', () => {
     expect(formatCompactDroneIdentity('03', '7')).toBe('P3|H7');
     expect(formatCompactDroneIdentity('03', null)).toBe('P3');
     expect(formatCompactDroneIdentity(null, '7')).toBe('H7');
+  });
+
+  test('getIdentityDoctrineCopy keeps subsystem identity rules explicit', () => {
+    expect(getIdentityDoctrineCopy('swarm-design')).toEqual(
+      expect.objectContaining({
+        title: expect.stringContaining('Follow chains stay on hardware'),
+        chips: expect.arrayContaining([
+          expect.objectContaining({ label: 'P', detail: 'slot' }),
+          expect.objectContaining({ label: 'H', detail: 'hardware' }),
+          expect.objectContaining({ label: 'Swarm', detail: 'Follow = H' }),
+        ]),
+      })
+    );
+    expect(getIdentityDoctrineCopy('quickscout')).toEqual(
+      expect.objectContaining({
+        chips: expect.arrayContaining([
+          expect.objectContaining({ label: 'Launch', detail: 'P -> H' }),
+        ]),
+      })
+    );
   });
 
   test('normalizeRuntimeIp filters placeholder heartbeat IP values', () => {

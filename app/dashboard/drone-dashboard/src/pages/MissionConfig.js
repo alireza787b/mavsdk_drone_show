@@ -14,6 +14,7 @@ import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import ClusterScopeBar from '../components/ClusterScopeBar';
+import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 
 // Hooks
 import useFetch from '../hooks/useFetch';
@@ -965,6 +966,8 @@ const MissionConfig = () => {
             </button>
           </div>
         </div>
+
+        <IdentityDoctrineStrip surface="mission-config" />
 
         <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
           <div className="mission-config-ops-toolbar__main">

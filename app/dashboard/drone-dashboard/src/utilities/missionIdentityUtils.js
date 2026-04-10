@@ -51,6 +51,69 @@ export function formatCompactDroneIdentity(posValue, hwValue, fallback = 'Unassi
   return fallback;
 }
 
+export function getIdentityDoctrineCopy(surface = 'default') {
+  const sharedChips = [
+    { key: 'slot', label: 'P', detail: 'slot' },
+    { key: 'hardware', label: 'H', detail: 'hardware' },
+  ];
+
+  switch (surface) {
+    case 'mission-config':
+      return {
+        title: 'Slot edits change mission ownership, not airframe ownership.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Rule', detail: 'Slot change only' },
+        ],
+      };
+    case 'swarm-design':
+      return {
+        title: 'Follow chains stay on hardware even when slots move.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Swarm', detail: 'Follow = H' },
+        ],
+      };
+    case 'quickscout':
+      return {
+        title: 'Plan by slot, then resolve to current hardware at launch.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Launch', detail: 'P -> H' },
+        ],
+      };
+    case 'swarm-trajectory':
+      return {
+        title: 'Trajectory packages are authored by slot and launched on current hardware owners.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Launch', detail: 'P -> H' },
+        ],
+      };
+    case 'fleet-enrollment':
+      return {
+        title: 'Enrollment changes hardware service state. Slot ownership stays explicit.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Replace', detail: 'Preserve P' },
+        ],
+      };
+    case 'launch-map':
+      return {
+        title: 'Map markers compare expected slots against the live hardware fleet.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Map', detail: 'Expected P vs live H' },
+        ],
+      };
+    default:
+      return {
+        title: 'Slot is mission role. Hardware is the physical drone.',
+        chips: sharedChips,
+      };
+  }
+}
+
 export function normalizeRuntimeIp(value) {
   const normalized = toTrimmedString(value);
   if (!normalized) {

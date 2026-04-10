@@ -306,6 +306,35 @@ def build_fleet_metadata_update(entries: list[dict[str, Any]], selected_ids: lis
     return cloned, expected
 
 
+def build_slot_reassignment_update(
+    entries: list[dict[str, Any]],
+    selected_ids: list[int],
+) -> tuple[list[dict[str, Any]] | None, dict[int, int], tuple[int, int] | None]:
+    cloned = copy.deepcopy(entries)
+    index_by_hw = {
+        int(entry.get("hw_id")): index
+        for index, entry in enumerate(cloned)
+        if entry.get("hw_id") is not None
+    }
+
+    candidate_ids = [int(hw_id) for hw_id in selected_ids if int(hw_id) in index_by_hw]
+    for first_id in candidate_ids:
+        for second_id in candidate_ids:
+            if second_id == first_id:
+                continue
+            first_index = index_by_hw[first_id]
+            second_index = index_by_hw[second_id]
+            first_pos = int(cloned[first_index].get("pos_id", first_id))
+            second_pos = int(cloned[second_index].get("pos_id", second_id))
+            if first_pos == second_pos:
+                continue
+            cloned[first_index]["pos_id"] = second_pos
+            cloned[second_index]["pos_id"] = first_pos
+            return cloned, {first_id: second_pos, second_id: first_pos}, (first_id, second_id)
+
+    return None, {}, None
+
+
 def select_swarm_target(assignments: dict[int, dict[str, Any]], selected_ids: list[int]) -> int:
     for hw_id in selected_ids:
         entry = assignments.get(int(hw_id))
@@ -476,6 +505,35 @@ def main() -> int:
             for key, value in expected.items():
                 require(row.get(key) == value, f"Fleet config did not preserve {key} for hw_id={hw_id}")
         results["fleet_roundtrip"] = {str(hw_id): expected for hw_id, expected in expected_metadata.items()}
+
+        slot_reassignment_payload, swapped_slots, swapped_pair = build_slot_reassignment_update(
+            mutated_fleet,
+            args.drone_ids,
+        )
+        if slot_reassignment_payload is not None and swapped_pair is not None:
+            original_swarm_by_hw = swarm_assignments_by_hw_id(original_swarm)
+            slot_reassignment_result = client.put_fleet_config(slot_reassignment_payload, commit=False)
+            results["slot_reassignment"] = {
+                "save": slot_reassignment_result,
+                "pair": {"hw_ids": list(swapped_pair)},
+                "swapped_slots": {str(hw_id): pos_id for hw_id, pos_id in swapped_slots.items()},
+            }
+
+            swapped_fleet = fleet_by_hw_id(client.get_fleet_config())
+            for hw_id, expected_pos_id in swapped_slots.items():
+                row = swapped_fleet.get(int(hw_id))
+                require(row is not None, f"Slot reassignment round-trip missing hw_id={hw_id}")
+                require(
+                    int(row.get("pos_id", 0)) == int(expected_pos_id),
+                    f"Slot reassignment did not persist pos_id for hw_id={hw_id}",
+                )
+
+            swapped_swarm = swarm_assignments_by_hw_id(client.get_swarm_config())
+            for hw_id in args.drone_ids:
+                require(
+                    swapped_swarm.get(int(hw_id)) == original_swarm_by_hw.get(int(hw_id)),
+                    f"Smart Swarm follow ownership drifted during slot reassignment for hw_id={hw_id}",
+                )
 
         swarm_target_hw_id = select_swarm_target(swarm_assignments_by_hw_id(original_swarm), args.drone_ids)
         mutated_swarm_payload, expected_swarm_put = build_swarm_put_update(

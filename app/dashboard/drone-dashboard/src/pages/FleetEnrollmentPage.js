@@ -28,6 +28,7 @@ import {
   normalizeComparableId,
   normalizeDroneConfigData,
 } from '../utilities/missionIdentityUtils';
+import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import '../styles/FleetEnrollmentPage.css';
 
 const ACTIVE_STATE_SET = new Set(['pending_operator_review', 'conflict']);
@@ -488,6 +489,8 @@ function FleetEnrollmentPage() {
           </Link>
         </div>
       </header>
+
+      <IdentityDoctrineStrip surface="fleet-enrollment" />
 
       <div className="fleet-enrollment-summary-grid">
         <article className="fleet-enrollment-summary-card">

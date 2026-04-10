@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import TrajectoryPolicyNotes from './TrajectoryPolicyNotes';
+import IdentityDoctrineStrip from '../IdentityDoctrineStrip';
 import { getSwarmTrajectoryExecutionDoctrine } from '../../utilities/trajectoryAuthoringGuidance';
 
 const SwarmTrajectoryWorkspaceSummary = ({ workspaceStatus, stages, session, compact = false }) => {
@@ -73,6 +74,8 @@ const SwarmTrajectoryWorkspaceSummary = ({ workspaceStatus, stages, session, com
           Open Mission Trigger
         </Link>
       </div>
+
+      <IdentityDoctrineStrip surface="swarm-trajectory" className="swarm-workspace-summary__identity" />
 
       <details
         className="swarm-workspace-summary__details-panel"

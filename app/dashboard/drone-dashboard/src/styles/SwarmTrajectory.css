@@ -472,6 +472,10 @@
   box-shadow: var(--shadow-sm);
 }
 
+.swarm-workspace-summary__identity {
+  margin-bottom: var(--spacing-base);
+}
+
 .swarm-workspace-summary__details-panel summary {
   display: flex;
   justify-content: space-between;

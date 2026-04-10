@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import QuickScoutLaunchReview from './QuickScoutLaunchReview';
+import IdentityDoctrineStrip from '../IdentityDoctrineStrip';
 import { formatCompactDroneIdentity } from '../../utilities/missionIdentityUtils';
 import { QUICKSCOUT_PROFILE_PRESETS } from '../../utilities/quickScoutProfiles';
 import {
@@ -387,6 +388,7 @@ const MissionPlanSidebar = ({
           <div className="qs-empty-copy" style={{ marginTop: 8 }}>
             QuickScout planning selects assigned slots and resolves them to the current hardware fleet at launch.
           </div>
+          <IdentityDoctrineStrip surface="quickscout" className="qs-identity-doctrine" />
         </div>
 
         {/* Quick Config */}

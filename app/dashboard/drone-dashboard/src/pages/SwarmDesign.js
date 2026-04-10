@@ -19,6 +19,7 @@ import DroneGraph from '../components/DroneGraph';
 import SwarmPlots from '../components/SwarmPlots';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
 import ClusterScopeBar from '../components/ClusterScopeBar';
+import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 import '../styles/SwarmDesign.css';
 import {
@@ -532,8 +533,7 @@ function SwarmDesign() {
           <span className="swarm-design-hero__eyebrow">Smart Swarm Control Surface</span>
           <h1>Operational Swarm Design</h1>
           <p>
-            Hardware ID tracks the physical drone. Position ID tracks the assigned show slot.
-            Follow chains always target the physical drone hardware ID, even when a slot reassignment is active.
+            Review live follow ownership cluster by cluster, then commit only when the hardware graph is clean.
           </p>
         </div>
 
@@ -575,6 +575,8 @@ function SwarmDesign() {
           </button>
         </div>
       </header>
+
+      <IdentityDoctrineStrip surface="swarm-design" />
 
       <section className="swarm-summary-grid">
         {summaryCards.map((card) => (
