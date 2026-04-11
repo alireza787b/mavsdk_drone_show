@@ -104,13 +104,18 @@ get_current_hwid() {
     echo ""
 }
 
+run_repo_git_query() {
+    git -c safe.directory="${MDS_INSTALL_DIR}" -C "${MDS_INSTALL_DIR}" "$@" 2>/dev/null || \
+        sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" "$@" 2>/dev/null || true
+}
+
 get_repo_origin_url() {
-    git -C "${MDS_INSTALL_DIR}" config --get remote.origin.url 2>/dev/null || echo ""
+    run_repo_git_query config --get remote.origin.url
 }
 
 get_repo_branch() {
     local branch=""
-    branch=$(git -C "${MDS_INSTALL_DIR}" branch --show-current 2>/dev/null || echo "")
+    branch=$(run_repo_git_query branch --show-current)
     if [[ -z "$branch" ]]; then
         branch=$(state_get_value "repo_branch" "")
     fi
@@ -121,7 +126,7 @@ get_repo_branch() {
 }
 
 get_repo_commit() {
-    git -C "${MDS_INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || echo ""
+    run_repo_git_query rev-parse --short HEAD
 }
 
 # =============================================================================
@@ -541,6 +546,17 @@ write_bootstrap_report() {
     local status="failed"
     [[ "$exit_code" -eq 0 ]] && status="ok"
 
+    local report_repo_url report_branch report_commit
+    report_repo_url="${REPO_URL:-$(state_get_value repo_url "")}"
+    [[ -z "$report_repo_url" ]] && report_repo_url="$(get_local_env_value "MDS_REPO_URL" "")"
+    [[ -z "$report_repo_url" ]] && report_repo_url="$(get_repo_origin_url)"
+
+    report_branch="${BRANCH:-$(state_get_value repo_branch "")}"
+    [[ -z "$report_branch" ]] && report_branch="$(get_local_env_value "MDS_BRANCH" "")"
+    [[ -z "$report_branch" ]] && report_branch="$(get_repo_branch)"
+
+    report_commit="$(get_repo_commit)"
+
     local report_json
     report_json=$(jq -n \
         --arg status "$status" \
@@ -548,9 +564,9 @@ write_bootstrap_report() {
         --arg script_version "$MDS_VERSION" \
         --arg drone_id "${DRONE_ID:-$(state_get_value hw_id "")}" \
         --arg hostname "$(hostname 2>/dev/null || echo unknown)" \
-        --arg repo_url "${REPO_URL:-$(state_get_value repo_url "")}" \
-        --arg branch "${BRANCH:-$(state_get_value repo_branch "")}" \
-        --arg commit "$(get_repo_commit)" \
+        --arg repo_url "$report_repo_url" \
+        --arg branch "$report_branch" \
+        --arg commit "$report_commit" \
         --arg node_uuid "$(state_get_value node_uuid "")" \
         --arg gcs_api_url "${GCS_API_URL:-$(state_get_value announce_url "")}" \
         --arg announce_status "$(state_get_value announce_status "")" \

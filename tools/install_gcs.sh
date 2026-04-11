@@ -458,9 +458,11 @@ main() {
     REPO_URL="$config_repo_url"
 
     if [[ -n "$explicit_branch" ]]; then
-        export MDS_BRANCH="$explicit_branch"
-        passthrough_args+=("--branch" "$explicit_branch")
+        BRANCH="$explicit_branch"
     fi
+
+    export MDS_BRANCH="$BRANCH"
+    passthrough_args+=("--branch" "$BRANCH")
 
     export MDS_REPO_URL="$config_repo_url"
     passthrough_args+=("--repo-url" "$config_repo_url")

@@ -78,6 +78,14 @@ def run_server():
     return server, thread
 
 
+def run_server_with_handler(handler_cls):
+    server = AnnounceTestServer(("127.0.0.1", 0), handler_cls)
+    server.calls = []
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
 def run_script(*args):
     return subprocess.run(
         ["bash", str(SCRIPT_PATH), *args],
@@ -165,3 +173,50 @@ def test_node_announce_uses_local_env_api_url_when_not_passed(tmp_path):
     report = json.loads(report_file.read_text(encoding="utf-8"))
     assert report["status"] == "dry_run"
     assert report["gcs_api_url"] == "http://127.0.0.1:5999"
+
+
+class DirectCandidateResponseHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length).decode("utf-8")
+        self.server.calls.append({"path": self.path, "body": json.loads(body)})
+        payload = {
+            "candidate_id": "node-abc",
+            "registration_state": "pending_operator_review",
+            "hw_id": "12",
+        }
+        encoded = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def log_message(self, format, *args):  # pragma: no cover - test server noise
+        return
+
+
+def test_node_announce_parses_direct_candidate_response_shape(tmp_path):
+    identity_file = tmp_path / "node_identity.json"
+    report_file = tmp_path / "announce_report.json"
+    write_identity_file(identity_file)
+    server, thread = run_server_with_handler(DirectCandidateResponseHandler)
+    try:
+        base_url = f"http://127.0.0.1:{server.server_address[1]}"
+        result = run_script(
+            "--identity-file",
+            str(identity_file),
+            "--gcs-api-url",
+            base_url,
+            "--report-json",
+            str(report_file),
+        )
+        assert result.returncode == 0, result.stderr
+        report = json.loads(report_file.read_text(encoding="utf-8"))
+        assert report["status"] == "ok"
+        assert report["candidate_id"] == "node-abc"
+        assert report["registration_state"] == "pending_operator_review"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

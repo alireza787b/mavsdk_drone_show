@@ -184,8 +184,8 @@ write_candidate_announce_report() {
 
     if [[ -n "${response_file}" && -s "${response_file}" ]]; then
         if jq empty "${response_file}" >/dev/null 2>&1; then
-            candidate_id="$(jq -r '.candidate.candidate_id // ""' "${response_file}" 2>/dev/null || true)"
-            registration_state="$(jq -r '.candidate.registration_state // ""' "${response_file}" 2>/dev/null || true)"
+            candidate_id="$(jq -r '.candidate.candidate_id // .candidate_id // ""' "${response_file}" 2>/dev/null || true)"
+            registration_state="$(jq -r '.candidate.registration_state // .registration_state // ""' "${response_file}" 2>/dev/null || true)"
             message="$(jq -r '.message // .detail // ""' "${response_file}" 2>/dev/null || true)"
             response_mode="json"
         else
@@ -328,8 +328,8 @@ announce_candidate_to_gcs() {
 
     ANNOUNCE_LAST_STATUS="ok"
     if [[ -s "$response_file" ]] && jq empty "$response_file" >/dev/null 2>&1; then
-        ANNOUNCE_LAST_CANDIDATE_ID="$(jq -r '.candidate.candidate_id // ""' "$response_file" 2>/dev/null || true)"
-        ANNOUNCE_LAST_REGISTRATION_STATE="$(jq -r '.candidate.registration_state // ""' "$response_file" 2>/dev/null || true)"
+        ANNOUNCE_LAST_CANDIDATE_ID="$(jq -r '.candidate.candidate_id // .candidate_id // ""' "$response_file" 2>/dev/null || true)"
+        ANNOUNCE_LAST_REGISTRATION_STATE="$(jq -r '.candidate.registration_state // .registration_state // ""' "$response_file" 2>/dev/null || true)"
         ANNOUNCE_LAST_MESSAGE="$(jq -r '.message // ""' "$response_file" 2>/dev/null || true)"
     fi
     write_candidate_announce_report "$report_path" "ok" "$resolved_url" "$endpoint" "$identity_file" "$payload_file" "$http_status" "" "$response_file"
