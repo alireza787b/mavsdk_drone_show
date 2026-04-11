@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 hardware-demo workflow clarification note answering the wrapper
+  versus repo-local init philosophy directly, documenting the recommended
+  official-wrapper-plus-target-repo model, clarifying real-hardware
+  permissions, NetBird reuse/rebind expectations, the post-enrollment node
+  sync requirement, and the remaining must-fix items before a private
+  customer hardware demo rollout
 - a 2026-04-11 hardware demo preflight audit brief documenting the current
   canonical node/GCS bootstrap and Fleet Enrollment workflow, the still-open
   first-time private-repo bootstrap blocker in both wrapper installers, the
