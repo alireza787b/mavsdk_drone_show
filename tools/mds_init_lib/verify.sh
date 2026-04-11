@@ -17,7 +17,24 @@ _MDS_VERIFY_LOADED=1
 
 # Verification results storage
 VERIFY_RESULTS_TEXT=""
-readonly VERIFY_COMPONENTS="hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router serial_config netbird network"
+
+verify_component_stream() {
+    cat <<'EOF'
+hw_id
+real_mode
+repository
+python_env
+mavsdk
+local_env
+firewall
+services
+ntp
+mavlink_router
+serial_config
+netbird
+network
+EOF
+}
 
 verify_set_result() {
     local key="$1"
@@ -451,7 +468,7 @@ generate_summary_report() {
     local warn_count=0
     local fail_count=0
 
-    for component in $VERIFY_COMPONENTS; do
+    while IFS= read -r component; do
         local result
         result="$(verify_get_result "$component")"
         local status="${result%%:*}"
@@ -478,7 +495,7 @@ generate_summary_report() {
 
         printf "${CYAN}║${NC}  %-18s ${status_color}%-6s${NC} %-46s ${CYAN}║${NC}\n" \
             "$component" "[$status]" "$details"
-    done
+    done < <(verify_component_stream)
 
     echo -e "${CYAN}╠══════════════════════════════════════════════════════════════════════════════╣${NC}"
 
@@ -553,13 +570,13 @@ display_next_steps() {
     local has_warnings=false
     local has_failures=false
 
-    for component in $VERIFY_COMPONENTS; do
+    while IFS= read -r component; do
         local status
         status="$(verify_get_result "$component")"
         status="${status%%:*}"
         [[ "$status" == "WARN" ]] && has_warnings=true
         [[ "$status" == "FAIL" ]] && has_failures=true
-    done
+    done < <(verify_component_stream)
 
     echo -e "${WHITE}NEXT STEPS:${NC}"
     echo -e "${DIM}$(printf '%.0s─' {1..78})${NC}"

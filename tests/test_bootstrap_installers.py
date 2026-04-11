@@ -272,12 +272,25 @@ EOF
 def test_generate_summary_report_lists_component_rows():
     result = run_bash(
         f"""
+        IFS=$'\\n\\t'
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'verify.sh'}"
         MDS_VERSION="4.5.0"
         verify_set_result hw_id "PASS:Drone 101"
         output="$(generate_summary_report)"
         [[ "$output" == *"hw_id"* ]]
         [[ "$output" == *"Drone 101"* ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_join_ntp_servers_is_stable_when_ifs_is_newline_tab():
+    result = run_bash(
+        f"""
+        IFS=$'\\n\\t'
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'network.sh'}"
+        [[ "$(join_ntp_servers)" == "0.pool.ntp.org 1.pool.ntp.org 2.pool.ntp.org 3.pool.ntp.org" ]]
         """
     )
 
