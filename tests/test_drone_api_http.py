@@ -546,6 +546,53 @@ class TestCommands:
         assert mock_drone_config.current_command_id == "old-cmd"
         supersede_report.assert_not_awaited()
 
+    def test_send_command_stages_command_id_before_install_to_avoid_scheduler_race(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        observed = {}
+
+        def _install(_command_data):
+            observed["current_command_id_during_install"] = mock_drone_config.current_command_id
+            mock_drone_config.mission = 10
+            mock_drone_config.state = 1
+
+        mock_drone_communicator.process_command.side_effect = _install
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"missionType": "10", "triggerTime": "0", "command_id": "cmd-race"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "accepted"
+        assert observed["current_command_id_during_install"] == "cmd-race"
+        assert mock_drone_config.current_command_id == "cmd-race"
+
+    def test_send_command_clears_staged_command_id_when_install_fails_without_previous_pending_command(
+        self,
+        test_client,
+        mock_drone_config,
+        mock_drone_communicator,
+    ):
+        mock_drone_config.state = 0
+        mock_drone_config.mission = 0
+        mock_drone_config.current_command_id = None
+        mock_drone_communicator.process_command.side_effect = ValueError("install failed")
+
+        response = test_client.post(
+            "/api/v1/drone/commands",
+            json={"missionType": "10", "triggerTime": "0", "command_id": "new-cmd"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "rejected"
+        assert mock_drone_config.current_command_id is None
+
     def test_cancel_command_clears_active_mission_without_process_launch(
         self,
         test_client,

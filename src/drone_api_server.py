@@ -715,17 +715,26 @@ class DroneAPIServer:
                         timestamp=timestamp,
                     )
 
-                # Process command
-                self.drone_communicator.process_command(command_data)
+                # Stage the command id before the mission becomes visible to the
+                # scheduler. Otherwise a fast scheduler tick can launch the
+                # mission script before current_command_id is stored, which
+                # drops execution tracking callbacks for that run.
+                self.drone_config.current_command_id = command_id
+
+                try:
+                    self.drone_communicator.process_command(command_data)
+                except Exception:
+                    # Restore the previous pending command on install failure so
+                    # an override attempt does not orphan the older staged
+                    # mission's tracking identity.
+                    self.drone_config.current_command_id = previous_command_id
+                    raise
 
                 if superseded_pending_command:
                     await self._report_pending_command_superseded(
                         command_id=previous_command_id,
                         override_mission_type=mission_type,
                     )
-
-                # Store command_id for execution tracking only after the command is installed
-                self.drone_config.current_command_id = command_id
 
                 # Get mission name for message
                 try:
