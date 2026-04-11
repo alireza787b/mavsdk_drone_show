@@ -583,8 +583,24 @@ def compute_origin_from_drone(current_lat, current_lon, intended_north, intended
 
         logger.info(f"Optimization result: {result}")
 
-        if result.success:
+        solution_error = float(result.fun) if getattr(result, 'fun', None) is not None else float('inf')
+        solution_coords = getattr(result, 'x', None)
+        has_finite_solution = (
+            solution_coords is not None
+            and len(solution_coords) == 2
+            and math.isfinite(solution_coords[0])
+            and math.isfinite(solution_coords[1])
+        )
+        acceptable_residual = solution_error <= 1e-6
+
+        if result.success or (has_finite_solution and acceptable_residual):
             origin_lat, origin_lon = result.x
+            if not result.success:
+                logger.warning(
+                    "Accepting origin optimization despite non-success status because residual is within tolerance: %s (fun=%s)",
+                    result.message,
+                    solution_error,
+                )
             logger.info(f"Origin computed successfully: ({origin_lat}, {origin_lon})")
             return origin_lat, origin_lon
         else:
