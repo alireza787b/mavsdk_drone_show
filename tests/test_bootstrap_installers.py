@@ -176,3 +176,74 @@ def test_python_env_prefers_node_requirements_when_present():
 
     assert result.returncode == 0, result.stderr
     assert "requirements-node.txt" in result.stdout
+
+
+def test_setup_local_env_writes_clean_override_lines():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        MDS_CONFIG_DIR="$tmpdir"
+        MDS_LOCAL_ENV="$tmpdir/local.env"
+        MDS_VERSION="4.5.0"
+        log_step() {{ :; }}
+        log_success() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
+        setup_local_env 101 100.82.107.61 git@github.com:demo/customer.git main http://100.82.107.61:5000
+        grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_IP=100.82.107.61$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_API_BASE_URL=http://100.82.107.61:5000$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_REPO_URL=git@github.com:demo/customer.git$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
+        ! grep -q '^MDS_HW_ID=.*#' "$MDS_LOCAL_ENV"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        MDS_CONFIG_DIR="$tmpdir"
+        MDS_LOCAL_ENV="$tmpdir/local.env"
+        MDS_NODE_IDENTITY_FILE="$tmpdir/node_identity.json"
+        MDS_VERSION="4.5.0"
+        DRONE_ID=101
+        REPO_URL="git@github.com:demo/customer.git"
+        BRANCH="main-candidate"
+        MAVLINK_INPUT_TYPE="uart"
+        log_warn() {{ :; }}
+        log_success() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        state_get_value() {{ echo ""; }}
+        state_set_value() {{ :; }}
+        get_or_create_node_uuid() {{ echo "uuid-101"; }}
+        get_local_env_value() {{ echo ""; }}
+        get_netbird_primary_ip() {{ echo "100.82.72.33"; }}
+        detect_network_interface() {{ echo ""; }}
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
+        write_node_identity_manifest 101 identity_configured
+        jq -e '.netbird_enabled == true and .network_mode == "netbird" and .primary_control_ip == "100.82.72.33"' "$MDS_NODE_IDENTITY_FILE" >/dev/null
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_verify_hw_id_stays_safe_under_nounset():
+    result = run_bash(
+        f"""
+        set -u
+        tmpdir="$(mktemp -d)"
+        MDS_INSTALL_DIR="$tmpdir"
+        DRONE_ID=101
+        touch "$tmpdir/101.hwID"
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'verify.sh'}"
+        verify_hw_id
+        [[ "$(verify_get_result hw_id)" == "PASS:Drone 101" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr

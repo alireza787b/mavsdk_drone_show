@@ -16,7 +16,34 @@ _MDS_VERIFY_LOADED=1
 # =============================================================================
 
 # Verification results storage
-declare -A VERIFY_RESULTS
+declare -A VERIFY_RESULTS=()
+declare -a VERIFY_COMPONENTS=(
+    "hw_id"
+    "real_mode"
+    "repository"
+    "python_env"
+    "mavsdk"
+    "local_env"
+    "firewall"
+    "services"
+    "ntp"
+    "mavlink_router"
+    "serial_config"
+    "netbird"
+    "network"
+)
+
+verify_set_result() {
+    local key="$1"
+    local value="$2"
+    VERIFY_RESULTS["$key"]="$value"
+}
+
+verify_get_result() {
+    local key="$1"
+    local default_value="${2:-SKIP:Not checked}"
+    printf '%s' "${VERIFY_RESULTS["$key"]:-$default_value}"
+}
 
 # Verify hardware ID
 verify_hw_id() {
@@ -28,29 +55,29 @@ verify_hw_id() {
     fi
 
     if [[ -n "$drone_id" ]] && [[ -f "${MDS_INSTALL_DIR}/${drone_id}.hwID" ]]; then
-        VERIFY_RESULTS["hw_id"]="PASS:Drone ${drone_id}"
+        verify_set_result "hw_id" "PASS:Drone ${drone_id}"
         return 0
     fi
 
-    VERIFY_RESULTS["hw_id"]="FAIL:No hwID file found"
+    verify_set_result "hw_id" "FAIL:No hwID file found"
     return 1
 }
 
 # Verify real.mode marker
 verify_real_mode() {
     if [[ -f "${MDS_INSTALL_DIR}/real.mode" ]]; then
-        VERIFY_RESULTS["real_mode"]="PASS:Present"
+        verify_set_result "real_mode" "PASS:Present"
         return 0
     fi
 
-    VERIFY_RESULTS["real_mode"]="WARN:Not present (SITL mode)"
+    verify_set_result "real_mode" "WARN:Not present (SITL mode)"
     return 0
 }
 
 # Verify repository
 verify_repository() {
     if ! git -C "${MDS_INSTALL_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        VERIFY_RESULTS["repository"]="FAIL:Not a git repository"
+        verify_set_result "repository" "FAIL:Not a git repository"
         return 1
     fi
 
@@ -58,45 +85,45 @@ verify_repository() {
     branch=$(cd "${MDS_INSTALL_DIR}" && git branch --show-current 2>/dev/null || echo "unknown")
     commit=$(cd "${MDS_INSTALL_DIR}" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-    VERIFY_RESULTS["repository"]="PASS:${branch}@${commit}"
+    verify_set_result "repository" "PASS:${branch}@${commit}"
     return 0
 }
 
 # Verify Python environment
 verify_python_env() {
     if [[ ! -d "${MDS_INSTALL_DIR}/venv" ]]; then
-        VERIFY_RESULTS["python_env"]="FAIL:venv not found"
+        verify_set_result "python_env" "FAIL:venv not found"
         return 1
     fi
 
     if [[ ! -x "${MDS_INSTALL_DIR}/venv/bin/python" ]]; then
-        VERIFY_RESULTS["python_env"]="FAIL:venv python not executable"
+        verify_set_result "python_env" "FAIL:venv python not executable"
         return 1
     fi
 
     local version
     version=$("${MDS_INSTALL_DIR}/venv/bin/python" --version 2>&1 | awk '{print $2}')
-    VERIFY_RESULTS["python_env"]="PASS:Python ${version}"
+    verify_set_result "python_env" "PASS:Python ${version}"
     return 0
 }
 
 # Verify MAVSDK binary
 verify_mavsdk() {
     if [[ ! -x "${MDS_INSTALL_DIR}/mavsdk_server" ]]; then
-        VERIFY_RESULTS["mavsdk"]="FAIL:Binary not found or not executable"
+        verify_set_result "mavsdk" "FAIL:Binary not found or not executable"
         return 1
     fi
 
     local version
     version=$("${MDS_INSTALL_DIR}/mavsdk_server" --version 2>&1 | head -1 | grep -oP 'v[\d.]+' || echo "unknown")
-    VERIFY_RESULTS["mavsdk"]="PASS:${version}"
+    verify_set_result "mavsdk" "PASS:${version}"
     return 0
 }
 
 # Verify local.env
 verify_local_env() {
     if [[ ! -f "${MDS_LOCAL_ENV}" ]]; then
-        VERIFY_RESULTS["local_env"]="WARN:Not found"
+        verify_set_result "local_env" "WARN:Not found"
         return 0
     fi
 
@@ -104,18 +131,18 @@ verify_local_env() {
     hw_id=$(grep "^MDS_HW_ID=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2)
 
     if [[ -n "$hw_id" ]]; then
-        VERIFY_RESULTS["local_env"]="PASS:HW_ID=${hw_id}"
+        verify_set_result "local_env" "PASS:HW_ID=${hw_id}"
         return 0
     fi
 
-    VERIFY_RESULTS["local_env"]="WARN:HW_ID not set"
+    verify_set_result "local_env" "WARN:HW_ID not set"
     return 0
 }
 
 # Verify firewall
 verify_firewall() {
     if ! command_exists ufw; then
-        VERIFY_RESULTS["firewall"]="WARN:UFW not installed"
+        verify_set_result "firewall" "WARN:UFW not installed"
         return 0
     fi
 
@@ -123,11 +150,11 @@ verify_firewall() {
     status=$(ufw status 2>/dev/null | head -1 | awk '{print $2}')
 
     if [[ "$status" == "active" ]]; then
-        VERIFY_RESULTS["firewall"]="PASS:Active"
+        verify_set_result "firewall" "PASS:Active"
         return 0
     fi
 
-    VERIFY_RESULTS["firewall"]="WARN:Inactive"
+    verify_set_result "firewall" "WARN:Inactive"
     return 0
 }
 
@@ -144,11 +171,11 @@ verify_service_status() {
     done
 
     if [[ $enabled -eq $total ]]; then
-        VERIFY_RESULTS["services"]="PASS:${enabled}/${total} enabled"
+        verify_set_result "services" "PASS:${enabled}/${total} enabled"
         return 0
     fi
 
-    VERIFY_RESULTS["services"]="WARN:${enabled}/${total} enabled"
+    verify_set_result "services" "WARN:${enabled}/${total} enabled"
     return 0
 }
 
@@ -158,11 +185,11 @@ verify_ntp() {
     sync_status=$(timedatectl show --property=NTPSynchronized --value 2>/dev/null || echo "no")
 
     if [[ "$sync_status" == "yes" ]]; then
-        VERIFY_RESULTS["ntp"]="PASS:Synchronized"
+        verify_set_result "ntp" "PASS:Synchronized"
         return 0
     fi
 
-    VERIFY_RESULTS["ntp"]="WARN:Not synchronized"
+    verify_set_result "ntp" "WARN:Not synchronized"
     return 0
 }
 
@@ -177,13 +204,13 @@ verify_mavlink_router() {
     fi
 
     if [[ "$binary_found" != "true" ]]; then
-        VERIFY_RESULTS["mavlink_router"]="WARN:Not installed"
+        verify_set_result "mavlink_router" "WARN:Not installed"
         return 0
     fi
 
     # Check if config exists
     if [[ ! -f /etc/mavlink-router/main.conf ]]; then
-        VERIFY_RESULTS["mavlink_router"]="WARN:Installed but not configured"
+        verify_set_result "mavlink_router" "WARN:Installed but not configured"
         return 0
     fi
 
@@ -196,19 +223,19 @@ verify_mavlink_router() {
         fi
 
         if [[ -n "$uart_device" ]]; then
-            VERIFY_RESULTS["mavlink_router"]="PASS:Running (${uart_device})"
+            verify_set_result "mavlink_router" "PASS:Running (${uart_device})"
         else
-            VERIFY_RESULTS["mavlink_router"]="PASS:Running"
+            verify_set_result "mavlink_router" "PASS:Running"
         fi
         return 0
     fi
 
     if systemctl is-enabled mavlink-router &>/dev/null; then
-        VERIFY_RESULTS["mavlink_router"]="WARN:Enabled but not running"
+        verify_set_result "mavlink_router" "WARN:Enabled but not running"
         return 0
     fi
 
-    VERIFY_RESULTS["mavlink_router"]="WARN:Configured but not enabled"
+    verify_set_result "mavlink_router" "WARN:Configured but not enabled"
     return 0
 }
 
@@ -216,7 +243,7 @@ verify_mavlink_router() {
 verify_serial_config() {
     # Only relevant for Raspberry Pi
     if ! is_raspberry_pi 2>/dev/null; then
-        VERIFY_RESULTS["serial_config"]="SKIP:Not Raspberry Pi"
+        verify_set_result "serial_config" "SKIP:Not Raspberry Pi"
         return 0
     fi
 
@@ -261,7 +288,7 @@ verify_serial_config() {
 
     # Report result
     if [[ -z "$issues" ]]; then
-        VERIFY_RESULTS["serial_config"]="PASS:OK (${serial_device:-detected})"
+        verify_set_result "serial_config" "PASS:OK (${serial_device:-detected})"
         return 0
     fi
 
@@ -269,13 +296,13 @@ verify_serial_config() {
     issues="${issues%,}"
 
     if [[ "$issues" == *"console_enabled"* ]]; then
-        VERIFY_RESULTS["serial_config"]="WARN:Console blocking UART"
+        verify_set_result "serial_config" "WARN:Console blocking UART"
     elif [[ "$issues" == *"uart_disabled"* ]]; then
-        VERIFY_RESULTS["serial_config"]="WARN:UART not enabled"
+        verify_set_result "serial_config" "WARN:UART not enabled"
     elif [[ "$issues" == *"no_device"* ]]; then
-        VERIFY_RESULTS["serial_config"]="WARN:No serial device"
+        verify_set_result "serial_config" "WARN:No serial device"
     else
-        VERIFY_RESULTS["serial_config"]="WARN:${issues}"
+        verify_set_result "serial_config" "WARN:${issues}"
     fi
 
     return 0
@@ -292,21 +319,21 @@ verify_network() {
     fi
 
     if [[ "$connectivity" == "internet" ]]; then
-        VERIFY_RESULTS["network"]="PASS:Internet connected"
+        verify_set_result "network" "PASS:Internet connected"
         return 0
     elif [[ "$connectivity" == "local" ]]; then
-        VERIFY_RESULTS["network"]="WARN:Local only"
+        verify_set_result "network" "WARN:Local only"
         return 0
     fi
 
-    VERIFY_RESULTS["network"]="FAIL:No connectivity"
+    verify_set_result "network" "FAIL:No connectivity"
     return 1
 }
 
 # Verify NetBird VPN
 verify_netbird() {
     if ! command_exists netbird; then
-        VERIFY_RESULTS["netbird"]="WARN:Not installed"
+        verify_set_result "netbird" "WARN:Not installed"
         return 0
     fi
 
@@ -318,18 +345,18 @@ verify_netbird() {
             local nb_ip
             nb_ip=$(netbird status 2>/dev/null | grep -oP 'IP: \K[\d.]+' | head -1 || echo "")
             if [[ -n "$nb_ip" ]]; then
-                VERIFY_RESULTS["netbird"]="PASS:Connected (${nb_ip})"
+                verify_set_result "netbird" "PASS:Connected (${nb_ip})"
             else
-                VERIFY_RESULTS["netbird"]="PASS:Connected"
+                verify_set_result "netbird" "PASS:Connected"
             fi
             return 0
             ;;
         disconnected|idle)
-            VERIFY_RESULTS["netbird"]="WARN:Disconnected"
+            verify_set_result "netbird" "WARN:Disconnected"
             return 0
             ;;
         *)
-            VERIFY_RESULTS["netbird"]="WARN:Unknown ($status)"
+            verify_set_result "netbird" "WARN:Unknown ($status)"
             return 0
             ;;
     esac
@@ -406,8 +433,9 @@ generate_summary_report() {
     local warn_count=0
     local fail_count=0
 
-    for component in hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router serial_config netbird network; do
-        local result="${VERIFY_RESULTS[$component]:-SKIP:Not checked}"
+    for component in "${VERIFY_COMPONENTS[@]}"; do
+        local result
+        result="$(verify_get_result "$component")"
         local status="${result%%:*}"
         local details="${result#*:}"
 
@@ -458,7 +486,8 @@ generate_summary_report() {
 
 # Display NetBird VPN info box
 display_netbird_summary() {
-    local nb_status="${VERIFY_RESULTS[netbird]:-SKIP:Not checked}"
+    local nb_status
+    nb_status="$(verify_get_result "netbird")"
     local status="${nb_status%%:*}"
     local details="${nb_status#*:}"
 
@@ -506,8 +535,10 @@ display_next_steps() {
     local has_warnings=false
     local has_failures=false
 
-    for component in "${!VERIFY_RESULTS[@]}"; do
-        local status="${VERIFY_RESULTS[$component]%%:*}"
+    for component in "${VERIFY_COMPONENTS[@]}"; do
+        local status
+        status="$(verify_get_result "$component")"
+        status="${status%%:*}"
         [[ "$status" == "WARN" ]] && has_warnings=true
         [[ "$status" == "FAIL" ]] && has_failures=true
     done
@@ -522,7 +553,9 @@ display_next_steps() {
     fi
 
     # Check mavlink-router
-    if [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not installed"* ]] || [[ "${VERIFY_RESULTS[mavlink_router]}" == *"Not configured"* ]]; then
+    local mavlink_router_status
+    mavlink_router_status="$(verify_get_result "mavlink_router")"
+    if [[ "$mavlink_router_status" == *"Not installed"* ]] || [[ "$mavlink_router_status" == *"Not configured"* ]]; then
         echo ""
         echo -e "  ${ARROW} Configure mavlink-router for MAVLink routing:"
         echo -e "      ${GREEN}sudo ./tools/mds_node_init.sh --resume --mavlink-auto${NC}"
@@ -531,7 +564,9 @@ display_next_steps() {
     fi
 
     # Check serial config
-    if [[ "${VERIFY_RESULTS[serial_config]}" == *"Console blocking"* ]]; then
+    local serial_status
+    serial_status="$(verify_get_result "serial_config")"
+    if [[ "$serial_status" == *"Console blocking"* ]]; then
         echo ""
         echo -e "  ${WARN} Serial console is blocking UART - run raspi-config to disable it"
         echo -e "      ${DIM}Interface Options → Serial Port → Login shell: NO, Hardware: YES${NC}"
