@@ -30,6 +30,7 @@ BRANCH="${MDS_BRANCH:-main-candidate}"
 # User and installation settings
 MDS_USER="droneshow"
 INSTALL_DIR="/home/${MDS_USER}/mavsdk_drone_show"
+SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
 
 # Colors
 RED='\033[0;31m'
@@ -79,6 +80,40 @@ normalize_github_repo_path() {
     fi
 
     printf '%s\n' "$spec"
+}
+
+is_github_ssh_repo_url() {
+    [[ "${1:-}" == git@github.com:* ]]
+}
+
+mds_git_ssh_command() {
+    printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$SSH_KEY_PATH"
+}
+
+wrapper_non_interactive() {
+    [[ "${WRAPPER_NON_INTERACTIVE:-false}" == "true" ]]
+}
+
+resolve_target_repo_url() {
+    local explicit_repo_url="${1:-}"
+    local selected_repo_path="${2:-}"
+    local use_https_mode="${3:-false}"
+
+    if [[ -n "$explicit_repo_url" ]]; then
+        printf '%s\n' "$explicit_repo_url"
+        return 0
+    fi
+
+    if [[ -n "$selected_repo_path" ]]; then
+        if [[ "$use_https_mode" == "true" ]]; then
+            printf 'https://github.com/%s.git\n' "$selected_repo_path"
+        else
+            printf 'git@github.com:%s.git\n' "$selected_repo_path"
+        fi
+        return 0
+    fi
+
+    printf '%s\n' "$REPO_URL"
 }
 
 # =============================================================================
@@ -192,6 +227,139 @@ create_droneshow_user() {
     log_success "User '${MDS_USER}' created and added to groups"
 }
 
+prepare_wrapper_repo_ssh_runtime() {
+    local ssh_dir="/home/${MDS_USER}/.ssh"
+
+    mkdir -p "$ssh_dir"
+    chown "${MDS_USER}:${MDS_USER}" "$ssh_dir"
+    chmod 700 "$ssh_dir"
+
+    if [[ -f "$SSH_KEY_PATH" ]]; then
+        chmod 600 "$SSH_KEY_PATH"
+        chown "${MDS_USER}:${MDS_USER}" "$SSH_KEY_PATH"
+    fi
+
+    if [[ -f "${SSH_KEY_PATH}.pub" ]]; then
+        chmod 644 "${SSH_KEY_PATH}.pub"
+        chown "${MDS_USER}:${MDS_USER}" "${SSH_KEY_PATH}.pub"
+    fi
+
+    sudo -u "${MDS_USER}" bash -lc 'if ! grep -q "github.com" "$HOME/.ssh/known_hosts" 2>/dev/null; then ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null || true; fi'
+}
+
+wrapper_ssh_key_exists() {
+    [[ -f "$SSH_KEY_PATH" ]]
+}
+
+generate_wrapper_deploy_key() {
+    log_info "Preparing SSH deploy key for bootstrap..."
+
+    if wrapper_ssh_key_exists; then
+        log_success "Bootstrap SSH key already exists"
+        return 0
+    fi
+
+    prepare_wrapper_repo_ssh_runtime
+
+    sudo -u "${MDS_USER}" ssh-keygen -t rsa -b 4096 \
+        -f "${SSH_KEY_PATH}" \
+        -N "" \
+        -C "mds-drone-deploy-$(hostname)" >/dev/null || {
+        log_error "Failed to generate bootstrap SSH deploy key"
+        exit 1
+    }
+
+    chmod 600 "${SSH_KEY_PATH}"
+    chmod 644 "${SSH_KEY_PATH}.pub"
+    chown "${MDS_USER}:${MDS_USER}" "${SSH_KEY_PATH}" "${SSH_KEY_PATH}.pub"
+    log_success "Bootstrap SSH deploy key generated"
+}
+
+display_wrapper_deploy_key_instructions() {
+    local repo_url="$1"
+
+    echo ""
+    echo -e "${CYAN}================================================================${NC}"
+    echo -e "${WHITE}GitHub deploy key authorization is required before the first private clone.${NC}"
+    echo -e "${CYAN}================================================================${NC}"
+    echo ""
+    echo -e "${WHITE}Repository:${NC} ${repo_url}"
+    echo -e "${WHITE}Key path:${NC} ${SSH_KEY_PATH}.pub"
+    echo ""
+    if [[ -f "${SSH_KEY_PATH}.pub" ]]; then
+        cat "${SSH_KEY_PATH}.pub"
+        echo ""
+    fi
+    echo "GitHub path: Settings -> Deploy keys -> Add deploy key"
+    echo "Title: mds-drone-$(hostname)"
+    echo "Allow write access: enable only if this node must push."
+    echo ""
+}
+
+test_wrapper_ssh_connection() {
+    local output
+
+    prepare_wrapper_repo_ssh_runtime
+    output=$(sudo -u "${MDS_USER}" ssh -T \
+        -o StrictHostKeyChecking=accept-new \
+        -o BatchMode=yes \
+        -o ConnectTimeout=10 \
+        -o IdentitiesOnly=yes \
+        -i "${SSH_KEY_PATH}" git@github.com 2>&1) || true
+
+    echo "$output" | grep -qi "successfully authenticated"
+}
+
+ensure_wrapper_repo_access() {
+    local repo_url="$1"
+
+    if ! is_github_ssh_repo_url "$repo_url"; then
+        return 0
+    fi
+
+    prepare_wrapper_repo_ssh_runtime
+    generate_wrapper_deploy_key
+
+    if test_wrapper_ssh_connection; then
+        log_success "Bootstrap SSH access to GitHub verified"
+        return 0
+    fi
+
+    display_wrapper_deploy_key_instructions "$repo_url"
+
+    if wrapper_non_interactive; then
+        log_error "Non-interactive bootstrap cannot continue until the deploy key is authorized on GitHub"
+        log_info "Authorize ${SSH_KEY_PATH}.pub on the target repository, then rerun the same bootstrap command"
+        exit 1
+    fi
+
+    while true; do
+        local answer=""
+        read -r -p "Add the deploy key, then press Enter to retry SSH auth (or type 'https' to switch to HTTPS): " answer </dev/tty || true
+        if [[ "${answer}" == "https" ]]; then
+            REPO_URL="$(printf '%s\n' "$repo_url" | sed 's|git@github.com:|https://github.com/|')"
+            log_warn "Switching bootstrap clone to HTTPS"
+            return 0
+        fi
+        if test_wrapper_ssh_connection; then
+            log_success "Bootstrap SSH access to GitHub verified"
+            return 0
+        fi
+        log_warn "SSH authentication still failed. Verify the deploy key was added to the correct repository."
+    done
+}
+
+run_git_as_mds_user() {
+    local repo_url="$1"
+    shift
+
+    if is_github_ssh_repo_url "$repo_url"; then
+        sudo -u "${MDS_USER}" env GIT_SSH_COMMAND="$(mds_git_ssh_command)" git "$@"
+    else
+        sudo -u "${MDS_USER}" git "$@"
+    fi
+}
+
 # =============================================================================
 # PREREQUISITES
 # =============================================================================
@@ -243,20 +411,38 @@ clone_repository() {
         log_info "Repository already exists, updating..."
         cd "$INSTALL_DIR"
 
-        # Update as the droneshow user
-        sudo -u "${MDS_USER}" git fetch origin "$BRANCH" || {
+        local current_remote
+        current_remote=$(sudo -u "${MDS_USER}" git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || echo "")
+        if [[ -n "$current_remote" && "$current_remote" != "$REPO_URL" ]]; then
+            log_info "Updating repository remote to requested bootstrap target"
+            run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" remote set-url origin "$REPO_URL" || {
+                log_error "Failed to update repository remote"
+                exit 1
+            }
+        fi
+
+        if is_github_ssh_repo_url "$REPO_URL"; then
+            run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" config core.sshCommand "$(mds_git_ssh_command)" || true
+        else
+            sudo -u "${MDS_USER}" git -C "$INSTALL_DIR" config --unset-all core.sshCommand >/dev/null 2>&1 || true
+        fi
+
+        run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" fetch origin "$BRANCH" || {
             log_error "Failed to fetch repository"
             exit 1
         }
-        sudo -u "${MDS_USER}" git checkout "$BRANCH" 2>/dev/null || \
-            sudo -u "${MDS_USER}" git checkout -b "$BRANCH" "origin/$BRANCH"
-        sudo -u "${MDS_USER}" git reset --hard "origin/$BRANCH"
+        run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" checkout "$BRANCH" 2>/dev/null || \
+            run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" checkout -b "$BRANCH" "origin/$BRANCH"
+        run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
     else
         # Clone as the droneshow user
-        sudo -u "${MDS_USER}" git clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR" || {
+        run_git_as_mds_user "$REPO_URL" clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR" || {
             log_error "Failed to clone repository"
             exit 1
         }
+        if is_github_ssh_repo_url "$REPO_URL"; then
+            run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" config core.sshCommand "$(mds_git_ssh_command)" || true
+        fi
     fi
 
     log_success "Repository ready"
@@ -374,6 +560,7 @@ main() {
     local selected_repo_path=""
     local config_repo_url=""
     local use_https_mode="false"
+    WRAPPER_NON_INTERACTIVE="false"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -403,6 +590,11 @@ main() {
                 passthrough_args+=("$1")
                 shift
                 ;;
+            -y|--yes)
+                WRAPPER_NON_INTERACTIVE="true"
+                passthrough_args+=("$1")
+                shift
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -414,25 +606,16 @@ main() {
         esac
     done
 
-    if [[ -n "$explicit_repo_url" ]]; then
-        config_repo_url="$explicit_repo_url"
-    elif [[ -n "$selected_repo_path" ]]; then
-        if [[ "$use_https_mode" == "true" ]]; then
-            config_repo_url="https://github.com/${selected_repo_path}.git"
-        else
-            config_repo_url="git@github.com:${selected_repo_path}.git"
-        fi
-    fi
+    config_repo_url="$(resolve_target_repo_url "$explicit_repo_url" "$selected_repo_path" "$use_https_mode")"
+    REPO_URL="$config_repo_url"
 
     if [[ -n "$explicit_branch" ]]; then
         export MDS_BRANCH="$explicit_branch"
         passthrough_args+=("--branch" "$explicit_branch")
     fi
 
-    if [[ -n "$config_repo_url" ]]; then
-        export MDS_REPO_URL="$config_repo_url"
-        passthrough_args+=("--repo-url" "$config_repo_url")
-    fi
+    export MDS_REPO_URL="$config_repo_url"
+    passthrough_args+=("--repo-url" "$config_repo_url")
 
     print_banner
 
@@ -450,6 +633,7 @@ main() {
     # Setup
     create_droneshow_user
     install_prerequisites
+    ensure_wrapper_repo_access "$REPO_URL"
     clone_repository
 
     echo ""
@@ -458,4 +642,6 @@ main() {
     run_init_script "${passthrough_args[@]}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

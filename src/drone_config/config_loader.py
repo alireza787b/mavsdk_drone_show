@@ -183,7 +183,8 @@ class ConfigLoader:
         """
         Read configuration from local JSON file or online source.
 
-        Uses Params.offline_config to determine source.
+        Defaults to local file mode. Remote fetch is only used when
+        MDS_LOCAL_CONFIG_MODE=false and MDS_CONFIG_URL is explicitly set.
 
         Args:
             hw_id: Hardware ID (int) to load config for
@@ -191,17 +192,17 @@ class ConfigLoader:
         Returns:
             Dictionary with configuration data, or None if not found.
         """
-        if Params.offline_config:
+        if Params.offline_config or not Params.config_url:
             return ConfigLoader.read_file(Params.config_file_name, 'local config', hw_id)
-        else:
-            return ConfigLoader.fetch_online_config(Params.config_url, 'online_config.json', hw_id)
+        return ConfigLoader.fetch_online_config(Params.config_url, 'online_config.json', hw_id)
 
     @staticmethod
     def read_swarm(hw_id: int) -> Optional[Dict[str, Any]]:
         """
         Read swarm configuration from local JSON file or online source.
 
-        Uses Params.offline_swarm to determine source.
+        Defaults to local file mode. Remote fetch is only used when
+        MDS_LOCAL_SWARM_MODE=false and MDS_SWARM_URL is explicitly set.
 
         Args:
             hw_id: Hardware ID (int) to load swarm config for
@@ -209,10 +210,9 @@ class ConfigLoader:
         Returns:
             Dictionary with swarm configuration data, or None if not found.
         """
-        if Params.offline_swarm:
+        if Params.offline_swarm or not Params.swarm_url:
             return ConfigLoader.read_file(Params.swarm_file_name, 'local config', hw_id)
-        else:
-            return ConfigLoader.fetch_online_config(Params.swarm_url, 'online_swarm.json', hw_id)
+        return ConfigLoader.fetch_online_config(Params.swarm_url, 'online_swarm.json', hw_id)
 
     @staticmethod
     def load_all_configs() -> Dict[int, Dict[str, float]]:

@@ -74,12 +74,18 @@ After your GCS is connected to NetBird:
    sudo netbird up
    ```
 
-2. **Configure drone to use GCS NetBird IP**:
+2. **Configure the node runtime to use the GCS overlay IP**:
 
-   Edit `/etc/mds/drone.env` or `src/params.py`:
-   ```python
-   GCS_IP = "100.x.x.x"  # Your GCS NetBird IP
+   Preferred source of truth:
+   - `/etc/mds/local.env` on the node
+   - `/etc/mds/gcs.env` on GCS
+
+   Example:
+   ```bash
+   sudo sed -i 's/^MDS_GCS_IP=.*/MDS_GCS_IP=100.x.x.x/' /etc/mds/local.env
    ```
+
+   `src/params.py` is fallback-only. Do not use it as the normal deployment customization path.
 
 3. **Verify connectivity**:
    ```bash

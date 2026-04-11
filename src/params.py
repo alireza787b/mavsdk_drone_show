@@ -98,10 +98,12 @@ class Params:
     # If 'real.mode' exists, sim_mode is False (real-life mode)
     sim_mode = not os.path.exists(real_mode_file)
 
-    # Configuration CSV filenames (determined by mode)
-    # URLs for configuration files (not used in current implementation)
-    config_url = 'https://nb1.joomtalk.ir/download/config.json'
-    swarm_url = 'https://nb1.joomtalk.ir/download/swarm.json'
+    # Optional legacy online configuration endpoints.
+    # Production hardware now defaults to local file mode via /etc/mds/local.env
+    # and explicit repo sync. Leave these unset unless you are deliberately
+    # using an external configuration publisher.
+    config_url = os.environ.get('MDS_CONFIG_URL', '')
+    swarm_url = os.environ.get('MDS_SWARM_URL', '')
 
     # Git Configuration
     # ===================================================================================
@@ -166,8 +168,8 @@ class Params:
     # General Settings
     enable_drones_http_server = True  # Enable HTTP server on drones
     single_drone = False              # Enable single drone mode
-    offline_config = True             # Use offline configuration (not used!)
-    offline_swarm = True              # Use offline swarm (not used!)
+    offline_config = _env_flag('MDS_LOCAL_CONFIG_MODE', True)   # Read config.json locally by default
+    offline_swarm = _env_flag('MDS_LOCAL_SWARM_MODE', True)     # Read swarm.json locally by default
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
     MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data

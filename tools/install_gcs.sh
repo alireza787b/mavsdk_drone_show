@@ -35,6 +35,7 @@ else
     DEFAULT_HOME="$HOME"
 fi
 INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/mavsdk_drone_show}"
+GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 
 # Colors
 RED='\033[0;31m'
@@ -83,6 +84,40 @@ normalize_github_repo_path() {
     printf '%s\n' "$spec"
 }
 
+is_github_ssh_repo_url() {
+    [[ "${1:-}" == git@github.com:* ]]
+}
+
+gcs_git_ssh_command() {
+    printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$GCS_SSH_KEY_PATH"
+}
+
+wrapper_non_interactive() {
+    [[ "${WRAPPER_NON_INTERACTIVE:-false}" == "true" ]]
+}
+
+resolve_target_repo_url() {
+    local explicit_repo_url="${1:-}"
+    local selected_repo_path="${2:-}"
+    local use_https_mode="${3:-false}"
+
+    if [[ -n "$explicit_repo_url" ]]; then
+        printf '%s\n' "$explicit_repo_url"
+        return 0
+    fi
+
+    if [[ -n "$selected_repo_path" ]]; then
+        if [[ "$use_https_mode" == "true" ]]; then
+            printf 'https://github.com/%s.git\n' "$selected_repo_path"
+        else
+            printf 'git@github.com:%s.git\n' "$selected_repo_path"
+        fi
+        return 0
+    fi
+
+    printf '%s\n' "$REPO_URL"
+}
+
 print_banner() {
     # Source shared banner if available
     local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -125,6 +160,134 @@ install_git() {
     log_success "git installed"
 }
 
+prepare_wrapper_repo_ssh_runtime() {
+    mkdir -p "${HOME}/.ssh"
+    chmod 700 "${HOME}/.ssh"
+
+    if [[ -f "$GCS_SSH_KEY_PATH" ]]; then
+        chmod 600 "$GCS_SSH_KEY_PATH"
+    fi
+
+    if [[ -f "${GCS_SSH_KEY_PATH}.pub" ]]; then
+        chmod 644 "${GCS_SSH_KEY_PATH}.pub"
+    fi
+
+    if ! grep -q "github.com" "${HOME}/.ssh/known_hosts" 2>/dev/null; then
+        ssh-keyscan -t ed25519 github.com >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+    fi
+}
+
+wrapper_ssh_key_exists() {
+    [[ -f "$GCS_SSH_KEY_PATH" ]]
+}
+
+generate_wrapper_deploy_key() {
+    log_info "Preparing GCS SSH deploy key for bootstrap..."
+
+    if wrapper_ssh_key_exists; then
+        log_success "Bootstrap SSH key already exists"
+        return 0
+    fi
+
+    prepare_wrapper_repo_ssh_runtime
+
+    if ssh-keygen -t ed25519 -f "$GCS_SSH_KEY_PATH" -N "" -C "mds-gcs@$(hostname)" >/dev/null 2>&1; then
+        chmod 600 "$GCS_SSH_KEY_PATH"
+        chmod 644 "${GCS_SSH_KEY_PATH}.pub"
+        log_success "Bootstrap SSH deploy key generated"
+    else
+        log_error "Failed to generate bootstrap SSH deploy key"
+        exit 1
+    fi
+}
+
+display_wrapper_deploy_key_instructions() {
+    local repo_url="$1"
+
+    echo ""
+    echo -e "${CYAN}================================================${NC}"
+    echo -e "${WHITE}GitHub deploy key authorization is required before the first private GCS clone.${NC}"
+    echo -e "${CYAN}================================================${NC}"
+    echo ""
+    echo -e "${WHITE}Repository:${NC} ${repo_url}"
+    echo -e "${WHITE}Key path:${NC} ${GCS_SSH_KEY_PATH}.pub"
+    echo ""
+    if [[ -f "${GCS_SSH_KEY_PATH}.pub" ]]; then
+        cat "${GCS_SSH_KEY_PATH}.pub"
+        echo ""
+    fi
+    echo "GitHub path: Settings -> Deploy keys -> Add deploy key"
+    echo "Title: MDS GCS - $(hostname)"
+    echo "Allow write access: required if this GCS will commit/push."
+    echo ""
+}
+
+test_wrapper_ssh_connection() {
+    local result
+
+    prepare_wrapper_repo_ssh_runtime
+    result=$(ssh \
+        -T \
+        -o BatchMode=yes \
+        -o ConnectTimeout=10 \
+        -o IdentitiesOnly=yes \
+        -o StrictHostKeyChecking=accept-new \
+        -i "${GCS_SSH_KEY_PATH}" \
+        git@github.com 2>&1) || true
+
+    echo "$result" | grep -qi "successfully authenticated"
+}
+
+ensure_wrapper_repo_access() {
+    local repo_url="$1"
+
+    if ! is_github_ssh_repo_url "$repo_url"; then
+        return 0
+    fi
+
+    prepare_wrapper_repo_ssh_runtime
+    generate_wrapper_deploy_key
+
+    if test_wrapper_ssh_connection; then
+        log_success "Bootstrap SSH access to GitHub verified"
+        return 0
+    fi
+
+    display_wrapper_deploy_key_instructions "$repo_url"
+
+    if wrapper_non_interactive; then
+        log_error "Non-interactive bootstrap cannot continue until the GCS deploy key is authorized on GitHub"
+        log_info "Authorize ${GCS_SSH_KEY_PATH}.pub on the target repository, then rerun the same bootstrap command"
+        exit 1
+    fi
+
+    while true; do
+        local answer=""
+        read -r -p "Add the deploy key, then press Enter to retry SSH auth (or type 'https' to switch to HTTPS): " answer </dev/tty || true
+        if [[ "${answer}" == "https" ]]; then
+            REPO_URL="$(printf '%s\n' "$repo_url" | sed 's|git@github.com:|https://github.com/|')"
+            log_warn "Switching bootstrap clone to HTTPS"
+            return 0
+        fi
+        if test_wrapper_ssh_connection; then
+            log_success "Bootstrap SSH access to GitHub verified"
+            return 0
+        fi
+        log_warn "SSH authentication still failed. Verify the deploy key was added to the correct repository."
+    done
+}
+
+run_git_as_root() {
+    local repo_url="$1"
+    shift
+
+    if is_github_ssh_repo_url "$repo_url"; then
+        env GIT_SSH_COMMAND="$(gcs_git_ssh_command)" git "$@"
+    else
+        git "$@"
+    fi
+}
+
 clone_repository() {
     log_info "Cloning repository..."
     log_info "  URL: $REPO_URL"
@@ -134,12 +297,28 @@ clone_repository() {
     if [[ -d "$INSTALL_DIR/.git" ]]; then
         log_info "Repository already exists, updating..."
         cd "$INSTALL_DIR"
-        git fetch origin "$BRANCH"
-        git checkout "$BRANCH"
-        git pull origin "$BRANCH"
+        local current_remote
+        current_remote=$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null || echo "")
+        if [[ -n "$current_remote" && "$current_remote" != "$REPO_URL" ]]; then
+            log_info "Updating repository remote to requested bootstrap target"
+            run_git_as_root "$REPO_URL" -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+        fi
+
+        if is_github_ssh_repo_url "$REPO_URL"; then
+            run_git_as_root "$REPO_URL" -C "$INSTALL_DIR" config core.sshCommand "$(gcs_git_ssh_command)" || true
+        else
+            git -C "$INSTALL_DIR" config --unset-all core.sshCommand >/dev/null 2>&1 || true
+        fi
+
+        run_git_as_root "$REPO_URL" -C "$INSTALL_DIR" fetch origin "$BRANCH"
+        run_git_as_root "$REPO_URL" -C "$INSTALL_DIR" checkout "$BRANCH"
+        run_git_as_root "$REPO_URL" -C "$INSTALL_DIR" pull origin "$BRANCH"
     else
         mkdir -p "$(dirname "$INSTALL_DIR")"
-        git clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+        run_git_as_root "$REPO_URL" clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
+        if is_github_ssh_repo_url "$REPO_URL"; then
+            run_git_as_root "$REPO_URL" -C "$INSTALL_DIR" config core.sshCommand "$(gcs_git_ssh_command)" || true
+        fi
     fi
 
     log_success "Repository ready"
@@ -224,6 +403,7 @@ main() {
     local selected_repo_path=""
     local config_repo_url=""
     local use_https_mode="false"
+    WRAPPER_NON_INTERACTIVE="false"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -253,6 +433,11 @@ main() {
                 passthrough_args+=("$1")
                 shift
                 ;;
+            -y|--yes)
+                WRAPPER_NON_INTERACTIVE="true"
+                passthrough_args+=("$1")
+                shift
+                ;;
             --install-dir)
                 INSTALL_DIR="$2"
                 passthrough_args+=("--install-dir" "$2")
@@ -269,25 +454,16 @@ main() {
         esac
     done
 
-    if [[ -n "$explicit_repo_url" ]]; then
-        config_repo_url="$explicit_repo_url"
-    elif [[ -n "$selected_repo_path" ]]; then
-        if [[ "$use_https_mode" == "true" ]]; then
-            config_repo_url="https://github.com/${selected_repo_path}.git"
-        else
-            config_repo_url="git@github.com:${selected_repo_path}.git"
-        fi
-    fi
+    config_repo_url="$(resolve_target_repo_url "$explicit_repo_url" "$selected_repo_path" "$use_https_mode")"
+    REPO_URL="$config_repo_url"
 
     if [[ -n "$explicit_branch" ]]; then
         export MDS_BRANCH="$explicit_branch"
         passthrough_args+=("--branch" "$explicit_branch")
     fi
 
-    if [[ -n "$config_repo_url" ]]; then
-        export MDS_REPO_URL="$config_repo_url"
-        passthrough_args+=("--repo-url" "$config_repo_url")
-    fi
+    export MDS_REPO_URL="$config_repo_url"
+    passthrough_args+=("--repo-url" "$config_repo_url")
 
     print_banner
 
@@ -297,8 +473,11 @@ main() {
 
     check_root
     install_git
+    ensure_wrapper_repo_access "$REPO_URL"
     clone_repository
     run_init_script "${passthrough_args[@]}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

@@ -109,14 +109,12 @@ sudo apt update && sudo apt upgrade -y
 
 #### Step 3: Clone the Repository
 
-The init script will create the `droneshow` user automatically. First, clone as pi:
+Only do a manual clone if the repo is already present on the node or you are
+deliberately repairing an existing checkout. Fresh hosts should start from the
+official wrapper so first-time private deploy-key authorization happens before
+the target repo clone.
 
-```bash
-git clone https://github.com/alireza787b/mavsdk_drone_show.git
-cd mavsdk_drone_show
-```
-
-Or clone the customer repo you actually plan to deploy:
+Manual clone example for an already-provisioned host:
 
 ```bash
 git clone -b customer-demo git@github.com:yourorg/customer-mds.git
@@ -254,6 +252,20 @@ Check service status:
 systemctl status coordinator
 systemctl status git_sync_mds
 ```
+
+## Enrollment Follow-Up
+
+Bootstrap and candidate announce do not finish fleet enrollment on their own.
+
+After the node appears in **Fleet Enrollment**:
+
+1. accept, replace, or recover the candidate on GCS
+2. commit/push the updated fleet repo state on GCS if auto-push is disabled
+3. run a node repo sync before relying on the new assignment at runtime
+
+Operational rule:
+- GCS enrollment updates the fleet manifest immediately
+- the node still runs from its local repo/config state until the sync step applies that change
 
 Check the installation log:
 

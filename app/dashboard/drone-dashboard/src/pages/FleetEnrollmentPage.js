@@ -131,10 +131,19 @@ function buildMutationNotice(responseData) {
   }
 
   const warnings = Array.isArray(responseData.warnings) ? responseData.warnings : [];
+  const postSync = responseData.post_sync || null;
+  const detailParts = [...warnings];
+  if (postSync?.summary) {
+    detailParts.push(postSync.summary);
+  }
+  if (postSync?.action_hint) {
+    detailParts.push(postSync.action_hint);
+  }
   return {
-    tone: warnings.length > 0 ? 'warning' : 'success',
+    tone: responseData.status === 'warning' || warnings.length > 0 ? 'warning' : 'success',
     title: responseData.message || 'Enrollment update completed',
-    detail: warnings.length > 0 ? warnings.join(' · ') : '',
+    detail: detailParts.join(' · '),
+    postSync,
   };
 }
 
@@ -147,6 +156,11 @@ function EnrollmentNotice({ notice }) {
     <div className={`fleet-enrollment-notice fleet-enrollment-notice--${notice.tone || 'info'}`}>
       <strong>{notice.title}</strong>
       {notice.detail ? <span>{notice.detail}</span> : null}
+      {notice.postSync?.required ? (
+        <span>
+          Next step: open <Link to="/git-status">Git Status</Link> and sync the affected node before flight use.
+        </span>
+      ) : null}
     </div>
   );
 }

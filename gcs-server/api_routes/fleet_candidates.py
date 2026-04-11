@@ -18,6 +18,7 @@ from schemas import (
     FleetCandidateActionRequest,
     FleetCandidateAnnounceRequest,
     FleetCandidateListResponse,
+    FleetCandidatePostSyncPlan,
     FleetCandidateRecoverRequest,
     FleetCandidateMutationResponse,
     FleetCandidateRecord,
@@ -56,6 +57,87 @@ def _build_list_response(candidates: list[FleetCandidateRecord]) -> FleetCandida
         total_candidates=len(candidates),
         state_counts=state_counts,
         timestamp=int(time.time() * 1000),
+    )
+
+
+def _build_post_sync_plan(
+    candidate: FleetCandidateRecord,
+    *,
+    should_commit: bool,
+    git_result: dict[str, Any] | None,
+) -> FleetCandidatePostSyncPlan:
+    target_hw_id = candidate.hw_id
+    target_pos_id = candidate.replacement_target_pos_id
+
+    if not should_commit:
+        return FleetCandidatePostSyncPlan(
+            required=True,
+            mode="manual_repo_sync_required",
+            target_hw_id=target_hw_id,
+            target_pos_id=target_pos_id,
+            summary="Enrollment updated the GCS fleet manifest locally only.",
+            action_hint=(
+                "Commit/push the repo changes on GCS, then sync the affected node so its local runtime config matches the accepted fleet state."
+            ),
+        )
+
+    if git_result and git_result.get("success") is False:
+        return FleetCandidatePostSyncPlan(
+            required=True,
+            mode="repo_push_recovery_required",
+            target_hw_id=target_hw_id,
+            target_pos_id=target_pos_id,
+            summary="Enrollment updated GCS state, but the repo commit/push step did not finish cleanly.",
+            action_hint=(
+                "Resolve the GCS git issue first, then sync the affected node after the repo reflects the new fleet state."
+            ),
+        )
+
+    if git_result and git_result.get("pushed") is False:
+        return FleetCandidatePostSyncPlan(
+            required=True,
+            mode="manual_repo_sync_required",
+            target_hw_id=target_hw_id,
+            target_pos_id=target_pos_id,
+            summary="Enrollment updated the GCS repo locally, but auto-push is disabled on this GCS.",
+            action_hint=(
+                "Push the repo changes manually, then sync the affected node so its local runtime config matches GCS."
+            ),
+        )
+
+    return FleetCandidatePostSyncPlan(
+        required=True,
+        mode="git_sync_required",
+        target_hw_id=target_hw_id,
+        target_pos_id=target_pos_id,
+        summary="Enrollment updated GCS state, but the node still needs a repo/config sync to apply it at runtime.",
+        action_hint="Run Git Sync for the affected node before relying on the new enrollment state in flight.",
+    )
+
+
+def _build_mutation_response(
+    *,
+    message: str,
+    candidate: FleetCandidateRecord,
+    warnings: list[str],
+    should_commit: bool,
+    git_result: dict[str, Any] | None,
+) -> FleetCandidateMutationResponse:
+    response_warnings = list(warnings)
+    status = "success"
+    if git_result and git_result.get("success") is False:
+        status = "warning"
+        git_message = git_result.get("message")
+        if git_message:
+            response_warnings.append(git_message)
+
+    return FleetCandidateMutationResponse(
+        status=status,
+        message=message,
+        candidate=candidate,
+        warnings=response_warnings,
+        git_result=git_result,
+        post_sync=_build_post_sync_plan(candidate, should_commit=should_commit, git_result=git_result),
     )
 
 
@@ -105,11 +187,11 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
                     deps.BASE_DIR,
                     f"fleet: accept candidate {candidate.hw_id} as new fleet member",
                 )
-            return FleetCandidateMutationResponse(
-                status="success",
+            return _build_mutation_response(
                 message=f"Candidate {candidate.candidate_id} accepted as a new fleet member",
                 candidate=candidate,
                 warnings=warnings,
+                should_commit=should_commit,
                 git_result=git_result,
             )
         except Exception as exc:
@@ -134,11 +216,11 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
                     deps.BASE_DIR,
                     f"fleet: replace hw_id {payload.target_hw_id} with candidate {candidate.hw_id}",
                 )
-            return FleetCandidateMutationResponse(
-                status="success",
+            return _build_mutation_response(
                 message=f"Candidate {candidate.candidate_id} replaced fleet member hw_id {payload.target_hw_id}",
                 candidate=candidate,
                 warnings=warnings,
+                should_commit=should_commit,
                 git_result=git_result,
             )
         except Exception as exc:
@@ -163,11 +245,11 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
                     deps.BASE_DIR,
                     f"fleet: recover candidate {candidate.hw_id} into existing fleet member",
                 )
-            return FleetCandidateMutationResponse(
-                status="success",
+            return _build_mutation_response(
                 message=f"Candidate {candidate.candidate_id} recovered existing fleet member hw_id {candidate.hw_id}",
                 candidate=candidate,
                 warnings=warnings,
+                should_commit=should_commit,
                 git_result=git_result,
             )
         except Exception as exc:

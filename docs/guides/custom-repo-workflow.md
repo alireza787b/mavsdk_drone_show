@@ -156,8 +156,9 @@ What matters after install:
 - rerunning `mds_gcs_init.sh` with a different repo, branch, or access mode now rewrites `/etc/mds/gcs.env` accordingly, even in non-interactive mode, so launcher state does not drift behind the selected repo
 
 First-time SSH note:
-- a non-interactive `-y` run can only succeed if the target repo deploy key is already authorized on GitHub
-- otherwise run interactively once, add the generated key, then rerun or continue
+- the official bootstrap wrapper now prepares the deploy key before the first private clone
+- a non-interactive `-y` run still only succeeds if that deploy key is already authorized on GitHub
+- otherwise run the wrapper interactively once, authorize the key, and continue from the same flow
 
 If the GCS repo is intentionally read-only:
 
@@ -211,8 +212,20 @@ What matters after install:
 This removes a major source of drift between startup behavior and dashboard-triggered sync.
 
 First-time SSH note:
-- a non-interactive `-y` run can only succeed if the target repo deploy key is already authorized on GitHub
-- otherwise run interactively once, add the generated key, then rerun or continue
+- the official bootstrap wrapper now prepares the deploy key before the first private clone
+- a non-interactive `-y` run still only succeeds if that deploy key is already authorized on GitHub
+- otherwise run the wrapper interactively once, authorize the key, and continue from the same flow
+
+## Enrollment And Node Sync
+
+For real hardware, repo selection and enrollment are separate:
+
+1. bootstrap the node with the intended repo/branch
+2. let it announce to GCS as a fleet candidate
+3. accept, replace, or recover it in **Fleet Enrollment**
+4. sync the affected node after enrollment so its local repo/config state matches the new fleet manifest
+
+Do not treat heartbeat discovery as acceptance, and do not assume enrollment alone rewrites the running node state.
 
 ## SITL Workflow
 

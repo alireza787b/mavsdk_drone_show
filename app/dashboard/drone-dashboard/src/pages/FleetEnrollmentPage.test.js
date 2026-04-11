@@ -140,6 +140,12 @@ describe('FleetEnrollmentPage', () => {
       data: {
         message: 'Candidate accepted',
         warnings: [],
+        post_sync: {
+          required: true,
+          mode: 'git_sync_required',
+          summary: 'Enrollment updated GCS state.',
+          action_hint: 'Run Git Sync for the affected node before flight use.',
+        },
       },
     });
 
@@ -159,5 +165,8 @@ describe('FleetEnrollmentPage', () => {
         { commit: true },
       );
     });
+
+    expect(await screen.findByText(/candidate accepted/i)).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /git status/i })).toBeInTheDocument();
   });
 });

@@ -422,8 +422,47 @@ get_netbird_status() {
     fi
 
     local status
+    status=$(netbird status --detail 2>/dev/null | awk -F': ' '/^Management:/ {print $2; exit}')
+    if [[ "$status" == Connected* ]]; then
+        echo "connected"
+        return
+    fi
     status=$(netbird status 2>/dev/null | grep -i "status:" | head -1 | awk '{print $2}')
     echo "${status:-unknown}"
+}
+
+get_netbird_detail_output() {
+    if ! check_netbird_installed; then
+        return 1
+    fi
+    netbird status --detail 2>/dev/null
+}
+
+get_netbird_primary_ip() {
+    get_netbird_detail_output | awk -F': ' '/^NetBird IP:/ {print $2; exit}' | cut -d/ -f1
+}
+
+get_netbird_management_url() {
+    get_netbird_detail_output | awk -F'Connected to ' '/^Management:/ {print $2; exit}'
+}
+
+get_netbird_fqdn() {
+    get_netbird_detail_output | awk -F': ' '/^FQDN:/ {print $2; exit}'
+}
+
+display_existing_netbird_binding() {
+    local nb_ip management_url fqdn
+    nb_ip="$(get_netbird_primary_ip || true)"
+    management_url="$(get_netbird_management_url || true)"
+    fqdn="$(get_netbird_fqdn || true)"
+
+    echo ""
+    echo -e "  ${BOLD}Existing NetBird binding detected:${NC}"
+    echo -e "  ${DIM}$(printf '%.0s─' {1..50})${NC}"
+    [[ -n "$fqdn" ]] && echo "  FQDN:        $fqdn"
+    [[ -n "$nb_ip" ]] && echo "  NetBird IP:  $nb_ip"
+    [[ -n "$management_url" ]] && echo "  Management:  $management_url"
+    echo ""
 }
 
 # Display Netbird info
@@ -560,6 +599,42 @@ run_netbird_phase() {
     if [[ "${SKIP_NETBIRD:-false}" == "true" ]]; then
         log_info "Skipping Netbird configuration (--skip-netbird)"
         return 0
+    fi
+
+    if check_netbird_installed && [[ "$(get_netbird_status)" == "connected" ]]; then
+        local existing_nb_ip
+        existing_nb_ip="$(get_netbird_primary_ip || true)"
+        if [[ -n "$existing_nb_ip" ]]; then
+            state_set_value "netbird_ip" "$existing_nb_ip"
+        fi
+
+        if [[ -z "${NETBIRD_KEY:-}" ]]; then
+            log_success "Netbird is already connected"
+            if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+                display_existing_netbird_binding
+                if confirm "Reuse the existing NetBird binding?" "y"; then
+                    log_success "Keeping existing NetBird binding"
+                    return 0
+                fi
+
+                if ! prompt_netbird_config; then
+                    log_info "Keeping existing NetBird binding"
+                    return 0
+                fi
+            else
+                log_info "Keeping existing NetBird binding (non-interactive mode)"
+                return 0
+            fi
+        else
+            log_info "NetBird setup key provided; rebind will replace the current NetBird session"
+            if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+                display_existing_netbird_binding
+                if ! confirm "Rebind this node to a different NetBird setup?" "n"; then
+                    log_info "Keeping existing NetBird binding"
+                    return 0
+                fi
+            fi
+        fi
     fi
 
     # Check if setup key provided via CLI

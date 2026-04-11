@@ -124,6 +124,8 @@ def test_fleet_candidates_router_accepts_candidate():
     assert body["candidate"]["registration_state"] == "accepted"
     assert body["candidate"]["resolution"] == "accepted_as_new"
     assert body["candidate"]["replacement_target_pos_id"] == "12"
+    assert body["post_sync"]["mode"] == "manual_repo_sync_required"
+    assert body["post_sync"]["target_pos_id"] == "12"
 
 
 def test_fleet_candidates_router_replaces_candidate():
@@ -141,6 +143,7 @@ def test_fleet_candidates_router_replaces_candidate():
     body = response.json()
     assert body["candidate"]["resolution"] == "replaced_existing"
     assert body["candidate"]["replacement_target_hw_id"] == "12"
+    assert body["post_sync"]["mode"] == "manual_repo_sync_required"
 
 
 def test_fleet_candidates_router_recovers_candidate():
@@ -158,3 +161,29 @@ def test_fleet_candidates_router_recovers_candidate():
     body = response.json()
     assert body["candidate"]["resolution"] == "recovered_existing"
     assert body["candidate"]["replacement_target_hw_id"] == "12"
+    assert body["post_sync"]["mode"] == "manual_repo_sync_required"
+
+
+def test_fleet_candidates_router_surfaces_git_push_failure_as_warning():
+    deps = _make_deps()
+    deps.Params = SimpleNamespace(GIT_AUTO_PUSH=True)
+    deps.git_operations = lambda *args, **kwargs: {"success": False, "message": "push failed"}
+    app = FastAPI()
+    app.include_router(create_fleet_candidates_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/fleet/candidates/hw-101/accept?commit=true",
+            json={
+                "pos_id": 12,
+                "mavlink_port": 14550,
+                "serial_port": "",
+                "baudrate": 0,
+            },
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "warning"
+    assert "push failed" in body["warnings"]
+    assert body["post_sync"]["mode"] == "repo_push_recovery_required"

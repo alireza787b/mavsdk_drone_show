@@ -295,6 +295,16 @@ class FleetCandidateRecoverRequest(BaseModel):
     notes: Optional[str] = Field(None, description="Operator note describing the recovery")
 
 
+class FleetCandidatePostSyncPlan(BaseModel):
+    """Operator/MCP-facing follow-up required after enrollment updates GCS-side state."""
+    required: bool = Field(..., description="Whether the node still needs a follow-up sync/apply step")
+    mode: str = Field(..., description="Sync doctrine such as git_sync_required or manual_repo_sync_required")
+    target_hw_id: Optional[str] = Field(None, description="Hardware ID the operator should sync or verify")
+    target_pos_id: Optional[str] = Field(None, description="Slot identity affected by the enrollment action")
+    summary: str = Field(..., description="Short operator-facing summary of the required next step")
+    action_hint: str = Field(..., description="Concrete next action to take")
+
+
 class FleetCandidateMutationResponse(BaseModel):
     """Response for candidate enrollment/replacement state changes."""
     status: str = Field(..., description="Mutation status")
@@ -302,6 +312,10 @@ class FleetCandidateMutationResponse(BaseModel):
     candidate: FleetCandidateRecord = Field(..., description="Updated candidate record")
     warnings: List[str] = Field(default_factory=list, description="Non-blocking warnings")
     git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if auto-push was requested")
+    post_sync: Optional[FleetCandidatePostSyncPlan] = Field(
+        None,
+        description="Required node follow-up after GCS-side enrollment changes",
+    )
 
 
 # ============================================================================

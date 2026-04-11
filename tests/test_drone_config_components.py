@@ -128,6 +128,20 @@ class TestConfigLoader:
                 result = ConfigLoader.read_config(1)
                 assert result == {'hw_id': '1'}
 
+    def test_read_config_without_online_url_falls_back_to_local_file(self):
+        """Test read_config still uses local file mode when no remote URL is configured."""
+        with patch('src.drone_config.config_loader.Params') as mock_params:
+            mock_params.offline_config = False
+            mock_params.config_url = ''
+            mock_params.config_file_name = '/test/config.json'
+
+            with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1'}) as read_file:
+                with patch.object(ConfigLoader, 'fetch_online_config') as fetch_online_config:
+                    result = ConfigLoader.read_config(1)
+                    assert result == {'hw_id': '1'}
+                    read_file.assert_called_once_with('/test/config.json', 'local config', 1)
+                    fetch_online_config.assert_not_called()
+
     def test_read_swarm_offline_mode(self):
         """Test read_swarm in offline mode"""
         with patch('src.drone_config.config_loader.Params') as mock_params:
@@ -137,6 +151,20 @@ class TestConfigLoader:
             with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1', 'follow': '0'}):
                 result = ConfigLoader.read_swarm(1)
                 assert result == {'hw_id': '1', 'follow': '0'}
+
+    def test_read_swarm_without_online_url_falls_back_to_local_file(self):
+        """Test read_swarm still uses local file mode when no remote URL is configured."""
+        with patch('src.drone_config.config_loader.Params') as mock_params:
+            mock_params.offline_swarm = False
+            mock_params.swarm_url = ''
+            mock_params.swarm_file_name = '/test/swarm.json'
+
+            with patch.object(ConfigLoader, 'read_file', return_value={'hw_id': '1', 'follow': '0'}) as read_file:
+                with patch.object(ConfigLoader, 'fetch_online_config') as fetch_online_config:
+                    result = ConfigLoader.read_swarm(1)
+                    assert result == {'hw_id': '1', 'follow': '0'}
+                    read_file.assert_called_once_with('/test/swarm.json', 'local config', 1)
+                    fetch_online_config.assert_not_called()
 
     def test_fetch_online_config_success(self, tmp_path):
         """Test fetching config from online source"""
