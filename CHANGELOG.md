@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 hardware-demo final review note consolidating the final
+  operator-facing bootstrap philosophy, the answer that customer operators
+  should not edit `src/params.py` for repo selection, the provider-neutral
+  network doctrine, the post-enrollment node-sync requirement, and the
+  remaining official must-fix items before starting a private customer demo
+  deployment
 - a 2026-04-11 hardware-demo workflow clarification note answering the wrapper
   versus repo-local init philosophy directly, documenting the recommended
   official-wrapper-plus-target-repo model, clarifying real-hardware
