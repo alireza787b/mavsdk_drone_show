@@ -505,7 +505,7 @@ validate_repo_structure() {
         "coordinator.py"
         "src/params.py"
         "requirements.txt"
-        "tools/led_indicator/led_indicator.py"
+        "led_indicator.py"
     )
 
     local missing=()

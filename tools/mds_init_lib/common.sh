@@ -534,7 +534,7 @@ get_disk_space_mb() {
 # Set LED state via led_indicator.py if available
 set_led_state() {
     local state="$1"
-    local led_script="${MDS_INSTALL_DIR}/tools/led_indicator/led_indicator.py"
+    local led_script="${MDS_INSTALL_DIR}/led_indicator.py"
 
     if [[ -f "$led_script" ]]; then
         if command_exists python3; then

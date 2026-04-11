@@ -796,7 +796,8 @@ run_mavlink_setup_phase() {
 
     if [[ "${MAVLINK_AUTO:-false}" == "true" ]]; then
         log_info "Running auto-configuration (--mavlink-auto)"
-        return run_mavlink_auto_config
+        run_mavlink_auto_config
+        return $?
     fi
 
     # Handle headless configuration with CLI options
@@ -827,7 +828,8 @@ run_mavlink_setup_phase() {
     # Non-interactive mode without specific options
     if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
         log_info "Non-interactive mode: running auto-configuration"
-        return run_mavlink_auto_config
+        run_mavlink_auto_config
+        return $?
     fi
 
     # ==========================================================================
