@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 hardware demo preflight audit brief documenting the current
+  canonical node/GCS bootstrap and Fleet Enrollment workflow, the still-open
+  first-time private-repo bootstrap blocker in both wrapper installers, the
+  recommended private customer repo/auth model, the `mavlink-anywhere` audit,
+  and the exact must-close checklist before starting a customer-specific demo
+  fork or first real-hardware deployment
 - a 2026-04-11 onboard ULog runtime closeout note documenting the new
   Log Viewer `Onboard ULog` workflow, the drone/GCS API surfaces, the
   filesystem fallback used when SITL-side MAVSDK log enumeration is not
