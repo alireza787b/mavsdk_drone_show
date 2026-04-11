@@ -104,6 +104,26 @@ get_current_hwid() {
     echo ""
 }
 
+get_repo_origin_url() {
+    git -C "${MDS_INSTALL_DIR}" config --get remote.origin.url 2>/dev/null || echo ""
+}
+
+get_repo_branch() {
+    local branch=""
+    branch=$(git -C "${MDS_INSTALL_DIR}" branch --show-current 2>/dev/null || echo "")
+    if [[ -z "$branch" ]]; then
+        branch=$(state_get_value "repo_branch" "")
+    fi
+    if [[ -z "$branch" ]]; then
+        branch=$(get_local_env_value "MDS_BRANCH" "")
+    fi
+    echo "$branch"
+}
+
+get_repo_commit() {
+    git -C "${MDS_INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || echo ""
+}
+
 # =============================================================================
 # HOSTNAME CONFIGURATION
 # =============================================================================
@@ -202,6 +222,9 @@ setup_local_env() {
     # Ensure config directory exists
     mkdir -p "${MDS_CONFIG_DIR}"
     chmod 755 "${MDS_CONFIG_DIR}"
+
+    [[ -z "$repo_url" ]] && repo_url="$(get_repo_origin_url)"
+    [[ -z "$branch" ]] && branch="$(get_repo_branch)"
 
     {
         printf '# MDS Local Configuration\n'
@@ -410,14 +433,21 @@ write_node_identity_manifest() {
         return 0
     fi
 
-    local node_uuid hostname repo_url branch network_mode primary_control_ip netbird_ip
+    local node_uuid hostname repo_url branch commit network_mode primary_control_ip netbird_ip
     local mavlink_routing_mode mavlink_input_type mavlink_input_device role_hint
     local netbird_enabled generated_at created_at
 
     node_uuid=$(get_or_create_node_uuid)
     hostname=$(hostname 2>/dev/null || echo "unknown")
     repo_url="${REPO_URL:-$(state_get_value repo_url "")}"
+    [[ -z "$repo_url" ]] && repo_url="$(get_local_env_value "MDS_REPO_URL" "")"
+    [[ -z "$repo_url" ]] && repo_url="$(get_repo_origin_url)"
+
     branch="${BRANCH:-$(state_get_value repo_branch "")}"
+    [[ -z "$branch" ]] && branch="$(get_local_env_value "MDS_BRANCH" "")"
+    [[ -z "$branch" ]] && branch="$(get_repo_branch)"
+
+    commit="$(get_repo_commit)"
     netbird_ip=$(get_effective_netbird_ip)
     network_mode=$(detect_network_mode)
     primary_control_ip=$(get_primary_control_ip)
@@ -458,6 +488,7 @@ write_node_identity_manifest() {
         --arg role_hint "$role_hint" \
         --arg repo_url "$repo_url" \
         --arg branch "$branch" \
+        --arg commit "$commit" \
         --arg bootstrap_version "$MDS_VERSION" \
         --arg bootstrap_status "$bootstrap_status" \
         --arg network_mode "$network_mode" \
@@ -478,6 +509,7 @@ write_node_identity_manifest() {
             role_hint: (if $role_hint == "" then null else $role_hint end),
             repo_url: (if $repo_url == "" then null else $repo_url end),
             branch: (if $branch == "" then null else $branch end),
+            commit: (if $commit == "" then null else $commit end),
             bootstrap_version: $bootstrap_version,
             bootstrap_status: $bootstrap_status,
             created_at: $created_at,
@@ -518,6 +550,7 @@ write_bootstrap_report() {
         --arg hostname "$(hostname 2>/dev/null || echo unknown)" \
         --arg repo_url "${REPO_URL:-$(state_get_value repo_url "")}" \
         --arg branch "${BRANCH:-$(state_get_value repo_branch "")}" \
+        --arg commit "$(get_repo_commit)" \
         --arg node_uuid "$(state_get_value node_uuid "")" \
         --arg gcs_api_url "${GCS_API_URL:-$(state_get_value announce_url "")}" \
         --arg announce_status "$(state_get_value announce_status "")" \
@@ -538,6 +571,7 @@ write_bootstrap_report() {
             hostname: $hostname,
             repo_url: (if $repo_url == "" then null else $repo_url end),
             branch: (if $branch == "" then null else $branch end),
+            commit: (if $commit == "" then null else $commit end),
             node_uuid: (if $node_uuid == "" then null else $node_uuid end),
             gcs_api_url: (if $gcs_api_url == "" then null else $gcs_api_url end),
             announce_status: (if $announce_status == "" then null else $announce_status end),

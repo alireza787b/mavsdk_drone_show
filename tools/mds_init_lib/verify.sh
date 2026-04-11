@@ -17,21 +17,7 @@ _MDS_VERIFY_LOADED=1
 
 # Verification results storage
 VERIFY_RESULTS_TEXT=""
-declare -a VERIFY_COMPONENTS=(
-    "hw_id"
-    "real_mode"
-    "repository"
-    "python_env"
-    "mavsdk"
-    "local_env"
-    "firewall"
-    "services"
-    "ntp"
-    "mavlink_router"
-    "serial_config"
-    "netbird"
-    "network"
-)
+readonly VERIFY_COMPONENTS="hw_id real_mode repository python_env mavsdk local_env firewall services ntp mavlink_router serial_config netbird network"
 
 verify_set_result() {
     local key="$1"
@@ -358,13 +344,24 @@ verify_netbird() {
         return 0
     fi
 
-    local status
-    status=$(netbird status 2>/dev/null | grep -i "status:" | head -1 | awk '{print $2}' || echo "unknown")
+    local netbird_output status nb_ip
+    netbird_output="$(netbird status --detail 2>/dev/null || netbird status 2>/dev/null || true)"
+    nb_ip="$(printf '%s\n' "$netbird_output" | grep -oP '^NetBird IP: \K[\d.]+' | head -1 || echo "")"
+
+    if printf '%s\n' "$netbird_output" | grep -q '^Management: Connected'; then
+        status="connected"
+    elif printf '%s\n' "$netbird_output" | grep -q 'Status:[[:space:]]*Connected'; then
+        status="connected"
+    elif printf '%s\n' "$netbird_output" | grep -q 'Status:[[:space:]]*Disconnected'; then
+        status="disconnected"
+    elif printf '%s\n' "$netbird_output" | grep -q 'Status:[[:space:]]*Idle'; then
+        status="idle"
+    else
+        status="unknown"
+    fi
 
     case "${status,,}" in
         connected)
-            local nb_ip
-            nb_ip=$(netbird status 2>/dev/null | grep -oP 'IP: \K[\d.]+' | head -1 || echo "")
             if [[ -n "$nb_ip" ]]; then
                 verify_set_result "netbird" "PASS:Connected (${nb_ip})"
             else
@@ -454,7 +451,7 @@ generate_summary_report() {
     local warn_count=0
     local fail_count=0
 
-    for component in "${VERIFY_COMPONENTS[@]}"; do
+    for component in $VERIFY_COMPONENTS; do
         local result
         result="$(verify_get_result "$component")"
         local status="${result%%:*}"
@@ -556,7 +553,7 @@ display_next_steps() {
     local has_warnings=false
     local has_failures=false
 
-    for component in "${VERIFY_COMPONENTS[@]}"; do
+    for component in $VERIFY_COMPONENTS; do
         local status
         status="$(verify_get_result "$component")"
         status="${status%%:*}"

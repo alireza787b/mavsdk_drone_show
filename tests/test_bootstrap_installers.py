@@ -247,3 +247,38 @@ def test_verify_hw_id_stays_safe_under_nounset():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_verify_netbird_parses_detail_output_and_extracts_primary_ip():
+    result = run_bash(
+        f"""
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'verify.sh'}"
+        command_exists() {{ [[ "$1" == "netbird" ]]; }}
+        netbird() {{
+            cat <<'EOF'
+Management: Connected to https://api.netbird.io:443
+FQDN: px4-cm4-01.netbird.cloud
+NetBird IP: 100.82.72.33/16
+EOF
+        }}
+        verify_netbird
+        [[ "$(verify_get_result netbird)" == "PASS:Connected (100.82.72.33)" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_generate_summary_report_lists_component_rows():
+    result = run_bash(
+        f"""
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'verify.sh'}"
+        MDS_VERSION="4.5.0"
+        verify_set_result hw_id "PASS:Drone 101"
+        output="$(generate_summary_report)"
+        [[ "$output" == *"hw_id"* ]]
+        [[ "$output" == *"Drone 101"* ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr

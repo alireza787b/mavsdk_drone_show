@@ -399,6 +399,7 @@ class FleetCandidateRegistry:
                     "role_hint": _normalize_string(request.role_hint) or record.get("role_hint"),
                     "repo_url": _normalize_string(request.repo_url) or record.get("repo_url"),
                     "branch": _normalize_string(request.branch) or record.get("branch"),
+                    "commit": _normalize_string(request.commit) or record.get("commit"),
                     "bootstrap_version": _normalize_string(request.bootstrap_version) or record.get("bootstrap_version"),
                     "bootstrap_status": _normalize_string(request.bootstrap_status) or record.get("bootstrap_status"),
                     "network_mode": _normalize_string(request.network_mode) or record.get("network_mode"),

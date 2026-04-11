@@ -145,6 +145,7 @@ build_candidate_announce_payload() {
         role_hint,
         repo_url,
         branch,
+        commit,
         bootstrap_version,
         bootstrap_status,
         network_mode,

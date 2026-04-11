@@ -233,6 +233,7 @@ class FleetCandidateAnnounceRequest(BaseModel):
     role_hint: Optional[str] = Field(None, description="Optional node role hint")
     repo_url: Optional[str] = Field(None, description="Provisioned repository URL")
     branch: Optional[str] = Field(None, description="Provisioned git branch")
+    commit: Optional[str] = Field(None, description="Provisioned git revision if reported")
     bootstrap_version: Optional[str] = Field(None, description="Bootstrap script version")
     bootstrap_status: Optional[str] = Field(None, description="Bootstrap status")
     network_mode: Optional[str] = Field(None, description="Provisioned network mode")
