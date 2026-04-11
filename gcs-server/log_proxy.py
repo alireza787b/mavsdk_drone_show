@@ -29,6 +29,7 @@ logger = get_logger("log_proxy")
 # Drone API port (same as Params.drone_api_port but avoids circular import)
 _DRONE_API_PORT = 7070
 _TIMEOUT = 5.0  # seconds
+_ULOG_TIMEOUT = 30.0  # seconds
 
 
 class DroneProxyRequestError(Exception):
@@ -150,11 +151,11 @@ async def fetch_drone_session_content(
 
 
 async def fetch_drone_ulog_policy(drone_ip: str) -> dict:
-    return await _request_json("GET", drone_ip, DRONE_ULOG_POLICY_ROUTE)
+    return await _request_json("GET", drone_ip, DRONE_ULOG_POLICY_ROUTE, timeout=_ULOG_TIMEOUT)
 
 
 async def fetch_drone_ulog_files(drone_ip: str) -> dict:
-    return await _request_json("GET", drone_ip, DRONE_ULOG_FILES_ROUTE)
+    return await _request_json("GET", drone_ip, DRONE_ULOG_FILES_ROUTE, timeout=_ULOG_TIMEOUT)
 
 
 async def create_drone_ulog_download_job(
@@ -171,6 +172,7 @@ async def create_drone_ulog_download_job(
         drone_ip,
         DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE.format(log_id=int(log_id)),
         json_body=payload,
+        timeout=_ULOG_TIMEOUT,
     )
 
 
@@ -179,6 +181,7 @@ async def fetch_drone_ulog_download_job(drone_ip: str, job_id: str) -> dict:
         "GET",
         drone_ip,
         DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE.format(job_id=job_id),
+        timeout=_ULOG_TIMEOUT,
     )
 
 
@@ -187,11 +190,12 @@ async def delete_drone_ulog_download_job(drone_ip: str, job_id: str) -> dict:
         "DELETE",
         drone_ip,
         DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE.format(job_id=job_id),
+        timeout=_ULOG_TIMEOUT,
     )
 
 
 async def erase_all_drone_ulogs(drone_ip: str) -> dict:
-    return await _request_json("POST", drone_ip, DRONE_ULOG_ERASE_ALL_ROUTE)
+    return await _request_json("POST", drone_ip, DRONE_ULOG_ERASE_ALL_ROUTE, timeout=_ULOG_TIMEOUT)
 
 
 async def open_drone_ulog_download_stream(drone_ip: str, job_id: str) -> tuple[httpx.AsyncClient, httpx.Response]:

@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import shutil
 import time
 import uuid
+import zlib
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -34,6 +37,7 @@ class OnboardUlogService:
         self.pos_id = pos_id if pos_id is None else int(pos_id)
         self._jobs: dict[str, OnboardUlogDownloadJob] = {}
         self._job_paths: dict[str, Path] = {}
+        self._fallback_entries: dict[int, Path] = {}
         self._lock = asyncio.Lock()
 
     def build_policy(self) -> OnboardUlogPolicyResponse:
@@ -137,17 +141,26 @@ class OnboardUlogService:
             job.updated_at = self._now_ms()
             stage_path.parent.mkdir(parents=True, exist_ok=True)
 
-        entry = MavsdkLogEntry(job.log_id, job.date_utc or "", job.size_bytes)
-
         try:
-            async for progress in drone.log_files.download_log_file(entry, str(stage_path)):
+            fallback_path = self._fallback_entries.get(int(job.log_id))
+            if fallback_path is not None and fallback_path.exists():
+                shutil.copy2(fallback_path, stage_path)
                 async with self._lock:
                     current = self._jobs.get(job_id)
-                    if current is None:
-                        break
-                    current.status = "downloading"
-                    current.progress = max(0.0, min(1.0, float(progress.progress)))
-                    current.updated_at = self._now_ms()
+                    if current is not None:
+                        current.status = "downloading"
+                        current.progress = 1.0
+                        current.updated_at = self._now_ms()
+            else:
+                entry = MavsdkLogEntry(job.log_id, job.date_utc or "", job.size_bytes)
+                async for progress in drone.log_files.download_log_file(entry, str(stage_path)):
+                    async with self._lock:
+                        current = self._jobs.get(job_id)
+                        if current is None:
+                            break
+                        current.status = "downloading"
+                        current.progress = max(0.0, min(1.0, float(progress.progress)))
+                        current.updated_at = self._now_ms()
 
             staged_size = stage_path.stat().st_size if stage_path.exists() else job.size_bytes
             async with self._lock:
@@ -184,7 +197,13 @@ class OnboardUlogService:
             return stage_path, job.model_copy(deep=True)
 
     async def erase_all(self, drone: Any, *, pos_id: int | None = None) -> OnboardUlogEraseAllResponse:
-        await drone.log_files.erase_all_log_files()
+        fallback_deleted = self._erase_filesystem_logs()
+        try:
+            await drone.log_files.erase_all_log_files()
+        except Exception:
+            if not fallback_deleted:
+                raise
+
         return OnboardUlogEraseAllResponse(
             status="accepted",
             hw_id=self.hw_id,
@@ -198,7 +217,19 @@ class OnboardUlogService:
         except LogFilesError as exc:
             result_name = getattr(getattr(exc, "_result", None), "result", None)
             if result_name == LogFilesResult.Result.NO_LOGFILES:
+                filesystem_entries = self._list_filesystem_entries()
+                if filesystem_entries is not None:
+                    return filesystem_entries
+                self._fallback_entries = {}
                 return []
+            filesystem_entries = self._list_filesystem_entries()
+            if filesystem_entries is not None:
+                return filesystem_entries
+            raise
+        except Exception:
+            filesystem_entries = self._list_filesystem_entries()
+            if filesystem_entries is not None:
+                return filesystem_entries
             raise
 
         normalized = [
@@ -213,7 +244,74 @@ class OnboardUlogService:
             key=lambda entry: ((entry.date_utc or ""), entry.id),
             reverse=True,
         )
+        self._fallback_entries = {}
         return normalized
+
+    def _list_filesystem_entries(self) -> list[OnboardUlogEntry] | None:
+        candidates: list[tuple[Path, OnboardUlogEntry]] = []
+        for root in self._filesystem_fallback_dirs():
+            if not root.exists():
+                continue
+            for path in root.rglob("*.ulg"):
+                if not path.is_file():
+                    continue
+                stat = path.stat()
+                entry_id = int(zlib.crc32(str(path).encode("utf-8")) & 0x7FFFFFFF)
+                timestamp = self._filesystem_timestamp(path, stat.st_mtime)
+                candidates.append(
+                    (
+                        path,
+                        OnboardUlogEntry(
+                            id=entry_id,
+                            date_utc=timestamp,
+                            size_bytes=int(stat.st_size),
+                        ),
+                    )
+                )
+
+        if not candidates:
+            self._fallback_entries = {}
+            return None
+
+        candidates.sort(
+            key=lambda item: ((item[1].date_utc or ""), item[1].id),
+            reverse=True,
+        )
+        self._fallback_entries = {entry.id: path for path, entry in candidates}
+        return [entry for _, entry in candidates]
+
+    def _erase_filesystem_logs(self) -> bool:
+        deleted = False
+        for root in self._filesystem_fallback_dirs():
+            if not root.exists():
+                continue
+            for path in root.rglob("*.ulg"):
+                if path.is_file():
+                    path.unlink(missing_ok=True)
+                    deleted = True
+        self._fallback_entries = {}
+        return deleted
+
+    def _filesystem_fallback_dirs(self) -> list[Path]:
+        raw_value = getattr(
+            self.params,
+            "ULOG_FILESYSTEM_FALLBACK_DIRS",
+            "/root/PX4-Autopilot/build/px4_sitl_default/rootfs/log",
+        )
+        if isinstance(raw_value, (list, tuple, set)):
+            values = [str(item).strip() for item in raw_value if str(item).strip()]
+        else:
+            normalized = str(raw_value or "").replace("\n", ",")
+            values = [item.strip() for item in re.split(r"[,:]", normalized) if item.strip()]
+        return [Path(value).expanduser() for value in values]
+
+    @staticmethod
+    def _filesystem_timestamp(path: Path, mtime: float) -> str:
+        parent_date = path.parent.name
+        stem = path.stem
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", parent_date) and re.fullmatch(r"\d{2}_\d{2}_\d{2}", stem):
+            return f"{parent_date}T{stem.replace('_', ':')}Z"
+        return datetime.fromtimestamp(mtime, tz=timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     def _build_policy_payload(self) -> OnboardUlogPolicy:
         return OnboardUlogPolicy(
@@ -231,6 +329,7 @@ class OnboardUlogService:
                 "Onboard file-backed PX4 ULogs only.",
                 "Single-log delete is not exposed in the generic MAVSDK log API.",
                 "MAVLink log streaming is intentionally out of scope for this surface.",
+                "When PX4 ULog files are locally accessible on the companion, filesystem fallback is allowed if MAVSDK log enumeration is unavailable.",
             ],
         )
 

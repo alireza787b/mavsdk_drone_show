@@ -337,6 +337,7 @@ class Params:
     ULOG_DOWNLOAD_JOB_TTL_SEC = 1800.0            # Staged node-local ULog downloads expire automatically after 30 minutes
     ULOG_DOWNLOAD_MAX_JOBS = 8                    # Maximum retained staged ULog jobs per drone runtime
     ULOG_DOWNLOAD_STAGE_DIR = os.environ.get("MDS_ULOG_DOWNLOAD_STAGE_DIR", "runtime_data/ulog_downloads")
+    ULOG_FILESYSTEM_FALLBACK_DIRS = os.environ.get("MDS_ULOG_FILESYSTEM_FALLBACK_DIRS", "/root/PX4-Autopilot/build/px4_sitl_default/rootfs/log")
     COMMAND_SYNC_DISPATCH_GUARD_SEC = 1.0         # Extra lead time before synchronized mission trigger-minus-warmup; GCS stops retries after this safe queue window
     COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5           # Per-attempt HTTP timeout for drone -> GCS execution callbacks
     COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2       # Initial backoff for queued execution callback retries

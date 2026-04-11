@@ -31,9 +31,22 @@ class _FakeLogFiles:
         self.erased = True
 
 
+class _BrokenLogFiles(_FakeLogFiles):
+    async def get_entries(self):
+        raise RuntimeError("Socket closed")
+
+    async def download_log_file(self, entry, path):
+        raise RuntimeError("download unavailable")
+
+
 class _FakeDrone:
     def __init__(self, entries=None):
         self.log_files = _FakeLogFiles(entries=entries)
+
+
+class _BrokenDrone:
+    def __init__(self):
+        self.log_files = _BrokenLogFiles()
 
 
 def _make_params(tmp_path):
@@ -43,6 +56,7 @@ def _make_params(tmp_path):
         ULOG_DOWNLOAD_JOB_TTL_SEC=1800.0,
         ULOG_DOWNLOAD_MAX_JOBS=8,
         ULOG_DOWNLOAD_STAGE_DIR=str(tmp_path / "ulog-stage"),
+        ULOG_FILESYSTEM_FALLBACK_DIRS=str(tmp_path / "px4-log-root"),
     )
 
 
@@ -128,3 +142,30 @@ async def test_erase_all_reports_acceptance(tmp_path):
     assert response.hw_id == "11"
     assert response.pos_id == 2
     assert drone.log_files.erased is True
+
+
+@pytest.mark.asyncio
+async def test_filesystem_fallback_lists_downloads_and_erases_when_mavsdk_is_unavailable(tmp_path):
+    params = _make_params(tmp_path)
+    log_root = Path(params.ULOG_FILESYSTEM_FALLBACK_DIRS) / "2026-04-11"
+    log_root.mkdir(parents=True, exist_ok=True)
+    fallback_file = log_root / "08_38_11.ulg"
+    fallback_file.write_bytes(b"fallback-ulog")
+
+    service = OnboardUlogService(params, hw_id="21", pos_id=4)
+    drone = _BrokenDrone()
+
+    listed = await service.list_entries(drone)
+    assert listed.count == 1
+    assert listed.files[0].date_utc == "2026-04-11T08:38:11Z"
+
+    queued = await service.create_download_job(drone, listed.files[0].id, SimpleNamespace(pos_id=4))
+    completed = await service.perform_download(drone, queued.job.job_id)
+    assert completed.job.status == "ready"
+
+    stage_path, _ = await service.get_ready_file(queued.job.job_id)
+    assert stage_path.read_bytes() == b"fallback-ulog"
+
+    response = await service.erase_all(drone)
+    assert response.status == "accepted"
+    assert not fallback_file.exists()
