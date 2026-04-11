@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 official bootstrap hardware closeout note documenting the final
+  official wrapper and existing-node bootstrap behavior on real Holybro CM4
+  hardware, the validated NetBird -> Hetzner GCS candidate announce flow, the
+  cleaned node identity/local-env generation, the shell-hardening fixes across
+  verification/NTP/MAVSDK bootstrap paths, and the remaining non-blocking
+  follow-up work before moving entirely into the private client fork rollout
 - a 2026-04-11 hardware-demo confirmation brief locking the final decisions
   that bootstrap should not auto-edit `src/params.py`, that node runtime still
   standardizes on the `droneshow` user while GCS remains user-flexible, that
