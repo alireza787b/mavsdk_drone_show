@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import { useTheme } from '../hooks/useTheme';
-import { normalizeComparableId } from '../utilities/missionIdentityUtils';
+import { formatCompactDroneIdentity, normalizeComparableId } from '../utilities/missionIdentityUtils';
 import '../styles/DeviationView.css';
 
 /**
@@ -93,7 +93,7 @@ const DeviationView = ({
     textposition: 'middle center',
     hovertemplate:
       '<b>Expected Position</b><br>' +
-      'Position %{customdata.pos_id} (HW %{customdata.hw_id})<br>' +
+      '%{customdata.identity}<br>' +
       'North: %{customdata.north:.2f}m<br>' +
       'East: %{customdata.east:.2f}m<extra></extra>'
   };
@@ -115,7 +115,7 @@ const DeviationView = ({
     },
     hovertemplate:
       '<b>Current Position</b><br>' +
-      'Position %{customdata.pos_id} (HW %{customdata.hw_id})<br>' +
+      '%{customdata.identity}<br>' +
       'North: %{customdata.current_north:.2f}m<br>' +
       'East: %{customdata.current_east:.2f}m<br>' +
       '<b>Deviation: %{customdata.deviation:.2f}m</b><br>' +
@@ -195,6 +195,7 @@ const DeviationView = ({
     expectedTrace.customdata.push({
       hw_id: hwId,
       pos_id: posId,
+      identity: formatCompactDroneIdentity(posId, hwId, `H${hwId}`),
       north: expectedNorth,
       east: expectedEast,
     });
@@ -221,6 +222,7 @@ const DeviationView = ({
     currentTrace.customdata.push({
       hw_id: hwId,
       pos_id: posId,
+      identity: formatCompactDroneIdentity(posId, hwId, `H${hwId}`),
       current_north: currentNorth,
       current_east: currentEast,
       deviation: deviation.deviation?.horizontal || 0,

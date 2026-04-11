@@ -64,6 +64,13 @@ describe('missionIdentityUtils', () => {
         ]),
       })
     );
+    expect(getIdentityDoctrineCopy('log-viewer')).toEqual(
+      expect.objectContaining({
+        chips: expect.arrayContaining([
+          expect.objectContaining({ label: 'Logs', detail: 'Anchor = H' }),
+        ]),
+      })
+    );
   });
 
   test('normalizeRuntimeIp filters placeholder heartbeat IP values', () => {

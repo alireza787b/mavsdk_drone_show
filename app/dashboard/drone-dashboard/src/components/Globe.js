@@ -10,6 +10,7 @@ import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 
@@ -19,7 +20,7 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-const DroneTooltip = ({ hw_id, state, follow_mode, altitude, opacity, localPosition }) => (
+const DroneTooltip = ({ hw_id, pos_id, state, follow_mode, altitude, opacity, localPosition }) => (
   <div
     className="drone-tooltip"
     style={{
@@ -28,7 +29,7 @@ const DroneTooltip = ({ hw_id, state, follow_mode, altitude, opacity, localPosit
     }}
   >
     <ul className="tooltip-list">
-      <li><strong>HW_ID:</strong> {hw_id}</li>
+      <li><strong>ID:</strong> {formatCompactDroneIdentity(pos_id, hw_id, `H${hw_id}`)}</li>
       <li><strong>State:</strong> {state}</li>
       <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
       <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
@@ -37,7 +38,7 @@ const DroneTooltip = ({ hw_id, state, follow_mode, altitude, opacity, localPosit
   </div>
 );
 
-const Drone = ({ position, hw_id, state, follow_mode, altitude }) => {
+const Drone = ({ position, hw_id, pos_id, state, follow_mode, altitude }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
 
@@ -67,6 +68,7 @@ const Drone = ({ position, hw_id, state, follow_mode, altitude }) => {
       <Html>
         <DroneTooltip
           hw_id={hw_id}
+          pos_id={pos_id}
           state={state}
           follow_mode={follow_mode}
           altitude={altitude}
@@ -81,6 +83,7 @@ const Drone = ({ position, hw_id, state, follow_mode, altitude }) => {
 Drone.propTypes = {
   position: PropTypes.arrayOf(PropTypes.number).isRequired,
   hw_id: PropTypes.string.isRequired,
+  pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   state: PropTypes.string.isRequired,
   follow_mode: PropTypes.number.isRequired,
   altitude: PropTypes.number.isRequired,
@@ -311,6 +314,7 @@ export default function Globe({ drones }) {
 Globe.propTypes = {
   drones: PropTypes.arrayOf(PropTypes.shape({
     hw_id: PropTypes.string.isRequired,
+    pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     position: PropTypes.arrayOf(PropTypes.number).isRequired,
     state: PropTypes.string,
     follow_mode: PropTypes.number,

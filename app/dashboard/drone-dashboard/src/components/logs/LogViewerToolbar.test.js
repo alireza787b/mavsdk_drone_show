@@ -22,7 +22,7 @@ describe('LogViewerToolbar', () => {
     onExportOpen: jest.fn(),
     onClear: jest.fn(),
     scopeDroneId: null,
-    scopeOptions: [{ hw_id: 5, label: 'Drone #5' }],
+    scopeOptions: [{ hw_id: 5, pos_id: 12, label: 'P12|H5' }],
     onScopeChange: jest.fn(),
     liveWindow: 'all',
     onLiveWindowChange: jest.fn(),
@@ -62,7 +62,7 @@ describe('LogViewerToolbar', () => {
   test('renders scope selector options', () => {
     render(<LogViewerToolbar {...defaultProps} />);
     expect(screen.getByLabelText('Select log scope')).toBeInTheDocument();
-    expect(screen.getByText('Drone #5')).toBeInTheDocument();
+    expect(screen.getByText('P12|H5')).toBeInTheDocument();
   });
 
   test('shows absolute time range inputs for historical sessions', () => {

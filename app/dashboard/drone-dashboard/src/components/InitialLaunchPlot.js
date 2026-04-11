@@ -2,6 +2,7 @@
 import React from 'react';
 import Plot from 'react-plotly.js';
 import { useTheme } from '../hooks/useTheme';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 
 function InitialLaunchPlot({
   drones,
@@ -116,7 +117,7 @@ function InitialLaunchPlot({
         {
           x: xPlotValues,
           y: yPlotValues,
-          text: customData.map((d) => `Pos ${d.pos_id}`),
+          text: customData.map((d) => formatCompactDroneIdentity(d.pos_id, d.hw_id, `H${d.hw_id}`)),
           customdata: customData,
           type: 'scatter',
           mode: 'markers+text',
@@ -136,7 +137,7 @@ function InitialLaunchPlot({
           },
           textposition: 'middle center',
           hovertemplate:
-            '<b>Position %{customdata.pos_id} | Hardware %{customdata.hw_id}</b><br>' +
+            '<b>%{text}</b><br>' +
             '<b>North (raw x):</b> %{customdata.north}<br>' +
             '<b>East (raw y):</b> %{customdata.east}<br>' +
             '<b>Xᵣₒₜ (plot):</b> %{x:.2f}<br>' +

@@ -11,6 +11,7 @@ import { MAP_PROVIDERS } from '../config/mapConfig';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { Marker as LeafletMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/GlobeView.css';
 
 // Conditional Mapbox imports
@@ -30,12 +31,12 @@ try {
 }
 
 // Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
-const createDroneIcon = (hwId) =>
+const createDroneIcon = (identityLabel) =>
   L.divIcon({
-    html: `<div style="width:24px;height:24px;background:var(--color-primary,#00d4ff);border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${hwId}</div>`,
+    html: `<div style="min-width:24px;height:24px;padding:0 6px;background:var(--color-primary,#00d4ff);border-radius:999px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${identityLabel}</div>`,
     className: '',
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
+    iconSize: [48, 24],
+    iconAnchor: [24, 12],
   });
 
 const LeafletInvalidateSize = () => {
@@ -112,7 +113,7 @@ const GlobeMapView = ({ drones }) => {
               anchor="center"
             >
               <div className="globe-drone-marker">
-                {drone[FIELD_NAMES.HW_ID]}
+                {formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`)}
               </div>
             </MapboxMarker>
           ))}
@@ -130,11 +131,11 @@ const GlobeMapView = ({ drones }) => {
             <LeafletMarker
               key={drone[FIELD_NAMES.HW_ID]}
               position={[drone.position[0], drone.position[1]]}
-              icon={createDroneIcon(drone[FIELD_NAMES.HW_ID])}
+              icon={createDroneIcon(formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`))}
             >
               <Popup>
                 <div>
-                  <strong>Drone {drone[FIELD_NAMES.HW_ID]}</strong>
+                  <strong>{formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`)}</strong>
                   <br />
                   State: {drone.state}
                   <br />
@@ -152,6 +153,7 @@ const GlobeMapView = ({ drones }) => {
 GlobeMapView.propTypes = {
   drones: PropTypes.arrayOf(PropTypes.shape({
     hw_id: PropTypes.string.isRequired,
+    pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     position: PropTypes.arrayOf(PropTypes.number).isRequired,
     state: PropTypes.string,
     altitude: PropTypes.number,

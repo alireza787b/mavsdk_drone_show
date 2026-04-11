@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 import Globe from '../components/Globe';
 import GlobeMapView from '../components/GlobeMapView';
+import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import ViewModeToggle, { VIEW_MODES } from '../components/map/ViewModeToggle';
 import '../styles/GlobeView.css';
 
 import { FIELD_NAMES } from '../constants/fieldMappings';
-import { getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
+import { getFleetConfigResponse, getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
+import { normalizeDroneConfigData } from '../utilities/missionIdentityUtils';
 
 const GlobeView = () => {
   const [drones, setDrones] = useState([]);
@@ -19,11 +21,23 @@ const GlobeView = () => {
     try {
       if (isFirstLoad) setIsLoading(true);
 
-      const response = await getFleetTelemetryResponse();
-      const dronesData = Object.entries(unwrapFleetTelemetryPayload(response.data))
+      const [response, configResponse] = await Promise.allSettled([
+        getFleetTelemetryResponse(),
+        getFleetConfigResponse(),
+      ]);
+      if (response.status !== 'fulfilled') {
+        throw response.reason;
+      }
+
+      const configRows = normalizeDroneConfigData(
+        configResponse.status === 'fulfilled' ? configResponse.value?.data || [] : []
+      );
+      const configMap = new Map(configRows.map((row) => [String(row.hw_id), row]));
+      const dronesData = Object.entries(unwrapFleetTelemetryPayload(response.value.data))
         .filter(([id, drone]) => Object.keys(drone).length > 0)
         .map(([id, drone]) => ({
           hw_id: id,
+          pos_id: configMap.get(String(id))?.pos_id || id,
           position: [
             drone[FIELD_NAMES.POSITION_LAT] || 0,
             drone[FIELD_NAMES.POSITION_LONG] || 0,
@@ -57,6 +71,7 @@ const GlobeView = () => {
     return (
       <div className="globe-view-container">
         <h2>Drone Visualization</h2>
+        <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
         <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="loading-container">
           <div className="loading-spinner"></div>
@@ -70,6 +85,7 @@ const GlobeView = () => {
     return (
       <div className="globe-view-container">
         <h2>Drone Visualization</h2>
+        <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
         <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="error-message">
           <p>{error}</p>
@@ -83,6 +99,7 @@ const GlobeView = () => {
     return (
       <div className="globe-view-container">
         <h2>Drone Visualization</h2>
+        <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
         <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
         <div className="no-data-message">
           No drone data available.
@@ -94,6 +111,7 @@ const GlobeView = () => {
   return (
     <div className="globe-view-container">
       <h2>Drone Visualization</h2>
+      <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
       <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
       {viewMode === VIEW_MODES.SCENE_3D ? (
         <Globe drones={drones} />

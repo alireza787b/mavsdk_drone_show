@@ -34,6 +34,8 @@ IdentityDoctrineStrip.propTypes = {
     'swarm-trajectory',
     'fleet-enrollment',
     'launch-map',
+    'log-viewer',
+    'globe-view',
   ]),
   className: PropTypes.string,
 };

@@ -31,6 +31,7 @@ import {
   filterEntriesByAbsoluteTimeRange,
   filterEntriesByRelativeWindow,
 } from '../utilities/logViewerUtils';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 
 import LogViewerToolbar from '../components/logs/LogViewerToolbar';
 import LogActiveFilters from '../components/logs/LogActiveFilters';
@@ -38,6 +39,7 @@ import LogHealthBar from '../components/logs/LogHealthBar';
 import LogTable from '../components/logs/LogTable';
 import LogSourceTree from '../components/logs/LogSourceTree';
 import LogExportDialog from '../components/logs/LogExportDialog';
+import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 
 import '../styles/LogViewer.css';
 
@@ -49,7 +51,8 @@ const normalizeDroneOption = (drone) => {
 
   return {
     hw_id: hwId,
-    label: `Drone #${hwId}`,
+    pos_id: drone?.pos_id ?? hwId,
+    label: formatCompactDroneIdentity(drone?.pos_id, hwId, `H${hwId}`),
   };
 };
 
@@ -295,7 +298,14 @@ const LogViewer = () => {
     fleet.filter((drone) => onlineDroneIds.has(String(drone.hw_id))).length
   ), [fleet, onlineDroneIds]);
 
-  const scopeLabel = scopeDroneId != null ? `Drone #${scopeDroneId}` : 'GCS';
+  const selectedScope = useMemo(
+    () => fleet.find((drone) => String(drone.hw_id) === String(scopeDroneId)) || null,
+    [fleet, scopeDroneId],
+  );
+
+  const scopeLabel = scopeDroneId != null
+    ? selectedScope?.label || `H${scopeDroneId}`
+    : 'GCS';
   const defaultLevel = mode === MODES.OPS ? OPS_DEFAULT_LEVEL : DEV_DEFAULT_LEVEL;
 
   const activeFilters = useMemo(() => {
@@ -393,7 +403,7 @@ const LogViewer = () => {
 
     if (scopeDroneId != null) {
       return {
-        title: `Waiting for live logs from Drone #${scopeDroneId}`,
+        title: `Waiting for live logs from ${scopeLabel}`,
         detail: 'If the drone is online but stays quiet, check that the drone-side service is running and producing logs.',
       };
     }
@@ -402,10 +412,11 @@ const LogViewer = () => {
       title: 'Waiting for live GCS logs',
       detail: 'The viewer is connected. New log entries will appear here as events are emitted.',
     };
-  }, [activeFilters.length, componentScopedEntries.length, displayedEntries.length, scopeDroneId, selectedSession]);
+  }, [activeFilters.length, componentScopedEntries.length, displayedEntries.length, scopeDroneId, scopeLabel, selectedSession]);
 
   return (
     <div className={`log-viewer-page ${isDark ? 'dark' : 'light'}`}>
+      <IdentityDoctrineStrip surface="log-viewer" />
       <LogViewerToolbar
         mode={mode}
         onModeChange={handleModeChange}

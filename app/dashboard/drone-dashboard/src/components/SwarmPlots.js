@@ -132,7 +132,7 @@ function ThreeDPlot({ points }) {
         ...buildMarker(points, colors),
         size: 11,
       },
-      text: points.map((point) => `A${point.hw_id}`),
+      text: points.map((point) => formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id))),
       textposition: 'middle center',
       textfont: {
         color: colors.text,
@@ -179,7 +179,7 @@ function NorthEastPlot({ points }) {
       y: points.map((point) => point.y),
       mode: 'markers+text',
       marker: buildMarker(points, colors),
-      text: points.map((point) => `A${point.hw_id}`),
+      text: points.map((point) => formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id))),
       textposition: 'middle center',
       textfont: {
         color: colors.text,
@@ -215,7 +215,7 @@ function EastAltitudePlot({ points }) {
       y: points.map((point) => point.z),
       mode: 'markers+text',
       marker: buildMarker(points, colors),
-      text: points.map((point) => `A${point.hw_id}`),
+      text: points.map((point) => formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id))),
       textposition: 'middle center',
       textfont: {
         color: colors.text,

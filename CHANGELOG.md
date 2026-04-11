@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-10 enrollment/identity release-closeout note documenting the
+  explicit slot-vs-hardware operator doctrine across Mission Config, Smart
+  Swarm, Swarm Trajectory, QuickScout, and Fleet Enrollment, the shared UI
+  identity guidance strips, the detached-worktree git/runtime fixes, the full
+  green Hetzner `operator_regression` acceptance pass, and the refreshed public
+  SITL archive publication
 - a 2026-04-10 node-enrollment phase closeout note documenting the final
   `hw_id` / `pos_id` / `mav_sys_id` doctrine, the operator decision tree for
   new-node acceptance versus same-airframe recovery versus spare replacement
@@ -593,6 +599,19 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   - validates full command acceptance/execution, cluster settle, live reassignment, leader-only RTL, hold, land, and final disarm
 
 ### Changed
+- detached-worktree runtimes now resolve a meaningful git branch name for both
+  GCS-side and drone-side git status reporting instead of surfacing
+  `HEAD`/branch-read failures when the runtime lives in a git worktree
+- the SSH git-sync bootstrap/update path now falls back to a detached
+  `origin/<branch>` checkout when the named branch is already owned by another
+  worktree, which keeps clean-runtime deployments and startup git sync working
+  together on Hetzner and future production hosts
+- generated SITL validator artifacts and trajectory-session state are now
+  treated as runtime data instead of tracked repo content, so successful
+  validation runs do not make the runtime repository appear dirty
+- the public SITL download instructions in `docs/guides/sitl-comprehensive.md`
+  now point at the refreshed `main@1c0ebc6` archive link published on
+  2026-04-10
 - the SITL validation docs now state the container lifecycle policy explicitly: recreate at suite start, before late Drone Show after other mission families, and after the suite; container reuse remains a narrow debugging convenience rather than the acceptance-grade default
 - the SITL validation suite now supports a checked-in scenario library through `--list-bundled-plans` and `--plan-name`, so maintainers, CI, and AI agents can run named git-tracked scenarios from `tools/sitl_plans/` instead of relying on ad hoc temporary JSON plan files
 - the checked-in SITL plan library now exposes stable named scenarios for configuration round-trip, Drone Show, actions, Smart Swarm, Swarm Trajectory, mission regression, and full operator regression while leaving the harder mixed-mode/fault-injection drills explicitly deferred until they are deterministic enough for routine acceptance

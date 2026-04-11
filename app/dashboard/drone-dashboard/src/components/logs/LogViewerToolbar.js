@@ -32,7 +32,10 @@ const LogViewerToolbar = ({
   onTimeEndChange,
   onClearTimeRange,
 }) => {
-  const liveLabel = scopeDroneId != null ? `Live Drone #${scopeDroneId}` : 'Live GCS';
+  const selectedScope = scopeDroneId != null
+    ? (scopeOptions || []).find((option) => String(option.hw_id) === String(scopeDroneId)) || null
+    : null;
+  const liveLabel = scopeDroneId != null ? `Live ${selectedScope?.label || `H${scopeDroneId}`}` : 'Live GCS';
 
   return (
     <div className="log-toolbar" role="toolbar" aria-label="Log viewer controls">

@@ -98,6 +98,22 @@ export function getIdentityDoctrineCopy(surface = 'default') {
           { key: 'rule', label: 'Replace', detail: 'Preserve P' },
         ],
       };
+    case 'log-viewer':
+      return {
+        title: 'Logs stay anchored to hardware. Slot labels are shown only for operator context.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Logs', detail: 'Anchor = H' },
+        ],
+      };
+    case 'globe-view':
+      return {
+        title: 'Map and 3D views show live hardware with current slot context where known.',
+        chips: [
+          ...sharedChips,
+          { key: 'rule', label: 'Live', detail: 'H + current P' },
+        ],
+      };
     case 'launch-map':
       return {
         title: 'Map markers compare expected slots against the live hardware fleet.',

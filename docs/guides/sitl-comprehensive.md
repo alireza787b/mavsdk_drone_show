@@ -108,7 +108,7 @@ Do **not** look for version numbers in the filename. Release versioning lives in
 ```bash
 cd ~
 # Public Mega download via the official MEGAcmd client; large archives may take several minutes.
-mega-get 'https://mega.nz/file/7HBx0KoR#fCMcO33bAA5ZVSc_cMt43eaqxJDwV3lKWN_4tUwz-TA' .
+mega-get 'https://mega.nz/file/OTwiWKIR#QV2sMj2BMq39ouLcKBI9lAE-9g9LEF0PAIvhepxOddQ' .
 # Validate the archive before extracting it.
 7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.

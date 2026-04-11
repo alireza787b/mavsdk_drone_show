@@ -29,6 +29,10 @@
     box-shadow: var(--shadow-base);
 }
 
+.globe-view-doctrine {
+    margin: 0 0 var(--spacing-md);
+}
+
 /* State containers */
 .loading-container,
 .error-message,
