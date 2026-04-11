@@ -172,6 +172,23 @@ def test_mavsdk_binary_name_resolution_supports_arm64_without_array_errors():
     assert result.returncode == 0, result.stderr
 
 
+def test_fetch_latest_mavsdk_version_keeps_stdout_machine_readable():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVSDK_LIB}"
+        log_step() {{ echo "$1" >&2; }}
+        log_success() {{ echo "$1" >&2; }}
+        log_warn() {{ echo "$1" >&2; }}
+        curl() {{ printf '%s' '{{"tag_name":"v9.9.9"}}'; }}
+        jq() {{ sed -n 's/.*"tag_name":"\\([^"]*\\)".*/\\1/p'; }}
+        [[ "$(fetch_latest_version)" == "v9.9.9" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_service_source_path_maps_known_units_without_associative_array_lookup():
     result = run_bash(
         f"""

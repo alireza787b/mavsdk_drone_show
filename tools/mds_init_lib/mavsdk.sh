@@ -25,18 +25,18 @@ readonly MAVSDK_FALLBACK_VERSION="v3.15.0"
 
 # Fetch latest MAVSDK version from GitHub API
 fetch_latest_version() {
-    log_step "Fetching latest MAVSDK version..."
+    log_step "Fetching latest MAVSDK version..." >&2
 
     local version
     version=$(curl -s --max-time 10 "${MAVSDK_GITHUB_API}" | jq -r '.tag_name' 2>/dev/null)
 
     if [[ -n "$version" && "$version" != "null" ]]; then
-        log_success "Latest version: $version"
+        log_success "Latest version: $version" >&2
         echo "$version"
         return 0
     fi
 
-    log_warn "Failed to fetch latest version, using fallback: ${MAVSDK_FALLBACK_VERSION}"
+    log_warn "Failed to fetch latest version, using fallback: ${MAVSDK_FALLBACK_VERSION}" >&2
     echo "${MAVSDK_FALLBACK_VERSION}"
     return 0
 }
