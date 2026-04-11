@@ -589,15 +589,86 @@ def test_wait_for_live_launch_readiness_reports_last_probe(monkeypatch):
         },
     }
 
-    monkeypatch.setattr(validator, "collect_live_armability_results", lambda client, ids: snapshot)
-
-    def fake_wait_for(predicate, **_kwargs):
-        predicate()
-        raise RuntimeError("timeout")
-
-    monkeypatch.setattr(validator, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        validator,
+        "collect_live_armability_results",
+        lambda client, ids, **_kwargs: snapshot,
+    )
+    clock = {"now": 0.0}
+    monkeypatch.setattr(validator.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(validator.time, "sleep", lambda seconds: clock.__setitem__("now", clock["now"] + seconds))
 
     with pytest.raises(RuntimeError) as exc_info:
         validator.wait_for_live_launch_readiness(object(), [1, 2, 3], timeout=5)
 
     assert "waiting for PX4 armability" in str(exc_info.value)
+    assert "Stable ready samples: 0/2" in str(exc_info.value)
+
+
+def test_probe_live_armability_for_drone_retries_transient_timeout(monkeypatch):
+    validator = _load_validator_module()
+
+    attempts = iter(
+        [
+            {
+                "drone_id": 2,
+                "drone_ip": "10.0.0.2",
+                "success": False,
+                "ready": False,
+                "summary": "Timed out waiting for live armability probe",
+                "category": "blocked",
+                "details": {"timed_out": True},
+            },
+            {
+                "drone_id": 2,
+                "drone_ip": "10.0.0.2",
+                "success": True,
+                "ready": True,
+                "summary": "ready for mission startup",
+                "category": "ready",
+                "details": {"timed_out": False},
+            },
+        ]
+    )
+
+    monkeypatch.setattr(validator.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        validator,
+        "_probe_live_armability_for_drone_once",
+        lambda *_args, **_kwargs: next(attempts),
+    )
+
+    result = validator.probe_live_armability_for_drone(
+        2,
+        "10.0.0.2",
+        transient_retries=1,
+        retry_delay=0.1,
+    )
+
+    assert result["ready"] is True
+    assert result["category"] == "ready"
+
+
+def test_wait_for_live_launch_readiness_requires_stable_ready_samples(monkeypatch):
+    validator = _load_validator_module()
+
+    snapshots = iter(
+        [
+            {"all_ready": True, "blocked_ids": [], "unavailable_ids": [], "results": {"1": {"ready": True}}},
+            {"all_ready": True, "blocked_ids": [], "unavailable_ids": [], "results": {"1": {"ready": True}}},
+        ]
+    )
+
+    monkeypatch.setattr(validator, "collect_live_armability_results", lambda *_args, **_kwargs: next(snapshots))
+    clock = {"now": 0.0}
+    monkeypatch.setattr(validator.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(validator.time, "sleep", lambda seconds: clock.__setitem__("now", clock["now"] + seconds))
+
+    result = validator.wait_for_live_launch_readiness(
+        object(),
+        [1],
+        timeout=10,
+        stable_samples=2,
+    )
+
+    assert result["all_ready"] is True

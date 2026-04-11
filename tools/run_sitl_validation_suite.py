@@ -318,6 +318,12 @@ def build_swarm_trajectory_command(
         str(option_value(args, options, "trajectory_min_altitude_gain")),
         "--formation-timeout",
         str(option_value(args, options, "trajectory_formation_timeout")),
+        "--live-launch-stable-samples",
+        str(option_value(args, options, "trajectory_live_launch_stable_samples")),
+        "--live-launch-probe-retries",
+        str(option_value(args, options, "trajectory_live_launch_probe_retries")),
+        "--live-launch-probe-retry-delay",
+        str(option_value(args, options, "trajectory_live_launch_probe_retry_delay")),
         "--short-profile-altitude-gain",
         str(option_value(args, options, "short_profile_altitude_gain")),
         "--short-profile-entry-delay",
@@ -941,6 +947,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trajectory-vert-tolerance", type=float, default=8.0, help="Swarm Trajectory vertical formation tolerance")
     parser.add_argument("--trajectory-min-altitude-gain", type=float, default=2.0, help="Swarm Trajectory minimum altitude gain before formation sampling")
     parser.add_argument("--trajectory-formation-timeout", type=int, default=120, help="Swarm Trajectory formation timeout in seconds")
+    parser.add_argument("--trajectory-live-launch-stable-samples", type=int, default=2, help="Consecutive all-ready live launch probe samples required before Swarm Trajectory dispatch")
+    parser.add_argument("--trajectory-live-launch-probe-retries", type=int, default=1, help="Extra transient live launch probe retries per drone before a Swarm Trajectory readiness sample is marked not ready")
+    parser.add_argument("--trajectory-live-launch-probe-retry-delay", type=float, default=1.0, help="Delay between transient Swarm Trajectory live launch probe retries in seconds")
     parser.add_argument("--integrated-takeoff-min-gain", type=float, default=4.0, help="Minimum altitude gain required after TAKEOFF in the integrated mixed-mode validator")
     parser.add_argument("--integrated-formation-horizontal-tolerance", type=float, default=8.0, help="Follower horizontal tolerance during the integrated mixed-mode validator")
     parser.add_argument("--integrated-formation-altitude-tolerance", type=float, default=2.0, help="Follower altitude tolerance during the integrated mixed-mode validator")

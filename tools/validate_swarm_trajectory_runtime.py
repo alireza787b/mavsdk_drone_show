@@ -25,7 +25,6 @@ import shutil
 import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -305,33 +304,17 @@ def wait_for_idle(client: ApiClient, ids: list[int], timeout: int = 180) -> dict
     return wait_for(_ready, label=f"idle baseline for drones {ids}", timeout=timeout, interval=2.0)
 
 
-def probe_live_armability_for_drone(
-    drone_id: int,
-    drone_ip: str | None,
+def _probe_live_armability_for_drone_once(
+    normalized_id: int,
+    normalized_ip: str,
     *,
-    require_global_position: bool = True,
-    timeout: float | None = None,
+    require_global_position: bool,
+    request_timeout: float,
 ) -> dict[str, Any]:
-    """Query the drone-side live armability endpoint used by launch gating."""
-    normalized_id = int(drone_id)
-    normalized_ip = str(drone_ip or "").strip()
-
-    if not normalized_ip or normalized_ip.upper() == "N/A":
-        return {
-            "drone_id": normalized_id,
-            "drone_ip": drone_ip,
-            "success": False,
-            "ready": False,
-            "summary": "Drone IP unavailable for live armability probe",
-            "category": "error",
-            "details": None,
-        }
-
     query = urllib.parse.urlencode(
         {"require_global_position": str(bool(require_global_position)).lower()}
     )
     url = f"http://{normalized_ip}:7070{DRONE_LIVE_ARMABILITY_ROUTE}?{query}"
-    request_timeout = float(timeout or calculate_live_armability_request_timeout(params=Params))
 
     try:
         with urllib.request.urlopen(url, timeout=request_timeout) as response:
@@ -381,48 +364,102 @@ def probe_live_armability_for_drone(
         }
 
 
+def probe_live_armability_for_drone(
+    drone_id: int,
+    drone_ip: str | None,
+    *,
+    require_global_position: bool = True,
+    timeout: float | None = None,
+    transient_retries: int = 1,
+    retry_delay: float = 1.0,
+) -> dict[str, Any]:
+    """Query the drone-side live armability endpoint used by launch gating."""
+    normalized_id = int(drone_id)
+    normalized_ip = str(drone_ip or "").strip()
+
+    if not normalized_ip or normalized_ip.upper() == "N/A":
+        return {
+            "drone_id": normalized_id,
+            "drone_ip": drone_ip,
+            "success": False,
+            "ready": False,
+            "summary": "Drone IP unavailable for live armability probe",
+            "category": "error",
+            "details": None,
+        }
+
+    request_timeout = float(timeout or calculate_live_armability_request_timeout(params=Params))
+    attempts = max(1, int(transient_retries) + 1)
+    last_result: dict[str, Any] | None = None
+
+    for attempt in range(attempts):
+        result = _probe_live_armability_for_drone_once(
+            normalized_id,
+            normalized_ip,
+            require_global_position=require_global_position,
+            request_timeout=request_timeout,
+        )
+        last_result = result
+
+        if bool(result.get("ready")):
+            return result
+
+        details = result.get("details")
+        timed_out = isinstance(details, dict) and bool(details.get("timed_out"))
+        transient = timed_out or result.get("category") in {"offline", "error"}
+        if not transient or attempt >= attempts - 1:
+            return result
+
+        time.sleep(max(0.0, float(retry_delay)))
+
+    return last_result or {
+        "drone_id": normalized_id,
+        "drone_ip": normalized_ip,
+        "success": False,
+        "ready": False,
+        "summary": "Live armability probe did not return a result",
+        "category": "error",
+        "details": None,
+    }
+
+
 def collect_live_armability_results(
     client: ApiClient,
     ids: Iterable[int],
     *,
     require_global_position: bool = True,
     timeout: float | None = None,
+    transient_retries: int = 1,
+    retry_delay: float = 1.0,
 ) -> dict[str, Any]:
     """Collect per-drone live armability truth for the selected mission set."""
     telemetry = client.get_telemetry()
     target_ids = sorted({int(drone_id) for drone_id in ids})
     results: dict[str, dict[str, Any]] = {}
 
-    with ThreadPoolExecutor(max_workers=max(1, min(len(target_ids), 10))) as executor:
-        future_to_id = {}
+    for drone_id in target_ids:
+        row = telemetry.get(str(drone_id))
+        drone_ip = None if row is None else row.get("ip")
+        if row is None:
+            results[str(drone_id)] = {
+                "drone_id": drone_id,
+                "drone_ip": None,
+                "success": False,
+                "ready": False,
+                "summary": "No telemetry row available for live armability probe",
+                "category": "error",
+                "details": None,
+            }
+            continue
 
-        for drone_id in target_ids:
-            row = telemetry.get(str(drone_id))
-            drone_ip = None if row is None else row.get("ip")
-            if row is None:
-                results[str(drone_id)] = {
-                    "drone_id": drone_id,
-                    "drone_ip": None,
-                    "success": False,
-                    "ready": False,
-                    "summary": "No telemetry row available for live armability probe",
-                    "category": "error",
-                    "details": None,
-                }
-                continue
-
-            future = executor.submit(
-                probe_live_armability_for_drone,
-                drone_id,
-                drone_ip,
-                require_global_position=require_global_position,
-                timeout=timeout,
-            )
-            future_to_id[future] = drone_id
-
-        for future in as_completed(future_to_id):
-            drone_id = future_to_id[future]
-            results[str(drone_id)] = future.result()
+        results[str(drone_id)] = probe_live_armability_for_drone(
+            drone_id,
+            drone_ip,
+            require_global_position=require_global_position,
+            timeout=timeout,
+            transient_retries=transient_retries,
+            retry_delay=retry_delay,
+        )
 
     blocked_ids = sorted(
         int(drone_id)
@@ -443,29 +480,49 @@ def collect_live_armability_results(
     }
 
 
-def wait_for_live_launch_readiness(client: ApiClient, ids: list[int], timeout: int = 60) -> dict[str, Any]:
+def wait_for_live_launch_readiness(
+    client: ApiClient,
+    ids: list[int],
+    timeout: int = 60,
+    *,
+    stable_samples: int = 2,
+    interval: float = 2.0,
+    transient_probe_retries: int = 1,
+    transient_probe_retry_delay: float = 1.0,
+) -> dict[str, Any]:
     """Wait until the live launch gate agrees the selected drones are armable."""
     last_results: dict[str, Any] | None = None
+    consecutive_ready = 0
+    required_ready_samples = max(1, int(stable_samples))
+    deadline = time.monotonic() + timeout
 
-    def _ready():
-        nonlocal last_results
-        last_results = collect_live_armability_results(client, ids)
-        if last_results["all_ready"]:
-            return last_results
-        return False
-
-    try:
-        return wait_for(
-            _ready,
-            label=f"live launch armability for drones {ids}",
-            timeout=timeout,
-            interval=2.0,
+    while time.monotonic() < deadline:
+        last_results = collect_live_armability_results(
+            client,
+            ids,
+            transient_retries=transient_probe_retries,
+            retry_delay=transient_probe_retry_delay,
         )
-    except Exception as exc:
-        raise RuntimeError(
-            "Live launch readiness did not stabilize before dispatch. "
-            f"Last probe results: {json.dumps(last_results or {}, indent=2)}"
-        ) from exc
+        if last_results["all_ready"]:
+            consecutive_ready += 1
+            if consecutive_ready >= required_ready_samples:
+                log(
+                    f"WAIT OK: live launch armability for drones {ids} "
+                    f"(stable samples {consecutive_ready}/{required_ready_samples})"
+                )
+                return last_results
+        else:
+            consecutive_ready = 0
+
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(interval)
+
+    raise RuntimeError(
+        "Live launch readiness did not stabilize before dispatch. "
+        f"Stable ready samples: {consecutive_ready}/{required_ready_samples}. "
+        f"Last probe results: {json.dumps(last_results or {}, indent=2)}"
+    )
 
 
 def wait_for_command(
@@ -1226,6 +1283,24 @@ def main() -> int:
     parser.add_argument("--min-altitude-gain", type=float, default=2.0, help="Required altitude gain before geometry sampling")
     parser.add_argument("--formation-timeout", type=int, default=120, help="Seconds to wait for formation convergence")
     parser.add_argument(
+        "--live-launch-stable-samples",
+        type=int,
+        default=2,
+        help="Consecutive all-ready live launch probe samples required before Swarm Trajectory dispatch",
+    )
+    parser.add_argument(
+        "--live-launch-probe-retries",
+        type=int,
+        default=1,
+        help="Extra transient live launch probe retries per drone before a readiness sample is marked not ready",
+    )
+    parser.add_argument(
+        "--live-launch-probe-retry-delay",
+        type=float,
+        default=1.0,
+        help="Delay in seconds between transient live launch probe retries",
+    )
+    parser.add_argument(
         "--prepare-short-profile",
         action="store_true",
         help="Temporarily replace the selected top-leader raw CSVs with a short deterministic validation route before processing; the validator restores the original files afterward",
@@ -1330,7 +1405,14 @@ def main() -> int:
             for follower_id, expectation in processed_expectations.items()
         }
 
-        live_launch_readiness = wait_for_live_launch_readiness(client, args.drone_ids, timeout=90)
+        live_launch_readiness = wait_for_live_launch_readiness(
+            client,
+            args.drone_ids,
+            timeout=90,
+            stable_samples=args.live_launch_stable_samples,
+            transient_probe_retries=args.live_launch_probe_retries,
+            transient_probe_retry_delay=args.live_launch_probe_retry_delay,
+        )
         results["live_launch_readiness"] = live_launch_readiness
 
         response = client.submit_command(
