@@ -169,3 +169,6 @@ async def test_filesystem_fallback_lists_downloads_and_erases_when_mavsdk_is_una
     response = await service.erase_all(drone)
     assert response.status == "accepted"
     assert not fallback_file.exists()
+
+    listed_after_erase = await service.list_entries(drone)
+    assert listed_after_erase.count == 0

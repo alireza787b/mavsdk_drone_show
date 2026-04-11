@@ -249,9 +249,11 @@ class OnboardUlogService:
 
     def _list_filesystem_entries(self) -> list[OnboardUlogEntry] | None:
         candidates: list[tuple[Path, OnboardUlogEntry]] = []
+        saw_existing_root = False
         for root in self._filesystem_fallback_dirs():
             if not root.exists():
                 continue
+            saw_existing_root = True
             for path in root.rglob("*.ulg"):
                 if not path.is_file():
                     continue
@@ -271,7 +273,7 @@ class OnboardUlogService:
 
         if not candidates:
             self._fallback_entries = {}
-            return None
+            return [] if saw_existing_root else None
 
         candidates.sort(
             key=lambda item: ((item[1].date_utc or ""), item[1].id),
