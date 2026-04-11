@@ -11,6 +11,7 @@ REPO_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "repo.sh"
 MAVLINK_SETUP_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavlink_setup.sh"
 MAVSDK_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavsdk.sh"
 SERVICES_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "services.sh"
+PYTHON_ENV_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "python_env.sh"
 
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
@@ -157,3 +158,21 @@ def test_service_source_path_maps_known_units_without_associative_array_lookup()
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_python_env_prefers_node_requirements_when_present():
+    result = run_bash(
+        f"""
+        MDS_INSTALL_DIR="{REPO_ROOT}"
+        MDS_USER="droneshow"
+        log_step() {{ :; }}
+        log_info() {{ echo "$1"; }}
+        log_error() {{ echo "$1" >&2; }}
+        is_dry_run() {{ return 0; }}
+        source "{PYTHON_ENV_LIB}"
+        install_requirements
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "requirements-node.txt" in result.stdout

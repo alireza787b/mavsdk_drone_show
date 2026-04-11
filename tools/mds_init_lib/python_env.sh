@@ -17,6 +17,7 @@ _MDS_PYTHON_ENV_LOADED=1
 
 readonly VENV_DIR="${MDS_INSTALL_DIR}/venv"
 readonly REQUIREMENTS_FILE="${MDS_INSTALL_DIR}/requirements.txt"
+readonly NODE_REQUIREMENTS_FILE="${MDS_INSTALL_DIR}/requirements-node.txt"
 
 # Critical packages to verify after installation
 # Note: Flask removed in v4.3.0 (FastAPI only backend)
@@ -183,25 +184,33 @@ upgrade_pip() {
 install_requirements() {
     log_step "Installing Python requirements..."
 
-    if [[ ! -f "${REQUIREMENTS_FILE}" ]]; then
-        log_error "requirements.txt not found at: ${REQUIREMENTS_FILE}"
+    local selected_requirements="${REQUIREMENTS_FILE}"
+    if [[ -f "${NODE_REQUIREMENTS_FILE}" ]]; then
+        selected_requirements="${NODE_REQUIREMENTS_FILE}"
+    fi
+
+    if [[ ! -f "${selected_requirements}" ]]; then
+        log_error "Requirements file not found: ${selected_requirements}"
         return 1
     fi
 
     if is_dry_run; then
-        echo -e "  ${DIM}[DRY-RUN] Would install from: ${REQUIREMENTS_FILE}${NC}"
+        echo -e "  ${DIM}[DRY-RUN] Would install from: ${selected_requirements}${NC}"
         return 0
     fi
 
     local pip="${VENV_DIR}/bin/pip"
 
-    log_info "Installing from: ${REQUIREMENTS_FILE}"
+    if [[ "${selected_requirements}" == "${NODE_REQUIREMENTS_FILE}" ]]; then
+        log_info "Using companion-node requirements set"
+    fi
+    log_info "Installing from: ${selected_requirements}"
     log_info "This may take several minutes..."
 
     # Install with progress - use subshell with pipefail to detect pip failures
     # (Without pipefail, pipe exit status is from the while loop, not pip)
     if ( set -o pipefail
-         sudo -u "${MDS_USER}" "$pip" install -r "${REQUIREMENTS_FILE}" \
+         sudo -u "${MDS_USER}" "$pip" install -r "${selected_requirements}" \
              --quiet \
              --no-warn-script-location \
              2>&1 | while read -r line; do

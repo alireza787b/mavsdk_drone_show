@@ -1,0 +1,59 @@
+# MAVSDK Drone Show - Companion Node Dependencies
+# Purpose: runtime dependencies required on companion computers / drones.
+# Notes:
+# - This intentionally excludes GCS-only analytics/plotting stacks such as
+#   pandas, scipy, matplotlib, seaborn, shapely, and lxml-heavy workflows.
+# - Node bootstrap prefers this file over the broader repo requirements set.
+
+# Core Async/gRPC
+aiogrpc==1.8
+grpcio==1.71.0
+protobuf==5.29.4
+
+# Drone-local API server
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
+python-multipart==0.0.20
+httpx>=0.24.0
+
+# HTTP/Networking
+requests==2.32.3
+aiohttp==3.13.2
+urllib3==2.2.2
+certifi==2024.7.4
+charset-normalizer==3.3.2
+idna==3.7
+
+# MAVLink/Drone Control
+mavsdk==3.10.2
+pymavlink==2.4.41
+
+# Geospatial / control math used on-node
+geographiclib==2.0
+pyproj==3.6.1
+pymap3d>=2.9.0
+NavPy==1.0
+numpy==2.1.0
+filterpy>=1.4.5
+
+# System / process / service integration
+psutil==6.0.0
+sdnotify==0.3.2
+future==1.0.0
+
+# Date / time
+python-dateutil==2.9.0.post0
+pytz==2024.1
+tzdata==2024.1
+
+# Git / utilities
+GitPython==3.1.45
+six==1.16.0
+tenacity==9.0.0
+packaging==24.1
+netifaces==0.11.0
+
+# Companion hardware
+rpi-ws281x==5.0.0 ; platform_machine == 'aarch64'
+nmcli>=1.4.0
