@@ -155,7 +155,7 @@ DEFAULT_SITL_PARAM_OVERRIDES=(
     "NAV_DLL_ACT=0"
     "COM_DL_LOSS_T=0"
     "CBRK_SUPPLY_CHK=894281"
-    "SDLOG_MODE=-1"
+    "SDLOG_MODE=0"
 )
 
 # Runtime configuration (can be overridden with MDS_* environment variables)

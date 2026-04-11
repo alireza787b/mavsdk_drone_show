@@ -62,7 +62,7 @@ EOF
 export MDS_PX4_GZ_TARGET="gz_x500"
 export MDS_QT_QPA_PLATFORM="offscreen"
 export MDS_GZ_PARTITION_PREFIX="px4_sim"
-export MDS_SITL_PARAM_OVERRIDES="COM_RC_IN_MODE=4,NAV_RCL_ACT=0,NAV_DLL_ACT=0,COM_DL_LOSS_T=0,CBRK_SUPPLY_CHK=894281,SDLOG_MODE=-1"
+export MDS_SITL_PARAM_OVERRIDES="COM_RC_IN_MODE=4,NAV_RCL_ACT=0,NAV_DLL_ACT=0,COM_DL_LOSS_T=0,CBRK_SUPPLY_CHK=894281,SDLOG_MODE=0"
 export MDS_SITL_GIT_SYNC=true
 export MDS_SITL_REQUIREMENTS_SYNC=true
 export MDS_SITL_FILE_LOG_MODE="bounded"
@@ -87,6 +87,7 @@ Notes:
 - `startup_sitl.sh` always runs headless PX4 Gazebo Harmonic in Docker SITL.
 - If `MDS_GZ_PARTITION` is unset, startup derives a unique Gazebo partition per drone from `MDS_GZ_PARTITION_PREFIX` and `hw_id`.
 - SITL parameter overrides are passed to PX4 via `PX4_PARAM_*` environment variables at launch time, after the airframe defaults load.
+- `SDLOG_MODE=0` keeps file-backed PX4 ULogs enabled in SITL so onboard log review and download workflows match real hardware more closely.
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
 - `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`.
