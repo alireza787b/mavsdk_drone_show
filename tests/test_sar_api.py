@@ -368,6 +368,7 @@ class TestMissionLifecycle:
         status = client.get(f"/api/sar/mission/{mid}/status").json()
         drone_state = status["drone_states"].get("1")
         if drone_state:
+            assert drone_state["pos_id"] == 0
             assert drone_state["current_waypoint_index"] == 5
             assert drone_state["coverage_percent"] == 25.0
             assert drone_state["status_note"] == "Executing assigned search track"

@@ -110,6 +110,12 @@ The QuickScout page is accessible from the sidebar menu and provides two modes:
 - **Plan Mode**: select a mission template, define search geometry, configure survey/profile settings, review coverage packaging, and launch
 - **Monitor Mode**: view drone progress, mission/package context, control availability, evidence-backed findings review, mission handoff/export, and finding-led follow-up search seeding
 
+Operator identity presentation in QuickScout follows the same doctrine as the rest of MDS:
+
+- planning surfaces are slot-oriented where useful
+- launch resolves those assignments onto the current physical drones
+- monitor cards should preserve both identities in compact `Pn|Hm` form whenever slot context is known
+
 The map view shows coverage paths color-coded per drone (solid for survey legs, dashed for transit), plus findings markers and search footprint previews for point/corridor templates.
 
 ## File Structure

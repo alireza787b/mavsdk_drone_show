@@ -19,10 +19,10 @@ import argparse
 import math
 import socket
 import subprocess
+from contextlib import suppress
 
 import requests
 from mavsdk import System
-from mavsdk.action import ActionError
 from mavsdk.mission import MissionItem, MissionPlan
 
 try:
@@ -35,6 +35,7 @@ from drone_api_routes import DRONE_NAVIGATION_HOME_ROUTE, DRONE_STATE_ROUTE
 from params import Params
 from led_controller import LEDController
 from mds_logging import get_logger
+from mission_startup import arm_with_preflight_gate
 
 logger = get_logger("quickscout")
 
@@ -256,22 +257,181 @@ async def wait_for_local_startup_ready(timeout_sec: float, poll_sec: float = 0.5
     )
 
 
-async def arm_with_retry(drone, *, attempts: int = 3, retry_delay_sec: float = 2.0):
-    """Arm with bounded retries once local startup readiness is confirmed."""
-    last_error = None
-    for attempt in range(1, max(1, attempts) + 1):
-        try:
-            await drone.action.arm()
-            return
-        except ActionError as exc:
-            last_error = exc
-            logger.warning("Arm attempt %s/%s failed: %s", attempt, attempts, exc)
-            if attempt >= attempts:
-                raise
-            await asyncio.sleep(retry_delay_sec)
+def _great_circle_distance_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+    )
+    return 6371000.0 * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-    if last_error:
-        raise last_error
+
+def _estimate_distance_from_positions(previous_position, current_position) -> float:
+    if previous_position is None or current_position is None:
+        return 0.0
+    return _great_circle_distance_m(
+        float(previous_position.latitude_deg),
+        float(previous_position.longitude_deg),
+        float(current_position.latitude_deg),
+        float(current_position.longitude_deg),
+    )
+
+
+def _resolve_quickscout_runtime_param(name: str, default: float) -> float:
+    raw_value = getattr(Params, name, default)
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+async def _wait_for_mission_airborne(
+    drone,
+    *,
+    min_gain_m: float,
+    timeout_sec: float,
+):
+    """Confirm the aircraft actually climbed after mission start."""
+    position_iter = drone.telemetry.position().__aiter__()
+    deadline = time.monotonic() + timeout_sec
+    last_position = None
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(
+                "Timed out waiting for QuickScout mission takeoff / climb confirmation."
+            )
+
+        try:
+            position = await asyncio.wait_for(position_iter.__anext__(), timeout=min(1.0, remaining))
+        except asyncio.TimeoutError:
+            continue
+        except StopAsyncIteration:
+            position_iter = drone.telemetry.position().__aiter__()
+            continue
+
+        last_position = position
+        relative_altitude_m = float(getattr(position, "relative_altitude_m", 0.0) or 0.0)
+        if relative_altitude_m >= min_gain_m:
+            logger.info(
+                "QuickScout climb confirmed at %.1fm relative altitude.",
+                relative_altitude_m,
+            )
+            return position
+
+
+async def _monitor_active_mission(
+    drone,
+    *,
+    gcs_url: str,
+    mission_id: str,
+    hw_id: str,
+    total_waypoints: int,
+    startup_position,
+):
+    """
+    Keep QuickScout ownership alive even if MissionProgress callbacks stall.
+
+    MAVSDK MissionProgress has proven unreliable in some live SITL runs while PX4
+    continues flying autonomously. The mission executor therefore treats progress
+    callbacks as optional hints and uses `is_mission_finished()` plus telemetry
+    polling as the canonical completion signal.
+    """
+    runtime_limit_sec = max(
+        120.0,
+        _resolve_quickscout_runtime_param("COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC", 900.0) - 30.0,
+    )
+    poll_interval_sec = max(
+        0.5,
+        _resolve_quickscout_runtime_param("QUICKSCOUT_PROGRESS_REPORT_INTERVAL_SEC", 2.0),
+    )
+    finished_check_timeout_sec = max(
+        1.0,
+        _resolve_quickscout_runtime_param("QUICKSCOUT_FINISHED_CHECK_TIMEOUT_SEC", 5.0),
+    )
+    progress_stream_timeout_sec = max(
+        0.1,
+        min(
+            poll_interval_sec,
+            _resolve_quickscout_runtime_param("QUICKSCOUT_PROGRESS_STREAM_TIMEOUT_SEC", 0.5),
+        ),
+    )
+
+    deadline = time.monotonic() + runtime_limit_sec
+    mission_progress_iter = drone.mission.mission_progress().__aiter__()
+    position_iter = drone.telemetry.position().__aiter__()
+    last_position = startup_position
+    distance_covered_m = 0.0
+    last_progress_current = 0
+    last_progress_total = total_waypoints
+    last_reported_signature = None
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(
+                f"QuickScout mission runtime exceeded {runtime_limit_sec:.0f}s without finishing."
+            )
+
+        try:
+            position = await asyncio.wait_for(position_iter.__anext__(), timeout=min(poll_interval_sec, remaining))
+            if last_position is not None:
+                distance_covered_m += _estimate_distance_from_positions(last_position, position)
+            last_position = position
+        except asyncio.TimeoutError:
+            pass
+        except StopAsyncIteration:
+            position_iter = drone.telemetry.position().__aiter__()
+
+        try:
+            progress = await asyncio.wait_for(
+                mission_progress_iter.__anext__(),
+                timeout=min(progress_stream_timeout_sec, remaining),
+            )
+            current = int(getattr(progress, "current", 0) or 0)
+            total = int(getattr(progress, "total", total_waypoints) or total_waypoints)
+            if current != last_progress_current or total != last_progress_total:
+                logger.info("QuickScout mission progress: waypoint %s/%s", current, total)
+            last_progress_current = current
+            last_progress_total = total
+        except asyncio.TimeoutError:
+            pass
+        except StopAsyncIteration:
+            mission_progress_iter = drone.mission.mission_progress().__aiter__()
+
+        status_signature = (last_progress_current, last_progress_total, int(distance_covered_m))
+        if status_signature != last_reported_signature:
+            report_progress(
+                gcs_url,
+                mission_id,
+                hw_id,
+                last_progress_current,
+                max(1, last_progress_total),
+                distance_covered_m,
+                state="executing",
+            )
+            last_reported_signature = status_signature
+
+        finished = await asyncio.wait_for(
+            drone.mission.is_mission_finished(),
+            timeout=min(finished_check_timeout_sec, remaining),
+        )
+        if finished:
+            logger.info(
+                "QuickScout mission finished. Final progress=%s/%s, distance=%.1fm",
+                last_progress_current,
+                last_progress_total,
+                distance_covered_m,
+            )
+            return {
+                "current": max(last_progress_current, total_waypoints),
+                "total": max(last_progress_total, total_waypoints),
+                "distance_covered_m": distance_covered_m,
+            }
+
+        await asyncio.sleep(poll_interval_sec)
 
 
 def parse_args():
@@ -350,6 +510,22 @@ async def run_mission(args):
     grpc_port = getattr(Params, 'DEFAULT_GRPC_PORT', 50040)
     connect_timeout = max(float(getattr(Params, 'LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC', 5.0)), 10.0)
     readiness_timeout = max(float(getattr(Params, 'PRE_FLIGHT_TIMEOUT', 80.0)), 30.0)
+    mission_upload_timeout = max(
+        5.0,
+        _resolve_quickscout_runtime_param("QUICKSCOUT_MISSION_UPLOAD_TIMEOUT_SEC", 45.0),
+    )
+    mission_start_timeout = max(
+        5.0,
+        _resolve_quickscout_runtime_param("QUICKSCOUT_MISSION_START_TIMEOUT_SEC", 30.0),
+    )
+    mission_airborne_timeout = max(
+        15.0,
+        _resolve_quickscout_runtime_param("QUICKSCOUT_AIRBORNE_TIMEOUT_SEC", 120.0),
+    )
+    post_action_timeout = max(
+        30.0,
+        _resolve_quickscout_runtime_param("QUICKSCOUT_POST_ACTION_TIMEOUT_SEC", 240.0),
+    )
 
     try:
         mavsdk_server = start_mavsdk_server(grpc_port, Params.mavsdk_port)
@@ -432,61 +608,63 @@ async def run_mission(args):
 
         logger.info(f"Uploading mission with {len(mission_items)} items...")
         mission_plan = MissionPlan(mission_items)
-        await drone.mission.upload_mission(mission_plan)
+        await asyncio.wait_for(
+            drone.mission.upload_mission(mission_plan),
+            timeout=mission_upload_timeout,
+        )
         logger.info("Mission uploaded successfully")
 
         if led:
             led.set_color(255, 255, 255)  # White: ready
 
         logger.info("Arming drone...")
-        await arm_with_retry(
+        await arm_with_preflight_gate(
             drone,
-            attempts=max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3))),
-            retry_delay_sec=float(getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0)),
+            require_global_position=True,
+            logger=logger,
         )
         logger.info("Drone armed")
 
         logger.info("Starting mission...")
-        await drone.mission.start_mission()
+        await asyncio.wait_for(
+            drone.mission.start_mission(),
+            timeout=mission_start_timeout,
+        )
         logger.info("Mission started")
+
+        startup_position = await _wait_for_mission_airborne(
+            drone,
+            min_gain_m=max(
+                0.5,
+                _resolve_quickscout_runtime_param("QUICKSCOUT_AIRBORNE_MIN_GAIN_M", 2.0),
+            ),
+            timeout_sec=mission_airborne_timeout,
+        )
 
         report_progress(gcs_url, args.mission_id, args.hw_id, 0, total_waypoints, state='executing')
 
         if led:
             led.set_color(0, 255, 0)  # Green: surveying
 
-        distance_covered = 0.0
-        last_wp_index = -1
-
-        async for progress in drone.mission.mission_progress():
-            current = progress.current
-            total = progress.total
-
-            if current != last_wp_index:
-                logger.info(f"Mission progress: waypoint {current}/{total}")
-                if last_wp_index >= 0 and last_wp_index < len(waypoints) and current < len(waypoints):
-                    wp_prev = waypoints[last_wp_index]
-                    wp_curr = waypoints[min(current, len(waypoints) - 1)]
-                    dlat = math.radians(wp_curr['lat'] - wp_prev['lat'])
-                    dlng = math.radians(wp_curr['lng'] - wp_prev['lng'])
-                    a = (math.sin(dlat/2)**2 +
-                         math.cos(math.radians(wp_prev['lat'])) * math.cos(math.radians(wp_curr['lat'])) *
-                         math.sin(dlng/2)**2)
-                    distance_covered += 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-                last_wp_index = current
-                report_progress(gcs_url, args.mission_id, args.hw_id, current, total, distance_covered)
-
-            if current >= total - 1 and total > 0:
-                logger.info("Mission waypoints complete")
-                break
+        mission_result = await _monitor_active_mission(
+            drone,
+            gcs_url=gcs_url,
+            mission_id=args.mission_id,
+            hw_id=args.hw_id,
+            total_waypoints=total_waypoints,
+            startup_position=startup_position,
+        )
+        distance_covered = float(mission_result["distance_covered_m"])
+        completed_current = int(mission_result["current"])
+        completed_total = int(mission_result["total"])
 
         logger.info(f"Mission complete. Total distance: {distance_covered:.0f}m")
         report_progress(
             gcs_url,
             args.mission_id,
             args.hw_id,
-            total_waypoints,
-            total_waypoints,
+            completed_current,
+            completed_total,
             distance_covered,
             state='completed',
         )
@@ -502,7 +680,18 @@ async def run_mission(args):
 
         if args.return_behavior in ('return_home', 'land_current'):
             from mavsdk.telemetry import LandedState
-            async for landed_state in drone.telemetry.landed_state():
+            landed_iter = drone.telemetry.landed_state().__aiter__()
+            deadline = time.monotonic() + post_action_timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(
+                        f"Timed out waiting for QuickScout post-mission {args.return_behavior} completion."
+                    )
+                landed_state = await asyncio.wait_for(
+                    landed_iter.__anext__(),
+                    timeout=min(1.0, remaining),
+                )
                 if landed_state == LandedState.ON_GROUND:
                     logger.info("Drone landed")
                     break

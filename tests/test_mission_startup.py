@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import types
 from types import SimpleNamespace
@@ -139,10 +140,12 @@ async def test_probe_offboard_armability_returns_last_state_on_timeout(monkeypat
 @pytest.mark.asyncio
 async def test_arm_with_preflight_gate_retries_command_denied(monkeypatch):
     drone = MagicMock()
-    class _CommandDeniedError(mission_startup.ActionError):
+
+    class _CommandDeniedError(Exception):
         def __str__(self):
             return "COMMAND_DENIED"
 
+    monkeypatch.setattr(mission_startup, "ActionError", _CommandDeniedError)
     drone.action.arm = AsyncMock(side_effect=[_CommandDeniedError(), None])
 
     wait_mock = AsyncMock()
@@ -157,4 +160,36 @@ async def test_arm_with_preflight_gate_retries_command_denied(monkeypatch):
     )
 
     assert wait_mock.await_count == 2
-    assert drone.action.arm.await_count == 2
+    assert drone.action.arm.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_arm_with_preflight_gate_retries_timed_out_arm_rpc(monkeypatch):
+    drone = MagicMock()
+    drone.action.arm = AsyncMock(return_value=None)
+    wait_for_calls = {"count": 0}
+
+    real_wait_for = asyncio.wait_for
+
+    async def _wait_for_with_first_timeout(awaitable, timeout):
+        wait_for_calls["count"] += 1
+        if wait_for_calls["count"] == 1:
+            if hasattr(awaitable, "close"):
+                awaitable.close()
+            raise asyncio.TimeoutError()
+        return await real_wait_for(awaitable, timeout)
+
+    wait_mock = AsyncMock()
+    monkeypatch.setattr(mission_startup, "wait_until_offboard_armable", wait_mock)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 0.0)
+    monkeypatch.setattr(mission_startup.Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 0.01)
+    monkeypatch.setattr(mission_startup.asyncio, "wait_for", _wait_for_with_first_timeout)
+
+    await mission_startup.arm_with_preflight_gate(
+        drone,
+        require_global_position=True,
+    )
+
+    assert wait_mock.await_count == 2
+    assert drone.action.arm.call_count == 2

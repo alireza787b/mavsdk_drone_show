@@ -50,9 +50,14 @@ const MissionMonitorSidebar = ({
   onExportMissionHandoff,
 }) => {
   const droneStates = missionStatus?.drone_states || {};
-  const sortedDrones = Object.values(droneStates).sort((a, b) =>
-    (a.hw_id || '').localeCompare(b.hw_id || '')
-  );
+  const sortedDrones = Object.values(droneStates).sort((a, b) => {
+    const leftPos = Number.isFinite(Number(a.pos_id)) ? Number(a.pos_id) : Number.POSITIVE_INFINITY;
+    const rightPos = Number.isFinite(Number(b.pos_id)) ? Number(b.pos_id) : Number.POSITIVE_INFINITY;
+    if (leftPos !== rightPos) {
+      return leftPos - rightPos;
+    }
+    return (a.hw_id || '').localeCompare(b.hw_id || '');
+  });
   const operationPhase = missionStatus?.operation_phase || 'planning';
   const statusSummary = missionStatus?.status_summary || '';
   const operatorGuidance = missionStatus?.recommended_operator_action || '';

@@ -302,8 +302,9 @@ class TestMissionHandoff:
 
 class TestDroneSurveyState:
     def test_valid_state(self):
-        ds = DroneSurveyState(hw_id="1", state=SurveyState.EXECUTING, total_waypoints=100)
+        ds = DroneSurveyState(hw_id="1", pos_id=7, state=SurveyState.EXECUTING, total_waypoints=100)
         assert ds.coverage_percent == 0.0
+        assert ds.pos_id == 7
 
     def test_invalid_coverage(self):
         with pytest.raises(ValidationError):

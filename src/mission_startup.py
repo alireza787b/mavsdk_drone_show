@@ -176,6 +176,7 @@ async def arm_with_preflight_gate(
     logger = logger or logging.getLogger(__name__)
     max_attempts = max(1, int(getattr(Params, "OFFBOARD_ARM_MAX_ATTEMPTS", 3)))
     retry_delay = float(getattr(Params, "OFFBOARD_ARM_RETRY_DELAY_SEC", 2.0))
+    arm_action_timeout = max(1.0, float(getattr(Params, "OFFBOARD_ARM_ACTION_TIMEOUT_SEC", 15.0)))
 
     last_error = None
     for attempt in range(1, max_attempts + 1):
@@ -186,8 +187,21 @@ async def arm_with_preflight_gate(
         )
         try:
             logger.info("Arming the drone (attempt %d/%d).", attempt, max_attempts)
-            await drone.action.arm()
+            await asyncio.wait_for(drone.action.arm(), timeout=arm_action_timeout)
             return
+        except asyncio.TimeoutError as exc:
+            last_error = exc
+            logger.warning(
+                "Arm attempt %d/%d timed out after %.1fs.",
+                attempt,
+                max_attempts,
+                arm_action_timeout,
+            )
+            if attempt >= max_attempts:
+                raise TimeoutError(
+                    f"Arm command timed out after {arm_action_timeout:.1f}s."
+                ) from exc
+            await asyncio.sleep(retry_delay)
         except ActionError as exc:
             last_error = exc
             message = str(exc)

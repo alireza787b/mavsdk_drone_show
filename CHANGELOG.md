@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- QuickScout runtime monitoring now treats MAVSDK mission-progress callbacks as
+  optional hints instead of the sole completion signal, adds bounded upload /
+  start / airborne / post-action timeouts plus a bounded arm-RPC timeout in the
+  shared startup seam, and keeps slot-plus-hardware identity visible in the
+  QuickScout monitor cards so live operator context stays consistent with the
+  wider enrollment / identity doctrine
 - a 2026-04-10 enrollment/identity release-closeout note documenting the
   explicit slot-vs-hardware operator doctrine across Mission Config, Smart
   Swarm, Swarm Trajectory, QuickScout, and Fleet Enrollment, the shared UI

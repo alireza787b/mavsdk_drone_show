@@ -1,11 +1,13 @@
 // src/components/sar/DroneStatusCard.js
 import React from 'react';
+import { formatCompactDroneIdentity } from '../../utilities/missionIdentityUtils';
 
 const DroneStatusCard = ({ droneState, onClick }) => {
   if (!droneState) return null;
 
   const {
     hw_id,
+    pos_id,
     state,
     coverage_percent,
     current_waypoint_index,
@@ -16,7 +18,9 @@ const DroneStatusCard = ({ droneState, onClick }) => {
   return (
     <div className={`qs-drone-card ${state || 'ready'}`} onClick={onClick}>
       <div className="qs-drone-card-header">
-        <span className="qs-drone-card-name">Drone {hw_id}</span>
+        <span className="qs-drone-card-name">
+          {formatCompactDroneIdentity(pos_id, hw_id, `H${hw_id}`)}
+        </span>
         <span className={`qs-state-badge ${state || 'ready'}`}>
           {(state || 'ready').toUpperCase()}
         </span>

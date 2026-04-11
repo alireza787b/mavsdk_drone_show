@@ -324,6 +324,14 @@ class Params:
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900  # Fallback tracker budget until QuickScout duration is estimator-backed
     COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC = 45  # Tracker budget for precision repositioning actions
     COMMAND_TRACKING_CHECK_INTERVAL_SEC = 1.0     # Background cadence for promoting stale commands to terminal timeout state
+    QUICKSCOUT_MISSION_UPLOAD_TIMEOUT_SEC = 45.0  # Max wait for MAVSDK mission upload before aborting QuickScout startup
+    QUICKSCOUT_MISSION_START_TIMEOUT_SEC = 30.0   # Max wait for MAVSDK mission start before aborting QuickScout startup
+    QUICKSCOUT_AIRBORNE_TIMEOUT_SEC = 120.0       # Max wait for climb confirmation after QuickScout mission start
+    QUICKSCOUT_AIRBORNE_MIN_GAIN_M = 2.0          # Required relative-altitude gain used to confirm QuickScout takeoff
+    QUICKSCOUT_POST_ACTION_TIMEOUT_SEC = 240.0    # Max wait for post-mission RTL/LAND completion in QuickScout
+    QUICKSCOUT_PROGRESS_REPORT_INTERVAL_SEC = 2.0 # Canonical cadence for QuickScout runtime status reports to GCS
+    QUICKSCOUT_PROGRESS_STREAM_TIMEOUT_SEC = 0.5  # Per-read timeout when mission-progress callbacks are only hints
+    QUICKSCOUT_FINISHED_CHECK_TIMEOUT_SEC = 5.0   # Timeout for each is_mission_finished probe during QuickScout monitoring
     COMMAND_SYNC_DISPATCH_GUARD_SEC = 1.0         # Extra lead time before synchronized mission trigger-minus-warmup; GCS stops retries after this safe queue window
     COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5           # Per-attempt HTTP timeout for drone -> GCS execution callbacks
     COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2       # Initial backoff for queued execution callback retries
@@ -425,6 +433,7 @@ class Params:
     OFFBOARD_ARM_HEALTH_POLL_SEC = 0.5       # Max wait between MAVSDK health samples during mission startup
     OFFBOARD_ARM_HEALTH_STABLE_SAMPLES = 1   # Consecutive healthy samples required before arming
     OFFBOARD_ARM_MAX_ATTEMPTS = 3            # Bounded arm retries for transient PX4 pre-arm denials
+    OFFBOARD_ARM_ACTION_TIMEOUT_SEC = 15.0   # Timeout for each MAVSDK arm RPC so missions cannot hang forever behind a stuck arm call
     OFFBOARD_ARM_RETRY_DELAY_SEC = 2.0       # Delay between arm retries after COMMAND_DENIED
     OFFBOARD_START_MAX_ATTEMPTS = 3          # Bounded retries when starting offboard mode
     OFFBOARD_START_RETRY_DELAY_SEC = 1.0     # Delay between offboard-start retries

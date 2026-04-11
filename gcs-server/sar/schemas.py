@@ -276,6 +276,7 @@ class QuickScoutFindingUpdate(BaseModel):
 class DroneSurveyState(BaseModel):
     """Per-drone survey progress"""
     hw_id: str = Field(..., description="Hardware ID")
+    pos_id: Optional[int] = Field(None, ge=0, description="Assigned mission slot / position ID")
     state: SurveyState = Field(default=SurveyState.READY, description="Drone survey state")
     current_waypoint_index: int = Field(default=0, ge=0, description="Current waypoint index")
     total_waypoints: int = Field(default=0, ge=0, description="Total waypoints")

@@ -181,6 +181,7 @@ class QuickScoutService:
         for plan in operation.plans:
             states[plan.hw_id] = DroneSurveyState(
                 hw_id=plan.hw_id,
+                pos_id=plan.pos_id,
                 state=SurveyState.READY,
                 total_waypoints=len(plan.waypoints),
                 status_note="Package ready for launch",
