@@ -19,13 +19,6 @@ readonly MAVSDK_BINARY="${MDS_INSTALL_DIR}/mavsdk_server"
 readonly MAVSDK_GITHUB_API="https://api.github.com/repos/mavlink/MAVSDK/releases/latest"
 readonly MAVSDK_FALLBACK_VERSION="v3.15.0"
 
-# Architecture to binary name mapping
-declare -A MAVSDK_ARCH_MAP=(
-    ["arm64"]="mavsdk_server_linux-arm64-musl"
-    ["armhf"]="mavsdk_server_linux-armv7l-musl"
-    ["x86_64"]="mavsdk_server_musl_x86_64"
-)
-
 # =============================================================================
 # VERSION DETECTION
 # =============================================================================
@@ -61,19 +54,35 @@ get_installed_version() {
 # ARCHITECTURE DETECTION
 # =============================================================================
 
+resolve_mavsdk_binary_name() {
+    case "${1:-}" in
+        arm64)
+            printf '%s\n' "mavsdk_server_linux-arm64-musl"
+            ;;
+        armhf)
+            printf '%s\n' "mavsdk_server_linux-armv7l-musl"
+            ;;
+        x86_64)
+            printf '%s\n' "mavsdk_server_musl_x86_64"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 # Get MAVSDK binary name for current architecture
 get_mavsdk_binary_name() {
     local arch
     arch=$(get_architecture)
 
-    local binary_name="${MAVSDK_ARCH_MAP[$arch]:-}"
-
-    if [[ -z "$binary_name" ]]; then
+    local binary_name
+    binary_name=$(resolve_mavsdk_binary_name "$arch") || {
         log_error "Unsupported architecture for MAVSDK: $arch"
         return 1
-    fi
+    }
 
-    echo "$binary_name"
+    printf '%s\n' "$binary_name"
 }
 
 # Construct download URL

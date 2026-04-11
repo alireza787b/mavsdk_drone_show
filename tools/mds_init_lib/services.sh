@@ -19,14 +19,6 @@ readonly SYSTEMD_DIR="/etc/systemd/system"
 readonly SUDOERS_FILE="/etc/sudoers.d/mds-droneshow"
 readonly POLKIT_FILE="/etc/polkit-1/rules.d/50-mds-droneshow.rules"
 
-# Service definitions: name -> source path relative to MDS_INSTALL_DIR
-declare -A MDS_SERVICES=(
-    ["led_indicator.service"]="tools/led_indicator/led_indicator.service"
-    ["wifi-manager.service"]="tools/wifi-manager/wifi-manager.service"
-    ["git_sync_mds.service"]="tools/git_sync_mds/git_sync_mds.service"
-    ["coordinator.service"]="tools/coordinator.service"
-)
-
 # Services in startup order
 readonly SERVICE_ORDER=(
     "led_indicator.service"
@@ -34,6 +26,26 @@ readonly SERVICE_ORDER=(
     "git_sync_mds.service"
     "coordinator.service"
 )
+
+service_source_path() {
+    case "${1:-}" in
+        led_indicator.service)
+            printf '%s\n' "tools/led_indicator/led_indicator.service"
+            ;;
+        wifi-manager.service)
+            printf '%s\n' "tools/wifi-manager/wifi-manager.service"
+            ;;
+        git_sync_mds.service)
+            printf '%s\n' "tools/git_sync_mds/git_sync_mds.service"
+            ;;
+        coordinator.service)
+            printf '%s\n' "tools/coordinator.service"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
 
 # =============================================================================
 # SUDOERS CONFIGURATION
@@ -290,7 +302,8 @@ install_all_services() {
     local failed=0
 
     for service_name in "${SERVICE_ORDER[@]}"; do
-        local source_path="${MDS_SERVICES[$service_name]:-}"
+        local source_path=""
+        source_path=$(service_source_path "$service_name") || source_path=""
 
         if [[ -z "$source_path" ]]; then
             log_warn "Unknown service: ${service_name}"

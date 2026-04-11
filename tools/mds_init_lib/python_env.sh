@@ -80,6 +80,10 @@ install_python_system_deps() {
         "python3-dev"
         "libffi-dev"
         "libssl-dev"
+        "proj-bin"
+        "proj-data"
+        "libproj-dev"
+        "libgeos-dev"
     )
 
     if is_dry_run; then

@@ -9,6 +9,8 @@ COMMON_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "common.sh"
 NETWORK_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "network.sh"
 REPO_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "repo.sh"
 MAVLINK_SETUP_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavlink_setup.sh"
+MAVSDK_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavsdk.sh"
+SERVICES_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "services.sh"
 
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
@@ -125,6 +127,32 @@ def test_mavlink_setup_phase_returns_auto_config_status_in_non_interactive_mode(
         MAVLINK_ENDPOINTS=""
         run_mavlink_setup_phase
         [[ "$?" -eq 7 ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_mavsdk_binary_name_resolution_supports_arm64_without_array_errors():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVSDK_LIB}"
+        get_architecture() {{ echo arm64; }}
+        [[ "$(get_mavsdk_binary_name)" == "mavsdk_server_linux-arm64-musl" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_service_source_path_maps_known_units_without_associative_array_lookup():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{SERVICES_LIB}"
+        [[ "$(service_source_path led_indicator.service)" == "tools/led_indicator/led_indicator.service" ]]
+        [[ "$(service_source_path coordinator.service)" == "tools/coordinator.service" ]]
         """
     )
 
