@@ -60,6 +60,9 @@ The current plan library is split into three classes:
   - fresh-reset single-drone QuickScout area-sweep, last-known-point, and corridor-search acceptance in one reusable plan
 - `px4_params_runtime`
   - refresh live PX4 parameter snapshots, QGC import/diff, verified single-drone write, verified multi-drone batch write, and restore
+- `ulog_runtime`
+  - takeoff/land to create a fresh PX4 ULog, list onboard logs, staged
+    download validation, erase-all validation, and clean fleet reset
 - `mission_regression`
   - Drone Show, Smart Swarm, Swarm Trajectory, QuickScout
 - `operator_regression`

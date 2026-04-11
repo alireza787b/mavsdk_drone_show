@@ -196,6 +196,13 @@ registry = get_registry()
 | `/api/logs/drone/{drone_id}/sessions` | GET | List sessions on a drone (proxied) |
 | `/api/logs/drone/{drone_id}/sessions/{session_id}` | GET | Retrieve drone session content (proxied) |
 | `/api/logs/drone/{drone_id}/stream` | GET (SSE) | Proxy real-time drone log stream |
+| `/api/logs/drone/{drone_id}/ulog/policy` | GET | Onboard ULog maintenance policy and capability summary |
+| `/api/logs/drone/{drone_id}/ulog/files` | GET | List file-backed onboard PX4 ULogs |
+| `/api/logs/drone/{drone_id}/ulog/files/{log_id}/download` | POST | Create a staged browser-download job for one onboard ULog |
+| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | GET | Poll staged onboard-ULog download job state |
+| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}` | DELETE | Drop a staged onboard-ULog download job |
+| `/api/logs/drone/{drone_id}/ulog/downloads/{job_id}/content` | GET | Stream staged onboard-ULog content to the browser |
+| `/api/logs/drone/{drone_id}/ulog/erase-all` | POST | Erase all file-backed onboard PX4 ULogs on the target drone |
 | `/api/logs/frontend` | POST | Receive frontend error reports |
 | `/api/logs/export` | POST | Export sessions as JSONL or ZIP |
 | `/api/logs/config` | POST | Toggle background pull at runtime |
@@ -308,6 +315,33 @@ In Developer mode, click the Export button to:
 - Select one or more sessions
 - Choose JSONL (machine-readable) or ZIP
 - Export the current scope (`GCS` or the selected drone)
+
+### Onboard ULog
+
+When a single drone scope is selected, the toolbar exposes an `Onboard ULog`
+action for file-backed PX4 flight logs stored on that vehicle.
+
+Current v1 behavior:
+- maintenance workflow anchored to `hw_id`, while the UI still shows compact
+  `Pn|Hm` identity for operator clarity
+- supports `list`, staged `download`, and `erase all`
+- stages downloads briefly on the drone/GCS path and then hands them off to
+  the browser; v1 does not keep a long-lived GCS archive
+- designed for file-backed PX4 ULogs only; MAVLink log streaming is a separate
+  future feature
+- single-file delete is intentionally not exposed in the generic v1 contract
+
+Operational notes:
+- the dialog shows policy chips such as `Download requires disarmed` and
+  `Erase requires disarmed`
+- download progress is polled and surfaced as a compact job-status card before
+  the browser transfer starts
+- download filenames are normalized to include slot when known, hardware id,
+  PX4 log timestamp when available, and the PX4/MDS log identifier, for example
+  `mds-ulog_P12_H5_20260411T102233Z_L7.ulg`
+- in SITL or companion deployments where MAVSDK log listing is unavailable but
+  PX4 `.ulg` files are locally accessible, MDS may fall back to the configured
+  local ULog directories instead of failing the entire workflow
 
 ### Error Boundary
 

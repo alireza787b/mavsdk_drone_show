@@ -10,6 +10,18 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 onboard ULog runtime closeout note documenting the new
+  Log Viewer `Onboard ULog` workflow, the drone/GCS API surfaces, the
+  filesystem fallback used when SITL-side MAVSDK log enumeration is not
+  available, the passing live Hetzner `ulog_runtime` validator, and the
+  browser-test handoff expectations for list/download/erase behavior
+- onboard PX4 ULog management v1 across the drone API, GCS log proxy, and
+  dashboard Log Viewer: operators can now list file-backed onboard ULogs for a
+  selected drone, stage a browser download with progress polling, and erase
+  all onboard ULogs while keeping compact `Pn|Hm` identity visible in the UI
+- a reusable `ulog` SITL validator mode plus the checked-in `ulog_runtime`
+  bundled plan and `ulog_only` template, so list/download/erase behavior can
+  be revalidated on fresh containers instead of relying on manual log checks
 - a 2026-04-11 onboard ULog management design brief documenting the current
   MDS log-viewer integration points, the MAVSDK/PX4/MAVLink feasibility audit
   for list/download/erase operations, the file-backed-versus-streaming split
@@ -182,6 +194,15 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `tools/publish_sitl_release_to_mega.sh`, a configurable session-first MEGA publish helper for packaged SITL releases that supports existing-session reuse, session-string login, optional stdin credential fallback, remote artifact replacement, public link export, and machine-readable output for operator or agent workflows
 
 ### Fixed
+- onboard ULog management no longer fails in SITL when MAVSDK log-file
+  enumeration is unavailable or when PX4 ULogs live only on the local
+  companion filesystem: the drone-side service now falls back to configured
+  `.ulg` directories, supports staged downloads from those files, and treats an
+  empty fallback directory after erase as a clean empty catalog instead of a
+  server error
+- the default SITL PX4 parameter override no longer disables the very ULog
+  files that the onboard-log workflow needs to manage; fresh SITL containers
+  now keep PX4 file logging enabled with `SDLOG_MODE=0`
 - the PX4 Parameters workspace no longer depends on MAVSDK’s older float-only
   component-information path for most metadata: drone-side snapshot rows now
   prefer PX4’s generated `parameters.json` catalog when available, which brings

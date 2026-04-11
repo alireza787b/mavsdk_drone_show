@@ -34,6 +34,9 @@ The current reusable validators cover:
   - Smart Swarm cluster start, in-flight reassignment, leader-only Swarm Trajectory override, HOLD supersession, leader Precision Move, and clean restore/land
 - `quickscout`
   - deterministic `last_known_point` plan, targeted launch acceptance, airborne confirmation for targeted drones, non-target idle confirmation when applicable, HOLD, honest `replan_required` resume behavior, abort/end behavior, and clean fleet reset
+- `ulog`
+  - file-backed onboard PX4 ULog list/download/erase validation on a live
+    drone after a short takeoff/land sequence that guarantees a fresh log file
 
 ## Built-In Templates
 
@@ -56,6 +59,8 @@ Current templates:
   - reset plus the Mission Config / swarm / origin validator only
 - `quickscout_only`
   - reset plus the dedicated QuickScout runtime validator only
+- `ulog_only`
+  - reset plus the dedicated onboard-Ulog runtime validator only
 
 ## Bundled Plan Library
 
@@ -89,6 +94,7 @@ Current checked-in stable plans:
 - `smart_swarm_runtime`
 - `swarm_trajectory_short_profile`
 - `quickscout_runtime`
+- `ulog_runtime`
 - `mission_regression`
 - `operator_regression`
 
@@ -297,7 +303,7 @@ python3 tools/run_sitl_validation_suite.py \
 Plan rules:
 
 - each step must be a JSON object
-- validator steps use `"validator": "configuration" | "drone_show" | "actions" | "smart_swarm" | "swarm_trajectory" | "integrated_runtime" | "quickscout"`
+- validator steps use `"validator": "configuration" | "drone_show" | "actions" | "smart_swarm" | "swarm_trajectory" | "integrated_runtime" | "quickscout" | "ulog"`
 - reset steps use `"kind": "reset"`
 - `drone_ids` is optional per step and defaults to the global `--drone-ids`
 - `options` is optional and overrides the corresponding suite CLI defaults for that step only
