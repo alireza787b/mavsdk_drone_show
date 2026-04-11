@@ -16,7 +16,7 @@ _MDS_VERIFY_LOADED=1
 # =============================================================================
 
 # Verification results storage
-declare -A VERIFY_RESULTS=()
+VERIFY_RESULTS_TEXT=""
 declare -a VERIFY_COMPONENTS=(
     "hw_id"
     "real_mode"
@@ -36,13 +36,34 @@ declare -a VERIFY_COMPONENTS=(
 verify_set_result() {
     local key="$1"
     local value="$2"
-    VERIFY_RESULTS["$key"]="$value"
+    local line
+    local updated=""
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        if [[ "${line%%$'\t'*}" != "$key" ]]; then
+            updated+="${line}"$'\n'
+        fi
+    done <<< "${VERIFY_RESULTS_TEXT}"
+
+    updated+="${key}"$'\t'"${value}"$'\n'
+    VERIFY_RESULTS_TEXT="$updated"
 }
 
 verify_get_result() {
     local key="$1"
     local default_value="${2:-SKIP:Not checked}"
-    printf '%s' "${VERIFY_RESULTS["$key"]:-$default_value}"
+    local line
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        if [[ "${line%%$'\t'*}" == "$key" ]]; then
+            printf '%s' "${line#*$'\t'}"
+            return 0
+        fi
+    done <<< "${VERIFY_RESULTS_TEXT}"
+
+    printf '%s' "$default_value"
 }
 
 # Verify hardware ID
