@@ -1,0 +1,10 @@
+{
+  "title": "Onboard ULog Runtime",
+  "description": "Generate a short flight, list onboard PX4 ULogs through GCS, stage and download the newest file, then erase all onboard ULogs and confirm the catalog is empty.",
+  "tags": ["ulog", "logs", "maintenance", "runtime", "destructive"],
+  "steps": [
+    {
+      "validator": "ulog"
+    }
+  ]
+}

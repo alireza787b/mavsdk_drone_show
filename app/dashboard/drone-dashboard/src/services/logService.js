@@ -65,6 +65,53 @@ export const getDroneSessionContent = async (droneId, sessionId, { level, compon
   return resp.data;
 };
 
+/** GET /api/logs/drone/:id/ulog/policy — onboard ULog maintenance policy */
+export const getDroneUlogPolicy = async (droneId) => {
+  const resp = await axios.get(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/policy`));
+  return resp.data;
+};
+
+/** GET /api/logs/drone/:id/ulog/files — onboard PX4 ULog files */
+export const getDroneUlogFiles = async (droneId) => {
+  const resp = await axios.get(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files`));
+  return resp.data;
+};
+
+/** POST /api/logs/drone/:id/ulog/files/:logId/download — create staged download job */
+export const createDroneUlogDownloadJob = async (droneId, logId) => {
+  const resp = await axios.post(
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/download`),
+  );
+  return resp.data;
+};
+
+/** GET /api/logs/drone/:id/ulog/downloads/:jobId — get staged job state */
+export const getDroneUlogDownloadJob = async (droneId, jobId) => {
+  const resp = await axios.get(
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}`),
+  );
+  return resp.data;
+};
+
+/** DELETE /api/logs/drone/:id/ulog/downloads/:jobId — delete staged job */
+export const deleteDroneUlogDownloadJob = async (droneId, jobId) => {
+  const resp = await axios.delete(
+    buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}`),
+  );
+  return resp.data;
+};
+
+/** POST /api/logs/drone/:id/ulog/erase-all — erase all onboard PX4 ULogs */
+export const eraseAllDroneUlogs = async (droneId) => {
+  const resp = await axios.post(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/erase-all`));
+  return resp.data;
+};
+
+/** Build browser download URL for staged onboard ULog content */
+export const buildDroneUlogDownloadURL = (droneId, jobId) => (
+  buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}/content`)
+);
+
 /** POST /api/logs/export — export sessions as JSONL or ZIP */
 export const exportSessions = async (sessionIds, format = 'jsonl', droneId = null) => {
   const endpoint = droneId != null

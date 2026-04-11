@@ -39,6 +39,7 @@ import LogHealthBar from '../components/logs/LogHealthBar';
 import LogTable from '../components/logs/LogTable';
 import LogSourceTree from '../components/logs/LogSourceTree';
 import LogExportDialog from '../components/logs/LogExportDialog';
+import OnboardUlogDialog from '../components/logs/OnboardUlogDialog';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 
 import '../styles/LogViewer.css';
@@ -86,6 +87,7 @@ const LogViewer = () => {
   const [paused, setPaused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showExport, setShowExport] = useState(false);
+  const [showOnboardUlog, setShowOnboardUlog] = useState(false);
   const [scopeDroneId, setScopeDroneId] = useState(null);
   const [severityFocus, setSeverityFocus] = useState(null);
   const [liveWindow, setLiveWindow] = useState('all');
@@ -198,6 +200,7 @@ const LogViewer = () => {
     setTimeStart('');
     setTimeEnd('');
     setShowExport(false);
+    setShowOnboardUlog(false);
   }, [scopeDroneId]);
 
   useEffect(() => {
@@ -435,6 +438,7 @@ const LogViewer = () => {
           await fetchSessions(true);
           setShowExport(true);
         }}
+        onOnboardUlogOpen={() => setShowOnboardUlog(true)}
         onClear={handleClearEntries}
         scopeDroneId={scopeDroneId}
         scopeOptions={fleet}
@@ -504,6 +508,15 @@ const LogViewer = () => {
           droneId={scopeDroneId}
           scopeLabel={scopeLabel}
           onClose={() => setShowExport(false)}
+        />
+      )}
+
+      {showOnboardUlog && scopeDroneId != null && (
+        <OnboardUlogDialog
+          open={showOnboardUlog}
+          droneId={scopeDroneId}
+          scopeLabel={scopeLabel}
+          onClose={() => setShowOnboardUlog(false)}
         />
       )}
     </div>

@@ -44,6 +44,7 @@ MODE_SWARM_TRAJECTORY = "swarm_trajectory"
 MODE_INTEGRATED_RUNTIME = "integrated_runtime"
 MODE_QUICKSCOUT = "quickscout"
 MODE_PX4_PARAMS = "px4_params"
+MODE_ULOG = "ulog"
 VALIDATION_MODES = (
     MODE_CONFIGURATION,
     MODE_DRONE_SHOW,
@@ -53,6 +54,7 @@ VALIDATION_MODES = (
     MODE_INTEGRATED_RUNTIME,
     MODE_QUICKSCOUT,
     MODE_PX4_PARAMS,
+    MODE_ULOG,
 )
 
 TEMPLATE_OPERATOR_REGRESSION = "operator_regression"
@@ -62,6 +64,7 @@ TEMPLATE_CONFIG_ONLY = "config_only"
 TEMPLATE_INTEGRATED_ONLY = "integrated_only"
 TEMPLATE_QUICKSCOUT_ONLY = "quickscout_only"
 TEMPLATE_PX4_PARAMS_ONLY = "px4_params_only"
+TEMPLATE_ULOG_ONLY = "ulog_only"
 
 TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
     TEMPLATE_OPERATOR_REGRESSION: {
@@ -112,6 +115,12 @@ TEMPLATE_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "Reset plus the dedicated PX4 parameter-management runtime validator only.",
         "steps": [
             {"validator": MODE_PX4_PARAMS},
+        ],
+    },
+    TEMPLATE_ULOG_ONLY: {
+        "description": "Reset plus the dedicated onboard PX4 ULog maintenance validator only.",
+        "steps": [
+            {"validator": MODE_ULOG},
         ],
     },
 }
@@ -463,6 +472,32 @@ def build_px4_params_command(
     ]
 
 
+def build_ulog_command(
+    args: argparse.Namespace,
+    json_path: Path,
+    *,
+    drone_ids: tuple[int, ...],
+    options: dict[str, Any],
+) -> list[str]:
+    target_ids = tuple(drone_ids[:1]) if drone_ids else ()
+    return [
+        args.python,
+        "tools/validate_onboard_ulog_runtime.py",
+        "--base-url",
+        args.base_url,
+        "--json-output",
+        str(json_path),
+        "--drone-ids",
+        *[str(drone_id) for drone_id in target_ids],
+        "--takeoff-min-gain",
+        str(option_value(args, options, "ulog_takeoff_min_gain")),
+        "--list-timeout-sec",
+        str(option_value(args, options, "ulog_list_timeout_sec")),
+        "--job-timeout-sec",
+        str(option_value(args, options, "ulog_job_timeout_sec")),
+    ]
+
+
 VALIDATOR_BUILDERS = {
     MODE_CONFIGURATION: build_configuration_command,
     MODE_DRONE_SHOW: build_drone_show_command,
@@ -472,6 +507,7 @@ VALIDATOR_BUILDERS = {
     MODE_INTEGRATED_RUNTIME: build_integrated_runtime_command,
     MODE_QUICKSCOUT: build_quickscout_command,
     MODE_PX4_PARAMS: build_px4_params_command,
+    MODE_ULOG: build_ulog_command,
 }
 
 
@@ -984,6 +1020,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--quickscout-abort-return-behavior", default="return_home", choices=["return_home", "land_current", "hold_position"], help="Mission-end behavior used during the QuickScout abort drill")
     parser.add_argument("--px4-params-param-name", default="MPC_XY_VEL_MAX", help="PX4 parameter name used by the PX4 parameter-management runtime validator")
     parser.add_argument("--px4-params-float-delta", type=float, default=1.0, help="Float delta used when choosing temporary PX4 parameter test values")
+    parser.add_argument("--ulog-takeoff-min-gain", type=float, default=4.0, help="Minimum observed altitude gain required before the onboard ULog validator proceeds to landing")
+    parser.add_argument("--ulog-list-timeout-sec", type=int, default=60, help="Timeout for onboard ULog listing after the validation flight")
+    parser.add_argument("--ulog-job-timeout-sec", type=int, default=120, help="Timeout for staged onboard ULog download job completion")
     parser.add_argument("--artifact-dir", type=Path, default=None, help="Directory for suite logs and per-step JSON reports")
     parser.add_argument("--dry-run", action="store_true", help="Print the suite plan without executing it")
     args = parser.parse_args()

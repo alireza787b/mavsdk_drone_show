@@ -332,6 +332,11 @@ class Params:
     QUICKSCOUT_PROGRESS_REPORT_INTERVAL_SEC = 2.0 # Canonical cadence for QuickScout runtime status reports to GCS
     QUICKSCOUT_PROGRESS_STREAM_TIMEOUT_SEC = 0.5  # Per-read timeout when mission-progress callbacks are only hints
     QUICKSCOUT_FINISHED_CHECK_TIMEOUT_SEC = 5.0   # Timeout for each is_mission_finished probe during QuickScout monitoring
+    ULOG_DOWNLOAD_REQUIRE_DISARMED = True         # Onboard ULog retrieval should default to post-flight/disarmed operation
+    ULOG_ERASE_REQUIRE_DISARMED = True            # Onboard ULog erase-all must stay a disarmed maintenance action
+    ULOG_DOWNLOAD_JOB_TTL_SEC = 1800.0            # Staged node-local ULog downloads expire automatically after 30 minutes
+    ULOG_DOWNLOAD_MAX_JOBS = 8                    # Maximum retained staged ULog jobs per drone runtime
+    ULOG_DOWNLOAD_STAGE_DIR = os.environ.get("MDS_ULOG_DOWNLOAD_STAGE_DIR", "runtime_data/ulog_downloads")
     COMMAND_SYNC_DISPATCH_GUARD_SEC = 1.0         # Extra lead time before synchronized mission trigger-minus-warmup; GCS stops retries after this safe queue window
     COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5           # Per-attempt HTTP timeout for drone -> GCS execution callbacks
     COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2       # Initial backoff for queued execution callback retries

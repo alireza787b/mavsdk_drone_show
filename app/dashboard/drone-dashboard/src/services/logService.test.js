@@ -1,8 +1,14 @@
 // src/services/logService.test.js
 import axios from 'axios';
 import {
+  buildDroneUlogDownloadURL,
   buildStreamURL,
+  createDroneUlogDownloadJob,
+  eraseAllDroneUlogs,
   getConfiguredDrones,
+  getDroneUlogFiles,
+  getDroneUlogPolicy,
+  getDroneUlogDownloadJob,
   getDroneSessions,
   getHeartbeats,
 } from './logService';
@@ -74,5 +80,55 @@ describe('logService', () => {
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/sessions');
     expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/sessions');
+  });
+
+  test('builds onboard ULog browser download URL', () => {
+    const url = buildDroneUlogDownloadURL('leader/1', 'job:7');
+
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/downloads/job%3A7/content');
+    expect(url).toBe('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/downloads/job%3A7/content');
+  });
+
+  test('requests drone onboard ULog policy through the GCS log proxy', async () => {
+    axios.get.mockResolvedValue({ data: { policy: { supported: true } } });
+
+    const result = await getDroneUlogPolicy('leader/1');
+
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/policy');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/policy');
+    expect(result.policy.supported).toBe(true);
+  });
+
+  test('requests drone onboard ULog files through the GCS log proxy', async () => {
+    axios.get.mockResolvedValue({ data: { files: [] } });
+
+    const result = await getDroneUlogFiles('leader/1');
+
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/files');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/files');
+    expect(result.files).toEqual([]);
+  });
+
+  test('creates and polls onboard ULog download jobs', async () => {
+    axios.post.mockResolvedValue({ data: { job: { job_id: 'job-1' } } });
+    axios.get.mockResolvedValue({ data: { job: { job_id: 'job-1', status: 'ready' } } });
+
+    const created = await createDroneUlogDownloadJob('leader/1', 12);
+    const status = await getDroneUlogDownloadJob('leader/1', 'job-1');
+
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/files/12/download');
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/downloads/job-1');
+    expect(created.job.job_id).toBe('job-1');
+    expect(status.job.status).toBe('ready');
+  });
+
+  test('sends onboard ULog erase-all through the GCS log proxy', async () => {
+    axios.post.mockResolvedValue({ data: { status: 'accepted' } });
+
+    const result = await eraseAllDroneUlogs('leader/1');
+
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/erase-all');
+    expect(axios.post).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/erase-all');
+    expect(result.status).toBe('accepted');
   });
 });

@@ -28,6 +28,11 @@ from mds_logging.api_schemas import (
     LogSessionsResponse,
     LogSourcesResponse,
     LogStatusResponse,
+    OnboardUlogDownloadJobResponse,
+    OnboardUlogEraseAllResponse,
+    OnboardUlogJobDeleteResponse,
+    OnboardUlogListResponse,
+    OnboardUlogPolicyResponse,
 )
 from mds_logging.registry import get_registry
 from mds_logging.session import get_session_filepath, list_sessions, read_session_lines
@@ -269,6 +274,178 @@ def create_log_router(
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @router.get("/drone/{drone_id}/ulog/policy", response_model=OnboardUlogPolicyResponse)
+    async def get_drone_ulog_policy(drone_id: int):
+        """Return the onboard ULog maintenance policy for a specific drone."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            fetch_drone_ulog_policy,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await fetch_drone_ulog_policy(ip)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.get("/drone/{drone_id}/ulog/files", response_model=OnboardUlogListResponse)
+    async def list_drone_ulog_files(drone_id: int):
+        """List onboard PX4 ULog files for a specific drone."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            fetch_drone_ulog_files,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await fetch_drone_ulog_files(ip)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.post(
+        "/drone/{drone_id}/ulog/files/{log_id}/download",
+        response_model=OnboardUlogDownloadJobResponse,
+    )
+    async def create_drone_ulog_download_job_route(drone_id: int, log_id: int):
+        """Start a staged onboard ULog download job on a specific drone."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            create_drone_ulog_download_job as create_job,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await create_job(ip, log_id)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.get(
+        "/drone/{drone_id}/ulog/downloads/{job_id}",
+        response_model=OnboardUlogDownloadJobResponse,
+    )
+    async def get_drone_ulog_download_job(drone_id: int, job_id: str):
+        """Fetch status for a staged onboard ULog download job."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            fetch_drone_ulog_download_job,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await fetch_drone_ulog_download_job(ip, job_id)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.delete(
+        "/drone/{drone_id}/ulog/downloads/{job_id}",
+        response_model=OnboardUlogJobDeleteResponse,
+    )
+    async def delete_drone_ulog_download_job_route(drone_id: int, job_id: str):
+        """Delete a staged onboard ULog download job and staged file."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            delete_drone_ulog_download_job as delete_job,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await delete_job(ip, job_id)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    @router.get("/drone/{drone_id}/ulog/downloads/{job_id}/content")
+    async def download_drone_ulog_content(drone_id: int, job_id: str):
+        """Proxy staged onboard ULog file bytes from drone to browser."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            open_drone_ulog_download_stream,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+
+        try:
+            client, upstream = await open_drone_ulog_download_stream(ip, job_id)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+        async def iter_content():
+            try:
+                async for chunk in upstream.aiter_bytes():
+                    yield chunk
+            finally:
+                await upstream.aclose()
+                await client.aclose()
+
+        response_headers = {}
+        content_disposition = upstream.headers.get("content-disposition")
+        if content_disposition:
+            response_headers["Content-Disposition"] = content_disposition
+        content_length = upstream.headers.get("content-length")
+        if content_length:
+            response_headers["Content-Length"] = content_length
+
+        return StreamingResponse(
+            iter_content(),
+            media_type=upstream.headers.get("content-type", "application/octet-stream"),
+            headers=response_headers,
+        )
+
+    @router.post("/drone/{drone_id}/ulog/erase-all", response_model=OnboardUlogEraseAllResponse)
+    async def erase_all_drone_ulogs_route(drone_id: int):
+        """Erase all onboard PX4 ULogs on a specific drone."""
+        from log_proxy import (
+            DroneProxyResponseError,
+            DroneProxyUnavailableError,
+            erase_all_drone_ulogs as erase_all,
+            resolve_drone_ip,
+        )
+
+        ip = resolve_drone_ip(drone_id)
+        if ip is None:
+            raise HTTPException(status_code=404, detail=f"Drone {drone_id} not found in config")
+        try:
+            return await erase_all(ip)
+        except DroneProxyUnavailableError as exc:
+            raise HTTPException(status_code=502, detail=f"Drone {drone_id} unreachable: {exc}") from exc
+        except DroneProxyResponseError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
     # --- Runtime config toggle ---
 

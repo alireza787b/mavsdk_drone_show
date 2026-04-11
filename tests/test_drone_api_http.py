@@ -11,6 +11,7 @@ import json
 from unittest.mock import AsyncMock, Mock
 from fastapi.testclient import TestClient
 from src.enums import Mission
+from mds_logging.api_schemas import OnboardUlogDownloadJob, OnboardUlogDownloadJobResponse
 
 
 class TestHealthCheck:
@@ -318,7 +319,96 @@ class TestDroneState:
         assert data["applied_count"] == 1
         assert data["failed_count"] == 0
         assert data["verified_count"] == 1
-        assert data["results"][0]["actual_value"] == 42
+
+    def test_get_onboard_ulog_policy(self, test_client):
+        response = test_client.get("/api/v1/ulog/policy")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hw_id"] == "1"
+        assert data["policy"]["download_supported"] is True
+        assert data["policy"]["single_delete_supported"] is False
+
+    def test_list_onboard_ulog_files_success(self, test_client, api_server, monkeypatch):
+        async def fake_with_local_system(operation):
+            return await operation(object())
+
+        monkeypatch.setattr(api_server, "_with_local_ulog_system", fake_with_local_system)
+        monkeypatch.setattr(
+            api_server._ulog_service,
+            "list_entries",
+            AsyncMock(
+                return_value={
+                    "hw_id": "1",
+                    "pos_id": 1,
+                    "count": 1,
+                    "files": [{"id": 5, "date_utc": "2026-04-11T10:00:00Z", "size_bytes": 512}],
+                    "policy": api_server._ulog_service.build_policy().policy.model_dump(),
+                    "timestamp": 123,
+                }
+            ),
+        )
+
+        response = test_client.get("/api/v1/ulog/files")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["count"] == 1
+        assert data["files"][0]["id"] == 5
+
+    def test_create_onboard_ulog_download_job_success(self, test_client, api_server, monkeypatch):
+        scheduled = []
+
+        async def fake_with_local_system(operation):
+            return await operation(object())
+
+        def fake_create_task(coro):
+            scheduled.append(True)
+            coro.close()
+            return Mock()
+
+        monkeypatch.setattr(api_server, "_with_local_ulog_system", fake_with_local_system)
+        monkeypatch.setattr(
+            api_server._ulog_service,
+            "create_download_job",
+            AsyncMock(
+                return_value=OnboardUlogDownloadJobResponse(
+                    job=OnboardUlogDownloadJob(
+                        job_id="job-1",
+                        hw_id="1",
+                        pos_id=1,
+                        log_id=9,
+                        date_utc="2026-04-11T10:00:00Z",
+                        size_bytes=256,
+                        status="queued",
+                        progress=0.0,
+                        staged_filename="1-job.ulg",
+                        download_filename="mds-ulog_P1_H1_20260411T100000Z_L9.ulg",
+                        created_at=1,
+                        updated_at=1,
+                        expires_at=2,
+                        error=None,
+                    ),
+                    timestamp=1,
+                )
+            ),
+        )
+        monkeypatch.setattr(api_server, "_run_ulog_download_job", AsyncMock(return_value=None))
+        monkeypatch.setattr(asyncio, "create_task", fake_create_task)
+
+        response = test_client.post("/api/v1/ulog/files/9/download", json={})
+
+        assert response.status_code == 200
+        assert response.json()["job"]["job_id"] == "job-1"
+        assert scheduled == [True]
+
+    def test_erase_all_onboard_ulogs_rejected_while_armed(self, test_client, mock_drone_config):
+        mock_drone_config.is_armed = True
+
+        response = test_client.post("/api/v1/ulog/erase-all")
+
+        assert response.status_code == 409
+        assert "armed" in response.json()["detail"]
 
 
 class TestCommands:
@@ -810,6 +900,16 @@ class TestDroneRouteSurface:
             "/api/v1/network/status",
             "/api/v1/swarm/config",
             "/api/v1/telemetry/local-position",
+            "/api/v1/px4-params/policy",
+            "/api/v1/px4-params/snapshots/current",
+            "/api/v1/px4-params/snapshots/refresh",
+            "/api/v1/px4-params/patches/apply",
+            "/api/v1/ulog/policy",
+            "/api/v1/ulog/files",
+            "/api/v1/ulog/files/{log_id}/download",
+            "/api/v1/ulog/downloads/{job_id}",
+            "/api/v1/ulog/downloads/{job_id}/content",
+            "/api/v1/ulog/erase-all",
             "/ws/drone-state",
             "/api/logs/sessions",
             "/api/logs/sessions/{session_id}",

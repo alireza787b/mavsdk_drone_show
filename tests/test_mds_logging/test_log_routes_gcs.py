@@ -250,3 +250,133 @@ class TestExport:
         assert "application/zip" in resp.headers["content-type"]
         zf = zipfile.ZipFile(io.BytesIO(resp.content))
         assert sorted(zf.namelist()) == ["s_20260319_100000.jsonl", "s_20260319_110000.jsonl"]
+
+
+class TestDroneOnboardUlogProxy:
+    def test_get_drone_ulog_policy(self, tmp_path, monkeypatch):
+        import log_proxy
+
+        app = _make_gcs_app(str(tmp_path))
+        client = TestClient(app)
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_fetch(_drone_ip):
+            return {
+                "hw_id": "5",
+                "pos_id": 2,
+                "policy": {
+                    "supported": True,
+                    "transport": "mavsdk_log_files",
+                    "storage_mode": "file_backed",
+                    "list_supported": True,
+                    "download_supported": True,
+                    "erase_all_supported": True,
+                    "single_delete_supported": False,
+                    "download_requires_disarmed": True,
+                    "erase_requires_disarmed": True,
+                    "staged_download_ttl_sec": 900,
+                    "notes": [],
+                },
+                "timestamp": 123,
+            }
+
+        monkeypatch.setattr(log_proxy, "fetch_drone_ulog_policy", fake_fetch)
+
+        resp = client.get("/api/logs/drone/5/ulog/policy")
+
+        assert resp.status_code == 200
+        assert resp.json()["policy"]["storage_mode"] == "file_backed"
+
+    def test_create_drone_ulog_download_job(self, tmp_path, monkeypatch):
+        import log_proxy
+
+        app = _make_gcs_app(str(tmp_path))
+        client = TestClient(app)
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_create(_drone_ip, log_id):
+            assert log_id == 12
+            return {
+                "job": {
+                    "job_id": "job-12",
+                    "hw_id": "5",
+                    "pos_id": 2,
+                    "log_id": 12,
+                    "date_utc": "2026-04-11T11:00:00Z",
+                    "size_bytes": 1024,
+                    "status": "queued",
+                    "progress": 0.0,
+                    "staged_filename": "5-job.ulg",
+                    "download_filename": "mds-ulog_P2_H5_20260411T110000Z_L12.ulg",
+                    "created_at": 1,
+                    "updated_at": 1,
+                    "expires_at": 2,
+                    "error": None,
+                },
+                "timestamp": 1,
+            }
+
+        monkeypatch.setattr(log_proxy, "create_drone_ulog_download_job", fake_create)
+
+        resp = client.post("/api/logs/drone/5/ulog/files/12/download")
+
+        assert resp.status_code == 200
+        assert resp.json()["job"]["job_id"] == "job-12"
+
+    def test_download_drone_ulog_content_stream(self, tmp_path, monkeypatch):
+        import log_proxy
+
+        class FakeAsyncClient:
+            async def aclose(self):
+                return None
+
+        class FakeAsyncResponse:
+            status_code = 200
+            headers = {
+                "content-type": "application/octet-stream",
+                "content-disposition": "attachment; filename=mds-ulog_P2_H5.ulg",
+                "content-length": "4",
+            }
+
+            async def aiter_bytes(self):
+                yield b"ulog"
+
+            async def aclose(self):
+                return None
+
+        app = _make_gcs_app(str(tmp_path))
+        client = TestClient(app)
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_open(_drone_ip, job_id):
+            assert job_id == "job-1"
+            return FakeAsyncClient(), FakeAsyncResponse()
+
+        monkeypatch.setattr(log_proxy, "open_drone_ulog_download_stream", fake_open)
+
+        resp = client.get("/api/logs/drone/5/ulog/downloads/job-1/content")
+
+        assert resp.status_code == 200
+        assert resp.content == b"ulog"
+        assert "attachment;" in resp.headers["content-disposition"]
+
+    def test_erase_all_drone_ulogs_maps_unavailable_to_502(self, tmp_path, monkeypatch):
+        import log_proxy
+
+        app = _make_gcs_app(str(tmp_path))
+        client = TestClient(app)
+
+        monkeypatch.setattr(log_proxy, "resolve_drone_ip", lambda drone_id: "10.0.0.5")
+
+        async def fake_erase(_drone_ip):
+            raise log_proxy.DroneProxyUnavailableError("timeout")
+
+        monkeypatch.setattr(log_proxy, "erase_all_drone_ulogs", fake_erase)
+
+        resp = client.post("/api/logs/drone/5/ulog/erase-all")
+
+        assert resp.status_code == 502
+        assert "unreachable" in resp.json()["detail"]

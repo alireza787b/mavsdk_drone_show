@@ -20,6 +20,7 @@ const LogViewerToolbar = ({
   onSessionSelect,
   sessionsLoading,
   onExportOpen,
+  onOnboardUlogOpen,
   onClear,
   scopeDroneId,
   scopeOptions,
@@ -173,6 +174,13 @@ const LogViewerToolbar = ({
       {!selectedSession && (
         <button type="button" onClick={onClear} title="Clear live buffer">
           <FaTrash size={12} />
+        </button>
+      )}
+
+      {/* Export (Developer mode only) */}
+      {scopeDroneId != null && (
+        <button type="button" onClick={onOnboardUlogOpen} title={`Manage onboard PX4 ULogs for ${liveLabel}`}>
+          <FaDownload size={12} /> Onboard ULog
         </button>
       )}
 

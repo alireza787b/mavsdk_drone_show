@@ -20,6 +20,7 @@ describe('LogViewerToolbar', () => {
     onSessionSelect: jest.fn(),
     sessionsLoading: false,
     onExportOpen: jest.fn(),
+    onOnboardUlogOpen: jest.fn(),
     onClear: jest.fn(),
     scopeDroneId: null,
     scopeOptions: [{ hw_id: 5, pos_id: 12, label: 'P12|H5' }],
@@ -74,5 +75,21 @@ describe('LogViewerToolbar', () => {
   test('hides live buffer clear button for historical sessions', () => {
     render(<LogViewerToolbar {...defaultProps} selectedSession="s_20260320_072832" />);
     expect(screen.queryByTitle('Clear live buffer')).not.toBeInTheDocument();
+  });
+
+  test('shows onboard ULog button only when a drone scope is selected', () => {
+    const { rerender } = render(<LogViewerToolbar {...defaultProps} />);
+    expect(screen.queryByText('Onboard ULog')).not.toBeInTheDocument();
+
+    rerender(<LogViewerToolbar {...defaultProps} scopeDroneId={5} />);
+    expect(screen.getByText('Onboard ULog')).toBeInTheDocument();
+  });
+
+  test('clicking onboard ULog button calls the handler', () => {
+    render(<LogViewerToolbar {...defaultProps} scopeDroneId={5} />);
+
+    fireEvent.click(screen.getByText('Onboard ULog'));
+
+    expect(defaultProps.onOnboardUlogOpen).toHaveBeenCalled();
   });
 });
