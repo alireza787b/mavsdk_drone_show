@@ -10,6 +10,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 hardware-demo confirmation brief locking the final decisions
+  that bootstrap should not auto-edit `src/params.py`, that node runtime still
+  standardizes on the `droneshow` user while GCS remains user-flexible, that
+  Hetzner and the reachable Holybro companion are both now verified on
+  NetBird, and that the remaining implementation work should focus on wrapper
+  auth ordering, NetBird reuse, post-enrollment sync, and stale config/docs
+  cleanup before any private customer demo fork
 - a 2026-04-11 hardware-demo final review note consolidating the final
   operator-facing bootstrap philosophy, the answer that customer operators
   should not edit `src/params.py` for repo selection, the provider-neutral
