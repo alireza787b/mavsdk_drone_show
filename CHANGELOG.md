@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- a 2026-04-11 onboard ULog management design brief documenting the current
+  MDS log-viewer integration points, the MAVSDK/PX4/MAVLink feasibility audit
+  for list/download/erase operations, the file-backed-versus-streaming split
+  for SITL and real hardware, and the recommended phased implementation plan
 - QuickScout runtime monitoring now treats MAVSDK mission-progress callbacks as
   optional hints instead of the sole completion signal, adds bounded upload /
   start / airborne / post-action timeouts plus a bounded arm-RPC timeout in the
