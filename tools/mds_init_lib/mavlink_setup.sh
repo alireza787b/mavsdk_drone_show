@@ -718,6 +718,13 @@ run_mavlink_auto_config() {
 
     log_step "Starting auto-configuration..."
 
+    if is_raspberry_pi; then
+        if check_serial_console_enabled || ! check_uart_enabled; then
+            log_info "Applying Raspberry Pi UART boot configuration fixes"
+            auto_fix_uart_config || return 1
+        fi
+    fi
+
     # Step 1: Check/install mavlink-router
     if ! check_mavlink_router_installed; then
         log_info "mavlink-router not installed, installing..."

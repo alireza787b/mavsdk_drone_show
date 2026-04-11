@@ -134,6 +134,31 @@ def test_mavlink_setup_phase_returns_auto_config_status_in_non_interactive_mode(
     assert result.returncode == 0, result.stderr
 
 
+def test_mavlink_auto_config_applies_serial_fix_on_raspberry_pi():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{MAVLINK_SETUP_LIB}"
+        log_step() {{ :; }}
+        log_info() {{ echo "$1"; }}
+        log_success() {{ :; }}
+        is_raspberry_pi() {{ return 0; }}
+        check_serial_console_enabled() {{ return 0; }}
+        check_uart_enabled() {{ return 1; }}
+        auto_fix_uart_config() {{ echo "serial-fix"; return 0; }}
+        check_mavlink_router_installed() {{ return 0; }}
+        detect_uart_device() {{ echo "/dev/ttyS0"; }}
+        run_mavlink_configure_headless() {{ return 0; }}
+        verify_mavlink_service() {{ return 0; }}
+        GCS_IP="100.82.107.61"
+        run_mavlink_auto_config >/tmp/mavlink_auto_fix_output.txt
+        grep -q "serial-fix" /tmp/mavlink_auto_fix_output.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_mavsdk_binary_name_resolution_supports_arm64_without_array_errors():
     result = run_bash(
         f"""

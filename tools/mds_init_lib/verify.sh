@@ -69,6 +69,11 @@ verify_get_result() {
     printf '%s' "$default_value"
 }
 
+verify_run_git_query() {
+    git -c safe.directory="${MDS_INSTALL_DIR}" -C "${MDS_INSTALL_DIR}" "$@" 2>/dev/null || \
+        sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" "$@" 2>/dev/null || true
+}
+
 # Verify hardware ID
 verify_hw_id() {
     local drone_id="${DRONE_ID:-}"
@@ -100,14 +105,16 @@ verify_real_mode() {
 
 # Verify repository
 verify_repository() {
-    if ! git -C "${MDS_INSTALL_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if [[ "$(verify_run_git_query rev-parse --is-inside-work-tree)" != "true" ]]; then
         verify_set_result "repository" "FAIL:Not a git repository"
         return 1
     fi
 
     local branch commit
-    branch=$(cd "${MDS_INSTALL_DIR}" && git branch --show-current 2>/dev/null || echo "unknown")
-    commit=$(cd "${MDS_INSTALL_DIR}" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    branch="$(verify_run_git_query branch --show-current)"
+    commit="$(verify_run_git_query rev-parse --short HEAD)"
+    [[ -z "$branch" ]] && branch="unknown"
+    [[ -z "$commit" ]] && commit="unknown"
 
     verify_set_result "repository" "PASS:${branch}@${commit}"
     return 0
