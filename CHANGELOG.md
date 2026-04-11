@@ -16,6 +16,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   shared startup seam, and keeps slot-plus-hardware identity visible in the
   QuickScout monitor cards so live operator context stays consistent with the
   wider enrollment / identity doctrine
+- a 2026-04-11 QuickScout runtime acceptance closeout note documenting the
+  hardened runtime-monitoring path, the refreshed clean-sync Hetzner validator
+  flow, the passing focused backend/frontend validation batches, and the green
+  all-mode `operator_regression` SITL acceptance suite on `ff519535`
 - a 2026-04-10 enrollment/identity release-closeout note documenting the
   explicit slot-vs-hardware operator doctrine across Mission Config, Smart
   Swarm, Swarm Trajectory, QuickScout, and Fleet Enrollment, the shared UI
