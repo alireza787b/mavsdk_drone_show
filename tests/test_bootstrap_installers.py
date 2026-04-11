@@ -45,6 +45,28 @@ def test_gcs_bootstrap_wrapper_can_be_sourced_and_resolves_repo_urls():
     assert result.returncode == 0, result.stderr
 
 
+def test_node_bootstrap_wrapper_supports_piped_help_execution():
+    result = run_bash(
+        f"""
+        cat "{NODE_INSTALLER}" | bash -s -- --help >/tmp/node_wrapper_help.txt
+        grep -q "Companion Node Bootstrap Installer" /tmp/node_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_bootstrap_wrapper_supports_piped_help_execution():
+    result = run_bash(
+        f"""
+        cat "{GCS_INSTALLER}" | bash -s -- --help >/tmp/gcs_wrapper_help.txt
+        grep -q "MDS GCS Bootstrap Installer" /tmp/gcs_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_netbird_detail_parsers_extract_primary_identity_fields():
     result = run_bash(
         f"""
