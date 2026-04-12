@@ -94,7 +94,7 @@ Resolution:
 ## Live Hetzner Result
 
 Validated private customer runtime:
-- repo: `Catch-A-Drone/mavsdk_drone_show`
+- repo: private customer repo
 - branch: `main-candidate`
 - live commit: `2f935c19`
 - backend health: `ok`
@@ -108,9 +108,8 @@ Current live URLs:
 ## Hardware Validation Status
 
 The remaining external blocker is not in MDS:
-- Hetzner NetBird is connected
-- the Holybro CM4 peer `px4-cm4-01.netbird.cloud` / `100.82.72.33` is present
-  in the mesh but currently `Idle`
+- the Hetzner overlay peer is connected
+- the hardware-node overlay peer is present in the mesh but currently `Idle`
 - SSH from Hetzner to the node returns `No route to host`
 
 Because of that, node-side real-hardware bootstrap validation cannot be
@@ -124,12 +123,12 @@ Ready now:
 - customer-private GCS runtime on Hetzner
 
 Not yet closed:
-- live hardware node bootstrap and enrollment on the Holybro CM4
+- live hardware node bootstrap and enrollment on the real companion node
 - customer SITL image build / packaging / MEGA publication
 
 ## Recommended Next Step
 
-When the Holybro node is reachable again:
+When the hardware node is reachable again:
 1. run the official node bootstrap against the private repo
 2. verify candidate announce / Fleet Enrollment
 3. confirm the node appears on the live customer dashboard

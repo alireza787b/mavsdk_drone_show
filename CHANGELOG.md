@@ -11,11 +11,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ### Added
 - refreshed the public official SITL archive publication and download
-  instruction link, and published the matching private Catch-A-Drone SITL
-  archive to its dedicated MEGA target after validating the customer 3-drone
-  Hetzner SITL gate on the private image
+  instruction link, and published the matching private customer SITL archive
+  to a dedicated MEGA target after validating the customer 3-drone Hetzner
+  SITL gate on the private image
 - documented private Git token expiry recovery in the custom-repo and custom
-  SITL release guides after validating the Catch-A-Drone private image-build
+  SITL release guides after validating the private customer image-build
   path on Hetzner
 - private GitHub bootstrap/runtime auth is now first-class for customer-style
   GCS and node workflows when deploy keys are unavailable:
@@ -33,23 +33,24 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   where the rest of MDS expects it, and prints canonical
   `/api/v1/system/health` examples instead of stale `/health` guidance
 - a 2026-04-12 private customer bootstrap/runtime validation note documenting
-  the deploy-key-disabled Catch-A-Drone validation path, the live Hetzner
+  the deploy-key-disabled private-customer validation path, the live Hetzner
   private-repo bootstrap and runtime verification, the discovered GitHub
   temporary-clone-token expiration behavior, and the remaining external
-  blocker that the Holybro CM4 node is currently idle/unreachable on NetBird
+  blocker that the field hardware node is currently idle/unreachable on the
+  overlay network
 - a 2026-04-11 official bootstrap hardware closeout note documenting the final
-  official wrapper and existing-node bootstrap behavior on real Holybro CM4
-  hardware, the validated NetBird -> Hetzner GCS candidate announce flow, the
+  official wrapper and existing-node bootstrap behavior on real ARM companion
+  hardware, the validated overlay -> Hetzner GCS candidate announce flow, the
   cleaned node identity/local-env generation, the shell-hardening fixes across
   verification/NTP/MAVSDK bootstrap paths, and the remaining non-blocking
   follow-up work before moving entirely into the private client fork rollout
 - a 2026-04-11 hardware-demo confirmation brief locking the final decisions
   that bootstrap should not auto-edit `src/params.py`, that node runtime still
   standardizes on the `droneshow` user while GCS remains user-flexible, that
-  Hetzner and the reachable Holybro companion are both now verified on
-  NetBird, and that the remaining implementation work should focus on wrapper
-  auth ordering, NetBird reuse, post-enrollment sync, and stale config/docs
-  cleanup before any private customer demo fork
+  the Hetzner GCS and reachable hardware companion are both now verified on
+  the overlay network, and that the remaining implementation work should focus
+  on wrapper auth ordering, overlay-peer reuse, post-enrollment sync, and
+  stale config/docs cleanup before any private customer demo fork
 - a 2026-04-11 hardware-demo final review note consolidating the final
   operator-facing bootstrap philosophy, the answer that customer operators
   should not edit `src/params.py` for repo selection, the provider-neutral

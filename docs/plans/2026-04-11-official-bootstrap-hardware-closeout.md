@@ -16,14 +16,14 @@ Validated surfaces:
 - NetBird reuse and candidate announce flow
 - node identity / local env generation
 - GCS candidate enrollment metadata
-- real Raspberry Pi CM4 + Holybro PX4 hardware path over NetBird to Hetzner GCS
+- real ARM companion + PX4 hardware path over the overlay network to Hetzner GCS
 
 ## Real Hardware Validation
 
 Validated against:
 
-- GCS host: Hetzner `100.82.107.61`
-- companion node: Holybro CM4 `100.82.72.33`
+- GCS host: Hetzner overlay-connected runtime
+- companion node: overlay-connected ARM companion
 - runtime user: `droneshow`
 - hardware ID: `101`
 
@@ -37,7 +37,7 @@ Final live result on `e74b448d`:
   - `branch=main-candidate`
   - `commit=e74b448d`
   - `network_mode=netbird`
-  - `primary_control_ip=100.82.72.33`
+  - `primary_control_ip` from the active overlay peer
 - `/etc/mds/local.env` was regenerated cleanly with:
   - `MDS_HW_ID`
   - `MDS_GCS_IP`

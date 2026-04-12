@@ -12,23 +12,18 @@ Hetzner is now on NetBird and healthy from this host.
 
 Verified:
 
-- hostname: `ubuntu-8gb-hel1-1`
-- NetBird FQDN: `ubuntu-8gb-hel1-1.netbird.cloud`
-- NetBird IP: `100.82.107.61`
-- management: connected
-- overlay peer visibility to the CM4: working
+- overlay-connected GCS host: connected
+- overlay peer visibility to the hardware node: working
 
-### Holybro Companion Node
+### Companion Node
 
 The reachable hardware companion is also confirmed live over NetBird from this host.
 
 Verified:
 
-- hostname: `px4-cm4-01`
-- FQDN: `px4-cm4-01.netbird.cloud`
-- NetBird IP: `100.82.72.33`
-- SSH via current admin user works from this host
-- OS: Debian 13 on aarch64
+- overlay-connected hardware node: reachable
+- SSH via the current admin user works from this host
+- OS: Debian-class ARM Linux
 
 So the network path required for the next real-hardware phase is ready.
 
@@ -88,7 +83,7 @@ So the correct current answer is:
 - the **login/admin user on the device does not need to be `droneshow`**
 - but the **MDS runtime user on the device should still be `droneshow`** today
 
-That means the Holybro CM4 being reachable as `arnaud-paris` is fine. The official bootstrap can still create and use `droneshow` as the MDS runtime/service user.
+That means the hardware node being reachable under an arbitrary existing admin username is fine. The official bootstrap can still create and use `droneshow` as the MDS runtime/service user.
 
 ### 4. Should we make hardware runtime user fully configurable now?
 
@@ -183,7 +178,7 @@ For this phase:
 7. unify operator guidance into one hardware onboarding playbook
 8. run official real-hardware validation on:
    - fresh Hetzner GCS path
-   - reachable Holybro companion
+   - reachable hardware companion
    - candidate announce
    - accept / replace / recover
    - node sync after enrollment
@@ -196,7 +191,7 @@ If you confirm this brief, the next implementation phase should be:
 2. NetBird reuse/rebind handling
 3. post-enrollment node-sync workflow
 4. stale docs / `params.py` cleanup
-5. revalidation on Hetzner + Holybro real hardware
+5. revalidation on Hetzner + real hardware
 
 Only after that should we create and exercise the customer-specific private repo/demo workflow.
 

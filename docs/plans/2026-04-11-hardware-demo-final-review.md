@@ -245,6 +245,6 @@ After those are fixed, the official repo will be in the right shape to:
 
 - create the private customer repo
 - bootstrap customer GCS on Hetzner
-- bootstrap the reachable Holybro companion computer
+- bootstrap the reachable hardware companion computer
 - validate candidate enrollment and replacement on real hardware
 - then proceed into customer-specific customization and demo validation

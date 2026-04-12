@@ -238,13 +238,13 @@ def test_netbird_detail_parsers_extract_primary_identity_fields():
         get_netbird_detail_output() {{
             cat <<'EOF'
 Management: Connected to https://api.netbird.io:443
-FQDN: px4-cm4-01.netbird.cloud
-NetBird IP: 100.82.72.33/16
+FQDN: node-101.netbird.example
+NetBird IP: 100.64.10.101/16
 EOF
         }}
-        [[ "$(get_netbird_primary_ip)" == "100.82.72.33" ]]
+        [[ "$(get_netbird_primary_ip)" == "100.64.10.101" ]]
         [[ "$(get_netbird_management_url)" == "https://api.netbird.io:443" ]]
-        [[ "$(get_netbird_fqdn)" == "px4-cm4-01.netbird.cloud" ]]
+        [[ "$(get_netbird_fqdn)" == "node-101.netbird.example" ]]
         """
     )
 
@@ -308,7 +308,7 @@ def test_mavlink_auto_config_applies_serial_fix_on_raspberry_pi():
         detect_uart_device() {{ echo "/dev/ttyS0"; }}
         run_mavlink_configure_headless() {{ return 0; }}
         verify_mavlink_service() {{ return 0; }}
-        GCS_IP="100.82.107.61"
+        GCS_IP="100.64.20.10"
         run_mavlink_auto_config >/tmp/mavlink_auto_fix_output.txt
         grep -q "serial-fix" /tmp/mavlink_auto_fix_output.txt
         """
@@ -390,11 +390,11 @@ def test_setup_local_env_writes_clean_override_lines():
         log_success() {{ :; }}
         is_dry_run() {{ return 1; }}
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
-        setup_local_env 101 100.82.107.61 git@github.com:demo/customer.git main http://100.82.107.61:5000
+        setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5000
         grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_GCS_IP=100.82.107.61$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_GCS_API_BASE_URL=http://100.82.107.61:5000$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_REPO_URL=git@github.com:demo/customer.git$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_IP=100.64.20.10$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5000$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
         ! grep -q '^MDS_HW_ID=.*#' "$MDS_LOCAL_ENV"
@@ -421,7 +421,7 @@ def test_configure_gcs_env_persists_private_https_token_file():
         is_dry_run() {{ return 1; }}
         gcs_state_get_value() {{
             case "$1" in
-                repo_url) echo "https://github.com/demo/customer-mds.git" ;;
+                repo_url) echo "https://github.com/example-org/private-mds.git" ;;
                 repo_branch) echo "customer-demo" ;;
                 access_method) echo "https" ;;
                 *) echo "$2" ;;
@@ -430,7 +430,7 @@ def test_configure_gcs_env_persists_private_https_token_file():
         source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
         source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
         configure_gcs_env
-        grep -q '^MDS_REPO_URL=https://github.com/demo/customer-mds.git$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_REPO_URL=https://github.com/example-org/private-mds.git$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_BRANCH=customer-demo$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GIT_AUTO_PUSH=false$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/root/.mds_git_read_token$' "$GCS_CONFIG_FILE"
@@ -449,7 +449,7 @@ def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
         MDS_NODE_IDENTITY_FILE="$tmpdir/node_identity.json"
         MDS_VERSION="4.5.0"
         DRONE_ID=101
-        REPO_URL="git@github.com:demo/customer.git"
+        REPO_URL="git@github.com:example-org/private-mds.git"
         BRANCH="main-candidate"
         MAVLINK_INPUT_TYPE="uart"
         log_warn() {{ :; }}
@@ -459,11 +459,11 @@ def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
         state_set_value() {{ :; }}
         get_or_create_node_uuid() {{ echo "uuid-101"; }}
         get_local_env_value() {{ echo ""; }}
-        get_netbird_primary_ip() {{ echo "100.82.72.33"; }}
+        get_netbird_primary_ip() {{ echo "100.64.10.101"; }}
         detect_network_interface() {{ echo ""; }}
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
         write_node_identity_manifest 101 identity_configured
-        jq -e '.netbird_enabled == true and .network_mode == "netbird" and .primary_control_ip == "100.82.72.33"' "$MDS_NODE_IDENTITY_FILE" >/dev/null
+        jq -e '.netbird_enabled == true and .network_mode == "netbird" and .primary_control_ip == "100.64.10.101"' "$MDS_NODE_IDENTITY_FILE" >/dev/null
         """
     )
 
@@ -495,12 +495,12 @@ def test_verify_netbird_parses_detail_output_and_extracts_primary_ip():
         netbird() {{
             cat <<'EOF'
 Management: Connected to https://api.netbird.io:443
-FQDN: px4-cm4-01.netbird.cloud
-NetBird IP: 100.82.72.33/16
+FQDN: node-101.netbird.example
+NetBird IP: 100.64.10.101/16
 EOF
         }}
         verify_netbird
-        [[ "$(verify_get_result netbird)" == "PASS:Connected (100.82.72.33)" ]]
+        [[ "$(verify_get_result netbird)" == "PASS:Connected (100.64.10.101)" ]]
         """
     )
 

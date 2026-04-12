@@ -311,7 +311,7 @@ For the next implementation phase, the likely sequence is:
 1. fix the official bootstrap gaps
 2. validate on Hetzner as the fresh customer GCS target
 3. connect that GCS to NetBird if required
-4. validate against the reachable CM4 / Holybro companion node
+4. validate against the reachable companion node
 5. only then create and exercise the customer-specific private repo workflow
 
 If NetBird auth is needed for the Hetzner GCS during implementation, the clean next step is to generate a short root-side note with the auth URL and pause for operator approval.
