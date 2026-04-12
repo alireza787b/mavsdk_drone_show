@@ -216,6 +216,7 @@ setup_local_env() {
     local repo_url="${3:-}"
     local branch="${4:-}"
     local gcs_api_url="${5:-}"
+    local git_auth_token_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 
     log_step "Setting up local environment configuration..."
 
@@ -257,6 +258,11 @@ setup_local_env() {
         if [[ -n "$branch" ]]; then
             printf '\n# Branch override\n'
             printf 'MDS_BRANCH=%s\n' "$branch"
+        fi
+
+        if [[ -n "$git_auth_token_file" ]]; then
+            printf '\n# Preferred private HTTPS Git token file\n'
+            printf 'MDS_GIT_AUTH_TOKEN_FILE=%s\n' "$git_auth_token_file"
         fi
 
         cat <<'EOF'

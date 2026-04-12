@@ -36,6 +36,9 @@ else
 fi
 INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/mavsdk_drone_show}"
 GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
+GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
+GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
+GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 
 # Colors
 RED='\033[0;31m'
@@ -86,6 +89,43 @@ normalize_github_repo_path() {
 
 is_github_ssh_repo_url() {
     [[ "${1:-}" == git@github.com:* ]]
+}
+
+is_github_https_repo_url() {
+    [[ "${1:-}" == https://github.com/* ]]
+}
+
+wrapper_git_auth_enabled() {
+    [[ -n "${GIT_AUTH_TOKEN_FILE:-}" && -r "${GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${GIT_AUTH_TOKEN:-}" ]]
+}
+
+wrapper_git_askpass_path() {
+    printf '%s\n' "/tmp/mds_gcs_git_askpass.sh"
+}
+
+prepare_wrapper_git_askpass() {
+    local askpass_path
+    askpass_path="$(wrapper_git_askpass_path)"
+
+    if [[ -x "$askpass_path" ]]; then
+        return 0
+    fi
+
+    cat >"$askpass_path" <<'EOF'
+#!/bin/sh
+prompt="${1:-}"
+if printf '%s' "$prompt" | grep -qi 'username'; then
+    printf '%s\n' "${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+    exit 0
+fi
+if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]; then
+    tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
+    exit 0
+fi
+printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+EOF
+
+    chmod 700 "$askpass_path"
 }
 
 gcs_git_ssh_command() {
@@ -241,6 +281,16 @@ test_wrapper_ssh_connection() {
 ensure_wrapper_repo_access() {
     local repo_url="$1"
 
+    if is_github_https_repo_url "$repo_url"; then
+        if wrapper_git_auth_enabled; then
+            prepare_wrapper_git_askpass
+            log_success "Bootstrap HTTPS git auth configured"
+        else
+            log_warn "No git auth token configured. Public HTTPS repos will work, but private HTTPS repos require MDS_GIT_AUTH_TOKEN_FILE or MDS_GIT_AUTH_TOKEN."
+        fi
+        return 0
+    fi
+
     if ! is_github_ssh_repo_url "$repo_url"; then
         return 0
     fi
@@ -283,6 +333,16 @@ run_git_as_root() {
 
     if is_github_ssh_repo_url "$repo_url"; then
         env GIT_SSH_COMMAND="$(gcs_git_ssh_command)" git "$@"
+    elif is_github_https_repo_url "$repo_url" && wrapper_git_auth_enabled; then
+        prepare_wrapper_git_askpass
+        env \
+            GIT_TERMINAL_PROMPT=0 \
+            GIT_ASKPASS_REQUIRE=force \
+            GIT_ASKPASS="$(wrapper_git_askpass_path)" \
+            MDS_GIT_AUTH_USERNAME="${GIT_AUTH_USERNAME}" \
+            MDS_GIT_AUTH_TOKEN_FILE="${GIT_AUTH_TOKEN_FILE:-}" \
+            MDS_GIT_AUTH_TOKEN="${GIT_AUTH_TOKEN:-}" \
+            git -c credential.username="${GIT_AUTH_USERNAME}" "$@"
     else
         git "$@"
     fi
@@ -356,6 +416,8 @@ OPTIONS:
     --branch BRANCH     Git branch to use (default: main-candidate)
     --repo-url URL      Use an explicit repository URL for bootstrap and init
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
+    --git-auth-token-file PATH
+                        Read private HTTPS Git auth token from PATH
     --install-dir PATH  Installation directory (default: \$HOME/mavsdk_drone_show)
     -h, --help          Show this help message
 
@@ -364,6 +426,8 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
     MDS_REPO_URL        Git repository URL
     MDS_BRANCH          Git branch
+    MDS_GIT_AUTH_TOKEN_FILE
+                        Preferred private HTTPS Git token file
     MDS_INSTALL_DIR     Installation directory
 
 EXAMPLES:
@@ -378,6 +442,9 @@ EXAMPLES:
 
     # Use an explicit repository URL
     curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo
+
+    # Private HTTPS with token file
+    curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo --git-auth-token-file /root/.mds_git_read_token
 
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop
@@ -443,6 +510,11 @@ main() {
                 passthrough_args+=("--install-dir" "$2")
                 shift 2
                 ;;
+            --git-auth-token-file)
+                GIT_AUTH_TOKEN_FILE="$2"
+                passthrough_args+=("--git-auth-token-file" "$2")
+                shift 2
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -466,6 +538,13 @@ main() {
 
     export MDS_REPO_URL="$config_repo_url"
     passthrough_args+=("--repo-url" "$config_repo_url")
+    if [[ -n "${GIT_AUTH_TOKEN_FILE:-}" ]]; then
+        export MDS_GIT_AUTH_TOKEN_FILE="$GIT_AUTH_TOKEN_FILE"
+    fi
+    if [[ -n "${GIT_AUTH_TOKEN:-}" ]]; then
+        export MDS_GIT_AUTH_TOKEN="$GIT_AUTH_TOKEN"
+    fi
+    export MDS_GIT_AUTH_USERNAME="$GIT_AUTH_USERNAME"
 
     print_banner
 

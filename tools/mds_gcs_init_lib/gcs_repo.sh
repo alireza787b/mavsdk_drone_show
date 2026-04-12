@@ -58,6 +58,64 @@ configure_repo_ssh_command() {
     fi
 }
 
+is_github_https_repo_url() {
+    [[ "${1:-}" == https://github.com/* ]]
+}
+
+gcs_git_auth_enabled() {
+    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
+}
+
+gcs_git_askpass_path() {
+    printf '%s\n' "/tmp/mds_gcs_git_askpass_runtime.sh"
+}
+
+prepare_gcs_git_askpass() {
+    local askpass_path
+    askpass_path="$(gcs_git_askpass_path)"
+
+    if [[ -x "$askpass_path" ]]; then
+        return 0
+    fi
+
+    cat >"$askpass_path" <<'EOF'
+#!/bin/sh
+prompt="${1:-}"
+if printf '%s' "$prompt" | grep -qi 'username'; then
+    printf '%s\n' "${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+    exit 0
+fi
+if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]; then
+    tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
+    exit 0
+fi
+printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+EOF
+
+    chmod 700 "$askpass_path"
+}
+
+run_gcs_git_command() {
+    local repo_url="$1"
+    shift
+
+    if is_github_ssh_repo_url "$repo_url"; then
+        GIT_SSH_COMMAND="$(gcs_git_ssh_command)" git "$@"
+    elif is_github_https_repo_url "$repo_url" && gcs_git_auth_enabled; then
+        prepare_gcs_git_askpass
+        env \
+            GIT_TERMINAL_PROMPT=0 \
+            GIT_ASKPASS_REQUIRE=force \
+            GIT_ASKPASS="$(gcs_git_askpass_path)" \
+            MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}" \
+            MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+            git -c credential.username="${MDS_GIT_AUTH_USERNAME:-x-access-token}" "$@"
+    else
+        git "$@"
+    fi
+}
+
 normalize_github_repo_path() {
     local spec="${1:-}"
 
@@ -418,7 +476,7 @@ clone_or_update_repo() {
             log_info "Updating remote URL..."
             log_info "  From: $current_remote"
             log_info "  To:   $repo_url"
-            git remote set-url origin "$repo_url" || {
+            run_gcs_git_command "$repo_url" remote set-url origin "$repo_url" || {
                 log_error "Failed to update remote URL"
                 return 1
             }
@@ -430,7 +488,7 @@ clone_or_update_repo() {
 
         # Fetch and checkout branch
         start_progress "Fetching from remote" "depends on network speed"
-        git fetch origin "$branch" >/dev/null 2>&1
+        run_gcs_git_command "$repo_url" fetch origin "$branch" >/dev/null 2>&1
         local fetch_rc=$?
         stop_progress
 
@@ -444,7 +502,7 @@ clone_or_update_repo() {
 
         if [[ "$current_branch" != "$branch" ]]; then
             log_info "Switching from $current_branch to $branch"
-            git checkout "$branch" 2>/dev/null || git checkout -b "$branch" "origin/$branch" 2>/dev/null || {
+            run_gcs_git_command "$repo_url" checkout "$branch" 2>/dev/null || run_gcs_git_command "$repo_url" checkout -b "$branch" "origin/$branch" 2>/dev/null || {
                 log_error "Failed to checkout branch: $branch"
                 return 1
             }
@@ -452,7 +510,7 @@ clone_or_update_repo() {
 
         # Pull latest changes
         start_progress "Pulling latest changes"
-        git pull origin "$branch" >/dev/null 2>&1
+        run_gcs_git_command "$repo_url" pull origin "$branch" >/dev/null 2>&1
         local pull_rc=$?
         stop_progress
 
@@ -475,11 +533,7 @@ clone_or_update_repo() {
 
         local clone_rc=0
         start_progress "Cloning repository" "may take 1-3 min for first clone"
-        if [[ "${USE_HTTPS:-false}" == "true" ]]; then
-            git clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1 || clone_rc=$?
-        else
-            GIT_SSH_COMMAND="$(gcs_git_ssh_command)" git clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1 || clone_rc=$?
-        fi
+        run_gcs_git_command "$repo_url" clone -b "$branch" "$repo_url" "$install_dir" >/dev/null 2>&1 || clone_rc=$?
         if [[ $clone_rc -eq 0 ]]; then
             stop_progress
             cd "$install_dir" || return 1

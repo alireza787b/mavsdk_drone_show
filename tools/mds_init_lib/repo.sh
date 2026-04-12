@@ -391,6 +391,64 @@ convert_repo_url() {
     echo "$url"
 }
 
+is_github_https_repo_url() {
+    [[ "${1:-}" == https://github.com/* ]]
+}
+
+node_git_auth_enabled() {
+    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
+}
+
+node_git_askpass_path() {
+    printf '%s\n' "/tmp/mds_node_git_askpass_runtime.sh"
+}
+
+prepare_node_git_askpass() {
+    local askpass_path
+    askpass_path="$(node_git_askpass_path)"
+
+    if [[ -x "$askpass_path" ]]; then
+        return 0
+    fi
+
+    cat >"$askpass_path" <<'EOF'
+#!/bin/sh
+prompt="${1:-}"
+if printf '%s' "$prompt" | grep -qi 'username'; then
+    printf '%s\n' "${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+    exit 0
+fi
+if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]; then
+    tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
+    exit 0
+fi
+printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+EOF
+
+    chmod 700 "$askpass_path"
+}
+
+run_git_as_mds_user_for_repo() {
+    local repo_url="$1"
+    shift
+
+    if [[ "${repo_url}" == git@* ]]; then
+        sudo -u "${MDS_USER}" env GIT_SSH_COMMAND="$(mds_git_ssh_command)" git "$@"
+    elif is_github_https_repo_url "$repo_url" && node_git_auth_enabled; then
+        prepare_node_git_askpass
+        sudo -u "${MDS_USER}" env \
+            GIT_TERMINAL_PROMPT=0 \
+            GIT_ASKPASS_REQUIRE=force \
+            GIT_ASKPASS="$(node_git_askpass_path)" \
+            MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}" \
+            MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+            git -c credential.username="${MDS_GIT_AUTH_USERNAME:-x-access-token}" "$@"
+    else
+        sudo -u "${MDS_USER}" git "$@"
+    fi
+}
+
 # =============================================================================
 # REPOSITORY OPERATIONS
 # =============================================================================
@@ -426,15 +484,18 @@ clone_repository() {
     mkdir -p "$parent_dir"
     chown "${MDS_USER}:${MDS_USER}" "$parent_dir"
 
-    # Clone with retry
-    local cmd
-    if [[ "$access_method" == "ssh" ]]; then
-        cmd="sudo -u ${MDS_USER} GIT_SSH_COMMAND='$(mds_git_ssh_command)' git clone --branch ${branch} ${repo_url} ${MDS_INSTALL_DIR}"
-    else
-        cmd="sudo -u ${MDS_USER} git clone --branch ${branch} ${repo_url} ${MDS_INSTALL_DIR}"
-    fi
+    local clone_try=1
+    local clone_ok="false"
+    while [[ $clone_try -le 3 ]]; do
+        if run_git_as_mds_user_for_repo "$repo_url" clone --branch "$branch" "$repo_url" "${MDS_INSTALL_DIR}"; then
+            clone_ok="true"
+            break
+        fi
+        sleep $((clone_try * 5))
+        clone_try=$((clone_try + 1))
+    done
 
-    if run_with_retry "$cmd" 3 5 "git clone"; then
+    if [[ "$clone_ok" == "true" ]]; then
         configure_repo_ssh_command "$repo_url"
         log_success "Repository cloned successfully"
         state_set_value "repo_url" "$repo_url"
@@ -464,10 +525,10 @@ update_repository() {
 
     # Fetch latest
     log_info "Fetching latest changes..."
-    if ! sudo -u "${MDS_USER}" git fetch --all --prune; then
+    if ! run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" fetch --all --prune; then
         log_warn "Failed to fetch, attempting repair..."
         sudo -u "${MDS_USER}" git-repair 2>/dev/null || true
-        sudo -u "${MDS_USER}" git fetch --all --prune || {
+        run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" fetch --all --prune || {
             log_error "Failed to fetch after repair"
             return 1
         }
@@ -475,15 +536,15 @@ update_repository() {
 
     # Checkout branch
     log_info "Checking out branch: $branch"
-    sudo -u "${MDS_USER}" git checkout "$branch" 2>/dev/null || \
-        sudo -u "${MDS_USER}" git checkout -b "$branch" "origin/$branch" || {
+    run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" checkout "$branch" 2>/dev/null || \
+        run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" checkout -b "$branch" "origin/$branch" || {
         log_error "Failed to checkout branch: $branch"
         return 1
     }
 
     # Reset to origin
     log_info "Synchronizing with remote..."
-    sudo -u "${MDS_USER}" git reset --hard "origin/$branch" || {
+    run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" reset --hard "origin/$branch" || {
         log_error "Failed to reset to origin/$branch"
         return 1
     }

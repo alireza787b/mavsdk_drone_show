@@ -60,6 +60,7 @@ MODE="configure"  # configure or run
 REPO_URL="${MDS_REPO_URL:-}"
 BRANCH="${MDS_BRANCH:-}"
 USE_HTTPS="false"
+GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 
 # Installation options
 GCS_INSTALL_DIR=""
@@ -83,7 +84,7 @@ VERBOSE="false"
 DEBUG="false"
 
 # Export all for libraries
-export MODE REPO_URL BRANCH USE_HTTPS GCS_INSTALL_DIR
+export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GCS_INSTALL_DIR
 export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
 export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG
 export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
@@ -119,6 +120,8 @@ REPOSITORY OPTIONS:
     -r, --repo-url URL  Git repository URL
     -b, --branch BRANCH Git branch (default: main-candidate)
     --https             Use HTTPS instead of SSH for git
+    --git-auth-token-file PATH
+                        Preferred private HTTPS Git auth token file
 
 INSTALLATION OPTIONS:
     --install-dir PATH  Installation directory (default: current directory)
@@ -191,7 +194,7 @@ parse_arguments() {
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o r:b:yvh \
         --long configure,run \
-        --long repo-url:,branch:,https \
+        --long repo-url:,branch:,https,git-auth-token-file: \
         --long install-dir: \
         --long skip-prereqs,skip-python,skip-nodejs,skip-repo,skip-firewall \
         --long skip-python-env,skip-nodejs-env,skip-env-config \
@@ -227,6 +230,10 @@ parse_arguments() {
             --https)
                 USE_HTTPS="true"
                 shift
+                ;;
+            --git-auth-token-file)
+                GIT_AUTH_TOKEN_FILE="$2"
+                shift 2
                 ;;
 
             # Installation options
@@ -316,7 +323,7 @@ parse_arguments() {
     [[ -z "$GCS_INSTALL_DIR" ]] && GCS_INSTALL_DIR="$(pwd)"
 
     # Export updated values
-    export MODE REPO_URL BRANCH USE_HTTPS GCS_INSTALL_DIR
+    export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GCS_INSTALL_DIR
     export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
     export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG
     export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG

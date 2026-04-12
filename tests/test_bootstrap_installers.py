@@ -72,6 +72,80 @@ def test_gcs_bootstrap_wrapper_supports_piped_help_execution():
     assert result.returncode == 0, result.stderr
 
 
+def test_gcs_bootstrap_wrapper_help_mentions_private_https_token_file():
+    result = run_bash(
+        f"""
+        cat "{GCS_INSTALLER}" | bash -s -- --help >/tmp/gcs_wrapper_help.txt
+        grep -q -- "--git-auth-token-file" /tmp/gcs_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_bootstrap_wrapper_help_mentions_private_https_token_file():
+    result = run_bash(
+        f"""
+        cat "{NODE_INSTALLER}" | bash -s -- --help >/tmp/node_wrapper_help.txt
+        grep -q -- "--git-auth-token-file" /tmp/node_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_wrapper_private_https_auth_uses_askpass_token_file():
+    result = run_bash(
+        f"""
+        source "{GCS_INSTALLER}"
+        fakebin="$(mktemp -d)"
+        token_file="$(mktemp)"
+        printf 'demo-token' > "$token_file"
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s|%s|%s\\n' "$GIT_ASKPASS" "$GIT_TERMINAL_PROMPT" "$MDS_GIT_AUTH_TOKEN_FILE"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        GIT_AUTH_TOKEN_FILE="$token_file"
+        run_git_as_root "https://github.com/demo/private.git" status >/tmp/gcs_wrapper_auth.txt
+        grep -q '/tmp/mds_gcs_git_askpass.sh|0|' /tmp/gcs_wrapper_auth.txt
+        grep -q "$token_file" /tmp/gcs_wrapper_auth.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_wrapper_private_https_auth_uses_askpass_token_file():
+    result = run_bash(
+        f"""
+        source "{NODE_INSTALLER}"
+        sudo() {{
+            if [[ "$1" == "-u" ]]; then
+                shift 2
+            fi
+            "$@"
+        }}
+        fakebin="$(mktemp -d)"
+        token_file="$(mktemp)"
+        printf 'demo-token' > "$token_file"
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s|%s|%s\\n' "$GIT_ASKPASS" "$GIT_TERMINAL_PROMPT" "$MDS_GIT_AUTH_TOKEN_FILE"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        GIT_AUTH_TOKEN_FILE="$token_file"
+        run_git_as_mds_user "https://github.com/demo/private.git" status >/tmp/node_wrapper_auth.txt
+        grep -q '/tmp/mds_node_git_askpass.sh|0|' /tmp/node_wrapper_auth.txt
+        grep -q "$token_file" /tmp/node_wrapper_auth.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_netbird_detail_parsers_extract_primary_identity_fields():
     result = run_bash(
         f"""
@@ -227,6 +301,7 @@ def test_setup_local_env_writes_clean_override_lines():
         MDS_CONFIG_DIR="$tmpdir"
         MDS_LOCAL_ENV="$tmpdir/local.env"
         MDS_VERSION="4.5.0"
+        MDS_GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
         log_step() {{ :; }}
         log_success() {{ :; }}
         is_dry_run() {{ return 1; }}
@@ -237,7 +312,44 @@ def test_setup_local_env_writes_clean_override_lines():
         grep -q '^MDS_GCS_API_BASE_URL=http://100.82.107.61:5000$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_REPO_URL=git@github.com:demo/customer.git$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
         ! grep -q '^MDS_HW_ID=.*#' "$MDS_LOCAL_ENV"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_configure_gcs_env_persists_private_https_token_file():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        GCS_CONFIG_FILE="$tmpdir/gcs.env"
+        GCS_INSTALL_DIR="/opt/mds"
+        GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
+        GCS_DEFAULT_BRANCH="main-candidate"
+        MDS_GIT_AUTH_TOKEN_FILE="/root/.mds_git_read_token"
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        backup_file() {{ :; }}
+        confirm() {{ return 1; }}
+        is_dry_run() {{ return 1; }}
+        gcs_state_get_value() {{
+            case "$1" in
+                repo_url) echo "https://github.com/demo/customer-mds.git" ;;
+                repo_branch) echo "customer-demo" ;;
+                access_method) echo "https" ;;
+                *) echo "$2" ;;
+            esac
+        }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
+        configure_gcs_env
+        grep -q '^MDS_REPO_URL=https://github.com/demo/customer-mds.git$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_BRANCH=customer-demo$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_GIT_AUTO_PUSH=false$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/root/.mds_git_read_token$' "$GCS_CONFIG_FILE"
         """
     )
 
