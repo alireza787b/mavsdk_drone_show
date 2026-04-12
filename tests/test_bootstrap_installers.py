@@ -117,6 +117,40 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_gcs_repo_phase_prefers_https_for_noninteractive_private_https_repo_with_token_file():
+    result = run_bash(
+        f"""
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_repo.sh'}"
+        token_file="$(mktemp)"
+        printf 'demo-token' > "$token_file"
+        REPO_URL="https://github.com/demo/private.git"
+        USE_HTTPS="false"
+        MDS_GIT_AUTH_TOKEN_FILE="$token_file"
+        gcs_should_use_https_access "$REPO_URL"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_repo_phase_keeps_ssh_for_noninteractive_explicit_ssh_repo():
+    result = run_bash(
+        f"""
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_repo.sh'}"
+        token_file="$(mktemp)"
+        printf 'demo-token' > "$token_file"
+        REPO_URL="git@github.com:demo/private.git"
+        USE_HTTPS="false"
+        MDS_GIT_AUTH_TOKEN_FILE="$token_file"
+        ! gcs_should_use_https_access "$REPO_URL"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_node_wrapper_private_https_auth_uses_askpass_token_file():
     result = run_bash(
         f"""

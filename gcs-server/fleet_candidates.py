@@ -134,6 +134,15 @@ class FleetCandidateRegistry:
         self.events_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._candidates: dict[str, dict[str, Any]] = {}
+        if not self.state_path.exists():
+            save_json(
+                {
+                    "version": 1,
+                    "updated_at": _now_ms(),
+                    "candidates": [],
+                },
+                str(self.state_path),
+            )
         self._load_state()
 
     def _load_state(self) -> None:

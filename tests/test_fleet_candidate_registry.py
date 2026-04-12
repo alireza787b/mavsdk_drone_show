@@ -54,6 +54,20 @@ def test_observe_heartbeat_creates_pending_candidate_for_unknown_hw_id(tmp_path:
     assert candidate.primary_control_ip == "10.0.0.101"
 
 
+def test_registry_creates_empty_state_file_on_first_boot(tmp_path: Path):
+    state_path = tmp_path / "fleet_candidates.json"
+    events_path = tmp_path / "fleet_candidate_events.jsonl"
+
+    registry = FleetCandidateRegistry(
+        state_path=str(state_path),
+        events_path=str(events_path),
+    )
+
+    assert registry.list_candidates(load_config=lambda: []) == []
+    assert state_path.exists()
+    assert '"candidates": []' in state_path.read_text(encoding="utf-8")
+
+
 def test_announce_marks_conflict_when_hw_id_matches_existing_fleet_member(tmp_path: Path):
     registry = FleetCandidateRegistry(
         state_path=str(tmp_path / "fleet_candidates.json"),

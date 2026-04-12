@@ -62,6 +62,28 @@ is_github_https_repo_url() {
     [[ "${1:-}" == https://github.com/* ]]
 }
 
+gcs_should_use_https_access() {
+    local repo_url="${1:-${REPO_URL:-}}"
+
+    if is_github_ssh_repo_url "$repo_url"; then
+        return 1
+    fi
+
+    if [[ "${USE_HTTPS:-false}" == "true" ]]; then
+        return 0
+    fi
+
+    if is_github_https_repo_url "$repo_url"; then
+        return 0
+    fi
+
+    if gcs_git_auth_enabled; then
+        return 0
+    fi
+
+    return 1
+}
+
 gcs_git_auth_enabled() {
     [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
 }
@@ -734,10 +756,16 @@ run_repository_phase() {
             fi
             echo ""
         else
-            if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-                log_warn "No interactive TTY detected; defaulting to SSH access mode"
+            if gcs_should_use_https_access "${REPO_URL:-}"; then
+                USE_HTTPS="true"
+                export USE_HTTPS
+                log_info "Access mode: HTTPS (non-interactive inferred from repository/auth settings)"
+            else
+                if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
+                    log_warn "No interactive TTY detected; defaulting to SSH access mode"
+                fi
+                log_info "Access mode: SSH (non-interactive default)"
             fi
-            log_info "Access mode: SSH (non-interactive default)"
             echo ""
         fi
     else
