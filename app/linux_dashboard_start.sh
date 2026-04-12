@@ -153,8 +153,8 @@ load_gcs_system_config() {
             GCS_BACKEND="fastapi"
         fi
 
-        # Export repo settings so Python (params.py) inherits them
-        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR MDS_GIT_AUTO_PUSH 2>/dev/null || true
+        # Export repo settings so Python/runtime helpers inherit them
+        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR MDS_GIT_AUTO_PUSH MDS_GIT_AUTH_TOKEN_FILE MDS_GIT_AUTH_TOKEN MDS_GIT_AUTH_USERNAME 2>/dev/null || true
         return 0
     fi
     return 1

@@ -40,6 +40,8 @@ DEFAULT_BRANCH="${DEFAULT_BRANCH:-main-candidate}"
 # Repository URLs
 DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
 DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
+GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 
 # Recovery strategy: "graceful" or "aggressive"
 RECOVERY_STRATEGY="${RECOVERY_STRATEGY:-graceful}"
@@ -277,6 +279,58 @@ release_lock() {
     if [[ -f "$LOCK_FILE" ]]; then
         rm -f "$LOCK_FILE"
         log_debug "LOCK" "Lock released"
+    fi
+}
+
+git_https_auth_enabled() {
+    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
+}
+
+git_askpass_path() {
+    printf '%s\n' "/tmp/mds_git_sync_askpass.sh"
+}
+
+prepare_git_askpass() {
+    local askpass_path
+    askpass_path="$(git_askpass_path)"
+
+    if [[ -x "$askpass_path" ]]; then
+        return 0
+    fi
+
+    cat >"$askpass_path" <<'EOF'
+#!/bin/sh
+prompt="${1:-}"
+if printf '%s' "$prompt" | grep -qi 'username'; then
+    printf '%s\n' "${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+    exit 0
+fi
+if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]; then
+    tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
+    exit 0
+fi
+printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+EOF
+
+    chmod 700 "$askpass_path"
+}
+
+run_git_command() {
+    local repo_url="${1:-}"
+    shift
+
+    if [[ "$repo_url" == https://* ]] && git_https_auth_enabled; then
+        prepare_git_askpass
+        env \
+            GIT_TERMINAL_PROMPT=0 \
+            GIT_ASKPASS_REQUIRE=force \
+            GIT_ASKPASS="$(git_askpass_path)" \
+            MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" \
+            MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+            git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" "$@"
+    else
+        git "$@"
     fi
 }
 
@@ -529,7 +583,7 @@ determine_git_url() {
     # FIXED: Capture output properly without mixing with logs
     if [[ "$repo_url" == git@* ]]; then
         # Try SSH first - capture result in variable without logging interference
-        if git ls-remote "$repo_url" -q >/dev/null 2>&1; then
+        if run_git_command "$repo_url" ls-remote "$repo_url" -q >/dev/null 2>&1; then
             log_info "GIT-URL" "SSH connection successful"
             git_url="$repo_url"
         else
@@ -538,13 +592,9 @@ determine_git_url() {
             git_url="${git_url%.git}.git"
         fi
     elif [[ "$repo_url" == https://* ]]; then
-        # Try SSH first if available
-        local ssh_url="git@github.com:${repo_url#https://github.com/}"
-        ssh_url="${ssh_url%.git}.git"
-        
-        if git ls-remote "$ssh_url" -q >/dev/null 2>&1; then
-            log_info "GIT-URL" "SSH connection available, using SSH"
-            git_url="$ssh_url"
+        if git_https_auth_enabled; then
+            log_info "GIT-URL" "Using authenticated HTTPS connection"
+            git_url="$repo_url"
         else
             log_info "GIT-URL" "Using HTTPS connection"
             git_url="$repo_url"
@@ -567,25 +617,42 @@ perform_git_fetch() {
     log_info "$component" "Fetching updates from $git_url..."
     
     # Set git configuration for better network handling
-    git config http.timeout "$FETCH_TIMEOUT"
-    git config http.lowSpeedLimit 1000
-    git config http.lowSpeedTime 30
+    run_git_command "$git_url" config http.timeout "$FETCH_TIMEOUT"
+    run_git_command "$git_url" config http.lowSpeedLimit 1000
+    run_git_command "$git_url" config http.lowSpeedTime 30
     
-    if retry_with_backoff "$MAX_RETRIES" "$component" timeout "$FETCH_TIMEOUT" git fetch --all --prune; then
+    if [[ "$git_url" == https://* ]] && git_https_auth_enabled; then
+        prepare_git_askpass
+        if retry_with_backoff \
+            "$MAX_RETRIES" \
+            "$component" \
+            env \
+                GIT_TERMINAL_PROMPT=0 \
+                GIT_ASKPASS_REQUIRE=force \
+                GIT_ASKPASS="$(git_askpass_path)" \
+                MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" \
+                MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+                MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+                timeout "$FETCH_TIMEOUT" \
+                git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" fetch --all --prune; then
+            log_info "$component" "Fetch completed successfully"
+            return 0
+        fi
+    elif retry_with_backoff "$MAX_RETRIES" "$component" timeout "$FETCH_TIMEOUT" git fetch --all --prune; then
         log_info "$component" "Fetch completed successfully"
         return 0
-    else
-        log_error "$component" "Fetch failed after retries"
-        
-        # Check for repository corruption
-        if ! check_git_integrity; then
-            log_warn "$component" "Repository corruption detected during fetch failure"
-            handle_repository_corruption
-            return $?
-        fi
-        
-        return 1
     fi
+
+    log_error "$component" "Fetch failed after retries"
+
+    # Check for repository corruption
+    if ! check_git_integrity; then
+        log_warn "$component" "Repository corruption detected during fetch failure"
+        handle_repository_corruption
+        return $?
+    fi
+
+    return 1
 }
 
 # ----------------------------------
@@ -753,7 +820,7 @@ main() {
     current_remote_url=$(git remote get-url origin 2>/dev/null || echo "")
     if [[ "$current_remote_url" != "$git_url" ]]; then
         log_info "GIT-REMOTE" "Updating remote URL from '$current_remote_url' to '$git_url'"
-        git remote set-url origin "$git_url" || log_error_and_exit "GIT-REMOTE" "Failed to set remote URL"
+        run_git_command "$git_url" remote set-url origin "$git_url" || log_error_and_exit "GIT-REMOTE" "Failed to set remote URL"
     fi
     
     # Stash local changes
@@ -806,7 +873,22 @@ main() {
         log_info "GIT-PULL" "Skipping git pull because runtime is using a detached worktree checkout of origin/$BRANCH_NAME"
     else
         log_info "GIT-PULL" "Performing final pull on $BRANCH_NAME"
-        if ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
+        if [[ "$git_url" == https://* ]] && git_https_auth_enabled; then
+            prepare_git_askpass
+            if ! retry_with_backoff \
+                "$MAX_RETRIES" \
+                "GIT-PULL" \
+                env \
+                    GIT_TERMINAL_PROMPT=0 \
+                    GIT_ASKPASS_REQUIRE=force \
+                    GIT_ASKPASS="$(git_askpass_path)" \
+                    MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" \
+                    MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+                    MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+                    git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" pull; then
+                log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
+            fi
+        elif ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
             log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
         fi
     fi

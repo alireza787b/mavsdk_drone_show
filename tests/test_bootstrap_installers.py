@@ -12,6 +12,7 @@ MAVLINK_SETUP_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavlink_setup.sh"
 MAVSDK_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavsdk.sh"
 SERVICES_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "services.sh"
 PYTHON_ENV_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "python_env.sh"
+GIT_SYNC_SCRIPT = REPO_ROOT / "tools" / "update_repo_ssh.sh"
 
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
@@ -174,6 +175,43 @@ EOF
         run_git_as_mds_user "https://github.com/demo/private.git" status >/tmp/node_wrapper_auth.txt
         grep -q '/tmp/mds_node_git_askpass.sh|0|' /tmp/node_wrapper_auth.txt
         grep -q "$token_file" /tmp/node_wrapper_auth.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_runtime_git_sync_prefers_explicit_https_repo_when_token_file_is_present():
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        token_file="$(mktemp)"
+        printf 'demo-token' > "$token_file"
+        MDS_GIT_AUTH_TOKEN_FILE="$token_file"
+        [[ "$(determine_git_url "https://github.com/demo/private.git")" == "https://github.com/demo/private.git" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_runtime_git_sync_https_auth_uses_askpass_token_file():
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        fakebin="$(mktemp -d)"
+        token_file="$(mktemp)"
+        printf 'demo-token' > "$token_file"
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s|%s|%s\\n' "$GIT_ASKPASS" "$GIT_TERMINAL_PROMPT" "$MDS_GIT_AUTH_TOKEN_FILE"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        MDS_GIT_AUTH_TOKEN_FILE="$token_file"
+        run_git_command "https://github.com/demo/private.git" status >/tmp/runtime_git_sync_auth.txt
+        grep -q '/tmp/mds_git_sync_askpass.sh|0|' /tmp/runtime_git_sync_auth.txt
+        grep -q "$token_file" /tmp/runtime_git_sync_auth.txt
         """
     )
 
