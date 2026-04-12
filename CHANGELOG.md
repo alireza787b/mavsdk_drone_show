@@ -10,6 +10,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- refreshed the public official SITL archive publication and download
+  instruction link, and published the matching private Catch-A-Drone SITL
+  archive to its dedicated MEGA target after validating the customer 3-drone
+  Hetzner SITL gate on the private image
 - documented private Git token expiry recovery in the custom-repo and custom
   SITL release guides after validating the Catch-A-Drone private image-build
   path on Hetzner
