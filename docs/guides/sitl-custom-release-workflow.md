@@ -46,6 +46,9 @@ What it does **not** auto-update:
 
 That means runtime git sync is useful for development, but it is not a full image refresh and not a reproducible release process.
 For private GitHub repos, add `MDS_GIT_AUTH_TOKEN_FILE` during mutable runtime sync or image preparation; plain HTTPS alone will not clone a private repo. `MDS_GIT_AUTH_TOKEN` remains a legacy fallback, but the file-based path avoids putting the raw token into process arguments during containerized flows.
+If the build fails with a GitHub `403` and `The token in this link has expired`,
+refresh the token file and rerun the build. That is an environment credential
+expiry issue, not a reason to switch back to mutable in-container edits.
 
 ## Official Tested Archive Workflow
 

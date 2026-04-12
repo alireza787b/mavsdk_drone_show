@@ -10,6 +10,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- documented private Git token expiry recovery in the custom-repo and custom
+  SITL release guides after validating the Catch-A-Drone private image-build
+  path on Hetzner
 - private GitHub bootstrap/runtime auth is now first-class for customer-style
   GCS and node workflows when deploy keys are unavailable:
   `install_gcs.sh`, `install_mds_node.sh`, `mds_gcs_init.sh`,

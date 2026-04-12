@@ -77,6 +77,23 @@ Important GitHub note:
 - GitHub temporary clone tokens are useful for validation, but they expire quickly and are not the recommended operator workflow
 - a GitHub CLI auth token is not guaranteed to work for Git-over-HTTPS clone/fetch on every host, so do not document `gh auth token` as the standard bootstrap credential
 
+### Private Token Expiry Recovery
+
+If a private bootstrap or customer SITL image-preparation step fails with a
+GitHub `403` and a message like `The token in this link has expired`, treat it
+as a stale credential-file problem, not a repo/workflow bug.
+
+Use this recovery order:
+1. refresh the read-only token file referenced by `MDS_GIT_AUTH_TOKEN_FILE`
+2. rerun the failed bootstrap or image-preparation command
+3. keep the documented workflow instead of falling back to ad hoc manual repo edits
+
+This matters most for:
+- `tools/install_gcs.sh`
+- `tools/install_mds_node.sh`
+- `tools/build_custom_image.sh`
+- `tools/release_sitl_image.sh`
+
 ## GitHub Fork Versus Private Mirror
 
 GitHub behavior matters here:
