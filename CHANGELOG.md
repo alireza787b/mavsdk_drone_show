@@ -10,6 +10,26 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- private GitHub bootstrap/runtime auth is now first-class for customer-style
+  GCS and node workflows when deploy keys are unavailable:
+  `install_gcs.sh`, `install_mds_node.sh`, `mds_gcs_init.sh`,
+  `mds_node_init.sh`, the repo helpers, the runtime launcher, and the runtime
+  git-sync path now all understand `MDS_GIT_AUTH_TOKEN_FILE` /
+  `--git-auth-token-file` and keep that token-file source of truth aligned
+  from bootstrap through later repo sync
+- the GCS repository phase now respects explicit private HTTPS repo selection
+  in non-interactive mode instead of silently drifting into SSH deploy-key
+  setup, and the fleet-candidate registry now creates its empty durable state
+  file on first boot so fresh-install backend verification stays clean
+- `linux_dashboard_start.sh` now exports the runtime git auth variables from
+  `/etc/mds/gcs.env`, keeps the real-mode marker at the repo root `real.mode`
+  where the rest of MDS expects it, and prints canonical
+  `/api/v1/system/health` examples instead of stale `/health` guidance
+- a 2026-04-12 private customer bootstrap/runtime validation note documenting
+  the deploy-key-disabled Catch-A-Drone validation path, the live Hetzner
+  private-repo bootstrap and runtime verification, the discovered GitHub
+  temporary-clone-token expiration behavior, and the remaining external
+  blocker that the Holybro CM4 node is currently idle/unreachable on NetBird
 - a 2026-04-11 official bootstrap hardware closeout note documenting the final
   official wrapper and existing-node bootstrap behavior on real Holybro CM4
   hardware, the validated NetBird -> Hetzner GCS candidate announce flow, the

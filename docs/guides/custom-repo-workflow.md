@@ -68,8 +68,14 @@ Important rules:
 
 Practical recommendation:
 - GCS: SSH if it must push customer changes
+- GCS private read-only demo/evaluation: explicit `https://github.com/...git` plus `MDS_GIT_AUTH_TOKEN_FILE`
 - drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine
 - SITL: HTTPS for public repos; for private GitHub repos, use `MDS_GIT_AUTH_TOKEN_FILE` unless you deliberately provision SSH credentials into the build/runtime environment
+
+Important GitHub note:
+- use a dedicated long-lived read-only GitHub credential file for documented private HTTPS bootstrap/runtime flows
+- GitHub temporary clone tokens are useful for validation, but they expire quickly and are not the recommended operator workflow
+- a GitHub CLI auth token is not guaranteed to work for Git-over-HTTPS clone/fetch on every host, so do not document `gh auth token` as the standard bootstrap credential
 
 ## GitHub Fork Versus Private Mirror
 
@@ -140,6 +146,20 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
   --branch customer-demo
 ```
 
+For a private read-only demo/evaluation repo with deploy keys disabled:
+
+```bash
+install -m 600 /dev/null /root/.mds_git_read_token
+printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /root/.mds_git_read_token
+
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+  sudo bash -s -- \
+  --repo-url https://github.com/yourorg/customer-mds.git \
+  --branch customer-demo \
+  --git-auth-token-file /root/.mds_git_read_token \
+  -y
+```
+
 Or from an already-cloned repo:
 
 ```bash
@@ -167,6 +187,7 @@ MDS_GIT_AUTO_PUSH=false
 ```
 
 That is the correct safe setting for evaluation setups.
+The same token-file path is now preserved into `/etc/mds/gcs.env` and the runtime git-sync path, so bootstrap and later launcher sync use one source of truth instead of separate ad hoc credentials.
 
 ## Real Drone Workflow
 

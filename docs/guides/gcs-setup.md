@@ -106,10 +106,11 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 | Mode | Write Access | Git Sync | Use Case |
 |------|--------------|----------|----------|
 | HTTPS (default repo) | No | Pull only, auto-push disabled | Testing, SITL |
-| HTTPS (custom repo) | Manual push | Manual | Simple deployments |
+| HTTPS (custom repo) | Manual push | Manual | Simple deployments, deploy-key-disabled private demos |
 | SSH (custom repo) | Yes | Yes | Production shows |
 
 For a full customer repo decision tree, see [Custom Repo Workflow](custom-repo-workflow.md).
+For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_only_token`; plain HTTPS alone is not sufficient.
 
 ---
 
@@ -208,6 +209,9 @@ sudo ./tools/mds_gcs_init.sh -y --https
 
 # Explicit custom repo + branch
 sudo ./tools/mds_gcs_init.sh --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo
+
+# Explicit private HTTPS repo + token file
+sudo ./tools/mds_gcs_init.sh --repo-url https://github.com/yourorg/customer-mds.git --branch customer-demo --git-auth-token-file /root/.mds_git_read_token
 
 # Dry run to preview changes
 sudo ./tools/mds_gcs_init.sh --dry-run

@@ -70,6 +70,19 @@ For a first-time private SSH bootstrap, omit `-y` unless the deploy key is alrea
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
 ```
 
+**Using a private HTTPS repository with a read-only token file:**
+```bash
+install -m 600 /dev/null /home/droneshow/.mds_git_read_token
+printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /home/droneshow/.mds_git_read_token
+
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | \
+  sudo bash -s -- \
+  --repo-url https://github.com/yourorg/customer-mds.git \
+  --branch customer-demo \
+  --git-auth-token-file /home/droneshow/.mds_git_read_token \
+  -d 1 -y
+```
+
 ### Option 2: Manual Installation
 
 Use this when the repo is already present on the node, or when you are
@@ -147,6 +160,16 @@ Or fully explicit:
 sudo ./tools/mds_node_init.sh -d 1 \
     --repo-url git@github.com:yourorg/customer-mds.git \
     --branch customer-demo \
+    -y
+```
+
+Private read-only HTTPS is also supported explicitly:
+
+```bash
+sudo ./tools/mds_node_init.sh -d 1 \
+    --repo-url https://github.com/yourorg/customer-mds.git \
+    --branch customer-demo \
+    --git-auth-token-file /home/droneshow/.mds_git_read_token \
     -y
 ```
 
