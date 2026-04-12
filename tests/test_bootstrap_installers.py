@@ -218,6 +218,18 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_dashboard_start_uses_root_real_mode_marker_and_canonical_health_path():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+    verify_script = REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_verify.sh"
+
+    start_text = start_script.read_text(encoding="utf-8")
+    verify_text = verify_script.read_text(encoding="utf-8")
+
+    assert 'REAL_MODE_FILE="$PROJECT_ROOT/real.mode"' in start_text
+    assert "/api/v1/system/health" in start_text
+    assert "/api/v1/system/health" in verify_text
+
+
 def test_netbird_detail_parsers_extract_primary_identity_fields():
     result = run_bash(
         f"""

@@ -283,7 +283,7 @@ print_next_steps() {
     echo ""
     echo -e "     Frontend:    ${CYAN}http://<your-ip>:3030${NC}"
     echo -e "     Backend API: ${CYAN}http://<your-ip>:5000${NC}"
-    echo -e "     Health:      ${CYAN}http://<your-ip>:5000/health${NC}"
+    echo -e "     Health:      ${CYAN}http://<your-ip>:5000/api/v1/system/health${NC}"
     echo ""
 
     echo -e "  ${WHITE}3. Useful Commands:${NC}"

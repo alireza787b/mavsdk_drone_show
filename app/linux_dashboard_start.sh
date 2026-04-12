@@ -100,7 +100,7 @@ fi
 
 ENV_FILE_PATH="$REACT_APP_DIR/.env"
 BUILD_DIR="$REACT_APP_DIR/build"
-REAL_MODE_FILE="$GCS_SERVER_DIR/real.mode"
+REAL_MODE_FILE="$PROJECT_ROOT/real.mode"
 UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
 VERSION_FILE_PATH="$PROJECT_ROOT/VERSION"
 SPA_SERVER_SCRIPT="$PROJECT_ROOT/tools/spa_static_server.py"
@@ -321,11 +321,11 @@ run_health_check() {
         log_info "Checking GCS Server on port $DEV_GCS_PORT..."
         sleep 2  # Give server time to start
         for i in {1..5}; do
-            if curl -s "http://localhost:$DEV_GCS_PORT/health" > /dev/null 2>&1; then
+            if curl -s "http://localhost:$DEV_GCS_PORT/api/v1/system/health" > /dev/null 2>&1; then
                 log_success "GCS Server is responding"
                 break
             elif curl -s "http://localhost:$DEV_GCS_PORT/" > /dev/null 2>&1; then
-                log_success "GCS Server is responding (no /health endpoint)"
+                log_success "GCS Server is responding (health endpoint not yet ready)"
                 break
             fi
             if [[ $i -eq 5 ]]; then
@@ -1048,7 +1048,7 @@ start_services_no_tmux() {
   Services are running in separate terminal windows.
 
   USEFUL COMMANDS:
-    Check GCS health:  curl http://localhost:$DEV_GCS_PORT/health
+    Check GCS health:  curl http://localhost:$DEV_GCS_PORT/api/v1/system/health
     View status:       $0 --status
 
   TO STOP SERVICES:
@@ -1059,7 +1059,7 @@ start_services_no_tmux() {
   ACCESS:
     Dashboard:  http://localhost:$DEV_REACT_PORT
     API:        http://localhost:$DEV_GCS_PORT
-    Health:     http://localhost:$DEV_GCS_PORT/health
+    Health:     http://localhost:$DEV_GCS_PORT/api/v1/system/health
 
 ===============================================================================
 EOF
@@ -1083,7 +1083,7 @@ show_tmux_instructions() {
     Stop services:   tmux kill-session -t $SESSION_NAME
 
   HEALTH CHECK:
-    curl http://localhost:$DEV_GCS_PORT/health
+    curl http://localhost:$DEV_GCS_PORT/api/v1/system/health
 
   STATUS:
     $0 --status
@@ -1213,7 +1213,7 @@ print_ready_message() {
     echo "    Stop:      tmux kill-session -t $SESSION_NAME"
     echo ""
     echo "  Health Check:"
-    echo "    curl http://localhost:$DEV_GCS_PORT/health"
+    echo "    curl http://localhost:$DEV_GCS_PORT/api/v1/system/health"
     echo ""
     echo "==============================================================================="
     sleep 1
