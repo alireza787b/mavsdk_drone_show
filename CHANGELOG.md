@@ -30,6 +30,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   show compact repo/image identity, and operators can add one new `drone-N`
   without pruning the existing fleet, including optional custom ID/IP for
   advanced sparse-layout test cases
+- SITL Control interaction hardening:
+  background refresh now stays visually quiet instead of flashing a visible
+  page-level refresh state, compact/mobile layouts expand the selected
+  instance detail inline near the chosen row while wide desktop keeps the
+  docked detail panel, `Add next` and exact-slot add are grouped into one
+  clearer control cluster, and poll-driven SITL errors now use a reusable
+  throttled-toast helper instead of repeating the same failure toast on every
+  refresh cycle
 - `tools/sitl_control_client.py` as the reusable headless SITL Control client
   for validators, AI agents, and future MCP tooling; the declarative SITL
   validation suite now defaults to API-first fleet resets with shell fallback,

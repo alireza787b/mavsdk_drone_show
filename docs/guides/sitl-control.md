@@ -27,6 +27,9 @@ It does:
   secondary sections folded behind explicit operator intent
 - use auto-populated image repository/tag selectors for normal operation, with
   a folded manual image-ref override for advanced cases
+- keep automatic inventory refresh quiet instead of visually resetting the page
+- expand selected instance detail inline on compact layouts and as a docked
+  side panel on wide desktop layouts
 - expose the same lifecycle through a headless API/CLI path for validators,
   AI agents, and future MCP tools
 
@@ -77,6 +80,11 @@ The page defaults to normal beginner-safe values:
 - requirements sync: enabled
 
 Advanced fields are folded behind `Advanced` so routine use stays simple.
+
+`Add next` and `Add exact` are intentionally grouped:
+
+- normal flow: `Add next`
+- advanced sparse-layout flow: `Add exact`
 
 ## Reconcile Semantics
 
@@ -149,6 +157,10 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 - Restart/remove now keep the page inventory visible and show only instance-
   local pending state instead of dropping the whole page into a blocking
   loading shell.
+- Background inventory refresh stays visually quiet; only an explicit operator
+  refresh shows a visible refresh state.
+- Poll-driven load failures use throttled error toasts so temporary outages do
+  not spam the operator every few seconds.
 - Images and operations are intentionally secondary panels; the primary working
   surface is the searchable instance inventory plus the selected-container
   detail pane.

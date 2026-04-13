@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaCube,
   FaDocker,
@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { clearThrottledToast, toastErrorThrottled } from '../utilities/toastFeedback';
 import {
   createSitlInstance,
   getSitlControlHost,
@@ -33,6 +34,29 @@ const OPERATION_POLL_INTERVAL_MS = 2000;
 const LOG_TAIL_OPTIONS = [80, 200, 500];
 const TERMINAL_OPERATION_STATES = new Set(['failed', 'succeeded']);
 const ENABLE_BACKGROUND_POLLING = process.env.NODE_ENV !== 'test';
+const COMPACT_DETAIL_BREAKPOINT_PX = 1100;
+
+function useCompactDetailLayout() {
+  const getValue = () => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.innerWidth <= COMPACT_DETAIL_BREAKPOINT_PX;
+  };
+
+  const [isCompact, setIsCompact] = useState(getValue);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+    const handleResize = () => setIsCompact(getValue());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isCompact;
+}
 
 function splitImageRef(imageRef) {
   const normalized = String(imageRef || '').trim();
@@ -242,6 +266,8 @@ function SitlControlPage() {
     instanceId: '',
     ipLastOctet: '',
   });
+  const refreshVisibilityRef = useRef('auto');
+  const compactDetailLayout = useCompactDetailLayout();
   const [reconcileForm, setReconcileForm] = useState({
     targetCount: 3,
     imageRef: '',
@@ -258,10 +284,11 @@ function SitlControlPage() {
 
     const loadInventory = async ({ background = false } = {}) => {
       const foregroundLoad = !background && !hasLoadedOnce;
+      const showRefreshIndicator = !foregroundLoad && refreshVisibilityRef.current === 'manual';
 
       if (foregroundLoad) {
         setLoading(true);
-      } else {
+      } else if (showRefreshIndicator) {
         setRefreshing(true);
       }
 
@@ -299,17 +326,24 @@ function SitlControlPage() {
           }
           return nextOperations[0]?.operation_id || null;
         });
+        clearThrottledToast('sitl-control:inventory');
         setHasLoadedOnce(true);
       } catch (error) {
         if (mounted) {
-          toast.error(`Failed to load SITL control inventory: ${error.message}`);
+          toastErrorThrottled(
+            'sitl-control:inventory',
+            `Failed to load SITL control inventory: ${error.message}`,
+          );
         }
       } finally {
         if (!mounted) {
           return;
         }
+        refreshVisibilityRef.current = 'auto';
         setLoading(false);
-        setRefreshing(false);
+        if (showRefreshIndicator) {
+          setRefreshing(false);
+        }
       }
     };
 
@@ -362,12 +396,16 @@ function SitlControlPage() {
         if (mounted) {
           setLogLines(Array.isArray(payload?.lines) ? payload.lines : []);
           setLogSource(payload?.source || null);
+          clearThrottledToast(`sitl-control:logs:${selectedInstance.name}`);
         }
       } catch (error) {
         if (mounted) {
           setLogLines([]);
           setLogSource(null);
-          toast.error(`Failed to load SITL logs for ${selectedInstance.name}: ${error.message}`);
+          toastErrorThrottled(
+            `sitl-control:logs:${selectedInstance.name}`,
+            `Failed to load SITL logs for ${selectedInstance.name}: ${error.message}`,
+          );
         }
       } finally {
         if (mounted) {
@@ -400,6 +438,7 @@ function SitlControlPage() {
           return;
         }
         setSelectedOperation(payload);
+        clearThrottledToast(`sitl-control:operation:${selectedOperationId}`);
         setOperations((current) => {
           const others = current.filter((item) => item.operation_id !== payload.operation_id);
           return [payload, ...others].slice(0, 20);
@@ -415,7 +454,10 @@ function SitlControlPage() {
         }
       } catch (error) {
         if (mounted) {
-          toast.error(`Failed to load SITL operation ${selectedOperationId}: ${error.message}`);
+          toastErrorThrottled(
+            `sitl-control:operation:${selectedOperationId}`,
+            `Failed to load SITL operation ${selectedOperationId}: ${error.message}`,
+          );
         }
       } finally {
         if (mounted) {
@@ -541,7 +583,10 @@ function SitlControlPage() {
     };
   }, [instances, preferredNetworkName]);
 
-  const handleRefresh = () => setRefreshTick((current) => current + 1);
+  const handleRefresh = () => {
+    refreshVisibilityRef.current = 'manual';
+    setRefreshTick((current) => current + 1);
+  };
 
   const handleReconcileFieldChange = (field, value) => {
     setReconcileForm((current) => ({ ...current, [field]: value }));
@@ -575,7 +620,8 @@ function SitlControlPage() {
       setSelectedOperationId(operation.operation_id);
       setOperationsExpanded(true);
       toast.success(operation.summary || 'SITL reconcile queued');
-      handleRefresh();
+      refreshVisibilityRef.current = 'auto';
+      setRefreshTick((current) => current + 1);
     } catch (error) {
       toast.error(`Failed to reconcile SITL fleet: ${error.message}`);
     } finally {
@@ -602,6 +648,8 @@ function SitlControlPage() {
       setSelectedOperationId(operation.operation_id);
       setOperationsExpanded(true);
       toast.success(operation.summary || 'SITL instance create queued');
+      setAddInstanceForm({ instanceId: '', ipLastOctet: '' });
+      refreshVisibilityRef.current = 'auto';
       setRefreshTick((current) => current + 1);
     } catch (error) {
       toast.error(`Failed to add SITL instance: ${error.message}`);
@@ -639,6 +687,7 @@ function SitlControlPage() {
       setSelectedOperationId(operation.operation_id);
       setOperationsExpanded(true);
       toast.success(operation.summary || `Restart queued for ${instanceName}`);
+      refreshVisibilityRef.current = 'auto';
       setRefreshTick((current) => current + 1);
     } catch (error) {
       setInstances((current) => current.map((instance) => (
@@ -684,6 +733,7 @@ function SitlControlPage() {
       setSelectedOperationId(operation.operation_id);
       setOperationsExpanded(true);
       toast.success(operation.summary || `Removal queued for ${instanceName}`);
+      refreshVisibilityRef.current = 'auto';
       setRefreshTick((current) => current + 1);
     } catch (error) {
       setPendingInstanceActions((current) => {
@@ -697,9 +747,126 @@ function SitlControlPage() {
     }
   };
 
-  const selectedInstancePendingAction = selectedInstance?.name
-    ? pendingInstanceActions[selectedInstance.name]?.action || null
-    : null;
+  const renderInstanceDetail = (instance, { inline = false } = {}) => {
+    if (!instance) {
+      return (
+        <EmptyState
+          title="Select an instance"
+          detail="The detail panel will show runtime facts, lifecycle controls, and tailed logs for the selected SITL container."
+        />
+      );
+    }
+
+    const pendingAction = pendingInstanceActions[instance.name]?.action || null;
+
+    return (
+      <aside className={`sitl-instance-detail ${inline ? 'sitl-instance-detail--inline' : ''}`.trim()}>
+        <div className="sitl-instance-detail__header">
+          <div>
+            <h3>{instance.name}</h3>
+            <p>{formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)}</p>
+          </div>
+          <div className={`sitl-badge sitl-badge--${formatInstanceTone(instance)}`}>
+            {instance.status}
+          </div>
+        </div>
+
+        <div className="sitl-inline-facts">
+          <span className="sitl-badge sitl-badge--muted" title={`Repository: ${instance.git_repo_url || 'not reported'}`}>
+            {getRepoLabel(instance.git_repo_url)}
+          </span>
+          <span className="sitl-badge sitl-badge--muted" title={`Branch: ${instance.git_branch || 'not reported'}`}>
+            {instance.git_branch || 'branch —'}
+          </span>
+          <span className="sitl-badge sitl-badge--muted" title={`Image: ${instance.image_ref || 'not reported'}`}>
+            {getImageShortLabel(instance.image_ref)}
+          </span>
+        </div>
+
+        <div className="sitl-inline-actions">
+          <button
+            type="button"
+            className="sitl-action-button"
+            onClick={handleRestartInstance}
+            disabled={submitting || Boolean(pendingAction)}
+            title="Restart only this container and keep the rest of the fleet visible"
+          >
+            <FaSyncAlt />
+            <span>{pendingAction === 'restart' ? 'Restarting…' : 'Restart'}</span>
+          </button>
+          <button
+            type="button"
+            className="sitl-action-button sitl-action-button--danger"
+            onClick={handleRemoveInstance}
+            disabled={submitting || Boolean(pendingAction)}
+            title="Remove only this container from the local SITL fleet"
+          >
+            <FaStop />
+            <span>{pendingAction === 'remove' ? 'Removing…' : 'Remove'}</span>
+          </button>
+        </div>
+
+        {pendingAction ? (
+          <div className="sitl-inline-note-banner" aria-live="polite">
+            {pendingAction === 'restart'
+              ? 'This container is restarting. The rest of the fleet view remains live while readiness returns.'
+              : 'This container is being removed. The inventory stays visible while the operation completes.'}
+          </div>
+        ) : null}
+
+        <dl className="sitl-key-value-grid">
+          <div>
+            <dt>Image</dt>
+            <dd>{instance.image_ref || '—'}</dd>
+          </div>
+          <div>
+            <dt>Git branch</dt>
+            <dd>{instance.git_branch || '—'}</dd>
+          </div>
+          <div>
+            <dt>Git sync</dt>
+            <dd>{instance.git_sync_enabled === null ? '—' : instance.git_sync_enabled ? 'Enabled' : 'Disabled'}</dd>
+          </div>
+          <div>
+            <dt>Req sync</dt>
+            <dd>{instance.requirements_sync_enabled === null ? '—' : instance.requirements_sync_enabled ? 'Enabled' : 'Disabled'}</dd>
+          </div>
+          <div>
+            <dt>Primary IP</dt>
+            <dd>{getPrimaryInstanceIp(instance, preferredNetworkName)}</dd>
+          </div>
+          <div>
+            <dt>Started</dt>
+            <dd>{formatTimestamp(instance.started_at)}</dd>
+          </div>
+        </dl>
+
+        <div className="sitl-log-panel">
+          <div className="sitl-log-panel__header">
+            <strong>Logs</strong>
+            {logSource ? <span className="sitl-badge sitl-badge--muted">{logSource}</span> : null}
+            <label>
+              Tail
+              <select value={logTail} onChange={(event) => setLogTail(Number(event.target.value))}>
+                {LOG_TAIL_OPTIONS.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="sitl-log-panel__body">
+            {logLoading ? <span className="sitl-log-panel__loading">Loading logs…</span> : null}
+            {!logLoading && logLines.length === 0 ? (
+              <span className="sitl-log-panel__loading">No log lines returned.</span>
+            ) : null}
+            {!logLoading && logLines.length > 0 ? (
+              <pre>{logLines.join('\n')}</pre>
+            ) : null}
+          </div>
+        </div>
+      </aside>
+    );
+  };
 
   return (
     <div className="sitl-control-page">
@@ -719,13 +886,6 @@ function SitlControlPage() {
           </button>
         )}
       />
-
-      {refreshing && hasLoadedOnce ? (
-        <div className="sitl-inline-banner" aria-live="polite">
-          <FaRedoAlt />
-          <span>Refreshing SITL inventory…</span>
-        </div>
-      ) : null}
 
       {loading ? (
         <div className="sitl-loading-shell" aria-live="polite">
@@ -927,6 +1087,43 @@ function SitlControlPage() {
                         <FaPlus />
                         <span>{creatingInstance ? 'Adding…' : 'Add next'}</span>
                       </button>
+                      <details className="sitl-inline-disclosure">
+                        <summary title="Add a specific ID/IP without pruning the rest of the fleet">Add exact</summary>
+                        <div className="sitl-inline-create-form">
+                          <label className="sitl-field">
+                            <span>Instance ID</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="999"
+                              placeholder={String(nextSuggestedInstance.instanceId)}
+                              value={addInstanceForm.instanceId}
+                              onChange={(event) => setAddInstanceForm((current) => ({ ...current, instanceId: event.target.value }))}
+                            />
+                          </label>
+                          <label className="sitl-field">
+                            <span>IP last octet</span>
+                            <input
+                              type="number"
+                              min="2"
+                              max="254"
+                              placeholder={String(nextSuggestedInstance.ipLastOctet)}
+                              value={addInstanceForm.ipLastOctet}
+                              onChange={(event) => setAddInstanceForm((current) => ({ ...current, ipLastOctet: event.target.value }))}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="sitl-action-button"
+                            disabled={!dockerState?.daemon_reachable || creatingInstance}
+                            onClick={() => handleAddInstance({ custom: true })}
+                            title="Add one container without pruning the rest of the fleet"
+                          >
+                            <FaPlus />
+                            <span>{creatingInstance ? 'Adding…' : 'Add one'}</span>
+                          </button>
+                        </div>
+                      </details>
                     </div>
                     <div className="sitl-inline-facts" aria-label="Fleet reconcile behavior">
                       <span className="sitl-badge sitl-badge--muted" title="Reconcile recreates the requested range fresh">fresh range</span>
@@ -944,48 +1141,9 @@ function SitlControlPage() {
                     </div>
                   </div>
 
-                  <details className="sitl-advanced-panel">
-                    <summary>Add one with custom ID/IP</summary>
-                    <div className="sitl-form-grid sitl-form-grid--advanced">
-                      <label className="sitl-field">
-                        <span>Instance ID</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="999"
-                          placeholder={String(nextSuggestedInstance.instanceId)}
-                          value={addInstanceForm.instanceId}
-                          onChange={(event) => setAddInstanceForm((current) => ({ ...current, instanceId: event.target.value }))}
-                        />
-                      </label>
-                      <label className="sitl-field">
-                        <span>IP last octet</span>
-                        <input
-                          type="number"
-                          min="2"
-                          max="254"
-                          placeholder={String(nextSuggestedInstance.ipLastOctet)}
-                          value={addInstanceForm.ipLastOctet}
-                          onChange={(event) => setAddInstanceForm((current) => ({ ...current, ipLastOctet: event.target.value }))}
-                        />
-                      </label>
-                    </div>
-                    <div className="sitl-reconcile-card__actions sitl-reconcile-card__actions--compact">
-                      <button
-                        type="button"
-                        className="sitl-action-button"
-                        disabled={!dockerState?.daemon_reachable || creatingInstance}
-                        onClick={() => handleAddInstance({ custom: true })}
-                        title="Add one container without pruning the rest of the fleet"
-                      >
-                        <FaPlus />
-                        <span>{creatingInstance ? 'Adding…' : 'Add one'}</span>
-                      </button>
-                      <span className="sitl-inline-note">
-                        Defaults to next free ID/IP if left blank.
-                      </span>
-                    </div>
-                  </details>
+                  <div className="sitl-inline-note-banner">
+                    `Add next` uses the next free ID/IP. `Add exact` is for sparse test layouts like `drone-10`.
+                  </div>
                 </form>
               </section>
 
@@ -1151,142 +1309,31 @@ function SitlControlPage() {
                         </span>
                       </div>
                       {filteredInstances.map((instance) => (
-                        <button
-                          key={instance.name}
-                          type="button"
-                          className={`sitl-compact-row ${selectedInstance?.name === instance.name ? 'is-active' : ''}`.trim()}
-                          onClick={() => setSelectedInstance(instance)}
-                          title={`${formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · ${getPrimaryInstanceIp(instance, preferredNetworkName)}`}
-                        >
-                          <div className="sitl-compact-row__main">
-                            <strong>{instance.name}</strong>
-                            <span>{formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · {getPrimaryInstanceIp(instance, preferredNetworkName)}</span>
-                          </div>
-                          <div className="sitl-compact-row__side">
-                            <span className={`sitl-badge sitl-badge--${formatInstanceTone(instance)}`}>
-                              {instance.state}
-                            </span>
-                            <small>{getRepoLabel(instance.git_repo_url)}</small>
-                            <small>{getImageShortLabel(instance.image_ref)}</small>
-                          </div>
-                        </button>
+                        <React.Fragment key={instance.name}>
+                          <button
+                            type="button"
+                            className={`sitl-compact-row ${selectedInstance?.name === instance.name ? 'is-active' : ''}`.trim()}
+                            onClick={() => setSelectedInstance(instance)}
+                            title={`${formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · ${getPrimaryInstanceIp(instance, preferredNetworkName)}`}
+                          >
+                            <div className="sitl-compact-row__main">
+                              <strong>{instance.name}</strong>
+                              <span>{formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · {getPrimaryInstanceIp(instance, preferredNetworkName)}</span>
+                            </div>
+                            <div className="sitl-compact-row__side">
+                              <span className={`sitl-badge sitl-badge--${formatInstanceTone(instance)}`}>
+                                {instance.state}
+                              </span>
+                              <small>{getRepoLabel(instance.git_repo_url)}</small>
+                              <small>{getImageShortLabel(instance.image_ref)}</small>
+                            </div>
+                          </button>
+                          {compactDetailLayout && selectedInstance?.name === instance.name ? renderInstanceDetail(instance, { inline: true }) : null}
+                        </React.Fragment>
                       ))}
                     </div>
 
-                    <aside className="sitl-instance-detail">
-                      {selectedInstance ? (
-                        <>
-                          <div className="sitl-instance-detail__header">
-                            <div>
-                              <h3>{selectedInstance.name}</h3>
-                              <p>{formatCompactDroneIdentity(selectedInstance.pos_id_hint, selectedInstance.hw_id, selectedInstance.name)}</p>
-                            </div>
-                            <div className={`sitl-badge sitl-badge--${formatInstanceTone(selectedInstance)}`}>
-                              {selectedInstance.status}
-                            </div>
-                          </div>
-
-                          <div className="sitl-inline-facts">
-                            <span className="sitl-badge sitl-badge--muted" title={`Repository: ${selectedInstance.git_repo_url || 'not reported'}`}>
-                              {getRepoLabel(selectedInstance.git_repo_url)}
-                            </span>
-                            <span className="sitl-badge sitl-badge--muted" title={`Branch: ${selectedInstance.git_branch || 'not reported'}`}>
-                              {selectedInstance.git_branch || 'branch —'}
-                            </span>
-                            <span className="sitl-badge sitl-badge--muted" title={`Image: ${selectedInstance.image_ref || 'not reported'}`}>
-                              {getImageShortLabel(selectedInstance.image_ref)}
-                            </span>
-                          </div>
-
-                          <div className="sitl-inline-actions">
-                            <button
-                              type="button"
-                              className="sitl-action-button"
-                              onClick={handleRestartInstance}
-                              disabled={submitting || Boolean(selectedInstancePendingAction)}
-                              title="Restart only this container and keep the rest of the fleet visible"
-                            >
-                              <FaSyncAlt />
-                              <span>{selectedInstancePendingAction === 'restart' ? 'Restarting…' : 'Restart'}</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="sitl-action-button sitl-action-button--danger"
-                              onClick={handleRemoveInstance}
-                              disabled={submitting || Boolean(selectedInstancePendingAction)}
-                              title="Remove only this container from the local SITL fleet"
-                            >
-                              <FaStop />
-                              <span>{selectedInstancePendingAction === 'remove' ? 'Removing…' : 'Remove'}</span>
-                            </button>
-                          </div>
-
-                          {selectedInstancePendingAction ? (
-                            <div className="sitl-inline-note-banner" aria-live="polite">
-                              {selectedInstancePendingAction === 'restart'
-                                ? 'This container is restarting. The rest of the fleet view remains live while readiness returns.'
-                                : 'This container is being removed. The inventory stays visible while the operation completes.'}
-                            </div>
-                          ) : null}
-
-                          <dl className="sitl-key-value-grid">
-                            <div>
-                              <dt>Image</dt>
-                              <dd>{selectedInstance.image_ref || '—'}</dd>
-                            </div>
-                            <div>
-                              <dt>Git branch</dt>
-                              <dd>{selectedInstance.git_branch || '—'}</dd>
-                            </div>
-                            <div>
-                              <dt>Git sync</dt>
-                              <dd>{selectedInstance.git_sync_enabled === null ? '—' : selectedInstance.git_sync_enabled ? 'Enabled' : 'Disabled'}</dd>
-                            </div>
-                            <div>
-                              <dt>Req sync</dt>
-                              <dd>{selectedInstance.requirements_sync_enabled === null ? '—' : selectedInstance.requirements_sync_enabled ? 'Enabled' : 'Disabled'}</dd>
-                            </div>
-                            <div>
-                              <dt>Primary IP</dt>
-                              <dd>{getPrimaryInstanceIp(selectedInstance, preferredNetworkName)}</dd>
-                            </div>
-                            <div>
-                              <dt>Started</dt>
-                              <dd>{formatTimestamp(selectedInstance.started_at)}</dd>
-                            </div>
-                          </dl>
-
-                          <div className="sitl-log-panel">
-                            <div className="sitl-log-panel__header">
-                              <strong>Logs</strong>
-                              {logSource ? <span className="sitl-badge sitl-badge--muted">{logSource}</span> : null}
-                              <label>
-                                Tail
-                                <select value={logTail} onChange={(event) => setLogTail(Number(event.target.value))}>
-                                  {LOG_TAIL_OPTIONS.map((value) => (
-                                    <option key={value} value={value}>{value}</option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
-                            <div className="sitl-log-panel__body">
-                              {logLoading ? <span className="sitl-log-panel__loading">Loading logs…</span> : null}
-                              {!logLoading && logLines.length === 0 ? (
-                                <span className="sitl-log-panel__loading">No log lines returned.</span>
-                              ) : null}
-                              {!logLoading && logLines.length > 0 ? (
-                                <pre>{logLines.join('\n')}</pre>
-                              ) : null}
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <EmptyState
-                          title="Select an instance"
-                          detail="The detail panel will show runtime facts, lifecycle controls, and tailed logs for the selected SITL container."
-                        />
-                      )}
-                    </aside>
+                    {!compactDetailLayout ? renderInstanceDetail(selectedInstance, { inline: false }) : null}
                   </div>
                 )}
               </section>
