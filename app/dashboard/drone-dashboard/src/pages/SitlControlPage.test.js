@@ -67,6 +67,7 @@ describe('SitlControlPage', () => {
         {
           image_id: 'sha256:1',
           primary_tag: 'mavsdk-drone-show-sitl:latest',
+          repo_tags: ['mavsdk-drone-show-sitl:latest', 'mavsdk-drone-show-sitl:v5'],
           branch: 'main-candidate',
           commit: 'abc1234',
           in_use_by_instances: 1,
@@ -107,6 +108,7 @@ describe('SitlControlPage', () => {
     });
     getSitlControlInstanceLogs.mockResolvedValue({
       lines: ['boot', 'ready'],
+      source: 'docker',
     });
     getSitlControlOperations.mockResolvedValue({
       operations: [
@@ -149,12 +151,14 @@ describe('SitlControlPage', () => {
     render(<SitlControlPage />);
 
     expect(await screen.findByText('SITL Control')).toBeInTheDocument();
-    expect(await screen.findByText('Fleet Reconcile')).toBeInTheDocument();
+    expect(await screen.findByText('Fleet')).toBeInTheDocument();
     expect(await screen.findByText('Docker')).toBeInTheDocument();
     expect((await screen.findAllByText('mavsdk-drone-show-sitl:latest')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('drone-1')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('P1|H1')).length).toBeGreaterThan(0);
     expect((await screen.findAllByText('Reconciling SITL fleet')).length).toBeGreaterThan(0);
+    expect(await screen.findByLabelText(/image repository/i)).toHaveValue('mavsdk-drone-show-sitl');
+    expect(await screen.findByLabelText(/image tag/i)).toHaveValue('latest');
 
     await waitFor(() => {
       expect(getSitlControlInstanceLogs).toHaveBeenCalledWith('drone-1', { tail: 200 });
@@ -213,5 +217,18 @@ describe('SitlControlPage', () => {
 
     expect(restartButton).toBeDisabled();
     expect(screen.getByText('drone-2')).toBeInTheDocument();
+  });
+
+  test('filters the instance list with the search field', async () => {
+    render(<SitlControlPage />);
+
+    expect(await screen.findByText('drone-2')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/search sitl instances/i), { target: { value: '172.18.0.3' } });
+
+    const instancesHeading = screen.getByRole('heading', { name: 'Instances' });
+    const instancesSection = instancesHeading.closest('.sitl-section');
+
+    expect(within(instancesSection).queryByRole('button', { name: /drone-1/i })).not.toBeInTheDocument();
+    expect(within(instancesSection).getByRole('button', { name: /drone-2/i })).toBeInTheDocument();
   });
 });

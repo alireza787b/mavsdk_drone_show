@@ -74,6 +74,7 @@ class _FakeContainer:
         self.image = image
         self.status = status
         self._logs = logs.encode("utf-8")
+        self._file_logs = {}
         self.restart_calls = 0
         self.remove_calls = 0
         env_list = [f"{key}={value}" for key, value in (env or {}).items()]
@@ -103,6 +104,13 @@ class _FakeContainer:
     def logs(self, stdout=True, stderr=True, timestamps=True, tail=200):
         del stdout, stderr, timestamps, tail
         return self._logs
+
+    def exec_run(self, command):
+        rendered = " ".join(command) if isinstance(command, (list, tuple)) else str(command)
+        for path, content in self._file_logs.items():
+            if path in rendered:
+                return SimpleNamespace(exit_code=0, output=content.encode("utf-8"))
+        return SimpleNamespace(exit_code=1, output=b"")
 
     def restart(self):
         self.restart_calls += 1
@@ -217,6 +225,31 @@ def test_get_instance_logs_returns_tailed_content_for_relevant_container(tmp_pat
     assert response.instance_name == "drone-1"
     assert response.tail_lines == 100
     assert response.lines[-1].endswith("ready")
+    assert response.source == "docker"
+
+
+def test_get_instance_logs_falls_back_to_startup_file_when_docker_logs_are_empty(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone = _FakeContainer(
+        name="drone-1",
+        image=image,
+        env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"},
+        logs="",
+    )
+    drone._file_logs["/root/mavsdk_drone_show/logs/startup_sitl.log"] = (
+        "2026-04-13 00:00:01 - Boot\n"
+        "2026-04-13 00:00:02 - Ready\n"
+    )
+    service = _make_service(tmp_path, containers=[drone], images=[image])
+
+    response = service.get_instance_logs("drone-1", tail_lines=20)
+
+    assert response.source == "startup_sitl.log"
+    assert response.lines[-1].endswith("Ready")
 
 
 def test_get_instance_logs_rejects_unknown_container(tmp_path):

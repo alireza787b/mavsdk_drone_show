@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -223,6 +224,7 @@ class SitlControlService:
                 instance_name=str(instance_name),
                 tail_lines=int(tail_lines),
                 lines=[],
+                source=None,
                 docker=docker_state,
                 timestamp=_now_ms(),
             )
@@ -236,6 +238,7 @@ class SitlControlService:
             if not self._is_relevant_container(container):
                 raise KeyError(f"SITL container {instance_name} not found")
 
+            env = _env_map((((container.attrs or {}).get("Config") or {}).get("Env") or []))
             raw_logs = container.logs(
                 stdout=True,
                 stderr=True,
@@ -243,10 +246,15 @@ class SitlControlService:
                 tail=int(tail_lines),
             )
             content = raw_logs.decode("utf-8", errors="replace") if isinstance(raw_logs, (bytes, bytearray)) else str(raw_logs)
+            lines = [line for line in content.splitlines() if line]
+            source = "docker" if lines else None
+            if not lines:
+                source, lines = self._read_fallback_instance_logs(container, env, tail_lines=int(tail_lines))
             return SitlControlInstanceLogResponse(
                 instance_name=str(instance_name),
                 tail_lines=int(tail_lines),
-                lines=[line for line in content.splitlines() if line],
+                lines=lines,
+                source=source,
                 docker=docker_state,
                 timestamp=_now_ms(),
             )
@@ -517,6 +525,45 @@ class SitlControlService:
 
     def _desired_drone_ids(self, request: SitlControlReconcileRequest) -> list[int]:
         return list(range(request.start_id, request.start_id + request.target_count))
+
+    def _read_fallback_instance_logs(
+        self,
+        container: Any,
+        env: dict[str, str],
+        *,
+        tail_lines: int,
+    ) -> tuple[str | None, list[str]]:
+        base_dir = str(env.get("MDS_BASE_DIR") or "/root/mavsdk_drone_show").strip() or "/root/mavsdk_drone_show"
+        candidates = [
+            ("startup_sitl.log", f"{base_dir}/logs/startup_sitl.log"),
+            ("coordinator.log", f"{base_dir}/logs/coordinator.log"),
+            ("sitl_simulation.log", f"{base_dir}/logs/sitl_simulation.log"),
+            ("mavlink_router.log", f"{base_dir}/logs/mavlink_router.log"),
+        ]
+        for source_name, path in candidates:
+            lines = self._read_container_file_tail(container, path, tail_lines=tail_lines)
+            if lines:
+                return source_name, lines
+        return None, []
+
+    @staticmethod
+    def _read_container_file_tail(container: Any, path: str, *, tail_lines: int) -> list[str]:
+        command = [
+            "/bin/sh",
+            "-lc",
+            f"test -f {shlex.quote(path)} && tail -n {int(tail_lines)} {shlex.quote(path)}",
+        ]
+        try:
+            result = container.exec_run(command)
+        except Exception:
+            return []
+
+        exit_code = getattr(result, "exit_code", None)
+        output = getattr(result, "output", b"")
+        if exit_code not in (0, None):
+            return []
+        content = output.decode("utf-8", errors="replace") if isinstance(output, (bytes, bytearray)) else str(output or "")
+        return [line for line in content.splitlines() if line]
 
     def _desired_container_names(self, request: SitlControlReconcileRequest) -> set[str]:
         return {f"drone-{drone_id}" for drone_id in self._desired_drone_ids(request)}

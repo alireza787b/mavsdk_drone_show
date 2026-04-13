@@ -8,6 +8,7 @@ import {
   FaMicrochip,
   FaPlay,
   FaRedoAlt,
+  FaSearch,
   FaServer,
   FaStop,
   FaStream,
@@ -34,6 +35,63 @@ const OPERATION_POLL_INTERVAL_MS = 2000;
 const LOG_TAIL_OPTIONS = [80, 200, 500];
 const TERMINAL_OPERATION_STATES = new Set(['failed', 'succeeded']);
 const ENABLE_BACKGROUND_POLLING = process.env.NODE_ENV !== 'test';
+
+function splitImageRef(imageRef) {
+  const normalized = String(imageRef || '').trim();
+  if (!normalized) {
+    return { repo: '', tag: '' };
+  }
+  const separatorIndex = normalized.lastIndexOf(':');
+  const lastSlashIndex = normalized.lastIndexOf('/');
+  if (separatorIndex > lastSlashIndex) {
+    return {
+      repo: normalized.slice(0, separatorIndex),
+      tag: normalized.slice(separatorIndex + 1),
+    };
+  }
+  return { repo: normalized, tag: '' };
+}
+
+function buildImageCatalog(images) {
+  const repos = new Map();
+  images.forEach((image) => {
+    const refs = Array.isArray(image?.repo_tags) && image.repo_tags.length > 0
+      ? image.repo_tags
+      : [image?.primary_tag].filter(Boolean);
+    refs.forEach((ref) => {
+      const { repo, tag } = splitImageRef(ref);
+      if (!repo) {
+        return;
+      }
+      if (!repos.has(repo)) {
+        repos.set(repo, new Set());
+      }
+      if (tag) {
+        repos.get(repo).add(tag);
+      }
+    });
+  });
+  return Array.from(repos.entries())
+    .map(([repo, tags]) => ({
+      repo,
+      tags: Array.from(tags).sort((left, right) => {
+        if (left === 'latest') {
+          return -1;
+        }
+        if (right === 'latest') {
+          return 1;
+        }
+        return left.localeCompare(right);
+      }),
+    }))
+    .sort((left, right) => left.repo.localeCompare(right.repo));
+}
+
+function getImageShortLabel(imageRef) {
+  const { repo, tag } = splitImageRef(imageRef);
+  const repoLabel = repo ? repo.split('/').slice(-1)[0] : 'unknown';
+  return tag ? `${repoLabel}:${tag}` : repoLabel;
+}
 
 function formatBytes(value) {
   const numeric = Number(value);
@@ -162,8 +220,10 @@ function SitlControlPage() {
   const [operationLoading, setOperationLoading] = useState(false);
   const [logTail, setLogTail] = useState(200);
   const [logLines, setLogLines] = useState([]);
+  const [logSource, setLogSource] = useState(null);
   const [logLoading, setLogLoading] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [instanceQuery, setInstanceQuery] = useState('');
   const [reconcileForm, setReconcileForm] = useState({
     targetCount: 3,
     imageRef: '',
@@ -269,6 +329,7 @@ function SitlControlPage() {
     const loadLogs = async () => {
       if (!selectedInstance?.name) {
         setLogLines([]);
+        setLogSource(null);
         return;
       }
       setLogLoading(true);
@@ -276,10 +337,12 @@ function SitlControlPage() {
         const payload = await getSitlControlInstanceLogs(selectedInstance.name, { tail: logTail });
         if (mounted) {
           setLogLines(Array.isArray(payload?.lines) ? payload.lines : []);
+          setLogSource(payload?.source || null);
         }
       } catch (error) {
         if (mounted) {
           setLogLines([]);
+          setLogSource(null);
           toast.error(`Failed to load SITL logs for ${selectedInstance.name}: ${error.message}`);
         }
       } finally {
@@ -387,6 +450,47 @@ function SitlControlPage() {
   const simModeEnabled = Boolean(policy?.sim_mode);
   const preferredNetworkName = policy?.defaults?.default_network_name || 'drone-network';
   const mutationsEnabled = Boolean(policy?.features?.lifecycle_mutations);
+  const imageCatalog = useMemo(() => buildImageCatalog(images), [images]);
+
+  const resolvedImageSelection = useMemo(() => {
+    const split = splitImageRef(reconcileForm.imageRef || policy?.defaults?.default_image || '');
+    const hasRepo = imageCatalog.some((item) => item.repo === split.repo);
+    if (hasRepo) {
+      return {
+        repo: split.repo,
+        tag: split.tag,
+      };
+    }
+    return {
+      repo: imageCatalog[0]?.repo || '',
+      tag: imageCatalog[0]?.tags[0] || '',
+    };
+  }, [imageCatalog, policy, reconcileForm.imageRef]);
+
+  const availableImageTags = useMemo(() => (
+    imageCatalog.find((item) => item.repo === resolvedImageSelection.repo)?.tags || []
+  ), [imageCatalog, resolvedImageSelection.repo]);
+
+  const filteredInstances = useMemo(() => {
+    const query = instanceQuery.trim().toLowerCase();
+    if (!query) {
+      return instances;
+    }
+    return instances.filter((instance) => {
+      const haystack = [
+        instance.name,
+        instance.hw_id,
+        instance.pos_id_hint,
+        getPrimaryInstanceIp(instance, preferredNetworkName),
+        instance.image_ref,
+        instance.git_branch,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [instanceQuery, instances, preferredNetworkName]);
 
   const hostCards = useMemo(() => {
     if (!host) {
@@ -404,6 +508,17 @@ function SitlControlPage() {
 
   const handleReconcileFieldChange = (field, value) => {
     setReconcileForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const handleImageRepoChange = (repo) => {
+    const matched = imageCatalog.find((item) => item.repo === repo);
+    const nextTag = matched?.tags[0] || '';
+    handleReconcileFieldChange('imageRef', repo && nextTag ? `${repo}:${nextTag}` : repo);
+  };
+
+  const handleImageTagChange = (tag) => {
+    const repo = resolvedImageSelection.repo;
+    handleReconcileFieldChange('imageRef', repo && tag ? `${repo}:${tag}` : reconcileForm.imageRef);
   };
 
   const handleReconcileSubmit = async (event) => {
@@ -523,13 +638,14 @@ function SitlControlPage() {
     <div className="sitl-control-page">
       <SectionHeader
         title="SITL Control"
-        detail="Local Docker SITL supervisor for image inventory, fleet reconcile, runtime inspection, and container lifecycle control."
+        detail="Local Docker SITL fleet supervisor."
         action={(
           <button
             type="button"
             className="sitl-action-button"
             onClick={handleRefresh}
             disabled={loading || refreshing}
+            title="Refresh host, image, instance, and operation inventory"
           >
             <FaRedoAlt />
             <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
@@ -594,8 +710,8 @@ function SitlControlPage() {
             <>
               <section className="sitl-section">
                 <SectionHeader
-                  title="Fleet Reconcile"
-                  detail="Beginner defaults stay simple. Expand Advanced only when you need to override image, network, or sync behavior."
+                  title="Fleet"
+                  detail="Reconcile to a fresh local SITL fleet."
                 />
                 <form className="sitl-reconcile-card" onSubmit={handleReconcileSubmit}>
                   <div className="sitl-form-grid">
@@ -610,26 +726,60 @@ function SitlControlPage() {
                       />
                     </label>
 
-                    <label className="sitl-field">
-                      <span>Image</span>
-                      <input
-                        type="text"
-                        list="sitl-image-options"
-                        placeholder={policy?.defaults?.default_image || 'mavsdk-drone-show-sitl:latest'}
-                        value={reconcileForm.imageRef}
-                        onChange={(event) => handleReconcileFieldChange('imageRef', event.target.value)}
-                      />
-                    </label>
+                    {imageCatalog.length > 0 ? (
+                      <>
+                        <label className="sitl-field">
+                          <span>Image repo</span>
+                          <select
+                            aria-label="Image repository"
+                            value={resolvedImageSelection.repo}
+                            onChange={(event) => handleImageRepoChange(event.target.value)}
+                            title="Select a discovered SITL image repository"
+                          >
+                            {imageCatalog.map((image) => (
+                              <option key={image.repo} value={image.repo}>{image.repo}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="sitl-field">
+                          <span>Tag</span>
+                          <select
+                            aria-label="Image tag"
+                            value={resolvedImageSelection.tag}
+                            onChange={(event) => handleImageTagChange(event.target.value)}
+                            title="Select a discovered tag for the chosen image repository"
+                          >
+                            {availableImageTags.map((tag) => (
+                              <option key={tag} value={tag}>{tag}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    ) : (
+                      <label className="sitl-field">
+                        <span>Image ref</span>
+                        <input
+                          type="text"
+                          placeholder={policy?.defaults?.default_image || 'mavsdk-drone-show-sitl:latest'}
+                          value={reconcileForm.imageRef}
+                          onChange={(event) => handleReconcileFieldChange('imageRef', event.target.value)}
+                        />
+                      </label>
+                    )}
                   </div>
-                  <datalist id="sitl-image-options">
-                    {images.map((image) => (
-                      <option key={image.image_id} value={image.primary_tag || image.image_id} />
-                    ))}
-                  </datalist>
 
                   <details className="sitl-advanced-panel">
                     <summary>Advanced</summary>
                     <div className="sitl-form-grid sitl-form-grid--advanced">
+                      <label className="sitl-field">
+                        <span>Custom image ref</span>
+                        <input
+                          type="text"
+                          placeholder={policy?.defaults?.default_image || 'mavsdk-drone-show-sitl:latest'}
+                          value={reconcileForm.imageRef}
+                          onChange={(event) => handleReconcileFieldChange('imageRef', event.target.value)}
+                        />
+                      </label>
                       <label className="sitl-field">
                         <span>Start ID</span>
                         <input
@@ -694,13 +844,15 @@ function SitlControlPage() {
                       type="submit"
                       className="sitl-action-button sitl-action-button--primary"
                       disabled={!dockerState?.daemon_reachable || submitting}
+                      title="Create missing SITL containers, recreate matching IDs, and remove extras outside the requested range"
                     >
                       <FaPlay />
                       <span>{submitting ? 'Submitting…' : 'Reconcile fleet'}</span>
                     </button>
-                    <small>
-                      Uses the canonical `multiple_sitl/create_dockers.sh` launcher, then removes stale extra containers outside the requested range.
-                    </small>
+                    <div className="sitl-inline-facts" aria-label="Fleet reconcile behavior">
+                      <span className="sitl-badge sitl-badge--muted" title="Requested container IDs are recreated fresh by the canonical launcher">fresh in range</span>
+                      <span className="sitl-badge sitl-badge--muted" title="Containers outside the requested range are removed after reconcile">prune extras</span>
+                    </div>
                   </div>
                 </form>
               </section>
@@ -719,8 +871,8 @@ function SitlControlPage() {
 
               <section className="sitl-section">
                 <SectionHeader
-                  title="Operations"
-                  detail="Tracked reconcile and lifecycle actions. The latest operation keeps its own progress lines instead of forcing you into raw shell output."
+                  title="Recent Ops"
+                  detail=""
                 />
                 {operations.length === 0 ? (
                   <EmptyState
@@ -729,24 +881,24 @@ function SitlControlPage() {
                   />
                 ) : (
                   <div className="sitl-instance-layout">
-                    <div className="sitl-card-grid sitl-card-grid--instances">
+                    <div className="sitl-compact-list">
                       {operations.map((operation) => (
                         <button
                           key={operation.operation_id}
                           type="button"
-                          className={`sitl-entity-card sitl-entity-card--button ${selectedOperationId === operation.operation_id ? 'is-active' : ''}`.trim()}
+                          className={`sitl-compact-row ${selectedOperationId === operation.operation_id ? 'is-active' : ''}`.trim()}
                           onClick={() => setSelectedOperationId(operation.operation_id)}
+                          title={operation.detail || operation.summary}
                         >
-                          <div className="sitl-entity-card__header">
+                          <div className="sitl-compact-row__main">
                             <strong>{operation.summary}</strong>
+                            <span>{operation.affected_instances.join(', ') || operation.operation_type}</span>
+                          </div>
+                          <div className="sitl-compact-row__side">
                             <span className={`sitl-badge sitl-badge--${formatOperationTone(operation)}`}>
                               {operation.status}
                             </span>
-                          </div>
-                          <div className="sitl-entity-card__meta">
-                            <span>{operation.operation_type}</span>
-                            <span>{operation.affected_instances.join(', ') || 'No instance target'}</span>
-                            <span>{formatTimestamp(operation.updated_at)}</span>
+                            <small>{formatTimestamp(operation.updated_at)}</small>
                           </div>
                         </button>
                       ))}
@@ -786,7 +938,7 @@ function SitlControlPage() {
 
                           <div className="sitl-log-panel">
                             <div className="sitl-log-panel__header">
-                              <strong>Operation progress</strong>
+                              <strong>Progress</strong>
                               <span className="sitl-inline-note">{selectedOperation.log_lines.length} line(s)</span>
                             </div>
                             <div className="sitl-log-panel__body">
@@ -812,7 +964,7 @@ function SitlControlPage() {
               <section className="sitl-section">
                 <SectionHeader
                   title="Images"
-                  detail="Available local SITL images with provenance labels when present."
+                  detail=""
                 />
                 {images.length === 0 ? (
                   <EmptyState
@@ -820,18 +972,16 @@ function SitlControlPage() {
                     detail="Build or load an MDS SITL image on this host before trying to reconcile a fleet."
                   />
                 ) : (
-                  <div className="sitl-card-grid">
+                  <div className="sitl-compact-list">
                     {images.map((image) => (
-                      <article key={image.image_id} className="sitl-entity-card">
-                        <div className="sitl-entity-card__header">
-                          <strong>{image.primary_tag || image.image_id}</strong>
-                          <span className="sitl-badge">{image.in_use_by_instances} in use</span>
+                      <article key={image.image_id} className="sitl-compact-row sitl-compact-row--static">
+                        <div className="sitl-compact-row__main">
+                          <strong>{splitImageRef(image.primary_tag || image.image_id).repo || image.primary_tag || image.image_id}</strong>
+                          <span>{image.commit || 'commit —'}</span>
                         </div>
-                        <div className="sitl-entity-card__meta">
-                          <span>Branch: {image.branch || '—'}</span>
-                          <span>Commit: {image.commit || '—'}</span>
-                          <span>Size: {formatBytes(image.size_bytes)}</span>
-                          <span>Created: {formatTimestamp(image.created_at)}</span>
+                        <div className="sitl-compact-row__side">
+                          <span className="sitl-badge" title="Tag">{splitImageRef(image.primary_tag || '').tag || 'untagged'}</span>
+                          <small>{formatBytes(image.size_bytes)}</small>
                         </div>
                       </article>
                     ))}
@@ -842,7 +992,19 @@ function SitlControlPage() {
               <section className="sitl-section">
                 <SectionHeader
                   title="Instances"
-                  detail="Click a container to inspect its current runtime facts, tailed logs, and lifecycle controls."
+                  detail=""
+                  action={(
+                    <label className="sitl-search-field">
+                      <FaSearch />
+                      <input
+                        type="search"
+                        value={instanceQuery}
+                        onChange={(event) => setInstanceQuery(event.target.value)}
+                        placeholder="Search name, Pn|Hm, IP, branch"
+                        aria-label="Search SITL instances"
+                      />
+                    </label>
+                  )}
                 />
                 {instances.length === 0 ? (
                   <EmptyState
@@ -851,25 +1013,29 @@ function SitlControlPage() {
                   />
                 ) : (
                   <div className="sitl-instance-layout">
-                    <div className="sitl-card-grid sitl-card-grid--instances">
-                      {instances.map((instance) => (
+                    <div className="sitl-compact-list sitl-compact-list--instances">
+                      <div className="sitl-inline-facts">
+                        <span className="sitl-badge sitl-badge--muted">
+                          {filteredInstances.length} of {instances.length}
+                        </span>
+                      </div>
+                      {filteredInstances.map((instance) => (
                         <button
                           key={instance.name}
                           type="button"
-                          className={`sitl-entity-card sitl-entity-card--button ${selectedInstance?.name === instance.name ? 'is-active' : ''}`.trim()}
+                          className={`sitl-compact-row ${selectedInstance?.name === instance.name ? 'is-active' : ''}`.trim()}
                           onClick={() => setSelectedInstance(instance)}
+                          title={`${formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · ${getPrimaryInstanceIp(instance, preferredNetworkName)}`}
                         >
-                          <div className="sitl-entity-card__header">
+                          <div className="sitl-compact-row__main">
                             <strong>{instance.name}</strong>
+                            <span>{formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · {getPrimaryInstanceIp(instance, preferredNetworkName)}</span>
+                          </div>
+                          <div className="sitl-compact-row__side">
                             <span className={`sitl-badge sitl-badge--${formatInstanceTone(instance)}`}>
                               {instance.state}
                             </span>
-                          </div>
-                          <div className="sitl-entity-card__meta">
-                            <span>{formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)}</span>
-                            <span>{getPrimaryInstanceIp(instance, preferredNetworkName)}</span>
-                            <span>{instance.image_ref || 'Unknown image'}</span>
-                            <span>{instance.git_branch ? `Branch ${instance.git_branch}` : 'Branch —'}</span>
+                            <small>{getImageShortLabel(instance.image_ref)}</small>
                           </div>
                         </button>
                       ))}
@@ -894,6 +1060,7 @@ function SitlControlPage() {
                               className="sitl-action-button"
                               onClick={handleRestartInstance}
                               disabled={submitting || Boolean(selectedInstancePendingAction)}
+                              title="Restart only this container and keep the rest of the fleet visible"
                             >
                               <FaSyncAlt />
                               <span>{selectedInstancePendingAction === 'restart' ? 'Restarting…' : 'Restart'}</span>
@@ -903,6 +1070,7 @@ function SitlControlPage() {
                               className="sitl-action-button sitl-action-button--danger"
                               onClick={handleRemoveInstance}
                               disabled={submitting || Boolean(selectedInstancePendingAction)}
+                              title="Remove only this container from the local SITL fleet"
                             >
                               <FaStop />
                               <span>{selectedInstancePendingAction === 'remove' ? 'Removing…' : 'Remove'}</span>
@@ -946,7 +1114,8 @@ function SitlControlPage() {
 
                           <div className="sitl-log-panel">
                             <div className="sitl-log-panel__header">
-                              <strong>Container logs</strong>
+                              <strong>Logs</strong>
+                              {logSource ? <span className="sitl-badge sitl-badge--muted">{logSource}</span> : null}
                               <label>
                                 Tail
                                 <select value={logTail} onChange={(event) => setLogTail(Number(event.target.value))}>

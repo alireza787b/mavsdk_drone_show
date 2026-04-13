@@ -23,6 +23,8 @@ It does:
 - respect the selected Docker image and basic startup overrides
 - track lifecycle operations inside MDS instead of sending operators to shell
 - present compact host/image/instance state in the dashboard
+- use auto-populated image repository/tag selectors for normal operation, with
+  a folded manual image-ref override for advanced cases
 - expose the same lifecycle through a headless API/CLI path for validators,
   AI agents, and future MCP tools
 
@@ -37,9 +39,10 @@ It does not do in V1:
 
 1. Open `System -> SITL Control`.
 2. Confirm Docker is available on the host.
-3. Confirm the intended image is present.
+3. Confirm the intended image repository and tag are present.
 4. Set `Desired instances`.
 5. Optionally open `Advanced` and override:
+   - full image ref
    - start ID
    - start IP
    - subnet
@@ -55,7 +58,7 @@ It does not do in V1:
 
 The page defaults to normal beginner-safe values:
 
-- image: first detected MDS SITL image or policy default
+- image repo/tag: first detected MDS SITL image/tag or policy default
 - target count: current instance count, or `3` when empty
 - start ID: `1`
 - start IP: `2`
@@ -64,6 +67,15 @@ The page defaults to normal beginner-safe values:
 - requirements sync: enabled
 
 Advanced fields are folded behind `Advanced` so routine use stays simple.
+
+## Reconcile Semantics
+
+`Reconcile fleet` is a fresh-range operation:
+
+- requested `drone-N` containers inside the selected range are recreated by the
+  canonical launcher
+- extra `drone-N` containers outside the requested range are removed afterward
+- the result should be treated as the new clean local SITL baseline
 
 ## API Surface
 
@@ -118,8 +130,12 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
   (`drone-N`) and prepared MDS SITL images.
 - Restart and remove operate on one selected container at a time.
 - Reconcile is the preferred way to converge the whole local fleet.
-- Container log tails are best-effort and depend on what Docker captured for the
-  selected container.
+- Container log tails first use Docker logs, then fall back to the container's
+  file-backed SITL runtime logs such as `startup_sitl.log` when Docker output
+  is empty.
+- Restart/remove now keep the page inventory visible and show only instance-
+  local pending state instead of dropping the whole page into a blocking
+  loading shell.
 
 ## Validation
 

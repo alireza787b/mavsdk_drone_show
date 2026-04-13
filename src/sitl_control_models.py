@@ -145,6 +145,7 @@ class SitlControlInstanceLogResponse(BaseModel):
     instance_name: str
     tail_lines: int = Field(..., ge=1)
     lines: List[str] = Field(default_factory=list)
+    source: Optional[str] = Field(None, description="Resolved log source such as docker or startup_sitl.log")
     docker: SitlControlDockerState
     timestamp: int
 

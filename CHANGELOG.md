@@ -16,6 +16,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   the dashboard adds a dedicated responsive SITL Control page with beginner
   defaults, folded advanced overrides, and live-validated Docker lifecycle
   control against real Hetzner SITL containers
+- SITL Control UX/log hardening:
+  restart/remove now keep the inventory visible with instance-local pending
+  state instead of dropping the page into a full-screen reload shell, the
+  instance list now supports scan-first search/filtering for larger fleets, the
+  reconcile form now uses auto-populated image repo/tag selectors with folded
+  manual override, and instance logs now fall back to file-backed SITL runtime
+  logs when Docker log output is empty
 - `tools/sitl_control_client.py` as the reusable headless SITL Control client
   for validators, AI agents, and future MCP tooling; the declarative SITL
   validation suite now defaults to API-first fleet resets with shell fallback,
