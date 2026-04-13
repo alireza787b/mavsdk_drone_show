@@ -943,11 +943,12 @@ function SitlControlPage() {
                 <form className="sitl-reconcile-card" onSubmit={handleReconcileSubmit}>
                   <div className="sitl-form-grid">
                     <label className="sitl-field">
-                      <span>Desired instances</span>
+                      <span>Count</span>
                       <input
                         type="number"
                         min="1"
                         max="50"
+                        aria-label="Desired instances"
                         value={reconcileForm.targetCount}
                         onChange={(event) => handleReconcileFieldChange('targetCount', event.target.value)}
                       />
@@ -956,7 +957,7 @@ function SitlControlPage() {
                     {imageCatalog.length > 0 ? (
                       <>
                         <label className="sitl-field">
-                          <span>Image repo</span>
+                          <span>Repo</span>
                           <select
                             aria-label="Image repository"
                             value={resolvedImageSelection.repo}
@@ -1085,13 +1086,13 @@ function SitlControlPage() {
                         onClick={() => handleAddInstance({ custom: false })}
                       >
                         <FaPlus />
-                        <span>{creatingInstance ? 'Adding…' : 'Add next'}</span>
+                        <span>{creatingInstance ? 'Adding…' : 'Next'}</span>
                       </button>
                       <details className="sitl-inline-disclosure">
-                        <summary title="Add a specific ID/IP without pruning the rest of the fleet">Add exact</summary>
+                        <summary title="Add a specific slot/IP without pruning the rest of the fleet">Custom</summary>
                         <div className="sitl-inline-create-form">
                           <label className="sitl-field">
-                            <span>Instance ID</span>
+                            <span>Slot</span>
                             <input
                               type="number"
                               min="1"
@@ -1102,7 +1103,7 @@ function SitlControlPage() {
                             />
                           </label>
                           <label className="sitl-field">
-                            <span>IP last octet</span>
+                            <span>IP</span>
                             <input
                               type="number"
                               min="2"
@@ -1117,17 +1118,17 @@ function SitlControlPage() {
                             className="sitl-action-button"
                             disabled={!dockerState?.daemon_reachable || creatingInstance}
                             onClick={() => handleAddInstance({ custom: true })}
-                            title="Add one container without pruning the rest of the fleet"
+                            title="Create one exact-slot container without pruning the rest of the fleet"
                           >
                             <FaPlus />
-                            <span>{creatingInstance ? 'Adding…' : 'Add one'}</span>
+                            <span>{creatingInstance ? 'Adding…' : 'Add'}</span>
                           </button>
                         </div>
                       </details>
                     </div>
                     <div className="sitl-inline-facts" aria-label="Fleet reconcile behavior">
-                      <span className="sitl-badge sitl-badge--muted" title="Reconcile recreates the requested range fresh">fresh range</span>
-                      <span className="sitl-badge sitl-badge--muted" title="Reconcile removes extra containers outside the requested range">prune extras</span>
+                      <span className="sitl-badge sitl-badge--muted" title="Reconcile recreates the requested range fresh">fresh</span>
+                      <span className="sitl-badge sitl-badge--muted" title="Reconcile removes extra containers outside the requested range">prune</span>
                       {resolvedImageSelection.tag ? (
                         <span className="sitl-badge sitl-badge--muted" title="Selected image tag">
                           {resolvedImageSelection.tag}
@@ -1138,11 +1139,10 @@ function SitlControlPage() {
                           {selectedImageSummary.commit.slice(0, 7)}
                         </span>
                       ) : null}
+                      <span className="sitl-badge sitl-badge--muted" title="Next free slot and IP">
+                        next {nextSuggestedInstance.instanceId}
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="sitl-inline-note-banner">
-                    `Add next` uses the next free ID/IP. `Add exact` is for sparse test layouts like `drone-10`.
                   </div>
                 </form>
               </section>
@@ -1309,7 +1309,7 @@ function SitlControlPage() {
                         </span>
                       </div>
                       {filteredInstances.map((instance) => (
-                        <React.Fragment key={instance.name}>
+                        <div key={instance.name} className="sitl-instance-stack">
                           <button
                             type="button"
                             className={`sitl-compact-row ${selectedInstance?.name === instance.name ? 'is-active' : ''}`.trim()}
@@ -1329,7 +1329,7 @@ function SitlControlPage() {
                             </div>
                           </button>
                           {compactDetailLayout && selectedInstance?.name === instance.name ? renderInstanceDetail(instance, { inline: true }) : null}
-                        </React.Fragment>
+                        </div>
                       ))}
                     </div>
 

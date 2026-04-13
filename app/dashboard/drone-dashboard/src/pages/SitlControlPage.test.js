@@ -210,8 +210,8 @@ describe('SitlControlPage', () => {
   test('queues add-next through the SITL control service', async () => {
     render(<SitlControlPage />);
 
-    expect(await screen.findByRole('button', { name: /add next/i })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /add next/i }));
+    expect(await screen.findByRole('button', { name: /^next$/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
 
     await waitFor(() => {
       expect(createSitlInstance).toHaveBeenCalledWith(expect.objectContaining({
