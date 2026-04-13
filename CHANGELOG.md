@@ -16,6 +16,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   the dashboard adds a dedicated responsive SITL Control page with beginner
   defaults, folded advanced overrides, and live-validated Docker lifecycle
   control against real Hetzner SITL containers
+- `tools/sitl_control_client.py` as the reusable headless SITL Control client
+  for validators, AI agents, and future MCP tooling; the declarative SITL
+  validation suite now defaults to API-first fleet resets with shell fallback,
+  and the SITL validation / automation docs now explicitly treat raw
+  `create_dockers.sh` usage as the cold-start path rather than the primary
+  steady-state lifecycle interface
 - refreshed the public official SITL archive publication and download
   instruction link, and published the matching private customer SITL archive
   to a dedicated MEGA target after validating the customer 3-drone Hetzner

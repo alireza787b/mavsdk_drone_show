@@ -103,6 +103,44 @@ Stable operational alias for quick liveness probes.
 #### `GET /ping`
 Stable operational alias for quick liveness probes.
 
+#### SITL Control
+
+When GCS is running in simulation mode, the SITL Control subsystem exposes
+typed lifecycle routes for local Docker-backed SITL management.
+
+Current routes:
+
+- `GET /api/v1/system/sitl/policy`
+- `GET /api/v1/system/sitl/host`
+- `GET /api/v1/system/sitl/images`
+- `GET /api/v1/system/sitl/instances`
+- `GET /api/v1/system/sitl/instances/{instance_name}/logs`
+- `POST /api/v1/system/sitl/reconcile`
+- `POST /api/v1/system/sitl/instances/{instance_name}/restart`
+- `DELETE /api/v1/system/sitl/instances/{instance_name}`
+- `GET /api/v1/system/sitl/operations`
+- `GET /api/v1/system/sitl/operations/{operation_id}`
+
+Design notes:
+
+- dashboard, validators, and headless automation can all use the same API
+- GCS still reuses the canonical `multiple_sitl/create_dockers.sh` launcher
+  under the hood rather than introducing a parallel Docker workflow
+- operation polling is the intended way to track reconcile/restart/remove
+  completion without scraping shell output
+
+Example reconcile request:
+
+```json
+{
+  "target_count": 3,
+  "start_id": 1,
+  "start_ip": 2,
+  "git_sync_enabled": true,
+  "requirements_sync_enabled": true
+}
+```
+
 ---
 
 ### PX4 Parameters

@@ -130,6 +130,10 @@ For SITL-backed work:
 1. verify prerequisites from docs, not memory
 2. bring up or inspect the correct GCS/dashboard path
 3. bring up or inspect the correct SITL containers
+   - when GCS is reachable, prefer the typed SITL Control API/CLI
+     (`tools/sitl_control_client.py`) over direct Docker shell orchestration
+   - keep `multiple_sitl/create_dockers.sh` for cold bootstrap or API-unavailable
+     fallback paths
 4. confirm readiness through:
    - health endpoints
    - telemetry/readiness views
@@ -141,6 +145,7 @@ For SITL-backed work:
    - logging/UI/export flow
 6. when using `tools/run_sitl_validation_suite.py`:
    - keep `--base-url`, `--validator-root`, and `--repo-root` explicit in your notes and artifacts
+   - keep `--sitl-reset-mode` explicit whenever you override the default `auto`
    - allow same-host or split-root layouts; do not hardcode a specific VPS hostname or one fixed repo path pattern into reusable docs or wrappers
    - a plain synced validator copy is acceptable when you only need current tooling, but a real git checkout gives better provenance in `suite-summary.json`
 7. if the scenario fails:

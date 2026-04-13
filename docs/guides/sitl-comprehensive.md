@@ -276,6 +276,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - Backend auto-reload is now an explicit debug override only. Set `export MDS_GCS_BACKEND_RELOAD=true` only when you are actively editing backend Python code and accept that live operational state may become inconsistent while reload is enabled.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
 - Once the dashboard is up, use `System -> SITL Control` for local Docker-backed SITL inventory, reconcile, restart, and remove operations without dropping to shell.
+- For headless/local automation on a live GCS host, prefer `python3 tools/sitl_control_client.py reconcile ...` over ad hoc Docker shell calls. Keep `bash multiple_sitl/create_dockers.sh ...` for cold bootstrap or when GCS is not up yet.
 - Production currently uses a single Gunicorn worker on purpose because heartbeat state, command tracking, and background pollers still live in process memory.
 - Production serves the React build with SPA route fallback, so direct browser refresh on routes like `/logs` or `/mission-config` keeps working.
 - On smaller VPSes, raise the React build heap before `--prod` if needed:
@@ -328,19 +329,28 @@ The following section covers the standard flow for launching SITL drone instance
 
 3. **Create Drone Instances:**
 
-    Use the `create_dockers.sh` script to create the desired number of drone instances. Replace `<number_of_instances>` with the number of drones you wish to deploy.
+    If the GCS is already running, prefer the typed SITL lifecycle path:
+
+    ```bash
+    python3 tools/sitl_control_client.py reconcile \
+      --base-url http://127.0.0.1:5000 \
+      --repo-root ~/mavsdk_drone_show \
+      --drone-ids 1 2
+    ```
+
+    If this is the first cold start and GCS is not up yet, use the canonical shell launcher. Replace `<number_of_instances>` with the number of drones you wish to deploy.
 
     ```bash
     bash multiple_sitl/create_dockers.sh <number_of_instances>
     ```
 
-    **Example:** To create **2** drone instances:
+    **Example cold-start shell path:** To create **2** drone instances:
 
     ```bash
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The script `create_dockers.sh` initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, bind-mounts only per-drone runtime state such as the generated `.hwID` file, and launches the image-baked `startup_sitl.sh` as the container's main process by default. That startup path can optionally hard-reset the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`. Use `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only when you intentionally want a host-side debug override instead of the image-baked startup path.
+    **Explanation:** The shell launcher `create_dockers.sh` remains the canonical cold-start path. It initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, bind-mounts only per-drone runtime state such as the generated `.hwID` file, and launches the image-baked `startup_sitl.sh` as the container's main process by default. That startup path can optionally hard-reset the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`. Use `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only when you intentionally want a host-side debug override instead of the image-baked startup path.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 

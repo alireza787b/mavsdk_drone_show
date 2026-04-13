@@ -23,6 +23,8 @@ It does:
 - respect the selected Docker image and basic startup overrides
 - track lifecycle operations inside MDS instead of sending operators to shell
 - present compact host/image/instance state in the dashboard
+- expose the same lifecycle through a headless API/CLI path for validators,
+  AI agents, and future MCP tools
 
 It does not do in V1:
 
@@ -84,6 +86,31 @@ These routes are designed to stay MCP- and automation-friendly:
 - explicit operation tracking
 - no shell scraping in the browser
 - canonical launcher reuse instead of parallel SITL orchestration logic
+
+## Headless Automation
+
+When GCS is already running, prefer the typed SITL Control API/CLI over raw
+`create_dockers.sh` calls:
+
+```bash
+python3 tools/sitl_control_client.py policy \
+  --base-url http://127.0.0.1:5000
+```
+
+```bash
+python3 tools/sitl_control_client.py reconcile \
+  --base-url http://127.0.0.1:5000 \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3 \
+  --mode auto
+```
+
+`--mode auto` is the recommended default:
+
+- use the SITL Control API when the live GCS exposes it and Docker is reachable
+- fall back to the canonical shell launcher only when the API is unavailable
+
+Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 
 ## Notes
 

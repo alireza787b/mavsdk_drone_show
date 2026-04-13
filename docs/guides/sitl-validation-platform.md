@@ -16,6 +16,15 @@ The platform is intentionally host-agnostic:
 - split-root validation where a temporary validator checkout targets a different live runtime repo
 - remote VPS validation where `--base-url` points at another host while the validator runs locally or from a second checkout on that host
 
+Lifecycle control now follows the same doctrine:
+
+- when GCS is already reachable, suite reset steps use the typed SITL Control
+  API/CLI path by default
+- when that API is unavailable, the suite falls back to the canonical
+  `multiple_sitl/create_dockers.sh` launcher
+- cold bootstrap is still a shell responsibility; steady-state validation
+  should prefer the API path
+
 ## What It Covers Today
 
 The current reusable validators cover:
@@ -61,6 +70,29 @@ Current templates:
   - reset plus the dedicated QuickScout runtime validator only
 - `ulog_only`
   - reset plus the dedicated onboard-Ulog runtime validator only
+
+## Headless SITL Control
+
+For AI agents, scripts, and future MCP tools, use the headless client:
+
+```bash
+python3 tools/sitl_control_client.py reconcile \
+  --base-url http://127.0.0.1:5000 \
+  --repo-root ~/mavsdk_drone_show \
+  --drone-ids 1 2 3 \
+  --mode auto
+```
+
+Mode policy:
+
+- `auto`
+  - preferred default; use the SITL Control API when available, otherwise fall
+    back to shell
+- `api`
+  - require the SITL Control API and fail if it is unavailable
+- `shell`
+  - use `create_dockers.sh` directly; keep this for cold-start or legacy-host
+    workflows
 
 ## Bundled Plan Library
 
@@ -139,7 +171,6 @@ runtime to a freshly rebuilt image and disable mutable boot-time sync:
 export MDS_DOCKER_IMAGE=mavsdk-drone-show-sitl:debug-<commit>
 export MDS_SITL_GIT_SYNC=false
 export MDS_SITL_REQUIREMENTS_SYNC=false
-bash multiple_sitl/create_dockers.sh 3
 python3 tools/run_sitl_validation_suite.py \
   --template operator_regression \
   --base-url http://127.0.0.1:5000 \
@@ -255,6 +286,10 @@ or different paths.
 `--plan-name` resolves one of the checked-in JSON plans from `tools/sitl_plans`.
 Use `--plan-file` only when you intentionally want an external or temporary
 scenario file.
+
+The suite reset steps now use `tools/sitl_control_client.py reconcile` with
+`--sitl-reset-mode auto` by default. Override that only when you intentionally
+need `--sitl-reset-mode api` or `--sitl-reset-mode shell`.
 
 ## Declarative JSON Plans
 
@@ -374,6 +409,12 @@ For routine deterministic regression runs, the clean policy is:
 - recreate the selected SITL fleet at the start of the suite
 - recreate again before any late Drone Show step after another mission family
 - recreate again at the end of the suite
+
+Implementation detail:
+
+- same-host and remote live suites now try the SITL Control API first
+- shell recreate remains the built-in fallback when the API is not available
+- that keeps validator behavior aligned with the dashboard and future MCP tools
 
 This is the default suite behavior and it is the recommended promotion-grade
 path.

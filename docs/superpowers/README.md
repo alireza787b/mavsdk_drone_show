@@ -35,3 +35,9 @@ Additional plans may be added here for agent-executed implementation phases.
 - Put long workflow-specific contracts under `docs/superpowers/specs/`.
 - Add deeper scoped agent instruction files only when a subtree genuinely needs local rules.
 - If repeated real-world findings reveal missing guidance, update these agent docs when the user approves.
+
+## SITL Runtime Note
+
+For live GCS-backed SITL lifecycle changes, agents should prefer the typed
+SITL Control API/CLI (`tools/sitl_control_client.py`) over raw Docker shell
+orchestration whenever the GCS is already reachable.

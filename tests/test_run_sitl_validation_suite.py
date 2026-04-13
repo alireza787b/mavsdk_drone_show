@@ -30,6 +30,9 @@ def _build_args(suite, tmp_path, **overrides):
         "config_swarm_patch_offset_delta": 2.0,
         "import_source_dir": None,
         "expected_show_count": 5,
+        "sitl_reset_mode": "auto",
+        "sitl_reset_timeout_sec": 180.0,
+        "sitl_reset_poll_interval_sec": 1.0,
         "skip_initial_reset": False,
         "skip_pre_drone_show_reset": False,
         "final_reset": True,
@@ -51,6 +54,9 @@ def _build_args(suite, tmp_path, **overrides):
         "trajectory_vert_tolerance": 8.0,
         "trajectory_min_altitude_gain": 2.0,
         "trajectory_formation_timeout": 120,
+        "trajectory_live_launch_stable_samples": 2,
+        "trajectory_live_launch_probe_retries": 1,
+        "trajectory_live_launch_probe_retry_delay": 1.0,
         "integrated_takeoff_min_gain": 4.0,
         "integrated_formation_horizontal_tolerance": 8.0,
         "integrated_formation_altitude_tolerance": 2.0,
@@ -85,6 +91,9 @@ def _build_args(suite, tmp_path, **overrides):
         "quickscout_abort_return_behavior": "return_home",
         "px4_params_param_name": "MPC_XY_VEL_MAX",
         "px4_params_float_delta": 1.0,
+        "ulog_takeoff_min_gain": 4.0,
+        "ulog_list_timeout_sec": 60,
+        "ulog_job_timeout_sec": 120,
     }
     values.update(overrides)
 
@@ -114,11 +123,31 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
         suite.MODE_QUICKSCOUT,
         "reset_after_suite",
     ]
-    assert steps[0].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[0].command == [
+        "/venv/bin/python",
+        "tools/sitl_control_client.py",
+        "reconcile",
+        "--base-url",
+        "http://127.0.0.1:5000",
+        "--repo-root",
+        str(tmp_path),
+        "--drone-ids",
+        "1",
+        "2",
+        "3",
+        "--mode",
+        "auto",
+        "--timeout-sec",
+        "180.0",
+        "--poll-interval-sec",
+        "1.0",
+        "--json-output",
+        str(tmp_path / "artifacts" / "reset_before_suite.json"),
+    ]
     assert steps[1].validator == suite.MODE_CONFIGURATION
     assert steps[1].json_path == tmp_path / "artifacts" / "configuration.json"
     assert "--metadata-suffix=-CFG" in steps[1].command
-    assert steps[2].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[2].command[1:4] == ["tools/sitl_control_client.py", "reconcile", "--base-url"]
     assert steps[4].validator == suite.MODE_ACTIONS
     assert steps[4].json_path == tmp_path / "artifacts" / "actions.json"
     assert "--post-rtl-airborne-gain" in steps[4].command
@@ -126,7 +155,7 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
     assert steps[7].validator == suite.MODE_QUICKSCOUT
     assert steps[7].json_path == tmp_path / "artifacts" / "quickscout.json"
     assert "tools/validate_quickscout_runtime.py" in steps[7].command
-    assert steps[8].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[8].command[1:4] == ["tools/sitl_control_client.py", "reconcile", "--base-url"]
 
 
 def test_build_suite_steps_inserts_reset_before_late_drone_show_from_modes(tmp_path):
@@ -148,7 +177,27 @@ def test_build_suite_steps_inserts_reset_before_late_drone_show_from_modes(tmp_p
         suite.MODE_DRONE_SHOW,
         "reset_after_suite",
     ]
-    assert steps[1].command == ["bash", "multiple_sitl/create_dockers.sh", "3", "--start-id", "4", "--start-ip", "5"]
+    assert steps[1].command == [
+        "/venv/bin/python",
+        "tools/sitl_control_client.py",
+        "reconcile",
+        "--base-url",
+        "http://127.0.0.1:5000",
+        "--repo-root",
+        str(tmp_path),
+        "--drone-ids",
+        "4",
+        "5",
+        "6",
+        "--mode",
+        "auto",
+        "--timeout-sec",
+        "180.0",
+        "--poll-interval-sec",
+        "1.0",
+        "--json-output",
+        str(tmp_path / "artifacts" / "reset_before_drone_show.json"),
+    ]
 
 
 def test_build_suite_steps_reads_plan_file_with_step_overrides(tmp_path):
@@ -188,10 +237,30 @@ def test_build_suite_steps_reads_plan_file_with_step_overrides(tmp_path):
     ]
     assert steps[1].drone_ids == (1, 2, 3)
     assert steps[1].command[steps[1].command.index("--takeoff-min-gain") + 1] == "5.5"
-    assert steps[2].command == ["bash", "multiple_sitl/create_dockers.sh", "3", "--start-id", "7", "--start-ip", "8"]
+    assert steps[2].command == [
+        "/venv/bin/python",
+        "tools/sitl_control_client.py",
+        "reconcile",
+        "--base-url",
+        "http://127.0.0.1:5000",
+        "--repo-root",
+        str(tmp_path),
+        "--drone-ids",
+        "7",
+        "8",
+        "9",
+        "--mode",
+        "auto",
+        "--timeout-sec",
+        "180.0",
+        "--poll-interval-sec",
+        "1.0",
+        "--json-output",
+        str(tmp_path / "artifacts" / "mid_suite_reset.json"),
+    ]
     assert "--prepare-short-profile" not in steps[3].command
     assert steps[3].command[steps[3].command.index("--formation-timeout") + 1] == "180"
-    assert steps[4].command == ["bash", "multiple_sitl/create_dockers.sh", "3"]
+    assert steps[4].command[1:4] == ["tools/sitl_control_client.py", "reconcile", "--base-url"]
 
 
 def test_list_templates_mentions_operator_and_actions_templates():

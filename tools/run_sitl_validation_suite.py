@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tools.runtime_validation_support import build_sitl_reset_command, normalize_drone_ids, write_json_report
+from tools.runtime_validation_support import normalize_drone_ids, write_json_report
 
 BUNDLED_PLAN_DIR = REPO_ROOT / "tools" / "sitl_plans"
 
@@ -800,13 +800,33 @@ def build_suite_steps(args: argparse.Namespace, artifact_dir: Path) -> list[Suit
         log_path = artifact_dir / f"{index:02d}_{step_slug}.log"
 
         if plan_step.kind == "reset":
+            json_path = artifact_dir / f"{step_slug}.json"
             steps.append(
                 SuiteStep(
                     name=plan_step.name,
                     kind="reset",
-                    command=build_sitl_reset_command(plan_step.drone_ids),
-                    cwd=args.repo_root,
+                    command=[
+                        args.python,
+                        "tools/sitl_control_client.py",
+                        "reconcile",
+                        "--base-url",
+                        args.base_url,
+                        "--repo-root",
+                        str(args.repo_root),
+                        "--drone-ids",
+                        *[str(drone_id) for drone_id in plan_step.drone_ids],
+                        "--mode",
+                        args.sitl_reset_mode,
+                        "--timeout-sec",
+                        str(args.sitl_reset_timeout_sec),
+                        "--poll-interval-sec",
+                        str(args.sitl_reset_poll_interval_sec),
+                        "--json-output",
+                        str(json_path),
+                    ],
+                    cwd=args.validator_root,
                     log_path=log_path,
+                    json_path=json_path,
                     drone_ids=tuple(plan_step.drone_ids),
                     options=dict(plan_step.options),
                 )
@@ -901,12 +921,32 @@ def run_failure_cleanup(args: argparse.Namespace, artifact_dir: Path) -> dict[st
     if not args.final_reset:
         return None
 
+    json_path = artifact_dir / "failure_cleanup_reset.json"
     cleanup_step = SuiteStep(
         name="failure_cleanup_reset",
         kind="reset",
-        command=build_sitl_reset_command(args.drone_ids),
-        cwd=args.repo_root,
+        command=[
+            args.python,
+            "tools/sitl_control_client.py",
+            "reconcile",
+            "--base-url",
+            args.base_url,
+            "--repo-root",
+            str(args.repo_root),
+            "--drone-ids",
+            *[str(drone_id) for drone_id in args.drone_ids],
+            "--mode",
+            args.sitl_reset_mode,
+            "--timeout-sec",
+            str(args.sitl_reset_timeout_sec),
+            "--poll-interval-sec",
+            str(args.sitl_reset_poll_interval_sec),
+            "--json-output",
+            str(json_path),
+        ],
+        cwd=args.validator_root,
         log_path=artifact_dir / "failure_cleanup_reset.log",
+        json_path=json_path,
         drone_ids=tuple(args.drone_ids),
     )
     return run_step(cleanup_step, dry_run=False)
@@ -962,6 +1002,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config-swarm-patch-offset-delta", type=float, default=2.0, help="Offset delta used for the swarm assignment PATCH mutation")
     parser.add_argument("--import-source-dir", type=Path, default=None, help="Optional SkyBrush source directory for Drone Show import")
     parser.add_argument("--expected-show-count", type=int, default=5, help="Expected show metadata count for the Drone Show validator")
+    parser.add_argument("--sitl-reset-mode", choices=("auto", "api", "shell"), default="auto", help="How reset/reconcile steps should control SITL containers")
+    parser.add_argument("--sitl-reset-timeout-sec", type=float, default=180.0, help="Timeout for API-driven SITL reconcile operations")
+    parser.add_argument("--sitl-reset-poll-interval-sec", type=float, default=1.0, help="Polling interval for API-driven SITL reconcile operations")
     parser.add_argument("--skip-initial-reset", action="store_true", help="Skip the fresh SITL recreate before the suite starts")
     parser.add_argument("--skip-pre-drone-show-reset", action="store_true", help="Skip the protective SITL reset inserted when Drone Show is scheduled after another mission family")
     parser.add_argument("--final-reset", action=argparse.BooleanOptionalAction, default=True, help="Append a final SITL reset after the suite and use the same reset as failure cleanup")
