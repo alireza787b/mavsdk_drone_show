@@ -55,7 +55,7 @@
     "three": "^0.166.1"
   },
   "scripts": {
-    "start": "PORT=3030 react-scripts start",
+    "start": "NODE_OPTIONS=--max-old-space-size=4096 PORT=3030 react-scripts start",
     "build": "GENERATE_SOURCEMAP=false NODE_OPTIONS=--max-old-space-size=4096 react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -98,7 +98,6 @@
     "ajv-keywords": "^5.1.0",
     "eslint-plugin-jest": "^27.2.3"
   },
-  "proxy": "http://localhost:5000",
   "jest": {
     "transformIgnorePatterns": [
       "node_modules/(?!(axios|react-leaflet|@react-leaflet/core)/)"

@@ -21,6 +21,7 @@ import {
   FaSatelliteDish,
   FaSlidersH,
   FaUserCheck,
+  FaDocker,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -68,6 +69,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
     {
       label: 'System',
       items: [
+        { to: '/sitl-control', icon: FaDocker, label: 'SITL Control' },
         { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
       ],
     },

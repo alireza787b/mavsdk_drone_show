@@ -47,6 +47,7 @@ const QuickScoutPage = lazy(() => import('./pages/QuickScoutPage'));
 const Px4ParametersPage = lazy(() => import('./pages/Px4ParametersPage'));
 const FleetEnrollmentPage = lazy(() => import('./pages/FleetEnrollmentPage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
+const SitlControlPage = lazy(() => import('./pages/SitlControlPage'));
 
 /**
  * Main Application Component
@@ -167,6 +168,7 @@ const App = () => {
 
                       {/* System */}
                       <Route path="/logs" element={<LogViewer />} />
+                      <Route path="/sitl-control" element={<SitlControlPage />} />
 
                       {/* Backward-compatible alias used by workflow guidance */}
                       <Route path="/mission-control" element={<Overview setSelectedDrone={setSelectedDrone} />} />

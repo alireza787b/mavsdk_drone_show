@@ -18,6 +18,7 @@ This same stack also powers multiple operator modes. Use this SITL guide first, 
 - **[Smart Swarm](../features/smart-swarm.md)** for live leader-follower runtime operations
 - **[Swarm Trajectory](../features/swarm-trajectory.md)** for cluster trajectory generation and analysis
 - **[QuickScout](../quickscout.md)** for SAR / recon planning and mission execution
+- **[SITL Control](sitl-control.md)** for Docker-backed local SITL lifecycle control from the dashboard
 - Additional modes may be added over time; new audited guides should appear in the [Documentation Index](../README.md)
 
 For a step-by-step walkthrough beginning with version 0.1, use the [project YouTube playlist](https://www.youtube.com/watch?v=dg5jyhV15S8&list=PLVZvZdBQdm_7ViwRhUFrmLFpFkP3VSakk&pp=sAgC).
@@ -274,6 +275,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 - `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI on port `5000`, but the backend now stays single-process by default so telemetry, heartbeats, command tracking, and other in-memory runtime state remain coherent during live SITL operations.
 - Backend auto-reload is now an explicit debug override only. Set `export MDS_GCS_BACKEND_RELOAD=true` only when you are actively editing backend Python code and accept that live operational state may become inconsistent while reload is enabled.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
+- Once the dashboard is up, use `System -> SITL Control` for local Docker-backed SITL inventory, reconcile, restart, and remove operations without dropping to shell.
 - Production currently uses a single Gunicorn worker on purpose because heartbeat state, command tracking, and background pollers still live in process memory.
 - Production serves the React build with SPA route fallback, so direct browser refresh on routes like `/logs` or `/mission-config` keeps working.
 - On smaller VPSes, raise the React build heap before `--prod` if needed:

@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- official `System -> SITL Control` V1 for temporary local SITL hosts:
+  typed GCS supervisor APIs now expose host/image/instance inventory,
+  tracked reconcile/restart/remove operations, and tailed instance logs, while
+  the dashboard adds a dedicated responsive SITL Control page with beginner
+  defaults, folded advanced overrides, and live-validated Docker lifecycle
+  control against real Hetzner SITL containers
 - refreshed the public official SITL archive publication and download
   instruction link, and published the matching private customer SITL archive
   to a dedicated MEGA target after validating the customer 3-drone Hetzner

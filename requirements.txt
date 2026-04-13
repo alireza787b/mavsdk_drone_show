@@ -69,6 +69,7 @@ seaborn>=0.12.0
 psutil==6.0.0
 sdnotify==0.3.2
 future==1.0.0
+docker==7.1.0
 
 # Date/Time
 python-dateutil==2.9.0.post0
