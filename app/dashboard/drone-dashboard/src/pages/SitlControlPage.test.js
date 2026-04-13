@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import SitlControlPage from './SitlControlPage';
 import {
   getSitlControlHost,
@@ -195,5 +195,23 @@ describe('SitlControlPage', () => {
     await waitFor(() => {
       expect(restartSitlInstance).toHaveBeenCalledWith('drone-1');
     });
+  });
+
+  test('restart keeps inventory visible and shows instance-local pending state', async () => {
+    render(<SitlControlPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Instances' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^restart$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/this container is restarting/i)).toBeInTheDocument();
+    });
+
+    const detailPanel = screen.getByText(/this container is restarting/i).closest('.sitl-instance-detail');
+    const restartButton = within(detailPanel).getByRole('button', { name: /restarting/i });
+
+    expect(restartButton).toBeDisabled();
+    expect(screen.getByText('drone-2')).toBeInTheDocument();
   });
 });

@@ -59,6 +59,27 @@
   cursor: wait;
 }
 
+.sitl-inline-banner,
+.sitl-inline-note-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border-radius: 999px;
+  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
+  color: var(--color-text-secondary);
+  padding: 0.45rem 0.85rem;
+}
+
+.sitl-inline-note-banner {
+  margin-top: 0.85rem;
+  border-radius: 14px;
+  width: 100%;
+  line-height: 1.45;
+}
+
 .sitl-reconcile-card,
 .sitl-summary-grid,
 .sitl-host-grid,

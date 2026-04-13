@@ -152,8 +152,10 @@ function SitlControlPage() {
   const [instances, setInstances] = useState([]);
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingInstanceActions, setPendingInstanceActions] = useState({});
   const [selectedInstance, setSelectedInstance] = useState(null);
   const [selectedOperationId, setSelectedOperationId] = useState(null);
   const [selectedOperation, setSelectedOperation] = useState(null);
@@ -177,7 +179,9 @@ function SitlControlPage() {
     let mounted = true;
 
     const loadInventory = async ({ background = false } = {}) => {
-      if (!background) {
+      const foregroundLoad = !background && !hasLoadedOnce;
+
+      if (foregroundLoad) {
         setLoading(true);
       } else {
         setRefreshing(true);
@@ -217,6 +221,7 @@ function SitlControlPage() {
           }
           return nextOperations[0]?.operation_id || null;
         });
+        setHasLoadedOnce(true);
       } catch (error) {
         if (mounted) {
           toast.error(`Failed to load SITL control inventory: ${error.message}`);
@@ -239,7 +244,7 @@ function SitlControlPage() {
       mounted = false;
       clearInterval(timer);
     };
-  }, [refreshTick]);
+  }, [hasLoadedOnce, refreshTick]);
 
   useEffect(() => {
     setReconcileForm((current) => ({
@@ -343,6 +348,41 @@ function SitlControlPage() {
     };
   }, [selectedOperationId]);
 
+  useEffect(() => {
+    if (!pendingInstanceActions || Object.keys(pendingInstanceActions).length === 0) {
+      return;
+    }
+
+    setPendingInstanceActions((current) => {
+      const nextEntries = Object.entries(current).filter(([instanceName, pending]) => {
+        const instance = instances.find((item) => item.name === instanceName);
+
+        if (pending?.action === 'remove') {
+          if (!instance) {
+            return false;
+          }
+        }
+
+        if (pending?.action === 'restart') {
+          if (instance?.state === 'running') {
+            const matchingOperation = operations.find((operation) => (
+              operation.operation_id === pending.operationId
+            ));
+            if (matchingOperation && TERMINAL_OPERATION_STATES.has(matchingOperation.status)) {
+              return false;
+            }
+          }
+        }
+
+        return true;
+      });
+
+      return nextEntries.length === Object.keys(current).length
+        ? current
+        : Object.fromEntries(nextEntries);
+    });
+  }, [instances, operations, pendingInstanceActions]);
+
   const dockerState = policy?.docker || host?.docker || null;
   const simModeEnabled = Boolean(policy?.sim_mode);
   const preferredNetworkName = policy?.defaults?.default_network_name || 'drone-network';
@@ -395,13 +435,47 @@ function SitlControlPage() {
       return;
     }
     setSubmitting(true);
+    const instanceName = selectedInstance.name;
+    setPendingInstanceActions((current) => ({
+      ...current,
+      [instanceName]: { action: 'restart', operationId: null },
+    }));
+    setInstances((current) => current.map((instance) => (
+      instance.name === instanceName
+        ? { ...instance, state: 'restarting', status: 'restarting' }
+        : instance
+    )));
+    setSelectedInstance((current) => (
+      current?.name === instanceName
+        ? { ...current, state: 'restarting', status: 'restarting' }
+        : current
+    ));
     try {
-      const operation = await restartSitlInstance(selectedInstance.name);
+      const operation = await restartSitlInstance(instanceName);
+      setPendingInstanceActions((current) => ({
+        ...current,
+        [instanceName]: { action: 'restart', operationId: operation.operation_id },
+      }));
       setSelectedOperationId(operation.operation_id);
-      toast.success(operation.summary || `Restart queued for ${selectedInstance.name}`);
-      handleRefresh();
+      toast.success(operation.summary || `Restart queued for ${instanceName}`);
+      setRefreshTick((current) => current + 1);
     } catch (error) {
-      toast.error(`Failed to restart ${selectedInstance.name}: ${error.message}`);
+      setInstances((current) => current.map((instance) => (
+        instance.name === instanceName
+          ? { ...instance, state: 'running', status: 'running' }
+          : instance
+      )));
+      setSelectedInstance((current) => (
+        current?.name === instanceName
+          ? { ...current, state: 'running', status: 'running' }
+          : current
+      ));
+      setPendingInstanceActions((current) => {
+        const next = { ...current };
+        delete next[instanceName];
+        return next;
+      });
+      toast.error(`Failed to restart ${instanceName}: ${error.message}`);
     } finally {
       setSubmitting(false);
     }
@@ -415,17 +489,35 @@ function SitlControlPage() {
       return;
     }
     setSubmitting(true);
+    const instanceName = selectedInstance.name;
+    setPendingInstanceActions((current) => ({
+      ...current,
+      [instanceName]: { action: 'remove', operationId: null },
+    }));
     try {
-      const operation = await removeSitlInstance(selectedInstance.name);
+      const operation = await removeSitlInstance(instanceName);
+      setPendingInstanceActions((current) => ({
+        ...current,
+        [instanceName]: { action: 'remove', operationId: operation.operation_id },
+      }));
       setSelectedOperationId(operation.operation_id);
-      toast.success(operation.summary || `Removal queued for ${selectedInstance.name}`);
-      handleRefresh();
+      toast.success(operation.summary || `Removal queued for ${instanceName}`);
+      setRefreshTick((current) => current + 1);
     } catch (error) {
-      toast.error(`Failed to remove ${selectedInstance.name}: ${error.message}`);
+      setPendingInstanceActions((current) => {
+        const next = { ...current };
+        delete next[instanceName];
+        return next;
+      });
+      toast.error(`Failed to remove ${instanceName}: ${error.message}`);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const selectedInstancePendingAction = selectedInstance?.name
+    ? pendingInstanceActions[selectedInstance.name]?.action || null
+    : null;
 
   return (
     <div className="sitl-control-page">
@@ -444,6 +536,13 @@ function SitlControlPage() {
           </button>
         )}
       />
+
+      {refreshing && hasLoadedOnce ? (
+        <div className="sitl-inline-banner" aria-live="polite">
+          <FaRedoAlt />
+          <span>Refreshing SITL inventory…</span>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="sitl-loading-shell" aria-live="polite">
@@ -794,21 +893,29 @@ function SitlControlPage() {
                               type="button"
                               className="sitl-action-button"
                               onClick={handleRestartInstance}
-                              disabled={submitting}
+                              disabled={submitting || Boolean(selectedInstancePendingAction)}
                             >
                               <FaSyncAlt />
-                              <span>Restart</span>
+                              <span>{selectedInstancePendingAction === 'restart' ? 'Restarting…' : 'Restart'}</span>
                             </button>
                             <button
                               type="button"
                               className="sitl-action-button sitl-action-button--danger"
                               onClick={handleRemoveInstance}
-                              disabled={submitting}
+                              disabled={submitting || Boolean(selectedInstancePendingAction)}
                             >
                               <FaStop />
-                              <span>Remove</span>
+                              <span>{selectedInstancePendingAction === 'remove' ? 'Removing…' : 'Remove'}</span>
                             </button>
                           </div>
+
+                          {selectedInstancePendingAction ? (
+                            <div className="sitl-inline-note-banner" aria-live="polite">
+                              {selectedInstancePendingAction === 'restart'
+                                ? 'This container is restarting. The rest of the fleet view remains live while readiness returns.'
+                                : 'This container is being removed. The inventory stays visible while the operation completes.'}
+                            </div>
+                          ) : null}
 
                           <dl className="sitl-key-value-grid">
                             <div>
