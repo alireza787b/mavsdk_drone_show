@@ -16,6 +16,7 @@ import { buildGcsUrl, GCS_ROUTE_KEYS } from './gcsApiService';
 jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
   buildGcsUrl: jest.fn((path) => `http://gcs.test:5000${path}`),
+  COMMAND_SUBMIT_TIMEOUT_MS: 12000,
   GCS_ROUTES: {
     '/api/v1/system/sitl/instances': '/api/v1/system/sitl/instances',
     '/api/v1/system/sitl/operations': '/api/v1/system/sitl/operations',
@@ -42,7 +43,10 @@ describe('sitlControlService', () => {
     const result = await getSitlControlPolicy();
 
     expect(buildGcsUrl).toHaveBeenCalledWith(GCS_ROUTE_KEYS.sitlControlPolicy);
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/v1/system/sitl/policy', {});
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/sitl/policy',
+      { timeout: 10000 },
+    );
     expect(result.sim_mode).toBe(true);
   });
 
@@ -69,6 +73,7 @@ describe('sitlControlService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1/logs',
       expect.objectContaining({
+        timeout: 10000,
         params: { tail: 80 },
       }),
     );
@@ -92,7 +97,7 @@ describe('sitlControlService', () => {
       1,
       'http://gcs.test:5000/api/v1/system/sitl/reconcile',
       { target_count: 3 },
-      {},
+      { timeout: 30000 },
     );
     expect(axios.get).toHaveBeenNthCalledWith(
       1,
@@ -102,17 +107,17 @@ describe('sitlControlService', () => {
     expect(axios.get).toHaveBeenNthCalledWith(
       2,
       'http://gcs.test:5000/api/v1/system/sitl/operations/sitl%2Fop',
-      {},
+      { timeout: 12000 },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       2,
       'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1/restart',
       {},
-      {},
+      { timeout: 30000 },
     );
     expect(axios.delete).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1',
-      {},
+      { timeout: 30000 },
     );
     expect(reconcile.operation_id).toBe('sitl-op-1');
     expect(operations.operations).toEqual([]);
