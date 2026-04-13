@@ -13,6 +13,7 @@ from src.sitl_control_models import (
     SitlControlFeatureFlags,
     SitlControlHostResponse,
     SitlControlHostSummary,
+    SitlControlCreateInstanceRequest,
     SitlControlImageListResponse,
     SitlControlImageSummary,
     SitlControlInstanceListResponse,
@@ -141,6 +142,7 @@ class _FakeSitlControlService:
             instance_name=instance_name,
             tail_lines=tail_lines,
             lines=["boot", "ready"],
+            source="docker",
             docker=SitlControlDockerState(
                 available=True,
                 socket_path="/var/run/docker.sock",
@@ -201,6 +203,21 @@ class _FakeSitlControlService:
             log_lines=[],
             created_at=1400,
             updated_at=1400,
+        )
+
+    def create_instance(self, request: SitlControlCreateInstanceRequest):
+        target = request.instance_id or 2
+        return SitlControlOperationResponse(
+            operation_id="sitl-op-create",
+            operation_type="create_instance",
+            status="accepted",
+            summary=f"Creating drone-{target}",
+            detail="Queued",
+            affected_instances=[f"drone-{target}"],
+            metadata=request.model_dump(mode="json"),
+            log_lines=[],
+            created_at=1450,
+            updated_at=1450,
         )
 
     def restart_instance(self, instance_name: str):
@@ -282,6 +299,16 @@ def test_sitl_control_router_returns_read_only_inventory_payloads():
             tail=50,
         )
     )
+    create_instance = asyncio.run(
+        _resolve_route_endpoint(app, "/api/v1/system/sitl/instances", "POST")(
+            request=SitlControlCreateInstanceRequest(
+                instance_id=5,
+                ip_last_octet=6,
+                git_sync_enabled=True,
+                requirements_sync_enabled=True,
+            )
+        )
+    )
     operations = asyncio.run(_resolve_route_endpoint(app, "/api/v1/system/sitl/operations", "GET")(limit=20))
     operation = asyncio.run(
         _resolve_route_endpoint(app, "/api/v1/system/sitl/operations/{operation_id}", "GET")(operation_id="sitl-op-1")
@@ -314,6 +341,8 @@ def test_sitl_control_router_returns_read_only_inventory_payloads():
     assert instances.instances[0].hw_id == "1"
     assert logs.tail_lines == 50
     assert logs.lines[-1] == "ready"
+    assert logs.source == "docker"
+    assert create_instance.operation_type == "create_instance"
     assert operations.active_operations == 1
     assert operation.status == "succeeded"
     assert reconcile.operation_type == "reconcile_fleet"

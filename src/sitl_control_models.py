@@ -171,6 +171,26 @@ class SitlControlReconcileRequest(BaseModel):
         return normalized or None
 
 
+class SitlControlCreateInstanceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    instance_id: Optional[int] = Field(None, ge=1, le=999)
+    ip_last_octet: Optional[int] = Field(None, ge=2, le=254)
+    image_ref: Optional[str] = None
+    subnet: Optional[str] = None
+    docker_network_name: Optional[str] = None
+    git_sync_enabled: bool = True
+    requirements_sync_enabled: bool = True
+
+    @field_validator("image_ref", "subnet", "docker_network_name", mode="before")
+    @classmethod
+    def _normalize_optional_create_strings(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+
 class SitlControlOperationResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

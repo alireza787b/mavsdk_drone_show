@@ -304,3 +304,17 @@ def test_remove_instance_operation_completes_immediately_with_test_runner(tmp_pa
     assert result is not None
     assert result.status == "succeeded"
     assert drone.remove_calls == 1
+
+
+def test_create_instance_operation_uses_next_available_id_and_ip(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone1 = _FakeContainer(name="drone-1", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"}, ip="172.18.0.2")
+    drone3 = _FakeContainer(name="drone-3", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"}, ip="172.18.0.4")
+    service = _make_service(tmp_path, containers=[drone1, drone3], images=[image])
+
+    assert service._resolve_create_instance_id(SimpleNamespace(instance_id=None)) == 4
+    assert service._resolve_create_instance_ip(SimpleNamespace(ip_last_octet=None), 4) == 5

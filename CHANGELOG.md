@@ -23,6 +23,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   reconcile form now uses auto-populated image repo/tag selectors with folded
   manual override, and instance logs now fall back to file-backed SITL runtime
   logs when Docker log output is empty
+- SITL Control operator refinement:
+  image inventory and operation history are now collapsed secondary panels,
+  the instance list is the primary scalable work surface, image selectors are
+  split cleanly into repo/tag with auto-discovered choices, instance cards now
+  show compact repo/image identity, and operators can add one new `drone-N`
+  without pruning the existing fleet, including optional custom ID/IP for
+  advanced sparse-layout test cases
 - `tools/sitl_control_client.py` as the reusable headless SITL Control client
   for validators, AI agents, and future MCP tooling; the declarative SITL
   validation suite now defaults to API-first fleet resets with shell fallback,

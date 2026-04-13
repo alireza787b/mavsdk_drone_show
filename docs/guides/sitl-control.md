@@ -8,6 +8,7 @@ Use it when you want to:
 - inspect local SITL Docker images prepared for MDS
 - see which `drone-N` containers are running now
 - reconcile the local fleet to a target count
+- add one new SITL container without pruning the rest of the fleet
 - restart a single SITL instance
 - remove a single SITL instance
 - inspect tracked reconcile/restart/remove operations
@@ -22,7 +23,8 @@ It does:
 - use the canonical `multiple_sitl/create_dockers.sh` launcher
 - respect the selected Docker image and basic startup overrides
 - track lifecycle operations inside MDS instead of sending operators to shell
-- present compact host/image/instance state in the dashboard
+- present compact image/instance state in the dashboard, while keeping
+  secondary sections folded behind explicit operator intent
 - use auto-populated image repository/tag selectors for normal operation, with
   a folded manual image-ref override for advanced cases
 - expose the same lifecycle through a headless API/CLI path for validators,
@@ -53,6 +55,14 @@ It does not do in V1:
 7. Watch the tracked operation until it reaches `succeeded` or `failed`.
 8. Review the `Instances` section and select a container for details.
 9. Use `Restart` or `Remove` only on the selected instance.
+
+For ad hoc fleet growth tests, use `Add next`:
+
+- it creates exactly one new `drone-N`
+- it does not prune the rest of the fleet
+- the default ID/IP is the next free slot
+- `Add one with custom ID/IP` is available for sparse or non-sequential test
+  layouts such as `drone-10`
 
 ## Advanced Overrides
 
@@ -86,6 +96,7 @@ The page uses these GCS endpoints:
 - `GET /api/v1/system/sitl/images`
 - `GET /api/v1/system/sitl/instances`
 - `GET /api/v1/system/sitl/instances/{instance_name}/logs`
+- `POST /api/v1/system/sitl/instances`
 - `POST /api/v1/system/sitl/reconcile`
 - `POST /api/v1/system/sitl/instances/{instance_name}/restart`
 - `DELETE /api/v1/system/sitl/instances/{instance_name}`
@@ -129,6 +140,8 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 - Instance inventory is limited to the MDS SITL container naming pattern
   (`drone-N`) and prepared MDS SITL images.
 - Restart and remove operate on one selected container at a time.
+- `Add next` and `Add one` create a single new container without pruning the
+  existing fleet.
 - Reconcile is the preferred way to converge the whole local fleet.
 - Container log tails first use Docker logs, then fall back to the container's
   file-backed SITL runtime logs such as `startup_sitl.log` when Docker output
@@ -136,6 +149,9 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 - Restart/remove now keep the page inventory visible and show only instance-
   local pending state instead of dropping the whole page into a blocking
   loading shell.
+- Images and operations are intentionally secondary panels; the primary working
+  surface is the searchable instance inventory plus the selected-container
+  detail pane.
 
 ## Validation
 

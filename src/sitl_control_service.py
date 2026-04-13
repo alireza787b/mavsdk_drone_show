@@ -20,6 +20,7 @@ from src.sitl_control_models import (
     SitlControlFeatureFlags,
     SitlControlHostResponse,
     SitlControlHostSummary,
+    SitlControlCreateInstanceRequest,
     SitlControlImageListResponse,
     SitlControlImageSummary,
     SitlControlInstanceListResponse,
@@ -311,6 +312,29 @@ class SitlControlService:
         )
         return operation
 
+    def create_instance(self, request: SitlControlCreateInstanceRequest) -> SitlControlOperationResponse:
+        self._ensure_mutation_allowed()
+        desired_instance_id = self._resolve_create_instance_id(request)
+        desired_name = f"drone-{desired_instance_id}"
+        resolved_ip = self._resolve_create_instance_ip(request, desired_instance_id)
+        operation = self._create_operation(
+            operation_type="create_instance",
+            summary=f"Creating {desired_name}",
+            detail="Launching one new SITL container without pruning the existing fleet.",
+            affected_instances=[desired_name],
+            metadata={
+                **request.model_dump(mode="json"),
+                "resolved_instance_id": desired_instance_id,
+                "resolved_ip_last_octet": resolved_ip,
+            },
+        )
+        self._launch_background_operation(
+            target=self._run_create_instance_operation,
+            name=f"sitl-create-{operation.operation_id[:8]}",
+            args=(operation.operation_id, request, desired_instance_id, resolved_ip),
+        )
+        return operation
+
     def remove_instance(self, instance_name: str) -> SitlControlOperationResponse:
         self._ensure_mutation_allowed()
         operation = self._create_operation(
@@ -568,6 +592,51 @@ class SitlControlService:
     def _desired_container_names(self, request: SitlControlReconcileRequest) -> set[str]:
         return {f"drone-{drone_id}" for drone_id in self._desired_drone_ids(request)}
 
+    def _current_instance_ids(self) -> list[int]:
+        client, _docker_state = self._get_client()
+        if client is None:
+            return []
+        try:
+            instance_ids: list[int] = []
+            for container in self._list_relevant_containers(client):
+                hw_id = self._derive_hw_id(container.name, _env_map((((container.attrs or {}).get("Config") or {}).get("Env") or []))
+                )
+                if hw_id and hw_id.isdigit():
+                    instance_ids.append(int(hw_id))
+            return sorted(set(instance_ids))
+        finally:
+            self._close_client(client)
+
+    def _current_ip_octets(self) -> list[int]:
+        client, _docker_state = self._get_client()
+        if client is None:
+            return []
+        try:
+            octets: list[int] = []
+            for container in self._list_relevant_containers(client):
+                summary = self._summarize_container(container)
+                for address in summary.ip_addresses.values():
+                    try:
+                        octets.append(int(str(address).split(".")[-1]))
+                    except Exception:
+                        continue
+            return sorted(set(octets))
+        finally:
+            self._close_client(client)
+
+    def _resolve_create_instance_id(self, request: SitlControlCreateInstanceRequest) -> int:
+        if request.instance_id is not None:
+            return int(request.instance_id)
+        current = self._current_instance_ids()
+        return (max(current) + 1) if current else 1
+
+    def _resolve_create_instance_ip(self, request: SitlControlCreateInstanceRequest, instance_id: int) -> int:
+        if request.ip_last_octet is not None:
+            return int(request.ip_last_octet)
+        current = self._current_ip_octets()
+        next_octet = (max(current) + 1) if current else max(2, instance_id + 1)
+        return min(max(next_octet, 2), 254)
+
     def _build_reconcile_command(self, request: SitlControlReconcileRequest) -> list[str]:
         command = [
             "bash",
@@ -582,7 +651,31 @@ class SitlControlService:
             command.extend(["--subnet", request.subnet])
         return command
 
+    def _build_create_instance_command(self, instance_id: int, ip_last_octet: int, request: SitlControlCreateInstanceRequest) -> list[str]:
+        command = [
+            "bash",
+            "multiple_sitl/create_dockers.sh",
+            "1",
+            "--start-id",
+            str(instance_id),
+            "--start-ip",
+            str(ip_last_octet),
+        ]
+        if request.subnet:
+            command.extend(["--subnet", request.subnet])
+        return command
+
     def _build_reconcile_env(self, request: SitlControlReconcileRequest) -> dict[str, str]:
+        env = os.environ.copy()
+        env["MDS_SITL_GIT_SYNC"] = "true" if request.git_sync_enabled else "false"
+        env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if request.requirements_sync_enabled else "false"
+        if request.image_ref:
+            env["MDS_DOCKER_IMAGE"] = request.image_ref
+        if request.docker_network_name:
+            env["MDS_SITL_DOCKER_NETWORK"] = request.docker_network_name
+        return env
+
+    def _build_create_instance_env(self, request: SitlControlCreateInstanceRequest) -> dict[str, str]:
         env = os.environ.copy()
         env["MDS_SITL_GIT_SYNC"] = "true" if request.git_sync_enabled else "false"
         env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if request.requirements_sync_enabled else "false"
@@ -754,6 +847,70 @@ class SitlControlService:
             operation_id,
             summary=f"SITL fleet reconciled to {len(desired_names)} instance(s)",
             detail=detail,
+        )
+
+    def _run_create_instance_operation(
+        self,
+        operation_id: str,
+        request: SitlControlCreateInstanceRequest,
+        instance_id: int,
+        ip_last_octet: int,
+    ) -> None:
+        self._mark_operation_running(operation_id)
+        command = self._build_create_instance_command(instance_id, ip_last_octet, request)
+        env = self._build_create_instance_env(request)
+        desired_name = f"drone-{instance_id}"
+
+        self._append_operation_log(operation_id, f"Command: {' '.join(command)}")
+        self._append_operation_log(operation_id, f"Target: {desired_name} ({ip_last_octet})")
+        if request.image_ref:
+            self._append_operation_log(operation_id, f"Image: {request.image_ref}")
+
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=self.repo_root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+        except Exception as exc:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL create failed",
+                detail=f"Failed to launch create_dockers.sh: {exc}",
+            )
+            return
+
+        try:
+            if process.stdout is not None:
+                for line in process.stdout:
+                    self._append_operation_log(operation_id, line)
+            return_code = process.wait()
+        except Exception as exc:
+            process.kill()
+            process.wait()
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL create failed",
+                detail=f"Create process aborted unexpectedly: {exc}",
+            )
+            return
+
+        if return_code != 0:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL create failed",
+                detail=f"create_dockers.sh exited with code {return_code}",
+            )
+            return
+
+        self._mark_operation_succeeded(
+            operation_id,
+            summary=f"Created {desired_name}",
+            detail=f"Added {desired_name} without pruning the rest of the fleet.",
         )
 
     def _run_instance_action(self, operation_id: str, instance_name: str, action: str) -> None:

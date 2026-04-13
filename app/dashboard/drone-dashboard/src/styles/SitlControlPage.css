@@ -40,6 +40,7 @@
   color: var(--color-text-primary);
   padding: 0.55rem 0.9rem;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .sitl-action-button--primary {
@@ -229,6 +230,10 @@
   margin-top: 1rem;
 }
 
+.sitl-reconcile-card__actions--compact {
+  justify-content: flex-start;
+}
+
 .sitl-reconcile-card__actions small,
 .sitl-inline-note {
   color: var(--color-text-secondary);
@@ -261,6 +266,35 @@
   color: var(--color-text-primary);
 }
 
+.sitl-collapsible {
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border-radius: 18px;
+  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
+  padding: 0.85rem 1rem;
+}
+
+.sitl-collapsible summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+
+.sitl-collapsible summary::-webkit-details-marker {
+  display: none;
+}
+
+.sitl-collapsible[open] {
+  padding-bottom: 1rem;
+}
+
+.sitl-collapsible > :not(summary) {
+  margin-top: 0.9rem;
+}
+
 .sitl-compact-list {
   display: flex;
   flex-direction: column;
@@ -286,6 +320,7 @@
   text-align: left;
   cursor: pointer;
   transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+  overflow: hidden;
 }
 
 .sitl-compact-row--static {
@@ -317,6 +352,7 @@
 .sitl-compact-row__side small {
   color: var(--color-text-secondary);
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .sitl-compact-row__side {
@@ -398,6 +434,8 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  position: sticky;
+  top: 1rem;
 }
 
 .sitl-inline-actions {
@@ -516,6 +554,10 @@
 @media (max-width: 1100px) {
   .sitl-instance-layout {
     grid-template-columns: 1fr;
+  }
+
+  .sitl-instance-detail {
+    position: static;
   }
 }
 

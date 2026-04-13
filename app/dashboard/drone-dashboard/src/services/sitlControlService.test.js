@@ -1,5 +1,6 @@
 import axios from 'axios';
 import {
+  createSitlInstance,
   getSitlControlHost,
   getSitlControlImages,
   getSitlControlInstanceLogs,
@@ -82,12 +83,14 @@ describe('sitlControlService', () => {
 
   test('posts reconcile payload and encodes instance lifecycle routes', async () => {
     axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
+    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-create' } });
     axios.get.mockResolvedValueOnce({ data: { operations: [] } });
     axios.get.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
     axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-2' } });
     axios.delete.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-3' } });
 
     const reconcile = await reconcileSitlFleet({ target_count: 3 });
+    const create = await createSitlInstance({ instance_id: 6 });
     const operations = await getSitlControlOperations({ limit: 5 });
     const operation = await getSitlControlOperation('sitl/op');
     const restart = await restartSitlInstance('drone/1');
@@ -97,6 +100,12 @@ describe('sitlControlService', () => {
       1,
       'http://gcs.test:5000/api/v1/system/sitl/reconcile',
       { target_count: 3 },
+      { timeout: 30000 },
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5000/api/v1/system/sitl/instances',
+      { instance_id: 6 },
       { timeout: 30000 },
     );
     expect(axios.get).toHaveBeenNthCalledWith(
@@ -110,7 +119,7 @@ describe('sitlControlService', () => {
       { timeout: 12000 },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
-      2,
+      3,
       'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1/restart',
       {},
       { timeout: 30000 },
@@ -120,6 +129,7 @@ describe('sitlControlService', () => {
       { timeout: 30000 },
     );
     expect(reconcile.operation_id).toBe('sitl-op-1');
+    expect(create.operation_id).toBe('sitl-op-create');
     expect(operations.operations).toEqual([]);
     expect(operation.operation_id).toBe('sitl-op-1');
     expect(restart.operation_id).toBe('sitl-op-2');

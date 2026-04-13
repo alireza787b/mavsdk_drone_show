@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import SitlControlPage from './SitlControlPage';
 import {
+  createSitlInstance,
   getSitlControlHost,
   getSitlControlImages,
   getSitlControlInstanceLogs,
@@ -15,6 +16,7 @@ import {
 
 jest.mock('../services/sitlControlService', () => ({
   getSitlControlPolicy: jest.fn(),
+  createSitlInstance: jest.fn(),
   getSitlControlHost: jest.fn(),
   getSitlControlImages: jest.fn(),
   getSitlControlInstances: jest.fn(),
@@ -140,6 +142,10 @@ describe('SitlControlPage', () => {
       operation_id: 'sitl-op-2',
       summary: 'SITL fleet reconcile queued',
     });
+    createSitlInstance.mockResolvedValue({
+      operation_id: 'sitl-op-create',
+      summary: 'Created drone-3',
+    });
     restartSitlInstance.mockResolvedValue({
       operation_id: 'sitl-op-3',
       summary: 'Restart queued',
@@ -185,10 +191,10 @@ describe('SitlControlPage', () => {
   test('submits reconcile and restart actions through the SITL control service', async () => {
     render(<SitlControlPage />);
 
-    expect(await screen.findByText('Reconcile fleet')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Fleet' })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/desired instances/i), { target: { value: '4' } });
-    fireEvent.click(screen.getByRole('button', { name: /reconcile fleet/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^reconcile$/i }));
 
     await waitFor(() => {
       expect(reconcileSitlFleet).toHaveBeenCalledWith(expect.objectContaining({ target_count: 4 }));
@@ -198,6 +204,19 @@ describe('SitlControlPage', () => {
 
     await waitFor(() => {
       expect(restartSitlInstance).toHaveBeenCalledWith('drone-1');
+    });
+  });
+
+  test('queues add-next through the SITL control service', async () => {
+    render(<SitlControlPage />);
+
+    expect(await screen.findByRole('button', { name: /add next/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /add next/i }));
+
+    await waitFor(() => {
+      expect(createSitlInstance).toHaveBeenCalledWith(expect.objectContaining({
+        image_ref: 'mavsdk-drone-show-sitl:latest',
+      }));
     });
   });
 

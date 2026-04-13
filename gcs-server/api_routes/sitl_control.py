@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Path as PathParam, Query
 from src.gcs_api_routes import (
     GCS_SITL_CONTROL_HOST_ROUTE,
     GCS_SITL_CONTROL_IMAGES_ROUTE,
+    GCS_SITL_CONTROL_INSTANCE_CREATE_ROUTE,
     GCS_SITL_CONTROL_INSTANCE_LOGS_ROUTE_TEMPLATE,
     GCS_SITL_CONTROL_INSTANCE_REMOVE_ROUTE_TEMPLATE,
     GCS_SITL_CONTROL_INSTANCE_RESTART_ROUTE_TEMPLATE,
@@ -21,6 +22,7 @@ from src.gcs_api_routes import (
 from src.sitl_control_models import (
     SitlControlHostResponse,
     SitlControlImageListResponse,
+    SitlControlCreateInstanceRequest,
     SitlControlInstanceListResponse,
     SitlControlInstanceLogResponse,
     SitlControlOperationListResponse,
@@ -72,6 +74,18 @@ def create_sitl_control_router(deps: Any) -> APIRouter:
             return service.list_instances()
         except Exception as exc:
             deps.log_system_error(f"SITL control instance listing failed: {exc}", "sitl_control")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.post(
+        GCS_SITL_CONTROL_INSTANCE_CREATE_ROUTE,
+        response_model=SitlControlOperationResponse,
+        tags=["SITL Control"],
+    )
+    async def create_sitl_control_instance(request: SitlControlCreateInstanceRequest):
+        try:
+            return service.create_instance(request)
+        except Exception as exc:
+            deps.log_system_error(f"SITL instance create failed: {exc}", "sitl_control")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get(

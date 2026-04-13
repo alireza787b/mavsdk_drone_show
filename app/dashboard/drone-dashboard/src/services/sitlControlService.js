@@ -43,6 +43,15 @@ export async function getSitlControlInstances(config = {}) {
   return response.data;
 }
 
+export async function createSitlInstance(payload, config = {}) {
+  const response = await axios.post(
+    buildGcsUrl(GCS_ROUTE_KEYS.sitlControlInstances),
+    payload,
+    withTimeout(config, SITL_CONTROL_MUTATION_TIMEOUT_MS),
+  );
+  return response.data;
+}
+
 export async function reconcileSitlFleet(payload, config = {}) {
   const response = await axios.post(
     buildGcsUrl(GCS_ROUTE_KEYS.sitlControlReconcile),
