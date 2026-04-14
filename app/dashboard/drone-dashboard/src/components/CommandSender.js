@@ -617,9 +617,7 @@ const CommandSender = ({
           <div className="command-sender-header-copy">
             <p className="command-sender-eyebrow">Mission dispatch</p>
             <h2 className="command-sender-header">Command Control</h2>
-            <p className="command-sender-subheader">
-              Set scope, verify readiness, dispatch.
-            </p>
+            <p className="command-sender-subheader">Scope. Check. Dispatch.</p>
           </div>
         </div>
 
@@ -810,7 +808,6 @@ const CommandSender = ({
           <section className="command-monitor-history" aria-label="Recent commands">
             <div className="command-monitor-history__header">
               <strong>Recent Commands</strong>
-              <span>Older command snapshots remain visible here when newer commands arrive.</span>
             </div>
             <div className="command-monitor-history__list">
               {recentCommandMonitors.map((monitor) => (

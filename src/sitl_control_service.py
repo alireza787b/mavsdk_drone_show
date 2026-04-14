@@ -122,32 +122,44 @@ class SitlControlService:
         )
 
     def build_host_summary(self) -> SitlControlHostResponse:
-        docker_state = self._get_docker_state()
+        client, docker_state = self._get_client()
         disk_path = self.repo_root if os.path.exists(self.repo_root) else "/"
         disk_usage = psutil.disk_usage(disk_path) if psutil is not None else shutil.disk_usage(disk_path)
         memory_total, memory_available = self._memory_snapshot()
         load_avg = os.getloadavg() if hasattr(os, "getloadavg") else None
+        portainer = self._detect_portainer(client) if client is not None else {
+            "available": False,
+            "port": None,
+            "scheme": None,
+        }
 
-        return SitlControlHostResponse(
-            host=SitlControlHostSummary(
-                hostname=platform.node(),
-                platform=platform.system(),
-                platform_release=platform.release(),
-                architecture=platform.machine(),
-                python_version=sys.version.split()[0],
-                cpu_count_logical=self._cpu_count(),
-                memory_total_bytes=memory_total,
-                memory_available_bytes=memory_available,
-                disk_path=disk_path,
-                disk_total_bytes=int(disk_usage.total),
-                disk_free_bytes=int(disk_usage.free),
-                load_avg_1m=float(load_avg[0]) if load_avg else None,
-                load_avg_5m=float(load_avg[1]) if load_avg else None,
-                load_avg_15m=float(load_avg[2]) if load_avg else None,
-                docker=docker_state,
-            ),
-            timestamp=_now_ms(),
-        )
+        try:
+            return SitlControlHostResponse(
+                host=SitlControlHostSummary(
+                    hostname=platform.node(),
+                    platform=platform.system(),
+                    platform_release=platform.release(),
+                    architecture=platform.machine(),
+                    python_version=sys.version.split()[0],
+                    cpu_count_logical=self._cpu_count(),
+                    memory_total_bytes=memory_total,
+                    memory_available_bytes=memory_available,
+                    disk_path=disk_path,
+                    disk_total_bytes=int(disk_usage.total),
+                    disk_free_bytes=int(disk_usage.free),
+                    load_avg_1m=float(load_avg[0]) if load_avg else None,
+                    load_avg_5m=float(load_avg[1]) if load_avg else None,
+                    load_avg_15m=float(load_avg[2]) if load_avg else None,
+                    portainer_available=bool(portainer["available"]),
+                    portainer_port=portainer["port"],
+                    portainer_scheme=portainer["scheme"],
+                    docker=docker_state,
+                ),
+                timestamp=_now_ms(),
+            )
+        finally:
+            if client is not None:
+                self._close_client(client)
 
     def list_images(self) -> SitlControlImageListResponse:
         client, docker_state = self._get_client()
@@ -484,6 +496,31 @@ class SitlControlService:
 
     def _list_relevant_containers(self, client: Any) -> list[Any]:
         return [container for container in client.containers.list(all=True) if self._is_relevant_container(container)]
+
+    def _detect_portainer(self, client: Any) -> dict[str, Any]:
+        try:
+            containers = client.containers.list(all=True)
+        except Exception:
+            return {"available": False, "port": None, "scheme": None}
+
+        for container in containers:
+            name = str(getattr(container, "name", "") or "").lower()
+            if "portainer" not in name:
+                continue
+            if str(getattr(container, "status", "") or "").lower() != "running":
+                continue
+            ports = (((getattr(container, "attrs", {}) or {}).get("NetworkSettings") or {}).get("Ports") or {})
+            for container_port, bindings in ports.items():
+                if not bindings:
+                    continue
+                host_port = bindings[0].get("HostPort")
+                if not host_port:
+                    continue
+                port = int(host_port)
+                scheme = "https" if str(container_port).startswith("9443/") else "http"
+                return {"available": True, "port": port, "scheme": scheme}
+
+        return {"available": False, "port": None, "scheme": None}
 
     def _list_relevant_images(self, client: Any, containers: list[Any]) -> list[Any]:
         images = list(client.images.list())

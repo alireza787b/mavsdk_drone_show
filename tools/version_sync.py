@@ -61,6 +61,28 @@ def get_git_branch():
         return "unknown"
 
 
+def get_git_repo_label():
+    """Get compact org/repo label from origin remote."""
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        remote = result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return "repo"
+
+    remote = remote.replace(".git", "")
+    if remote.startswith("git@github.com:"):
+        remote = remote.replace("git@github.com:", "")
+    elif "github.com/" in remote:
+        remote = remote.split("github.com/", 1)[1]
+    return remote.strip("/") or "repo"
+
+
 def read_version():
     """Read version from VERSION file"""
     if not VERSION_FILE.exists():
@@ -141,6 +163,7 @@ def generate_version_js(version):
 
     git_hash = get_git_commit_hash()
     git_branch = get_git_branch()
+    git_repo = get_git_repo_label()
 
     content = f'''/**
  * Auto-generated version information for MAVSDK Drone Show
@@ -157,19 +180,24 @@ def generate_version_js(version):
 const DEFAULT_VERSION = '{version}';
 const DEFAULT_GIT_COMMIT = '{git_hash}';
 const DEFAULT_GIT_BRANCH = '{git_branch}';
+const DEFAULT_GIT_REPO = '{git_repo}';
 
 const VERSION = process.env.REACT_APP_VERSION || DEFAULT_VERSION;
 const GIT_COMMIT = process.env.REACT_APP_GIT_COMMIT || DEFAULT_GIT_COMMIT;
 const GIT_BRANCH = process.env.REACT_APP_GIT_BRANCH || DEFAULT_GIT_BRANCH;
+const GIT_REPO = process.env.REACT_APP_GIT_REPO || DEFAULT_GIT_REPO;
 const VERSION_DISPLAY = `v${{VERSION}} (${{GIT_COMMIT}})`;
+const VERSION_META_DISPLAY = `${{GIT_BRANCH}} • ${{GIT_REPO}}`;
 
-export {{ VERSION, GIT_COMMIT, GIT_BRANCH, VERSION_DISPLAY }};
+export {{ VERSION, GIT_COMMIT, GIT_BRANCH, GIT_REPO, VERSION_DISPLAY, VERSION_META_DISPLAY }};
 
 const versionInfo = {{
   VERSION,
   GIT_COMMIT,
   GIT_BRANCH,
-  VERSION_DISPLAY
+  GIT_REPO,
+  VERSION_DISPLAY,
+  VERSION_META_DISPLAY
 }};
 
 export default versionInfo;

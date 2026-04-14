@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { FaHandPaper, FaHome, FaPlaneArrival, FaSkull } from 'react-icons/fa';
 
 import ConfirmationModal from './ConfirmationModal';
+import InfoHint from './InfoHint';
 import { buildActionCommand } from '../services/droneApiService';
 import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
@@ -136,8 +137,8 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
   return (
     <div className="critical-commands-panel">
       <div className="critical-commands-panel__header">
-        <span className="critical-commands-panel__title">Airborne Overrides</span>
-        <span className="critical-commands-panel__note">{panelNote}</span>
+        <span className="critical-commands-panel__title">Overrides</span>
+        <InfoHint content={panelNote} label="Airborne override guidance" />
       </div>
 
       <div className="critical-commands-container">

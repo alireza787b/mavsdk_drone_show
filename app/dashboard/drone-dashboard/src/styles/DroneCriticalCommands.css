@@ -8,8 +8,8 @@
 
 .critical-commands-panel__header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -20,11 +20,6 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text-secondary);
-}
-
-.critical-commands-panel__note {
-  font-size: 0.78rem;
-  color: var(--color-text-tertiary);
 }
 
 .critical-commands-container {

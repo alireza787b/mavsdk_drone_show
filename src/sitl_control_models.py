@@ -73,6 +73,9 @@ class SitlControlHostSummary(BaseModel):
     load_avg_1m: Optional[float] = None
     load_avg_5m: Optional[float] = None
     load_avg_15m: Optional[float] = None
+    portainer_available: bool = False
+    portainer_port: Optional[int] = None
+    portainer_scheme: Optional[str] = None
     docker: SitlControlDockerState
 
 

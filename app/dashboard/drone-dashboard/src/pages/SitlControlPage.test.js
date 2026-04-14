@@ -69,6 +69,9 @@ describe('SitlControlPage', () => {
         disk_path: '/tmp',
         disk_total_bytes: 40 * 1024 * 1024 * 1024,
         disk_free_bytes: 12 * 1024 * 1024 * 1024,
+        portainer_available: true,
+        portainer_port: 9000,
+        portainer_scheme: 'http',
       },
     });
     getSitlControlImages.mockResolvedValue({
@@ -248,6 +251,18 @@ describe('SitlControlPage', () => {
     });
   });
 
+  test('host resources stay collapsed until opened explicitly', async () => {
+    render(<SitlControlPage />);
+
+    expect(await screen.findByRole('button', { name: /host/i })).toBeInTheDocument();
+    expect(screen.queryByText('Docker API')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /host/i }));
+
+    expect(await screen.findByText('Docker API')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open panel/i })).toHaveAttribute('href', 'http://localhost:9000');
+  });
+
   test('image save flow stays inside Images and uses explicit confirmation', async () => {
     render(<SitlControlPage />);
 
@@ -257,7 +272,13 @@ describe('SitlControlPage', () => {
     const imageCard = await screen.findByText(/source mavsdk-drone-show-sitl:latest/i);
     const releaseCard = imageCard.closest('.sitl-collapsible');
     expect(within(releaseCard).getByLabelText(/source image repository/i)).toHaveValue('mavsdk-drone-show-sitl');
-    fireEvent.change(within(releaseCard).getByLabelText(/^Version tag$/i), { target: { value: 'release-demo' } });
+    const outputTagInput = within(releaseCard).getByRole('textbox', { name: /output docker tag/i });
+    await waitFor(() => {
+      expect(outputTagInput).toHaveValue('98cf4c4d');
+    });
+    expect(within(releaseCard).getByLabelText(/export archive/i)).not.toBeChecked();
+    expect(within(releaseCard).getByLabelText(/compress/i)).not.toBeChecked();
+    fireEvent.change(outputTagInput, { target: { value: 'release-demo' } });
     fireEvent.click(within(releaseCard).getAllByRole('button', { name: /^save image$/i }).slice(-1)[0]);
 
     const saveDialog = await screen.findByRole('dialog');
@@ -269,7 +290,8 @@ describe('SitlControlPage', () => {
         version_tag: 'release-demo',
         tag_latest: true,
         tag_commit: true,
-        export_archive: true,
+        export_archive: false,
+        compress_archive: false,
       }));
     });
   });

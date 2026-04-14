@@ -28,7 +28,7 @@ import ThemeToggle from './ThemeToggle';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
 import GitInfo from './GitInfo';
-import { VERSION_DISPLAY } from '../version';
+import { VERSION_DISPLAY, VERSION_META_DISPLAY } from '../version';
 
 const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate, onToggle }) => {
   const { isDark } = useTheme();
@@ -105,6 +105,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
               <div className="brand-text">
                 <h3>Swarm Control</h3>
                 <span className="version">{VERSION_DISPLAY}</span>
+                <span className="version-meta">{VERSION_META_DISPLAY}</span>
               </div>
             </div>
           </div>

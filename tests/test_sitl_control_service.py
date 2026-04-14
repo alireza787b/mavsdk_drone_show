@@ -158,6 +158,7 @@ def test_build_policy_and_host_summary_report_live_environment(tmp_path):
     assert host.host.docker.server_version == "28.0.0"
     assert host.host.disk_path == str(tmp_path)
     assert host.host.cpu_count_logical >= 0
+    assert host.host.portainer_available is False
 
 
 def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
@@ -205,6 +206,21 @@ def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
     assert instances.instances[0].git_sync_enabled is True
     assert instances.instances[0].requirements_sync_enabled is False
     assert instances.instances[0].ip_addresses["drone-network"] == "172.18.0.2"
+
+
+def test_build_host_summary_detects_running_portainer_panel(tmp_path):
+    image = _FakeImage("sha256:portainer", ["portainer/portainer-ce:latest"])
+    portainer = _FakeContainer(name="portainer", image=image)
+    portainer.attrs["NetworkSettings"]["Ports"] = {
+        "9000/tcp": [{"HostPort": "9000"}],
+    }
+    service = _make_service(tmp_path, containers=[portainer], images=[image])
+
+    host = service.build_host_summary()
+
+    assert host.host.portainer_available is True
+    assert host.host.portainer_port == 9000
+    assert host.host.portainer_scheme == "http"
 
 
 def test_get_instance_logs_returns_tailed_content_for_relevant_container(tmp_path):

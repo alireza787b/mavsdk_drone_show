@@ -78,6 +78,10 @@
   gap: 0.75rem;
 }
 
+.sitl-host-health .sitl-collapsible {
+  width: 100%;
+}
+
 .sitl-inline-banner,
 .sitl-inline-note-banner {
   display: inline-flex;
@@ -101,6 +105,18 @@
 
 .sitl-inline-facts .sitl-badge {
   gap: 0.35rem;
+}
+
+.sitl-inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--color-accent, #4f8cff);
+  text-decoration: none;
+}
+
+.sitl-inline-link:hover {
+  text-decoration: underline;
 }
 
 .sitl-field-label {
@@ -185,6 +201,19 @@
   border-radius: 14px;
   width: 100%;
   line-height: 1.45;
+}
+
+.sitl-inline-note--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.sitl-inline-note__row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .sitl-summary-grid,
@@ -421,6 +450,12 @@
 
 .sitl-collapsible > :not(summary):not(.sitl-collapsible__toggle) {
   margin-top: 0.9rem;
+}
+
+.sitl-host-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 .sitl-compact-list {
@@ -795,6 +830,10 @@
 
   .sitl-search-field {
     min-width: 100%;
+  }
+
+  .sitl-inline-note__row {
+    align-items: flex-start;
   }
 
   .sitl-compact-row {

@@ -390,16 +390,6 @@ function buildProgressToast(status, commandLabel) {
   }
 
   switch (progress.stage) {
-    case 'executing':
-      return {
-        level: 'info',
-        message: `${commandLabel} started. ${progress.message}`,
-      };
-    case 'finishing':
-      return {
-        level: 'info',
-        message: `${commandLabel} is still completing. ${progress.message}`,
-      };
     default:
       return null;
   }

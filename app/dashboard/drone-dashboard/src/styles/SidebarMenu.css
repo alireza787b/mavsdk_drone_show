@@ -144,6 +144,14 @@
   font-family: var(--font-family-mono);
 }
 
+.version-meta {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.03em;
+}
+
 .header-collapsed {
   display: flex;
   justify-content: center;

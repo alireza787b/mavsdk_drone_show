@@ -5,6 +5,7 @@ import {
   FaExclamationTriangle,
   FaInfoCircle,
   FaLayerGroup,
+  FaLink,
   FaPlay,
   FaPlus,
   FaRedoAlt,
@@ -16,6 +17,8 @@ import {
   FaTimes,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import InfoHint from '../components/InfoHint';
+import { GIT_COMMIT } from '../version';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { clearThrottledToast, toastErrorThrottled } from '../utilities/toastFeedback';
 import {
@@ -225,15 +228,7 @@ function FieldLabel({ label, hint = '' }) {
   return (
     <span className="sitl-field-label">
       <span>{label}</span>
-      {hint ? (
-        <span
-          className="sitl-field-hint"
-          title={hint}
-          aria-hidden="true"
-        >
-          <FaInfoCircle />
-        </span>
-      ) : null}
+      {hint ? <InfoHint content={hint} label={`${label} help`} /> : null}
     </span>
   );
 }
@@ -305,20 +300,24 @@ function ConfirmDialog({ dialog, onCancel, onConfirm, busy = false }) {
   );
 }
 
-function sanitizeTagValue(value) {
-  return String(value || '')
+function sanitizeTagValue(value, { fallback = '' } = {}) {
+  const normalized = String(value || '')
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    || 'snapshot';
+    .replace(/^-+|-+$/g, '');
+  return normalized || fallback;
 }
 
 function buildDefaultReleaseVersionTag(image, policy) {
   const preferred = image?.version_tag && image.version_tag !== 'latest'
     ? image.version_tag
-    : image?.branch || policy?.defaults?.default_image || 'snapshot';
-  return sanitizeTagValue(preferred);
+    : GIT_COMMIT
+      || image?.commit?.slice(0, 7)
+      || image?.branch
+      || policy?.defaults?.default_image
+      || 'manual-tag';
+  return sanitizeTagValue(preferred, { fallback: 'manual-tag' });
 }
 
 function buildDefaultArchiveBasename(imageRepo) {
@@ -330,40 +329,92 @@ function buildDefaultArchiveBasename(imageRepo) {
   return `${repoTail || 'mds-sitl'}-image`;
 }
 
-function evaluateHostResources(host) {
-  if (!host) {
-    return { facts: [], warnings: [] };
+function formatPercent(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '—';
+  }
+  return `${Math.round(numeric)}%`;
+}
+
+function buildPortainerUrl(host) {
+  if (!host?.portainer_available || !host?.portainer_port || typeof window === 'undefined') {
+    return null;
   }
 
+  return `${host.portainer_scheme || 'http'}://${window.location.hostname}:${host.portainer_port}`;
+}
+
+function evaluateHostResources(host) {
+  if (!host) {
+    return { badges: [], warnings: [], detailRows: [] };
+  }
+
+  const badges = [];
   const warnings = [];
-  const facts = [];
   const cpuLoad = Number(host.load_avg_1m || 0);
   const cpuCapacity = Number(host.cpu_count_logical || 0);
   const memoryFree = Number(host.memory_available_bytes || 0);
   const memoryTotal = Number(host.memory_total_bytes || 0);
   const diskFree = Number(host.disk_free_bytes || 0);
   const diskTotal = Number(host.disk_total_bytes || 0);
+  const cpuLoadPercent = cpuCapacity > 0 ? (cpuLoad / cpuCapacity) * 100 : null;
+  const memoryFreePercent = memoryTotal > 0 ? (memoryFree / memoryTotal) * 100 : null;
+  const diskFreePercent = diskTotal > 0 ? (diskFree / diskTotal) * 100 : null;
 
-  if (cpuCapacity > 0) {
-    facts.push(`CPU ${cpuLoad.toFixed(1)}/${cpuCapacity}`);
-    if (cpuLoad > cpuCapacity * 1.2) {
-      warnings.push('High CPU load');
+  if (Number.isFinite(cpuLoadPercent)) {
+    badges.push({
+      label: 'CPU',
+      value: formatPercent(cpuLoadPercent),
+      tone: cpuLoadPercent >= 85 ? 'warning' : 'muted',
+    });
+    if (cpuLoadPercent >= 85) {
+      warnings.push('High CPU');
     }
   }
   if (memoryTotal > 0) {
-    facts.push(`RAM ${formatBytes(memoryFree)} free`);
-    if (memoryFree < 1.5 * 1024 * 1024 * 1024 || memoryFree / memoryTotal < 0.2) {
+    badges.push({
+      label: 'RAM',
+      value: `${formatBytes(memoryFree)} free`,
+      tone: memoryFree < 1.5 * 1024 * 1024 * 1024 || memoryFreePercent < 20 ? 'warning' : 'muted',
+    });
+    if (memoryFree < 1.5 * 1024 * 1024 * 1024 || memoryFreePercent < 20) {
       warnings.push('Low RAM');
     }
   }
   if (diskTotal > 0) {
-    facts.push(`Disk ${formatBytes(diskFree)} free`);
-    if (diskFree < 5 * 1024 * 1024 * 1024 || diskFree / diskTotal < 0.12) {
+    badges.push({
+      label: 'Disk',
+      value: `${formatBytes(diskFree)} free`,
+      tone: diskFree < 5 * 1024 * 1024 * 1024 || diskFreePercent < 12 ? 'warning' : 'muted',
+    });
+    if (diskFree < 5 * 1024 * 1024 * 1024 || diskFreePercent < 12) {
       warnings.push('Low disk');
     }
   }
 
-  return { facts, warnings };
+  if (host.portainer_available) {
+    badges.push({
+      label: 'Portainer',
+      value: host.portainer_port ? `:${host.portainer_port}` : 'ready',
+      tone: 'muted',
+    });
+  }
+
+  return {
+    badges,
+    warnings,
+    detailRows: [
+      { label: 'Host', value: host.hostname || '—' },
+      { label: 'Platform', value: `${host.platform || '—'} ${host.platform_release || ''}`.trim() || '—' },
+      { label: 'Python', value: host.python_version || '—' },
+      { label: 'CPU load', value: Number.isFinite(cpuLoadPercent) ? `${formatPercent(cpuLoadPercent)} · 1m load ${cpuLoad.toFixed(1)} on ${cpuCapacity} cores` : '—' },
+      { label: 'Memory', value: memoryTotal > 0 ? `${formatBytes(memoryFree)} free / ${formatBytes(memoryTotal)}` : '—' },
+      { label: 'Disk', value: diskTotal > 0 ? `${formatBytes(diskFree)} free / ${formatBytes(diskTotal)} at ${host.disk_path}` : '—' },
+      { label: 'Docker', value: host.docker?.server_version || host.docker?.error || '—' },
+      { label: 'Docker API', value: host.docker?.api_version || '—' },
+    ],
+  };
 }
 
 function SitlControlPage() {
@@ -396,6 +447,7 @@ function SitlControlPage() {
   const [customCreateExpanded, setCustomCreateExpanded] = useState(false);
   const [batchActionsExpanded, setBatchActionsExpanded] = useState(false);
   const [imageReleaseExpanded, setImageReleaseExpanded] = useState(false);
+  const [hostDetailsExpanded, setHostDetailsExpanded] = useState(false);
   const [addInstanceForm, setAddInstanceForm] = useState({
     instanceId: '',
     ipLastOctet: '',
@@ -406,8 +458,8 @@ function SitlControlPage() {
     versionTag: '',
     tagLatest: true,
     tagCommit: true,
-    exportArchive: true,
-    compressArchive: true,
+    exportArchive: false,
+    compressArchive: false,
     outputDir: '',
     archiveBasename: '',
     repoUrl: '',
@@ -673,6 +725,7 @@ function SitlControlPage() {
   const mutationsEnabled = Boolean(policy?.features?.lifecycle_mutations);
   const imageCatalog = useMemo(() => buildImageCatalog(images), [images]);
   const hostResourceState = useMemo(() => evaluateHostResources(host), [host]);
+  const portainerUrl = useMemo(() => buildPortainerUrl(host), [host]);
 
   const resolvedImageSelection = useMemo(() => {
     const split = splitImageRef(reconcileForm.imageRef || policy?.defaults?.default_image || '');
@@ -753,6 +806,13 @@ function SitlControlPage() {
     () => splitImageRef(imageReleaseForm.baseImageRef || images[0]?.primary_tag || policy?.defaults?.default_image || ''),
     [imageReleaseForm.baseImageRef, images, policy],
   );
+  const resolvedReleaseVersionTag = useMemo(
+    () => sanitizeTagValue(
+      imageReleaseForm.versionTag,
+      { fallback: buildDefaultReleaseVersionTag(images[0], policy) },
+    ),
+    [imageReleaseForm.versionTag, images, policy],
+  );
 
   const availableReleaseImageTags = useMemo(
     () => imageCatalog.find((item) => item.repo === releaseSourceSelection.repo)?.tags || [],
@@ -801,6 +861,28 @@ function SitlControlPage() {
       ...current,
       baseImageRef: repo && tag ? `${repo}:${tag}` : current.baseImageRef,
     }));
+  };
+
+  const toggleImageReleasePanel = () => {
+    setImageReleaseExpanded((current) => {
+      const next = !current;
+      if (next) {
+        setImageReleaseForm((form) => {
+          const baseImageRef = form.baseImageRef || images[0]?.primary_tag || policy?.defaults?.default_image || '';
+          const fallbackRepo = splitImageRef(baseImageRef).repo || 'mavsdk-drone-show-sitl';
+          const imageRepo = form.imageRepo || fallbackRepo;
+          return {
+            ...form,
+            baseImageRef,
+            imageRepo,
+            versionTag: form.versionTag || buildDefaultReleaseVersionTag(images[0], policy),
+            archiveBasename: form.archiveBasename || buildDefaultArchiveBasename(imageRepo),
+            branch: form.branch || images[0]?.branch || '',
+          };
+        });
+      }
+      return next;
+    });
   };
 
   const openConfirmDialog = (dialog) => {
@@ -1080,12 +1162,16 @@ function SitlControlPage() {
   };
 
   const executeImageRelease = async () => {
+    if (!resolvedReleaseVersionTag) {
+      toast.error('Output Docker tag is required before saving an image.');
+      return;
+    }
     setReleasingImage(true);
     try {
       const operation = await releaseSitlImage({
         base_image_ref: imageReleaseForm.baseImageRef,
         image_repo: imageReleaseForm.imageRepo,
-        version_tag: imageReleaseForm.versionTag,
+        version_tag: resolvedReleaseVersionTag,
         repo_url: imageReleaseForm.repoUrl || null,
         branch: imageReleaseForm.branch || null,
         tag_latest: Boolean(imageReleaseForm.tagLatest),
@@ -1108,15 +1194,21 @@ function SitlControlPage() {
   };
 
   const handleImageRelease = () => {
+    if (!resolvedReleaseVersionTag) {
+      toast.error('Set an output Docker tag before saving the image.');
+      return;
+    }
     openConfirmDialog({
       title: 'Save SITL image?',
       message: 'This builds a fresh flattened image from the selected base image and applies the requested tags.',
       facts: [
         `${imageReleaseForm.baseImageRef}`,
-        `${imageReleaseForm.imageRepo}:${imageReleaseForm.versionTag}`,
+        `${imageReleaseForm.imageRepo}:${resolvedReleaseVersionTag}`,
         ...(imageReleaseForm.tagLatest ? ['tag latest'] : []),
         ...(imageReleaseForm.tagCommit ? ['tag commit'] : []),
-        ...(imageReleaseForm.exportArchive ? ['export .7z'] : []),
+        ...(imageReleaseForm.exportArchive
+          ? [imageReleaseForm.compressArchive ? 'export .7z' : 'export .tar']
+          : []),
         ...hostResourceState.warnings,
       ],
       confirmLabel: 'Save image',
@@ -1322,21 +1414,62 @@ function SitlControlPage() {
           {simModeEnabled ? (
             <>
               <div className="sitl-host-health">
-                <div className="sitl-inline-facts">
-                  {hostResourceState.facts.map((fact) => (
-                    <span key={fact} className="sitl-badge sitl-badge--muted">{fact}</span>
-                  ))}
+                <div className="sitl-collapsible sitl-collapsible--tight">
+                  <button
+                    type="button"
+                    className="sitl-collapsible__toggle"
+                    onClick={() => setHostDetailsExpanded((current) => !current)}
+                    aria-expanded={hostDetailsExpanded}
+                  >
+                    <span>Host</span>
+                    <span className="sitl-inline-facts">
+                      {hostResourceState.badges.map((badge) => (
+                        <span key={`${badge.label}-${badge.value}`} className={`sitl-badge sitl-badge--${badge.tone || 'muted'}`}>
+                          {badge.label} {badge.value}
+                        </span>
+                      ))}
+                      {hostResourceState.warnings.length > 0 ? (
+                        <span className="sitl-badge sitl-badge--warning">
+                          <FaExclamationTriangle />
+                          <span>{hostResourceState.warnings.length}</span>
+                        </span>
+                      ) : null}
+                    </span>
+                  </button>
+                  {hostDetailsExpanded ? (
+                    <div className="sitl-host-details">
+                      {hostResourceState.warnings.length > 0 ? (
+                        <div className="sitl-inline-facts">
+                          {hostResourceState.warnings.map((warning) => (
+                            <span key={warning} className="sitl-badge sitl-badge--warning">
+                              <FaExclamationTriangle />
+                              <span>{warning}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      <dl className="sitl-key-value-grid">
+                        {hostResourceState.detailRows.map((row) => (
+                          <div key={row.label}>
+                            <dt>{row.label}</dt>
+                            <dd>{row.value}</dd>
+                          </div>
+                        ))}
+                        <div>
+                          <dt>Portainer</dt>
+                          <dd>
+                            {portainerUrl ? (
+                              <a className="sitl-inline-link" href={portainerUrl} target="_blank" rel="noreferrer">
+                                <FaLink />
+                                <span>Open panel</span>
+                              </a>
+                            ) : host?.portainer_available ? 'Detected on this host' : 'Not detected'}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  ) : null}
                 </div>
-                {hostResourceState.warnings.length > 0 ? (
-                  <div className="sitl-inline-facts">
-                    {hostResourceState.warnings.map((warning) => (
-                      <span key={warning} className="sitl-badge sitl-badge--warning">
-                        <FaExclamationTriangle />
-                        <span>{warning}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
               </div>
 
               <section className="sitl-section">
@@ -1392,6 +1525,7 @@ function SitlControlPage() {
                         <FieldLabel label="Image ref" hint="Manual full image reference when no discovered images are available." />
                         <input
                           type="text"
+                          aria-label="Manual image reference"
                           placeholder={policy?.defaults?.default_image || 'mavsdk-drone-show-sitl:latest'}
                           value={reconcileForm.imageRef}
                           onChange={(event) => handleReconcileFieldChange('imageRef', event.target.value)}
@@ -1407,6 +1541,7 @@ function SitlControlPage() {
                         <FieldLabel label="Custom image ref" hint="Override the discovered repo/tag with a full Docker image reference." />
                         <input
                           type="text"
+                          aria-label="Custom image reference"
                           placeholder={policy?.defaults?.default_image || 'mavsdk-drone-show-sitl:latest'}
                           value={reconcileForm.imageRef}
                           onChange={(event) => handleReconcileFieldChange('imageRef', event.target.value)}
@@ -1416,6 +1551,7 @@ function SitlControlPage() {
                         <FieldLabel label="Start slot" hint="First slot/container ID in the reconciled range." />
                         <input
                           type="number"
+                          aria-label="Start slot"
                           min="1"
                           max="999"
                           value={reconcileForm.startId}
@@ -1426,6 +1562,7 @@ function SitlControlPage() {
                         <FieldLabel label="Start IP" hint="Enter the last octet for the first container IP in the subnet." />
                         <input
                           type="number"
+                          aria-label="Start IP last octet"
                           min="2"
                           max="254"
                           value={reconcileForm.startIp}
@@ -1436,6 +1573,7 @@ function SitlControlPage() {
                         <FieldLabel label="Subnet" hint="Optional Docker subnet override, for example 172.18.0.0/24." />
                         <input
                           type="text"
+                          aria-label="Subnet override"
                           placeholder="172.18.0.0/24"
                           value={reconcileForm.subnet}
                           onChange={(event) => handleReconcileFieldChange('subnet', event.target.value)}
@@ -1445,6 +1583,7 @@ function SitlControlPage() {
                         <FieldLabel label="Docker network" hint="Docker network name used for container IP allocation." />
                         <input
                           type="text"
+                          aria-label="Docker network name"
                           placeholder={preferredNetworkName}
                           value={reconcileForm.dockerNetworkName}
                           onChange={(event) => handleReconcileFieldChange('dockerNetworkName', event.target.value)}
@@ -1511,6 +1650,7 @@ function SitlControlPage() {
                             <FieldLabel label="Slot" hint={`Example: ${nextSuggestedInstance.instanceId}`} />
                             <input
                               type="number"
+                              aria-label="Custom slot"
                               min="1"
                               max="999"
                               placeholder={String(nextSuggestedInstance.instanceId)}
@@ -1522,6 +1662,7 @@ function SitlControlPage() {
                             <FieldLabel label="IP" hint={`Enter only the last octet, for example ${nextSuggestedInstance.ipLastOctet}`} />
                             <input
                               type="number"
+                              aria-label="Custom IP last octet"
                               min="2"
                               max="254"
                               placeholder={String(nextSuggestedInstance.ipLastOctet)}
@@ -1706,7 +1847,7 @@ function SitlControlPage() {
                         <button
                           type="button"
                           className={`sitl-action-button ${imageReleaseExpanded ? 'sitl-action-button--active' : ''}`.trim()}
-                          onClick={() => setImageReleaseExpanded((current) => !current)}
+                          onClick={toggleImageReleasePanel}
                           disabled={!dockerState?.daemon_reachable || releasingImage || images.length === 0}
                           title="Build and optionally export a fresh flattened SITL image"
                         >
@@ -1719,7 +1860,7 @@ function SitlControlPage() {
                         <div className="sitl-image-release-card">
                           <div className="sitl-form-grid">
                             <label className="sitl-field">
-                              <FieldLabel label="Source repo" hint="Source image repository used as the base for the new saved image." />
+                              <FieldLabel label="Source repo" hint="Docker image repository used as the base for the saved image." />
                               <select
                                 aria-label="Source image repository"
                                 value={releaseSourceSelection.repo}
@@ -1730,8 +1871,8 @@ function SitlControlPage() {
                                 ))}
                               </select>
                             </label>
-                            <label className="sitl-field">
-                              <FieldLabel label="Source tag" hint="Source image tag used as the base for the saved image." />
+                          <label className="sitl-field">
+                            <FieldLabel label="Source Docker tag" hint="Docker tag from the source image repository. This is not a Git branch or GitHub release." />
                               <select
                                 aria-label="Source image tag"
                                 value={releaseSourceSelection.tag}
@@ -1743,21 +1884,23 @@ function SitlControlPage() {
                               </select>
                             </label>
                             <label className="sitl-field">
-                              <FieldLabel label="Output repo" hint="Repository name for the saved image." />
+                              <FieldLabel label="Output repo" hint="Docker image repository to write after the save operation finishes." />
                               <input
                                 type="text"
+                                aria-label="Output image repository"
                                 value={imageReleaseForm.imageRepo}
                                 onChange={(event) => handleReleaseFieldChange('imageRepo', event.target.value)}
                                 placeholder="mavsdk-drone-show-sitl"
                               />
                             </label>
-                            <label className="sitl-field">
-                              <FieldLabel label="Version tag" hint="Human tag for the saved image, for example v5 or 2026-04-14." />
+                          <label className="sitl-field">
+                            <FieldLabel label="Output Docker tag" hint="Docker tag for the saved image, for example v5, demo-20260414, or a short commit tag." />
                               <input
                                 type="text"
-                                value={imageReleaseForm.versionTag}
-                                onChange={(event) => handleReleaseFieldChange('versionTag', sanitizeTagValue(event.target.value))}
-                                placeholder="v5"
+                                aria-label="Output Docker tag"
+                                value={imageReleaseForm.versionTag || resolvedReleaseVersionTag}
+                                onChange={(event) => handleReleaseFieldChange('versionTag', sanitizeTagValue(event.target.value, { fallback: '' }))}
+                                placeholder={resolvedReleaseVersionTag}
                               />
                             </label>
                           </div>
@@ -1798,6 +1941,19 @@ function SitlControlPage() {
                             </label>
                           </div>
 
+                          <div className="sitl-inline-note sitl-inline-note--stacked">
+                            <div className="sitl-inline-note__row">
+                              <InfoHint
+                                label="Archive export guidance"
+                                content="Export and compression are optional and slower. Leave them off for the normal fast image-save path."
+                              />
+                              <span>
+                                Optional archive path:{' '}
+                                <code>{imageReleaseForm.outputDir || '.'}/{imageReleaseForm.archiveBasename || buildDefaultArchiveBasename(imageReleaseForm.imageRepo || releaseSourceSelection.repo)}.{imageReleaseForm.compressArchive ? '7z' : 'tar'}</code>
+                              </span>
+                            </div>
+                          </div>
+
                           <details className="sitl-advanced-panel">
                             <summary>Advanced</summary>
                             <div className="sitl-form-grid sitl-form-grid--advanced">
@@ -1805,6 +1961,7 @@ function SitlControlPage() {
                                 <FieldLabel label="Repo URL" hint="Optional Git repo override baked into the saved image." />
                                 <input
                                   type="text"
+                                  aria-label="Image repo URL override"
                                   value={imageReleaseForm.repoUrl}
                                   onChange={(event) => handleReleaseFieldChange('repoUrl', event.target.value)}
                                   placeholder="https://github.com/alireza787b/mavsdk_drone_show.git"
@@ -1814,6 +1971,7 @@ function SitlControlPage() {
                                 <FieldLabel label="Branch" hint="Optional Git branch override baked into the saved image." />
                                 <input
                                   type="text"
+                                  aria-label="Image branch override"
                                   value={imageReleaseForm.branch}
                                   onChange={(event) => handleReleaseFieldChange('branch', event.target.value)}
                                   placeholder="main-candidate"
@@ -1823,6 +1981,7 @@ function SitlControlPage() {
                                 <FieldLabel label="Output dir" hint="Directory used when exporting an image archive." />
                                 <input
                                   type="text"
+                                  aria-label="Archive output directory"
                                   value={imageReleaseForm.outputDir}
                                   onChange={(event) => handleReleaseFieldChange('outputDir', event.target.value)}
                                   placeholder="release_artifacts"
@@ -1833,8 +1992,9 @@ function SitlControlPage() {
                                 <FieldLabel label="Archive basename" hint="Archive file prefix used when exporting the image." />
                                 <input
                                   type="text"
+                                  aria-label="Archive basename"
                                   value={imageReleaseForm.archiveBasename}
-                                  onChange={(event) => handleReleaseFieldChange('archiveBasename', sanitizeTagValue(event.target.value))}
+                                  onChange={(event) => handleReleaseFieldChange('archiveBasename', sanitizeTagValue(event.target.value, { fallback: '' }))}
                                   placeholder="mavsdk-drone-show-sitl-image"
                                   disabled={!imageReleaseForm.exportArchive}
                                 />
@@ -1876,7 +2036,7 @@ function SitlControlPage() {
                             <article key={image.image_id} className="sitl-compact-row sitl-compact-row--static">
                               <div className="sitl-compact-row__main">
                                 <strong>{splitImageRef(image.primary_tag || image.image_id).repo || image.primary_tag || image.image_id}</strong>
-                                <span>{image.commit || 'commit —'}</span>
+                                <span>{image.branch || 'branch —'} · {image.commit || 'commit —'}</span>
                               </div>
                               <div className="sitl-compact-row__side">
                                 <span className="sitl-badge" title="Tag">{splitImageRef(image.primary_tag || '').tag || 'untagged'}</span>

@@ -29,6 +29,7 @@ It does:
 - present compact image/instance state in the dashboard, while keeping
   secondary sections folded behind explicit operator intent
 - show minimal host resource facts and warn when CPU, RAM, or disk are tight
+- expose a Portainer quick link when Portainer is already installed and running
 - use auto-populated image repository/tag selectors for normal operation, with
   a folded manual image-ref override for advanced cases
 - keep automatic inventory refresh quiet instead of visually resetting the page
@@ -77,9 +78,11 @@ For image release:
 - open `Images`
 - open `Save image`
 - confirm the source repo/tag
-- set the output repo and version tag
-- leave `tag latest`, `tag commit`, and `export archive` enabled unless you
-  explicitly need a narrower result
+- confirm the output repo and default Docker tag
+  - the default tag is the current MDS commit ID
+- leave `tag latest` and `tag commit` enabled for the normal path
+- leave `export archive` and `compress` off unless you explicitly need an
+  exported package
 - confirm the action and watch the operation log until it completes
 
 ## Advanced Overrides
@@ -179,6 +182,8 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
   refresh shows a visible refresh state.
 - Poll-driven load failures use throttled error toasts so temporary outages do
   not spam the operator every few seconds.
+- Mobile/touch help icons use tappable inline info popovers instead of
+  desktop-only hover titles.
 - Images and operations are intentionally secondary collapsed panels; the
   primary working surface is the searchable instance inventory.
 - The in-dashboard image save workflow reuses the canonical
