@@ -103,4 +103,22 @@ describe('DroneCriticalCommands', () => {
       expect(screen.getByText('Monitor: Hold')).toBeInTheDocument();
     });
   });
+
+  it('keeps a stable action strip when grounded and only enables Take Off', () => {
+    render(
+      <CommandActivityProvider>
+        <DroneCriticalCommands
+          droneId="1"
+          isArmed={false}
+          runtimeStatus={{ level: 'online', label: 'Live', tooltip: 'Telemetry fresh' }}
+        />
+      </CommandActivityProvider>
+    );
+
+    expect(screen.getByRole('button', { name: 'Take Off' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Hold' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'RTL' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Kill' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Land' })).not.toBeInTheDocument();
+  });
 });

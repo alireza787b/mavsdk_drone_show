@@ -11,20 +11,31 @@ import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycl
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/DroneCriticalCommands.css';
 
-const AIRBORNE_COMMANDS = [
+const PRIMARY_COMMAND_SLOT = {
+  grounded: {
+    actionType: DRONE_ACTION_TYPES.TAKE_OFF,
+    icon: FaPlaneDeparture,
+    label: 'Take Off',
+    description: 'Climb using the configured takeoff altitude',
+    tone: 'neutral',
+    requiresArmed: false,
+  },
+  airborne: {
+    actionType: DRONE_ACTION_TYPES.LAND,
+    icon: FaPlaneArrival,
+    label: 'Land',
+    description: 'Land this drone immediately',
+    tone: 'neutral',
+    requiresArmed: true,
+  },
+};
+
+const SECONDARY_COMMANDS = [
   {
     actionType: DRONE_ACTION_TYPES.HOLD,
     icon: FaHandPaper,
     label: 'Hold',
     description: 'Freeze the drone in place',
-    tone: 'neutral',
-    requiresArmed: true,
-  },
-  {
-    actionType: DRONE_ACTION_TYPES.LAND,
-    icon: FaPlaneArrival,
-    label: 'Land',
-    description: 'Land this drone immediately',
     tone: 'neutral',
     requiresArmed: true,
   },
@@ -46,24 +57,13 @@ const AIRBORNE_COMMANDS = [
   },
 ];
 
-const GROUNDED_COMMANDS = [
-  {
-    actionType: DRONE_ACTION_TYPES.TAKE_OFF,
-    icon: FaPlaneDeparture,
-    label: 'Take Off',
-    description: 'Climb using the configured takeoff altitude',
-    tone: 'neutral',
-    requiresArmed: false,
-  },
-];
-
 function getDisabledReason(command, isArmed, runtimeStatus) {
   if (!runtimeStatus || runtimeStatus.level === 'unknown' || runtimeStatus.level === 'offline') {
     return 'Command link unavailable. Recover telemetry before sending per-drone overrides.';
   }
 
   if (command.requiresArmed && !isArmed) {
-    return 'This override is only relevant while the drone is airborne.';
+    return 'This action becomes available after takeoff.';
   }
 
   return null;
@@ -75,7 +75,7 @@ function getPanelNote(isArmed, runtimeStatus) {
   }
 
   if (!isArmed) {
-    return 'Take Off uses the configured altitude. Airborne actions appear after launch.';
+    return 'Take Off uses the configured altitude. Hold, RTL, and Kill activate after launch.';
   }
 
   if (runtimeStatus.level === 'degraded') {
@@ -91,10 +91,13 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
   const { commandLifecycleCallbacks } = useCommandActivity();
 
   const commands = useMemo(
-    () => (isArmed ? AIRBORNE_COMMANDS : GROUNDED_COMMANDS).map((command) => ({
-      ...command,
-      disabledReason: getDisabledReason(command, isArmed, runtimeStatus),
-    })),
+    () => {
+      const primaryCommand = isArmed ? PRIMARY_COMMAND_SLOT.airborne : PRIMARY_COMMAND_SLOT.grounded;
+      return [primaryCommand, ...SECONDARY_COMMANDS].map((command) => ({
+        ...command,
+        disabledReason: getDisabledReason(command, isArmed, runtimeStatus),
+      }));
+    },
     [isArmed, runtimeStatus],
   );
   const panelNote = getPanelNote(isArmed, runtimeStatus);
@@ -148,8 +151,10 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
   return (
     <div className="critical-commands-panel">
       <div className="critical-commands-panel__header">
-        <span className="critical-commands-panel__title">Actions</span>
-        <InfoHint content={panelNote} label="Airborne override guidance" />
+        <div className="critical-commands-panel__title-row">
+          <span className="critical-commands-panel__title">Actions</span>
+          <InfoHint content={panelNote} label="Action guidance" placement="bottom" />
+        </div>
       </div>
 
       <div className="critical-commands-container">

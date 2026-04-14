@@ -11,7 +11,13 @@
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
-  flex-wrap: wrap;
+}
+
+.critical-commands-panel__title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 .critical-commands-panel__title {
@@ -87,11 +93,6 @@
 }
 
 @media (max-width: 480px) {
-  .critical-commands-panel__header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .critical-commands-container {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
