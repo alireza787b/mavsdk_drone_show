@@ -21,8 +21,10 @@ from src.sitl_control_models import (
     SitlControlHostResponse,
     SitlControlHostSummary,
     SitlControlCreateInstanceRequest,
+    SitlControlImageReleaseRequest,
     SitlControlImageListResponse,
     SitlControlImageSummary,
+    SitlControlInstanceActionRequest,
     SitlControlInstanceListResponse,
     SitlControlInstanceLogResponse,
     SitlControlInstanceSummary,
@@ -104,6 +106,8 @@ class SitlControlService:
             features=SitlControlFeatureFlags(
                 lifecycle_mutations=True,
                 operations=True,
+                bulk_actions=True,
+                image_release=True,
                 browser_terminal=False,
             ),
             defaults=SitlControlPolicyDefaults(
@@ -332,6 +336,39 @@ class SitlControlService:
             target=self._run_create_instance_operation,
             name=f"sitl-create-{operation.operation_id[:8]}",
             args=(operation.operation_id, request, desired_instance_id, resolved_ip),
+        )
+        return operation
+
+    def instance_action(self, request: SitlControlInstanceActionRequest) -> SitlControlOperationResponse:
+        self._ensure_mutation_allowed()
+        action_label = "Restarting" if request.action == "restart" else "Removing"
+        operation = self._create_operation(
+            operation_type=f"{request.action}_instances",
+            summary=f"{action_label} {len(request.instance_names)} instance(s)",
+            detail=f"Applying {request.action} to the requested SITL containers.",
+            affected_instances=list(request.instance_names),
+            metadata=request.model_dump(mode="json"),
+        )
+        self._launch_background_operation(
+            target=self._run_instance_batch_action,
+            name=f"sitl-{request.action}-batch-{operation.operation_id[:8]}",
+            args=(operation.operation_id, request.action, list(request.instance_names)),
+        )
+        return operation
+
+    def release_image(self, request: SitlControlImageReleaseRequest) -> SitlControlOperationResponse:
+        self._ensure_mutation_allowed()
+        operation = self._create_operation(
+            operation_type="release_image",
+            summary=f"Saving image {request.image_repo}:{request.version_tag}",
+            detail="Building a fresh flattened SITL image from the selected base image.",
+            affected_instances=[],
+            metadata=request.model_dump(mode="json"),
+        )
+        self._launch_background_operation(
+            target=self._run_image_release_operation,
+            name=f"sitl-image-release-{operation.operation_id[:8]}",
+            args=(operation.operation_id, request),
         )
         return operation
 
@@ -685,6 +722,37 @@ class SitlControlService:
             env["MDS_SITL_DOCKER_NETWORK"] = request.docker_network_name
         return env
 
+    def _default_release_output_dir(self) -> str:
+        return str(Path(self.repo_root) / "release_artifacts")
+
+    def _build_image_release_command(self, request: SitlControlImageReleaseRequest) -> list[str]:
+        command = [
+            "bash",
+            "tools/release_sitl_image.sh",
+            "--base-image",
+            request.base_image_ref,
+            "--image-repo",
+            request.image_repo,
+            "--version-tag",
+            request.version_tag,
+        ]
+        if request.repo_url:
+            command.extend(["--repo-url", request.repo_url])
+        if request.branch:
+            command.extend(["--branch", request.branch])
+        if not request.tag_latest:
+            command.append("--no-tag-latest")
+        if not request.tag_commit:
+            command.append("--no-tag-commit")
+        if request.export_archive:
+            command.append("--package")
+            command.extend(["--output-dir", request.output_dir or self._default_release_output_dir()])
+            if request.archive_basename:
+                command.extend(["--archive-basename", request.archive_basename])
+            if not request.compress_archive:
+                command.append("--no-compress")
+        return command
+
     def _launch_background_operation(self, *, target: Callable[..., None], name: str, args: tuple[Any, ...]) -> None:
         thread = threading.Thread(target=target, name=name, args=args, daemon=True)
         thread.start()
@@ -978,6 +1046,130 @@ class SitlControlService:
             )
         finally:
             self._close_client(client)
+
+    def _run_instance_batch_action(self, operation_id: str, action: str, instance_names: list[str]) -> None:
+        self._mark_operation_running(operation_id)
+        client, _docker_state = self._get_client()
+        if client is None:
+            self._mark_operation_failed(
+                operation_id,
+                summary=f"SITL {action} failed",
+                detail="Docker daemon is unavailable",
+            )
+            return
+
+        completed: list[str] = []
+        try:
+            for instance_name in instance_names:
+                try:
+                    container = client.containers.get(instance_name)
+                except (NotFound, KeyError):
+                    self._append_operation_log(operation_id, f"Skipping missing container {instance_name}")
+                    continue
+
+                if not self._is_relevant_container(container):
+                    self._append_operation_log(operation_id, f"Skipping unmanaged container {instance_name}")
+                    continue
+
+                if action == "restart":
+                    self._append_operation_log(operation_id, f"Restarting {instance_name}")
+                    container.restart()
+                    if hasattr(container, "reload"):
+                        container.reload()
+                elif action == "remove":
+                    self._append_operation_log(operation_id, f"Removing {instance_name}")
+                    container.remove(force=True)
+                else:
+                    self._mark_operation_failed(
+                        operation_id,
+                        summary="Unsupported SITL action",
+                        detail=f"Unsupported container action: {action}",
+                    )
+                    return
+                completed.append(instance_name)
+        except Exception as exc:
+            self._mark_operation_failed(
+                operation_id,
+                summary=f"SITL {action} failed",
+                detail=str(exc),
+            )
+            return
+        finally:
+            self._close_client(client)
+
+        verb = "Restarted" if action == "restart" else "Removed"
+        detail = f"{verb} {len(completed)} instance(s)."
+        if len(completed) != len(instance_names):
+            detail = f"{detail} Requested {len(instance_names)}."
+        self._mark_operation_succeeded(
+            operation_id,
+            summary=f"{verb} {len(completed)} instance(s)",
+            detail=detail,
+        )
+
+    def _run_image_release_operation(self, operation_id: str, request: SitlControlImageReleaseRequest) -> None:
+        self._mark_operation_running(operation_id)
+        command = self._build_image_release_command(request)
+        env = os.environ.copy()
+        output_dir = request.output_dir or self._default_release_output_dir()
+
+        self._append_operation_log(operation_id, f"Command: {' '.join(command)}")
+        self._append_operation_log(operation_id, f"Base image: {request.base_image_ref}")
+        self._append_operation_log(operation_id, f"Target image: {request.image_repo}:{request.version_tag}")
+        if request.export_archive:
+            self._append_operation_log(operation_id, f"Archive output: {output_dir}")
+
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=self.repo_root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+        except Exception as exc:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL image save failed",
+                detail=f"Failed to launch release_sitl_image.sh: {exc}",
+            )
+            return
+
+        try:
+            if process.stdout is not None:
+                for line in process.stdout:
+                    self._append_operation_log(operation_id, line)
+            return_code = process.wait()
+        except Exception as exc:
+            process.kill()
+            process.wait()
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL image save failed",
+                detail=f"Image release process aborted unexpectedly: {exc}",
+            )
+            return
+
+        if return_code != 0:
+            self._mark_operation_failed(
+                operation_id,
+                summary="SITL image save failed",
+                detail=f"release_sitl_image.sh exited with code {return_code}",
+            )
+            return
+
+        detail = f"Saved {request.image_repo}:{request.version_tag}"
+        if request.export_archive:
+            detail = f"{detail} and exported archive artifacts to {output_dir}."
+        else:
+            detail = f"{detail} with updated Docker tags."
+        self._mark_operation_succeeded(
+            operation_id,
+            summary=f"Saved image {request.image_repo}:{request.version_tag}",
+            detail=detail,
+        )
 
     def _remove_unmanaged_instances(self, desired_names: set[str], *, operation_id: str) -> list[str]:
         client, docker_state = self._get_client()

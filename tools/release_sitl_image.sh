@@ -22,6 +22,8 @@ PACKAGE_IMAGE=false
 OUTPUT_DIR="$REPO_ROOT"
 ARCHIVE_BASENAME="$DEFAULT_ARCHIVE_BASENAME"
 COMPRESS=true
+TAG_LATEST=true
+TAG_COMMIT=true
 
 usage() {
     cat <<EOF
@@ -40,6 +42,8 @@ Options:
   --output-dir DIR         Archive output directory when --package is used (default: repo root)
   --archive-basename NAME  Archive basename when --package is used (default: ${DEFAULT_ARCHIVE_BASENAME})
   --no-compress            Keep only the .tar export when --package is used
+  --no-tag-latest          Do not retag the output image as latest
+  --no-tag-commit          Do not create the short commit tag
   -h, --help               Show this help message
 
 Result:
@@ -98,6 +102,14 @@ while [[ $# -gt 0 ]]; do
             COMPRESS=false
             shift
             ;;
+        --no-tag-latest)
+            TAG_LATEST=false
+            shift
+            ;;
+        --no-tag-commit)
+            TAG_COMMIT=false
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -149,23 +161,33 @@ docker_sitl_flatten_container \
     "LABEL mds.sitl.image.commit=${MDS_COMMIT}" \
     "LABEL mds.sitl.image.prepared_from=${BASE_IMAGE}"
 
-docker tag "$TARGET_IMAGE" "${IMAGE_REPO}:latest"
-docker tag "$TARGET_IMAGE" "${IMAGE_REPO}:${MDS_COMMIT}"
+if [[ "$TAG_LATEST" == true ]]; then
+    docker tag "$TARGET_IMAGE" "${IMAGE_REPO}:latest"
+fi
+if [[ "$TAG_COMMIT" == true ]]; then
+    docker tag "$TARGET_IMAGE" "${IMAGE_REPO}:${MDS_COMMIT}"
+fi
 
 log "Resulting tags:"
 log "  ${TARGET_IMAGE}"
-log "  ${IMAGE_REPO}:latest"
-log "  ${IMAGE_REPO}:${MDS_COMMIT}"
+if [[ "$TAG_LATEST" == true ]]; then
+    log "  ${IMAGE_REPO}:latest"
+fi
+if [[ "$TAG_COMMIT" == true ]]; then
+    log "  ${IMAGE_REPO}:${MDS_COMMIT}"
+fi
 log "  commit=${MDS_COMMIT}"
 
 if [[ "$PACKAGE_IMAGE" == true ]]; then
     PACKAGE_ARGS=(
         --image-repo "$IMAGE_REPO"
         --version-tag "$VERSION_TAG"
-        --commit-tag "$MDS_COMMIT"
         --output-dir "$OUTPUT_DIR"
         --archive-basename "$ARCHIVE_BASENAME"
     )
+    if [[ "$TAG_COMMIT" == true ]]; then
+        PACKAGE_ARGS+=(--commit-tag "$MDS_COMMIT")
+    fi
     if [[ "$COMPRESS" == false ]]; then
         PACKAGE_ARGS+=(--no-compress)
     fi

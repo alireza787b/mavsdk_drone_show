@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -28,6 +28,8 @@ class SitlControlFeatureFlags(BaseModel):
     instance_logs: bool = True
     lifecycle_mutations: bool = True
     operations: bool = True
+    bulk_actions: bool = True
+    image_release: bool = True
     browser_terminal: bool = False
 
 
@@ -185,6 +187,63 @@ class SitlControlCreateInstanceRequest(BaseModel):
     @field_validator("image_ref", "subnet", "docker_network_name", mode="before")
     @classmethod
     def _normalize_optional_create_strings(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+
+class SitlControlInstanceActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["restart", "remove"]
+    instance_names: List[str] = Field(..., min_length=1, description="Container names to act on")
+
+    @field_validator("instance_names", mode="before")
+    @classmethod
+    def _normalize_instance_names(cls, value: Any) -> List[str]:
+        if not isinstance(value, list):
+            raise TypeError("instance_names must be a list")
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for item in value:
+            name = str(item).strip()
+            if not name or name in seen:
+                continue
+            normalized.append(name)
+            seen.add(name)
+        if not normalized:
+            raise ValueError("instance_names must include at least one container name")
+        return normalized
+
+
+class SitlControlImageReleaseRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_image_ref: str = Field(..., min_length=1)
+    image_repo: str = Field(..., min_length=1)
+    version_tag: str = Field(..., min_length=1)
+    repo_url: Optional[str] = None
+    branch: Optional[str] = None
+    tag_latest: bool = True
+    tag_commit: bool = True
+    export_archive: bool = False
+    archive_basename: Optional[str] = None
+    output_dir: Optional[str] = None
+    compress_archive: bool = True
+
+    @field_validator(
+        "base_image_ref",
+        "image_repo",
+        "version_tag",
+        "repo_url",
+        "branch",
+        "archive_basename",
+        "output_dir",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_release_strings(cls, value: Any) -> Optional[str]:
         if value is None:
             return None
         normalized = str(value).strip()

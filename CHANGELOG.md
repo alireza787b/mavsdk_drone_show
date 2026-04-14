@@ -10,6 +10,14 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- SITL Control final operator refinement:
+  all instance rows now default to collapsed click-open behavior across
+  mobile/tablet/desktop, `Ops` stays closed unless explicitly toggled,
+  reconcile/add/restart/remove/batch/image-save now use a shared confirmation
+  dialog pattern, filtered visible-scope batch restart/remove is available for
+  larger fleets, minimal host resource warnings are shown inline, and the
+  dashboard now exposes a typed image-save workflow backed by the canonical
+  SITL release script instead of ad hoc container snapshots
 - official `System -> SITL Control` V1 for temporary local SITL hosts:
   typed GCS supervisor APIs now expose host/image/instance inventory,
   tracked reconcile/restart/remove operations, and tailed instance logs, while

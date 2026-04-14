@@ -35,10 +35,28 @@ export async function getSitlControlImages(config = {}) {
   return response.data;
 }
 
+export async function releaseSitlImage(payload, config = {}) {
+  const response = await axios.post(
+    buildGcsUrl(GCS_ROUTE_KEYS.sitlControlImageRelease),
+    payload,
+    withTimeout(config, SITL_CONTROL_MUTATION_TIMEOUT_MS),
+  );
+  return response.data;
+}
+
 export async function getSitlControlInstances(config = {}) {
   const response = await axios.get(
     buildGcsUrl(GCS_ROUTE_KEYS.sitlControlInstances),
     withTimeout(config, SITL_CONTROL_READ_TIMEOUT_MS),
+  );
+  return response.data;
+}
+
+export async function runSitlInstanceAction(payload, config = {}) {
+  const response = await axios.post(
+    buildGcsUrl(GCS_ROUTE_KEYS.sitlControlInstanceActions),
+    payload,
+    withTimeout(config, SITL_CONTROL_MUTATION_TIMEOUT_MS),
   );
   return response.data;
 }

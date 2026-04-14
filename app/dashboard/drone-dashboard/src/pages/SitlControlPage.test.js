@@ -11,7 +11,10 @@ import {
   getSitlControlOperations,
   getSitlControlPolicy,
   reconcileSitlFleet,
+  releaseSitlImage,
+  removeSitlInstance,
   restartSitlInstance,
+  runSitlInstanceAction,
 } from '../services/sitlControlService';
 
 jest.mock('../services/sitlControlService', () => ({
@@ -24,8 +27,10 @@ jest.mock('../services/sitlControlService', () => ({
   getSitlControlOperations: jest.fn(),
   getSitlControlOperation: jest.fn(),
   reconcileSitlFleet: jest.fn(),
+  releaseSitlImage: jest.fn(),
   restartSitlInstance: jest.fn(),
   removeSitlInstance: jest.fn(),
+  runSitlInstanceAction: jest.fn(),
 }));
 
 describe('SitlControlPage', () => {
@@ -43,6 +48,8 @@ describe('SitlControlPage', () => {
       },
       features: {
         lifecycle_mutations: true,
+        bulk_actions: true,
+        image_release: true,
       },
       docker: {
         daemon_reachable: true,
@@ -57,11 +64,11 @@ describe('SitlControlPage', () => {
         platform_release: '6.8.0',
         architecture: 'x86_64',
         cpu_count_logical: 8,
-        memory_total_bytes: 1024 * 1024 * 1024,
-        memory_available_bytes: 512 * 1024 * 1024,
+        memory_total_bytes: 4 * 1024 * 1024 * 1024,
+        memory_available_bytes: 2 * 1024 * 1024 * 1024,
         disk_path: '/tmp',
-        disk_total_bytes: 20 * 1024 * 1024 * 1024,
-        disk_free_bytes: 8 * 1024 * 1024 * 1024,
+        disk_total_bytes: 40 * 1024 * 1024 * 1024,
+        disk_free_bytes: 12 * 1024 * 1024 * 1024,
       },
     });
     getSitlControlImages.mockResolvedValue({
@@ -87,6 +94,7 @@ describe('SitlControlPage', () => {
           hw_id: '1',
           pos_id_hint: 1,
           image_ref: 'mavsdk-drone-show-sitl:latest',
+          git_repo_url: 'https://github.com/alireza787b/mavsdk_drone_show.git',
           git_branch: 'main-candidate',
           ip_addresses: { 'drone-network': '172.18.0.2' },
           git_sync_enabled: true,
@@ -100,6 +108,7 @@ describe('SitlControlPage', () => {
           hw_id: '2',
           pos_id_hint: 2,
           image_ref: 'mavsdk-drone-show-sitl:latest',
+          git_repo_url: 'https://github.com/alireza787b/mavsdk_drone_show.git',
           git_branch: 'main-candidate',
           ip_addresses: { 'drone-network': '172.18.0.3' },
           git_sync_enabled: false,
@@ -150,68 +159,70 @@ describe('SitlControlPage', () => {
       operation_id: 'sitl-op-3',
       summary: 'Restart queued',
     });
-    window.confirm = jest.fn(() => true);
+    removeSitlInstance.mockResolvedValue({
+      operation_id: 'sitl-op-4',
+      summary: 'Remove queued',
+    });
+    runSitlInstanceAction.mockResolvedValue({
+      operation_id: 'sitl-op-5',
+      summary: 'Batch restart queued',
+    });
+    releaseSitlImage.mockResolvedValue({
+      operation_id: 'sitl-op-6',
+      summary: 'SITL image save queued',
+    });
   });
 
-  test('renders SITL inventory summary and selected instance logs', async () => {
+  test('renders inventory with collapsed instance details by default', async () => {
     render(<SitlControlPage />);
 
     expect(await screen.findByText('SITL Control')).toBeInTheDocument();
-    expect(await screen.findByText('Fleet')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Fleet' })).toBeInTheDocument();
     expect(await screen.findByText('Docker')).toBeInTheDocument();
-    expect((await screen.findAllByText('mavsdk-drone-show-sitl:latest')).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText('drone-1')).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText('P1|H1')).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText('Reconciling SITL fleet')).length).toBeGreaterThan(0);
     expect(await screen.findByLabelText(/image repository/i)).toHaveValue('mavsdk-drone-show-sitl');
     expect(await screen.findByLabelText(/image tag/i)).toHaveValue('latest');
+    expect(await screen.findByText('drone-1')).toBeInTheDocument();
+    expect(screen.queryByText('Logs')).not.toBeInTheDocument();
+    expect(getSitlControlInstanceLogs).not.toHaveBeenCalled();
+    expect(screen.queryByText('Waiting for readiness')).not.toBeInTheDocument();
+  });
+
+  test('toggles instance detail open and closed and loads logs only when selected', async () => {
+    render(<SitlControlPage />);
+
+    const row = await screen.findByRole('button', { name: /drone-1/i });
+    fireEvent.click(row);
 
     await waitFor(() => {
       expect(getSitlControlInstanceLogs).toHaveBeenCalledWith('drone-1', { tail: 200 });
     });
+    const detailPanel = await screen.findByText('Logs');
+    expect(detailPanel).toBeInTheDocument();
+    expect(screen.getByText(/^Git sync$/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /drone-1/i }));
 
     await waitFor(() => {
-      expect(getSitlControlOperation).toHaveBeenCalledWith('sitl-op-1');
-      expect(screen.getByText('Waiting for readiness')).toBeInTheDocument();
+      expect(screen.queryByText('Logs')).not.toBeInTheDocument();
     });
   });
 
-  test('switches selected instance and reloads logs', async () => {
+  test('reconcile and add-next require confirmation before queuing actions', async () => {
     render(<SitlControlPage />);
 
-    expect(await screen.findByText('drone-2')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: /drone-2/i }));
-
-    await waitFor(() => {
-      expect(getSitlControlInstanceLogs).toHaveBeenLastCalledWith('drone-2', { tail: 200 });
-    });
-  });
-
-  test('submits reconcile and restart actions through the SITL control service', async () => {
-    render(<SitlControlPage />);
-
-    expect(await screen.findByRole('heading', { name: 'Fleet' })).toBeInTheDocument();
-
+    expect(await screen.findByRole('button', { name: /^reconcile$/i })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/desired instances/i), { target: { value: '4' } });
     fireEvent.click(screen.getByRole('button', { name: /^reconcile$/i }));
+    const reconcileDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(reconcileDialog).getByRole('button', { name: /^reconcile$/i }));
 
     await waitFor(() => {
       expect(reconcileSitlFleet).toHaveBeenCalledWith(expect.objectContaining({ target_count: 4 }));
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /restart/i }));
-
-    await waitFor(() => {
-      expect(restartSitlInstance).toHaveBeenCalledWith('drone-1');
-    });
-  });
-
-  test('queues add-next through the SITL control service', async () => {
-    render(<SitlControlPage />);
-
-    expect(await screen.findByRole('button', { name: /^next$/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^next$/i }));
+    expect(await screen.findByText(/add next sitl container/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^add next$/i }));
 
     await waitFor(() => {
       expect(createSitlInstance).toHaveBeenCalledWith(expect.objectContaining({
@@ -220,34 +231,66 @@ describe('SitlControlPage', () => {
     });
   });
 
-  test('restart keeps inventory visible and shows instance-local pending state', async () => {
+  test('operations remain collapsed until opened explicitly', async () => {
+    render(<SitlControlPage />);
+
+    expect(await screen.findByText('Ops')).toBeInTheDocument();
+    expect(screen.queryByText('Waiting for readiness')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /ops/i }));
+
+    expect(await screen.findByText('Reconciling SITL fleet')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /reconciling sitl fleet/i }));
+
+    await waitFor(() => {
+      expect(getSitlControlOperation).toHaveBeenCalledWith('sitl-op-1');
+      expect(screen.getByText('Waiting for readiness')).toBeInTheDocument();
+    });
+  });
+
+  test('image save flow stays inside Images and uses explicit confirmation', async () => {
+    render(<SitlControlPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /images/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save image/i }));
+
+    const imageCard = await screen.findByText(/source mavsdk-drone-show-sitl:latest/i);
+    const releaseCard = imageCard.closest('.sitl-collapsible');
+    expect(within(releaseCard).getByLabelText(/source image repository/i)).toHaveValue('mavsdk-drone-show-sitl');
+    fireEvent.change(within(releaseCard).getByLabelText(/^Version tag$/i), { target: { value: 'release-demo' } });
+    fireEvent.click(within(releaseCard).getAllByRole('button', { name: /^save image$/i }).slice(-1)[0]);
+
+    const saveDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(saveDialog).getByRole('button', { name: /^save image$/i }));
+
+    await waitFor(() => {
+      expect(releaseSitlImage).toHaveBeenCalledWith(expect.objectContaining({
+        image_repo: 'mavsdk-drone-show-sitl',
+        version_tag: 'release-demo',
+        tag_latest: true,
+        tag_commit: true,
+        export_archive: true,
+      }));
+    });
+  });
+
+  test('batch actions operate on the filtered visible scope', async () => {
     render(<SitlControlPage />);
 
     expect(await screen.findByRole('heading', { name: 'Instances' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/search sitl instances/i), { target: { value: 'drone-2' } });
+    fireEvent.click(screen.getByRole('button', { name: /batch/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: /^restart$/i }));
+    const batchPanel = screen.getByText(/1 of 2 visible/i).closest('.sitl-batch-panel');
+    fireEvent.click(within(batchPanel).getByRole('button', { name: /restart visible/i }));
+    const batchDialog = await screen.findByRole('dialog');
+    fireEvent.click(within(batchDialog).getByRole('button', { name: /^restart visible$/i }));
 
     await waitFor(() => {
-      expect(screen.getByText(/this container is restarting/i)).toBeInTheDocument();
+      expect(runSitlInstanceAction).toHaveBeenCalledWith({
+        action: 'restart',
+        instance_names: ['drone-2'],
+      });
     });
-
-    const detailPanel = screen.getByText(/this container is restarting/i).closest('.sitl-instance-detail');
-    const restartButton = within(detailPanel).getByRole('button', { name: /restarting/i });
-
-    expect(restartButton).toBeDisabled();
-    expect(screen.getByText('drone-2')).toBeInTheDocument();
-  });
-
-  test('filters the instance list with the search field', async () => {
-    render(<SitlControlPage />);
-
-    expect(await screen.findByText('drone-2')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText(/search sitl instances/i), { target: { value: '172.18.0.3' } });
-
-    const instancesHeading = screen.getByRole('heading', { name: 'Instances' });
-    const instancesSection = instancesHeading.closest('.sitl-section');
-
-    expect(within(instancesSection).queryByRole('button', { name: /drone-1/i })).not.toBeInTheDocument();
-    expect(within(instancesSection).getByRole('button', { name: /drone-2/i })).toBeInTheDocument();
   });
 });

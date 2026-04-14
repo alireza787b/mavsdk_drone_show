@@ -61,9 +61,21 @@
   color: #c0392b;
 }
 
+.sitl-action-button--active {
+  background: rgba(79, 140, 255, 0.16);
+  border-color: rgba(79, 140, 255, 0.42);
+}
+
 .sitl-action-button:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+.sitl-host-health {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .sitl-inline-banner,
@@ -85,6 +97,44 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+}
+
+.sitl-inline-facts .sitl-badge {
+  gap: 0.35rem;
+}
+
+.sitl-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+}
+
+.sitl-field-hint,
+.sitl-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.sitl-field-hint {
+  cursor: help;
+  padding: 0;
+}
+
+.sitl-icon-button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.sitl-icon-button:hover {
+  background: rgba(148, 163, 184, 0.12);
 }
 
 .sitl-inline-disclosure {
@@ -115,6 +165,19 @@
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 0.65rem;
   align-items: end;
+}
+
+.sitl-inline-create-card,
+.sitl-batch-panel,
+.sitl-image-release-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: 100%;
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border-radius: 16px;
+  background: var(--color-surface-raised, rgba(255, 255, 255, 0.035));
+  padding: 0.85rem;
 }
 
 .sitl-inline-note-banner {
@@ -220,7 +283,7 @@
   gap: 0.35rem;
 }
 
-.sitl-field span {
+.sitl-field > span {
   font-size: 0.88rem;
   color: var(--color-text-secondary);
 }
@@ -288,6 +351,14 @@
   line-height: 1.4;
 }
 
+.sitl-section-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
 .sitl-entity-card {
   padding: 1rem;
   text-align: left;
@@ -321,14 +392,23 @@
   padding: 0.85rem 1rem;
 }
 
-.sitl-collapsible summary {
+.sitl-collapsible summary,
+.sitl-collapsible__toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
-  cursor: pointer;
-  list-style: none;
   font-weight: 700;
+}
+
+.sitl-collapsible__toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
 }
 
 .sitl-collapsible summary::-webkit-details-marker {
@@ -339,7 +419,7 @@
   padding-bottom: 1rem;
 }
 
-.sitl-collapsible > :not(summary) {
+.sitl-collapsible > :not(summary):not(.sitl-collapsible__toggle) {
   margin-top: 0.9rem;
 }
 
@@ -612,6 +692,60 @@
   }
 }
 
+.sitl-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(3, 8, 16, 0.68);
+  backdrop-filter: blur(3px);
+}
+
+.sitl-dialog {
+  width: min(100%, 34rem);
+  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.22));
+  border-radius: 20px;
+  background: var(--color-surface, #0f172a);
+  color: var(--color-text-primary);
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+  padding: 1rem;
+}
+
+.sitl-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.sitl-dialog__header h3 {
+  margin: 0;
+}
+
+.sitl-dialog__header p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.sitl-dialog__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.95rem;
+}
+
+.sitl-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
 @media (max-width: 1100px) {
   .sitl-instance-layout {
     grid-template-columns: 1fr;
@@ -636,6 +770,12 @@
   }
 
   .sitl-reconcile-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sitl-host-health,
+  .sitl-section-toolbar {
     flex-direction: column;
     align-items: stretch;
   }

@@ -9,8 +9,10 @@ import {
   getSitlControlOperations,
   getSitlControlPolicy,
   reconcileSitlFleet,
+  releaseSitlImage,
   removeSitlInstance,
   restartSitlInstance,
+  runSitlInstanceAction,
 } from './sitlControlService';
 import { buildGcsUrl, GCS_ROUTE_KEYS } from './gcsApiService';
 
@@ -26,7 +28,9 @@ jest.mock('./gcsApiService', () => ({
     sitlControlPolicy: '/api/v1/system/sitl/policy',
     sitlControlHost: '/api/v1/system/sitl/host',
     sitlControlImages: '/api/v1/system/sitl/images',
+    sitlControlImageRelease: '/api/v1/system/sitl/images/release',
     sitlControlInstances: '/api/v1/system/sitl/instances',
+    sitlControlInstanceActions: '/api/v1/system/sitl/instances/actions',
     sitlControlReconcile: '/api/v1/system/sitl/reconcile',
     sitlControlOperations: '/api/v1/system/sitl/operations',
   },
@@ -87,6 +91,8 @@ describe('sitlControlService', () => {
     axios.get.mockResolvedValueOnce({ data: { operations: [] } });
     axios.get.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
     axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-2' } });
+    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-4' } });
+    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-5' } });
     axios.delete.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-3' } });
 
     const reconcile = await reconcileSitlFleet({ target_count: 3 });
@@ -94,6 +100,8 @@ describe('sitlControlService', () => {
     const operations = await getSitlControlOperations({ limit: 5 });
     const operation = await getSitlControlOperation('sitl/op');
     const restart = await restartSitlInstance('drone/1');
+    const batch = await runSitlInstanceAction({ action: 'restart', instance_names: ['drone-1'] });
+    const release = await releaseSitlImage({ image_repo: 'mavsdk-drone-show-sitl', version_tag: 'release-demo' });
     const remove = await removeSitlInstance('drone/1');
 
     expect(axios.post).toHaveBeenNthCalledWith(
@@ -124,6 +132,18 @@ describe('sitlControlService', () => {
       {},
       { timeout: 30000 },
     );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      4,
+      'http://gcs.test:5000/api/v1/system/sitl/instances/actions',
+      { action: 'restart', instance_names: ['drone-1'] },
+      { timeout: 30000 },
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      5,
+      'http://gcs.test:5000/api/v1/system/sitl/images/release',
+      { image_repo: 'mavsdk-drone-show-sitl', version_tag: 'release-demo' },
+      { timeout: 30000 },
+    );
     expect(axios.delete).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1',
       { timeout: 30000 },
@@ -133,6 +153,8 @@ describe('sitlControlService', () => {
     expect(operations.operations).toEqual([]);
     expect(operation.operation_id).toBe('sitl-op-1');
     expect(restart.operation_id).toBe('sitl-op-2');
+    expect(batch.operation_id).toBe('sitl-op-4');
+    expect(release.operation_id).toBe('sitl-op-5');
     expect(remove.operation_id).toBe('sitl-op-3');
   });
 });

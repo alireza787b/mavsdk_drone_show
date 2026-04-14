@@ -14,8 +14,10 @@ from src.sitl_control_models import (
     SitlControlHostResponse,
     SitlControlHostSummary,
     SitlControlCreateInstanceRequest,
+    SitlControlImageReleaseRequest,
     SitlControlImageListResponse,
     SitlControlImageSummary,
+    SitlControlInstanceActionRequest,
     SitlControlInstanceListResponse,
     SitlControlInstanceLogResponse,
     SitlControlInstanceSummary,
@@ -220,6 +222,34 @@ class _FakeSitlControlService:
             updated_at=1450,
         )
 
+    def instance_action(self, request: SitlControlInstanceActionRequest):
+        return SitlControlOperationResponse(
+            operation_id="sitl-op-batch",
+            operation_type=f"{request.action}_instances",
+            status="accepted",
+            summary=f"{request.action} queued",
+            detail="Queued",
+            affected_instances=list(request.instance_names),
+            metadata=request.model_dump(mode="json"),
+            log_lines=[],
+            created_at=1475,
+            updated_at=1475,
+        )
+
+    def release_image(self, request: SitlControlImageReleaseRequest):
+        return SitlControlOperationResponse(
+            operation_id="sitl-op-image",
+            operation_type="release_image",
+            status="accepted",
+            summary=f"Saving {request.image_repo}:{request.version_tag}",
+            detail="Queued",
+            affected_instances=[],
+            metadata=request.model_dump(mode="json"),
+            log_lines=[],
+            created_at=1480,
+            updated_at=1480,
+        )
+
     def restart_instance(self, instance_name: str):
         return SitlControlOperationResponse(
             operation_id="sitl-op-restart",
@@ -275,7 +305,9 @@ def test_sitl_control_router_registers_expected_routes():
     assert "/api/v1/system/sitl/policy" in routes
     assert "/api/v1/system/sitl/host" in routes
     assert "/api/v1/system/sitl/images" in routes
+    assert "/api/v1/system/sitl/images/release" in routes
     assert "/api/v1/system/sitl/instances" in routes
+    assert "/api/v1/system/sitl/instances/actions" in routes
     assert "/api/v1/system/sitl/instances/{instance_name}/logs" in routes
     assert "/api/v1/system/sitl/reconcile" in routes
     assert "/api/v1/system/sitl/instances/{instance_name}/restart" in routes
@@ -306,6 +338,27 @@ def test_sitl_control_router_returns_read_only_inventory_payloads():
                 ip_last_octet=6,
                 git_sync_enabled=True,
                 requirements_sync_enabled=True,
+            )
+        )
+    )
+    batch_action = asyncio.run(
+        _resolve_route_endpoint(app, "/api/v1/system/sitl/instances/actions", "POST")(
+            request=SitlControlInstanceActionRequest(
+                action="restart",
+                instance_names=["drone-1"],
+            )
+        )
+    )
+    release_image = asyncio.run(
+        _resolve_route_endpoint(app, "/api/v1/system/sitl/images/release", "POST")(
+            request=SitlControlImageReleaseRequest(
+                base_image_ref="mavsdk-drone-show-sitl:latest",
+                image_repo="mavsdk-drone-show-sitl",
+                version_tag="release-demo",
+                tag_latest=True,
+                tag_commit=True,
+                export_archive=True,
+                compress_archive=True,
             )
         )
     )
@@ -343,6 +396,8 @@ def test_sitl_control_router_returns_read_only_inventory_payloads():
     assert logs.lines[-1] == "ready"
     assert logs.source == "docker"
     assert create_instance.operation_type == "create_instance"
+    assert batch_action.operation_type == "restart_instances"
+    assert release_image.operation_type == "release_image"
     assert operations.active_operations == 1
     assert operation.status == "succeeded"
     assert reconcile.operation_type == "reconcile_fleet"

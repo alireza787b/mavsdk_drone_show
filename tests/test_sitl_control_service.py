@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.sitl_control_models import SitlControlImageReleaseRequest, SitlControlInstanceActionRequest
 from src.sitl_control_service import SitlControlService
 
 
@@ -318,3 +319,61 @@ def test_create_instance_operation_uses_next_available_id_and_ip(tmp_path):
 
     assert service._resolve_create_instance_id(SimpleNamespace(instance_id=None)) == 4
     assert service._resolve_create_instance_ip(SimpleNamespace(ip_last_octet=None), 4) == 5
+
+
+def test_instance_batch_action_restarts_requested_visible_containers(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone1 = _FakeContainer(name="drone-1", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"})
+    drone2 = _FakeContainer(name="drone-2", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"})
+    service = _ImmediateOperationService(
+        params=SimpleNamespace(sim_mode=True),
+        docker_socket_path=str(tmp_path / "docker.sock"),
+        client_factory=lambda: _FakeClient([drone1, drone2], [image]),
+        repo_root=str(tmp_path),
+    )
+    Path(service.docker_socket_path).write_text("", encoding="utf-8")
+
+    operation = service.instance_action(
+        SitlControlInstanceActionRequest(action="restart", instance_names=["drone-1", "drone-2"])
+    )
+
+    result = service.get_operation(operation.operation_id)
+    assert result is not None
+    assert result.status == "succeeded"
+    assert result.summary == "Restarted 2 instance(s)"
+    assert drone1.restart_calls == 1
+    assert drone2.restart_calls == 1
+
+
+def test_build_image_release_command_includes_selected_flags(tmp_path):
+    service = _make_service(tmp_path)
+
+    command = service._build_image_release_command(
+        SitlControlImageReleaseRequest(
+            base_image_ref="mavsdk-drone-show-sitl:latest",
+            image_repo="mavsdk-drone-show-sitl",
+            version_tag="release-demo",
+            repo_url="https://github.com/alireza787b/mavsdk_drone_show.git",
+            branch="main-candidate",
+            tag_latest=False,
+            tag_commit=True,
+            export_archive=True,
+            archive_basename="demo-image",
+            output_dir="/tmp/releases",
+            compress_archive=False,
+        )
+    )
+
+    assert command[:4] == ["bash", "tools/release_sitl_image.sh", "--base-image", "mavsdk-drone-show-sitl:latest"]
+    assert "--repo-url" in command
+    assert "--branch" in command
+    assert "--no-tag-latest" in command
+    assert "--no-tag-commit" not in command
+    assert "--package" in command
+    assert "--output-dir" in command
+    assert "--archive-basename" in command
+    assert "--no-compress" in command

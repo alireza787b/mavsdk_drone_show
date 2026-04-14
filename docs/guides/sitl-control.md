@@ -9,8 +9,11 @@ Use it when you want to:
 - see which `drone-N` containers are running now
 - reconcile the local fleet to a target count
 - add one new SITL container without pruning the rest of the fleet
+- add one exact-slot SITL container for sparse test layouts
 - restart a single SITL instance
 - remove a single SITL instance
+- restart or remove the current filtered visible scope
+- save a fresh flattened SITL image with optional tags and archive export
 - inspect tracked reconcile/restart/remove operations
 - tail recent container logs for one selected instance
 
@@ -25,20 +28,20 @@ It does:
 - track lifecycle operations inside MDS instead of sending operators to shell
 - present compact image/instance state in the dashboard, while keeping
   secondary sections folded behind explicit operator intent
+- show minimal host resource facts and warn when CPU, RAM, or disk are tight
 - use auto-populated image repository/tag selectors for normal operation, with
   a folded manual image-ref override for advanced cases
 - keep automatic inventory refresh quiet instead of visually resetting the page
-- expand selected instance detail inline on compact layouts and as a docked
-  side panel on wide desktop layouts
+- keep all instance rows collapsed by default and expand the selected one
+  inline when clicked
 - expose the same lifecycle through a headless API/CLI path for validators,
   AI agents, and future MCP tools
 
 It does not do in V1:
 
-- build new Docker images
 - provide a browser shell or host terminal
 - expose arbitrary Docker operations outside the MDS SITL scope
-- replace the documented image build/release workflow
+- replace the documented image build/release workflow with ad hoc `docker commit`
 
 ## Operator Workflow
 
@@ -58,14 +61,26 @@ It does not do in V1:
 7. Watch the tracked operation until it reaches `succeeded` or `failed`.
 8. Review the `Instances` section and select a container for details.
 9. Use `Restart` or `Remove` only on the selected instance.
+10. Use `Batch` only when you intentionally want the current filtered visible
+    scope restarted or removed together.
 
-For ad hoc fleet growth tests, use `Add next`:
+For ad hoc fleet growth tests, use `Add next` or `Custom`:
 
 - it creates exactly one new `drone-N`
 - it does not prune the rest of the fleet
 - the default ID/IP is the next free slot
-- `Add one with custom ID/IP` is available for sparse or non-sequential test
-  layouts such as `drone-10`
+- `Custom` lets you confirm an exact slot and IP last octet for sparse or
+  non-sequential test layouts such as `drone-10`
+
+For image release:
+
+- open `Images`
+- open `Save image`
+- confirm the source repo/tag
+- set the output repo and version tag
+- leave `tag latest`, `tag commit`, and `export archive` enabled unless you
+  explicitly need a narrower result
+- confirm the action and watch the operation log until it completes
 
 ## Advanced Overrides
 
@@ -81,10 +96,10 @@ The page defaults to normal beginner-safe values:
 
 Advanced fields are folded behind `Advanced` so routine use stays simple.
 
-`Add next` and `Add exact` are intentionally grouped:
+`Add next` and `Custom` are intentionally grouped:
 
 - normal flow: `Add next`
-- advanced sparse-layout flow: `Add exact`
+- advanced sparse-layout flow: `Custom`
 
 ## Reconcile Semantics
 
@@ -105,7 +120,9 @@ The page uses these GCS endpoints:
 - `GET /api/v1/system/sitl/instances`
 - `GET /api/v1/system/sitl/instances/{instance_name}/logs`
 - `POST /api/v1/system/sitl/instances`
+- `POST /api/v1/system/sitl/instances/actions`
 - `POST /api/v1/system/sitl/reconcile`
+- `POST /api/v1/system/sitl/images/release`
 - `POST /api/v1/system/sitl/instances/{instance_name}/restart`
 - `DELETE /api/v1/system/sitl/instances/{instance_name}`
 - `GET /api/v1/system/sitl/operations`
@@ -148,8 +165,9 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 - Instance inventory is limited to the MDS SITL container naming pattern
   (`drone-N`) and prepared MDS SITL images.
 - Restart and remove operate on one selected container at a time.
-- `Add next` and `Add one` create a single new container without pruning the
+- `Add next` and `Custom` create a single new container without pruning the
   existing fleet.
+- `Batch` applies restart or remove to the current filtered visible list.
 - Reconcile is the preferred way to converge the whole local fleet.
 - Container log tails first use Docker logs, then fall back to the container's
   file-backed SITL runtime logs such as `startup_sitl.log` when Docker output
@@ -161,9 +179,11 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
   refresh shows a visible refresh state.
 - Poll-driven load failures use throttled error toasts so temporary outages do
   not spam the operator every few seconds.
-- Images and operations are intentionally secondary panels; the primary working
-  surface is the searchable instance inventory plus the selected-container
-  detail pane.
+- Images and operations are intentionally secondary collapsed panels; the
+  primary working surface is the searchable instance inventory.
+- The in-dashboard image save workflow reuses the canonical
+  `tools/release_sitl_image.sh` path. It does not snapshot live per-container
+  state or preserve slot-specific runtime env like `hw_id`.
 
 ## Validation
 
