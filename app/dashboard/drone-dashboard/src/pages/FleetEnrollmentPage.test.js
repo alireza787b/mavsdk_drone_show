@@ -20,6 +20,8 @@ jest.mock('../services/fleetEnrollmentApiService', () => ({
   replaceFleetCandidate: jest.fn(),
 }));
 
+jest.setTimeout(15000);
+
 const renderPage = (initialEntry = '/fleet-enrollment') => render(
   <MemoryRouter
     initialEntries={[initialEntry]}

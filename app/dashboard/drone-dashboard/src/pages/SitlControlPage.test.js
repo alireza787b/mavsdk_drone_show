@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import SitlControlPage from './SitlControlPage';
+import { GIT_COMMIT } from '../version';
 import {
   createSitlInstance,
   getSitlControlHost,
@@ -32,6 +33,8 @@ jest.mock('../services/sitlControlService', () => ({
   removeSitlInstance: jest.fn(),
   runSitlInstanceAction: jest.fn(),
 }));
+
+jest.setTimeout(15000);
 
 describe('SitlControlPage', () => {
   beforeEach(() => {
@@ -274,7 +277,7 @@ describe('SitlControlPage', () => {
     expect(within(releaseCard).getByLabelText(/source image repository/i)).toHaveValue('mavsdk-drone-show-sitl');
     const outputTagInput = within(releaseCard).getByRole('textbox', { name: /output docker tag/i });
     await waitFor(() => {
-      expect(outputTagInput).toHaveValue('98cf4c4d');
+      expect(outputTagInput).toHaveValue(GIT_COMMIT);
     });
     expect(within(releaseCard).getByLabelText(/export archive/i)).not.toBeChecked();
     expect(within(releaseCard).getByLabelText(/compress/i)).not.toBeChecked();

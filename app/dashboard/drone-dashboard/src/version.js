@@ -11,7 +11,7 @@
  */
 
 const DEFAULT_VERSION = '5.0';
-const DEFAULT_GIT_COMMIT = '98cf4c4d';
+const DEFAULT_GIT_COMMIT = '3cfcc7f1';
 const DEFAULT_GIT_BRANCH = 'main-candidate';
 const DEFAULT_GIT_REPO = 'alireza787b/mavsdk_drone_show';
 
