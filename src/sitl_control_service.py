@@ -126,6 +126,7 @@ class SitlControlService:
         disk_path = self.repo_root if os.path.exists(self.repo_root) else "/"
         disk_usage = psutil.disk_usage(disk_path) if psutil is not None else shutil.disk_usage(disk_path)
         memory_total, memory_available = self._memory_snapshot()
+        cpu_usage = float(psutil.cpu_percent(interval=None)) if psutil is not None else None
         load_avg = os.getloadavg() if hasattr(os, "getloadavg") else None
         portainer = self._detect_portainer(client) if client is not None else {
             "available": False,
@@ -147,6 +148,7 @@ class SitlControlService:
                     disk_path=disk_path,
                     disk_total_bytes=int(disk_usage.total),
                     disk_free_bytes=int(disk_usage.free),
+                    cpu_usage_percent=cpu_usage,
                     load_avg_1m=float(load_avg[0]) if load_avg else None,
                     load_avg_5m=float(load_avg[1]) if load_avg else None,
                     load_avg_15m=float(load_avg[2]) if load_avg else None,

@@ -48,7 +48,7 @@ const LogViewerToolbar = ({
           onClick={() => onModeChange(MODES.OPS)}
           title="Operations mode — WARNING+ only"
         >
-          <FaEye size={12} /> Ops
+          <FaEye size={12} /> <span className="log-button-text">Ops</span>
         </button>
         <button
           type="button"
@@ -56,7 +56,7 @@ const LogViewerToolbar = ({
           onClick={() => onModeChange(MODES.DEV)}
           title="Developer mode — all levels, search, export"
         >
-          <FaCode size={12} /> Dev
+          <FaCode size={12} /> <span className="log-button-text">Dev</span>
         </button>
       </div>
 
@@ -125,7 +125,7 @@ const LogViewerToolbar = ({
           />
           {(timeStart || timeEnd) && (
             <button type="button" onClick={onClearTimeRange} title="Clear time range">
-              Reset
+              <span className="log-button-text">Reset</span>
             </button>
           )}
         </div>
@@ -167,6 +167,7 @@ const LogViewerToolbar = ({
       {!selectedSession && (
         <button type="button" onClick={onTogglePause} title={paused ? 'Resume' : 'Pause'}>
           {paused ? <FaPlay size={12} /> : <FaPause size={12} />}
+          <span className="log-button-text">{paused ? 'Resume' : 'Pause'}</span>
         </button>
       )}
 
@@ -180,14 +181,14 @@ const LogViewerToolbar = ({
       {/* Export (Developer mode only) */}
       {scopeDroneId != null && (
         <button type="button" onClick={onOnboardUlogOpen} title={`Manage onboard PX4 ULogs for ${liveLabel}`}>
-          <FaDownload size={12} /> Onboard ULog
+          <FaDownload size={12} /> <span className="log-button-text">ULog</span>
         </button>
       )}
 
       {/* Export (Developer mode only) */}
       {mode === MODES.DEV && (
         <button type="button" onClick={onExportOpen} title="Export sessions">
-          <FaDownload size={12} /> Export
+          <FaDownload size={12} /> <span className="log-button-text">Export</span>
         </button>
       )}
     </div>

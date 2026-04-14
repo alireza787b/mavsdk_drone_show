@@ -32,6 +32,7 @@
   position: absolute;
   z-index: var(--z-popover);
   width: min(18rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 1.5rem);
   border-radius: var(--border-radius-base);
   border: 1px solid var(--color-border-primary);
   background: var(--color-surface-raised);
@@ -67,11 +68,27 @@
 }
 
 @media (max-width: 760px) {
+  .info-hint__bubble {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    top: auto;
+    width: auto;
+    max-width: none;
+    max-height: 40vh;
+    overflow-y: auto;
+    transform: none;
+  }
+
+  .info-hint__bubble--top,
+  .info-hint__bubble--bottom,
   .info-hint__bubble--right,
   .info-hint__bubble--left {
-    left: 50%;
-    right: auto;
-    top: calc(100% + 0.45rem);
-    transform: translateX(-50%);
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    top: auto;
+    transform: none;
   }
 }

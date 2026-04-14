@@ -150,6 +150,12 @@
   font-size: 0.68rem;
   color: var(--color-text-tertiary);
   letter-spacing: 0.03em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.version-meta--repo {
+  color: var(--color-text-secondary);
 }
 
 .header-collapsed {

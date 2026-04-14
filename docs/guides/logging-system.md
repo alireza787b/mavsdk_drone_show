@@ -318,8 +318,9 @@ In Developer mode, click the Export button to:
 
 ### Onboard ULog
 
-When a single drone scope is selected, the toolbar exposes an `Onboard ULog`
-action for file-backed PX4 flight logs stored on that vehicle.
+When a single drone scope is selected, the toolbar exposes a compact `ULog`
+action that opens the `Onboard ULog` dialog for file-backed PX4 flight logs
+stored on that vehicle.
 
 Current v1 behavior:
 - maintenance workflow anchored to `hw_id`, while the UI still shows compact

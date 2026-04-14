@@ -1,6 +1,6 @@
 # MAVSDK Drone Show Documentation
 
-**Complete documentation index for MDS 5.0**
+**Complete documentation index for MDS 5.1**
 
 Welcome to the MAVSDK Drone Show documentation! This index will help you find the right guide for your needs.
 
@@ -21,6 +21,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
 | deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
 | build or redistribute a validated custom SITL image | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
+| control local SITL containers from the dashboard | [SITL Control Guide](guides/sitl-control.md) |
 | inspect logs | [Logging System Guide](guides/logging-system.md) |
 
 ### By Role
@@ -50,6 +51,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 ### Core Secondary Guides
 
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
+- **[SITL Control Guide](guides/sitl-control.md)** - dashboard-based local SITL lifecycle control, image save flow, and operator-focused container management
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
 - **`tools/sitl_plans/`** - checked-in named SITL scenario library for maintainers, CI, and AI agents
 - **[QuickScout Guide](quickscout.md)** - SAR / recon workflows
@@ -66,6 +68,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 |-------|-------------|----------|
 | **[SITL Comprehensive](guides/sitl-comprehensive.md)** | Complete SITL setup from scratch | Beginners |
 | **[SITL Validation Platform](guides/sitl-validation-platform.md)** | Reusable end-to-end SITL regression templates, plans, and artifacts | Maintainers / CI / AI agents |
+| **[SITL Control](guides/sitl-control.md)** | Dashboard-driven local SITL lifecycle control, reconcile, logs, and image save workflow | Operators / maintainers |
 | **[Custom Repo Workflow](guides/custom-repo-workflow.md)** | Customer repo/branch selection across GCS, drones, and SITL | Advanced users |
 | **[Advanced SITL](guides/advanced-sitl.md)** | Custom configuration, environment variables, production deployments | Advanced users |
 | **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** | Fork maintenance, clean image rebuilds, package/archive distribution | Advanced users |
@@ -215,7 +218,7 @@ Topics covered:
 - Automated version synchronization
 - Manual override capabilities
 
-**Current Version:** 5.0
+**Current Version:** 5.1
 
 **Changelog:** See [CHANGELOG.md](../CHANGELOG.md) for complete version history.
 

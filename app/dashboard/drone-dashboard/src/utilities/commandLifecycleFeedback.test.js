@@ -143,6 +143,59 @@ describe('commandLifecycleFeedback', () => {
     );
   });
 
+  it('keeps the initial submission toast provisional when acknowledgments are still arriving', async () => {
+    sendDroneCommand.mockResolvedValue({
+      success: true,
+      command_id: 'cmd-partial-acks',
+      mission_name: 'TAKE_OFF',
+      submitted_count: 5,
+      target_drones: ['1', '2', '3', '4', '5'],
+      ack_summary: {
+        accepted: 3,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+      tracking_phase: 'awaiting_ack',
+    });
+
+    getCommandStatus.mockResolvedValue({
+      phase: 'terminal',
+      outcome: 'completed',
+      progress: {
+        stage: 'completed',
+        message: 'Completed successfully on 5/5 accepted drone(s).',
+      },
+      executions: {
+        expected: 5,
+        succeeded: 5,
+        failed: 0,
+      },
+      acks: {
+        expected: 5,
+        received: 5,
+        accepted: 5,
+        offline: 0,
+        rejected: 0,
+        errors: 0,
+      },
+    });
+
+    await submitCommandWithLifecycleFeedback(
+      {
+        missionType: 10,
+        uiMeta: { operatorLabel: 'Take Off' },
+      },
+      { trackTimeoutMs: 10000 },
+    );
+
+    await flushMicrotasks();
+
+    expect(toast.info.mock.calls.map(([message]) => message)).toContain(
+      'Take Off submitted. 3/5 acknowledgments received so far. Monitoring remaining acknowledgments and outcome in background.',
+    );
+  });
+
   it('uses the backend mission-aware tracking timeout when no frontend override is provided', async () => {
     sendDroneCommand.mockResolvedValue({
       success: true,

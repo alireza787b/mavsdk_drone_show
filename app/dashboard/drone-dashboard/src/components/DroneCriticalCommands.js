@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
-import { FaHandPaper, FaHome, FaPlaneArrival, FaSkull } from 'react-icons/fa';
+import { FaHandPaper, FaHome, FaPlaneArrival, FaPlaneDeparture, FaSkull } from 'react-icons/fa';
 
 import ConfirmationModal from './ConfirmationModal';
 import InfoHint from './InfoHint';
@@ -11,7 +11,7 @@ import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycl
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/DroneCriticalCommands.css';
 
-const COMMAND_DEFINITIONS = [
+const AIRBORNE_COMMANDS = [
   {
     actionType: DRONE_ACTION_TYPES.HOLD,
     icon: FaHandPaper,
@@ -46,6 +46,17 @@ const COMMAND_DEFINITIONS = [
   },
 ];
 
+const GROUNDED_COMMANDS = [
+  {
+    actionType: DRONE_ACTION_TYPES.TAKE_OFF,
+    icon: FaPlaneDeparture,
+    label: 'Take Off',
+    description: 'Climb using the configured takeoff altitude',
+    tone: 'neutral',
+    requiresArmed: false,
+  },
+];
+
 function getDisabledReason(command, isArmed, runtimeStatus) {
   if (!runtimeStatus || runtimeStatus.level === 'unknown' || runtimeStatus.level === 'offline') {
     return 'Command link unavailable. Recover telemetry before sending per-drone overrides.';
@@ -64,7 +75,7 @@ function getPanelNote(isArmed, runtimeStatus) {
   }
 
   if (!isArmed) {
-    return 'These overrides become active once this drone is airborne.';
+    return 'Take Off uses the configured altitude. Airborne actions appear after launch.';
   }
 
   if (runtimeStatus.level === 'degraded') {
@@ -80,7 +91,7 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
   const { commandLifecycleCallbacks } = useCommandActivity();
 
   const commands = useMemo(
-    () => COMMAND_DEFINITIONS.map((command) => ({
+    () => (isArmed ? AIRBORNE_COMMANDS : GROUNDED_COMMANDS).map((command) => ({
       ...command,
       disabledReason: getDisabledReason(command, isArmed, runtimeStatus),
     })),
@@ -137,7 +148,7 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
   return (
     <div className="critical-commands-panel">
       <div className="critical-commands-panel__header">
-        <span className="critical-commands-panel__title">Overrides</span>
+        <span className="critical-commands-panel__title">Actions</span>
         <InfoHint content={panelNote} label="Airborne override guidance" />
       </div>
 

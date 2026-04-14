@@ -261,15 +261,20 @@ export function buildLifecycleSnapshotFromStatus(status) {
 
 function buildSubmissionToastMessage(commandData, response) {
   const commandLabel = formatCommandLabel(commandData, response);
-  const accepted = getAcceptedCount(response);
+  const acks = getAckSummary(response);
+  const accepted = acks.accepted;
   const summary = response?.ack_summary || response?.results_summary || {};
   const offline = Number(summary.offline || 0);
   const rejected = Number(summary.rejected || 0);
   const errors = Number(summary.errors || 0);
-  const targetCount = getTargetCount(response);
+  const targetCount = acks.expected || getTargetCount(response);
+  const pendingAcknowledgments = targetCount > 0 && acks.received < targetCount;
   const targetSummary = targetCount > 0
     ? `${accepted}/${targetCount} targeted drone${targetCount === 1 ? '' : 's'} accepted`
     : `${accepted} drone${accepted === 1 ? '' : 's'} accepted`;
+  const pendingAckSummary = targetCount > 0
+    ? `${accepted}/${targetCount} acknowledgments received so far`
+    : `${acks.received} acknowledgments received so far`;
   const scheduledTime = commandData?.uiMeta?.triggerSummary
     || (isFutureTrigger(commandData?.triggerTime)
       ? formatTriggerTime(commandData?.triggerTime)
@@ -285,7 +290,9 @@ function buildSubmissionToastMessage(commandData, response) {
   if (scheduledTime) {
     return {
       level: offline > 0 || rejected > 0 || errors > 0 ? 'warning' : 'info',
-      message: `${commandLabel} scheduled. ${scheduledTime}. ${targetSummary}.`,
+      message: pendingAcknowledgments
+        ? `${commandLabel} scheduled. ${scheduledTime}. ${pendingAckSummary}. Monitoring remaining acknowledgments.`
+        : `${commandLabel} scheduled. ${scheduledTime}. ${targetSummary}.`,
     };
   }
 
@@ -300,6 +307,13 @@ function buildSubmissionToastMessage(commandData, response) {
     return {
       level: 'warning',
       message: `${commandLabel} accepted. ${targetSummary}. ${rejected} rejected, ${errors} errors.`,
+    };
+  }
+
+  if (pendingAcknowledgments) {
+    return {
+      level: 'info',
+      message: `${commandLabel} submitted. ${pendingAckSummary}. Monitoring remaining acknowledgments and outcome in background.`,
     };
   }
 
@@ -390,6 +404,16 @@ function buildProgressToast(status, commandLabel) {
   }
 
   switch (progress.stage) {
+    case 'executing':
+      return {
+        level: 'info',
+        message: `${commandLabel} started. ${progress.message || 'Execution is active.'}`,
+      };
+    case 'finishing':
+      return {
+        level: 'info',
+        message: `${commandLabel} is still completing. ${progress.message || 'Waiting for remaining drones to finish.'}`,
+      };
     default:
       return null;
   }

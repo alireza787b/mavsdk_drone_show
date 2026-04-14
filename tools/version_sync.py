@@ -33,6 +33,9 @@ FRONTEND_VERSION_JS = PROJECT_ROOT / "app" / "dashboard" / "drone-dashboard" / "
 
 def get_git_commit_hash():
     """Get short git commit hash"""
+    override = os.environ.get("MDS_VERSION_COMMIT_OVERRIDE")
+    if override:
+        return override.strip()
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -48,6 +51,23 @@ def get_git_commit_hash():
 
 def get_git_branch():
     """Get current git branch name"""
+    override = os.environ.get("MDS_VERSION_BRANCH_OVERRIDE")
+    if override:
+        return override.strip()
+
+    try:
+        upstream = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            check=True
+        ).stdout.strip()
+        if upstream.startswith("origin/"):
+            return upstream.split("/", 1)[1]
+    except subprocess.CalledProcessError:
+        pass
+
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
@@ -63,6 +83,9 @@ def get_git_branch():
 
 def get_git_repo_label():
     """Get compact org/repo label from origin remote."""
+    override = os.environ.get("MDS_VERSION_REPO_OVERRIDE")
+    if override:
+        return override.strip()
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
@@ -186,7 +209,7 @@ const VERSION = process.env.REACT_APP_VERSION || DEFAULT_VERSION;
 const GIT_COMMIT = process.env.REACT_APP_GIT_COMMIT || DEFAULT_GIT_COMMIT;
 const GIT_BRANCH = process.env.REACT_APP_GIT_BRANCH || DEFAULT_GIT_BRANCH;
 const GIT_REPO = process.env.REACT_APP_GIT_REPO || DEFAULT_GIT_REPO;
-const VERSION_DISPLAY = `v${{VERSION}} (${{GIT_COMMIT}})`;
+const VERSION_DISPLAY = `v${{VERSION}}`;
 const VERSION_META_DISPLAY = `${{GIT_BRANCH}} • ${{GIT_REPO}}`;
 
 export {{ VERSION, GIT_COMMIT, GIT_BRANCH, GIT_REPO, VERSION_DISPLAY, VERSION_META_DISPLAY }};

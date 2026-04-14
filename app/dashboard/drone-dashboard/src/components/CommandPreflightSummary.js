@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
@@ -23,6 +23,8 @@ const CommandPreflightSummary = ({
   clockOffsetLabel = null,
 }) => {
   const { data: gitStatusResponse, loading: gitLoading } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 15000);
+  const [activeExceptionGroup, setActiveExceptionGroup] = useState(null);
+  const [exceptionsExpanded, setExceptionsExpanded] = useState(false);
 
   const summary = useMemo(() => {
     const scopedLookup = new Set(targetDroneIds.map((value) => normalizeId(value)).filter(Boolean));
@@ -84,6 +86,7 @@ const CommandPreflightSummary = ({
       if (runtimeStatus.level !== 'online') {
         exceptions.push({
           key: `runtime-${hwId}`,
+          group: 'link',
           label: identity.primary,
           detail: runtimeStatus.label,
           state: runtimeStatus.level === 'offline' ? 'danger' : 'warning',
@@ -93,6 +96,7 @@ const CommandPreflightSummary = ({
       if (!readiness.isReady) {
         exceptions.push({
           key: `readiness-${hwId}`,
+          group: 'readiness',
           label: identity.primary,
           detail: readiness.statusLabel,
           state: readiness.status === 'blocked' ? 'danger' : 'warning',
@@ -103,6 +107,7 @@ const CommandPreflightSummary = ({
         gitUnknown += 1;
         exceptions.push({
           key: `git-unknown-${hwId}`,
+          group: 'git',
           label: identity.primary,
           detail: 'Git status unavailable',
           state: 'warning',
@@ -116,6 +121,7 @@ const CommandPreflightSummary = ({
         gitMismatch += 1;
         exceptions.push({
           key: `git-mismatch-${hwId}`,
+          group: 'git',
           label: identity.primary,
           detail: 'Git mismatch',
           state: 'danger',
@@ -136,6 +142,11 @@ const CommandPreflightSummary = ({
   }, [drones, gitStatusResponse, referenceNowMs, targetDroneIds, targetMode]);
 
   const gitReadyCount = summary.counts.configured - summary.git.unknown;
+  const metricExceptionCounts = useMemo(() => summary.exceptions.reduce((accumulator, exception) => {
+    const key = exception.group || 'other';
+    accumulator[key] = (accumulator[key] || 0) + 1;
+    return accumulator;
+  }, {}), [summary.exceptions]);
   const gitStatusLabel = !gitStatusResponse
     ? (gitLoading ? 'Checking git state' : 'Git status unavailable')
     : gitReadyCount <= 0
@@ -150,6 +161,7 @@ const CommandPreflightSummary = ({
       detail: `${summary.counts.degraded} delayed · ${summary.counts.unavailable} unavailable`,
       state: summary.counts.unavailable > 0 ? 'danger' : summary.counts.degraded > 0 ? 'warning' : 'good',
       tooltip: `${summary.counts.online} targets have fresh telemetry, ${summary.counts.degraded} are delayed, and ${summary.counts.unavailable} are currently unavailable.`,
+      exceptionCount: metricExceptionCounts.link || 0,
     },
     {
       key: 'readiness',
@@ -158,6 +170,7 @@ const CommandPreflightSummary = ({
       detail: `${summary.counts.review} review · ${summary.counts.blocked} blocked`,
       state: summary.counts.blocked > 0 ? 'danger' : summary.counts.review > 0 ? 'warning' : 'good',
       tooltip: `${summary.counts.ready} targets are ready, ${summary.counts.review} need review, and ${summary.counts.blocked} are blocked for launch or dispatch.`,
+      exceptionCount: metricExceptionCounts.readiness || 0,
     },
     {
       key: 'armed',
@@ -166,6 +179,7 @@ const CommandPreflightSummary = ({
       detail: `${summary.counts.configured - summary.counts.armed} disarmed`,
       state: summary.counts.armed > 0 ? 'warning' : 'neutral',
       tooltip: `${summary.counts.armed} targets are armed and ${summary.counts.configured - summary.counts.armed} are disarmed.`,
+      exceptionCount: 0,
     },
     {
       key: 'git',
@@ -176,15 +190,27 @@ const CommandPreflightSummary = ({
       tooltip: gitReadyCount <= 0
         ? 'Git commit information is not available for the current targets yet.'
         : `${summary.git.inSync} targets match the GCS commit, ${summary.git.mismatch} differ, and ${summary.git.unknown} are still unknown.`,
+      exceptionCount: metricExceptionCounts.git || 0,
     },
   ];
+  const displayedExceptions = activeExceptionGroup
+    ? summary.exceptions.filter((exception) => exception.group === activeExceptionGroup)
+    : summary.exceptions;
+
+  const handleMetricClick = (metric) => {
+    if (!metric.exceptionCount) {
+      return;
+    }
+    setExceptionsExpanded(true);
+    setActiveExceptionGroup((current) => (current === metric.key ? null : metric.key));
+  };
 
   return (
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
         <div>
           <h3>Preflight</h3>
-          <p>Link, readiness, arm state, and git sync for {targetSummaryLabel || 'the current scope'}.</p>
+          <p>{targetSummaryLabel || 'Current scope'}</p>
         </div>
         <div className="command-preflight__clock">
           <span className="command-preflight__clock-label">Scheduler</span>
@@ -194,23 +220,37 @@ const CommandPreflightSummary = ({
 
       <div className="command-preflight__grid">
         {metrics.map((metric) => (
-          <div
+          <button
             key={metric.key}
+            type="button"
             className={`command-preflight__metric command-preflight__metric--${metric.state}`}
             title={metric.tooltip}
+            onClick={() => handleMetricClick(metric)}
+            disabled={!metric.exceptionCount}
           >
             <span className="command-preflight__metric-label">{metric.label}</span>
             <strong>{metric.value}</strong>
             <small>{metric.detail}</small>
-          </div>
+            {metric.exceptionCount ? (
+              <span className="command-preflight__metric-badge">{metric.exceptionCount}</span>
+            ) : null}
+          </button>
         ))}
       </div>
 
       {summary.exceptions.length > 0 && (
-        <details className="command-preflight__exceptions">
-          <summary>Exceptions ({summary.exceptions.length})</summary>
+        <div className="command-preflight__exceptions">
+          <button
+            type="button"
+            className="command-preflight__exceptions-toggle"
+            onClick={() => setExceptionsExpanded((current) => !current)}
+          >
+            {activeExceptionGroup ? 'Focused attention' : 'Attention'}
+            <span>({displayedExceptions.length}/{summary.exceptions.length})</span>
+          </button>
+          {exceptionsExpanded ? (
           <div className="command-preflight__exception-list">
-            {summary.exceptions.map((exception) => (
+            {displayedExceptions.map((exception) => (
               <div
                 key={exception.key}
                 className={`command-preflight__exception command-preflight__exception--${exception.state}`}
@@ -220,7 +260,8 @@ const CommandPreflightSummary = ({
               </div>
             ))}
           </div>
-        </details>
+          ) : null}
+        </div>
       )}
     </section>
   );

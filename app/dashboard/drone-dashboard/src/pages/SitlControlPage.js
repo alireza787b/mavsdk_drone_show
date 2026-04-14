@@ -354,21 +354,21 @@ function evaluateHostResources(host) {
   const warnings = [];
   const cpuLoad = Number(host.load_avg_1m || 0);
   const cpuCapacity = Number(host.cpu_count_logical || 0);
+  const cpuUsagePercent = Number(host.cpu_usage_percent);
   const memoryFree = Number(host.memory_available_bytes || 0);
   const memoryTotal = Number(host.memory_total_bytes || 0);
   const diskFree = Number(host.disk_free_bytes || 0);
   const diskTotal = Number(host.disk_total_bytes || 0);
-  const cpuLoadPercent = cpuCapacity > 0 ? (cpuLoad / cpuCapacity) * 100 : null;
   const memoryFreePercent = memoryTotal > 0 ? (memoryFree / memoryTotal) * 100 : null;
   const diskFreePercent = diskTotal > 0 ? (diskFree / diskTotal) * 100 : null;
 
-  if (Number.isFinite(cpuLoadPercent)) {
+  if (Number.isFinite(cpuUsagePercent)) {
     badges.push({
       label: 'CPU',
-      value: formatPercent(cpuLoadPercent),
-      tone: cpuLoadPercent >= 85 ? 'warning' : 'muted',
+      value: formatPercent(cpuUsagePercent),
+      tone: cpuUsagePercent >= 85 ? 'warning' : 'muted',
     });
-    if (cpuLoadPercent >= 85) {
+    if (cpuUsagePercent >= 85) {
       warnings.push('High CPU');
     }
   }
@@ -408,7 +408,7 @@ function evaluateHostResources(host) {
       { label: 'Host', value: host.hostname || '—' },
       { label: 'Platform', value: `${host.platform || '—'} ${host.platform_release || ''}`.trim() || '—' },
       { label: 'Python', value: host.python_version || '—' },
-      { label: 'CPU load', value: Number.isFinite(cpuLoadPercent) ? `${formatPercent(cpuLoadPercent)} · 1m load ${cpuLoad.toFixed(1)} on ${cpuCapacity} cores` : '—' },
+      { label: 'CPU usage', value: Number.isFinite(cpuUsagePercent) ? `${formatPercent(cpuUsagePercent)} · 1m load ${cpuLoad.toFixed(1)} on ${cpuCapacity} cores` : '—' },
       { label: 'Memory', value: memoryTotal > 0 ? `${formatBytes(memoryFree)} free / ${formatBytes(memoryTotal)}` : '—' },
       { label: 'Disk', value: diskTotal > 0 ? `${formatBytes(diskFree)} free / ${formatBytes(diskTotal)} at ${host.disk_path}` : '—' },
       { label: 'Docker', value: host.docker?.server_version || host.docker?.error || '—' },
@@ -1894,7 +1894,7 @@ function SitlControlPage() {
                               />
                             </label>
                           <label className="sitl-field">
-                            <FieldLabel label="Output Docker tag" hint="Docker tag for the saved image, for example v5, demo-20260414, or a short commit tag." />
+                            <FieldLabel label="Output tag" hint="Docker image tag for the saved image, for example latest, v5.1, demo-20260414, or a short commit tag." />
                               <input
                                 type="text"
                                 aria-label="Output Docker tag"
@@ -1912,7 +1912,7 @@ function SitlControlPage() {
                                 checked={Boolean(imageReleaseForm.tagLatest)}
                                 onChange={(event) => handleReleaseFieldChange('tagLatest', event.target.checked)}
                               />
-                              <span>tag latest</span>
+                              <span>also tag latest</span>
                             </label>
                             <label className="sitl-toggle">
                               <input
@@ -1920,7 +1920,7 @@ function SitlControlPage() {
                                 checked={Boolean(imageReleaseForm.tagCommit)}
                                 onChange={(event) => handleReleaseFieldChange('tagCommit', event.target.checked)}
                               />
-                              <span>tag commit</span>
+                              <span>also tag current commit</span>
                             </label>
                             <label className="sitl-toggle">
                               <input

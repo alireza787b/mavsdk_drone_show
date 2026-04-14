@@ -79,16 +79,16 @@ describe('LogViewerToolbar', () => {
 
   test('shows onboard ULog button only when a drone scope is selected', () => {
     const { rerender } = render(<LogViewerToolbar {...defaultProps} />);
-    expect(screen.queryByText('Onboard ULog')).not.toBeInTheDocument();
+    expect(screen.queryByText('ULog')).not.toBeInTheDocument();
 
     rerender(<LogViewerToolbar {...defaultProps} scopeDroneId={5} />);
-    expect(screen.getByText('Onboard ULog')).toBeInTheDocument();
+    expect(screen.getByText('ULog')).toBeInTheDocument();
   });
 
   test('clicking onboard ULog button calls the handler', () => {
     render(<LogViewerToolbar {...defaultProps} scopeDroneId={5} />);
 
-    fireEvent.click(screen.getByText('Onboard ULog'));
+    fireEvent.click(screen.getByText('ULog'));
 
     expect(defaultProps.onOnboardUlogOpen).toHaveBeenCalled();
   });

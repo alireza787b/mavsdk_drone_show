@@ -7,6 +7,7 @@ Use it when you want to:
 
 - inspect local SITL Docker images prepared for MDS
 - see which `drone-N` containers are running now
+- open the live repo/tag selectors for the current SITL image set
 - reconcile the local fleet to a target count
 - add one new SITL container without pruning the rest of the fleet
 - add one exact-slot SITL container for sparse test layouts
@@ -80,7 +81,7 @@ For image release:
 - confirm the source repo/tag
 - confirm the output repo and default Docker tag
   - the default tag is the current MDS commit ID
-- leave `tag latest` and `tag commit` enabled for the normal path
+- leave `also tag latest` and `also tag current commit` enabled for the normal path
 - leave `export archive` and `compress` off unless you explicitly need an
   exported package
 - confirm the action and watch the operation log until it completes
@@ -89,7 +90,7 @@ For image release:
 
 The page defaults to normal beginner-safe values:
 
-- image repo/tag: first detected MDS SITL image/tag or policy default
+- image repo/tag: first detected MDS SITL Docker repo/tag or policy default
 - target count: current instance count, or `3` when empty
 - start ID: `1`
 - start IP: `2`
@@ -183,7 +184,8 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 - Poll-driven load failures use throttled error toasts so temporary outages do
   not spam the operator every few seconds.
 - Mobile/touch help icons use tappable inline info popovers instead of
-  desktop-only hover titles.
+  desktop-only hover titles, so the same hints remain usable on phones and
+  tablets.
 - Images and operations are intentionally secondary collapsed panels; the
   primary working surface is the searchable instance inventory.
 - The in-dashboard image save workflow reuses the canonical

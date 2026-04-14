@@ -28,10 +28,12 @@ import ThemeToggle from './ThemeToggle';
 import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
 import GitInfo from './GitInfo';
-import { VERSION_DISPLAY, VERSION_META_DISPLAY } from '../version';
+import useGcsGitInfo from '../hooks/useGcsGitInfo';
+import { VERSION_DISPLAY } from '../version';
 
 const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate, onToggle }) => {
   const { isDark } = useTheme();
+  const gitInfo = useGcsGitInfo();
   // Use props if provided, otherwise fall back to local state for backwards compatibility
   const [localCollapsed, setLocalCollapsed] = useState(window.innerWidth < 768);
   const [activeTooltip, setActiveTooltip] = useState(null);
@@ -103,9 +105,10 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
                 <FaSatelliteDish />
               </span>
               <div className="brand-text">
-                <h3>Swarm Control</h3>
+                <h3>MDS Control</h3>
                 <span className="version">{VERSION_DISPLAY}</span>
-                <span className="version-meta">{VERSION_META_DISPLAY}</span>
+                <span className="version-meta version-meta--repo">{gitInfo.repo}</span>
+                <span className="version-meta">{gitInfo.runtimeLabel}</span>
               </div>
             </div>
           </div>

@@ -70,6 +70,7 @@ class SitlControlHostSummary(BaseModel):
     disk_path: str
     disk_total_bytes: int = Field(..., ge=0)
     disk_free_bytes: int = Field(..., ge=0)
+    cpu_usage_percent: Optional[float] = None
     load_avg_1m: Optional[float] = None
     load_avg_5m: Optional[float] = None
     load_avg_15m: Optional[float] = None

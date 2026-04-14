@@ -899,17 +899,26 @@
 }
 
 .command-preflight__metric {
+    position: relative;
+    width: 100%;
     padding: var(--spacing-base);
     border-radius: var(--border-radius-base);
     background: var(--color-bg-primary);
     border: 1px solid var(--color-border-primary);
     box-shadow: inset 0 0 0 1px transparent;
     transition: var(--transition-all);
+    text-align: left;
+    appearance: none;
+    cursor: default;
 }
 
-.command-preflight__metric:hover {
+.command-preflight__metric:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: var(--shadow-sm);
+}
+
+.command-preflight__metric:disabled {
+    opacity: 1;
 }
 
 .command-preflight__metric--good {
@@ -940,39 +949,52 @@
     text-transform: uppercase;
 }
 
+.command-preflight__metric-badge {
+    position: absolute;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-muted);
+    color: var(--color-text-secondary);
+    font-size: 0.72rem;
+    font-weight: var(--font-weight-bold);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .command-preflight__exceptions {
     margin-top: var(--spacing-base);
-    padding: var(--spacing-base);
     border-radius: var(--border-radius-base);
     background: var(--color-bg-primary);
     border: 1px solid var(--color-border-primary);
 }
 
-.command-preflight__exceptions summary {
+.command-preflight__exceptions-toggle {
     cursor: pointer;
     list-style: none;
     color: var(--color-text-primary);
     font-weight: var(--font-weight-semibold);
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-base);
+    border: 0;
+    background: transparent;
+    text-align: left;
 }
 
-.command-preflight__exceptions summary::-webkit-details-marker {
-    display: none;
-}
-
-.command-preflight__exceptions summary::before {
-    content: '▶';
-    display: inline-block;
-    margin-right: var(--spacing-sm);
-    color: var(--color-text-secondary);
-    transition: transform var(--transition-base);
-}
-
-.command-preflight__exceptions[open] summary::before {
-    transform: rotate(90deg);
+.command-preflight__exceptions-toggle:hover {
+    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
 }
 
 .command-preflight__exception-list {
-    margin-top: var(--spacing-base);
+    padding: 0 var(--spacing-base) var(--spacing-base);
     display: grid;
     gap: var(--spacing-sm);
 }

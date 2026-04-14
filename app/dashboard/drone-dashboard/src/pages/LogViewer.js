@@ -468,11 +468,11 @@ const LogViewer = () => {
       <div className="log-viewer-context">
         <span className="log-context-pill">{scopeLabel}</span>
         {selectedSession ? (
-          <span className="log-context-note">Historical session view</span>
+          <span className="log-context-note">History</span>
         ) : (
-          <span className="log-context-note">Live stream view</span>
+          <span className="log-context-note">Live</span>
         )}
-        <span className="log-context-note">Session timestamps shown in UTC</span>
+        <span className="log-context-note">UTC</span>
       </div>
 
       <LogActiveFilters
@@ -480,9 +480,9 @@ const LogViewer = () => {
         onClearAll={clearAllFilters}
       />
 
-      <div style={{ display: 'flex', flex: 1, gap: 'var(--spacing-sm)', overflow: 'hidden' }}>
+      <div className="log-viewer-main">
         {mode === MODES.DEV && (
-          <div style={{ width: 220, flexShrink: 0 }}>
+          <div className="log-viewer-main__sidebar">
             <LogSourceTree
               components={availableComponents}
               selectedComponent={component}

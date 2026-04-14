@@ -13,6 +13,20 @@
   overflow: hidden;
 }
 
+.log-viewer-main {
+  display: flex;
+  flex: 1;
+  gap: var(--spacing-sm);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.log-viewer-main__sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  min-height: 0;
+}
+
 /* === TOOLBAR === */
 .log-toolbar {
   display: flex;
@@ -74,6 +88,10 @@
   font-size: var(--font-size-sm);
   height: var(--button-height-sm);
   transition: var(--transition-fast);
+}
+
+.log-button-text {
+  display: inline-flex;
 }
 
 .log-toolbar button:hover {
@@ -492,6 +510,61 @@
 
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 960px) {
+  .log-viewer-main {
+    flex-direction: column;
+  }
+
+  .log-viewer-main__sidebar {
+    width: 100%;
+    max-height: 180px;
+  }
+}
+
+@media (max-width: 760px) {
+  .log-viewer-page {
+    height: auto;
+    min-height: calc(100vh - 20px);
+    padding-top: 4rem;
+  }
+
+  .log-toolbar {
+    align-items: stretch;
+  }
+
+  .log-toolbar-group,
+  .log-session-selector {
+    width: 100%;
+  }
+
+  .log-toolbar-spacer {
+    display: none;
+  }
+
+  .log-mode-toggle,
+  .log-toolbar button {
+    width: 100%;
+  }
+
+  .log-button-text {
+    display: none;
+  }
+
+  .log-health-bar {
+    gap: var(--spacing-sm);
+  }
+
+  .log-health-stat,
+  .log-health-button {
+    width: calc(50% - var(--spacing-xs));
+    justify-content: flex-start;
+  }
+
+  .log-context-note {
+    font-size: 0.72rem;
   }
 }
 
