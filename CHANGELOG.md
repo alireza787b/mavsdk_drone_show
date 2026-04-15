@@ -10,6 +10,17 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- Smart Swarm runtime transport/control hardening:
+  follower-to-leader state now uses a dedicated realtime swarm-state stream
+  (`WS /ws/swarm-state`) with `GET /api/v1/swarm/state` HTTP fallback, telemetry
+  freshness now uses millisecond timestamps plus sequence tracking instead of
+  second-resolution `update_time` only, follower control now includes
+  leader-velocity feedforward and yaw-rate body-frame compensation, live
+  topology/offset changes reset and blend controller state cleanly, and the
+  drone runtime now persists canonical per-command fields such as
+  `update_branch`, `reboot_after_params`, and `precision_move_request_file`
+  while exposing `home_position_set` / telemetry-staleness truth correctly in
+  drone-state responses
 - SITL Control final operator refinement:
   all instance rows now default to collapsed click-open behavior across
   mobile/tablet/desktop, `Ops` stays closed unless explicitly toggled,

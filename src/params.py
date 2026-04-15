@@ -172,10 +172,22 @@ class Params:
     offline_swarm = _env_flag('MDS_LOCAL_SWARM_MODE', True)     # Read swarm.json locally by default
     default_sitl = True               # Use default 14550 port for single drone simulation
     online_sync_time = True           # Sync time from Internet Time Servers
-    MAX_STALE_DURATION = 10           # Max time delay follower would still use the leader data
+    MAX_STALE_DURATION = 2.5          # Max time delay follower would still use the leader data
     SMART_SWARM_LEADER_STATE_TIMEOUT_SEC = 1.0   # Per-request timeout for follower -> leader state fetches
     SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS swarm config refresh
     SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC = 2.0     # Per-request timeout for follower -> GCS leader-change notify
+    SMART_SWARM_USE_REALTIME_STREAM = True
+    SMART_SWARM_ENABLE_HTTP_FALLBACK = True
+    SMART_SWARM_STATE_STREAM_RATE_HZ = 15
+    SMART_SWARM_STREAM_CONNECT_TIMEOUT_SEC = 3.0
+    SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC = 0.25
+    SMART_SWARM_STREAM_BACKOFF_MAX_SEC = 2.0
+    SMART_SWARM_STREAM_PREDICT_GRACE_SEC = 1.0
+    SMART_SWARM_RECONFIG_TRANSITION_SEC = 1.0
+    SMART_SWARM_USE_LOCAL_NED_WHEN_VALID = False
+    SMART_SWARM_KV = 0.35
+    SMART_SWARM_MAX_ACCELERATION = 2.0
+    SMART_SWARM_MAX_JERK = 4.0
     
     reboot_after_params = True
     
@@ -418,12 +430,12 @@ class Params:
     ORIGIN_FETCH_TIMEOUT_SEC = 5.0
 
     # Smart Swarm Parameters
-    CONTROL_LOOP_FREQUENCY = 10       # Control loop frequency in Hz
-    LEADER_UPDATE_FREQUENCY = 3       # Leader update frequency in Hz
-    DATA_FRESHNESS_THRESHOLD = 3.0    # Data freshness threshold in seconds
+    CONTROL_LOOP_FREQUENCY = 15       # Control loop frequency in Hz
+    LEADER_UPDATE_FREQUENCY = 3       # Legacy fallback leader update frequency in Hz
+    DATA_FRESHNESS_THRESHOLD = 0.75   # Data freshness threshold in seconds
 
 
-    CONFIG_UPDATE_INTERVAL = 5        # Periodic time for re-checking the swarm file (s)
+    CONFIG_UPDATE_INTERVAL = 2        # Periodic time for re-checking the swarm file (s)
 
     ENABLE_KALMAN_FILTER = False  # Set to False to disable Kalman filter
 

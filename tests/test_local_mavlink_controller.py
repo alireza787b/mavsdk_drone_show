@@ -19,6 +19,7 @@ def build_controller(mock_drone_config):
     controller.run_telemetry_thread = Mock()
     controller.telemetry_thread = Mock()
     controller.telemetry_thread.is_alive.return_value = False
+    mock_drone_config.radian_to_degrees_heading = lambda yaw_radians: yaw_radians * (180.0 / 3.141592653589793)
 
     mock_drone_config.system_status = 3
     mock_drone_config.custom_mode = 262147
@@ -39,6 +40,9 @@ def build_controller(mock_drone_config):
     mock_drone_config.home_position = {"lat": 35.0, "long": 51.0, "alt": 1278.0}
     mock_drone_config.px4_home_position_set = True
     mock_drone_config.home_position_source = "px4"
+    mock_drone_config.telemetry_timestamp_ms = 0
+    mock_drone_config.telemetry_sequence = 0
+    mock_drone_config.yaw_rate_deg_s = 0.0
 
     return controller
 
@@ -185,6 +189,8 @@ def test_process_global_position_int_sets_fallback_home_without_px4_truth(mock_d
     }
     assert mock_drone_config.px4_home_position_set is False
     assert mock_drone_config.home_position_source == "fallback_position"
+    assert mock_drone_config.telemetry_timestamp_ms > 0
+    assert mock_drone_config.telemetry_sequence == 1
 
 
 def test_set_home_position_marks_px4_home_truth(mock_drone_config):
@@ -206,3 +212,32 @@ def test_set_home_position_marks_px4_home_truth(mock_drone_config):
     }
     assert mock_drone_config.px4_home_position_set is True
     assert mock_drone_config.home_position_source == "px4"
+
+
+def test_process_local_position_ned_marks_high_res_telemetry_update(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(
+        time_boot_ms=1234,
+        x=1.0,
+        y=2.0,
+        z=-3.0,
+        vx=0.1,
+        vy=0.2,
+        vz=-0.3,
+    )
+
+    controller.process_local_position_ned(msg)
+
+    assert mock_drone_config.local_position_ned["time_boot_ms"] == 1234
+    assert mock_drone_config.telemetry_timestamp_ms > 0
+    assert mock_drone_config.telemetry_sequence == 1
+
+
+def test_process_attitude_tracks_yaw_rate(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(yaw=1.0, yawspeed=0.5)
+
+    controller.process_attitude(msg)
+
+    assert mock_drone_config.yaw > 0
+    assert mock_drone_config.yaw_rate_deg_s > 28.0

@@ -202,6 +202,24 @@ class TestDroneState:
         assert response.status_code == 404
         assert 'detail' in response.json()
 
+    def test_get_swarm_state_success(self, test_client):
+        response = test_client.get("/api/v1/swarm/state")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hw_id"] == 1
+        assert data["source_frame"] == "local_ned"
+        assert data["telemetry_timestamp_ms"] == 1732270245000
+        assert data["stream_seq"] == 7
+
+    def test_get_swarm_state_no_data(self, test_client, mock_drone_communicator):
+        mock_drone_communicator.get_swarm_state.return_value = None
+
+        response = test_client.get("/api/v1/swarm/state")
+
+        assert response.status_code == 404
+        assert 'detail' in response.json()
+
     def test_get_px4_param_policy(self, test_client):
         response = test_client.get("/api/v1/px4-params/policy")
 

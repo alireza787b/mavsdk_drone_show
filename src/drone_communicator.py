@@ -61,9 +61,15 @@ class DroneCommunicator:
     def _get_live_swarm_assignment(self) -> Dict[str, Any]:
         """Return the freshest known swarm assignment for this drone."""
         current_swarm = getattr(self.drone_config, "swarm", {}) or {}
+        if not isinstance(current_swarm, dict):
+            current_swarm = {}
         runtime_swarm = read_runtime_swarm_assignment()
 
-        if isinstance(runtime_swarm, dict) and runtime_swarm:
+        if (
+            isinstance(runtime_swarm, dict)
+            and runtime_swarm
+            and safe_int(runtime_swarm.get("hw_id")) == safe_int(self.drone_config.hw_id)
+        ):
             return runtime_swarm
 
         try:
@@ -80,6 +86,46 @@ class DroneCommunicator:
             return latest_swarm
 
         return current_swarm
+
+    def _resolve_telemetry_timestamp_ms(self) -> int:
+        telemetry_timestamp_ms = safe_int(getattr(self.drone_config, "telemetry_timestamp_ms", 0))
+        if telemetry_timestamp_ms > 0:
+            return telemetry_timestamp_ms
+
+        update_time_seconds = safe_float(getattr(self.drone_config, "last_update_timestamp", 0))
+        if update_time_seconds > 0:
+            return int(update_time_seconds * 1000)
+        return 0
+
+    def _build_swarm_state(self, live_swarm: Dict[str, Any], emitted_at_ms: int) -> Dict[str, Any]:
+        local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
+        telemetry_timestamp_ms = self._resolve_telemetry_timestamp_ms()
+
+        return {
+            "hw_id": safe_int(self.drone_config.hw_id),
+            "pos_id": safe_int(self.drone_config.pos_id),
+            "follow_mode": safe_int(safe_get(live_swarm, "follow")),
+            "position_lat": safe_float(safe_get(self.drone_config.position, "lat")),
+            "position_long": safe_float(safe_get(self.drone_config.position, "long")),
+            "position_alt": safe_float(safe_get(self.drone_config.position, "alt")),
+            "velocity_north": safe_float(safe_get(self.drone_config.velocity, "north")),
+            "velocity_east": safe_float(safe_get(self.drone_config.velocity, "east")),
+            "velocity_down": safe_float(safe_get(self.drone_config.velocity, "down")),
+            "yaw": safe_float(self.drone_config.yaw),
+            "yaw_deg": safe_float(self.drone_config.yaw),
+            "yaw_rate_deg_s": safe_float(getattr(self.drone_config, "yaw_rate_deg_s", 0.0)),
+            "telemetry_timestamp_ms": telemetry_timestamp_ms,
+            "stream_seq": safe_int(getattr(self.drone_config, "telemetry_sequence", 0)),
+            "source_frame": "local_ned" if safe_int(local_ned.get("time_boot_ms")) > 0 else "global_lla_ned",
+            "source_time_boot_ms": safe_int(local_ned.get("time_boot_ms")),
+            "local_position_north": safe_float(local_ned.get("x")),
+            "local_position_east": safe_float(local_ned.get("y")),
+            "local_position_down": safe_float(local_ned.get("z")),
+            "local_velocity_north": safe_float(local_ned.get("vx")),
+            "local_velocity_east": safe_float(local_ned.get("vy")),
+            "local_velocity_down": safe_float(local_ned.get("vz")),
+            "emitted_at_ms": emitted_at_ms,
+        }
 
     def _initialize_socket(self) -> socket.socket:
         """Initialize and return a UDP socket for telemetry."""
@@ -519,6 +565,12 @@ class DroneCommunicator:
             self.drone_state["telemetry_error"] = None
 
         return self.drone_state
+
+    def get_swarm_state(self) -> Dict[str, Any]:
+        """Return the high-rate Smart Swarm state payload."""
+        live_swarm = self._get_live_swarm_assignment()
+        emitted_at_ms = int(time.time() * 1000)
+        return self._build_swarm_state(live_swarm, emitted_at_ms)
 
 
     def send_drone_state(self) -> None:

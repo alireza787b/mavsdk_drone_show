@@ -103,7 +103,7 @@ import navpy
 import numpy as np  # Added for numerical computations
 
 from src.drone_config import ConfigLoader
-from src.drone_api_routes import DRONE_STATE_ROUTE
+from src.drone_api_routes import DRONE_SWARM_STATE_ROUTE, DRONE_WS_SWARM_STATE_ROUTE
 from src.led_controller import LEDController
 from src.params import Params
 import aiohttp 
@@ -118,7 +118,6 @@ from smart_swarm_src.utils import (
     fetch_home_position,
     lla_to_ned
 )
-from src.swarm_runtime_state import write_runtime_swarm_assignment
 
 # Unified logging system
 from mds_logging.drone import init_drone_logging
@@ -167,6 +166,7 @@ LEADER_FAILOVER_IN_PROGRESS = False  # Prevent duplicate failover runs while lea
 
 # for leader-election cooldown
 last_election_time = 0.0
+FORMATION_CONFIG_VERSION = 0
 
 
 # ----------------------------- #
@@ -215,6 +215,153 @@ def reset_leader_tracking():
     LEADER_FAILOVER_IN_PROGRESS = False
 
 
+def bump_formation_config_version(reason: str):
+    """Signal the control loop to reset/blend after a live formation change."""
+    global FORMATION_CONFIG_VERSION
+    FORMATION_CONFIG_VERSION += 1
+    logging.getLogger(__name__).info(
+        "Formation control version advanced to %s (%s).",
+        FORMATION_CONFIG_VERSION,
+        reason,
+    )
+
+
+def should_use_local_ned(sample: dict) -> bool:
+    """Decide whether local NED can be used directly for Smart Swarm tracking."""
+    return bool(
+        getattr(Params, "SMART_SWARM_USE_LOCAL_NED_WHEN_VALID", False)
+        and sample.get("source_frame") == "local_ned"
+        and sample.get("source_time_boot_ms", 0)
+    )
+
+
+def estimate_yaw_rate_deg_s(sample: dict, measurement_time: float) -> float:
+    """Prefer streamed yaw-rate, otherwise estimate it from successive samples."""
+    streamed = sample.get("yaw_rate_deg_s", None)
+    if streamed is not None:
+        try:
+            return float(streamed)
+        except (TypeError, ValueError):
+            pass
+
+    previous_yaw = LEADER_STATE.get("yaw")
+    previous_time = LEADER_STATE.get("update_time")
+    current_yaw = float(sample.get("yaw_deg", sample.get("yaw", 0.0)))
+
+    if previous_yaw is None or previous_time is None:
+        return 0.0
+
+    dt = measurement_time - previous_time
+    if dt <= 0:
+        return 0.0
+
+    delta = (current_yaw - previous_yaw + 180.0) % 360.0 - 180.0
+    return delta / dt
+
+
+def build_leader_measurement_from_sample(sample: dict):
+    """Normalize a streamed/polled leader sample into the Smart Swarm internal measurement."""
+    if should_use_local_ned(sample):
+        leader_n = float(sample.get("local_position_north", 0.0))
+        leader_e = float(sample.get("local_position_east", 0.0))
+        leader_d = float(sample.get("local_position_down", 0.0))
+        vel_n = float(sample.get("local_velocity_north", 0.0))
+        vel_e = float(sample.get("local_velocity_east", 0.0))
+        vel_d = float(sample.get("local_velocity_down", 0.0))
+        source_frame = "local_ned"
+    else:
+        leader_n, leader_e, leader_d = lla_to_ned(
+            sample['position_lat'],
+            sample['position_long'],
+            sample['position_alt'],
+            REFERENCE_POS['latitude'],
+            REFERENCE_POS['longitude'],
+            REFERENCE_POS['altitude']
+        )
+        vel_n = float(sample.get('velocity_north', 0.0))
+        vel_e = float(sample.get('velocity_east', 0.0))
+        vel_d = float(sample.get('velocity_down', 0.0))
+        source_frame = "global_lla_ned"
+
+    return {
+        'pos_n': leader_n,
+        'pos_e': leader_e,
+        'pos_d': leader_d,
+        'vel_n': vel_n,
+        'vel_e': vel_e,
+        'vel_d': vel_d,
+        'source_frame': source_frame,
+    }
+
+
+def apply_leader_state_sample(sample: dict, source: str) -> bool:
+    """Apply one leader sample from WebSocket or HTTP fallback."""
+    logger = logging.getLogger(__name__)
+    global LEADER_STATE, leader_unreachable_count
+
+    measurement_time = time.monotonic()
+    received_at_ms = int(time.time() * 1000)
+    stream_seq = int(sample.get('stream_seq', 0) or 0)
+    telemetry_timestamp_ms = int(sample.get('telemetry_timestamp_ms', 0) or 0)
+
+    previous_seq = int(LEADER_STATE.get('stream_seq', 0) or 0)
+    previous_ts_ms = int(LEADER_STATE.get('telemetry_timestamp_ms', 0) or 0)
+    if stream_seq and previous_seq and stream_seq <= previous_seq and telemetry_timestamp_ms <= previous_ts_ms:
+        logger.debug(
+            "Ignoring duplicate/out-of-order leader sample via %s (seq=%s ts_ms=%s <= seq=%s ts_ms=%s).",
+            source,
+            stream_seq,
+            telemetry_timestamp_ms,
+            previous_seq,
+            previous_ts_ms,
+        )
+        return False
+
+    if stream_seq and previous_seq and stream_seq > (previous_seq + 1):
+        logger.warning(
+            "Leader sample gap detected via %s: seq advanced from %s to %s.",
+            source,
+            previous_seq,
+            stream_seq,
+        )
+
+    measurement = build_leader_measurement_from_sample(sample)
+    yaw_deg = float(sample.get('yaw_deg', sample.get('yaw', 0.0)))
+    yaw_rate_deg_s = estimate_yaw_rate_deg_s(sample, measurement_time)
+    sample_age_ms = max(0, received_at_ms - int(sample.get('emitted_at_ms', received_at_ms) or received_at_ms))
+
+    LEADER_STATE.update({
+        **measurement,
+        'yaw': yaw_deg,
+        'yaw_rate_deg_s': yaw_rate_deg_s,
+        'update_time': measurement_time,
+        'stream_seq': stream_seq,
+        'telemetry_timestamp_ms': telemetry_timestamp_ms,
+        'received_at_ms': received_at_ms,
+        'emitted_at_ms': int(sample.get('emitted_at_ms', received_at_ms) or received_at_ms),
+        'sample_age_ms': sample_age_ms,
+        'source_time_boot_ms': int(sample.get('source_time_boot_ms', 0) or 0),
+        'transport': source,
+    })
+
+    LEADER_KALMAN_FILTER.update(measurement, measurement_time)
+    leader_unreachable_count = 0
+    logger.debug(
+        "Leader sample via %s applied: seq=%s age_ms=%s frame=%s pos=(%.2f, %.2f, %.2f) vel=(%.2f, %.2f, %.2f)",
+        source,
+        stream_seq,
+        sample_age_ms,
+        measurement['source_frame'],
+        measurement['pos_n'],
+        measurement['pos_e'],
+        measurement['pos_d'],
+        measurement['vel_n'],
+        measurement['vel_e'],
+        measurement['vel_d'],
+    )
+    return True
+
+
 def assign_leader_target(new_leader_hw_id):
     """Apply a new follow target and reset estimation state."""
     global LEADER_HW_ID, LEADER_IP
@@ -234,19 +381,6 @@ def assign_leader_target(new_leader_hw_id):
     LEADER_IP = leader_cfg['ip']
     reset_leader_tracking()
     return leader_cfg
-
-
-def persist_current_swarm_assignment(logger=None):
-    """Persist the latest local assignment so telemetry reflects live swarm changes."""
-    assignment = SWARM_CONFIG.get(str(HW_ID))
-    if not assignment:
-        return
-
-    try:
-        write_runtime_swarm_assignment(dict(assignment))
-    except Exception as exc:
-        active_logger = logger or logging.getLogger(__name__)
-        active_logger.debug("Failed to persist runtime swarm assignment: %s", exc)
 
 
 async def cancel_follower_tasks(logger):
@@ -328,7 +462,6 @@ async def transition_to_leader_mode(drone: System, logger, reason: str):
 
     IS_LEADER = True
     assign_leader_target(0)
-    persist_current_swarm_assignment(logger)
     await cancel_follower_tasks(logger)
 
     try:
@@ -357,19 +490,9 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
         logger.error("[Periodic Update] Leader config missing for HW_ID=%s", new_leader_hw_id)
         return False
 
-    logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
-    if not await ensure_follower_runtime(drone, logger, reason):
-        IS_LEADER = True
-        logger.warning(
-            "[Periodic Update] Follower runtime unavailable for leader %s (%s); keeping leader-mode flag so the runtime retries.",
-            new_leader_hw_id,
-            reason,
-        )
-        return False
-
     IS_LEADER = False
-    persist_current_swarm_assignment(logger)
-    return True
+    logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
+    return await ensure_follower_runtime(drone, logger, reason)
 
 # Legacy configure_logging function - now using shared one from drone_show_src.utils
 # def configure_logging():
@@ -540,21 +663,18 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
     Returns True when the GCS snapshot was fetched and applied, False when the
     local swarm file remains in effect.
     """
-    state_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/api/v1/config/swarm"
+    state_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/get-swarm-data"
     owns_session = session is None
     active_session = session
 
     try:
         if active_session is None:
-            timeout = aiohttp.ClientTimeout(total=Params.SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC)
+            timeout = aiohttp.ClientTimeout(total=2)
             active_session = aiohttp.ClientSession(timeout=timeout)
 
         async with active_session.get(state_url) as resp:
             resp.raise_for_status()
             api_data = await resp.json()
-
-        if isinstance(api_data, dict) and isinstance(api_data.get("assignments"), list):
-            api_data = api_data["assignments"]
 
         replace_swarm_config(
             api_data,
@@ -793,7 +913,7 @@ async def update_swarm_config_periodically(drone):
                 if new_cfg is None:
                     logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
                 else:
-                    persist_current_swarm_assignment(logger)
+                    config_changed = False
                     # Determine new role/offsets/frame
                     new_offsets     = {
                         'x':   new_cfg['offset_x'],
@@ -811,6 +931,7 @@ async def update_swarm_config_periodically(drone):
                             "Leader" if IS_LEADER else "Follower",
                             "Leader" if new_is_leader else "Follower"
                         )
+                        config_changed = True
 
                         if new_is_leader:
                             await transition_to_leader_mode(drone, logger, "config update")
@@ -822,6 +943,7 @@ async def update_swarm_config_periodically(drone):
                         new_leader_hw_id = normalize_hw_id(new_leader)
                         if new_leader_hw_id != LEADER_HW_ID:
                             logger.info(f"[Periodic Update] Leader change detected. Following new leader {new_leader}.")
+                            config_changed = True
                             leader_cfg = assign_leader_target(new_leader)
                             if not leader_cfg:
                                 logger.error("[Periodic Update] Leader config missing for HW_ID=%s", LEADER_HW_ID)
@@ -834,6 +956,7 @@ async def update_swarm_config_periodically(drone):
                             "[Periodic Update] Offsets changed: %s → %s",
                             OFFSETS, new_offsets
                         )
+                        config_changed = True
                         OFFSETS.update(new_offsets)
 
                     # FRAME CHANGE?
@@ -842,7 +965,11 @@ async def update_swarm_config_periodically(drone):
                             "[Periodic Update] Frame changed: %s → %s",
                             FRAME, new_frame
                         )
+                        config_changed = True
                         FRAME = new_frame
+
+                    if config_changed:
+                        bump_formation_config_version("swarm config update")
 
             except Exception as e:
                 logger.exception(f"[Periodic Update] Error fetching/updating swarm config: {e}")
@@ -858,96 +985,104 @@ async def update_swarm_config_periodically(drone):
 
 async def update_leader_state():
     """
-    Periodically fetches the leader's state and updates the Kalman filter.
-
-    TODO(next transport phase):
-    Keep the validated HTTP polling path as the fallback transport, but move
-    leader-state delivery behind a transport abstraction so a future
-    WebSocket/subscription path can be added without changing failover,
-    stale-data detection, or control-loop behavior.
+    Maintain leader state using the dedicated Smart Swarm stream with HTTP fallback.
     """
     logger = logging.getLogger(__name__)
-    global LEADER_STATE, LEADER_KALMAN_FILTER, LEADER_IP
     global leader_unreachable_count, max_unreachable_attempts
 
-    update_interval = 1.0 / Params.LEADER_UPDATE_FREQUENCY
-    last_update_time = None
+    def state_url() -> str:
+        return f"http://{LEADER_IP}:{Params.drone_api_port}{DRONE_SWARM_STATE_ROUTE}"
 
-    timeout = aiohttp.ClientTimeout(total=Params.SMART_SWARM_LEADER_STATE_TIMEOUT_SEC)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        while True:
-            try:
-                state_url = f"http://{LEADER_IP}:{Params.drone_api_port}{DRONE_STATE_ROUTE}"
-                async with session.get(state_url) as response:
-                    if response.status != 200:
-                        raise aiohttp.ClientResponseError(
-                            response.request_info,
-                            response.history,
-                            status=response.status,
-                            message=f"Leader state fetch failed with HTTP {response.status}",
-                            headers=response.headers,
-                        )
-                    data = await response.json()
+    def ws_url() -> str:
+        return f"http://{LEADER_IP}:{Params.drone_api_port}{DRONE_WS_SWARM_STATE_ROUTE}".replace("http://", "ws://", 1)
 
-                leader_update_time = data.get('update_time', None)
-                if leader_update_time and leader_update_time != last_update_time:
-                    leader_unreachable_count = 0
-                    last_update_time = leader_update_time
-
-                    # Convert lat/lon/alt to NED
-                    leader_n, leader_e, leader_d = lla_to_ned(
-                        data['position_lat'], data['position_long'], data['position_alt'],
-                        REFERENCE_POS['latitude'], REFERENCE_POS['longitude'], REFERENCE_POS['altitude']
-                    )
-
-                    # Update raw LEADER_STATE
-                    LEADER_STATE.update({
-                        'pos_n': leader_n,
-                        'pos_e': leader_e,
-                        'pos_d': leader_d,
-                        'vel_n': data['velocity_north'],
-                        'vel_e': data['velocity_east'],
-                        'vel_d': data['velocity_down'],
-                        'yaw': data.get('yaw', 0.0),
-                        'update_time': leader_update_time
-                    })
-
-                    # Kalman filter update
-                    measurement = {
-                        'pos_n': leader_n,
-                        'pos_e': leader_e,
-                        'pos_d': leader_d,
-                        'vel_n': data['velocity_north'],
-                        'vel_e': data['velocity_east'],
-                        'vel_d': data['velocity_down'],
-                    }
-                    LEADER_KALMAN_FILTER.update(measurement, leader_update_time)
-
-                    logger.debug(f"Leader @ {leader_update_time:.3f}s: {measurement}")
-                    logger.debug(f"Kalman state: {LEADER_KALMAN_FILTER.get_state()}")
-                else:
+    async def consume_http_fallback(window_sec: float) -> None:
+        global leader_unreachable_count
+        poll_interval = 1.0 / max(1.0, float(Params.LEADER_UPDATE_FREQUENCY))
+        end_time = time.monotonic() + max(window_sec, poll_interval)
+        timeout = aiohttp.ClientTimeout(total=1)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            while time.monotonic() < end_time:
+                try:
+                    async with session.get(state_url()) as response:
+                        if response.status != 200:
+                            raise aiohttp.ClientResponseError(
+                                response.request_info,
+                                response.history,
+                                status=response.status,
+                                message=f"Leader swarm-state fetch failed with HTTP {response.status}",
+                                headers=response.headers,
+                            )
+                        data = await response.json()
+                    applied = apply_leader_state_sample(data, "http-fallback")
+                    if not applied:
+                        leader_unreachable_count += 1
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
                     leader_unreachable_count += 1
                     logger.debug(
-                        "Leader response missing a fresh 'update_time' (%s/%s).",
+                        "Leader fallback fetch failed (%s/%s): %s",
                         leader_unreachable_count,
                         max_unreachable_attempts,
+                        exc,
                     )
-                    if leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
-                        logger.warning(
-                            "Leader telemetry stopped advancing for %s checks. Starting failover.",
-                            leader_unreachable_count,
-                        )
-                        await handle_leader_unavailability(DRONE_INSTANCE, logger, "stale leader update_time")
-            except Exception as e:
-                leader_unreachable_count += 1
-                logger.debug("Leader state fetch failed (%s/%s): %s", leader_unreachable_count, max_unreachable_attempts, e)
                 if leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
                     logger.warning(
-                        f"Leader unreachable for {leader_unreachable_count} attempts. Starting failover."
+                        "Leader fallback path degraded for %s attempts. Starting failover.",
+                        leader_unreachable_count,
                     )
-                    await handle_leader_unavailability(DRONE_INSTANCE, logger, "leader fetch failures")
+                    await handle_leader_unavailability(DRONE_INSTANCE, logger, "leader fallback failures")
+                await asyncio.sleep(poll_interval)
 
-            await asyncio.sleep(update_interval)
+    use_stream = bool(getattr(Params, "SMART_SWARM_USE_REALTIME_STREAM", True))
+    use_http_fallback = bool(getattr(Params, "SMART_SWARM_ENABLE_HTTP_FALLBACK", True))
+    connect_timeout = float(getattr(Params, "SMART_SWARM_STREAM_CONNECT_TIMEOUT_SEC", 3.0))
+    backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))
+    max_backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_MAX_SEC", 2.0))
+
+    while True:
+        if use_stream:
+            try:
+                timeout = aiohttp.ClientTimeout(total=None, sock_connect=connect_timeout, sock_read=None)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.ws_connect(ws_url(), heartbeat=15) as websocket:
+                        logger.info("Connected to leader Smart Swarm stream at %s", ws_url())
+                        leader_unreachable_count = 0
+                        backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))
+
+                        async for message in websocket:
+                            if message.type == aiohttp.WSMsgType.TEXT:
+                                data = message.json()
+                                if isinstance(data, dict) and data.get("error"):
+                                    logger.debug("Leader stream returned error payload: %s", data)
+                                    continue
+                                apply_leader_state_sample(data, "ws")
+                            elif message.type == aiohttp.WSMsgType.ERROR:
+                                raise websocket.exception() or RuntimeError("leader websocket closed with error")
+                            elif message.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING):
+                                raise RuntimeError("leader websocket closed")
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                leader_unreachable_count += 1
+                logger.warning(
+                    "Leader Smart Swarm stream unavailable (%s/%s): %s",
+                    leader_unreachable_count,
+                    max_unreachable_attempts,
+                    exc,
+                )
+        if use_http_fallback:
+            await consume_http_fallback(backoff)
+        elif leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
+            logger.warning(
+                "Leader stream unavailable for %s attempts with no HTTP fallback. Starting failover.",
+                leader_unreachable_count,
+            )
+            await handle_leader_unavailability(DRONE_INSTANCE, logger, "leader stream unavailable")
+
+        await asyncio.sleep(backoff)
+        backoff = min(max_backoff, max(backoff * 2.0, float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))))
 
         
 async def elect_new_leader():
@@ -987,7 +1122,7 @@ async def elect_new_leader():
 
     if failover["action"] == "self_hold":
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
-        persist_current_swarm_assignment(logger)
+        bump_formation_config_version("leader loss self-hold")
         try:
             await notify_gcs_of_leader_change(0)
         except Exception:
@@ -999,13 +1134,13 @@ async def elect_new_leader():
     if new_leader is None:
         logger.warning("Failover did not resolve a leader candidate; entering HOLD mode.")
         SWARM_CONFIG[str(HW_ID)]['follow'] = 0
-        persist_current_swarm_assignment(logger)
+        bump_formation_config_version("leader loss no safe candidate")
         await transition_to_leader_mode(DRONE_INSTANCE, logger, "leader loss failover")
         return
 
     logger.info("Attempting failover to Drone %s.", new_leader)
     SWARM_CONFIG[str(HW_ID)]['follow'] = int(new_leader)
-    persist_current_swarm_assignment(logger)
+    bump_formation_config_version(f"leader failover to {new_leader}")
 
     accepted = await notify_gcs_of_leader_change(new_leader)
     if accepted and assign_leader_target(new_leader) is not None:
@@ -1017,7 +1152,7 @@ async def elect_new_leader():
         new_leader,
     )
     SWARM_CONFIG[str(HW_ID)]['follow'] = 0
-    persist_current_swarm_assignment(logger)
+    bump_formation_config_version("leader failover rejected")
     try:
         await notify_gcs_of_leader_change(0)
     except Exception:
@@ -1036,16 +1171,25 @@ async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     logger = logging.getLogger(__name__)
 
     gcs_ip = Params.GCS_IP
-    notify_url = f"http://{gcs_ip}:{Params.gcs_api_port}/api/v1/config/swarm/assignments/{int(HW_ID)}"
+    notify_url = f"http://{gcs_ip}:{Params.gcs_api_port}/request-new-leader"
+
+    current = SWARM_CONFIG.get(str(HW_ID))
+    if not current:
+        logger.error(f"No SWARM_CONFIG entry for HW_ID={HW_ID}")
+        return False
 
     payload = {
+        'hw_id':       int(HW_ID),
         'follow':      int(new_leader_hw_id),
+        'offset_x':    current['offset_x'],
+        'offset_y':    current['offset_y'],
+        'offset_z':    current['offset_z'],
+        'frame':       current['frame']
     }
 
     try:
-        timeout = aiohttp.ClientTimeout(total=Params.SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.patch(notify_url, json=payload) as resp:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(notify_url, json=payload) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
                 if data.get('status') == 'success':
@@ -1072,6 +1216,11 @@ async def update_own_state(drone: System):
     logger = logging.getLogger(__name__)
     global OWN_STATE
     try:
+        try:
+            await drone.telemetry.set_rate_position_velocity_ned(float(Params.CONTROL_LOOP_FREQUENCY))
+        except Exception as exc:
+            logger.debug("Could not raise own-state telemetry rate for Smart Swarm: %s", exc)
+
         async for position_velocity in drone.telemetry.position_velocity_ned():
             position = position_velocity.position
             velocity = position_velocity.velocity
@@ -1104,22 +1253,32 @@ async def control_loop(drone: System):
 
     stale_start_time = None
     stale_duration_threshold = Params.MAX_STALE_DURATION  # seconds
+    predict_grace_threshold = float(getattr(Params, "SMART_SWARM_STREAM_PREDICT_GRACE_SEC", 1.0))
+    reconfig_transition_sec = float(getattr(Params, "SMART_SWARM_RECONFIG_TRANSITION_SEC", 1.0))
 
     # Initialize PD controller and low-pass filter
     kp = Params.PD_KP  # Proportional gain
-    kd = Params.PD_KD  # Derivative gain
+    kd = getattr(Params, "SMART_SWARM_KV", Params.PD_KD)  # Relative velocity gain
     max_velocity = Params.MAX_VELOCITY  # Maximum allowed velocity (m/s)
     alpha = Params.LOW_PASS_FILTER_ALPHA  # Smoothing factor for low-pass filter
 
-    pd_controller = PDController(kp, kd, max_velocity)
+    pd_controller = PDController(
+        kp,
+        kd,
+        max_velocity,
+        max_acceleration=float(getattr(Params, "SMART_SWARM_MAX_ACCELERATION", 2.0)),
+        max_jerk=float(getattr(Params, "SMART_SWARM_MAX_JERK", 4.0)),
+    )
     velocity_filter = LowPassFilter(alpha)
 
     previous_time = None
     state_gate_status = None
+    applied_config_version = FORMATION_CONFIG_VERSION
+    transition_started_at = None
 
     try:
         while True:
-            current_time = time.time()
+            current_time = time.monotonic()
             dt = current_time - previous_time if previous_time else loop_interval
             previous_time = current_time
 
@@ -1144,82 +1303,113 @@ async def control_loop(drone: System):
                 logger.info("Follower state lock acquired; resuming formation control.")
                 state_gate_status = None
 
-            # Check data freshness
-            if 'update_time' in LEADER_STATE and is_data_fresh(LEADER_STATE['update_time'], Params.DATA_FRESHNESS_THRESHOLD):
-                stale_start_time = None
-                # Predict leader state
-                predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
-                # Extract predicted positions and velocities
-                leader_n = predicted_state[0]
-                leader_e = predicted_state[1]
-                leader_d = predicted_state[2]
-                leader_vel_n = predicted_state[3]
-                leader_vel_e = predicted_state[4]
-                leader_vel_d = predicted_state[5]
-                leader_yaw = LEADER_STATE.get('yaw', 0.0)
-                logger.debug(f"Predicted leader state at time {current_time:.3f}s: pos_n={leader_n:.2f}m, pos_e={leader_e:.2f}m, pos_d={leader_d:.2f}m, vel_n={leader_vel_n:.2f}m/s, vel_e={leader_vel_e:.2f}m/s, vel_d={leader_vel_d:.2f}m/s, yaw={leader_yaw:.2f}°")
-                # Calculate offsets
-                if FRAME == "body":
-                    offset_x_ned, offset_y_ned = transform_body_to_nea(OFFSETS['x'], OFFSETS['y'], leader_yaw)
-                    logger.debug(f"Offsets in body frame: Forward={OFFSETS['x']:.2f}m, Right={OFFSETS['y']:.2f}m, Transformed to NED: offset_x={offset_x_ned:.2f}m, offset_y={offset_y_ned:.2f}m")
-                else:
-                    offset_x_ned, offset_y_ned = OFFSETS['x'], OFFSETS['y']
-                    logger.debug(f"Offsets in NED frame: offset_x={offset_x_ned:.2f}m, offset_y={offset_y_ned:.2f}m")
-
-                logger.debug(f"Altitude offset: offset_z={OFFSETS['z']:.2f}m")
-                
-                # Desired positions
-                desired_n = leader_n + offset_x_ned
-                desired_e = leader_e + offset_y_ned
-                desired_d = -1*(leader_d + OFFSETS['z'])  
-                logger.debug(f"Desired positions: desired_n={desired_n:.2f}m, desired_e={desired_e:.2f}m, desired_d={desired_d:.2f}m, yaw={leader_yaw:.2f}°")
-
-                # Get own position
-                current_n = OWN_STATE.get('pos_n', 0.0)
-                current_e = OWN_STATE.get('pos_e', 0.0)
-                current_d = OWN_STATE.get('pos_d', 0.0)
-
-                # Compute position error
-                position_error = np.array([
-                    desired_n - current_n,
-                    desired_e - current_e,
-                    desired_d - current_d
-                ])
-
-                # Compute velocity command using PD controller
-                velocity_feedforward = np.array([
-                    leader_vel_n,
-                    leader_vel_e,
-                    leader_vel_d,
-                ]) * Params.SMART_SWARM_LEADER_VELOCITY_FEEDFORWARD
-                velocity_command = pd_controller.compute(
-                    position_error,
-                    dt,
-                    velocity_feedforward=velocity_feedforward,
-                )
-
-                # Filter the velocity command
-                filtered_velocity = velocity_filter.filter(velocity_command)
-
-                # Send velocity command
-                await drone.offboard.set_velocity_ned(VelocityNedYaw(
-                    filtered_velocity[0],
-                    filtered_velocity[1],
-                    filtered_velocity[2],
-                    leader_yaw
-                ))
-                logger.debug(f"Velocity command sent: {filtered_velocity}, yaw: {leader_yaw}")
-
-            else:
-                if stale_start_time is None:
-                    stale_start_time = current_time
-                elif (current_time - stale_start_time) >= stale_duration_threshold:
+            leader_age = current_time - float(LEADER_STATE['update_time'])
+            if leader_age > stale_duration_threshold:
+                if stale_start_time is None or (current_time - stale_start_time) >= loop_interval:
                     logger.warning(
-                        "Leader data has been stale for over %s seconds. Starting failover.",
+                        "Leader data stale for %.3fs (threshold %.3fs). Starting failover.",
+                        leader_age,
                         stale_duration_threshold,
                     )
                     await handle_leader_unavailability(drone, logger, "control-loop stale leader data")
                     stale_start_time = current_time
+                await asyncio.sleep(loop_interval)
+                continue
+
+            if applied_config_version != FORMATION_CONFIG_VERSION:
+                applied_config_version = FORMATION_CONFIG_VERSION
+                transition_started_at = current_time
+                pd_controller.reset()
+                velocity_filter.reset()
+                logger.info(
+                    "Follower controller reset for formation reconfiguration (version=%s).",
+                    applied_config_version,
+                )
+
+            stale_start_time = None
+            predicted_state = LEADER_KALMAN_FILTER.predict(current_time)
+            leader_n = predicted_state[0]
+            leader_e = predicted_state[1]
+            leader_d = predicted_state[2]
+            leader_vel_n = predicted_state[3]
+            leader_vel_e = predicted_state[4]
+            leader_vel_d = predicted_state[5]
+            leader_yaw = LEADER_STATE.get('yaw', 0.0)
+            leader_yaw_rate_deg_s = LEADER_STATE.get('yaw_rate_deg_s', 0.0)
+
+            if FRAME == "body":
+                offset_x_ned, offset_y_ned = transform_body_to_nea(OFFSETS['x'], OFFSETS['y'], leader_yaw)
+                yaw_rate_rad_s = np.deg2rad(leader_yaw_rate_deg_s)
+                offset_velocity_n = -offset_y_ned * yaw_rate_rad_s
+                offset_velocity_e = offset_x_ned * yaw_rate_rad_s
+            else:
+                offset_x_ned, offset_y_ned = OFFSETS['x'], OFFSETS['y']
+                offset_velocity_n = 0.0
+                offset_velocity_e = 0.0
+
+            desired_n = leader_n + offset_x_ned
+            desired_e = leader_e + offset_y_ned
+            desired_d = leader_d - OFFSETS['z']
+
+            target_velocity = np.array([
+                leader_vel_n + offset_velocity_n,
+                leader_vel_e + offset_velocity_e,
+                leader_vel_d,
+            ])
+
+            own_position = np.array([
+                OWN_STATE.get('pos_n', 0.0),
+                OWN_STATE.get('pos_e', 0.0),
+                OWN_STATE.get('pos_d', 0.0),
+            ])
+            own_velocity = np.array([
+                OWN_STATE.get('vel_n', 0.0),
+                OWN_STATE.get('vel_e', 0.0),
+                OWN_STATE.get('vel_d', 0.0),
+            ])
+            desired_position = np.array([desired_n, desired_e, desired_d])
+            position_error = desired_position - own_position
+            velocity_error = target_velocity - own_velocity
+
+            transition_scale = 1.0
+            if transition_started_at is not None and reconfig_transition_sec > 0:
+                transition_scale = min(1.0, (current_time - transition_started_at) / reconfig_transition_sec)
+                if transition_scale >= 1.0:
+                    transition_started_at = None
+
+            if leader_age > Params.DATA_FRESHNESS_THRESHOLD:
+                stale_blend = max(
+                    0.2,
+                    1.0 - ((leader_age - Params.DATA_FRESHNESS_THRESHOLD) / max(predict_grace_threshold, 1e-3))
+                )
+            else:
+                stale_blend = 1.0
+
+            gain_scale = min(transition_scale, stale_blend)
+            velocity_command = pd_controller.compute(
+                position_error,
+                dt,
+                velocity_error=velocity_error,
+                feedforward_velocity=target_velocity,
+                gain_scale=gain_scale,
+            )
+            filtered_velocity = velocity_filter.filter(velocity_command)
+
+            await drone.offboard.set_velocity_ned(VelocityNedYaw(
+                filtered_velocity[0],
+                filtered_velocity[1],
+                filtered_velocity[2],
+                leader_yaw
+            ))
+            logger.debug(
+                "Velocity command sent: vel=%s yaw=%.2f leader_age=%.3fs gain_scale=%.2f target=%s error=%s",
+                filtered_velocity,
+                leader_yaw,
+                leader_age,
+                gain_scale,
+                target_velocity,
+                position_error,
+            )
             await asyncio.sleep(loop_interval)
     except asyncio.CancelledError:
         logger.info("Control loop cancelled.")
@@ -1376,7 +1566,6 @@ async def run_smart_swarm():
 
     # Determine drone role and set formation parameters
     IS_LEADER = swarm_config['follow'] == 0
-    persist_current_swarm_assignment(logger)
     OFFSETS['x'] = swarm_config['offset_x']
     OFFSETS['y'] = swarm_config['offset_y']
     OFFSETS['z'] = swarm_config['offset_z']

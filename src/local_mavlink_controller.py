@@ -165,6 +165,12 @@ class LocalMavlinkController:
     def _now_ms() -> int:
         return int(time.time() * 1000)
 
+    def _mark_telemetry_update(self, now_ms: Optional[int] = None) -> None:
+        timestamp_ms = int(now_ms if now_ms is not None else self._now_ms())
+        self.drone_config.last_update_timestamp = max(1, timestamp_ms // 1000)
+        self.drone_config.telemetry_timestamp_ms = timestamp_ms
+        self.drone_config.telemetry_sequence = int(getattr(self.drone_config, 'telemetry_sequence', 0) or 0) + 1
+
     @staticmethod
     def _severity_name(severity: Optional[int]) -> str:
         mapping = {
@@ -753,6 +759,7 @@ class LocalMavlinkController:
         """
         if msg.yaw is not None:
             self.drone_config.yaw = self.drone_config.radian_to_degrees_heading(msg.yaw)
+            self.drone_config.yaw_rate_deg_s = float(getattr(msg, 'yawspeed', 0.0) or 0.0) * (180.0 / 3.141592653589793)
             self.log_debug(f"Updated yaw to: {self.drone_config.yaw}")
         else:
             logging.error('Received ATTITUDE message with invalid data')
@@ -810,6 +817,7 @@ class LocalMavlinkController:
         Process the GLOBAL_POSITION_INT message and update the position and velocity.
         """
         if msg.lat is not None and msg.lon is not None and msg.alt is not None:
+            now_ms = self._now_ms()
             self.drone_config.position = {
                 'lat': msg.lat / 1E7,
                 'long': msg.lon / 1E7,
@@ -820,7 +828,7 @@ class LocalMavlinkController:
                 'east': msg.vy / 1E2,
                 'down': msg.vz / 1E2
             }
-            self.drone_config.last_update_timestamp = int(time.time())
+            self._mark_telemetry_update(now_ms)
 
             if self.drone_config.home_position is None:
                 self.drone_config.home_position = self.drone_config.position.copy()
@@ -864,6 +872,7 @@ class LocalMavlinkController:
             'vy': msg.vy,
             'vz': msg.vz
         })
+        self._mark_telemetry_update()
         
         self.log_debug(f"NED Update: X:{msg.x:.2f}m Y:{msg.y:.2f}m Z:{msg.z:.2f}m | "
                     f"VX:{msg.vx:.2f}m/s VY:{msg.vy:.2f}m/s VZ:{msg.vz:.2f}m/s")

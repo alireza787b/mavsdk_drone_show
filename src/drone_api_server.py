@@ -71,6 +71,7 @@ from src.drone_api_routes import (
     DRONE_POSITION_DEVIATION_ROUTE,
     DRONE_STATE_ROUTE,
     DRONE_SWARM_CONFIG_ROUTE,
+    DRONE_SWARM_STATE_ROUTE,
     DRONE_SYSTEM_HEALTH_ROUTE,
     DRONE_ULOG_DOWNLOAD_CONTENT_ROUTE_TEMPLATE,
     DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE,
@@ -79,6 +80,7 @@ from src.drone_api_routes import (
     DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE,
     DRONE_ULOG_POLICY_ROUTE,
     DRONE_WS_STATE_ROUTE,
+    DRONE_WS_SWARM_STATE_ROUTE,
 )
 from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
@@ -174,6 +176,32 @@ class DroneStateResponse(BaseModel):
     gps_fix_type: int
     satellites_visible: int
     ip: str
+
+
+class SwarmStateResponse(BaseModel):
+    hw_id: int
+    pos_id: int
+    follow_mode: Optional[int] = None
+    position_lat: float
+    position_long: float
+    position_alt: float
+    velocity_north: float
+    velocity_east: float
+    velocity_down: float
+    yaw: float
+    yaw_deg: float
+    yaw_rate_deg_s: float = 0.0
+    telemetry_timestamp_ms: int = 0
+    stream_seq: int = 0
+    source_frame: str = "global_lla_ned"
+    source_time_boot_ms: int = 0
+    local_position_north: float = 0.0
+    local_position_east: float = 0.0
+    local_position_down: float = 0.0
+    local_velocity_north: float = 0.0
+    local_velocity_east: float = 0.0
+    local_velocity_down: float = 0.0
+    emitted_at_ms: int
 
 
 class CommandAckResponse(BaseModel):
@@ -625,6 +653,13 @@ class DroneAPIServer:
         payload['server_time'] = server_time_ms
         return DroneStateResponse.model_validate(payload).model_dump()
 
+    @staticmethod
+    def _serialize_swarm_state_payload(swarm_state: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize Smart Swarm leader-state payloads into the canonical route contract."""
+        payload = dict(swarm_state)
+        payload["emitted_at_ms"] = safe_int(payload.get("emitted_at_ms"), int(time.time() * 1000))
+        return SwarmStateResponse.model_validate(payload).model_dump()
+
     def setup_routes(self):
         """Define all API routes (same as Flask version)"""
 
@@ -641,6 +676,19 @@ class DroneAPIServer:
                 raise
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"error_in_get_drone_state: {str(e)}")
+
+        @self.app.get(DRONE_SWARM_STATE_ROUTE, response_model=SwarmStateResponse)
+        async def get_swarm_state():
+            """Endpoint to retrieve the high-rate Smart Swarm state payload."""
+            try:
+                swarm_state = self.drone_communicator.get_swarm_state()
+                if swarm_state:
+                    return self._serialize_swarm_state_payload(swarm_state)
+                raise HTTPException(status_code=404, detail="Swarm state not found")
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"error_in_get_swarm_state: {str(exc)}")
 
         @self.app.get(DRONE_LIVE_ARMABILITY_ROUTE, response_model=LiveArmabilityResponse)
         async def get_live_armability(require_global_position: bool = True):
@@ -1385,6 +1433,29 @@ class DroneAPIServer:
                 if websocket in self.active_websockets:
                     self.active_websockets.remove(websocket)
                 logger.info(f"Active WebSocket connections: {len(self.active_websockets)}")
+
+        @self.app.websocket(DRONE_WS_SWARM_STATE_ROUTE)
+        async def websocket_swarm_state(websocket: WebSocket):
+            """Dedicated Smart Swarm leader-state stream for follower control."""
+            await websocket.accept()
+            rate_hz = max(1.0, safe_float(getattr(self.params, "SMART_SWARM_STATE_STREAM_RATE_HZ", 15), 15.0))
+            interval = 1.0 / rate_hz
+
+            try:
+                while True:
+                    swarm_state = self.drone_communicator.get_swarm_state()
+                    if swarm_state:
+                        await websocket.send_json(self._serialize_swarm_state_payload(swarm_state))
+                    else:
+                        await websocket.send_json({
+                            "error": "Swarm state not available",
+                            "emitted_at_ms": int(time.time() * 1000),
+                        })
+                    await asyncio.sleep(interval)
+            except WebSocketDisconnect:
+                logger.info("Smart Swarm WebSocket client disconnected")
+            except Exception as exc:
+                logger.error(f"Smart Swarm WebSocket error: {exc}")
 
         # ====================================================================
         # Log API Endpoints (Phase 2 — log aggregation)
