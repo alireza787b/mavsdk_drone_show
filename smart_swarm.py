@@ -104,6 +104,10 @@ import numpy as np  # Added for numerical computations
 
 from src.drone_config import ConfigLoader
 from src.drone_api_routes import DRONE_SWARM_STATE_ROUTE, DRONE_WS_SWARM_STATE_ROUTE
+from src.gcs_api_routes import (
+    GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE,
+    GCS_CONFIG_SWARM_ROUTE,
+)
 from src.led_controller import LEDController
 from src.params import Params
 from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment
@@ -690,7 +694,7 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
     Returns True when the GCS snapshot was fetched and applied, False when the
     local swarm file remains in effect.
     """
-    state_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}/get-swarm-data"
+    state_url = f"http://{Params.GCS_IP}:{Params.gcs_api_port}{GCS_CONFIG_SWARM_ROUTE}"
     owns_session = session is None
     active_session = session
 
@@ -703,8 +707,9 @@ async def refresh_swarm_config_from_gcs(logger, source_label: str, session: Opti
             resp.raise_for_status()
             api_data = await resp.json()
 
+        entries = api_data.get("assignments", api_data) if isinstance(api_data, dict) else api_data
         replace_swarm_config(
-            api_data,
+            entries,
             source_name=f"GCS API ({source_label})",
             announce_level=logging.INFO if source_label == "startup" else logging.DEBUG,
         )
@@ -1194,31 +1199,23 @@ async def elect_new_leader():
     
 async def notify_gcs_of_leader_change(new_leader_hw_id) -> bool:
     """
-    Notify the GCS of our updated leader by sending only our own swarm entry.
+    Notify the GCS of our updated leader by patching our canonical swarm assignment.
     Returns True if the GCS accepted the change, False otherwise.
     """
     logger = logging.getLogger(__name__)
 
     gcs_ip = Params.GCS_IP
-    notify_url = f"http://{gcs_ip}:{Params.gcs_api_port}/request-new-leader"
-
-    current = SWARM_CONFIG.get(str(HW_ID))
-    if not current:
-        logger.error(f"No SWARM_CONFIG entry for HW_ID={HW_ID}")
-        return False
-
+    notify_url = (
+        f"http://{gcs_ip}:{Params.gcs_api_port}"
+        f"{GCS_CONFIG_SWARM_ASSIGNMENT_ROUTE_TEMPLATE.format(hw_id=int(HW_ID))}"
+    )
     payload = {
-        'hw_id':       int(HW_ID),
-        'follow':      int(new_leader_hw_id),
-        'offset_x':    current['offset_x'],
-        'offset_y':    current['offset_y'],
-        'offset_z':    current['offset_z'],
-        'frame':       current['frame']
+        'follow': int(new_leader_hw_id),
     }
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(notify_url, json=payload) as resp:
+            async with session.patch(notify_url, json=payload) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
                 if data.get('status') == 'success':
