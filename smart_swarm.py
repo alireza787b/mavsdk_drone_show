@@ -172,6 +172,7 @@ LEADER_FAILOVER_IN_PROGRESS = False  # Prevent duplicate failover runs while lea
 # for leader-election cooldown
 last_election_time = 0.0
 FORMATION_CONFIG_VERSION = 0
+LEADER_STREAM_TARGET_VERSION = 0
 
 
 # ----------------------------- #
@@ -228,6 +229,20 @@ def bump_formation_config_version(reason: str):
         "Formation control version advanced to %s (%s).",
         FORMATION_CONFIG_VERSION,
         reason,
+    )
+
+
+def current_leader_stream_target():
+    """Return the currently expected leader-stream target identity."""
+    return LEADER_STREAM_TARGET_VERSION, LEADER_HW_ID, LEADER_IP
+
+
+def leader_stream_target_changed(expected_version, expected_hw_id, expected_ip) -> bool:
+    """Detect whether the leader stream must reconnect to a new target."""
+    return (
+        expected_version != LEADER_STREAM_TARGET_VERSION
+        or expected_hw_id != LEADER_HW_ID
+        or expected_ip != LEADER_IP
     )
 
 
@@ -392,22 +407,29 @@ def apply_leader_state_sample(sample: dict, source: str) -> bool:
 
 def assign_leader_target(new_leader_hw_id):
     """Apply a new follow target and reset estimation state."""
-    global LEADER_HW_ID, LEADER_IP
+    global LEADER_HW_ID, LEADER_IP, LEADER_STREAM_TARGET_VERSION
 
     normalized = normalize_hw_id(new_leader_hw_id)
     if normalized is None:
+        target_changed = LEADER_HW_ID is not None or LEADER_IP is not None
         LEADER_HW_ID = None
         LEADER_IP = None
-        reset_leader_tracking()
+        if target_changed:
+            LEADER_STREAM_TARGET_VERSION += 1
+            reset_leader_tracking()
         return None
 
     leader_cfg = get_drone_config_for_hw_id(normalized)
     if leader_cfg is None:
         return None
 
+    new_ip = leader_cfg['ip']
+    target_changed = normalized != LEADER_HW_ID or new_ip != LEADER_IP
     LEADER_HW_ID = normalized
-    LEADER_IP = leader_cfg['ip']
-    reset_leader_tracking()
+    LEADER_IP = new_ip
+    if target_changed:
+        LEADER_STREAM_TARGET_VERSION += 1
+        reset_leader_tracking()
     return leader_cfg
 
 
@@ -1023,21 +1045,30 @@ async def update_leader_state():
     logger = logging.getLogger(__name__)
     global leader_unreachable_count, max_unreachable_attempts
 
-    def state_url() -> str:
-        return f"http://{LEADER_IP}:{Params.drone_api_port}{DRONE_SWARM_STATE_ROUTE}"
+    def state_url(target_ip: str) -> str:
+        return f"http://{target_ip}:{Params.drone_api_port}{DRONE_SWARM_STATE_ROUTE}"
 
-    def ws_url() -> str:
-        return f"http://{LEADER_IP}:{Params.drone_api_port}{DRONE_WS_SWARM_STATE_ROUTE}".replace("http://", "ws://", 1)
+    def ws_url(target_ip: str) -> str:
+        return f"http://{target_ip}:{Params.drone_api_port}{DRONE_WS_SWARM_STATE_ROUTE}".replace("http://", "ws://", 1)
 
-    async def consume_http_fallback(window_sec: float) -> None:
+    async def consume_http_fallback(window_sec: float, target_version: int, target_hw_id: str | None, target_ip: str) -> None:
         global leader_unreachable_count
         poll_interval = 1.0 / max(1.0, float(Params.LEADER_UPDATE_FREQUENCY))
         end_time = time.monotonic() + max(window_sec, poll_interval)
         timeout = aiohttp.ClientTimeout(total=1)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             while time.monotonic() < end_time:
+                if leader_stream_target_changed(target_version, target_hw_id, target_ip):
+                    logger.info(
+                        "Leader fallback target changed from %s@%s to %s@%s; reconnecting.",
+                        target_hw_id,
+                        target_ip,
+                        LEADER_HW_ID,
+                        LEADER_IP,
+                    )
+                    return
                 try:
-                    async with session.get(state_url()) as response:
+                    async with session.get(state_url(target_ip)) as response:
                         if response.status != 200:
                             raise aiohttp.ClientResponseError(
                                 response.request_info,
@@ -1075,16 +1106,29 @@ async def update_leader_state():
     max_backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_MAX_SEC", 2.0))
 
     while True:
+        target_version, target_hw_id, target_ip = current_leader_stream_target()
+        if not target_ip:
+            await asyncio.sleep(backoff)
+            continue
         if use_stream:
             try:
                 timeout = aiohttp.ClientTimeout(total=None, sock_connect=connect_timeout, sock_read=None)
                 async with aiohttp.ClientSession(timeout=timeout) as session:
-                    async with session.ws_connect(ws_url(), heartbeat=15) as websocket:
-                        logger.info("Connected to leader Smart Swarm stream at %s", ws_url())
+                    async with session.ws_connect(ws_url(target_ip), heartbeat=15) as websocket:
+                        logger.info("Connected to leader Smart Swarm stream at %s", ws_url(target_ip))
                         leader_unreachable_count = 0
                         backoff = float(getattr(Params, "SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC", 0.25))
 
                         async for message in websocket:
+                            if leader_stream_target_changed(target_version, target_hw_id, target_ip):
+                                logger.info(
+                                    "Leader stream target changed from %s@%s to %s@%s; reconnecting.",
+                                    target_hw_id,
+                                    target_ip,
+                                    LEADER_HW_ID,
+                                    LEADER_IP,
+                                )
+                                break
                             if message.type == aiohttp.WSMsgType.TEXT:
                                 data = message.json()
                                 if isinstance(data, dict) and data.get("error"):
@@ -1106,7 +1150,7 @@ async def update_leader_state():
                     exc,
                 )
         if use_http_fallback:
-            await consume_http_fallback(backoff)
+            await consume_http_fallback(backoff, target_version, target_hw_id, target_ip)
         elif leader_unreachable_count >= max_unreachable_attempts and DRONE_INSTANCE is not None:
             logger.warning(
                 "Leader stream unavailable for %s attempts with no HTTP fallback. Starting failover.",

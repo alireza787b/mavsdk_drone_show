@@ -770,15 +770,15 @@ class TestGcsCommandDistribution:
         """Offline targets should not delay dispatch when recent heartbeat data exists."""
         from command import send_commands_to_all
 
-        now_ms = int(time.time() * 1000)
         drones = [
             {'hw_id': 1, 'ip': '172.18.0.2'},
             {'hw_id': 2, 'ip': '172.18.0.3'},
         ]
         command_data = {'missionType': '10', 'triggerTime': '0'}
 
-        with patch('command.get_all_heartbeats', return_value={
-            '1': {'timestamp': now_ms},
+        with patch('command.get_recent_link_presence', return_value={
+            '1': {'online_recent': True, 'reason': 'Recent heartbeat', 'source': 'heartbeat'},
+            '2': {'online_recent': False, 'reason': 'No recent heartbeat or telemetry', 'source': 'none'},
         }):
             with patch('command.send_command_to_drone', return_value=(True, '', 'accepted')) as mock_send:
                 results = send_commands_to_all(drones, command_data)
@@ -794,17 +794,15 @@ class TestGcsCommandDistribution:
         """Do not short-circuit if the heartbeat layer has no current presence signal at all."""
         from command import send_commands_to_all
 
-        now_ms = int(time.time() * 1000)
-        stale_ms = now_ms - 60_000
         drones = [
             {'hw_id': 1, 'ip': '172.18.0.2'},
             {'hw_id': 2, 'ip': '172.18.0.3'},
         ]
         command_data = {'missionType': '10', 'triggerTime': '0'}
 
-        with patch('command.get_all_heartbeats', return_value={
-            '1': {'timestamp': stale_ms},
-            '2': {'timestamp': stale_ms},
+        with patch('command.get_recent_link_presence', return_value={
+            '1': {'online_recent': False, 'reason': 'Heartbeat stale (60.0s old)', 'source': 'stale-heartbeat'},
+            '2': {'online_recent': False, 'reason': 'Heartbeat stale (60.0s old)', 'source': 'stale-heartbeat'},
         }):
             with patch('command.send_command_to_drone', return_value=(True, '', 'accepted')) as mock_send:
                 results = send_commands_to_all(drones, command_data)
@@ -812,6 +810,29 @@ class TestGcsCommandDistribution:
         assert results['success'] == 2
         assert results['offline'] == 0
         assert mock_send.call_count == 2
+
+    def test_send_commands_to_all_keeps_target_when_recent_telemetry_exists_without_heartbeat(self):
+        """Direct telemetry success should keep a target dispatchable even if heartbeat is absent."""
+        from command import send_commands_to_all
+
+        drones = [
+            {'hw_id': 1, 'ip': '172.18.0.2'},
+        ]
+        command_data = {'missionType': '10', 'triggerTime': '0'}
+
+        with patch('command.get_recent_link_presence', return_value={
+            '1': {
+                'online_recent': True,
+                'reason': 'Recent telemetry',
+                'source': 'telemetry',
+            }
+        }):
+            with patch('command.send_command_to_drone', return_value=(True, '', 'accepted')) as mock_send:
+                results = send_commands_to_all(drones, command_data)
+
+        assert results['success'] == 1
+        assert results['offline'] == 0
+        assert mock_send.call_count == 1
 
     def test_probe_live_armability_for_drones_collects_blocked_and_unavailable(self):
         from command import probe_live_armability_for_drones
