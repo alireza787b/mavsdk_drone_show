@@ -99,7 +99,7 @@ from src.px4_param_models import (
 )
 from src.px4_params.service import Px4ParamService
 from src.ulog_service import OnboardUlogService
-from functions.git_manager import resolve_current_git_branch
+from functions.git_manager import get_local_git_report
 from functions.data_utils import safe_float, safe_get, safe_int
 from functions.file_utils import load_csv, get_trajectory_first_position
 from src import __version__ as MDS_VERSION
@@ -985,53 +985,24 @@ class DroneAPIServer:
             Endpoint to retrieve the current Git status of the drone.
             Returns branch, commit, author, date, message, remote URL, tracking branch, and status.
             """
-            try:
-                # Retrieve git information
-                branch = resolve_current_git_branch(
-                    lambda cmd, cwd=None: self._execute_git_command(cmd)
-                )
-                commit = self._execute_git_command(['git', 'rev-parse', 'HEAD'])
-                author_name = self._execute_git_command(['git', 'show', '-s', '--format=%an', commit])
-                author_email = self._execute_git_command(['git', 'show', '-s', '--format=%ae', commit])
-                commit_date = self._execute_git_command(['git', 'show', '-s', '--format=%cd', '--date=iso-strict', commit])
-                commit_message = self._execute_git_command(['git', 'show', '-s', '--format=%B', commit])
-                remote_url = self._execute_git_command(['git', 'config', '--get', 'remote.origin.url'])
-                tracking_branch = self._execute_git_command(['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
-                status = self._execute_git_command(['git', 'status', '--porcelain'])
+            git_report = get_local_git_report(repo_path=BASE_DIR)
+            if git_report.get("error"):
+                raise HTTPException(status_code=500, detail=git_report["error"])
 
-                # Count commits ahead/behind origin
-                commits_ahead = 0
-                commits_behind = 0
-                try:
-                    ahead_behind = self._execute_git_command(
-                        ['git', 'rev-list', '--left-right', '--count', f'{tracking_branch}...HEAD']
-                    )
-                    if ahead_behind:
-                        parts = ahead_behind.split()
-                        if len(parts) == 2:
-                            commits_behind = int(parts[0])
-                            commits_ahead = int(parts[1])
-                except Exception:
-                    pass
-
-                response = {
-                    'branch': branch,
-                    'commit': commit,
-                    'author_name': author_name,
-                    'author_email': author_email,
-                    'commit_date': commit_date,
-                    'commit_message': commit_message,
-                    'remote_url': remote_url,
-                    'tracking_branch': tracking_branch,
-                    'status': 'clean' if not status else 'dirty',
-                    'uncommitted_changes': status.splitlines() if status else [],
-                    'commits_ahead': commits_ahead,
-                    'commits_behind': commits_behind,
-                }
-
-                return response
-            except subprocess.CalledProcessError as e:
-                raise HTTPException(status_code=500, detail=f"Git command failed: {str(e)}")
+            return {
+                'branch': git_report.get('branch', ''),
+                'commit': git_report.get('commit', ''),
+                'author_name': git_report.get('author_name', ''),
+                'author_email': git_report.get('author_email', ''),
+                'commit_date': git_report.get('commit_date', ''),
+                'commit_message': git_report.get('commit_message', ''),
+                'remote_url': git_report.get('remote_url') or '',
+                'tracking_branch': git_report.get('tracking_branch') or '',
+                'status': git_report.get('status', 'unknown'),
+                'uncommitted_changes': git_report.get('uncommitted_changes', []),
+                'commits_ahead': git_report.get('commits_ahead', 0),
+                'commits_behind': git_report.get('commits_behind', 0),
+            }
 
         @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)
         async def ping_v1():

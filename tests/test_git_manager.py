@@ -93,6 +93,8 @@ class TestGetLocalGitReport:
         assert result['author_email'] == 'test@example.com'
         assert result['status'] == 'clean'
         assert result['uncommitted_changes'] == []
+        assert result['commits_ahead'] == 0
+        assert result['commits_behind'] == 0
 
     @patch('functions.git_manager.execute_git_command')
     def test_get_local_git_report_dirty(self, mock_exec):
@@ -198,6 +200,43 @@ class TestGetLocalGitReport:
         result = get_local_git_report()
 
         assert result['branch'] == 'main-candidate'
+
+    @patch('functions.git_manager.execute_git_command')
+    def test_get_local_git_report_without_tracking_branch_is_not_an_error(self, mock_exec):
+        """Custom branches without upstream should still return a clean git report."""
+        from functions.git_manager import get_local_git_report
+
+        def mock_git_cmd(cmd, cwd=None):
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', 'HEAD']:
+                return 'smart-swarm-runtime-phase1-20260415'
+            if cmd == ['git', 'rev-parse', 'HEAD']:
+                return 'abc123def456789'
+            if '--format=%an' in cmd:
+                return 'Test Author'
+            if '--format=%ae' in cmd:
+                return 'test@example.com'
+            if '--format=%cd' in cmd:
+                return '2026-04-16T10:00:00+00:00'
+            if '--format=%B' in cmd:
+                return 'Custom branch commit'
+            if 'remote.origin.url' in cmd:
+                return 'git@github.com:test/repo.git'
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']:
+                return None
+            if cmd == ['git', 'status', '--porcelain']:
+                return ''
+            if cmd == ['git', 'rev-list', '--left-right', '--count', '...HEAD']:
+                pytest.fail("rev-list should not run when there is no tracking branch")
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        result = get_local_git_report()
+
+        assert result['branch'] == 'smart-swarm-runtime-phase1-20260415'
+        assert result['tracking_branch'] == ''
+        assert result['commits_ahead'] == 0
+        assert result['commits_behind'] == 0
 
 
 class TestGetLocalGitShortStatus:
