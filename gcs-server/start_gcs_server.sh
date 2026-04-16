@@ -140,7 +140,18 @@ load_gcs_system_config() {
         source "$GCS_SYSTEM_CONFIG"
 
         PORT="${GCS_PORT:-$PORT}"
-        export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR MDS_GIT_AUTO_PUSH 2>/dev/null || true
+        export \
+            MDS_REPO_URL \
+            MDS_BRANCH \
+            MDS_INSTALL_DIR \
+            MDS_GIT_AUTO_PUSH \
+            MDS_GIT_AUTH_TOKEN_FILE \
+            MDS_GIT_AUTH_TOKEN \
+            MDS_GIT_AUTH_USERNAME \
+            MDS_DOCKER_IMAGE \
+            MDS_SITL_GIT_SYNC \
+            MDS_SITL_REQUIREMENTS_SYNC \
+            2>/dev/null || true
     else
         log_warn "System GCS config not found at $GCS_SYSTEM_CONFIG; continuing with current environment"
     fi
