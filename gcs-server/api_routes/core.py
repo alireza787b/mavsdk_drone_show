@@ -19,11 +19,14 @@ from schemas import (
     TelemetryStreamMessage,
 )
 
+_PROCESS_START_MONOTONIC = time.monotonic()
+
 
 def _build_health_check_response(deps: Any) -> HealthCheckResponse:
     return HealthCheckResponse(
         status="ok",
         timestamp=int(time.time() * 1000),
+        uptime_seconds=max(0.0, time.monotonic() - _PROCESS_START_MONOTONIC),
         version=deps.MDS_VERSION,
     )
 

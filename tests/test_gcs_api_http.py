@@ -230,6 +230,8 @@ class TestHealthEndpoints:
         data = response.json()
         assert data['status'] == 'ok'
         assert 'timestamp' in data
+        assert isinstance(data['uptime_seconds'], (int, float))
+        assert data['uptime_seconds'] >= 0
 
 
 class TestSwarmTrajectoryPolicyEndpoint:
@@ -2145,6 +2147,8 @@ class TestAPIV1Aliases:
         data = response.json()
         assert data["status"] == "ok"
         assert "timestamp" in data
+        assert isinstance(data["uptime_seconds"], (int, float))
+        assert data["uptime_seconds"] >= 0
         assert "version" in data
 
     def test_v1_fleet_telemetry_alias(self, test_client):
