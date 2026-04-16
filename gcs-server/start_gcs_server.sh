@@ -26,7 +26,7 @@ PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 GCS_CONSOLE_LOG_LEVEL="${MDS_GCS_CONSOLE_LOG_LEVEL:-INFO}"
-GCS_SYSTEM_CONFIG="/etc/mds/gcs.env"
+GCS_SYSTEM_CONFIG="${MDS_GCS_SYSTEM_CONFIG:-/etc/mds/gcs.env}"
 
 # ===========================================
 # PARSE ARGUMENTS
@@ -128,12 +128,19 @@ if [[ "$BACKEND" == "uvicorn" || "$BACKEND" == "gunicorn" ]]; then
 fi
 
 load_gcs_system_config() {
+    if [[ "${MDS_SKIP_GCS_SYSTEM_CONFIG:-false}" == "true" ]]; then
+        log_info "Skipping system GCS config load because MDS_SKIP_GCS_SYSTEM_CONFIG=true"
+        return
+    fi
+
     if [[ -f "$GCS_SYSTEM_CONFIG" ]]; then
         # shellcheck source=/dev/null
         source "$GCS_SYSTEM_CONFIG"
 
         PORT="${GCS_PORT:-$PORT}"
         export MDS_REPO_URL MDS_BRANCH MDS_INSTALL_DIR MDS_GIT_AUTO_PUSH 2>/dev/null || true
+    else
+        log_warn "System GCS config not found at $GCS_SYSTEM_CONFIG; continuing with current environment"
     fi
 }
 
@@ -156,12 +163,12 @@ fi
 # DEPENDENCY CHECK
 # ===========================================
 load_virtualenv() {
-    if [[ -d "$VENV_PATH" ]]; then
+    if [[ -f "$VENV_PATH/bin/activate" ]]; then
         # shellcheck disable=SC1090
         source "$VENV_PATH/bin/activate"
         log_info "Activated virtual environment: $VENV_PATH"
     else
-        log_warn "Virtual environment not found at $VENV_PATH; using current Python interpreter"
+        log_warn "Virtual environment activation script not found at $VENV_PATH/bin/activate; using current Python interpreter"
     fi
 }
 

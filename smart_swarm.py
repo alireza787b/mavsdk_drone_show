@@ -106,6 +106,7 @@ from src.drone_config import ConfigLoader
 from src.drone_api_routes import DRONE_SWARM_STATE_ROUTE, DRONE_WS_SWARM_STATE_ROUTE
 from src.led_controller import LEDController
 from src.params import Params
+from src.swarm_runtime_state import build_runtime_swarm_assignment, write_runtime_swarm_assignment
 import aiohttp 
 
 from smart_swarm_src.kalman_filter import LeaderKalmanFilter
@@ -224,6 +225,29 @@ def bump_formation_config_version(reason: str):
         FORMATION_CONFIG_VERSION,
         reason,
     )
+
+
+def publish_runtime_assignment(entry=None, *, force_follow=None):
+    """Publish the active Smart Swarm assignment for local telemetry/API readers."""
+    logger = logging.getLogger(__name__)
+
+    if HW_ID is None:
+        return
+
+    source = entry
+    if source is None:
+        source = SWARM_CONFIG.get(str(HW_ID), {})
+
+    try:
+        payload = build_runtime_swarm_assignment(
+            HW_ID,
+            source,
+            force_follow=force_follow,
+        )
+        write_runtime_swarm_assignment(payload)
+        logger.debug("Published runtime swarm assignment: %s", payload)
+    except Exception as exc:
+        logger.warning("Failed to publish runtime swarm assignment: %s", exc)
 
 
 def should_use_local_ned(sample: dict) -> bool:
@@ -480,6 +504,8 @@ async def transition_to_leader_mode(drone: System, logger, reason: str):
     except Exception as exc:
         logger.warning("Unexpected error while entering HOLD during leader transition (%s): %s", reason, exc)
 
+    publish_runtime_assignment(force_follow=0)
+
 
 async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, reason: str):
     """Start follower-mode tasks against a validated leader target."""
@@ -491,6 +517,7 @@ async def transition_to_follower_mode(drone: System, new_leader_hw_id, logger, r
         return False
 
     IS_LEADER = False
+    publish_runtime_assignment(force_follow=new_leader_hw_id)
     logger.info("[Periodic Update] Ensuring follower runtime (%s).", reason)
     return await ensure_follower_runtime(drone, logger, reason)
 
@@ -913,6 +940,7 @@ async def update_swarm_config_periodically(drone):
                 if new_cfg is None:
                     logger.error(f"[Periodic Update] No swarm entry for HW_ID={HW_ID}")
                 else:
+                    publish_runtime_assignment(new_cfg)
                     config_changed = False
                     # Determine new role/offsets/frame
                     new_offsets     = {
@@ -1144,6 +1172,7 @@ async def elect_new_leader():
 
     accepted = await notify_gcs_of_leader_change(new_leader)
     if accepted and assign_leader_target(new_leader) is not None:
+        publish_runtime_assignment(SWARM_CONFIG.get(str(HW_ID), {}), force_follow=new_leader)
         logger.info("Leader failover committed: now following %s @ %s", new_leader, LEADER_IP)
         return
 
@@ -1571,6 +1600,7 @@ async def run_smart_swarm():
     OFFSETS['z'] = swarm_config['offset_z']
     FRAME = swarm_config['frame']
     logger.info(f"Drone HW_ID {HW_ID} - Initial Role: {'Leader' if IS_LEADER else 'Follower'}, Offsets: {OFFSETS}, Frame: {FRAME}")
+    publish_runtime_assignment(swarm_config)
 
     # For followers, set leader info and initialize Kalman filter; for leaders, simply log the role.
     if not IS_LEADER:
