@@ -27,6 +27,8 @@ PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 GCS_CONSOLE_LOG_LEVEL="${MDS_GCS_CONSOLE_LOG_LEVEL:-INFO}"
 GCS_SYSTEM_CONFIG="${MDS_GCS_SYSTEM_CONFIG:-/etc/mds/gcs.env}"
+PROD_GUNICORN_MAX_REQUESTS="${MDS_PROD_GUNICORN_MAX_REQUESTS:-0}"
+PROD_GUNICORN_MAX_REQUESTS_JITTER="${MDS_PROD_GUNICORN_MAX_REQUESTS_JITTER:-50}"
 
 # ===========================================
 # PARSE ARGUMENTS
@@ -228,11 +230,22 @@ start_fastapi() {
     log_info "Starting FastAPI server..."
     enforce_fastapi_single_worker
     local enable_access_logs="${MDS_GCS_ACCESS_LOGS:-false}"
+    local gunicorn_recycle_args=()
 
     if [[ "$MODE" == "production" ]]; then
+        if [[ "$PROD_GUNICORN_MAX_REQUESTS" =~ ^[1-9][0-9]*$ ]]; then
+            gunicorn_recycle_args=(
+                --max-requests "$PROD_GUNICORN_MAX_REQUESTS"
+                --max-requests-jitter "$PROD_GUNICORN_MAX_REQUESTS_JITTER"
+            )
+            log_info "Production worker recycle enabled: max_requests=$PROD_GUNICORN_MAX_REQUESTS jitter=$PROD_GUNICORN_MAX_REQUESTS_JITTER"
+        else
+            log_info "Production worker recycle disabled for stateful single-worker runtime."
+        fi
+
         # Production: keep a single worker until API state is moved out of process memory
         log_info "Running FastAPI with Gunicorn + Uvicorn worker ($PROD_WSGI_WORKERS worker)"
-        log_info "Production optimizations: single-worker Gunicorn, worker recycling, graceful timeout"
+        log_info "Production optimizations: single-worker Gunicorn, graceful timeout"
         if [[ "${enable_access_logs,,}" == "true" ]]; then
             exec gunicorn app_fastapi:app \
                 -w "$PROD_WSGI_WORKERS" \
@@ -242,8 +255,7 @@ start_fastapi() {
                 --log-level "$PROD_LOG_LEVEL" \
                 --access-logfile - \
                 --error-logfile - \
-                --max-requests 1000 \
-                --max-requests-jitter 50 \
+                "${gunicorn_recycle_args[@]}" \
                 --graceful-timeout 30 \
                 --keep-alive 5
         fi
@@ -254,8 +266,7 @@ start_fastapi() {
             --timeout "$PROD_GUNICORN_TIMEOUT" \
             --log-level "$PROD_LOG_LEVEL" \
             --error-logfile - \
-            --max-requests 1000 \
-            --max-requests-jitter 50 \
+            "${gunicorn_recycle_args[@]}" \
             --graceful-timeout 30 \
             --keep-alive 5
     else
