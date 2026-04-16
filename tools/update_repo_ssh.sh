@@ -867,31 +867,10 @@ main() {
         log_error_and_exit "GIT-RESET" "Failed to reset branch $BRANCH_NAME"
     fi
     
-    # Final pull to ensure we're up to date.
-    # Detached worktrees already match origin/$BRANCH_NAME via fetch + reset.
-    if [[ "$detached_target" == "true" || "$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)" == "HEAD" ]]; then
-        log_info "GIT-PULL" "Skipping git pull because runtime is using a detached worktree checkout of origin/$BRANCH_NAME"
-    else
-        log_info "GIT-PULL" "Performing final pull on $BRANCH_NAME"
-        if [[ "$git_url" == https://* ]] && git_https_auth_enabled; then
-            prepare_git_askpass
-            if ! retry_with_backoff \
-                "$MAX_RETRIES" \
-                "GIT-PULL" \
-                env \
-                    GIT_TERMINAL_PROMPT=0 \
-                    GIT_ASKPASS_REQUIRE=force \
-                    GIT_ASKPASS="$(git_askpass_path)" \
-                    MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" \
-                    MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-                    MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
-                    git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" pull; then
-                log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
-            fi
-        elif ! retry_with_backoff "$MAX_RETRIES" "GIT-PULL" git pull; then
-            log_error_and_exit "GIT-PULL" "Failed to pull latest changes"
-        fi
-    fi
+    # No final `git pull` is needed here.
+    # The runtime already fetched origin/$BRANCH_NAME and hard-reset to that exact tip.
+    # Skipping pull avoids false failures on custom branches without a configured upstream.
+    log_info "GIT-PULL" "Skipping final git pull; fetch + reset already pinned runtime to origin/$BRANCH_NAME"
 
     # Post-sync checks: service files and requirements
     set_led_status "GIT_SUCCESS"

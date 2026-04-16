@@ -202,6 +202,24 @@ class TestDroneState:
         assert response.status_code == 404
         assert 'detail' in response.json()
 
+    def test_get_swarm_state_success(self, test_client):
+        response = test_client.get("/api/v1/swarm/state")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["hw_id"] == 1
+        assert data["source_frame"] == "local_ned"
+        assert data["telemetry_timestamp_ms"] == 1732270245000
+        assert data["stream_seq"] == 7
+
+    def test_get_swarm_state_no_data(self, test_client, mock_drone_communicator):
+        mock_drone_communicator.get_swarm_state.return_value = None
+
+        response = test_client.get("/api/v1/swarm/state")
+
+        assert response.status_code == 404
+        assert 'detail' in response.json()
+
     def test_get_px4_param_policy(self, test_client):
         response = test_client.get("/api/v1/px4-params/policy")
 
@@ -776,24 +794,25 @@ class TestGitStatus:
 
     def test_get_git_status(self, test_client, monkeypatch):
         """Test canonical drone git-status endpoint"""
-        # Mock git commands
-        def mock_execute_git_command(self, command):
-            git_responses = {
-                ('git', 'rev-parse', '--abbrev-ref', 'HEAD'): 'main-candidate',
-                ('git', 'rev-parse', 'HEAD'): 'abc123def456',
-                ('git', 'show', '-s', '--format=%an', 'abc123def456'): 'Test User',
-                ('git', 'show', '-s', '--format=%ae', 'abc123def456'): 'test@example.com',
-                ('git', 'show', '-s', '--format=%cd', '--date=iso-strict', 'abc123def456'): '2025-11-22T10:00:00+00:00',
-                ('git', 'show', '-s', '--format=%B', 'abc123def456'): 'test commit',
-                ('git', 'config', '--get', 'remote.origin.url'): 'git@github.com:test/repo.git',
-                ('git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'): 'origin/main-candidate',
-                ('git', 'status', '--porcelain'): ''
-            }
-            return git_responses.get(tuple(command), '')
-
-        # Monkeypatch the method
-        from src.drone_api_server import DroneAPIServer
-        monkeypatch.setattr(DroneAPIServer, '_execute_git_command', mock_execute_git_command)
+        from src import drone_api_server
+        monkeypatch.setattr(
+            drone_api_server,
+            'get_local_git_report',
+            lambda repo_path=None: {
+                'branch': 'main-candidate',
+                'commit': 'abc123def456',
+                'author_name': 'Test User',
+                'author_email': 'test@example.com',
+                'commit_date': '2025-11-22T10:00:00+00:00',
+                'commit_message': 'test commit',
+                'remote_url': 'git@github.com:test/repo.git',
+                'tracking_branch': 'origin/main-candidate',
+                'status': 'clean',
+                'uncommitted_changes': [],
+                'commits_ahead': 0,
+                'commits_behind': 0,
+            },
+        )
 
         response = test_client.get("/api/v1/git/status")
 
@@ -807,29 +826,62 @@ class TestGitStatus:
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
         """Drone git status should expose a usable branch name from detached worktrees."""
-        def mock_execute_git_command(self, command):
-            git_responses = {
-                ('git', 'rev-parse', '--abbrev-ref', 'HEAD'): 'HEAD',
-                ('git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'): '',
-                ('git', 'for-each-ref', '--format=%(refname:short)', '--contains', 'HEAD', 'refs/remotes'): 'origin/HEAD\norigin/main-candidate',
-                ('git', 'rev-parse', 'HEAD'): 'abc123def456',
-                ('git', 'show', '-s', '--format=%an', 'abc123def456'): 'Test User',
-                ('git', 'show', '-s', '--format=%ae', 'abc123def456'): 'test@example.com',
-                ('git', 'show', '-s', '--format=%cd', '--date=iso-strict', 'abc123def456'): '2025-11-22T10:00:00+00:00',
-                ('git', 'show', '-s', '--format=%B', 'abc123def456'): 'test commit',
-                ('git', 'config', '--get', 'remote.origin.url'): 'git@github.com:test/repo.git',
-                ('git', 'status', '--porcelain'): ''
-            }
-            return git_responses.get(tuple(command), '')
-
-        from src.drone_api_server import DroneAPIServer
-        monkeypatch.setattr(DroneAPIServer, '_execute_git_command', mock_execute_git_command)
+        from src import drone_api_server
+        monkeypatch.setattr(
+            drone_api_server,
+            'get_local_git_report',
+            lambda repo_path=None: {
+                'branch': 'main-candidate',
+                'commit': 'abc123def456',
+                'author_name': 'Test User',
+                'author_email': 'test@example.com',
+                'commit_date': '2025-11-22T10:00:00+00:00',
+                'commit_message': 'test commit',
+                'remote_url': 'git@github.com:test/repo.git',
+                'tracking_branch': '',
+                'status': 'clean',
+                'uncommitted_changes': [],
+                'commits_ahead': 0,
+                'commits_behind': 0,
+            },
+        )
 
         response = test_client.get("/api/v1/git/status")
 
         assert response.status_code == 200
         data = response.json()
         assert data['branch'] == 'main-candidate'
+
+    def test_get_git_status_without_tracking_branch(self, test_client, monkeypatch):
+        """Custom branches without an upstream should still return 200 and zero sync deltas."""
+        from src import drone_api_server
+        monkeypatch.setattr(
+            drone_api_server,
+            'get_local_git_report',
+            lambda repo_path=None: {
+                'branch': 'smart-swarm-runtime-phase1-20260415',
+                'commit': 'eda03f00',
+                'author_name': 'Test User',
+                'author_email': 'test@example.com',
+                'commit_date': '2026-04-16T10:00:00+00:00',
+                'commit_message': 'Fix Smart Swarm leader reassignment runtime',
+                'remote_url': 'git@github.com:test/repo.git',
+                'tracking_branch': '',
+                'status': 'clean',
+                'uncommitted_changes': [],
+                'commits_ahead': 0,
+                'commits_behind': 0,
+            },
+        )
+
+        response = test_client.get("/api/v1/git/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['branch'] == 'smart-swarm-runtime-phase1-20260415'
+        assert data['tracking_branch'] == ''
+        assert data['commits_ahead'] == 0
+        assert data['commits_behind'] == 0
 
 
 class TestNetworkStatus:

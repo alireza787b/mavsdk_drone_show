@@ -276,6 +276,30 @@ class DroneConfig:
         self._state.yaw = value
 
     @property
+    def yaw_rate_deg_s(self) -> float:
+        return self._state.yaw_rate_deg_s
+
+    @yaw_rate_deg_s.setter
+    def yaw_rate_deg_s(self, value: float):
+        self._state.yaw_rate_deg_s = value
+
+    @property
+    def telemetry_timestamp_ms(self) -> int:
+        return self._state.telemetry_timestamp_ms
+
+    @telemetry_timestamp_ms.setter
+    def telemetry_timestamp_ms(self, value: int):
+        self._state.telemetry_timestamp_ms = value
+
+    @property
+    def telemetry_sequence(self) -> int:
+        return self._state.telemetry_sequence
+
+    @telemetry_sequence.setter
+    def telemetry_sequence(self, value: int):
+        self._state.telemetry_sequence = value
+
+    @property
     def battery(self) -> float:
         return self._state.battery
 

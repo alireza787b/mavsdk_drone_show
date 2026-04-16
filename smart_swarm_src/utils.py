@@ -46,7 +46,7 @@ def lla_to_ned(lat, lon, alt, lat_ref, lon_ref, alt_ref):
         lat_ref, lon_ref, alt_ref,
         latlon_unit='deg', alt_unit='m', model='wgs84'
     )
-    return ned[0], ned[1], -ned[2]  # navpy returns up, so we negate to get down
+    return ned[0], ned[1], ned[2]
 
 def ned_to_lla(north, east, down, lat_ref, lon_ref, alt_ref):
     """

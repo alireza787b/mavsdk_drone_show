@@ -13,6 +13,10 @@ class LowPassFilter:
         self.alpha = alpha
         self.state = None
 
+    def reset(self):
+        """Clear filter history after topology changes."""
+        self.state = None
+
     def filter(self, value):
         """
         Filters the input value.

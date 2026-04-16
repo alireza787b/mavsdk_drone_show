@@ -27,6 +27,7 @@ Identity rule:
 The current Smart Swarm inner loop is a hybrid model:
 
 - leader telemetry arrives as global `lat/lon/alt`
+- when available, leader local `LOCAL_POSITION_NED` also rides along the dedicated swarm-state stream
 - the follower runtime converts that into a shared local NED frame
 - offsets are applied in either `ned` or leader-`body` coordinates
 - PX4 receives local offboard `VelocityNedYaw` setpoints
@@ -180,71 +181,83 @@ Effect:
 
 ### Leader transport and latency model
 
-Today, Smart Swarm follower-to-leader state exchange uses short HTTP polls:
+Smart Swarm now uses a dedicated leader-state contract instead of the old
+generic drone-state HTTP poll path:
 
-- follower drones poll the leader drone API for state
-- GCS remains the source of truth for saved swarm assignments
-- followers also refresh assignment changes from GCS during flight
+- primary transport: leader drone `WS /ws/swarm-state`
+- fallback transport: leader drone `GET /api/v1/swarm/state`
+- assignment source of truth: GCS swarm config routes
+- follower-side live assignment cache: persisted runtime assignment file
 
-That is intentionally conservative for this phase:
+The dedicated swarm-state payload exists so Smart Swarm timing can evolve
+without coupling itself to the broader operator dashboard snapshot. The
+transport now carries:
 
-- HTTP polling is simple to inspect and debug
-- failures are explicit and already feed the current leader-loss logic
-- it keeps command scope, assignment storage, and follower control loosely coupled
+- millisecond telemetry timestamps
+- monotonic stream sequence numbers
+- leader global position/velocity
+- leader local NED position/velocity when available
+- yaw and yaw-rate
 
-WebSocket transport can reduce polling overhead in larger swarms, but it should be added later behind a transport abstraction with HTTP fallback. For the current validated 4-5 drone clustered flow, the main reliability issues were not transport-related.
+Follower freshness is no longer keyed off a coarse second-resolution
+`update_time`. Runtime freshness now depends on the dedicated stream contract,
+with HTTP fallback only when the realtime stream is unavailable.
 
 The current transport timing knobs are centralized in [params.py](../../src/params.py), including:
 
 - `SMART_SWARM_LEADER_STATE_TIMEOUT_SEC`
 - `SMART_SWARM_GCS_CONFIG_TIMEOUT_SEC`
 - `SMART_SWARM_GCS_NOTIFY_TIMEOUT_SEC`
+- `SMART_SWARM_USE_REALTIME_STREAM`
+- `SMART_SWARM_ENABLE_HTTP_FALLBACK`
+- `SMART_SWARM_STATE_STREAM_RATE_HZ`
+- `SMART_SWARM_STREAM_CONNECT_TIMEOUT_SEC`
+- `SMART_SWARM_STREAM_BACKOFF_INITIAL_SEC`
+- `SMART_SWARM_STREAM_BACKOFF_MAX_SEC`
+- `SMART_SWARM_STREAM_PREDICT_GRACE_SEC`
+- `SMART_SWARM_RECONFIG_TRANSITION_SEC`
+- `SMART_SWARM_USE_LOCAL_NED_WHEN_VALID`
+- `SMART_SWARM_KV`
+- `SMART_SWARM_MAX_ACCELERATION`
+- `SMART_SWARM_MAX_JERK`
 - `MAX_LEADER_UNREACHABLE_ATTEMPTS`
 - `LEADER_ELECTION_COOLDOWN`
 - `MAX_STALE_DURATION`
-- `LEADER_UPDATE_FREQUENCY`
+- `LEADER_UPDATE_FREQUENCY` (legacy HTTP fallback cadence)
 - `DATA_FRESHNESS_THRESHOLD`
 - `CONFIG_UPDATE_INTERVAL`
 
 That keeps Smart Swarm timing policy in one place instead of scattering literals across runtime tasks.
 
-### Transport roadmap and engineering note
-
-This section is the intended starting point for the next transport-focused Smart Swarm audit. Re-check the live codebase at that time before implementing it, because surrounding runtime, GCS, and dashboard behavior may have changed.
+### Current transport behavior and next-step roadmap
 
 What is true in the current validated branch:
 
-- follower to leader state is short HTTP polling
-- follower to GCS assignment refresh is short HTTP polling
-- follower to GCS leader-change notify is HTTP POST
-- GCS exposes WebSocket streams for browser telemetry, heartbeat, and git-status consumers
-- the current React dashboard still mostly uses REST polling, while the Log Viewer uses SSE
+- follower-to-leader state is websocket-primary with bounded reconnect/backoff
+- follower-to-leader HTTP fallback is still available and intentionally kept
+- follower-to-GCS assignment refresh remains periodic HTTP polling
+- follower-to-GCS leader-change notify remains HTTP POST
+- stale-data and transport-loss handling share the same failover path
 
-Why the current design is acceptable right now:
+Why this is the correct current design:
 
-- the validated 4-5 drone Smart Swarm flow is working on the HTTP path
-- failures are easy to inspect in logs and easy to reproduce in SITL
-- stale-data detection and leader-loss failover already depend on explicit request outcomes and advancing `update_time`
-- command scope and assignment scope remain loosely coupled instead of being hidden inside a bidirectional streaming layer
+- realtime leader updates no longer wait on second-resolution timestamps
+- the websocket stream cuts avoidable polling delay without removing the known-good HTTP path
+- reconnect, stale-data grace, and failover remain explicit instead of hidden inside transport-specific side effects
+- command scope and assignment scope stay loosely coupled
 
-Why it is not yet the final large-scale architecture:
+Why it is still not the final large-scale architecture:
 
-- GCS still performs a meaningful amount of REST polling
-- current browser pages do not fully consume the existing backend WebSocket streams
-- leader/follower transport is implemented directly in runtime tasks instead of behind a pluggable interface
-- real-world degraded networks can introduce jitter, head-of-line delay, short partitions, asymmetric loss, and reconnect storms that deserve transport-specific controls
+- GCS-side live telemetry views are still a mix of polling and streams
+- assignment refresh is still HTTP polling rather than push-driven
+- real-world degraded networks can still benefit from transport metrics, confidence scoring, and richer outage analytics
 
-Recommended industrial path for the next transport phase:
+Recommended next industrial path:
 
-1. keep HTTP polling as the known-good fallback path
-2. add a transport abstraction for leader-state delivery
-3. move dashboard live telemetry and heartbeat views onto the already-existing GCS WebSocket streams
-4. if swarm scale or bandwidth pressure justifies it, add a follower leader subscription mode with:
-   - bounded reconnect/backoff
-   - stale-data timers independent of transport
-   - explicit fallback to HTTP polling
-   - identical failover semantics across both transports
-5. only after those foundations are in place, consider higher-performance optimizations such as delta/state compression or binary payloads
+1. keep the websocket + HTTP dual path
+2. validate degraded-network behavior under induced delay/loss/partitions
+3. add richer operator-visible leader-state confidence and transport metrics
+4. only then consider payload compression or more aggressive transport optimization
 
 Real-world network considerations to keep in mind:
 
@@ -279,6 +292,22 @@ When a drone transitions back into follower mode, the runtime now explicitly re-
 
 Leader-only failover notifications also now update only the `follow` field in GCS, so a runtime leader change does not overwrite fresher operator-edited offsets or frame settings.
 
+### Follower control behavior
+
+Follower control now does more than basic position-error chasing:
+
+- leader-velocity feedforward is included in the target velocity command
+- leader body-frame offsets include yaw-rate-induced offset velocity
+- controller/filter state resets and blends when topology or offset config changes live
+- stale leader samples degrade through a predictive-grace ramp before hard failover
+
+That makes the controller better suited for:
+
+- leaders moving under mission scripts
+- live jog/manual leader motion
+- in-flight role changes and offset edits
+- mixed-quality links where short jitter bursts should not immediately create a topology event
+
 ### Leader-loss handling
 
 Current default policy: `upstream_or_hold`
@@ -310,9 +339,13 @@ That prevents live leader changes from silently introducing a loop into the foll
 
 ## Runtime Guarantees Added In This Audit
 
+- dedicated leader-state stream at `WS /ws/swarm-state` with `GET /api/v1/swarm/state` fallback
+- millisecond telemetry freshness and stream sequence tracking instead of second-only `update_time`
 - follower control waits for both own-state and leader-state lock before sending formation setpoints
 - leader-state prediction no longer double-counts elapsed time between measurements
 - follower commands include leader-velocity feedforward before saturation, reducing steady-state lag against moving leaders
+- body-frame offsets include leader yaw-rate compensation
+- controller/filter state resets and blend ramps apply on live topology/offset/frame changes
 - follower re-entry restarts offboard mode cleanly after leader-to-follower transitions
 - failed follower re-entry now retries instead of getting stuck half-switched
 - stale leader telemetry now participates in the same failover path as explicit request failures
@@ -325,7 +358,12 @@ That prevents live leader changes from silently introducing a loop into the foll
 
 - [smart_swarm.py](../../smart_swarm.py)
 - [failover.py](../../smart_swarm_src/failover.py)
+- [pd_controller.py](../../smart_swarm_src/pd_controller.py)
 - [params.py](../../src/params.py)
+- [local_mavlink_controller.py](../../src/local_mavlink_controller.py)
+- [drone_communicator.py](../../src/drone_communicator.py)
+- [drone_api_server.py](../../src/drone_api_server.py)
+- [swarm_runtime_state.py](../../src/swarm_runtime_state.py)
 
 ### GCS persistence and live updates
 
@@ -367,6 +405,21 @@ The reusable validation tool for this flow is:
 ```bash
 python3 tools/validate_smart_swarm_runtime.py
 ```
+
+For stricter acceptance or degraded-network/failover checks, also run:
+
+```bash
+python3 tools/validate_smart_swarm_runtime.py \
+  --horizontal-tolerance 1.5 \
+  --altitude-tolerance 0.6
+
+python3 tools/validate_smart_swarm_runtime.py \
+  --simulate-leader-dropout
+```
+
+The leader-dropout drill is SITL-oriented. It pauses the active leader
+container, validates promotion / continued follower tracking, then confirms the
+paused leader resumes telemetry after unpause.
 
 ## Known Next-Step Opportunities
 

@@ -37,6 +37,15 @@ class TestWebSocketConnection:
             assert data['pos_id'] == 1
             assert data['battery_voltage'] == 12.6
 
+    def test_swarm_websocket_receive_data(self, test_client):
+        with test_client.websocket_connect("/ws/swarm-state") as websocket:
+            data = websocket.receive_json()
+
+            assert data["hw_id"] == 1
+            assert data["telemetry_timestamp_ms"] == 1732270245000
+            assert data["stream_seq"] == 7
+            assert data["source_frame"] == "local_ned"
+
     def test_websocket_multiple_messages(self, test_client, mock_drone_communicator):
         """Test receiving multiple consecutive messages"""
         with test_client.websocket_connect("/ws/drone-state") as websocket:

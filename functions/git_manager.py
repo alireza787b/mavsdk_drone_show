@@ -116,6 +116,42 @@ def parse_filtered_git_status(status_output: Optional[str]) -> list[str]:
     return filter_git_status_lines(status_output.splitlines())
 
 
+def get_tracking_branch_sync_counts(
+    command_executor,
+    *,
+    tracking_branch: Optional[str],
+    cwd: Optional[str] = None,
+) -> tuple[int, int]:
+    """
+    Return `(commits_ahead, commits_behind)` for the current HEAD vs a tracking branch.
+
+    Repositories running on custom branches or detached worktrees may not have an
+    upstream configured. In those cases this returns `(0, 0)` instead of treating
+    the missing upstream as an error.
+    """
+    if not tracking_branch:
+        return 0, 0
+
+    ahead_behind = command_executor(
+        ['git', 'rev-list', '--left-right', '--count', f'{tracking_branch}...HEAD'],
+        cwd=cwd,
+    )
+    if not ahead_behind:
+        return 0, 0
+
+    parts = ahead_behind.split()
+    if len(parts) != 2:
+        return 0, 0
+
+    try:
+        commits_behind = int(parts[0])
+        commits_ahead = int(parts[1])
+    except (TypeError, ValueError):
+        return 0, 0
+
+    return commits_ahead, commits_behind
+
+
 # ============================================================================
 # Local Git Operations (for GCS machine)
 # ============================================================================
@@ -204,6 +240,12 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
             ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], cwd=repo_path
         ) or ''
 
+        commits_ahead, commits_behind = get_tracking_branch_sync_counts(
+            execute_git_command,
+            tracking_branch=tracking_branch,
+            cwd=repo_path,
+        )
+
         # Get working tree status
         status_output = execute_git_command(
             ['git', 'status', '--porcelain'], cwd=repo_path
@@ -221,6 +263,8 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
             'tracking_branch': tracking_branch,
             'status': 'clean' if not filtered_changes else 'dirty',
             'uncommitted_changes': filtered_changes,
+            'commits_ahead': commits_ahead,
+            'commits_behind': commits_behind,
         }
 
     except Exception as e:

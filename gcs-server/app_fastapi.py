@@ -67,6 +67,7 @@ from config import (
     load_swarm, save_swarm, validate_and_process_config, get_all_drone_positions
 )
 from utils import allowed_file, clear_show_directories, git_operations, zip_directory
+from link_presence import get_recent_link_presence
 from params import Params
 from drone_api_routes import DRONE_GIT_STATUS_ROUTE, DRONE_STATE_ROUTE
 from enums import Mission
@@ -654,35 +655,24 @@ def _select_sync_target_drones(
 ) -> tuple[List[Dict[str, Any]], List[int]]:
     """Choose which drones a sync operation should target.
 
-    When no explicit target list is given, prefer drones with recent heartbeats so
-    the operator sees results for the actively running fleet instead of stale config
-    entries that are not part of the current SITL session.
+    When no explicit target list is given, prefer drones with recent link presence
+    so the operator sees results for the actively running fleet instead of stale
+    config entries that are not part of the current SITL session.
     """
     if pos_ids:
         requested = {int(pos_id) for pos_id in pos_ids}
         targets = [d for d in drones_config if int(d.get('pos_id', 0)) in requested]
         return targets, []
 
-    recent_heartbeats = get_all_heartbeats()
-    if not recent_heartbeats:
+    link_presence = get_recent_link_presence(d.get('hw_id') for d in drones_config)
+    if not link_presence:
         return drones_config, []
 
-    now = time.time()
-    grace_seconds = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
-    active_hw_ids = set()
-
-    for hw_id, heartbeat in recent_heartbeats.items():
-        timestamp_ms = heartbeat.get('timestamp') if isinstance(heartbeat, dict) else None
-        if not timestamp_ms:
-            continue
-
-        try:
-            age_seconds = now - (float(timestamp_ms) / 1000.0)
-        except (TypeError, ValueError):
-            continue
-
-        if age_seconds <= grace_seconds:
-            active_hw_ids.add(str(hw_id))
+    active_hw_ids = {
+        str(hw_id)
+        for hw_id, snapshot in link_presence.items()
+        if snapshot.get('online_recent')
+    }
 
     if not active_hw_ids:
         return drones_config, []

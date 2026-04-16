@@ -202,6 +202,7 @@ def mock_params():
     params.default_takeoff_alt = 10
     params.max_takeoff_alt = 100
     params.heartbeat_interval = 10
+    params.SMART_SWARM_STATE_STREAM_RATE_HZ = 15
     return params
 
 
@@ -258,6 +259,9 @@ def mock_drone_config():
     config.is_armed = False
     config.is_ready_to_arm = True
     config.current_command_id = None  # For command tracking
+    config.telemetry_timestamp_ms = 1732270245000
+    config.telemetry_sequence = 7
+    config.yaw_rate_deg_s = 0.0
 
     return config
 
@@ -269,6 +273,31 @@ def mock_drone_communicator():
 
     # Mock drone state
     communicator.get_drone_state.return_value = drone_state_idle('1', 1)
+    communicator.get_swarm_state.return_value = {
+        "hw_id": 1,
+        "pos_id": 1,
+        "follow_mode": 0,
+        "position_lat": 47.397742,
+        "position_long": 8.545594,
+        "position_alt": 488.5,
+        "velocity_north": 0.0,
+        "velocity_east": 0.0,
+        "velocity_down": 0.0,
+        "yaw": 0.0,
+        "yaw_deg": 0.0,
+        "yaw_rate_deg_s": 0.0,
+        "telemetry_timestamp_ms": 1732270245000,
+        "stream_seq": 7,
+        "source_frame": "local_ned",
+        "source_time_boot_ms": 12345678,
+        "local_position_north": 0.5,
+        "local_position_east": -0.3,
+        "local_position_down": -5.2,
+        "local_velocity_north": 0.0,
+        "local_velocity_east": 0.0,
+        "local_velocity_down": 0.0,
+        "emitted_at_ms": 1732270245123,
+    }
 
     # Mock command processing
     communicator.process_command = Mock()

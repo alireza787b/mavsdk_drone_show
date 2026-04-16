@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import subprocess
 import sys
 import time
 import urllib.error
@@ -148,6 +149,54 @@ def command_summary(status: dict) -> dict:
             "failed": executions.get("failed"),
         },
     }
+
+
+def sitl_container_name(hw_id: int) -> str:
+    return f"drone-{int(hw_id)}"
+
+
+def resolve_leader_dropout_targets(
+    *,
+    simulate: bool,
+    skip_reassign: bool,
+    ids: list[int],
+    leader_hw_id: int,
+    promoted_leader_hw_id: int,
+    follower_hw_id: int,
+) -> dict[str, int] | None:
+    if not simulate:
+        return None
+    require(
+        not skip_reassign,
+        "Leader-dropout validation requires the in-flight reassignment phase to stay enabled.",
+    )
+    required_ids = {int(leader_hw_id), int(promoted_leader_hw_id), int(follower_hw_id)}
+    require(
+        required_ids.issubset({int(drone_id) for drone_id in ids}),
+        f"Leader-dropout validation requires drones {sorted(required_ids)}, got {ids}",
+    )
+    return {
+        "leader_hw_id": int(leader_hw_id),
+        "promoted_leader_hw_id": int(promoted_leader_hw_id),
+        "follower_hw_id": int(follower_hw_id),
+    }
+
+
+def docker_control(action: str, hw_id: int, *, timeout: int = 20) -> None:
+    container = sitl_container_name(hw_id)
+    completed = subprocess.run(
+        ["docker", action, container],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
+    if completed.returncode != 0:
+        stderr = (completed.stderr or "").strip()
+        stdout = (completed.stdout or "").strip()
+        detail = stderr or stdout or f"docker {action} failed"
+        raise RuntimeError(f"Failed to docker {action} {container}: {detail}")
+    log(f"DOCKER {action.upper()} {container}")
 
 
 def wait_for(predicate, *, label: str, timeout: int = 90, interval: float = 1.0):
@@ -447,6 +496,63 @@ def wait_swarm_update(client: ApiClient, drone_id: int, *, follow: int | None = 
     return wait_for(_ready, label=f"swarm config for drone {drone_id} updated", timeout=timeout, interval=1.0)
 
 
+def wait_for_leader_dropout_failover(
+    client: ApiClient,
+    *,
+    promoted_leader_id: int,
+    follower_id: int,
+    expected_assignment: dict,
+    horizontal_tolerance: float,
+    altitude_tolerance: float,
+    timeout: int,
+    stability_samples: int,
+) -> dict[str, object]:
+    deadline = time.time() + timeout
+    consecutive = 0
+    last_snapshot = {}
+    last_error = {}
+
+    while time.time() < deadline:
+        telemetry = snapshot(client, [promoted_leader_id, follower_id])
+        leader = telemetry[str(promoted_leader_id)]
+        follower = telemetry[str(follower_id)]
+        last_snapshot = telemetry
+        last_error = formation_error(leader, follower, expected_assignment)
+
+        promoted_ready = int(leader.get("follow_mode", 0) or 0) == 0
+        follower_ready = int(follower.get("follow_mode", 0) or 0) == int(promoted_leader_id)
+        formation_ready = (
+            last_error["horizontal_error"] <= horizontal_tolerance
+            and last_error["altitude_error"] <= altitude_tolerance
+        )
+
+        if promoted_ready and follower_ready and formation_ready:
+            consecutive += 1
+            if consecutive >= stability_samples:
+                log(
+                    "WAIT OK: leader-dropout failover settled "
+                    f"(leader={promoted_leader_id}, follower={follower_id}, "
+                    f"horizontal_error={last_error['horizontal_error']:.2f}m, "
+                    f"altitude_error={last_error['altitude_error']:.2f}m)"
+                )
+                return {
+                    "promoted_leader_id": promoted_leader_id,
+                    "follower_id": follower_id,
+                    "formation_error": last_error,
+                    "telemetry": telemetry,
+                }
+        else:
+            consecutive = 0
+
+        time.sleep(1.0)
+
+    raise RuntimeError(
+        "Timed out waiting for leader-dropout failover settle. "
+        f"Last telemetry: {json.dumps(last_snapshot, indent=2)} "
+        f"Last error: {json.dumps(last_error, indent=2)}"
+    )
+
+
 def wait_formation(
     client: ApiClient,
     assignments: list[dict],
@@ -553,6 +659,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-smart-swarm-velocity", type=float, default=3.0, help="Expected Smart Swarm max velocity used for timeout sizing")
     parser.add_argument("--stability-samples", type=int, default=3, help="Consecutive in-tolerance samples required before a cluster is considered settled")
     parser.add_argument("--skip-reassign", action="store_true", help="Skip the in-flight follower reassignment check")
+    parser.add_argument("--simulate-leader-dropout", action="store_true", help="Pause the active SITL leader container and validate follower failover/recovery behavior")
+    parser.add_argument("--leader-dropout-id", type=int, default=1, help="Leader hw_id/container to pause during the dropout simulation")
+    parser.add_argument("--promoted-leader-id", type=int, default=2, help="Follower expected to promote/self-hold during leader-dropout simulation")
+    parser.add_argument("--dropout-follower-id", type=int, default=3, help="Follower expected to continue behind the promoted leader during leader-dropout simulation")
+    parser.add_argument("--leader-dropout-pause-seconds", type=float, default=8.0, help="How long to pause the leader SITL container before unpausing it")
+    parser.add_argument("--leader-dropout-timeout", type=int, default=60, help="How long to wait for failover settle after pausing the leader")
+    parser.add_argument("--leader-dropout-horizontal-tolerance", type=float, default=6.0, help="Horizontal tolerance used for leader-dropout failover settle checks")
+    parser.add_argument("--leader-dropout-altitude-tolerance", type=float, default=2.0, help="Altitude tolerance used for leader-dropout failover settle checks")
+    parser.add_argument("--leader-dropout-recovery-timeout", type=int, default=45, help="How long to wait for the paused leader to resume telemetry after unpause")
     parser.add_argument("--json-output", type=Path, default=None, help="Optional path to write the final validation summary JSON")
     return parser.parse_args()
 
@@ -574,8 +689,10 @@ def main() -> int:
         "base_url": args.base_url,
         "drone_ids": ids,
         "skip_reassign": bool(args.skip_reassign),
+        "simulate_leader_dropout": bool(args.simulate_leader_dropout),
     }
     original_assignments: dict[int, dict] | None = None
+    paused_leader_hw_id: int | None = None
     exit_code = 0
 
     try:
@@ -630,6 +747,7 @@ def main() -> int:
 
         leader_rtl_triggered = False
         results["reassignment"] = None
+        results["leader_dropout"] = None
         results["leader_rtl"] = None
         results["follower_hold"] = None
 
@@ -656,25 +774,63 @@ def main() -> int:
                 "formation_errors": errors,
             }
 
-            command_id, _ = client.submit_command(RTL, [1], "Leader 1 RTL override")
-            status = wait_for_command(client, command_id, terminal=True, timeout=120)
-            require_full_acceptance(status, 1, "Leader-only RTL")
-            require_full_execution(status, 1, "Leader-only RTL")
-            leader_rtl_triggered = True
-            results["leader_rtl"] = command_summary(status)
-            time.sleep(10.0)
-            telemetry = snapshot(client, [1, 2, 3])
-            require(telemetry["2"]["mission"] == SMART_SWARM, f"Drone 2 left Smart Swarm unexpectedly: {telemetry['2']}")
-            require(telemetry["3"]["mission"] == SMART_SWARM, f"Drone 3 left Smart Swarm unexpectedly: {telemetry['3']}")
-            log(f"POST-RTL TELEMETRY CLUSTER [1, 2, 3]: {json.dumps(telemetry, indent=2)}")
-            results["post_rtl_cluster_telemetry"] = telemetry
+            dropout_targets = resolve_leader_dropout_targets(
+                simulate=bool(args.simulate_leader_dropout),
+                skip_reassign=bool(args.skip_reassign),
+                ids=ids,
+                leader_hw_id=args.leader_dropout_id,
+                promoted_leader_hw_id=args.promoted_leader_id,
+                follower_hw_id=args.dropout_follower_id,
+            )
 
-            command_id, _ = client.submit_command(HOLD, [2, 3], "Stop Smart Swarm Followers Hold")
-            status = wait_for_command(client, command_id, terminal=True, timeout=120)
-            require(status["status"] == "completed", f"Hold command failed: {command_summary(status)}")
-            require_full_acceptance(status, 2, "Hold")
-            require_full_execution(status, 2, "Hold")
-            results["follower_hold"] = command_summary(status)
+            if dropout_targets:
+                promoted_leader_id = int(dropout_targets["promoted_leader_hw_id"])
+                follower_id = int(dropout_targets["follower_hw_id"])
+                expected_assignment = next(
+                    entry for entry in assignments if int(entry["hw_id"]) == follower_id
+                )
+
+                paused_leader_hw_id = int(dropout_targets["leader_hw_id"])
+                docker_control("pause", paused_leader_hw_id)
+                time.sleep(max(1.0, float(args.leader_dropout_pause_seconds)))
+                results["leader_dropout"] = wait_for_leader_dropout_failover(
+                    client,
+                    promoted_leader_id=promoted_leader_id,
+                    follower_id=follower_id,
+                    expected_assignment=expected_assignment,
+                    horizontal_tolerance=args.leader_dropout_horizontal_tolerance,
+                    altitude_tolerance=args.leader_dropout_altitude_tolerance,
+                    timeout=args.leader_dropout_timeout,
+                    stability_samples=args.stability_samples,
+                )
+                docker_control("unpause", paused_leader_hw_id)
+                paused_leader_hw_id = None
+                wait_for(
+                    lambda: snapshot(client, [args.leader_dropout_id])[str(args.leader_dropout_id)],
+                    label=f"leader {args.leader_dropout_id} telemetry after unpause",
+                    timeout=args.leader_dropout_recovery_timeout,
+                    interval=2.0,
+                )
+            else:
+                command_id, _ = client.submit_command(RTL, [1], "Leader 1 RTL override")
+                status = wait_for_command(client, command_id, terminal=True, timeout=120)
+                require_full_acceptance(status, 1, "Leader-only RTL")
+                require_full_execution(status, 1, "Leader-only RTL")
+                leader_rtl_triggered = True
+                results["leader_rtl"] = command_summary(status)
+                time.sleep(10.0)
+                telemetry = snapshot(client, [1, 2, 3])
+                require(telemetry["2"]["mission"] == SMART_SWARM, f"Drone 2 left Smart Swarm unexpectedly: {telemetry['2']}")
+                require(telemetry["3"]["mission"] == SMART_SWARM, f"Drone 3 left Smart Swarm unexpectedly: {telemetry['3']}")
+                log(f"POST-RTL TELEMETRY CLUSTER [1, 2, 3]: {json.dumps(telemetry, indent=2)}")
+                results["post_rtl_cluster_telemetry"] = telemetry
+
+                command_id, _ = client.submit_command(HOLD, [2, 3], "Stop Smart Swarm Followers Hold")
+                status = wait_for_command(client, command_id, terminal=True, timeout=120)
+                require(status["status"] == "completed", f"Hold command failed: {command_summary(status)}")
+                require_full_acceptance(status, 2, "Hold")
+                require_full_execution(status, 2, "Hold")
+                results["follower_hold"] = command_summary(status)
 
         land_targets = [idx for idx in ids if idx != 1] if leader_rtl_triggered else list(ids)
         command_id, _ = client.submit_command(LAND, land_targets, "Land Remaining Smart Swarm Drones")
@@ -701,6 +857,11 @@ def main() -> int:
         except Exception as cleanup_exc:
             results["cleanup"] = {"status": "failed", "error": str(cleanup_exc)}
     finally:
+        if paused_leader_hw_id is not None:
+            try:
+                docker_control("unpause", paused_leader_hw_id)
+            except Exception as unpause_exc:
+                results["leader_dropout_unpause_error"] = str(unpause_exc)
         if original_assignments is not None:
             try:
                 restored_ids = restore_assignments(client, original_assignments, timeout=30)

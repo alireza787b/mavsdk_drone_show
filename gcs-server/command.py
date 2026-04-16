@@ -17,10 +17,10 @@ from typing import List, Dict, Any, Tuple, Iterable
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from drone_api_routes import DRONE_LIVE_ARMABILITY_ROUTE
+from link_presence import get_recent_link_presence
 from params import Params
 from live_armability_utils import calculate_live_armability_request_timeout
 from enums import CommandResultCategory, Mission
-from heartbeat import get_all_heartbeats
 
 # Unified logging system
 from mds_logging.server import get_logger
@@ -78,8 +78,6 @@ _STRICT_SYNC_MISSIONS = {
     Mission.SWARM_TRAJECTORY,
     Mission.HOVER_TEST,
 }
-_COMMAND_HEARTBEAT_GRACE_SECONDS = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
-
 def normalize_drone_id(drone_id: Any) -> str:
     """Normalize hardware/position identifiers to strings for consistent routing."""
     return str(drone_id)
@@ -90,39 +88,23 @@ def normalize_drone_ids(drone_ids: Iterable[Any]) -> List[str]:
     return [normalize_drone_id(drone_id) for drone_id in drone_ids]
 
 
-def _has_recent_heartbeat(heartbeat: Dict[str, Any] | None, now: float) -> bool:
-    """Check whether a drone has a heartbeat recent enough for command dispatch."""
-    if not heartbeat:
-        return False
-
-    timestamp_ms = heartbeat.get('timestamp')
-    if not timestamp_ms:
-        return False
-
-    try:
-        age_seconds = now - (float(timestamp_ms) / 1000.0)
-    except (TypeError, ValueError):
-        return False
-
-    return age_seconds <= _COMMAND_HEARTBEAT_GRACE_SECONDS
-
-
 def _partition_recently_online_drones(
     drones: List[Dict[str, Any]],
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]], bool]:
-    """Split targets into active and clearly-offline groups using recent heartbeats."""
+    """Split targets into active and clearly-offline groups using recent link state."""
     try:
-        heartbeats = get_all_heartbeats()
+        link_presence = get_recent_link_presence(
+            (drone.get("hw_id") for drone in drones),
+        )
     except Exception as exc:
-        logger.warning(f"Failed to load heartbeats before command dispatch: {exc}")
+        logger.warning(f"Failed to load recent link presence before command dispatch: {exc}")
         return drones, {}, False
 
-    if not heartbeats:
+    if not link_presence:
         return drones, {}, False
 
-    now = time.time()
     recent_presence_detected = any(
-        _has_recent_heartbeat(heartbeat, now) for heartbeat in heartbeats.values()
+        snapshot.get("online_recent") for snapshot in link_presence.values()
     )
     if not recent_presence_detected:
         return drones, {}, False
@@ -132,19 +114,13 @@ def _partition_recently_online_drones(
 
     for drone in drones:
         drone_id = normalize_drone_id(drone.get('hw_id'))
-        heartbeat = heartbeats.get(drone_id)
+        snapshot = link_presence.get(drone_id) or {}
 
-        if _has_recent_heartbeat(heartbeat, now):
+        if snapshot.get("online_recent"):
             active_drones.append(drone)
             continue
 
-        reason = "No recent heartbeat"
-        if heartbeat and heartbeat.get('timestamp'):
-            try:
-                age_seconds = now - (float(heartbeat['timestamp']) / 1000.0)
-                reason = f"Heartbeat stale ({age_seconds:.1f}s old)"
-            except (TypeError, ValueError):
-                reason = "Heartbeat timestamp invalid"
+        reason = snapshot.get("reason") or "No recent heartbeat or telemetry"
 
         preclassified_offline[drone_id] = {
             'success': False,
@@ -565,7 +541,7 @@ def send_commands_to_all(drones: List[Dict[str, str]], command_data: Dict[str, A
     if heartbeat_short_circuit and preclassified_offline:
         skipped_ids = ", ".join(sorted(preclassified_offline))
         _log_command_event(
-            f"Skipping offline targets for '{command_type}' based on recent heartbeat status: {skipped_ids}",
+            f"Skipping offline targets for '{command_type}' based on recent link status: {skipped_ids}",
             "INFO",
         )
 

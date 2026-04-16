@@ -22,6 +22,27 @@ def get_runtime_assignment_path() -> Path:
     return project_root / "logs" / "runtime" / _DEFAULT_FILENAME
 
 
+def build_runtime_swarm_assignment(
+    hw_id: Any,
+    assignment: Optional[Dict[str, Any]],
+    *,
+    force_follow: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Canonicalize a live Smart Swarm assignment for cross-process consumers."""
+
+    source = assignment or {}
+    follow_value = force_follow if force_follow is not None else source.get("follow", 0)
+
+    return {
+        "hw_id": int(hw_id),
+        "follow": int(follow_value or 0),
+        "offset_x": float(source.get("offset_x", 0.0) or 0.0),
+        "offset_y": float(source.get("offset_y", 0.0) or 0.0),
+        "offset_z": float(source.get("offset_z", 0.0) or 0.0),
+        "frame": str(source.get("frame", "body") or "body").lower(),
+    }
+
+
 def write_runtime_swarm_assignment(assignment: Optional[Dict[str, Any]]) -> None:
     """Persist the latest live Smart Swarm assignment for local cross-process readers."""
     path = get_runtime_assignment_path()

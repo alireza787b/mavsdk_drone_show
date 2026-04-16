@@ -284,9 +284,18 @@ Notes:
   "remote_url": "git@github.com:alireza787b/mavsdk_drone_show.git",
   "tracking_branch": "origin/main-candidate",
   "status": "clean",
-  "uncommitted_changes": []
+  "uncommitted_changes": [],
+  "commits_ahead": 0,
+  "commits_behind": 0
 }
 ```
+
+Notes:
+- `tracking_branch` may be empty on detached worktrees or custom local branches
+  without an upstream; this is not an error
+- `commits_ahead` / `commits_behind` remain `0` when no tracking branch exists
+- the drone route now uses the shared Git manager contract, so drone and GCS
+  git-status semantics stay aligned
 
 ---
 

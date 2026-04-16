@@ -90,6 +90,9 @@ class DroneState:
         self.position: Dict[str, float] = {'lat': 0, 'long': 0, 'alt': 0}
         self.velocity: Dict[str, float] = {'north': 0, 'east': 0, 'down': 0}
         self.yaw: float = 0
+        self.yaw_rate_deg_s: float = 0.0
+        self.telemetry_timestamp_ms: int = 0
+        self.telemetry_sequence: int = 0
 
         # Battery
         self.battery: float = 0
