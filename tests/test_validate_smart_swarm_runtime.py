@@ -7,8 +7,10 @@ from tools.validate_smart_swarm_runtime import (
     _is_idle_reset_row,
     _telemetry_has_ids,
     assignment_snapshot,
+    resolve_leader_dropout_targets,
     resolve_selected_ids,
     restore_assignments,
+    sitl_container_name,
 )
 
 
@@ -169,3 +171,50 @@ def test_resolve_selected_ids_prefers_space_separated_drone_ids():
 def test_resolve_selected_ids_falls_back_to_csv_argument():
     args = argparse.Namespace(drone_ids=None, drones="3, 1,2")
     assert resolve_selected_ids(args) == [1, 2, 3]
+
+
+def test_sitl_container_name_maps_hw_id_to_runtime_name():
+    assert sitl_container_name(7) == "drone-7"
+
+
+def test_resolve_leader_dropout_targets_returns_none_when_disabled():
+    assert resolve_leader_dropout_targets(
+        simulate=False,
+        skip_reassign=False,
+        ids=[1, 2, 3],
+        leader_hw_id=1,
+        promoted_leader_hw_id=2,
+        follower_hw_id=3,
+    ) is None
+
+
+def test_resolve_leader_dropout_targets_requires_reassign_phase():
+    try:
+        resolve_leader_dropout_targets(
+            simulate=True,
+            skip_reassign=True,
+            ids=[1, 2, 3],
+            leader_hw_id=1,
+            promoted_leader_hw_id=2,
+            follower_hw_id=3,
+        )
+    except RuntimeError as exc:
+        assert "requires the in-flight reassignment phase" in str(exc)
+    else:
+        raise AssertionError("Expected leader-dropout target resolution to fail without reassignment")
+
+
+def test_resolve_leader_dropout_targets_requires_expected_ids():
+    try:
+        resolve_leader_dropout_targets(
+            simulate=True,
+            skip_reassign=False,
+            ids=[1, 2],
+            leader_hw_id=1,
+            promoted_leader_hw_id=2,
+            follower_hw_id=3,
+        )
+    except RuntimeError as exc:
+        assert "requires drones" in str(exc)
+    else:
+        raise AssertionError("Expected leader-dropout target resolution to fail when required drones are missing")
