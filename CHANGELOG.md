@@ -89,10 +89,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   so custom branches without an upstream return a clean report instead of
   logging fatal `@{u}` noise, and SSH repo sync no longer performs a redundant
   final `git pull` that could fail on custom branches after fetch+reset had
-  already pinned the runtime to `origin/<branch>`
-  in non-interactive mode instead of silently drifting into SSH deploy-key
-  setup, and the fleet-candidate registry now creates its empty durable state
-  file on first boot so fresh-install backend verification stays clean
+  already pinned the runtime to `origin/<branch>`; the Smart Swarm validator
+  now also includes an optional SITL leader-dropout/failover drill, and the
+  production GCS launcher disables Gunicorn worker recycling by default for the
+  stateful single-worker runtime so command tracking does not disappear mid-run
+  during long acceptance drills
 - `linux_dashboard_start.sh` now exports the runtime git auth variables from
   `/etc/mds/gcs.env`, keeps the real-mode marker at the repo root `real.mode`
   where the rest of MDS expects it, and prints canonical

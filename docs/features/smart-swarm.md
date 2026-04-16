@@ -406,6 +406,21 @@ The reusable validation tool for this flow is:
 python3 tools/validate_smart_swarm_runtime.py
 ```
 
+For stricter acceptance or degraded-network/failover checks, also run:
+
+```bash
+python3 tools/validate_smart_swarm_runtime.py \
+  --horizontal-tolerance 1.5 \
+  --altitude-tolerance 0.6
+
+python3 tools/validate_smart_swarm_runtime.py \
+  --simulate-leader-dropout
+```
+
+The leader-dropout drill is SITL-oriented. It pauses the active leader
+container, validates promotion / continued follower tracking, then confirms the
+paused leader resumes telemetry after unpause.
+
 ## Known Next-Step Opportunities
 
 - richer operator-facing swarm stop/hold state reporting
