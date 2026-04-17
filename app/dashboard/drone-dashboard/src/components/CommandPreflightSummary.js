@@ -250,7 +250,7 @@ const CommandPreflightSummary = ({
             {activeExceptionGroup ? 'Focused attention' : 'Attention'}
             <span>({displayedExceptions.length}/{summary.exceptions.length})</span>
           </button>
-          {exceptionsExpanded || detailsExpanded ? (
+          {exceptionsExpanded ? (
           <div className="command-preflight__exception-list">
             {displayedExceptions.map((exception) => (
               <div
