@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
-import { Color } from 'three';
+import { Color, Vector3 } from 'three';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
@@ -41,6 +41,9 @@ const DroneTooltip = ({ hw_id, pos_id, state, follow_mode, altitude, opacity, lo
 const Drone = ({ position, hw_id, pos_id, state, follow_mode, altitude }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
+  const meshRef = useRef(null);
+  const targetPositionRef = useRef(new Vector3(...position));
+  const hasInitialPositionRef = useRef(false);
 
   useEffect(() => {
     if (isHovered) {
@@ -51,9 +54,25 @@ const Drone = ({ position, hw_id, pos_id, state, follow_mode, altitude }) => {
     }
   }, [isHovered, position, hw_id]);
 
+  useEffect(() => {
+    targetPositionRef.current.set(...position);
+    if (!hasInitialPositionRef.current && meshRef.current) {
+      meshRef.current.position.set(...position);
+      hasInitialPositionRef.current = true;
+    }
+  }, [position]);
+
+  useFrame((_, delta) => {
+    if (!meshRef.current) {
+      return;
+    }
+    const alpha = 1 - Math.exp(-8 * Math.min(delta, 0.25));
+    meshRef.current.position.lerp(targetPositionRef.current, alpha);
+  });
+
   return (
     <mesh
-      position={position}
+      ref={meshRef}
       onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
       onPointerOut={(e) => setIsHovered(false)}
     >

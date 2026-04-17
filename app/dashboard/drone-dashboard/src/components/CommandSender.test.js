@@ -66,6 +66,10 @@ const renderWithCommandActivity = (ui) => render(
   </CommandActivityProvider>
 );
 
+const openCommandControl = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+};
+
 describe('CommandSender', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -180,6 +184,7 @@ describe('CommandSender', () => {
     });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
@@ -188,8 +193,9 @@ describe('CommandSender', () => {
       expect(screen.getByText('Live Command Monitor')).toBeInTheDocument();
     });
 
+    const liveMonitor = screen.getByText('Live Command Monitor').closest('section');
     expect(screen.getByText('Swarm Trajectory')).toBeInTheDocument();
-    expect(screen.getByText('Scheduled, waiting for trigger time')).toBeInTheDocument();
+    expect(within(liveMonitor).getByText('Scheduled, waiting for trigger time')).toBeInTheDocument();
     expect(screen.getByText('Selected drones: 1, 2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel Before Trigger' })).toBeInTheDocument();
     expect(screen.getByText('Accepted')).toBeInTheDocument();
@@ -200,6 +206,7 @@ describe('CommandSender', () => {
     submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-precision' });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
@@ -245,6 +252,7 @@ describe('CommandSender', () => {
     submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-jog' });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
@@ -283,6 +291,7 @@ describe('CommandSender', () => {
     submitCommandWithLifecycleFeedback.mockResolvedValue({ success: true, command_id: 'cmd-hold' });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
@@ -327,11 +336,12 @@ describe('CommandSender', () => {
     };
 
     render(<ScopeHarness />);
+    openCommandControl();
 
-    fireEvent.click(screen.getByRole('button', { name: /use 2 visible cards as scope/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy 2 visible cards to scope/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('2 selected drones')).toBeInTheDocument();
+      expect(screen.getAllByText('2 selected drones').length).toBeGreaterThan(0);
     });
 
     expect(screen.getByText('Visible cards already in scope (2)')).toBeInTheDocument();
@@ -419,6 +429,7 @@ describe('CommandSender', () => {
     });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
@@ -531,6 +542,7 @@ describe('CommandSender', () => {
     });
 
     renderWithCommandActivity(<CommandSender drones={drones} />);
+    openCommandControl();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mock Send Mission' }));
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
@@ -640,9 +652,11 @@ describe('CommandSender', () => {
       expect(getRecentCommands).toHaveBeenCalledWith({ limit: 8 });
     });
 
+    openCommandControl();
+
     expect(await screen.findByText('Live Command Monitor')).toBeInTheDocument();
     expect(screen.getByText('Swarm Trajectory')).toBeInTheDocument();
-    expect(screen.getByText('Accepted, waiting for execution start')).toBeInTheDocument();
+    expect(within(screen.getByText('Live Command Monitor').closest('section')).getByText('Accepted, waiting for execution start')).toBeInTheDocument();
 
     const history = await screen.findByLabelText('Recent commands');
     fireEvent.click(within(history).getByRole('button', { name: 'Show' }));

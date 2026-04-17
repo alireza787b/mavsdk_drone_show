@@ -225,6 +225,13 @@ def estimate_command_tracking_timeout_ms(
             )
         return max(default_ms, trigger_delay_ms + int((requested_timeout_sec + action_buffer_sec) * 1000))
 
+    if mission_enum == Mission.SMART_SWARM:
+        smart_swarm_timeout_sec = _safe_int(
+            getattr(params, "COMMAND_TRACKING_SMART_SWARM_TIMEOUT_SEC", 21600),
+            21600,
+        )
+        return max(default_ms, trigger_delay_ms + (smart_swarm_timeout_sec * 1000))
+
     if mission_enum == Mission.DRONE_SHOW_FROM_CSV:
         show_duration_ms = (
             _read_show_duration_ms(Path(skybrush_dir), target_drone_ids=target_drone_ids)

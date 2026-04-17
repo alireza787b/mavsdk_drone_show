@@ -293,18 +293,6 @@ const Overview = ({ setSelectedDrone }) => {
     () => new Set(commandScopeIds.map((value) => String(value))),
     [commandScopeIds],
   );
-  const commandScopeSummary = React.useMemo(() => {
-    if (commandTargetMode === 'selected') {
-      return `${commandScopeIds.length} selected drone${commandScopeIds.length === 1 ? '' : 's'}`;
-    }
-
-    if (commandTargetMode === 'cluster') {
-      return `${commandClusterScope || 'Cluster'} · ${commandScopeIds.length} drone${commandScopeIds.length === 1 ? '' : 's'}`;
-    }
-
-    return `All ${drones.length} drones`;
-  }, [commandClusterScope, commandScopeIds.length, commandTargetMode, drones.length]);
-
   const toggleDroneCommandScope = React.useCallback((droneId) => {
     const normalizedDroneId = normalizeComparableId(droneId);
     if (!normalizedDroneId) {
@@ -415,14 +403,11 @@ const Overview = ({ setSelectedDrone }) => {
       <div className="connected-drones-header">
         <div>
           <h2>Connected Drones</h2>
-          <p>Card filters stay visual until you copy them into command scope.</p>
+          <p>Visual filters stay local until you copy them into command scope.</p>
         </div>
         <div className="connected-drones-header__actions">
           <span className="connected-drones-count">
             {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
-          </span>
-          <span className="connected-drones-scope">
-            Command scope: {commandScopeSummary}
           </span>
           <button
             type="button"
@@ -430,7 +415,7 @@ const Overview = ({ setSelectedDrone }) => {
             onClick={applyVisibleCardsToCommandScope}
             disabled={filteredDroneIds.length === 0}
           >
-            Use visible cards as scope
+            Copy visible to scope
           </button>
         </div>
       </div>

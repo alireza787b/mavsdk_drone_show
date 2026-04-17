@@ -26,15 +26,16 @@
 
 .command-sender-header-row {
     display: flex;
-    justify-content: flex-start;
+    justify-content: space-between;
     gap: var(--spacing-base);
     align-items: start;
-    margin-bottom: var(--spacing-lg);
+    margin-bottom: var(--spacing-base);
 }
 
 .command-sender-header-copy {
     display: grid;
     gap: var(--spacing-sm);
+    min-width: 0;
 }
 
 .command-sender-eyebrow {
@@ -87,9 +88,38 @@
     font-weight: var(--font-weight-semibold);
 }
 
+.command-sender-header-pill--status {
+    background: rgba(var(--color-info-rgb, 59, 130, 246), 0.12);
+    border-color: rgba(var(--color-info-rgb, 59, 130, 246), 0.28);
+}
+
 .command-sender-header-note {
     background: var(--color-surface-inset);
     color: var(--color-text-secondary);
+}
+
+.command-sender-header-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 4.5rem;
+    min-height: 2.4rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-surface-inset);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-all);
+    flex: 0 0 auto;
+}
+
+.command-sender-header-toggle:hover {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 /* Tab Bar */
@@ -886,24 +916,68 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: var(--spacing-lg);
-    margin-bottom: var(--spacing-lg);
+    gap: var(--spacing-base);
+    margin-bottom: var(--spacing-base);
+}
+
+.command-preflight__header-copy {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
 }
 
 .command-preflight__header h3 {
-    margin: 0 0 var(--spacing-xs);
+    margin: 0;
     color: var(--color-text-primary);
 }
 
-.command-preflight__header p {
-    margin: 0;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+.command-preflight__header-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
 }
 
-.command-preflight__clock {
-    min-width: 200px;
-    text-align: right;
+.command-preflight__header-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.85rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.08);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.command-preflight__header-pill--secondary {
+    border-color: var(--color-border-primary);
+    background: var(--color-surface-inset);
+    color: var(--color-text-secondary);
+}
+
+.command-preflight__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 4.75rem;
+    min-height: 2.25rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-primary-border);
+    background: var(--color-surface-inset);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-all);
+}
+
+.command-preflight__toggle:hover {
+    border-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 .command-preflight__clock-label,
@@ -969,13 +1043,17 @@
     display: block;
     color: var(--color-text-primary);
     font-size: var(--font-size-lg);
-    margin: var(--spacing-xs) 0;
+    margin: 0.2rem 0 0;
 }
 
 .command-preflight__metric-label {
     font-size: var(--font-size-xs);
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.command-preflight__grid:not(.is-expanded) .command-preflight__metric {
+    min-height: 5rem;
 }
 
 .command-preflight__metric-badge {
@@ -1279,6 +1357,13 @@
         align-items: stretch;
     }
 
+    .command-sender-header-toggle {
+        align-self: flex-start;
+    }
+
+    .command-preflight__toggle {
+        align-self: flex-start;
+    }
 }
 
 @media (max-width: 768px) {
@@ -1318,11 +1403,6 @@
 
     .target-selection__bridge-action {
         width: 100%;
-    }
-
-    .command-preflight__clock {
-        min-width: 0;
-        text-align: left;
     }
 
     .command-tabs {

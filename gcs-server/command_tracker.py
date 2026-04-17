@@ -1116,6 +1116,7 @@ class CommandTracker:
         ack_pending = max(0, command.acks_expected - command.acks_received)
         execution_pending = max(0, accepted - started)
         scheduled_trigger_time = self._extract_trigger_time_ms(command.params)
+        persistent_smart_swarm = command.mission_type == Mission.SMART_SWARM.value
         waiting_for_future_trigger = (
             command.phase == CommandPhase.PENDING_EXECUTION
             and scheduled_trigger_time is not None
@@ -1141,6 +1142,14 @@ class CommandTracker:
                     f"{accepted}/{command.acks_expected} targeted drone(s) accepted the command. "
                     "Waiting for the scheduled trigger time."
                 )
+            elif persistent_smart_swarm:
+                stage = "pending_execution"
+                label = "Live follow mode"
+                waiting_count = max(1, execution_pending or accepted)
+                message = (
+                    f"{accepted}/{command.acks_expected} targeted drone(s) accepted Smart Swarm. "
+                    f"Waiting for live follow-loop confirmation from {waiting_count} drone(s)."
+                )
             else:
                 stage = "pending_execution"
                 label = "Accepted, waiting for execution start"
@@ -1150,7 +1159,12 @@ class CommandTracker:
                     f"Waiting for execution start reports from {waiting_count} drone(s)."
                 )
         elif command.phase == CommandPhase.IN_PROGRESS:
-            if completed > 0 and remaining > 0:
+            if persistent_smart_swarm:
+                stage = "executing"
+                label = "Live follow mode"
+                active_count = max(1, active or accepted)
+                message = f"Smart Swarm is active on {active_count} drone(s)."
+            elif completed > 0 and remaining > 0:
                 stage = "finishing"
                 label = "Finishing on remaining drones"
                 message = (

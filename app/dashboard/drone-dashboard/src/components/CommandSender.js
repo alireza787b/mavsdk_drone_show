@@ -66,6 +66,7 @@ const CommandSender = ({
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const targetSelectionRef = useRef(null);
   const [, forceClockTick] = useReducer((value) => value + 1, 0);
   const {
@@ -184,7 +185,7 @@ const CommandSender = ({
   }, [normalizedVisibleDroneIds, selectedDrones, targetMode]);
   const visibleScopeButtonLabel = visibleScopeMatchesSelection
     ? `Visible cards already in scope (${normalizedVisibleDroneIds.length})`
-    : `Use ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'} as scope`;
+    : `Copy ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'} to scope`;
   const scopeSourceNotice = targetMode === 'selected' && scopeSource === 'card-wall'
     ? 'Scope was copied from the visible cards. Later card-filter changes stay visual until you apply them again.'
     : null;
@@ -277,6 +278,10 @@ const CommandSender = ({
   const getMonitorTone = (monitor) => {
     if (!monitor) {
       return 'neutral';
+    }
+
+    if (monitor.isPersistentMode && (monitor.trackingIssue === 'unavailable' || monitor.trackingIssue === 'timeout')) {
+      return 'active';
     }
 
     if (monitor.trackingIssue === 'unavailable' || monitor.trackingIssue === 'timeout') {
@@ -617,11 +622,30 @@ const CommandSender = ({
         <div className="command-sender-header-row">
           <div className="command-sender-header-copy">
             <p className="command-sender-eyebrow">Mission dispatch</p>
+            <div className="command-sender-header-meta">
+              <span className="command-sender-header-pill">{targetLabel}</span>
+              <span className="command-sender-header-note">{clockOffsetLabel ? `Scheduler ${clockOffsetLabel}` : 'Scheduler aligned'}</span>
+              {commandMonitor && (
+                <span className="command-sender-header-pill command-sender-header-pill--status">
+                  {commandMonitor.progress?.label || commandMonitor.commandLabel}
+                </span>
+              )}
+            </div>
             <h2 className="command-sender-header">Command Control</h2>
             <p className="command-sender-subheader">Scope, check, dispatch.</p>
           </div>
+          <button
+            type="button"
+            className="command-sender-header-toggle"
+            onClick={() => setPanelExpanded((current) => !current)}
+            aria-expanded={panelExpanded}
+          >
+            {panelExpanded ? 'Hide' : 'Open'}
+          </button>
         </div>
 
+      {panelExpanded && (
+      <>
       {/* Target Selection UI */}
       <div className="target-selection" ref={targetSelectionRef}>
         <div className="target-selection__row">
@@ -770,8 +794,9 @@ const CommandSender = ({
 
           {commandMonitor.trackingIssue && (
             <p className="command-monitor__notice">
-              Tracking updates are currently {commandMonitor.trackingIssue === 'timeout' ? 'timed out' : 'unavailable'}.
-              The last known command state remains visible here.
+              {commandMonitor.isPersistentMode
+                ? 'Live monitor updates are temporarily delayed. Smart Swarm remains active until a stop, override, failover, or follow-chain break changes it.'
+                : `Tracking updates are currently ${commandMonitor.trackingIssue === 'timeout' ? 'timed out' : 'unavailable'}. The last known command state remains visible here.`}
             </p>
           )}
 
@@ -920,6 +945,8 @@ const CommandSender = ({
         onSubmit={handleSubmitPrecisionMove}
         onSubmitHold={handleSubmitPrecisionMoveHold}
       />
+      </>
+      )}
 
       {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
       {modalOpen && ReactDOM.createPortal(

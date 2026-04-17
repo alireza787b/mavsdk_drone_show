@@ -337,6 +337,7 @@ class Params:
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180  # Conservative tracker budget for hover-test workflows
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900  # Fallback tracker budget until QuickScout duration is estimator-backed
     COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC = 45  # Tracker budget for precision repositioning actions
+    COMMAND_TRACKING_SMART_SWARM_TIMEOUT_SEC = 21600  # Long-lived live-follow budget; Smart Swarm remains active until superseded or stopped
     COMMAND_TRACKING_CHECK_INTERVAL_SEC = 1.0     # Background cadence for promoting stale commands to terminal timeout state
     QUICKSCOUT_MISSION_UPLOAD_TIMEOUT_SEC = 45.0  # Max wait for MAVSDK mission upload before aborting QuickScout startup
     QUICKSCOUT_MISSION_START_TIMEOUT_SEC = 30.0   # Max wait for MAVSDK mission start before aborting QuickScout startup

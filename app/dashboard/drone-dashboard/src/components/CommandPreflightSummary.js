@@ -25,6 +25,7 @@ const CommandPreflightSummary = ({
   const { data: gitStatusResponse, loading: gitLoading } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 15000);
   const [activeExceptionGroup, setActiveExceptionGroup] = useState(null);
   const [exceptionsExpanded, setExceptionsExpanded] = useState(false);
+  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   const summary = useMemo(() => {
     const scopedLookup = new Set(targetDroneIds.map((value) => normalizeId(value)).filter(Boolean));
@@ -208,17 +209,26 @@ const CommandPreflightSummary = ({
   return (
     <section className="command-preflight" aria-label="Command preflight summary">
       <div className="command-preflight__header">
-        <div>
+        <div className="command-preflight__header-copy">
           <h3>Preflight</h3>
-          <p>{targetSummaryLabel || 'Current scope'}</p>
+          <div className="command-preflight__header-meta">
+            <span className="command-preflight__header-pill">{targetSummaryLabel || 'Current scope'}</span>
+            <span className="command-preflight__header-pill command-preflight__header-pill--secondary">
+              {clockOffsetLabel ? `Scheduler ${clockOffsetLabel}` : 'Scheduler aligned'}
+            </span>
+          </div>
         </div>
-        <div className="command-preflight__clock">
-          <span className="command-preflight__clock-label">Scheduler</span>
-          <span className="command-preflight__clock-value">{clockOffsetLabel ? `GCS aligned · ${clockOffsetLabel}` : 'GCS aligned'}</span>
-        </div>
+        <button
+          type="button"
+          className="command-preflight__toggle"
+          onClick={() => setDetailsExpanded((current) => !current)}
+          aria-expanded={detailsExpanded}
+        >
+          {detailsExpanded ? 'Hide' : 'Details'}
+        </button>
       </div>
 
-      <div className="command-preflight__grid">
+      <div className={`command-preflight__grid ${detailsExpanded ? 'is-expanded' : ''}`}>
         {metrics.map((metric) => (
           <button
             key={metric.key}
@@ -230,7 +240,7 @@ const CommandPreflightSummary = ({
           >
             <span className="command-preflight__metric-label">{metric.label}</span>
             <strong>{metric.value}</strong>
-            <small>{metric.detail}</small>
+            {detailsExpanded ? <small>{metric.detail}</small> : null}
             {metric.exceptionCount ? (
               <span className="command-preflight__metric-badge">{metric.exceptionCount}</span>
             ) : null}
@@ -248,7 +258,7 @@ const CommandPreflightSummary = ({
             {activeExceptionGroup ? 'Focused attention' : 'Attention'}
             <span>({displayedExceptions.length}/{summary.exceptions.length})</span>
           </button>
-          {exceptionsExpanded ? (
+          {exceptionsExpanded || detailsExpanded ? (
           <div className="command-preflight__exception-list">
             {displayedExceptions.map((exception) => (
               <div

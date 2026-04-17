@@ -15,6 +15,7 @@ class _MockParams:
     COMMAND_TRACKING_HOVER_TEST_TIMEOUT_SEC = 180
     COMMAND_TRACKING_QUICKSCOUT_TIMEOUT_SEC = 900
     COMMAND_TRACKING_PRECISION_MOVE_TIMEOUT_SEC = 45
+    COMMAND_TRACKING_SMART_SWARM_TIMEOUT_SEC = 21_600
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30
     TAKEOFF_ALTITUDE_CONFIRM_TIMEOUT_SEC = 60
     LAND_ACTION_MIN_DISARM_WAIT_SEC = 45
@@ -53,6 +54,15 @@ def test_estimate_command_tracking_timeout_for_precision_move_uses_requested_bud
     )
 
     assert timeout_ms == (45 + 30) * 1000
+
+
+def test_estimate_command_tracking_timeout_for_smart_swarm_uses_long_lived_budget():
+    timeout_ms = estimate_command_tracking_timeout_ms(
+        Mission.SMART_SWARM,
+        params=_MockParams,
+    )
+
+    assert timeout_ms == _MockParams.COMMAND_TRACKING_SMART_SWARM_TIMEOUT_SEC * 1000
 
 
 def test_estimate_command_tracking_timeout_for_rtl_scales_with_relative_altitude():

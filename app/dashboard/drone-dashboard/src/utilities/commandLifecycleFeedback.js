@@ -5,6 +5,7 @@ import { getCommandStatus, sendDroneCommand } from '../services/droneApiService'
 import { getFriendlyMissionName } from './missionUtils';
 
 const OVERRIDE_COMMANDS = new Set([101, 102, 104, 105]);
+const PERSISTENT_MISSION_TYPES = new Set([2]);
 const TERMINAL_PHASE = 'terminal';
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ERRORS = 3;
@@ -78,6 +79,13 @@ function formatCommandLabel(commandData, response) {
     || humanizeCommandToken(getCommandName(normalizeMissionType(commandData?.missionType)));
 }
 
+function isPersistentMission(commandData = {}, response = null, status = null) {
+  const missionType = normalizeMissionType(
+    status?.mission_type ?? response?.mission_type ?? commandData?.missionType
+  );
+  return PERSISTENT_MISSION_TYPES.has(Number(missionType));
+}
+
 function getAcceptedCount(response) {
   const summary = response?.ack_summary || response?.results_summary || {};
   return Number(summary.accepted ?? response?.submitted_count ?? 0);
@@ -139,6 +147,7 @@ function buildInitialProgress(commandData, response) {
   const accepted = acks.accepted;
   const expected = acks.expected;
   const referenceNowMs = Number(response?.timestamp || Date.now());
+  const persistentMission = isPersistentMission(commandData, response, null);
 
   if ((response?.tracking_phase || null) === 'awaiting_ack') {
     if (acks.received === 0) {
@@ -162,6 +171,14 @@ function buildInitialProgress(commandData, response) {
       label: DEFAULT_PROGRESS_LABELS.scheduled,
       message: `${accepted}/${Math.max(expected, 1)} targeted drone(s) accepted the command. Waiting for the scheduled trigger time.`,
       scheduled_trigger_time: Number(commandData?.triggerTime) * 1000,
+    };
+  }
+
+  if (persistentMission) {
+    return {
+      stage: 'pending_execution',
+      label: 'Live follow mode',
+      message: `${accepted}/${Math.max(expected, 1)} targeted drone(s) accepted the command. Smart Swarm remains active until it is stopped, overridden, or loses its follow chain.`,
     };
   }
 
@@ -245,6 +262,7 @@ function buildLifecycleSnapshot({
     phase,
     outcome,
     isTerminal,
+    isPersistentMode: isPersistentMission(commandData, response, status),
     trackingIssue,
     progress,
     acks,
@@ -293,6 +311,7 @@ export function buildLifecycleSnapshotFromStatus(status) {
 
 function buildSubmissionToastMessage(commandData, response) {
   const commandLabel = formatCommandLabel(commandData, response);
+  const persistentMission = isPersistentMission(commandData, response, null);
   const acks = getAckSummary(response);
   const accepted = acks.accepted;
   const summary = response?.ack_summary || response?.results_summary || {};
@@ -346,6 +365,13 @@ function buildSubmissionToastMessage(commandData, response) {
     return {
       level: 'info',
       message: `${commandLabel} submitted. ${pendingAckSummary}. Monitoring remaining acknowledgments and outcome in background.`,
+    };
+  }
+
+  if (persistentMission) {
+    return {
+      level: 'success',
+      message: `${commandLabel} accepted. ${targetSummary}. Live follow mode remains active until you stop, override, or break the follow chain.`,
     };
   }
 
@@ -558,6 +584,7 @@ export async function submitCommandWithLifecycleFeedback(commandData, options = 
   const commandLabel = formatCommandLabel(commandData, response);
   const submissionToast = buildSubmissionToastMessage(commandData, response);
   emitToast(submissionToast.level, submissionToast.message);
+  const persistentMission = isPersistentMission(commandData, response, null);
 
   if (response?.success && response?.command_id && getAcceptedCount(response) > 0) {
     const initialSnapshot = buildLifecycleSnapshot({
@@ -568,7 +595,7 @@ export async function submitCommandWithLifecycleFeedback(commandData, options = 
     options.onCommandAccepted?.(initialSnapshot, response);
   }
 
-  if (response?.success && response?.command_id && getAcceptedCount(response) > 0) {
+  if (response?.success && response?.command_id && getAcceptedCount(response) > 0 && !persistentMission) {
     void trackCommandLifecycle(
       response.command_id,
       commandLabel,

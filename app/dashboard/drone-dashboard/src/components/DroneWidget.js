@@ -92,6 +92,8 @@ const DroneWidget = ({
     drone[FIELD_NAMES.LAST_MISSION]
   );
   const compactIdentity = formatCompactDroneIdentity(drone[FIELD_NAMES.POS_ID], drone[FIELD_NAMES.HW_ID], `H${hwId || '?'}`);
+  const titleLabel = compactIdentity;
+  const aliasLabel = operatorAlias ? `${promotedField.label}: ${operatorAlias}` : '';
   const hasCurrentMission = missionDisplay.hasCurrentMission && missionDisplay.currentMissionName !== 'No Mission';
 
   // GPS status processing (with SITL simulation fallback)
@@ -221,13 +223,13 @@ const DroneWidget = ({
           />
           </div>
           <div className="drone-header__titles">
-            <span className="drone-header__title">Pos {drone[FIELD_NAMES.POS_ID] ?? 'N/A'} (HW {drone[FIELD_NAMES.HW_ID] || 'Unknown'})</span>
+            <span className="drone-header__title" title={titleLabel}>{titleLabel}</span>
             <div className="drone-header__meta">
-              {operatorAlias && (
-                <span className="drone-header__alias">{promotedField.label}: {operatorAlias}</span>
+              {aliasLabel && (
+                <span className="drone-header__alias" title={aliasLabel}>{aliasLabel}</span>
               )}
               {commandScopeLabel && (
-                <span className="drone-header__scope-badge">{commandScopeLabel}</span>
+                <span className="drone-header__scope-badge" title={`Command scope: ${commandScopeLabel}`}>{commandScopeLabel}</span>
               )}
             </div>
           </div>
