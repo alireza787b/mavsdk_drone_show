@@ -573,6 +573,17 @@ def plot_tracking(records: list[TrackingSample], output_dir: Path) -> dict[str, 
     return paths
 
 
+def restore_swarm_resource(client: Any, original_swarm_resource: dict[str, Any], *, timeout: int = 30) -> list[int]:
+    client.put_json("/api/v1/config/swarm", original_swarm_resource)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        current_swarm = client.get_swarm_resource()
+        if current_swarm == original_swarm_resource:
+            return sorted(int(entry.get("hw_id", 0)) for entry in original_swarm_resource["assignments"])
+        time.sleep(1.0)
+    raise RuntimeError("Timed out restoring original swarm resource")
+
+
 async def main_async() -> int:
     from tools.validate_actions_runtime import ApiClient as BaseApiClient
     from tools.validate_smart_swarm_runtime import (
@@ -580,7 +591,6 @@ async def main_async() -> int:
         cluster_assignments,
         require_full_acceptance,
         require_full_execution,
-        restore_assignments,
         wait_altitude,
         wait_api_ready,
         wait_fleet_ready,
@@ -591,6 +601,19 @@ async def main_async() -> int:
     )
 
     class ApiClient(BaseApiClient):
+        def put_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+            import urllib.request
+
+            body = json.dumps(payload).encode("utf-8")
+            request = urllib.request.Request(
+                f"{self.base_url}{path}",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="PUT",
+            )
+            with urllib.request.urlopen(request, timeout=60) as response:
+                return json.load(response)
+
         def patch_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
             import urllib.request
 
@@ -604,12 +627,13 @@ async def main_async() -> int:
             with urllib.request.urlopen(request, timeout=60) as response:
                 return json.load(response)
 
-        def get_swarm(self) -> list[dict[str, Any]]:
+        def get_swarm_resource(self) -> dict[str, Any]:
             payload = self.get_json("/api/v1/config/swarm")
-            if isinstance(payload, dict) and "assignments" in payload:
-                payload = payload["assignments"]
-            require(isinstance(payload, list), f"Unexpected swarm payload: {payload!r}")
+            require(isinstance(payload, dict) and isinstance(payload.get("assignments"), list), f"Unexpected swarm payload: {payload!r}")
             return payload
+
+        def get_swarm(self) -> list[dict[str, Any]]:
+            return self.get_swarm_resource()["assignments"]
 
         def update_assignment(self, hw_id: int, **kwargs: Any) -> dict[str, Any]:
             payload = {
@@ -638,6 +662,7 @@ async def main_async() -> int:
         "follower_id": follower_id,
     }
     original_assignments: dict[int, dict] | None = None
+    original_swarm_resource: dict[str, Any] | None = None
 
     try:
         results["health"] = wait_api_ready(client, timeout=60)
@@ -647,7 +672,9 @@ async def main_async() -> int:
         base_altitudes = {str(drone_id): telemetry[str(drone_id)]["position_alt"] for drone_id in ids}
         results["base_altitudes"] = base_altitudes
 
-        swarm = client.get_swarm()
+        swarm_resource = client.get_swarm_resource()
+        swarm = swarm_resource["assignments"]
+        original_swarm_resource = json.loads(json.dumps(swarm_resource))
         original_assignments = assignment_payload_snapshot(swarm, ids)
         results["original_assignments"] = original_assignments
 
@@ -784,9 +811,9 @@ async def main_async() -> int:
         results["error"] = str(exc)
         raise
     finally:
-        if original_assignments is not None:
+        if original_swarm_resource is not None:
             try:
-                restored_ids = restore_assignments(client, original_assignments, timeout=30)
+                restored_ids = restore_swarm_resource(client, original_swarm_resource, timeout=30)
                 results["restored_assignment_ids"] = restored_ids
             except Exception as restore_exc:
                 results["restore_error"] = str(restore_exc)

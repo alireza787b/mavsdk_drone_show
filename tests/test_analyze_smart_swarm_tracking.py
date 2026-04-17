@@ -6,6 +6,7 @@ from tools.analyze_smart_swarm_tracking import (
     build_precision_move_payload,
     canonical_assignment,
     compute_tracking_sample,
+    restore_swarm_resource,
 )
 
 
@@ -79,6 +80,44 @@ def test_assignment_patch_payload_only_includes_present_optional_fields():
         "offset_y": -3.0,
         "frame": "body",
     }
+
+
+def test_restore_swarm_resource_uses_full_resource_shape():
+    original_resource = {
+        "version": 1,
+        "assignments": [
+            {"hw_id": 1, "follow": 0, "offset_x": 0.0, "offset_y": 0.0, "offset_z": 0.0, "frame": "body"},
+            {"hw_id": 3, "follow": 1, "offset_x": -8.5, "offset_y": -3.0, "frame": "body"},
+        ],
+    }
+    current_resource = {
+        "version": 1,
+        "assignments": [
+            {"hw_id": 1, "follow": 0, "offset_x": 0.0, "offset_y": 0.0, "offset_z": 0.0, "frame": "body"},
+            {"hw_id": 3, "follow": 1, "offset_x": -8.5, "offset_y": -3.0, "offset_z": 0.0, "frame": "body"},
+        ],
+    }
+
+    class FakeClient:
+        def __init__(self):
+            self.current = current_resource
+            self.put_calls = []
+
+        def put_json(self, path, payload):
+            self.put_calls.append((path, payload))
+            self.current = payload
+            return payload
+
+        def get_swarm_resource(self):
+            return self.current
+
+    client = FakeClient()
+
+    restored_ids = restore_swarm_resource(client, original_resource, timeout=1)
+
+    assert restored_ids == [1, 3]
+    assert client.put_calls == [("/api/v1/config/swarm", original_resource)]
+    assert "offset_z" not in client.current["assignments"][1]
 
 
 def test_compute_tracking_sample_reports_zero_error_when_follower_matches_body_offset():
