@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- Smart Swarm tracking-analysis workflow:
+  added `tools/analyze_smart_swarm_tracking.py`, focused tests, and operator
+  docs so maintainers can capture expected vs actual follower tracking during
+  repeated leader jogs and mixed body/NED frame changes using the dedicated
+  Smart Swarm websocket stream instead of the lower-rate operator telemetry
+  aggregate
 - Smart Swarm runtime transport/control hardening:
   follower-to-leader state now uses a dedicated realtime swarm-state stream
   (`WS /ws/swarm-state`) with `GET /api/v1/swarm/state` HTTP fallback, telemetry
@@ -80,6 +86,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the GCS repository phase now respects explicit private HTTPS repo selection
 
 ### Fixed
+- dashboard first-load delivery on weak/mobile links:
+  the lightweight SPA server now serves gzip-compressed large text assets,
+  marks fingerprinted `/static/...` files immutable, disables caching for the
+  HTML shell, and the dashboard now route-splits heavy primary views so the
+  initial bootstrap bundle no longer blocks first paint behind a multi-megabyte
+  uncompressed `main.*.js`
 - Smart Swarm official runtime closeout:
   leader-only commands and repo sync target selection now treat a drone as
   recently online when either heartbeat or telemetry freshness proves the link

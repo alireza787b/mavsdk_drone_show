@@ -22,9 +22,6 @@ import { MapProvider } from './contexts/MapContext';
 // Import design tokens first
 import './styles/DesignTokens.css';
 
-// Eagerly loaded — primary operational views
-import Overview from './pages/Overview';
-import MissionConfig from './pages/MissionConfig';
 import SidebarMenu from './components/SidebarMenu';
 import SyncWarningBanner from './components/SyncWarningBanner';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -36,6 +33,8 @@ import 'leaflet/dist/leaflet.css';
 import './App.css';
 
 // Lazy loaded — heavy visualization pages (three.js, plotly, cytoscape, mapbox)
+const Overview = lazy(() => import('./pages/Overview'));
+const MissionConfig = lazy(() => import('./pages/MissionConfig'));
 const Detail = lazy(() => import('./components/DroneDetail'));
 const SwarmDesign = lazy(() => import('./pages/SwarmDesign'));
 const CustomShowPage = lazy(() => import('./pages/CustomShowPage'));

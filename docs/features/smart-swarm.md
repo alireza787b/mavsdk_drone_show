@@ -229,6 +229,21 @@ The current transport timing knobs are centralized in [params.py](../../src/para
 
 That keeps Smart Swarm timing policy in one place instead of scattering literals across runtime tasks.
 
+### Tracking proof workflow
+
+If you need to prove that a follower is tracking the leader on the current
+runtime path, use the dedicated tracking-analysis guide:
+
+- [Smart Swarm Tracking Analysis](../guides/smart-swarm-tracking-analysis.md)
+
+That workflow captures:
+
+- expected follower `N/E/D` from leader state plus offsets
+- actual follower `N/E/D`
+- repeated jog-sized leader moves
+- mixed `body` and `ned` frame commands
+- JSON, CSV, and plot artifacts for later review
+
 ### Current transport behavior and next-step roadmap
 
 What is true in the current validated branch:

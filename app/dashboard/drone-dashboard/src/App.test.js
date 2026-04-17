@@ -2,9 +2,9 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import App from './App';
 
-// Mock eagerly loaded components
-jest.mock('./pages/Overview', () => () => <div data-testid="overview" />);
-jest.mock('./pages/MissionConfig', () => () => <div data-testid="mission-config" />);
+// Mock primary routed pages
+jest.mock('./pages/Overview', () => ({ __esModule: true, default: () => <div data-testid="overview" /> }));
+jest.mock('./pages/MissionConfig', () => ({ __esModule: true, default: () => <div data-testid="mission-config" /> }));
 jest.mock('./components/SidebarMenu', () => ({ collapsed, mobile, mobileOpen }) => (
   <nav
     data-testid="sidebar"
@@ -44,22 +44,24 @@ describe('App', () => {
     window.innerWidth = originalInnerWidth;
   });
 
-  test('renders without crashing', () => {
+  test('renders without crashing', async () => {
     render(<App />);
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });
 
-  test('renders sidebar navigation', () => {
+  test('renders sidebar navigation', async () => {
     render(<App />);
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });
 
-  test('renders default route (Overview)', () => {
+  test('renders default route (Overview)', async () => {
     render(<App />);
-    expect(screen.getByTestId('overview')).toBeInTheDocument();
+    expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });
 
-  test('uses overlay navigation on mobile viewports', () => {
+  test('uses overlay navigation on mobile viewports', async () => {
     window.innerWidth = 375;
     render(<App />);
 
@@ -71,5 +73,6 @@ describe('App', () => {
     fireEvent.click(screen.getByLabelText('Open navigation menu'));
     expect(screen.getByLabelText('Close navigation overlay')).toBeInTheDocument();
     expect(sidebar).toHaveAttribute('data-open', 'true');
+    expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });
 });

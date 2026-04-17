@@ -567,6 +567,11 @@ Current behavior summary:
 - if the addressed drone is a leader or relay leader, followers can still react through leader-loss logic
 - leader-loss handling now defaults to an `upstream_or_hold` policy instead of jumping across unrelated drones
 
+If you need a proof run that records expected vs actual follower tracking during
+leader jogs and frame changes, use:
+
+- [Smart Swarm Tracking Analysis](smart-swarm-tracking-analysis.md)
+
 If you want the validated 5-drone Smart Swarm acceptance run from the command line after launching SITL, use:
 
 ```bash
