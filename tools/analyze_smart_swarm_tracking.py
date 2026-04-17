@@ -26,8 +26,23 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import aiohttp
-import matplotlib
+try:
+    import aiohttp
+except ModuleNotFoundError as exc:
+    raise SystemExit(
+        "Missing Python dependency 'aiohttp'. Run this tool from the project venv "
+        "(for example `venv/bin/python3 tools/analyze_smart_swarm_tracking.py ...`) "
+        "or install requirements.txt into the active interpreter."
+    ) from exc
+
+try:
+    import matplotlib
+except ModuleNotFoundError as exc:
+    raise SystemExit(
+        "Missing Python dependency 'matplotlib'. Run this tool from the project venv "
+        "(for example `venv/bin/python3 tools/analyze_smart_swarm_tracking.py ...`) "
+        "or install requirements.txt into the active interpreter."
+    ) from exc
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

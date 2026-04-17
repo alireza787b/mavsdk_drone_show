@@ -13,7 +13,7 @@ Use it when you need to answer a concrete question:
 The canonical tool is:
 
 ```bash
-python3 tools/analyze_smart_swarm_tracking.py \
+venv/bin/python3 tools/analyze_smart_swarm_tracking.py \
   --base-url http://127.0.0.1:5000 \
   --drone-ids 1 2 3 4 \
   --leader-id 1 \
@@ -81,6 +81,8 @@ At that point:
 
 ## Practical Notes
 
+- run the tool from the repo venv; it depends on the same Python stack the GCS uses
+- on a host machine, `requirements.txt` already includes `aiohttp` and `matplotlib`
 - let the formation settle before aggressive leader motion
 - test both `body` and `ned` leader moves
 - keep one follower fixed as the tracked subject for comparable plots
