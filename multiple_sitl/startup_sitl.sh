@@ -173,6 +173,7 @@ SITL_FILE_LOG_MAX_BYTES="${MDS_SITL_FILE_LOG_MAX_BYTES:-$DEFAULT_SITL_FILE_LOG_M
 SITL_FILE_LOG_BACKUP_COUNT="${MDS_SITL_FILE_LOG_BACKUP_COUNT:-$DEFAULT_SITL_FILE_LOG_BACKUP_COUNT}"
 SITL_STRIP_PXH_PROMPTS="${MDS_SITL_STRIP_PXH_PROMPTS:-$DEFAULT_SITL_STRIP_PXH_PROMPTS}"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
+RUNTIME_VENV_HEALTH_CHECKER="$BASE_DIR/tools/check_runtime_venv.py"
 LOG_POLICY_RUNNER="$BASE_DIR/tools/run_with_log_policy.py"
 IMAGE_BUILD_METADATA_FILE="$BASE_DIR/.mds_sitl_image_build.env"
 PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
@@ -767,6 +768,19 @@ requirements_state_value() {
     printf "%s|python=%s\n" "$requirements_hash" "$python_version"
 }
 
+runtime_venv_health_check() {
+    if [ ! -f "$RUNTIME_VENV_HEALTH_CHECKER" ]; then
+        printf 'health checker missing: %s\n' "$RUNTIME_VENV_HEALTH_CHECKER" >&2
+        return 1
+    fi
+
+    python3 "$RUNTIME_VENV_HEALTH_CHECKER" \
+        --venv "$VENV_DIR" \
+        --module requests \
+        --module aiohttp \
+        --module mavsdk
+}
+
 load_image_build_metadata() {
     if [ -f "$IMAGE_BUILD_METADATA_FILE" ]; then
         # shellcheck disable=SC1090
@@ -1119,12 +1133,21 @@ run_mavlink2rest() {
 # Function to set up Python environment
 setup_python_env() {
     if [ "$USE_GLOBAL_PYTHON" = false ]; then
+        if [ -d "$VENV_DIR" ]; then
+            local venv_health_output=""
+            if ! venv_health_output=$(runtime_venv_health_check 2>&1); then
+                log_message "WARNING: Existing Python virtual environment is unhealthy. Recreating it. Details: $venv_health_output"
+                rm -rf "$VENV_DIR"
+            else
+                log_message "Python virtual environment already exists at $VENV_DIR."
+                log_message "Python virtual environment health check passed: $venv_health_output"
+            fi
+        fi
+
         if [ ! -d "$VENV_DIR" ]; then
             log_message "Creating a Python virtual environment at $VENV_DIR..."
             python3 -m venv "$VENV_DIR"
             log_message "Virtual environment created successfully."
-        else
-            log_message "Python virtual environment already exists at $VENV_DIR."
         fi
 
         log_message "Activating the virtual environment..."
@@ -1150,8 +1173,13 @@ setup_python_env() {
 
         log_message "Synchronizing Python requirements..."
         local pip_log="$BASE_DIR/logs/pip_install.log"
-        if PIP_NO_CACHE_DIR=1 python3 -m pip install --upgrade pip -q &>"$pip_log" && \
-            PIP_NO_CACHE_DIR=1 python3 -m pip install -q -r "$BASE_DIR/requirements.txt" &>>"$pip_log"; then
+        if PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/python" -m pip install --upgrade pip -q &>"$pip_log" && \
+            PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/python" -m pip install -q -r "$BASE_DIR/requirements.txt" &>>"$pip_log"; then
+            local venv_health_output=""
+            if ! venv_health_output=$(runtime_venv_health_check 2>&1); then
+                log_message "ERROR: Python requirements sync completed but the venv is still unhealthy. Details: $venv_health_output"
+                exit 1
+            fi
             printf "%s\n" "$desired_state" > "$VENV_REQUIREMENTS_MARKER"
             rm -f "$pip_log"
             log_message "Python requirements synchronized successfully."

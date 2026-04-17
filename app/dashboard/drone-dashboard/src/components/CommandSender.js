@@ -621,7 +621,7 @@ const CommandSender = ({
       <div className="command-sender-container">
         <div className="command-sender-header-row">
           <div className="command-sender-header-copy">
-            <p className="command-sender-eyebrow">Mission dispatch</p>
+            <p className="command-sender-eyebrow">Dispatch</p>
             <div className="command-sender-header-meta">
               <span className="command-sender-header-pill">{targetLabel}</span>
               <span className="command-sender-header-note">{clockOffsetLabel ? `Scheduler ${clockOffsetLabel}` : 'Scheduler aligned'}</span>
@@ -632,7 +632,6 @@ const CommandSender = ({
               )}
             </div>
             <h2 className="command-sender-header">Command Control</h2>
-            <p className="command-sender-subheader">Scope, check, dispatch.</p>
           </div>
           <button
             type="button"
@@ -640,125 +639,9 @@ const CommandSender = ({
             onClick={() => setPanelExpanded((current) => !current)}
             aria-expanded={panelExpanded}
           >
-            {panelExpanded ? 'Hide' : 'Open'}
+            {panelExpanded ? 'Hide setup' : 'Scope setup'}
           </button>
         </div>
-
-      {panelExpanded && (
-      <>
-      {/* Target Selection UI */}
-      <div className="target-selection" ref={targetSelectionRef}>
-        <div className="target-selection__row">
-          <div>
-            <label htmlFor="targetMode" className="target-selection__label">Command target</label>
-            <p className="target-selection__hint">All drones, one cluster, or a reviewed subset.</p>
-          </div>
-          <div className="target-selection__controls">
-            <span className="target-selection__scope">{targetLabel}</span>
-            <select
-              id="targetMode"
-              value={targetMode}
-              onChange={(e) => setTargetMode(e.target.value)}
-            >
-              <option value="all">All Drones</option>
-              {clusterTargetOptions.length > 0 && (
-                <option value="cluster">Cluster</option>
-              )}
-              <option value="selected">Select Drones</option>
-            </select>
-          </div>
-        </div>
-
-        {scopeSourceNotice && (
-          <p className="target-selection__notice">{scopeSourceNotice}</p>
-        )}
-
-        {normalizedVisibleDroneIds.length > 0 && (
-          <div className="target-selection__bridge">
-            <div>
-              <strong>Card wall scope</strong>
-              <p>{normalizedVisibleDroneIds.length} visible drone{normalizedVisibleDroneIds.length === 1 ? '' : 's'} ready to copy.</p>
-            </div>
-            <button
-              type="button"
-              className="target-selection__bridge-action"
-              onClick={applyVisibleCardsToScope}
-              disabled={visibleScopeMatchesSelection}
-            >
-              {visibleScopeButtonLabel}
-            </button>
-          </div>
-        )}
-
-        {targetMode === 'cluster' && (
-          <div className="drone-selection drone-selection--cluster">
-            <ClusterScopeBar
-              label="Cluster target"
-              options={clusterTargetOptions}
-              selectedId={selectedClusterScope}
-              onSelect={setSelectedClusterScope}
-              summary="Uses the saved Smart Swarm topology."
-            />
-            <div className="selected-count">
-              {activeClusterTarget
-                ? `${activeClusterTarget.label} · ${clusterTargetIds.length} target drone${clusterTargetIds.length === 1 ? '' : 's'}`
-                : 'No executable clusters are available yet.'}
-            </div>
-          </div>
-        )}
-
-        {targetMode === 'selected' && (
-            <div className="drone-selection">
-            <div className="drone-selection__toolbar">
-              <label className="drone-selection__search">
-                <span>Search targets</span>
-                <input
-                  type="search"
-                  value={targetQuery}
-                  onChange={(event) => setTargetQuery(event.target.value)}
-                  placeholder={DRONE_SEARCH_PLACEHOLDER}
-                  aria-label="Search drone targets by position, hardware ID, or callsign"
-                />
-              </label>
-              <div className="selection-buttons">
-              <button type="button" onClick={selectVisibleDrones}>Select matches</button>
-              <button type="button" onClick={deselectAllDrones}>Clear</button>
-              </div>
-            </div>
-            <div className="drone-grid">
-              {visibleSelectionDrones.map((drone) => {
-                const identity = getDroneDisplayIdentity(drone);
-
-                return (
-                <button
-                  type="button"
-                  key={drone[FIELD_NAMES.HW_ID]}
-                  className={`command-drone-target ${
-                    selectedDrones.includes(drone[FIELD_NAMES.HW_ID]) ? 'selected' : ''
-                  }`}
-                  onClick={() => toggleDroneSelection(drone[FIELD_NAMES.HW_ID])}
-                >
-                  <strong>{identity.primary}</strong>
-                  {identity.secondary && <small>{identity.secondary}</small>}
-                </button>
-              )})}
-            </div>
-            {visibleSelectionDrones.length === 0 && (
-              <div className="drone-selection__empty">
-                No drones match the current search.
-              </div>
-            )}
-            <div className="selected-count">
-              Selected: {selectedDrones.length}
-              {targetQuery && ` · ${visibleSelectionDrones.length} visible match${visibleSelectionDrones.length === 1 ? '' : 'es'}`}
-            </div>
-            <details className="command-inline-help">
-              <summary>Search help</summary>
-              <p>{DRONE_SEARCH_HELP_TEXT}</p>
-            </details>
-          </div>
-        )}
-      </div>
 
       <CommandPreflightSummary
         drones={drones}
@@ -770,7 +653,6 @@ const CommandSender = ({
       />
 
       {commandMonitor && (
-        <>
         <section className={`command-monitor command-monitor--${getMonitorTone(commandMonitor)}`}>
           <div className="command-monitor__header">
             <div>
@@ -830,59 +712,8 @@ const CommandSender = ({
             )}
           </div>
         </section>
-        {recentCommandMonitors.length > 0 && (
-          <section className="command-monitor-history" aria-label="Recent commands">
-            <div className="command-monitor-history__header">
-              <div className="command-monitor-history__header-copy">
-                <strong>Recent Commands</strong>
-                <span>{recentCommandMonitors.length} stored</span>
-              </div>
-              <button
-                type="button"
-                className="command-monitor-history__toggle"
-                onClick={() => setHistoryExpanded((current) => !current)}
-                aria-expanded={historyExpanded}
-              >
-                {historyExpanded ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            {historyExpanded && (
-              <div className="command-monitor-history__list">
-                {recentCommandMonitors.map((monitor) => (
-                  <article
-                    key={monitor.commandId}
-                    className={`command-monitor-history__item command-monitor-history__item--${getMonitorTone(monitor)}`}
-                  >
-                    <div className="command-monitor-history__content">
-                      <div className="command-monitor-history__topline">
-                        <strong>{monitor.commandLabel}</strong>
-                        <span className={`command-monitor__badge command-monitor__badge--${getMonitorTone(monitor)}`}>
-                          {monitor.progress?.label || 'Command update'}
-                        </span>
-                      </div>
-                      <p>{monitor.progress?.message}</p>
-                      <div className="command-monitor-history__meta">
-                        <span>{monitor.targetLabel}</span>
-                        <span>ID {monitor.commandId}</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="command-monitor__action command-monitor__action--secondary"
-                      onClick={() => handleDismissRecentMonitor(monitor.commandId)}
-                    >
-                      Dismiss
-                    </button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-        </>
       )}
 
-      {/* Tab Navigation with Expert UI/UX Icons */}
       <div className="command-tabs">
         <button
           className={`command-tab ${activeTab === 'missionTrigger' ? 'active' : ''}`}
@@ -933,6 +764,174 @@ const CommandSender = ({
         )}
       </div>
 
+      {panelExpanded && (
+        <section className="command-sender-setup" ref={targetSelectionRef}>
+          <div className="target-selection">
+            <div className="target-selection__row">
+              <div>
+                <label htmlFor="targetMode" className="target-selection__label">Dispatch scope</label>
+                <p className="target-selection__hint">All drones, one cluster, or a reviewed subset.</p>
+              </div>
+              <div className="target-selection__controls">
+                <span className="target-selection__scope">{targetLabel}</span>
+                <select
+                  id="targetMode"
+                  value={targetMode}
+                  onChange={(e) => setTargetMode(e.target.value)}
+                >
+                  <option value="all">All drones</option>
+                  {clusterTargetOptions.length > 0 && (
+                    <option value="cluster">Cluster</option>
+                  )}
+                  <option value="selected">Selected</option>
+                </select>
+              </div>
+            </div>
+
+            {scopeSourceNotice && (
+              <p className="target-selection__notice">{scopeSourceNotice}</p>
+            )}
+
+            {normalizedVisibleDroneIds.length > 0 && (
+              <div className="target-selection__bridge">
+                <div>
+                  <strong>Visible cards</strong>
+                  <p>{normalizedVisibleDroneIds.length} ready to apply.</p>
+                </div>
+                <button
+                  type="button"
+                  className="target-selection__bridge-action"
+                  onClick={applyVisibleCardsToScope}
+                  disabled={visibleScopeMatchesSelection}
+                >
+                  {visibleScopeButtonLabel}
+                </button>
+              </div>
+            )}
+
+            {targetMode === 'cluster' && (
+              <div className="drone-selection drone-selection--cluster">
+                <ClusterScopeBar
+                  label="Cluster target"
+                  options={clusterTargetOptions}
+                  selectedId={selectedClusterScope}
+                  onSelect={setSelectedClusterScope}
+                  summary="Uses the saved Smart Swarm topology."
+                />
+                <div className="selected-count">
+                  {activeClusterTarget
+                    ? `${activeClusterTarget.label} · ${clusterTargetIds.length} target drone${clusterTargetIds.length === 1 ? '' : 's'}`
+                    : 'No executable clusters are available yet.'}
+                </div>
+              </div>
+            )}
+
+            {targetMode === 'selected' && (
+              <div className="drone-selection">
+                <div className="drone-selection__toolbar">
+                  <label className="drone-selection__search">
+                    <span>Search targets</span>
+                    <input
+                      type="search"
+                      value={targetQuery}
+                      onChange={(event) => setTargetQuery(event.target.value)}
+                      placeholder={DRONE_SEARCH_PLACEHOLDER}
+                      aria-label="Search drone targets by position, hardware ID, or callsign"
+                    />
+                  </label>
+                  <div className="selection-buttons">
+                    <button type="button" onClick={selectVisibleDrones}>Select matches</button>
+                    <button type="button" onClick={deselectAllDrones}>Clear</button>
+                  </div>
+                </div>
+                <div className="drone-grid">
+                  {visibleSelectionDrones.map((drone) => {
+                    const identity = getDroneDisplayIdentity(drone);
+
+                    return (
+                      <button
+                        type="button"
+                        key={drone[FIELD_NAMES.HW_ID]}
+                        className={`command-drone-target ${
+                          selectedDrones.includes(drone[FIELD_NAMES.HW_ID]) ? 'selected' : ''
+                        }`}
+                        onClick={() => toggleDroneSelection(drone[FIELD_NAMES.HW_ID])}
+                      >
+                        <strong>{identity.primary}</strong>
+                        {identity.secondary && <small>{identity.secondary}</small>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {visibleSelectionDrones.length === 0 && (
+                  <div className="drone-selection__empty">
+                    No drones match the current search.
+                  </div>
+                )}
+                <div className="selected-count">
+                  Selected: {selectedDrones.length}
+                  {targetQuery && ` · ${visibleSelectionDrones.length} visible match${visibleSelectionDrones.length === 1 ? '' : 'es'}`}
+                </div>
+                <details className="command-inline-help">
+                  <summary>Search help</summary>
+                  <p>{DRONE_SEARCH_HELP_TEXT}</p>
+                </details>
+              </div>
+            )}
+          </div>
+
+          {recentCommandMonitors.length > 0 && (
+            <section className="command-monitor-history" aria-label="Recent commands">
+              <div className="command-monitor-history__header">
+                <div className="command-monitor-history__header-copy">
+                  <strong>Recent commands</strong>
+                  <span>{recentCommandMonitors.length} stored</span>
+                </div>
+                <button
+                  type="button"
+                  className="command-monitor-history__toggle"
+                  onClick={() => setHistoryExpanded((current) => !current)}
+                  aria-expanded={historyExpanded}
+                >
+                  {historyExpanded ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              {historyExpanded && (
+                <div className="command-monitor-history__list">
+                  {recentCommandMonitors.map((monitor) => (
+                    <article
+                      key={monitor.commandId}
+                      className={`command-monitor-history__item command-monitor-history__item--${getMonitorTone(monitor)}`}
+                    >
+                      <div className="command-monitor-history__content">
+                        <div className="command-monitor-history__topline">
+                          <strong>{monitor.commandLabel}</strong>
+                          <span className={`command-monitor__badge command-monitor__badge--${getMonitorTone(monitor)}`}>
+                            {monitor.progress?.label || 'Command update'}
+                          </span>
+                        </div>
+                        <p>{monitor.progress?.message}</p>
+                        <div className="command-monitor-history__meta">
+                          <span>{monitor.targetLabel}</span>
+                          <span>ID {monitor.commandId}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="command-monitor__action command-monitor__action--secondary"
+                        onClick={() => handleDismissRecentMonitor(monitor.commandId)}
+                      >
+                        Dismiss
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </section>
+      )}
+
       <PrecisionMoveDialog
         isOpen={precisionMoveDialogOpen}
         targetLabel={targetLabel}
@@ -945,8 +944,6 @@ const CommandSender = ({
         onSubmit={handleSubmitPrecisionMove}
         onSubmitHold={handleSubmitPrecisionMoveHold}
       />
-      </>
-      )}
 
       {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
       {modalOpen && ReactDOM.createPortal(

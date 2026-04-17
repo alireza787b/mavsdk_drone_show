@@ -16,7 +16,6 @@ import { normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import {
-  DRONE_SEARCH_HELP_TEXT,
   DRONE_SEARCH_PLACEHOLDER,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
@@ -44,6 +43,7 @@ const Overview = ({ setSelectedDrone }) => {
   const [commandTargetMode, setCommandTargetMode] = useState('all');
   const [commandSelectedDrones, setCommandSelectedDrones] = useState([]);
   const [commandClusterScope, setCommandClusterScope] = useState('');
+  const [fleetPanelExpanded, setFleetPanelExpanded] = useState(false);
   const [originRect, setOriginRect] = useState(null);
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -320,14 +320,6 @@ const Overview = ({ setSelectedDrone }) => {
     setCommandSelectedDrones(orderedNextScope);
   }, [commandClusterTargetIds, commandSelectedDrones, commandTargetMode, drones]);
 
-  const applyVisibleCardsToCommandScope = React.useCallback(() => {
-    if (filteredDroneIds.length === 0) {
-      return;
-    }
-
-    setCommandTargetMode('selected');
-    setCommandSelectedDrones(filteredDroneIds);
-  }, [filteredDroneIds]);
   React.useEffect(() => {
     if (commandTargetMode !== 'selected') {
       return;
@@ -362,27 +354,57 @@ const Overview = ({ setSelectedDrone }) => {
             Live status, command scope, and launch readiness for the active fleet.
           </p>
         </div>
-        <div className="overview-summary-grid" role="list" aria-label="Fleet overview">
-          <article className="overview-summary-card" role="listitem">
-            <span className="overview-summary-card__label">Visible drones</span>
-            <strong>{fleetSummary.total}</strong>
-            <small>Card wall</small>
-          </article>
-          <article className="overview-summary-card" role="listitem">
-            <span className="overview-summary-card__label">Online link</span>
-            <strong>{fleetSummary.online}</strong>
-            <small>{fleetSummary.degraded} delayed · {fleetSummary.unavailable} unavailable</small>
-          </article>
-          <article className="overview-summary-card" role="listitem">
-            <span className="overview-summary-card__label">Ready status</span>
-            <strong>{fleetSummary.ready}</strong>
-            <small>{fleetSummary.total - fleetSummary.ready} need review</small>
-          </article>
-          <article className="overview-summary-card" role="listitem">
-            <span className="overview-summary-card__label">Armed aircraft</span>
-            <strong>{fleetSummary.armed}</strong>
-            <small>{Math.max(fleetSummary.total - fleetSummary.armed, 0)} disarmed</small>
-          </article>
+        <div className="overview-summary-panel">
+          <div className="overview-summary-strip" role="list" aria-label="Fleet overview">
+            <article className="overview-summary-pill" role="listitem">
+              <span className="overview-summary-pill__label">Fleet</span>
+              <strong>{fleetSummary.total}</strong>
+            </article>
+            <article className="overview-summary-pill" role="listitem">
+              <span className="overview-summary-pill__label">Online</span>
+              <strong>{fleetSummary.online}</strong>
+            </article>
+            <article className="overview-summary-pill" role="listitem">
+              <span className="overview-summary-pill__label">Ready</span>
+              <strong>{fleetSummary.ready}</strong>
+            </article>
+            <article className="overview-summary-pill" role="listitem">
+              <span className="overview-summary-pill__label">Armed</span>
+              <strong>{fleetSummary.armed}</strong>
+            </article>
+          </div>
+          <button
+            type="button"
+            className="overview-summary-toggle"
+            onClick={() => setFleetPanelExpanded((current) => !current)}
+            aria-expanded={fleetPanelExpanded}
+          >
+            {fleetPanelExpanded ? 'Hide fleet details' : 'Show fleet details'}
+          </button>
+          {fleetPanelExpanded && (
+            <div className="overview-summary-grid" role="list" aria-label="Expanded fleet overview">
+              <article className="overview-summary-card" role="listitem">
+                <span className="overview-summary-card__label">Visible drones</span>
+                <strong>{fleetSummary.total}</strong>
+                <small>Card wall</small>
+              </article>
+              <article className="overview-summary-card" role="listitem">
+                <span className="overview-summary-card__label">Online link</span>
+                <strong>{fleetSummary.online}</strong>
+                <small>{fleetSummary.degraded} delayed · {fleetSummary.unavailable} unavailable</small>
+              </article>
+              <article className="overview-summary-card" role="listitem">
+                <span className="overview-summary-card__label">Ready status</span>
+                <strong>{fleetSummary.ready}</strong>
+                <small>{fleetSummary.total - fleetSummary.ready} need review</small>
+              </article>
+              <article className="overview-summary-card" role="listitem">
+                <span className="overview-summary-card__label">Armed aircraft</span>
+                <strong>{fleetSummary.armed}</strong>
+                <small>{Math.max(fleetSummary.total - fleetSummary.armed, 0)} disarmed</small>
+              </article>
+            </div>
+          )}
         </div>
       </header>
 
@@ -402,21 +424,13 @@ const Overview = ({ setSelectedDrone }) => {
 
       <div className="connected-drones-header">
         <div>
-          <h2>Connected Drones</h2>
-          <p>Visual filters stay local until you copy them into command scope.</p>
+          <h2>Card Wall</h2>
+          <p>Visual filters stay local until you apply them inside dispatch setup.</p>
         </div>
         <div className="connected-drones-header__actions">
           <span className="connected-drones-count">
             {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
           </span>
-          <button
-            type="button"
-            className="connected-drones-action"
-            onClick={applyVisibleCardsToCommandScope}
-            disabled={filteredDroneIds.length === 0}
-          >
-            Copy visible to scope
-          </button>
         </div>
       </div>
 
@@ -458,9 +472,6 @@ const Overview = ({ setSelectedDrone }) => {
             summary="Top-leader scopes keep large fleets readable."
           />
         )}
-        <p className="overview-fleet-toolbar__note">
-          Search examples: {DRONE_SEARCH_HELP_TEXT}
-        </p>
       </div>
 
       {notification && <div className="notification">{notification}</div>}
@@ -490,13 +501,6 @@ const Overview = ({ setSelectedDrone }) => {
               isExpanded={expandedDrone && expandedDrone.hw_ID === drone.hw_ID}
               toggleDroneDetails={toggleDroneDetails}
               setSelectedDrone={setSelectedDrone}
-              commandScopeLabel={
-                commandTargetMode === 'all'
-                  ? ''
-                  : commandScopeSet.has(normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
-                    ? (commandTargetMode === 'cluster' ? 'Cluster' : 'Selected')
-                    : ''
-              }
               commandScopeState={
                 commandTargetMode === 'all'
                   ? 'all'

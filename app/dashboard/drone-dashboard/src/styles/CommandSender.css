@@ -63,6 +63,12 @@
     line-height: var(--line-height-normal);
 }
 
+.command-sender-setup {
+    display: grid;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+}
+
 .command-sender-header-meta {
     display: flex;
     flex-wrap: wrap;
@@ -234,7 +240,6 @@
 
 /* Target Selection */
 .target-selection {
-    margin-bottom: var(--spacing-xl);
     padding: var(--spacing-lg);
     background: var(--color-surface-muted);
     border-radius: var(--border-radius-md);
@@ -957,29 +962,6 @@
     color: var(--color-text-secondary);
 }
 
-.command-preflight__toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 4.75rem;
-    min-height: 2.25rem;
-    padding: 0.45rem 0.85rem;
-    border-radius: var(--border-radius-full);
-    border: 1px solid var(--color-primary-border);
-    background: var(--color-surface-inset);
-    color: var(--color-text-primary);
-    font: inherit;
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: var(--transition-all);
-}
-
-.command-preflight__toggle:hover {
-    border-color: var(--color-primary);
-    background: rgba(var(--color-primary-rgb), 0.12);
-}
-
 .command-preflight__clock-label,
 .command-preflight__clock-value,
 .command-preflight__metric-label,
@@ -1004,6 +986,7 @@
 .command-preflight__metric {
     position: relative;
     width: 100%;
+    min-height: 5.4rem;
     padding: var(--spacing-base);
     border-radius: var(--border-radius-base);
     background: var(--color-bg-primary);
@@ -1012,7 +995,7 @@
     transition: var(--transition-all);
     text-align: left;
     appearance: none;
-    cursor: default;
+    cursor: pointer;
 }
 
 .command-preflight__metric:hover:not(:disabled) {
@@ -1022,6 +1005,7 @@
 
 .command-preflight__metric:disabled {
     opacity: 1;
+    cursor: default;
 }
 
 .command-preflight__metric--good {
@@ -1050,10 +1034,6 @@
     font-size: var(--font-size-xs);
     letter-spacing: 0.08em;
     text-transform: uppercase;
-}
-
-.command-preflight__grid:not(.is-expanded) .command-preflight__metric {
-    min-height: 5rem;
 }
 
 .command-preflight__metric-badge {

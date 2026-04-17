@@ -13,6 +13,7 @@ GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 VENV_DIR="$BASE_DIR/venv"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
+RUNTIME_VENV_HEALTH_CHECKER="$BASE_DIR/tools/check_runtime_venv.py"
 MAVSDK_BINARY_PATH="$BASE_DIR/mavsdk_server"
 MAVSDK_DOWNLOAD_SCRIPT="$BASE_DIR/tools/download_mavsdk_server.sh"
 PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
@@ -191,16 +192,25 @@ ensure_mavsdk_server() {
 
 ensure_python_env() {
     log "Preparing Python virtual environment..."
+    rm -rf "$VENV_DIR"
     python3 -m venv "$VENV_DIR"
-    source "$VENV_DIR/bin/activate"
 
-    PIP_NO_CACHE_DIR=1 python3 -m pip install --upgrade pip >/tmp/mds_pip_install.log 2>&1
-    PIP_NO_CACHE_DIR=1 python3 -m pip install -r "$BASE_DIR/requirements.txt" >>/tmp/mds_pip_install.log 2>&1 || {
+    PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/python" -m pip install --upgrade pip >/tmp/mds_pip_install.log 2>&1
+    PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/python" -m pip install -r "$BASE_DIR/requirements.txt" >>/tmp/mds_pip_install.log 2>&1 || {
         tail -n 40 /tmp/mds_pip_install.log >&2 || true
         fail "Failed to install Python requirements"
     }
+    python3 "$RUNTIME_VENV_HEALTH_CHECKER" \
+        --venv "$VENV_DIR" \
+        --module requests \
+        --module aiohttp \
+        --module mavsdk >/tmp/mds_venv_health.log 2>&1 || {
+        cat /tmp/mds_venv_health.log >&2 || true
+        fail "Created Python virtual environment is unhealthy"
+    }
     printf "%s\n" "$(requirements_state_value)" > "$VENV_REQUIREMENTS_MARKER"
     rm -f /tmp/mds_pip_install.log
+    rm -f /tmp/mds_venv_health.log
 }
 
 stabilize_mavlink2rest_binary() {

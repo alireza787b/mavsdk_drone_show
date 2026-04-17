@@ -188,11 +188,12 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - the image keeps one prebuilt PX4 SITL build tree, the real PX4 git checkout plus submodule metadata, one baked `mavsdk_server` binary, and one prebuilt Python venv; old release layer history is flattened out during packaging
 > - release image prep removes the PX4 ARM firmware toolchain by default to save space because it is not required for normal SITL runtime; set `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding if you intentionally need that toolchain in a custom image
 > - each container can still fetch and hard-reset to the latest configured MDS branch on startup, and that sync now also cleans untracked MDS files while preserving runtime artifacts such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`
+> - before reusing a preserved runtime `venv`, `startup_sitl.sh` now validates that the interpreter version, site-packages path, and core imports still match; unhealthy `venv`s are rebuilt automatically instead of silently breaking action scripts later
 > - PX4 and the baked `mavsdk_server` binary are pinned inside the image and are updated only through a validated image rebuild; they are not auto-pulled during container startup
 > - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development, but it is not the same as a reproducible validated release because the runtime MDS checkout may move ahead of the pinned PX4/image contents
 > - for promotion-grade regression runs on a long-lived host, do not mix an older baked image with boot-time repo sync to a newer commit; use a fresh image rebuild plus `MDS_SITL_GIT_SYNC=false` and usually `MDS_SITL_REQUIREMENTS_SYNC=false`
 > - image prep writes build metadata and PX4 provenance into the repo root so startup logs can show what was baked into the image
-> - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot
+> - `requirements.txt` changes trigger a venv sync automatically; unchanged requirements do not reinstall on every boot unless runtime validation detects an unhealthy preserved `venv`
 > - runtime file logs are bounded by default so containers stay small, common PX4 `pxh>` prompt noise is reduced in the raw SITL log, and those logs disappear when the container is removed
 > - `QT_QPA_PLATFORM=offscreen` is set automatically for headless runs
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference

@@ -32,7 +32,6 @@ const DroneWidget = ({
   isExpanded,
   setSelectedDrone,
   commandScopeState = 'out',
-  commandScopeLabel = '',
   onToggleCommandScope = null,
 }) => {
   const navigate = useNavigate();
@@ -227,9 +226,6 @@ const DroneWidget = ({
             <div className="drone-header__meta">
               {aliasLabel && (
                 <span className="drone-header__alias" title={aliasLabel}>{aliasLabel}</span>
-              )}
-              {commandScopeLabel && (
-                <span className="drone-header__scope-badge" title={`Command scope: ${commandScopeLabel}`}>{commandScopeLabel}</span>
               )}
             </div>
           </div>
@@ -445,7 +441,6 @@ DroneWidget.propTypes = {
   isExpanded: PropTypes.bool,
   setSelectedDrone: PropTypes.func,
   commandScopeState: PropTypes.oneOf(['out', 'selected', 'cluster', 'all']),
-  commandScopeLabel: PropTypes.string,
   onToggleCommandScope: PropTypes.func,
 };
 

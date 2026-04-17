@@ -25,7 +25,6 @@ const CommandPreflightSummary = ({
   const { data: gitStatusResponse, loading: gitLoading } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 15000);
   const [activeExceptionGroup, setActiveExceptionGroup] = useState(null);
   const [exceptionsExpanded, setExceptionsExpanded] = useState(false);
-  const [detailsExpanded, setDetailsExpanded] = useState(false);
 
   const summary = useMemo(() => {
     const scopedLookup = new Set(targetDroneIds.map((value) => normalizeId(value)).filter(Boolean));
@@ -218,17 +217,9 @@ const CommandPreflightSummary = ({
             </span>
           </div>
         </div>
-        <button
-          type="button"
-          className="command-preflight__toggle"
-          onClick={() => setDetailsExpanded((current) => !current)}
-          aria-expanded={detailsExpanded}
-        >
-          {detailsExpanded ? 'Hide' : 'Details'}
-        </button>
       </div>
 
-      <div className={`command-preflight__grid ${detailsExpanded ? 'is-expanded' : ''}`}>
+      <div className="command-preflight__grid">
         {metrics.map((metric) => (
           <button
             key={metric.key}
@@ -237,10 +228,11 @@ const CommandPreflightSummary = ({
             title={metric.tooltip}
             onClick={() => handleMetricClick(metric)}
             disabled={!metric.exceptionCount}
+            aria-pressed={activeExceptionGroup === metric.key}
           >
             <span className="command-preflight__metric-label">{metric.label}</span>
             <strong>{metric.value}</strong>
-            {detailsExpanded ? <small>{metric.detail}</small> : null}
+            <small>{metric.detail}</small>
             {metric.exceptionCount ? (
               <span className="command-preflight__metric-badge">{metric.exceptionCount}</span>
             ) : null}

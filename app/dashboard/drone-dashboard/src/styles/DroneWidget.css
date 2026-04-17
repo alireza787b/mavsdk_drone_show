@@ -28,6 +28,8 @@
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(10px);
+    overflow: hidden;
+    isolation: isolate;
     --widget-left-accent: transparent;
     --widget-top-accent: transparent;
     --widget-right-accent: transparent;

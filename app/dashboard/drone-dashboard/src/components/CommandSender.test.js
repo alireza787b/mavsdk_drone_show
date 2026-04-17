@@ -67,7 +67,7 @@ const renderWithCommandActivity = (ui) => render(
 );
 
 const openCommandControl = () => {
-  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  fireEvent.click(screen.getByRole('button', { name: /scope setup/i }));
 };
 
 describe('CommandSender', () => {
@@ -555,7 +555,7 @@ describe('CommandSender', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Recent Commands')).toBeInTheDocument();
+      expect(screen.getByText(/recent commands/i)).toBeInTheDocument();
     });
 
     const liveMonitor = screen.getByText('Live Command Monitor').closest('section');

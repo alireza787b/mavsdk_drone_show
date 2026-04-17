@@ -91,12 +91,13 @@ Notes:
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
 - `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`.
+- `startup_sitl.sh` now validates the preserved `venv` before trusting it. If the interpreter version, site-packages layout, or core imports do not match, the container rebuilds the `venv` and re-syncs requirements automatically instead of running with a broken Python environment.
 - `MDS_GIT_AUTH_TOKEN_FILE` is the preferred non-interactive path for private GitHub SITL runtime sync and image preparation. It is used only for git clone/fetch inside the containerized flow and is not written into the final flattened image.
 - `MDS_GIT_AUTH_TOKEN` still exists as a legacy fallback, but the preferred file-based path avoids placing the raw token in process arguments during containerized image prep/runtime.
 - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development and rapid rollout, but it is not a reproducible release mode because PX4, `mavsdk_server`, and system packages stay pinned in the image.
 - Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 and the baked `mavsdk_server` binary are intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.
 - For validated production-style SITL releases, rebuild the image after approval so the baked repo commit, PX4 tree, and `mavsdk_server` version are all tested together. Leave `MDS_SITL_GIT_SYNC=true` only if you explicitly want mutable rollout behavior.
-- Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes or when the venv marker is missing.
+- Python dependencies are preinstalled in the image, then re-synced only when `requirements.txt` changes, when the `venv` marker is missing, or when runtime validation detects an unhealthy `venv`.
 - Runtime file logs are bounded by default so containers stay small. Use `MDS_SITL_FILE_LOG_MODE=full` only when you intentionally want unrestricted debug logs.
 - Common raw PX4 `pxh>` shell prompt noise is reduced in `sitl_simulation.log` by default so bounded logs stay readable, but you may still see occasional prompt variants in deep debug sessions.
 - `startup_sitl.sh` also verifies that `mavsdk_server` exists in the repo root and will provision it automatically if a custom image is missing the binary.
