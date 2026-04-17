@@ -1,7 +1,10 @@
 from tools.analyze_smart_swarm_tracking import (
+    assignment_patch_payload,
+    assignment_payload_snapshot,
     build_demo_swarm_assignments,
     build_live_jog_sequence,
     build_precision_move_payload,
+    canonical_assignment,
     compute_tracking_sample,
 )
 
@@ -41,6 +44,41 @@ def test_build_live_jog_sequence_uses_small_precision_move_steps():
     ]
     assert sequence[0][1]["precision_move"]["frame"] == "body"
     assert sequence[-1][1]["precision_move"]["translation_m"] == {"north": 0.0, "east": 1.0, "up": 0.0}
+
+
+def test_assignment_payload_snapshot_preserves_missing_optional_fields():
+    assignments = [
+        {"hw_id": 3, "follow": 1, "offset_x": -8.5, "offset_y": -3.0, "frame": "body"},
+    ]
+
+    snapshot = assignment_payload_snapshot(assignments, [3])
+
+    assert snapshot[3] == {
+        "follow": 1,
+        "offset_x": -8.5,
+        "offset_y": -3.0,
+        "frame": "body",
+    }
+    assert canonical_assignment(snapshot[3]) == {
+        "follow": 1,
+        "offset_x": -8.5,
+        "offset_y": -3.0,
+        "offset_z": 0.0,
+        "frame": "body",
+    }
+
+
+def test_assignment_patch_payload_only_includes_present_optional_fields():
+    payload = assignment_patch_payload(
+        {"follow": 1, "offset_x": -8.5, "offset_y": -3.0, "frame": "body"}
+    )
+
+    assert payload == {
+        "follow": 1,
+        "offset_x": -8.5,
+        "offset_y": -3.0,
+        "frame": "body",
+    }
 
 
 def test_compute_tracking_sample_reports_zero_error_when_follower_matches_body_offset():

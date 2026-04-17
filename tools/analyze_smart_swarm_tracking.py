@@ -186,7 +186,24 @@ def canonical_assignment(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def assignment_snapshot_local(assignments: list[dict[str, Any]], ids) -> dict[int, dict[str, Any]]:
+def assignment_patch_payload(entry: dict[str, Any]) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "follow": int(entry.get("follow", 0) or 0),
+    }
+
+    if "offset_x" in entry:
+        payload["offset_x"] = float(entry.get("offset_x", 0.0) or 0.0)
+    if "offset_y" in entry:
+        payload["offset_y"] = float(entry.get("offset_y", 0.0) or 0.0)
+    if "offset_z" in entry:
+        payload["offset_z"] = float(entry.get("offset_z", 0.0) or 0.0)
+    if "frame" in entry and entry.get("frame") is not None:
+        payload["frame"] = str(entry.get("frame", "body") or "body").lower()
+
+    return payload
+
+
+def assignment_semantic_snapshot(assignments: list[dict[str, Any]], ids) -> dict[int, dict[str, Any]]:
     id_set = {int(idx) for idx in ids}
     return {
         int(entry["hw_id"]): canonical_assignment(entry)
@@ -195,16 +212,29 @@ def assignment_snapshot_local(assignments: list[dict[str, Any]], ids) -> dict[in
     }
 
 
+def assignment_payload_snapshot(assignments: list[dict[str, Any]], ids) -> dict[int, dict[str, Any]]:
+    id_set = {int(idx) for idx in ids}
+    return {
+        int(entry["hw_id"]): assignment_patch_payload(entry)
+        for entry in assignments
+        if int(entry["hw_id"]) in id_set
+    }
+
+
 def apply_assignments(client: Any, expected_assignments: dict[int, dict[str, Any]], *, timeout: int = 30) -> list[int]:
-    current_assignments = assignment_snapshot_local(client.get_swarm(), expected_assignments.keys())
+    expected_semantic = {
+        int(hw_id): canonical_assignment(entry)
+        for hw_id, entry in expected_assignments.items()
+    }
+    current_assignments = assignment_semantic_snapshot(client.get_swarm(), expected_assignments.keys())
     changed_ids: list[int] = []
 
     for hw_id, expected in expected_assignments.items():
-        if current_assignments.get(int(hw_id)) == expected:
+        if current_assignments.get(int(hw_id)) == expected_semantic[int(hw_id)]:
             continue
         client.patch_json(
             f"/api/v1/config/swarm/assignments/{int(hw_id)}",
-            expected,
+            assignment_patch_payload(expected),
         )
         changed_ids.append(int(hw_id))
 
@@ -213,8 +243,8 @@ def apply_assignments(client: Any, expected_assignments: dict[int, dict[str, Any
 
     deadline = time.time() + timeout
     while time.time() < deadline:
-        current = assignment_snapshot_local(client.get_swarm(), expected_assignments.keys())
-        if all(current.get(int(hw_id)) == expected for hw_id, expected in expected_assignments.items()):
+        current = assignment_semantic_snapshot(client.get_swarm(), expected_assignments.keys())
+        if all(current.get(int(hw_id)) == expected_semantic[int(hw_id)] for hw_id in expected_assignments):
             return changed_ids
         time.sleep(1.0)
     raise RuntimeError(f"Timed out applying swarm assignments for drones {changed_ids}")
@@ -618,7 +648,7 @@ async def main_async() -> int:
         results["base_altitudes"] = base_altitudes
 
         swarm = client.get_swarm()
-        original_assignments = assignment_snapshot_local(swarm, ids)
+        original_assignments = assignment_payload_snapshot(swarm, ids)
         results["original_assignments"] = original_assignments
 
         demo_assignments = build_demo_swarm_assignments(ids, args.spacing_m)
