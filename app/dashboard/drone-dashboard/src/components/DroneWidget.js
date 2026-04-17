@@ -1,6 +1,13 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { FaExclamationTriangle, FaCheckCircle, FaInfoCircle, FaCog, FaProjectDiagram } from 'react-icons/fa';
+import {
+  FaCheckCircle,
+  FaCog,
+  FaExclamationTriangle,
+  FaInfoCircle,
+  FaProjectDiagram,
+  FaRegCircle,
+} from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
 import { useNavigate } from 'react-router-dom';
 import DroneCriticalCommands from './DroneCriticalCommands';
@@ -12,6 +19,7 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getPromotedMissionConfigField } from '../utilities/missionConfigFields';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/DroneWidget.css';
 
 /**
@@ -23,7 +31,9 @@ const DroneWidget = ({
   toggleDroneDetails,
   isExpanded,
   setSelectedDrone,
+  commandScopeState = 'out',
   commandScopeLabel = '',
+  onToggleCommandScope = null,
 }) => {
   const navigate = useNavigate();
   const currentTimeInMs = Date.now();
@@ -37,6 +47,18 @@ const DroneWidget = ({
     ? promotedField.displayValue
     : '';
   const hwId = String(drone[FIELD_NAMES.HW_ID] || drone.hw_ID || '');
+  const scopeToggleTitle = (() => {
+    switch (commandScopeState) {
+      case 'all':
+        return 'This drone is currently in the all-drones command scope. Click to switch to manual scope and exclude it.';
+      case 'cluster':
+        return 'This drone is currently in the cluster command scope. Click to switch to manual scope and edit membership.';
+      case 'selected':
+        return 'This drone is currently in the manual command scope. Click to remove it.';
+      default:
+        return 'This drone is outside the current manual command scope. Click to add it.';
+    }
+  })();
 
   // Force re-render every second for live time updates
   const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -69,6 +91,8 @@ const DroneWidget = ({
     drone[FIELD_NAMES.MISSION],
     drone[FIELD_NAMES.LAST_MISSION]
   );
+  const compactIdentity = formatCompactDroneIdentity(drone[FIELD_NAMES.POS_ID], drone[FIELD_NAMES.HW_ID], `H${hwId || '?'}`);
+  const hasCurrentMission = missionDisplay.hasCurrentMission && missionDisplay.currentMissionName !== 'No Mission';
 
   // GPS status processing (with SITL simulation fallback)
   const systemStatus = drone[FIELD_NAMES.SYSTEM_STATUS] || 0;
@@ -174,7 +198,7 @@ const DroneWidget = ({
         missionReady ? 'mission-ready' : ''
       } ${missionExecuting ? 'mission-executing' : ''} ${
         isExpanded ? 'expanded' : ''
-      } ${commandScopeLabel ? 'command-scope-active' : ''}`}
+      } ${commandScopeState === 'selected' || commandScopeState === 'cluster' ? 'command-scope-active' : ''}`}
     >
       {/* Header */}
       <h3 onClick={(e) => {
@@ -209,6 +233,19 @@ const DroneWidget = ({
           </div>
         </div>
         <div className="drone-header__actions">
+          <button
+            type="button"
+            className={`drone-header__action drone-header__action--scope ${commandScopeState !== 'out' ? 'is-active' : ''}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleCommandScope?.(hwId);
+            }}
+            title={scopeToggleTitle}
+            aria-label={scopeToggleTitle}
+          >
+            {commandScopeState !== 'out' ? <FaCheckCircle aria-hidden="true" /> : <FaRegCircle aria-hidden="true" />}
+            <span className="drone-header__action-label">Scope</span>
+          </button>
           <button
             type="button"
             className="drone-header__action"
@@ -309,12 +346,19 @@ const DroneWidget = ({
         {/* Mission */}
         <div className="data-item">
           <span className="data-label">Mission</span>
-          <span
-            className={`mission-badge ${missionDisplay.currentMissionStatusClass}`}
-            title={missionDisplay.badgeTooltip}
-          >
-            {missionDisplay.currentMissionName}
-          </span>
+          <div className="data-value-inline">
+            <span
+              className={`mission-badge ${missionDisplay.currentMissionStatusClass}`}
+              title={missionDisplay.badgeTooltip}
+            >
+              {missionDisplay.currentMissionName}
+            </span>
+            {hasCurrentMission && (
+              <span className="data-item__meta-chip" title={missionDisplay.badgeTooltip}>
+                Active
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Mission State */}
@@ -380,6 +424,10 @@ const DroneWidget = ({
           droneId={String(drone[FIELD_NAMES.HW_ID])}
           isArmed={isArmed}
           runtimeStatus={runtimeStatus}
+          targetLabel={compactIdentity}
+          targetDescriptor={`Per-drone override · ${compactIdentity}`}
+          canCancelMission={hasCurrentMission}
+          currentMissionLabel={missionDisplay.currentMissionName}
         />
       </div>
 
@@ -394,7 +442,9 @@ DroneWidget.propTypes = {
   toggleDroneDetails: PropTypes.func.isRequired,
   isExpanded: PropTypes.bool,
   setSelectedDrone: PropTypes.func,
+  commandScopeState: PropTypes.oneOf(['out', 'selected', 'cluster', 'all']),
   commandScopeLabel: PropTypes.string,
+  onToggleCommandScope: PropTypes.func,
 };
 
 export default DroneWidget;

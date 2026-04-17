@@ -1,12 +1,21 @@
 import React, { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { toast } from 'react-toastify';
-import { FaHandPaper, FaHome, FaPlaneArrival, FaPlaneDeparture, FaSkull } from 'react-icons/fa';
+import {
+  FaBan,
+  FaCrosshairs,
+  FaHandPaper,
+  FaHome,
+  FaPlaneArrival,
+  FaPlaneDeparture,
+  FaSkull,
+} from 'react-icons/fa';
 
 import ConfirmationModal from './ConfirmationModal';
 import InfoHint from './InfoHint';
+import PrecisionMoveDialog from './PrecisionMoveDialog';
 import { buildActionCommand } from '../services/droneApiService';
-import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
+import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/DroneCriticalCommands.css';
@@ -85,10 +94,36 @@ function getPanelNote(isArmed, runtimeStatus) {
   return 'Use for isolated intervention on this one drone.';
 }
 
-const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null }) => {
+const DroneCriticalCommands = ({
+  droneId,
+  isArmed = false,
+  runtimeStatus = null,
+  targetLabel = '',
+  targetDescriptor = '',
+  canCancelMission = false,
+  currentMissionLabel = '',
+}) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
+  const [precisionMoveDialogOpen, setPrecisionMoveDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { commandLifecycleCallbacks } = useCommandActivity();
+  const resolvedTargetLabel = targetLabel || `Drone ${droneId}`;
+  const resolvedTargetDescriptor = targetDescriptor || `Per-drone override: drone ${droneId}`;
+  const jogDisabledReason = getDisabledReason(
+    {
+      actionType: DRONE_ACTION_TYPES.PRECISION_MOVE,
+      label: 'Jog',
+      requiresArmed: true,
+    },
+    isArmed,
+    runtimeStatus,
+  );
+  const cancelDisabledReason = !runtimeStatus || runtimeStatus.level === 'unknown' || runtimeStatus.level === 'offline'
+    ? 'Command link unavailable. Recover telemetry before cancelling a mission.'
+    : !canCancelMission
+      ? 'No active mission is available to cancel on this drone.'
+      : null;
 
   const commands = useMemo(
     () => {
@@ -112,6 +147,33 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
     setModalOpen(true);
   };
 
+  const handleOpenPrecisionMove = () => {
+    if (jogDisabledReason) {
+      toast.info(jogDisabledReason);
+      return;
+    }
+
+    setPrecisionMoveDialogOpen(true);
+  };
+
+  const handleRequestMissionCancel = () => {
+    if (cancelDisabledReason) {
+      toast.info(cancelDisabledReason);
+      return;
+    }
+
+    setPendingAction({
+      actionType: DRONE_MISSION_TYPES.NONE,
+      label: 'Cancel Mission',
+      description: currentMissionLabel
+        ? `Cancel ${currentMissionLabel} for this drone`
+        : 'Cancel the active mission for this drone',
+      tone: 'warning',
+      kind: 'mission-cancel',
+    });
+    setModalOpen(true);
+  };
+
   const handleConfirm = async () => {
     if (!pendingAction || !droneId) {
       setModalOpen(false);
@@ -120,25 +182,40 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
 
     setModalOpen(false);
 
-    const commandData = buildActionCommand(
-      pendingAction.actionType,
-      [droneId],
-      0,
-    );
+    const commandData = pendingAction.kind === 'mission-cancel'
+      ? {
+        missionType: String(DRONE_MISSION_TYPES.NONE),
+        triggerTime: '0',
+        target_drones: [droneId],
+        uiMeta: {
+          operatorLabel: 'Cancel Mission',
+          targetLabel: resolvedTargetLabel,
+          targetDescriptor: resolvedTargetDescriptor,
+        },
+      }
+      : buildActionCommand(
+        pendingAction.actionType,
+        [droneId],
+        0,
+      );
+
     commandData.uiMeta = {
+      ...(commandData.uiMeta || {}),
       operatorLabel: pendingAction.label,
-      targetLabel: `Drone ${droneId}`,
-      targetDescriptor: `Per-drone override: drone ${droneId}`,
+      targetLabel: resolvedTargetLabel,
+      targetDescriptor: resolvedTargetDescriptor,
     };
 
     try {
+      setSubmitting(true);
       await submitCommandWithLifecycleFeedback(commandData, {
         ...commandLifecycleCallbacks,
       });
     } catch (error) {
       console.error('Error sending command:', error);
-      toast.error(`Failed to send "${pendingAction.label}" to drone ${droneId}.`);
+      toast.error(`Failed to send "${pendingAction.label}" to ${resolvedTargetLabel}.`);
     } finally {
+      setSubmitting(false);
       setPendingAction(null);
     }
   };
@@ -148,12 +225,92 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
     setPendingAction(null);
   };
 
+  const handleSubmitPrecisionMove = async (commandData, options = {}) => {
+    try {
+      setSubmitting(true);
+      const response = await submitCommandWithLifecycleFeedback({
+        ...commandData,
+        target_drones: [droneId],
+        uiMeta: {
+          ...(commandData.uiMeta || {}),
+          targetLabel: resolvedTargetLabel,
+          targetDescriptor: resolvedTargetDescriptor,
+        },
+      }, {
+        ...commandLifecycleCallbacks,
+      });
+      const didSend = response?.success !== false;
+      if (didSend && options.closeOnSuccess !== false) {
+        setPrecisionMoveDialogOpen(false);
+      }
+      return didSend;
+    } catch (error) {
+      console.error('Failed to submit per-drone precision move', error);
+      toast.error(`Failed to send Precision Move to ${resolvedTargetLabel}.`);
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitPrecisionMoveHold = async (commandData, options = {}) => {
+    try {
+      setSubmitting(true);
+      const response = await submitCommandWithLifecycleFeedback({
+        ...commandData,
+        target_drones: [droneId],
+        uiMeta: {
+          ...(commandData.uiMeta || {}),
+          targetLabel: resolvedTargetLabel,
+          targetDescriptor: resolvedTargetDescriptor,
+        },
+      }, {
+        ...commandLifecycleCallbacks,
+      });
+      const didSend = response?.success !== false;
+      if (didSend && options.closeOnSuccess !== false) {
+        setPrecisionMoveDialogOpen(false);
+      }
+      return didSend;
+    } catch (error) {
+      console.error('Failed to send per-drone Hold override', error);
+      toast.error(`Failed to send Hold to ${resolvedTargetLabel}.`);
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="critical-commands-panel">
       <div className="critical-commands-panel__header">
         <div className="critical-commands-panel__title-row">
           <span className="critical-commands-panel__title">Actions</span>
           <InfoHint content={panelNote} label="Action guidance" placement="bottom" />
+        </div>
+        <div className="critical-commands-panel__utilities">
+          <button
+            type="button"
+            className="critical-commands-panel__utility"
+            onClick={handleOpenPrecisionMove}
+            disabled={Boolean(jogDisabledReason) || submitting}
+            aria-disabled={Boolean(jogDisabledReason) || submitting}
+            title={jogDisabledReason || `Open jog control for ${resolvedTargetLabel}`}
+          >
+            <FaCrosshairs aria-hidden="true" />
+            <span className="critical-commands-panel__utility-label">Jog</span>
+          </button>
+          <button
+            type="button"
+            className="critical-commands-panel__utility critical-commands-panel__utility--warning"
+            onClick={handleRequestMissionCancel}
+            disabled={Boolean(cancelDisabledReason) || submitting}
+            aria-disabled={Boolean(cancelDisabledReason) || submitting}
+            title={cancelDisabledReason || `Cancel current mission for ${resolvedTargetLabel}`}
+          >
+            <FaBan aria-hidden="true" />
+            <span className="critical-commands-panel__utility-label">Cancel</span>
+          </button>
         </div>
       </div>
 
@@ -169,8 +326,8 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
               className={`critical-command-button ${command.tone}`}
               title={disabled ? `${command.label}: ${command.disabledReason}` : `${command.label}: ${command.description}`}
               onClick={() => handleCommandClick(command)}
-              disabled={disabled}
-              aria-disabled={disabled}
+              disabled={disabled || submitting}
+              aria-disabled={disabled || submitting}
             >
               <span className="critical-command-button__icon">
                 <Icon aria-hidden="true" />
@@ -186,7 +343,7 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
         title={pendingAction?.tone === 'danger' ? 'Confirm Critical Action' : 'Confirm Action'}
         message={
           pendingAction
-            ? `${pendingAction.description}. Are you sure you want to ${pendingAction.label} drone ${droneId}?`
+            ? `${pendingAction.description}. Confirm ${pendingAction.label} for ${resolvedTargetLabel}?`
             : ''
         }
         confirmLabel={pendingAction?.label || 'Confirm'}
@@ -195,6 +352,23 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
+
+      <PrecisionMoveDialog
+        isOpen={precisionMoveDialogOpen}
+        targetLabel={resolvedTargetLabel}
+        targetDescriptor={resolvedTargetDescriptor}
+        targetCount={1}
+        submitting={submitting}
+        scopeLocked
+        onClose={() => {
+          if (!submitting) {
+            setPrecisionMoveDialogOpen(false);
+          }
+        }}
+        onEditTargetScope={() => {}}
+        onSubmit={handleSubmitPrecisionMove}
+        onSubmitHold={handleSubmitPrecisionMoveHold}
+      />
     </div>
   );
 };
@@ -202,6 +376,10 @@ const DroneCriticalCommands = ({ droneId, isArmed = false, runtimeStatus = null 
 DroneCriticalCommands.propTypes = {
   droneId: PropTypes.string.isRequired,
   isArmed: PropTypes.bool,
+  targetLabel: PropTypes.string,
+  targetDescriptor: PropTypes.string,
+  canCancelMission: PropTypes.bool,
+  currentMissionLabel: PropTypes.string,
   runtimeStatus: PropTypes.shape({
     level: PropTypes.string,
     label: PropTypes.string,

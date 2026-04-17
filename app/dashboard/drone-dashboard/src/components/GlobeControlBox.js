@@ -1,8 +1,11 @@
 // src/components/GlobeControlBox.js
 import React from 'react';
+import { FIELD_NAMES } from '../constants/fieldMappings';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/GlobeControlBox.css';
 
 function GlobeControlBox({ 
+  drones = [],
   setShowGround, 
   showGround, 
   setGroundLevel, 
@@ -16,7 +19,12 @@ function GlobeControlBox({
 }) {
   return (
     <div className={`globe-control-box ${isToolboxOpen ? 'show' : 'hide'}`}>
-      <h4>Control Panel</h4>
+      <div className="globe-control-box__header">
+        <div>
+          <p className="globe-control-box__eyebrow">3D view</p>
+          <h4>View Filters</h4>
+        </div>
+      </div>
       <div className="control-section">
         <label className="control-label">
           <input
@@ -24,12 +32,12 @@ function GlobeControlBox({
             checked={showGround}
             onChange={(e) => setShowGround(e.target.checked)}
           />
-          Show Ground
+          Ground
         </label>
       </div>
       <div className="control-section">
         <label className="control-label">
-          Ground Level (m):
+          Ground level
           <input 
             type="number" 
             min={-2000} 
@@ -44,7 +52,7 @@ function GlobeControlBox({
           onClick={handleGetTerrainClick} 
           className="get-terrain-button"
         >
-          Get Terrain
+          Load Terrain
         </button>
       </div>
       <div className="control-section">
@@ -54,12 +62,20 @@ function GlobeControlBox({
             checked={showGrid}
             onChange={() => setShowGrid(!showGrid)}
           />
-          Show Grid
+          Grid
         </label>
       </div>
       <div className="control-section drone-toggles">
-        <h5>Drone Visibility:</h5>
-        {Object.keys(droneVisibility).map((droneId) => (
+        <h5>Visible Drones</h5>
+        {Object.keys(droneVisibility).map((droneId) => {
+          const drone = drones.find((entry) => String(entry?.[FIELD_NAMES.HW_ID]) === String(droneId));
+          const label = formatCompactDroneIdentity(
+            drone?.[FIELD_NAMES.POS_ID],
+            droneId,
+            `H${droneId}`,
+          );
+
+          return (
           <div key={droneId} className="drone-toggle">
             <label>
               <input
@@ -67,10 +83,10 @@ function GlobeControlBox({
                 checked={droneVisibility[droneId]}
                 onChange={() => toggleDroneVisibility(droneId)}
               />
-              Drone {droneId}
+              <span>{label}</span>
             </label>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

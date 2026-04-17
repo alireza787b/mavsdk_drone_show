@@ -65,6 +65,7 @@ const CommandSender = ({
   const [currentCommandData, setCurrentCommandData] = useState(null);
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
   const targetSelectionRef = useRef(null);
   const [, forceClockTick] = useReducer((value) => value + 1, 0);
   const {
@@ -617,7 +618,7 @@ const CommandSender = ({
           <div className="command-sender-header-copy">
             <p className="command-sender-eyebrow">Mission dispatch</p>
             <h2 className="command-sender-header">Command Control</h2>
-            <p className="command-sender-subheader">Scope. Check. Dispatch.</p>
+            <p className="command-sender-subheader">Scope, check, dispatch.</p>
           </div>
         </div>
 
@@ -652,7 +653,7 @@ const CommandSender = ({
           <div className="target-selection__bridge">
             <div>
               <strong>Card wall scope</strong>
-              <p>{normalizedVisibleDroneIds.length} visible drone{normalizedVisibleDroneIds.length === 1 ? '' : 's'} ready to copy into scope.</p>
+              <p>{normalizedVisibleDroneIds.length} visible drone{normalizedVisibleDroneIds.length === 1 ? '' : 's'} ready to copy.</p>
             </div>
             <button
               type="button"
@@ -807,37 +808,50 @@ const CommandSender = ({
         {recentCommandMonitors.length > 0 && (
           <section className="command-monitor-history" aria-label="Recent commands">
             <div className="command-monitor-history__header">
-              <strong>Recent Commands</strong>
+              <div className="command-monitor-history__header-copy">
+                <strong>Recent Commands</strong>
+                <span>{recentCommandMonitors.length} stored</span>
+              </div>
+              <button
+                type="button"
+                className="command-monitor-history__toggle"
+                onClick={() => setHistoryExpanded((current) => !current)}
+                aria-expanded={historyExpanded}
+              >
+                {historyExpanded ? 'Hide' : 'Show'}
+              </button>
             </div>
-            <div className="command-monitor-history__list">
-              {recentCommandMonitors.map((monitor) => (
-                <article
-                  key={monitor.commandId}
-                  className={`command-monitor-history__item command-monitor-history__item--${getMonitorTone(monitor)}`}
-                >
-                  <div className="command-monitor-history__content">
-                    <div className="command-monitor-history__topline">
-                      <strong>{monitor.commandLabel}</strong>
-                      <span className={`command-monitor__badge command-monitor__badge--${getMonitorTone(monitor)}`}>
-                        {monitor.progress?.label || 'Command update'}
-                      </span>
-                    </div>
-                    <p>{monitor.progress?.message}</p>
-                    <div className="command-monitor-history__meta">
-                      <span>{monitor.targetLabel}</span>
-                      <span>ID {monitor.commandId}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="command-monitor__action command-monitor__action--secondary"
-                    onClick={() => handleDismissRecentMonitor(monitor.commandId)}
+            {historyExpanded && (
+              <div className="command-monitor-history__list">
+                {recentCommandMonitors.map((monitor) => (
+                  <article
+                    key={monitor.commandId}
+                    className={`command-monitor-history__item command-monitor-history__item--${getMonitorTone(monitor)}`}
                   >
-                    Dismiss
-                  </button>
-                </article>
-              ))}
-            </div>
+                    <div className="command-monitor-history__content">
+                      <div className="command-monitor-history__topline">
+                        <strong>{monitor.commandLabel}</strong>
+                        <span className={`command-monitor__badge command-monitor__badge--${getMonitorTone(monitor)}`}>
+                          {monitor.progress?.label || 'Command update'}
+                        </span>
+                      </div>
+                      <p>{monitor.progress?.message}</p>
+                      <div className="command-monitor-history__meta">
+                        <span>{monitor.targetLabel}</span>
+                        <span>ID {monitor.commandId}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="command-monitor__action command-monitor__action--secondary"
+                      onClick={() => handleDismissRecentMonitor(monitor.commandId)}
+                    >
+                      Dismiss
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         )}
         </>

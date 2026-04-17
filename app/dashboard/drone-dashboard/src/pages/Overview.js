@@ -304,6 +304,34 @@ const Overview = ({ setSelectedDrone }) => {
 
     return `All ${drones.length} drones`;
   }, [commandClusterScope, commandScopeIds.length, commandTargetMode, drones.length]);
+
+  const toggleDroneCommandScope = React.useCallback((droneId) => {
+    const normalizedDroneId = normalizeComparableId(droneId);
+    if (!normalizedDroneId) {
+      return;
+    }
+
+    const allDroneIds = drones
+      .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
+      .filter(Boolean);
+    const baseScopeIds = commandTargetMode === 'selected'
+      ? commandSelectedDrones.map((value) => String(value))
+      : commandTargetMode === 'cluster'
+        ? commandClusterTargetIds
+        : allDroneIds;
+    const baseScopeSet = new Set(baseScopeIds.map((value) => String(value)));
+
+    if (baseScopeSet.has(normalizedDroneId)) {
+      baseScopeSet.delete(normalizedDroneId);
+    } else {
+      baseScopeSet.add(normalizedDroneId);
+    }
+
+    const orderedNextScope = allDroneIds.filter((value) => baseScopeSet.has(value));
+    setCommandTargetMode('selected');
+    setCommandSelectedDrones(orderedNextScope);
+  }, [commandClusterTargetIds, commandSelectedDrones, commandTargetMode, drones]);
+
   const applyVisibleCardsToCommandScope = React.useCallback(() => {
     if (filteredDroneIds.length === 0) {
       return;
@@ -343,24 +371,24 @@ const Overview = ({ setSelectedDrone }) => {
           <p className="overview-eyebrow">Operations dashboard</p>
           <h1>Fleet Command Overview</h1>
           <p className="overview-description">
-            Live aircraft status, command dispatch, and launch readiness for the active control session.
+            Live status, command scope, and launch readiness for the active fleet.
           </p>
         </div>
         <div className="overview-summary-grid" role="list" aria-label="Fleet overview">
           <article className="overview-summary-card" role="listitem">
             <span className="overview-summary-card__label">Visible drones</span>
             <strong>{fleetSummary.total}</strong>
-            <small>Telemetry-valid cards in view</small>
+            <small>Card wall</small>
           </article>
           <article className="overview-summary-card" role="listitem">
             <span className="overview-summary-card__label">Online link</span>
             <strong>{fleetSummary.online}</strong>
-            <small>{fleetSummary.degraded} delayed, {fleetSummary.unavailable} unavailable</small>
+            <small>{fleetSummary.degraded} delayed · {fleetSummary.unavailable} unavailable</small>
           </article>
           <article className="overview-summary-card" role="listitem">
             <span className="overview-summary-card__label">Ready status</span>
             <strong>{fleetSummary.ready}</strong>
-            <small>{fleetSummary.total - fleetSummary.ready} need review or are blocked</small>
+            <small>{fleetSummary.total - fleetSummary.ready} need review</small>
           </article>
           <article className="overview-summary-card" role="listitem">
             <span className="overview-summary-card__label">Armed aircraft</span>
@@ -387,7 +415,7 @@ const Overview = ({ setSelectedDrone }) => {
       <div className="connected-drones-header">
         <div>
           <h2>Connected Drones</h2>
-          <p>Filters stay visual until you apply them to Command Control.</p>
+          <p>Card filters stay visual until you copy them into command scope.</p>
         </div>
         <div className="connected-drones-header__actions">
           <span className="connected-drones-count">
@@ -481,9 +509,17 @@ const Overview = ({ setSelectedDrone }) => {
                 commandTargetMode === 'all'
                   ? ''
                   : commandScopeSet.has(normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
-                    ? (commandTargetMode === 'cluster' ? 'Command cluster' : 'Command scope')
+                    ? (commandTargetMode === 'cluster' ? 'Cluster' : 'Selected')
                     : ''
               }
+              commandScopeState={
+                commandTargetMode === 'all'
+                  ? 'all'
+                  : commandScopeSet.has(normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
+                    ? (commandTargetMode === 'cluster' ? 'cluster' : 'selected')
+                    : 'out'
+              }
+              onToggleCommandScope={toggleDroneCommandScope}
             />
           </div>
         ))}

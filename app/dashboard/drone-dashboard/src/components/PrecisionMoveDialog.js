@@ -34,22 +34,22 @@ const DEFAULT_FORM_STATE = Object.freeze({
 
 const FRAME_LABELS = {
   body: {
-    label: 'Aircraft-relative',
+    label: 'Body frame',
     statusLabel: 'AIRCRAFT',
     primary: 'Forward (+) / Back (-)',
     secondary: 'Right (+) / Left (-)',
     vertical: 'Up (+) / Down (-)',
     translationKeys: ['forward', 'right', 'up'],
-    description: 'Move relative to each drone’s current heading.',
+    description: 'Move relative to the current heading.',
   },
   ned: {
-    label: 'Map-relative',
+    label: 'NED frame',
     statusLabel: 'MAP',
     primary: 'North (+) / South (-)',
     secondary: 'East (+) / West (-)',
     vertical: 'Up (+) / Down (-)',
     translationKeys: ['north', 'east', 'up'],
-    description: 'Move in the shared local NED frame.',
+    description: 'Move in the shared local map frame.',
   },
 };
 
@@ -62,13 +62,13 @@ const YAW_MODE_OPTIONS = [
 const CONTROL_MODE_OPTIONS = [
   {
     value: 'planned',
-    label: 'Planned Move',
-    hint: 'Build a staged move, then dispatch when ready.',
+    label: 'Planned',
+    hint: 'Stage then dispatch.',
   },
   {
     value: 'live_jog',
     label: 'Live Jog',
-    hint: 'Each control press sends one immediate step.',
+    hint: 'Each tap sends now.',
   },
 ];
 
@@ -226,6 +226,7 @@ const PrecisionMoveDialog = ({
   targetCount,
   liveMonitor = null,
   submitting = false,
+  scopeLocked = false,
   onClose,
   onEditTargetScope,
   onSubmit,
@@ -614,21 +615,23 @@ const PrecisionMoveDialog = ({
         <section className="precision-move-dialog__section precision-move-dialog__section--compact">
           <div className="precision-move-dialog__section-header">
             <h4>Scope</h4>
-            <button
-              type="button"
-              className="precision-move-dialog__ghost"
-              onClick={onEditTargetScope}
-              disabled={submitting}
-            >
-              Edit scope
-            </button>
+            {!scopeLocked && (
+              <button
+                type="button"
+                className="precision-move-dialog__ghost"
+                onClick={onEditTargetScope}
+                disabled={submitting}
+              >
+                Edit scope
+              </button>
+            )}
           </div>
           <div className="precision-move-dialog__scope-summary">
             <button
               type="button"
-              className="precision-move-dialog__scope-card precision-move-dialog__scope-card--interactive"
-              onClick={onEditTargetScope}
-              disabled={submitting}
+              className={`precision-move-dialog__scope-card ${scopeLocked ? '' : 'precision-move-dialog__scope-card--interactive'}`.trim()}
+              onClick={scopeLocked ? undefined : onEditTargetScope}
+              disabled={submitting || scopeLocked}
             >
               <span>Targets</span>
               <strong>{targetLabel}</strong>
@@ -637,12 +640,12 @@ const PrecisionMoveDialog = ({
             <div className="precision-move-dialog__scope-card">
               <span>Execution</span>
               <strong>Immediate only</strong>
-              <small>No queue or delay path.</small>
+              <small>No queue or delayed trigger.</small>
             </div>
             <div className="precision-move-dialog__scope-card">
               <span>Prereq</span>
               <strong>Airborne + local position</strong>
-              <small>Each drone resolves from its own current state.</small>
+              <small>Resolved from each drone’s current state.</small>
             </div>
           </div>
         </section>
@@ -680,7 +683,7 @@ const PrecisionMoveDialog = ({
 
         <section className="precision-move-dialog__section">
           <div className="precision-move-dialog__section-header">
-            <h4>Control Surface</h4>
+            <h4>Jog Control</h4>
             <div className="precision-move-dialog__scope">
               <span className="precision-move-dialog__scope-badge">{frameConfig.label}</span>
               <span className="precision-move-dialog__scope-badge">
@@ -1187,6 +1190,7 @@ PrecisionMoveDialog.propTypes = {
     }),
   }),
   submitting: PropTypes.bool,
+  scopeLocked: PropTypes.bool,
   onClose: PropTypes.func.isRequired,
   onEditTargetScope: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,

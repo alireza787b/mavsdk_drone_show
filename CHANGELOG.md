@@ -10,6 +10,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- dashboard/operator refinement for final tester handoff:
+  drone cards now support direct command-scope toggles, per-drone jog access,
+  per-drone mission cancel affordances, quieter command-history monitoring,
+  cleaned lifecycle toast wording for Smart Swarm/runtime actions, stable
+  non-jitter card state styling, and compact `Pn|Hm` labels in the 3D globe
+  visibility controls
 - Smart Swarm tracking-analysis workflow:
   added `tools/analyze_smart_swarm_tracking.py`, focused tests, and operator
   docs so maintainers can capture expected vs actual follower tracking during

@@ -10,6 +10,7 @@ import { getMissionDisplayContext } from '../utilities/missionUtils';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/ExpandedDronePortal.css';
 
 const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
@@ -80,6 +81,12 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
     drone[FIELD_NAMES.MISSION],
     drone[FIELD_NAMES.LAST_MISSION]
   );
+  const compactIdentity = formatCompactDroneIdentity(
+    drone[FIELD_NAMES.POS_ID],
+    drone[FIELD_NAMES.HW_ID],
+    `H${drone[FIELD_NAMES.HW_ID] || '?'}`,
+  );
+  const hasCurrentMission = missionDisplay.hasCurrentMission && missionDisplay.currentMissionName !== 'No Mission';
 
   const getBatteryStatus = (voltage) => {
     if (voltage === undefined) return { class: '', text: 'N/A' };
@@ -218,6 +225,10 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
                 droneId={String(drone[FIELD_NAMES.HW_ID])}
                 isArmed={isArmed}
                 runtimeStatus={runtimeStatus}
+                targetLabel={compactIdentity}
+                targetDescriptor={`Per-drone override · ${compactIdentity}`}
+                canCancelMission={hasCurrentMission}
+                currentMissionLabel={missionDisplay.currentMissionName}
               />
             </div>
           </div>

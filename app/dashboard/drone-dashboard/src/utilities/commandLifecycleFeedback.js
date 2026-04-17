@@ -2,6 +2,7 @@ import { toast } from 'react-toastify';
 
 import { getCommandName } from '../constants/droneConstants';
 import { getCommandStatus, sendDroneCommand } from '../services/droneApiService';
+import { getFriendlyMissionName } from './missionUtils';
 
 const OVERRIDE_COMMANDS = new Set([101, 102, 104, 105]);
 const TERMINAL_PHASE = 'terminal';
@@ -41,10 +42,40 @@ function normalizeMissionType(missionType) {
   return Number.isFinite(numeric) ? numeric : missionType;
 }
 
+function titleCaseSegment(segment) {
+  if (!segment) {
+    return '';
+  }
+
+  if (segment.toUpperCase() === segment && segment.length <= 4) {
+    return segment;
+  }
+
+  return segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase();
+}
+
+function humanizeCommandToken(value) {
+  if (value === undefined || value === null || value === '') {
+    return '';
+  }
+
+  const friendly = getFriendlyMissionName(value);
+  if (friendly && friendly !== value) {
+    return friendly;
+  }
+
+  return String(value)
+    .trim()
+    .replace(/[_-]+/g, ' ')
+    .split(/\s+/)
+    .map((segment) => titleCaseSegment(segment))
+    .join(' ');
+}
+
 function formatCommandLabel(commandData, response) {
   return commandData?.uiMeta?.operatorLabel
-    || response?.mission_name
-    || getCommandName(normalizeMissionType(commandData?.missionType));
+    || humanizeCommandToken(response?.mission_name)
+    || humanizeCommandToken(getCommandName(normalizeMissionType(commandData?.missionType)));
 }
 
 function getAcceptedCount(response) {
@@ -243,7 +274,8 @@ export function buildLifecycleSnapshotFromStatus(status) {
   const targetDrones = Array.isArray(status?.target_drones)
     ? status.target_drones.map((value) => String(value))
     : [];
-  const commandLabel = status?.mission_name || getCommandName(missionType);
+  const commandLabel = humanizeCommandToken(status?.mission_name)
+    || humanizeCommandToken(getCommandName(missionType));
 
   return buildLifecycleSnapshot({
     commandData: {
@@ -386,7 +418,7 @@ function buildTerminalToast(status, commandLabel) {
     case 'timeout':
       return {
         level: 'warning',
-        message: status?.error_summary || `${commandLabel} was accepted, but final outcome is currently unknown.`,
+        message: status?.error_summary || `${commandLabel} was accepted, but the tracker did not confirm a terminal outcome before timeout.`,
       };
     case 'failed':
     default:
@@ -474,7 +506,7 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
       if (pollErrors >= MAX_POLL_ERRORS) {
         emitToast(
           'warning',
-          `${commandLabel} was accepted, but command tracking updates are currently unavailable.`
+          `${commandLabel} was accepted, but live tracking updates are currently unavailable. The last known state remains visible.`
         );
         callbacks.onTrackingUnavailable?.(
           lastSnapshot
@@ -500,7 +532,7 @@ async function trackCommandLifecycle(commandId, commandLabel, initialPhase, time
 
   emitToast(
     'warning',
-    `${commandLabel} was accepted, but final status is still unknown after the tracking timeout.`
+    `${commandLabel} was accepted, but tracking did not close before the timeout. The last known state remains visible.`
   );
   callbacks.onTrackingUnavailable?.(
     lastSnapshot

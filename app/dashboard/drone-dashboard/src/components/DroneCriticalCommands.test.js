@@ -5,6 +5,7 @@ import DroneCriticalCommands from './DroneCriticalCommands';
 import { CommandActivityProvider, useCommandActivity } from '../contexts/CommandActivityContext';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { getActiveCommands, getRecentCommands } from '../services/droneApiService';
+import { getPrecisionMovePolicyResponse } from '../services/gcsApiService';
 
 jest.mock('../utilities/commandLifecycleFeedback', () => ({
   submitCommandWithLifecycleFeedback: jest.fn(),
@@ -18,6 +19,11 @@ jest.mock('../services/droneApiService', () => {
     getRecentCommands: jest.fn(),
   };
 });
+
+jest.mock('../services/gcsApiService', () => ({
+  ...jest.requireActual('../services/gcsApiService'),
+  getPrecisionMovePolicyResponse: jest.fn(),
+}));
 
 jest.mock('react-toastify', () => ({
   toast: {
@@ -36,6 +42,33 @@ describe('DroneCriticalCommands', () => {
     jest.clearAllMocks();
     getActiveCommands.mockResolvedValue({ commands: [] });
     getRecentCommands.mockResolvedValue({ commands: [] });
+    getPrecisionMovePolicyResponse.mockResolvedValue({
+      data: {
+        defaults: {
+          speed_m_s: 1,
+          position_tolerance_m: 0.15,
+          yaw_tolerance_deg: 5,
+          settle_time_sec: 1,
+          timeout_sec: 30,
+        },
+        limits: {
+          max_translation_m: 100,
+          max_speed_m_s: 5,
+          min_position_tolerance_m: 0.05,
+          max_timeout_sec: 180,
+          min_airborne_altitude_m: 0.3,
+          control_rate_hz: 10,
+        },
+        execution: {
+          supported_frames: ['body', 'ned'],
+          supported_yaw_modes: ['hold_current', 'relative_delta', 'absolute_heading'],
+          hold_mode: 'px4_hold',
+          immediate_only: true,
+          requires_airborne: true,
+          requires_local_position: true,
+        },
+      },
+    });
   });
 
   it('publishes per-drone overrides into the shared command activity stream', async () => {
@@ -120,5 +153,30 @@ describe('DroneCriticalCommands', () => {
     expect(screen.getByRole('button', { name: 'RTL' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Kill' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Land' })).not.toBeInTheDocument();
+  });
+
+  it('opens per-drone jog and exposes cancel mission when a mission is active', async () => {
+    render(
+      <CommandActivityProvider>
+        <DroneCriticalCommands
+          droneId="1"
+          isArmed
+          canCancelMission
+          currentMissionLabel="Smart Swarm"
+          targetLabel="P1|H1"
+          targetDescriptor="Per-drone override · P1|H1"
+          runtimeStatus={{ level: 'online', label: 'Live', tooltip: 'Telemetry fresh' }}
+        />
+      </CommandActivityProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Jog' }));
+
+    expect(await screen.findByRole('dialog', { name: /precision move/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /close precision move dialog/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByText('Confirm Action')).toBeInTheDocument();
+    expect(screen.getByText(/Cancel Smart Swarm for this drone/i)).toBeInTheDocument();
   });
 });

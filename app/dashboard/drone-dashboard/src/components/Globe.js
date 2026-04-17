@@ -296,6 +296,7 @@ export default function Globe({ drones }) {
         </div>
       </div>
       <GlobeControlBox
+        drones={drones}
         setShowGround={setShowGround}
         showGround={showGround}
         setGroundLevel={setGroundLevel}

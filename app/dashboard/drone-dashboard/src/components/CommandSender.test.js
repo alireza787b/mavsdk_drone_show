@@ -550,6 +550,7 @@ describe('CommandSender', () => {
     expect(within(liveMonitor).getByText('Take Off')).toBeInTheDocument();
 
     const recentCommands = screen.getByLabelText(/recent commands/i);
+    fireEvent.click(within(recentCommands).getByRole('button', { name: 'Show' }));
     expect(within(recentCommands).getByText('Swarm Trajectory')).toBeInTheDocument();
   });
 
@@ -644,6 +645,7 @@ describe('CommandSender', () => {
     expect(screen.getByText('Accepted, waiting for execution start')).toBeInTheDocument();
 
     const history = await screen.findByLabelText('Recent commands');
+    fireEvent.click(within(history).getByRole('button', { name: 'Show' }));
     expect(within(history).getByText('Take Off')).toBeInTheDocument();
     expect(buildLifecycleSnapshotFromStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
   });

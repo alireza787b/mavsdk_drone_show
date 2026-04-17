@@ -242,7 +242,7 @@ describe('commandLifecycleFeedback', () => {
     await advanceLifecyclePoll(1500);
 
     expect(toast.warn).toHaveBeenCalledWith(
-      'Return RTL was accepted, but final status is still unknown after the tracking timeout.',
+      'Return RTL was accepted, but tracking did not close before the timeout. The last known state remains visible.',
     );
   });
 

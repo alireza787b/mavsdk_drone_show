@@ -7,7 +7,13 @@
         var(--color-surface-raised);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-base);
+    box-shadow:
+        inset 4px 0 0 var(--widget-left-accent),
+        inset 0 3px 0 var(--widget-top-accent),
+        inset -3px 0 0 var(--widget-right-accent),
+        var(--widget-elevation),
+        var(--widget-outline),
+        var(--widget-scope-ring);
     padding: var(--spacing-base);
     margin: 0;
     min-height: 200px;
@@ -18,43 +24,55 @@
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(10px);
+    --widget-left-accent: transparent;
+    --widget-top-accent: transparent;
+    --widget-right-accent: transparent;
+    --widget-elevation: var(--shadow-base);
+    --widget-outline: 0 0 #0000;
+    --widget-scope-ring: 0 0 #0000;
 }
 
 .drone-widget:hover {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-lg);
+    box-shadow:
+        inset 4px 0 0 var(--widget-left-accent),
+        inset 0 3px 0 var(--widget-top-accent),
+        inset -3px 0 0 var(--widget-right-accent),
+        var(--shadow-lg),
+        var(--widget-outline),
+        var(--widget-scope-ring);
     border-color: var(--color-primary-border);
 }
 
 /* Expert Readiness State Indicators with Professional Color Coding */
 .drone-widget.ready-to-arm {
-    border-left: 4px solid var(--color-success);
     --widget-accent: var(--color-success);
+    --widget-left-accent: var(--color-success);
 }
 
 .drone-widget.not-ready-to-arm {
-    border-left: 4px solid var(--color-danger);
     --widget-accent: var(--color-danger);
+    --widget-left-accent: var(--color-danger);
 }
 
 .drone-widget.armed {
-    border-top: 3px solid var(--color-primary);
-    box-shadow: var(--shadow-base), 0 0 0 1px var(--color-primary-light);
-}
-
-.drone-widget.disarmed {
-    border-top: 3px solid var(--color-text-tertiary);
+    --widget-top-accent: var(--color-primary);
+    --widget-outline: 0 0 0 1px var(--color-primary-light);
 }
 
 .drone-widget.command-scope-active {
-    box-shadow: var(--shadow-base), 0 0 0 1px rgba(var(--color-primary-rgb), 0.14);
     border-color: var(--color-primary-border);
+    --widget-scope-ring: 0 0 0 1px rgba(var(--color-primary-rgb), 0.14);
+}
+
+.drone-widget.disarmed {
+    --widget-top-accent: var(--color-text-tertiary);
 }
 
 /* Mission State Visual Indicators with Enhanced Feedback */
 .drone-widget.mission-ready {
-    border-right: 3px solid var(--color-warning);
     position: relative;
+    --widget-right-accent: var(--color-warning);
 }
 
 .drone-widget.mission-ready::after {
@@ -69,9 +87,9 @@
 }
 
 .drone-widget.mission-executing {
-    border-right: 3px solid var(--color-info);
-    animation: mission-pulse 2s infinite;
     position: relative;
+    --widget-right-accent: var(--color-info);
+    --widget-outline: 0 0 0 1px rgba(var(--color-info-rgb, 59, 130, 246), 0.12);
 }
 
 .drone-widget.mission-executing::after {
@@ -83,15 +101,6 @@
     height: 100%;
     background: linear-gradient(180deg, var(--color-info), transparent);
     animation: mission-flow 3s infinite;
-}
-
-@keyframes mission-pulse {
-    0%, 100% {
-        box-shadow: var(--shadow-base);
-    }
-    50% {
-        box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-info-light);
-    }
 }
 
 @keyframes mission-flow {
@@ -106,7 +115,12 @@
         linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), transparent 72%),
         var(--color-surface-raised);
     border-color: var(--color-primary);
-    box-shadow: var(--shadow-lg), 0 0 0 2px var(--color-primary-light);
+    box-shadow:
+        inset 4px 0 0 var(--widget-left-accent),
+        inset 0 3px 0 var(--widget-top-accent),
+        inset -3px 0 0 var(--widget-right-accent),
+        var(--shadow-lg),
+        0 0 0 2px var(--color-primary-light);
     transform: translateY(-1px);
     transition: var(--transition-all);
     z-index: 1;
@@ -236,6 +250,12 @@
     border-color: var(--color-primary-border);
     background: var(--color-bg-quaternary);
     transform: translateY(-1px);
+}
+
+.drone-header__action--scope.is-active {
+    color: var(--color-primary);
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 .drone-header__action-label {
@@ -435,6 +455,14 @@
     gap: 2px;
 }
 
+.data-value-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
 .data-subvalue {
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
@@ -586,6 +614,20 @@
 
 .mission-badge.mission-default {
     background: var(--color-success);
+}
+
+.data-item__meta-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-inset);
+    color: var(--color-text-secondary);
+    font-size: 0.62rem;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
 }
 
 @keyframes pulse-emergency {

@@ -774,6 +774,13 @@
     margin-bottom: var(--spacing-base);
 }
 
+.command-monitor-history__header-copy {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
 .command-monitor-history__header strong {
     color: var(--color-text-primary);
 }
@@ -781,6 +788,28 @@
 .command-monitor-history__header span {
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
+}
+
+.command-monitor-history__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-all);
+}
+
+.command-monitor-history__toggle:hover {
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 .command-monitor-history__list {
