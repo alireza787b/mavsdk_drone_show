@@ -15,7 +15,7 @@ import ConfirmationModal from './ConfirmationModal';
 import InfoHint from './InfoHint';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
 import { buildActionCommand } from '../services/droneApiService';
-import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
+import { DRONE_ACTION_TYPES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import '../styles/DroneCriticalCommands.css';
