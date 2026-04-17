@@ -1241,6 +1241,48 @@ class TestGitStatusEndpoints:
         assert data['needs_sync_count'] == 2
         assert data['git_status']['1']['in_sync_with_gcs'] is False
 
+    @patch('app_fastapi.git_status_data_all_drones', {
+        '1': {
+            'status': 'ahead',
+            'branch': 'main-candidate',
+            'commit': 'new67890',
+            'commits_ahead': 1,
+            'commits_behind': 0,
+            'uncommitted_changes': [],
+        },
+        '2': {
+            'status': 'ahead',
+            'branch': 'main-candidate',
+            'commit': 'new67890',
+            'commits_ahead': 1,
+            'commits_behind': 0,
+            'uncommitted_changes': [],
+        },
+    })
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_get_git_status_counts_same_commit_ahead_drones_as_synced_with_gcs(
+        self,
+        mock_load_config,
+        mock_gcs_git_report,
+        test_client,
+    ):
+        """GET /api/v1/git/status should treat same-commit local-ahead repos as synced with GCS."""
+        mock_load_config.return_value = [
+            {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
+            {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
+        ]
+        mock_gcs_git_report.return_value = {'branch': 'main-candidate', 'commit': 'new67890'}
+
+        response = test_client.get("/api/v1/git/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['synced_count'] == 2
+        assert data['needs_sync_count'] == 0
+        assert data['git_status']['1']['status'] == 'ahead'
+        assert data['git_status']['1']['in_sync_with_gcs'] is True
+
     @patch('app_fastapi._verify_sync_targets')
     @patch('app_fastapi.send_commands_to_all')
     @patch('app_fastapi.get_gcs_git_report')
@@ -2191,42 +2233,4 @@ class TestAPIV1Aliases:
 
         assert response.status_code == 200
         data = response.json()
-        assert "network_status" in data
-        assert "reachable_count" in data
-        assert "timestamp" in data
-
-    def test_v1_fleet_config_alias(self, test_client):
-        response = test_client.get("/api/v1/config/fleet")
-
-        assert response.status_code == 200
-        assert isinstance(response.json(), list)
-
-    @patch('app_fastapi.save_config')
-    @patch('app_fastapi.validate_and_process_config')
-    def test_v1_fleet_config_put_alias(self, mock_validate, mock_save, test_client, mock_config):
-        del mock_save
-        mock_validate.return_value = {'updated_config': mock_config}
-
-        response = test_client.request("PUT", "/api/v1/config/fleet", json=mock_config)
-
-        assert response.status_code == 200
-        assert response.json()["success"] is True
-
-    @patch('app_fastapi.validate_and_process_config')
-    def test_v1_fleet_config_validation_alias(self, mock_validate, test_client, mock_config):
-        mock_validate.return_value = {'updated_config': mock_config, 'summary': {}}
-
-        response = test_client.post("/api/v1/config/fleet/validation", json=mock_config)
-
-        assert response.status_code == 200
-        assert "summary" in response.json()
-
-    def test_v1_fleet_trajectory_start_positions_alias(self, test_client):
-        response = test_client.get("/api/v1/config/fleet/trajectory-start-positions")
-
-        assert response.status_code == 200
-        assert isinstance(response.json(), list)
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        assert "network_sta

@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from git_status import commits_match
 from schemas import (
     DroneGitStatus,
     GitStatus,
@@ -58,14 +59,13 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     mapped_status = GitStatus.UNKNOWN
 
             commit_hash = raw_data.get("commit", "unknown")
+            same_branch_as_gcs = raw_data.get("branch") == gcs_branch if gcs_branch else mapped_status == GitStatus.SYNCED
+            same_commit_as_gcs = commits_match(commit_hash, gcs_commit) if gcs_commit else mapped_status == GitStatus.SYNCED
             in_sync_with_gcs = (
-                mapped_status == GitStatus.SYNCED
-                if not gcs_commit
-                else (
-                    raw_data.get("branch") == gcs_branch
-                    and commit_hash == gcs_commit
-                    and mapped_status == GitStatus.SYNCED
-                )
+                same_branch_as_gcs
+                and same_commit_as_gcs
+                and raw_status != "dirty"
+                and not raw_data.get("uncommitted_changes")
             )
 
             transformed_git_status[str(hw_id)] = DroneGitStatus(
