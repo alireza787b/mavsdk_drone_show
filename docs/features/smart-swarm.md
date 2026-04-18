@@ -105,6 +105,18 @@ This keeps swarm intent explicit instead of overloading the generic command send
 
 These runtime commands now publish into the same shared command lifecycle stream as `Command Control` and per-drone airborne overrides. That means the backend-backed live/recent command monitor can recover command context after refresh/navigation instead of keeping Smart Swarm runtime actions as toast-only events.
 
+Mixed-mission leader rule:
+
+- start Smart Swarm on the follower set, not on a leader that you intend to fly
+  with another mission, manual/jog control, or a custom show
+- a drone already executing Smart Swarm will reject `CUSTOM_CSV_DRONE_SHOW`
+  with `E203` until Smart Swarm is explicitly stopped or overridden on that
+  drone
+- followers may keep running Smart Swarm while their leader flies another
+  mission, as long as the leader continues publishing usable telemetry
+- if the leader changes, update the saved/runtime follow chain deliberately in
+  Swarm Design instead of relying on implicit mission side effects
+
 ### Formation preview and live readiness
 
 The `Smart Swarm Runtime` panel intentionally separates:

@@ -9,7 +9,7 @@
     overflow: hidden;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   }
-  
+
 
 .button-container {
     position: absolute;
@@ -48,8 +48,11 @@
     padding: 8px 12px;
     border-radius: 5px;
     pointer-events: none;
-    white-space: nowrap;
+    white-space: normal;
+    min-width: 180px;
+    max-width: min(280px, 74vw);
     font-size: 12px;
+    line-height: 1.35;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -96,7 +99,7 @@
 }
 
 
-  
+
   /* Ensure that the Compass overlay is above other elements */
   .compass-overlay {
     position: fixed;
@@ -107,10 +110,9 @@
     z-index: 1000;
     pointer-events: none;
   }
-  
+
   .compass-image {
     width: 100%;
     height: 100%;
     transition: transform 0.1s linear;
   }
-  

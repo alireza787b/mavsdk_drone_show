@@ -18,6 +18,7 @@ MDS uses JSON files for fleet and swarm configuration. The format supports optio
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600,
       "callsign": "VIPER-01",
+      "marker_color": "#00d4ff",
       "notes": "Replaced motor 2 on 2026-02-15"
     }
   ]
@@ -40,16 +41,24 @@ MDS uses JSON files for fleet and swarm configuration. The format supports optio
 | `serial_port` | string | `""` | Serial port device (empty for SITL) |
 | `baudrate` | int | `0` | Serial baudrate (0 for SITL) |
 | `callsign` | string | `null` | Optional operator alias shown as secondary metadata in Mission Config |
+| `marker_color` | string | `null` | Optional `#RGB` or `#RRGGBB` map/globe marker color override |
 | `notes` | string | `null` | Operator notes |
 
 ### Custom Fields
 
 Any additional fields are preserved. Recommended pattern:
 - keep core mission identity in `hw_id` and `pos_id`
-- use custom fields only for secondary metadata such as `callsign`, `notes`, `maintenance_tag`, or `payload_type`
+- use custom fields only for secondary metadata such as `callsign`, `marker_color`, `notes`, `maintenance_tag`, or `payload_type`
 - prefer lowercase `snake_case` keys for long-term compatibility
 
-Examples: `"maintenance_tag": "A2"`, `"payload_type": "smoke"`, `"ready_for_show": true`.
+Examples: `"maintenance_tag": "A2"`, `"payload_type": "smoke"`, `"marker_color": "#ff9800"`, `"ready_for_show": true`.
+
+Marker asset note:
+
+- `marker_color` is the supported lightweight visual override today
+- uploaded custom 2D/3D marker assets should use a managed asset library rather
+  than arbitrary paths in `config.json`, so operators can validate, reuse, and
+  delete assets safely
 
 ## Identity And Targeting Doctrine
 

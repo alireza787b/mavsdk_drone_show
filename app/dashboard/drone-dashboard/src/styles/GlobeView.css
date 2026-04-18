@@ -403,7 +403,7 @@
 .globe-drone-marker {
     width: 24px;
     height: 24px;
-    background: var(--color-primary);
+    background: var(--mds-drone-marker-color, var(--color-primary));
     border-radius: 50%;
     border: 2px solid white;
     display: flex;

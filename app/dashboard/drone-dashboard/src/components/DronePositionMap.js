@@ -113,7 +113,7 @@ const resolveZoomTier = (zoom) => {
 const buildExpectedIcon = (label, statusColor, zoom) => {
   const zoomTier = resolveZoomTier(zoom);
 
-  L.divIcon({
+  return L.divIcon({
     html: `
       <div
         class="drone-position-map__expected-marker"
@@ -134,7 +134,7 @@ const buildExpectedIcon = (label, statusColor, zoom) => {
 const buildOriginIcon = (zoom) => {
   const zoomTier = resolveZoomTier(zoom);
 
-  L.divIcon({
+  return L.divIcon({
     html: `
       <div
         class="drone-position-map__origin-marker"

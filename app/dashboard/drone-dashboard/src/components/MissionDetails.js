@@ -9,6 +9,7 @@ import {
 } from 'react-icons/fa';
 import '../styles/MissionDetails.css';
 import { DRONE_MISSION_IMAGES, DRONE_MISSION_TYPES } from '../constants/droneConstants';
+import { FIELD_NAMES } from '../constants/fieldMappings';
 import MissionReadinessCard from './MissionReadinessCard';
 import useFetch from '../hooks/useFetch';
 import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
@@ -296,6 +297,19 @@ const MissionDetails = ({
   if (smartSwarmHints) {
     const leaders = smartSwarmInfo?.leaders || [];
     const followerDetails = smartSwarmInfo?.follower_details || {};
+    const targetedIdSet = new Set(
+      (targetMode === 'all'
+        ? drones.map((drone) => drone?.[FIELD_NAMES.HW_ID])
+        : targetMode === 'selected'
+          ? selectedDrones
+          : targetDroneIds
+      )
+        .map((value) => String(value ?? '').trim())
+        .filter(Boolean)
+    );
+    const targetedLeaders = leaders
+      .map((value) => String(value ?? '').trim())
+      .filter((value) => value && targetedIdSet.has(value));
     const totalFollowers = Object.values(followerDetails).reduce(
       (count, followers) => count + (Array.isArray(followers) ? followers.length : 0),
       0,
@@ -315,6 +329,12 @@ const MissionDetails = ({
 
     if (!smartSwarmLoading && leaders.length > 0 && totalFollowers === 0) {
       smartSwarmWarnings.push('The current topology has leaders but no follower links.');
+    }
+
+    if (!smartSwarmLoading && targetedLeaders.length > 0) {
+      smartSwarmWarnings.push(
+        `Target scope includes top leader ${targetedLeaders.join(', ')}. For mixed leader/follower demos, start Smart Swarm on followers only so the leader remains available for jog, manual, Custom CSV, or Drone Show commands.`
+      );
     }
 
     if ((smartSwarmLaunchReadiness?.groundedDrones?.length || 0) > 0) {

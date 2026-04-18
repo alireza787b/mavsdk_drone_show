@@ -124,6 +124,16 @@ Use this when:
 - you authored one local-frame path and want each drone to replay it independently
 - you are doing research or specialized bench/SITL testing
 
+Smart Swarm interaction:
+
+- `CUSTOM_CSV_DRONE_SHOW` is a mission on the addressed drone; it does not
+  automatically become a Smart Swarm leader command
+- if that same drone is already executing Smart Swarm, the drone-side command
+  gate rejects the custom show with `E203`
+- for leader-follower demos, keep the leader out of Smart Swarm and start Smart
+  Swarm only on the follower drones, then command the leader with Custom CSV,
+  jog, manual control, or another mission as needed
+
 ## Trigger Timing and Synchronization
 
 Drone Show missions are scheduled by `triggerTime` and start through the coordinator:

@@ -75,6 +75,7 @@
   align-items: center;
 }
 
+.mds-map-fallback-banner-actions a,
 .mds-map-fallback-banner-actions button {
   background: none;
   border: none;
@@ -83,8 +84,10 @@
   padding: 2px 8px;
   border-radius: 4px;
   color: var(--color-text-secondary, #a2a5b9);
+  text-decoration: none;
 }
 
+.mds-map-fallback-banner-actions a:hover,
 .mds-map-fallback-banner-actions button:hover {
   background: var(--color-bg-tertiary, #3a3f4b);
 }

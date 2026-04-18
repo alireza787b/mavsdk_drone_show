@@ -31,9 +31,17 @@ try {
 }
 
 // Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
-const createDroneIcon = (identityLabel) =>
+const DEFAULT_DRONE_MARKER_COLOR = '#00d4ff';
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+const resolveMarkerColor = (candidate) => {
+  const normalized = String(candidate || '').trim();
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
+};
+
+const createDroneIcon = (identityLabel, markerColor) =>
   L.divIcon({
-    html: `<div style="min-width:24px;height:24px;padding:0 6px;background:var(--color-primary,#00d4ff);border-radius:999px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${identityLabel}</div>`,
+    html: `<div style="min-width:24px;height:24px;padding:0 6px;background:${resolveMarkerColor(markerColor)};border-radius:999px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${identityLabel}</div>`,
     className: '',
     iconSize: [48, 24],
     iconAnchor: [24, 12],
@@ -112,7 +120,10 @@ const GlobeMapView = ({ drones }) => {
               longitude={drone.position[1]}
               anchor="center"
             >
-              <div className="globe-drone-marker">
+              <div
+                className="globe-drone-marker"
+                style={{ '--mds-drone-marker-color': resolveMarkerColor(drone.marker_color) }}
+              >
                 {formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`)}
               </div>
             </MapboxMarker>
@@ -131,13 +142,16 @@ const GlobeMapView = ({ drones }) => {
             <LeafletMarker
               key={drone[FIELD_NAMES.HW_ID]}
               position={[drone.position[0], drone.position[1]]}
-              icon={createDroneIcon(formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`))}
+              icon={createDroneIcon(
+                formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`),
+                drone.marker_color
+              )}
             >
               <Popup>
                 <div>
                   <strong>{formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`)}</strong>
                   <br />
-                  State: {drone.state}
+                  State: {drone.stateLabel || 'Unknown'}
                   <br />
                   Alt: {drone.altitude?.toFixed(1)}m
                 </div>
@@ -155,8 +169,10 @@ GlobeMapView.propTypes = {
     hw_id: PropTypes.string.isRequired,
     pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     position: PropTypes.arrayOf(PropTypes.number).isRequired,
-    state: PropTypes.string,
+    state: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    stateLabel: PropTypes.string,
     altitude: PropTypes.number,
+    marker_color: PropTypes.string,
   })).isRequired,
 };
 

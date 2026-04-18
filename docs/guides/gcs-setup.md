@@ -151,7 +151,7 @@ For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_o
    - Set up Python virtual environment
    - Install npm dependencies
    - Configure firewall rules
-   - Set up Mapbox token (optional, for map features)
+   - Set up Mapbox token (optional, for map features; see [Mapbox Setup](mapbox-setup.md))
 
 For customer/private repos, prefer a fully explicit command:
 

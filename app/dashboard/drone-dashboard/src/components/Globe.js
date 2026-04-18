@@ -13,6 +13,13 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
+const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+const resolveMarkerColor = (candidate) => {
+  const normalized = String(candidate || '').trim();
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
+};
 
 const LoadingSpinner = () => (
   <div className="loading-container">
@@ -20,7 +27,7 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-const DroneTooltip = ({ hw_id, pos_id, state, follow_mode, altitude, opacity, localPosition }) => (
+const DroneTooltip = ({ hw_id, pos_id, stateLabel, follow_mode, altitude, opacity, localPosition }) => (
   <div
     className="drone-tooltip"
     style={{
@@ -30,7 +37,7 @@ const DroneTooltip = ({ hw_id, pos_id, state, follow_mode, altitude, opacity, lo
   >
     <ul className="tooltip-list">
       <li><strong>ID:</strong> {formatCompactDroneIdentity(pos_id, hw_id, `H${hw_id}`)}</li>
-      <li><strong>State:</strong> {state}</li>
+      <li><strong>State:</strong> {stateLabel || 'Unknown'}</li>
       <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
       <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
       <li><strong>Local Position:</strong> [{localPosition[0].toFixed(2)}, {localPosition[1].toFixed(2)}, {localPosition[2].toFixed(2)}]</li>
@@ -38,12 +45,14 @@ const DroneTooltip = ({ hw_id, pos_id, state, follow_mode, altitude, opacity, lo
   </div>
 );
 
-const Drone = ({ position, hw_id, pos_id, state, follow_mode, altitude }) => {
+const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, marker_color }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [opacity, setOpacity] = useState(0);
   const meshRef = useRef(null);
   const targetPositionRef = useRef(new Vector3(...position));
   const hasInitialPositionRef = useRef(false);
+  const normalColor = new Color(resolveMarkerColor(marker_color));
+  const hoverColor = new Color('#FF9800');
 
   useEffect(() => {
     if (isHovered) {
@@ -75,11 +84,15 @@ const Drone = ({ position, hw_id, pos_id, state, follow_mode, altitude }) => {
       ref={meshRef}
       onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
       onPointerOut={(e) => setIsHovered(false)}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+        setIsHovered((current) => !current);
+      }}
     >
       <sphereGeometry args={[0.5, 16, 16]} />
       <meshStandardMaterial
-        color={isHovered ? new Color('#FF9800') : new Color('#2196F3')}
-        emissive={isHovered ? new Color('#FF9800') : new Color('#2196F3')}
+        color={isHovered ? hoverColor : normalColor}
+        emissive={isHovered ? hoverColor : normalColor}
         emissiveIntensity={0.6}
         metalness={0.5}
         roughness={0.3}
@@ -88,7 +101,7 @@ const Drone = ({ position, hw_id, pos_id, state, follow_mode, altitude }) => {
         <DroneTooltip
           hw_id={hw_id}
           pos_id={pos_id}
-          state={state}
+          stateLabel={stateLabel}
           follow_mode={follow_mode}
           altitude={altitude}
           opacity={opacity}
@@ -103,9 +116,10 @@ Drone.propTypes = {
   position: PropTypes.arrayOf(PropTypes.number).isRequired,
   hw_id: PropTypes.string.isRequired,
   pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  state: PropTypes.string.isRequired,
+  stateLabel: PropTypes.string,
   follow_mode: PropTypes.number.isRequired,
   altitude: PropTypes.number.isRequired,
+  marker_color: PropTypes.string,
 };
 
 const MemoizedDrone = React.memo(Drone);
@@ -114,6 +128,8 @@ const MemoizedDrone = React.memo(Drone);
 
 const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
   const { camera, gl } = useThree();
+  const targetVectorRef = useRef(new Vector3(...targetPosition));
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     if (controlsRef.current) {
@@ -121,10 +137,29 @@ const CustomOrbitControls = ({ targetPosition, controlsRef }) => {
       controlsRef.current.dampingFactor = 0.1;
       controlsRef.current.minDistance = 5;
       controlsRef.current.maxDistance = 500;
-      controlsRef.current.target.set(...targetPosition);
       controlsRef.current.update();
     }
-  }, [targetPosition, camera, controlsRef]);
+  }, [camera, controlsRef]);
+
+  useEffect(() => {
+    targetVectorRef.current.set(...targetPosition);
+  }, [targetPosition]);
+
+  useFrame((_, delta) => {
+    const controls = controlsRef.current;
+    if (!controls) {
+      return;
+    }
+
+    if (!initializedRef.current) {
+      controls.target.set(...targetPosition);
+      initializedRef.current = true;
+    } else {
+      const alpha = 1 - Math.exp(-2.5 * Math.min(delta, 0.25));
+      controls.target.lerp(targetVectorRef.current, alpha);
+    }
+    controls.update();
+  });
 
   return <OrbitControls ref={controlsRef} args={[camera, gl.domElement]} />;
 };
@@ -336,8 +371,10 @@ Globe.propTypes = {
     hw_id: PropTypes.string.isRequired,
     pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     position: PropTypes.arrayOf(PropTypes.number).isRequired,
-    state: PropTypes.string,
+    state: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    stateLabel: PropTypes.string,
     follow_mode: PropTypes.number,
     altitude: PropTypes.number,
+    marker_color: PropTypes.string,
   })).isRequired,
 };

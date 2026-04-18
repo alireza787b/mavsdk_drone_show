@@ -6,6 +6,7 @@ import { useMapContext } from '../../contexts/MapContext';
 import '../../styles/MapCommon.css';
 
 const SESSION_KEY = 'mds_fallback_banner_dismissed';
+const MAPBOX_GUIDE_URL = 'https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/guides/mapbox-setup.md';
 
 const MapFallbackBanner = () => {
   const { provider, isMapboxAvailable, fallbackReason } = useMapContext();
@@ -30,6 +31,14 @@ const MapFallbackBanner = () => {
         {fallbackReason && <small style={{ opacity: 0.7 }}> ({fallbackReason})</small>}
       </span>
       <div className="mds-map-fallback-banner-actions">
+        <a
+          href={MAPBOX_GUIDE_URL}
+          target="_blank"
+          rel="noreferrer"
+          title="Open Mapbox setup guide"
+        >
+          Setup
+        </a>
         <button onClick={handleDismiss} title="Dismiss">
           Dismiss
         </button>

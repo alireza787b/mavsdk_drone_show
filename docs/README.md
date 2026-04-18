@@ -23,6 +23,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
 | build or redistribute a validated custom SITL image | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
 | control local SITL containers from the dashboard | [SITL Control Guide](guides/sitl-control.md) |
+| configure Mapbox-backed map views | [Mapbox Setup](guides/mapbox-setup.md) |
 | inspect logs | [Logging System Guide](guides/logging-system.md) |
 
 ### By Role
@@ -54,6 +55,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
 - **[SITL Control Guide](guides/sitl-control.md)** - dashboard-based local SITL lifecycle control, image save flow, and operator-focused container management
+- **[Mapbox Setup](guides/mapbox-setup.md)** - optional Mapbox token setup and fallback behavior for map views
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - dedicated follower-tracking capture and plots built on the Smart Swarm websocket stream
 - **`tools/sitl_plans/`** - checked-in named SITL scenario library for maintainers, CI, and AI agents

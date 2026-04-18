@@ -334,7 +334,25 @@ Important:
 - the final image is the correct artifact for redistribution
 - do not use `docker commit` as the release workflow
 
-For private repo builds, make sure the build environment has real Git access. Authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` is usually easier than injecting SSH keys into the containerized image-prep flow.
+For private repo builds, make sure the build environment has real Git access.
+Authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` is usually easier than
+injecting SSH keys into the containerized image-prep flow.
+
+Credential split:
+
+- GCS write-back: use a dedicated SSH deploy key or machine-user key with write
+  access only when dashboard saves must push back to the customer repo
+- drone/SITL read-sync: prefer a read-only HTTPS token file exposed as
+  `MDS_GIT_AUTH_TOKEN_FILE`
+- public official images: use unauthenticated HTTPS against the public official
+  repo
+- do not bake tokens or private SSH keys into redistributed images; the release
+  scripts stage token files only while preparing the image and remove them
+  before flattening
+
+This keeps custom/private deployments scalable: the GCS can be a write-capable
+operator station, while each drone or SITL container only needs least-privilege
+read access to fetch the approved branch.
 
 ## Upstream Sync Strategy
 
@@ -375,7 +393,7 @@ These areas matter:
 | Hardware bootstrap | choose customer repo/branch and write `/etc/mds/local.env` |
 | Dashboard save/import flow | may need writable Git credentials |
 | SITL launch | export `MDS_REPO_URL` / `MDS_BRANCH` or use a custom image |
-| Private GitHub SITL auth | export `MDS_GIT_AUTH_TOKEN_FILE` for mutable runtime sync or image prep |
+| Private GitHub SITL auth | export a read-only `MDS_GIT_AUTH_TOKEN_FILE` for mutable runtime sync or image prep |
 | Release packaging | customer image/tag/archive naming now belongs to the customer workflow |
 | Upstream maintenance | customer repo must deliberately fetch and review official updates |
 

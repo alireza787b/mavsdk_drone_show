@@ -371,6 +371,8 @@ h1, h2, h3, h4, h5, h6 {
 
   .Toastify__toast-container {
     width: calc(100vw - 2rem) !important;
+    top: auto !important;
+    bottom: 1rem !important;
     left: 1rem !important;
     right: 1rem !important;
   }

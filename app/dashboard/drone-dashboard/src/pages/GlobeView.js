@@ -8,6 +8,7 @@ import '../styles/GlobeView.css';
 
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getFleetConfigResponse, getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
+import { getDroneShowStateName } from '../constants/droneStates';
 import { normalizeDroneConfigData } from '../utilities/missionIdentityUtils';
 
 const GlobeView = () => {
@@ -35,18 +36,25 @@ const GlobeView = () => {
       const configMap = new Map(configRows.map((row) => [String(row.hw_id), row]));
       const dronesData = Object.entries(unwrapFleetTelemetryPayload(response.value.data))
         .filter(([id, drone]) => Object.keys(drone).length > 0)
-        .map(([id, drone]) => ({
-          hw_id: id,
-          pos_id: configMap.get(String(id))?.pos_id || id,
-          position: [
-            drone[FIELD_NAMES.POSITION_LAT] || 0,
-            drone[FIELD_NAMES.POSITION_LONG] || 0,
-            drone[FIELD_NAMES.POSITION_ALT] || 0,
-          ],
-          state: drone[FIELD_NAMES.STATE] || 'UNKNOWN',
-          follow_mode: drone[FIELD_NAMES.FOLLOW_MODE] || 0,
-          altitude: drone[FIELD_NAMES.POSITION_ALT] || 0,
-        }));
+        .map(([id, drone]) => {
+          const config = configMap.get(String(id)) || {};
+          const stateValue = drone[FIELD_NAMES.STATE] ?? null;
+
+          return {
+            hw_id: id,
+            pos_id: config.pos_id ?? id,
+            position: [
+              drone[FIELD_NAMES.POSITION_LAT] ?? 0,
+              drone[FIELD_NAMES.POSITION_LONG] ?? 0,
+              drone[FIELD_NAMES.POSITION_ALT] ?? 0,
+            ],
+            state: stateValue,
+            stateLabel: stateValue === null ? 'Unknown' : getDroneShowStateName(stateValue),
+            follow_mode: drone[FIELD_NAMES.FOLLOW_MODE] ?? 0,
+            altitude: drone[FIELD_NAMES.POSITION_ALT] ?? 0,
+            marker_color: config.marker_color || config.markerColor || '',
+          };
+        });
 
       setDrones(dronesData);
 
