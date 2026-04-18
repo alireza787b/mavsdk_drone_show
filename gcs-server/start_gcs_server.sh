@@ -152,6 +152,7 @@ load_gcs_system_config() {
             MDS_DOCKER_IMAGE \
             MDS_SITL_GIT_SYNC \
             MDS_SITL_REQUIREMENTS_SYNC \
+            MDS_SITL_USE_HOST_STARTUP_SCRIPT \
             2>/dev/null || true
     else
         log_warn "System GCS config not found at $GCS_SYSTEM_CONFIG; continuing with current environment"
