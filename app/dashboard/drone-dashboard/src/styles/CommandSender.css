@@ -10,7 +10,6 @@
     border: 1px solid var(--color-border-secondary);
     backdrop-filter: blur(18px);
     position: relative;
-    transition: var(--transition-all);
 }
 
 .command-sender-container::before {
@@ -30,6 +29,23 @@
     gap: var(--spacing-base);
     align-items: start;
     margin-bottom: var(--spacing-base);
+    padding: var(--spacing-base);
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-inset);
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.command-sender-header-row:hover,
+.command-sender-header-row.is-open {
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.08);
+}
+
+.command-sender-header-row:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
+    outline-offset: 2px;
 }
 
 .command-sender-header-copy {
@@ -113,19 +129,12 @@
     padding: 0.5rem 0.9rem;
     border-radius: var(--border-radius-full);
     border: 1px solid var(--color-primary-border);
-    background: var(--color-surface-inset);
+    background: rgba(var(--color-primary-rgb), 0.1);
     color: var(--color-text-primary);
     font: inherit;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: var(--transition-all);
     flex: 0 0 auto;
-}
-
-.command-sender-header-toggle:hover {
-    border-color: var(--color-primary);
-    background: rgba(var(--color-primary-rgb), 0.12);
 }
 
 /* Tab Bar */
@@ -807,6 +816,23 @@
     align-items: baseline;
     gap: var(--spacing-base);
     margin-bottom: var(--spacing-base);
+    padding: 0.75rem 0.9rem;
+    border-radius: var(--border-radius-md);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-inset);
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.command-monitor-history__header:hover,
+.command-monitor-history__header.is-open {
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.08);
+}
+
+.command-monitor-history__header:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
+    outline-offset: 2px;
 }
 
 .command-monitor-history__header-copy {
@@ -832,19 +858,13 @@
     min-height: 2rem;
     padding: 0.4rem 0.8rem;
     border-radius: var(--border-radius-full);
-    border: 1px solid var(--color-border-primary);
-    background: var(--color-bg-primary);
+    border: 1px solid var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.1);
     color: var(--color-text-primary);
     font: inherit;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: var(--transition-all);
-}
-
-.command-monitor-history__toggle:hover {
-    border-color: var(--color-primary-border);
-    background: rgba(var(--color-primary-rgb), 0.12);
+    flex: 0 0 auto;
 }
 
 .command-monitor-history__list {

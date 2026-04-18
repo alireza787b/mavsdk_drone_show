@@ -1,6 +1,6 @@
 // src/components/CommandSender.js
 
-import React, { useMemo, useReducer, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
@@ -68,7 +68,6 @@ const CommandSender = ({
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [panelExpanded, setPanelExpanded] = useState(false);
   const targetSelectionRef = useRef(null);
-  const [, forceClockTick] = useReducer((value) => value + 1, 0);
   const {
     primaryMonitor: commandMonitor,
     recentCommandMonitors,
@@ -81,11 +80,6 @@ const CommandSender = ({
   const setSelectedDrones = onSelectedDronesChange ?? setInternalSelectedDrones;
   const selectedClusterScope = controlledSelectedClusterScope ?? internalSelectedClusterScope;
   const setSelectedClusterScope = onSelectedClusterScopeChange ?? setInternalSelectedClusterScope;
-
-  React.useEffect(() => {
-    const interval = setInterval(forceClockTick, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   const browserNowMs = Date.now();
   const fleetClock = useMemo(
@@ -189,6 +183,32 @@ const CommandSender = ({
   const scopeSourceNotice = targetMode === 'selected' && scopeSource === 'card-wall'
     ? 'Scope was copied from the visible cards. Later card-filter changes stay visual until you apply them again.'
     : null;
+
+  const toggleSetupPanel = () => {
+    setPanelExpanded((current) => !current);
+  };
+
+  const handleSetupPanelKeyDown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    toggleSetupPanel();
+  };
+
+  const toggleHistoryPanel = () => {
+    setHistoryExpanded((current) => !current);
+  };
+
+  const handleHistoryPanelKeyDown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    toggleHistoryPanel();
+  };
 
   const buildTargetContext = (commandData = {}) => {
     const explicitTargets = Array.isArray(commandData.target_drones) && commandData.target_drones.length > 0
@@ -619,28 +639,27 @@ const CommandSender = ({
 
   return (
       <div className="command-sender-container">
-        <div className="command-sender-header-row">
+        <div
+          className={`command-sender-header-row ${panelExpanded ? 'is-open' : ''}`}
+          role="button"
+          tabIndex={0}
+          onClick={toggleSetupPanel}
+          onKeyDown={handleSetupPanelKeyDown}
+          aria-expanded={panelExpanded}
+          aria-label={panelExpanded ? 'Hide dispatch setup' : 'Show dispatch setup'}
+          aria-controls="command-sender-setup"
+        >
           <div className="command-sender-header-copy">
             <p className="command-sender-eyebrow">Dispatch</p>
             <div className="command-sender-header-meta">
               <span className="command-sender-header-pill">{targetLabel}</span>
               <span className="command-sender-header-note">{clockOffsetLabel ? `Scheduler ${clockOffsetLabel}` : 'Scheduler aligned'}</span>
-              {commandMonitor && (
-                <span className="command-sender-header-pill command-sender-header-pill--status">
-                  {commandMonitor.progress?.label || commandMonitor.commandLabel}
-                </span>
-              )}
             </div>
             <h2 className="command-sender-header">Command Control</h2>
           </div>
-          <button
-            type="button"
-            className="command-sender-header-toggle"
-            onClick={() => setPanelExpanded((current) => !current)}
-            aria-expanded={panelExpanded}
-          >
-            {panelExpanded ? 'Hide setup' : 'Scope setup'}
-          </button>
+          <span className="command-sender-header-toggle" aria-hidden="true">
+            {panelExpanded ? 'Setup open' : 'Scope setup'}
+          </span>
         </div>
 
       <CommandPreflightSummary
@@ -765,7 +784,7 @@ const CommandSender = ({
       </div>
 
       {panelExpanded && (
-        <section className="command-sender-setup" ref={targetSelectionRef}>
+        <section className="command-sender-setup" id="command-sender-setup" ref={targetSelectionRef}>
           <div className="target-selection">
             <div className="target-selection__row">
               <div>
@@ -882,19 +901,22 @@ const CommandSender = ({
 
           {recentCommandMonitors.length > 0 && (
             <section className="command-monitor-history" aria-label="Recent commands">
-              <div className="command-monitor-history__header">
+              <div
+                className={`command-monitor-history__header ${historyExpanded ? 'is-open' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={toggleHistoryPanel}
+                onKeyDown={handleHistoryPanelKeyDown}
+                aria-expanded={historyExpanded}
+                aria-label={historyExpanded ? 'Hide recent command history' : 'Show recent command history'}
+              >
                 <div className="command-monitor-history__header-copy">
                   <strong>Recent commands</strong>
                   <span>{recentCommandMonitors.length} stored</span>
                 </div>
-                <button
-                  type="button"
-                  className="command-monitor-history__toggle"
-                  onClick={() => setHistoryExpanded((current) => !current)}
-                  aria-expanded={historyExpanded}
-                >
-                  {historyExpanded ? 'Hide' : 'Show'}
-                </button>
+                <span className="command-monitor-history__toggle" aria-hidden="true">
+                  {historyExpanded ? 'History open' : 'Recent history'}
+                </span>
               </div>
               {historyExpanded && (
                 <div className="command-monitor-history__list">

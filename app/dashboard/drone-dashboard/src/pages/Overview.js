@@ -344,6 +344,19 @@ const Overview = ({ setSelectedDrone }) => {
     }
   }, [clusterScopeOptions, commandClusterScope, commandTargetMode]);
 
+  const toggleFleetPanel = () => {
+    setFleetPanelExpanded((current) => !current);
+  };
+
+  const handleFleetPanelKeyDown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    toggleFleetPanel();
+  };
+
   return (
     <div className="overview-container">
       <header className="overview-header">
@@ -354,7 +367,15 @@ const Overview = ({ setSelectedDrone }) => {
             Live status, command scope, and launch readiness for the active fleet.
           </p>
         </div>
-        <div className="overview-summary-panel">
+        <div
+          className={`overview-summary-panel ${fleetPanelExpanded ? 'is-open' : ''}`}
+          role="button"
+          tabIndex={0}
+          onClick={toggleFleetPanel}
+          onKeyDown={handleFleetPanelKeyDown}
+          aria-expanded={fleetPanelExpanded}
+          aria-label={fleetPanelExpanded ? 'Hide fleet details' : 'Show fleet details'}
+        >
           <div className="overview-summary-strip" role="list" aria-label="Fleet overview">
             <article className="overview-summary-pill" role="listitem">
               <span className="overview-summary-pill__label">Fleet</span>
@@ -373,14 +394,9 @@ const Overview = ({ setSelectedDrone }) => {
               <strong>{fleetSummary.armed}</strong>
             </article>
           </div>
-          <button
-            type="button"
-            className="overview-summary-toggle"
-            onClick={() => setFleetPanelExpanded((current) => !current)}
-            aria-expanded={fleetPanelExpanded}
-          >
-            {fleetPanelExpanded ? 'Hide fleet details' : 'Show fleet details'}
-          </button>
+          <div className={`overview-summary-toggle ${fleetPanelExpanded ? 'is-open' : ''}`} aria-hidden="true">
+            {fleetPanelExpanded ? 'Details open' : 'Tap for details'}
+          </div>
           {fleetPanelExpanded && (
             <div className="overview-summary-grid" role="list" aria-label="Expanded fleet overview">
               <article className="overview-summary-card" role="listitem">
@@ -424,8 +440,8 @@ const Overview = ({ setSelectedDrone }) => {
 
       <div className="connected-drones-header">
         <div>
-          <h2>Card Wall</h2>
-          <p>Visual filters stay local until you apply them inside dispatch setup.</p>
+          <h2>Fleet</h2>
+          <p>Filters stay visual until you copy them into dispatch scope.</p>
         </div>
         <div className="connected-drones-header__actions">
           <span className="connected-drones-count">

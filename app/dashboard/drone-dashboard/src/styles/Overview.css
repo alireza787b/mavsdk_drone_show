@@ -62,6 +62,22 @@
 .overview-summary-panel {
     display: grid;
     gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.overview-summary-panel:hover,
+.overview-summary-panel.is-open {
+    border-color: var(--color-primary-border);
+    background: rgba(var(--color-primary-rgb), 0.06);
+}
+
+.overview-summary-panel:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb), 0.35);
+    outline-offset: 2px;
 }
 
 .overview-summary-strip {
@@ -109,11 +125,10 @@
     font: inherit;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: var(--transition-all);
 }
 
-.overview-summary-toggle:hover {
+.overview-summary-panel:hover .overview-summary-toggle,
+.overview-summary-panel.is-open .overview-summary-toggle {
     border-color: var(--color-primary);
     background: rgba(var(--color-primary-rgb), 0.12);
 }

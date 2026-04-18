@@ -67,7 +67,7 @@ const renderWithCommandActivity = (ui) => render(
 );
 
 const openCommandControl = () => {
-  fireEvent.click(screen.getByRole('button', { name: /scope setup/i }));
+  fireEvent.click(screen.getByRole('button', { name: /show dispatch setup/i }));
 };
 
 describe('CommandSender', () => {
@@ -562,7 +562,7 @@ describe('CommandSender', () => {
     expect(within(liveMonitor).getByText('Take Off')).toBeInTheDocument();
 
     const recentCommands = screen.getByLabelText(/recent commands/i);
-    fireEvent.click(within(recentCommands).getByRole('button', { name: 'Show' }));
+    fireEvent.click(within(recentCommands).getByRole('button', { name: /show recent command history/i }));
     expect(within(recentCommands).getByText('Swarm Trajectory')).toBeInTheDocument();
   });
 
@@ -659,7 +659,7 @@ describe('CommandSender', () => {
     expect(within(screen.getByText('Live Command Monitor').closest('section')).getByText('Accepted, waiting for execution start')).toBeInTheDocument();
 
     const history = await screen.findByLabelText('Recent commands');
-    fireEvent.click(within(history).getByRole('button', { name: 'Show' }));
+    fireEvent.click(within(history).getByRole('button', { name: /show recent command history/i }));
     expect(within(history).getByText('Take Off')).toBeInTheDocument();
     expect(buildLifecycleSnapshotFromStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
