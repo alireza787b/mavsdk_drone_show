@@ -59,14 +59,6 @@ const DroneWidget = ({
     }
   })();
 
-  // Force re-render every second for live time updates
-  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-  React.useEffect(() => {
-    const interval = setInterval(forceUpdate, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-
   // Flight mode and system status
   const flightModeValue = drone[FIELD_NAMES.FLIGHT_MODE] || 0;
   const baseMode = drone[FIELD_NAMES.BASE_MODE] || 0;

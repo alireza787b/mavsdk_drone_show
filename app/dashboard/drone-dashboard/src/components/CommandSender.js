@@ -10,7 +10,7 @@ import CommandPreflightSummary from './CommandPreflightSummary';
 import ClusterScopeBar from './ClusterScopeBar';
 import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faCog } from '@fortawesome/free-solid-svg-icons';
+import { faRocket, faCog, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -50,9 +50,6 @@ const CommandSender = ({
   onSelectedDronesChange = null,
   selectedClusterScope: controlledSelectedClusterScope = null,
   onSelectedClusterScopeChange = null,
-  visibleDroneIds = [],
-  onAdoptVisibleScope = null,
-  scopeSource = 'manual',
 }) => {
   const [activeTab, setActiveTab] = useState('missionTrigger');
   const [internalTargetMode, setInternalTargetMode] = useState('all'); // 'all', 'cluster', or 'selected'
@@ -165,25 +162,6 @@ const CommandSender = ({
       ? (activeClusterTarget?.description || 'Cluster scope follows the current saved Smart Swarm topology.')
       : 'Target scope: all configured drones';
   const monitorTargetDescriptor = commandMonitor?.targetDescriptor || targetDescriptor;
-  const normalizedVisibleDroneIds = useMemo(
-    () => Array.from(new Set((visibleDroneIds || []).map((value) => String(value)).filter(Boolean))),
-    [visibleDroneIds],
-  );
-  const visibleScopeMatchesSelection = useMemo(() => {
-    if (targetMode !== 'selected' || normalizedVisibleDroneIds.length !== selectedDrones.length) {
-      return false;
-    }
-
-    const selectedSet = new Set(selectedDrones.map((value) => String(value)));
-    return normalizedVisibleDroneIds.every((value) => selectedSet.has(value));
-  }, [normalizedVisibleDroneIds, selectedDrones, targetMode]);
-  const visibleScopeButtonLabel = visibleScopeMatchesSelection
-    ? `Visible cards already in scope (${normalizedVisibleDroneIds.length})`
-    : `Copy ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'} to scope`;
-  const scopeSourceNotice = targetMode === 'selected' && scopeSource === 'card-wall'
-    ? 'Scope was copied from the visible cards. Later card-filter changes stay visual until you apply them again.'
-    : null;
-
   const toggleSetupPanel = () => {
     setPanelExpanded((current) => !current);
   };
@@ -621,22 +599,6 @@ const CommandSender = ({
   const deselectAllDrones = () => {
     setSelectedDrones([]);
   };
-  const applyVisibleCardsToScope = () => {
-    if (typeof onAdoptVisibleScope === 'function') {
-      onAdoptVisibleScope();
-      return;
-    }
-
-    if (normalizedVisibleDroneIds.length === 0) {
-      toast.info('No visible cards are available to apply as command scope.');
-      return;
-    }
-
-    setTargetMode('selected');
-    setSelectedDrones(normalizedVisibleDroneIds);
-    toast.info(`Command scope updated to ${normalizedVisibleDroneIds.length} visible card${normalizedVisibleDroneIds.length === 1 ? '' : 's'}.`);
-  };
-
   return (
       <div className="command-sender-container">
         <div
@@ -658,7 +620,10 @@ const CommandSender = ({
             <h2 className="command-sender-header">Command Control</h2>
           </div>
           <span className="command-sender-header-toggle" aria-hidden="true">
-            {panelExpanded ? 'Setup open' : 'Scope setup'}
+            <FontAwesomeIcon
+              icon={faChevronDown}
+              className={`command-sender-header-toggle-icon ${panelExpanded ? 'is-open' : ''}`}
+            />
           </span>
         </div>
 
@@ -807,27 +772,6 @@ const CommandSender = ({
               </div>
             </div>
 
-            {scopeSourceNotice && (
-              <p className="target-selection__notice">{scopeSourceNotice}</p>
-            )}
-
-            {normalizedVisibleDroneIds.length > 0 && (
-              <div className="target-selection__bridge">
-                <div>
-                  <strong>Visible cards</strong>
-                  <p>{normalizedVisibleDroneIds.length} ready to apply.</p>
-                </div>
-                <button
-                  type="button"
-                  className="target-selection__bridge-action"
-                  onClick={applyVisibleCardsToScope}
-                  disabled={visibleScopeMatchesSelection}
-                >
-                  {visibleScopeButtonLabel}
-                </button>
-              </div>
-            )}
-
             {targetMode === 'cluster' && (
               <div className="drone-selection drone-selection--cluster">
                 <ClusterScopeBar
@@ -915,7 +859,10 @@ const CommandSender = ({
                   <span>{recentCommandMonitors.length} stored</span>
                 </div>
                 <span className="command-monitor-history__toggle" aria-hidden="true">
-                  {historyExpanded ? 'History open' : 'Recent history'}
+                  <FontAwesomeIcon
+                    icon={faChevronDown}
+                    className={`command-monitor-history__toggle-icon ${historyExpanded ? 'is-open' : ''}`}
+                  />
                 </span>
               </div>
               {historyExpanded && (
@@ -1013,9 +960,6 @@ CommandSender.propTypes = {
   onSelectedDronesChange: PropTypes.func,
   selectedClusterScope: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   onSelectedClusterScopeChange: PropTypes.func,
-  visibleDroneIds: PropTypes.arrayOf(PropTypes.string),
-  onAdoptVisibleScope: PropTypes.func,
-  scopeSource: PropTypes.oneOf(['manual', 'card-wall']),
 };
 
 export default CommandSender;

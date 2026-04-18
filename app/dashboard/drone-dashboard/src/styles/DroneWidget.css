@@ -21,10 +21,8 @@
     width: 100%;
     position: relative;
     transition:
-        background-color 0.24s ease,
-        border-color 0.24s ease,
-        box-shadow 0.24s ease,
-        transform 0.24s ease;
+        background-color 0.18s ease,
+        border-color 0.18s ease;
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(10px);
@@ -39,12 +37,11 @@
 }
 
 .drone-widget:hover {
-    transform: translateY(-1px);
     box-shadow:
         inset 4px 0 0 var(--widget-left-accent),
         inset 0 3px 0 var(--widget-top-accent),
         inset -3px 0 0 var(--widget-right-accent),
-        var(--shadow-lg),
+        var(--shadow-base),
         var(--widget-outline),
         var(--widget-scope-ring);
     border-color: var(--color-primary-border);
@@ -97,7 +94,6 @@
         inset -3px 0 0 var(--widget-right-accent),
         var(--shadow-lg),
         0 0 0 2px var(--color-primary-light);
-    transform: translateY(-1px);
     z-index: 1;
 }
 
@@ -113,28 +109,13 @@
     font-weight: var(--font-weight-bold);
     color: var(--color-text-primary);
     cursor: pointer;
-    transition: var(--transition-all);
+    transition: color 0.18s ease, border-color 0.18s ease;
     position: relative;
     font-family: var(--font-family-primary);
 }
 
-.drone-widget h3::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-hover));
-    transition: var(--transition-base);
-}
-
 .drone-widget h3:hover {
     color: var(--color-primary);
-}
-
-.drone-widget h3:hover::after {
-    width: 40%;
 }
 
 .drone-header {
@@ -226,8 +207,7 @@
     transition:
         background-color 0.18s ease,
         border-color 0.18s ease,
-        color 0.18s ease,
-        transform 0.18s ease;
+        color 0.18s ease;
 }
 
 .drone-header__action:hover {

@@ -210,6 +210,7 @@ describe('CommandSender', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mock Precision Move' }));
+    await waitFor(() => expect(getPrecisionMovePolicyResponse).toHaveBeenCalled());
 
     expect(screen.getByRole('dialog', { name: /precision move/i })).toBeInTheDocument();
     expect(screen.queryByText('Confirm Command')).not.toBeInTheDocument();
@@ -313,10 +314,10 @@ describe('CommandSender', () => {
     });
   });
 
-  it('can apply visible dashboard cards as an explicit command scope', async () => {
+  it('shows the active manual scope without rendering a separate visible-card bridge inside dispatch setup', async () => {
     const ScopeHarness = () => {
-      const [targetMode, setTargetMode] = React.useState('all');
-      const [selectedDrones, setSelectedDrones] = React.useState([]);
+      const [targetMode, setTargetMode] = React.useState('selected');
+      const [selectedDrones, setSelectedDrones] = React.useState(['1', '3']);
       const [selectedClusterScope, setSelectedClusterScope] = React.useState('');
 
       return (
@@ -329,7 +330,6 @@ describe('CommandSender', () => {
             onSelectedDronesChange={setSelectedDrones}
             selectedClusterScope={selectedClusterScope}
             onSelectedClusterScopeChange={setSelectedClusterScope}
-            visibleDroneIds={['1', '3']}
           />
         </CommandActivityProvider>
       );
@@ -338,14 +338,12 @@ describe('CommandSender', () => {
     render(<ScopeHarness />);
     openCommandControl();
 
-    fireEvent.click(screen.getByRole('button', { name: /copy 2 visible cards to scope/i }));
-
     await waitFor(() => {
       expect(screen.getAllByText('2 selected drones').length).toBeGreaterThan(0);
     });
 
-    expect(screen.getByText('Visible cards already in scope (2)')).toBeInTheDocument();
     expect(screen.getByText('Selected: 2')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /copy .* visible cards to scope/i })).not.toBeInTheDocument();
   });
 
   it('dispatches Cancel Mission to the same targets from the monitor', async () => {

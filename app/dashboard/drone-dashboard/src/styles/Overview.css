@@ -116,6 +116,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 0.45rem;
     min-height: 2.25rem;
     padding: 0.45rem 0.85rem;
     border-radius: var(--border-radius-full);
@@ -131,6 +132,14 @@
 .overview-summary-panel.is-open .overview-summary-toggle {
     border-color: var(--color-primary);
     background: rgba(var(--color-primary-rgb), 0.12);
+}
+
+.overview-summary-toggle-icon {
+    transition: transform 0.18s ease;
+}
+
+.overview-summary-panel.is-open .overview-summary-toggle-icon {
+    transform: rotate(180deg);
 }
 
 .overview-summary-card {

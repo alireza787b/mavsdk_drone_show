@@ -1,6 +1,7 @@
 // src/pages/Overview.js
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { FaChevronDown } from 'react-icons/fa';
 import CommandSender from '../components/CommandSender';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
@@ -293,6 +294,38 @@ const Overview = ({ setSelectedDrone }) => {
     () => new Set(commandScopeIds.map((value) => String(value))),
     [commandScopeIds],
   );
+  const visibleScopeMatchesSelection = React.useMemo(() => {
+    if (commandTargetMode !== 'selected' || filteredDroneIds.length !== commandSelectedDrones.length) {
+      return false;
+    }
+
+    const selectedSet = new Set(commandSelectedDrones.map((value) => String(value)));
+    return filteredDroneIds.every((value) => selectedSet.has(String(value)));
+  }, [commandSelectedDrones, commandTargetMode, filteredDroneIds]);
+  const commandScopeSummary = React.useMemo(() => {
+    if (commandTargetMode === 'selected') {
+      return `Dispatch · ${commandSelectedDrones.length} selected`;
+    }
+
+    if (commandTargetMode === 'cluster') {
+      const activeCluster = clusterScopeOptions.find((option) => String(option.id) === String(commandClusterScope));
+      if (activeCluster) {
+        return `Dispatch · ${activeCluster.label}`;
+      }
+
+      return `Dispatch · Cluster`;
+    }
+
+    return `Dispatch · All ${drones.length}`;
+  }, [clusterScopeOptions, commandClusterScope, commandSelectedDrones.length, commandTargetMode, drones.length]);
+  const applyVisibleCardsToCommandScope = React.useCallback(() => {
+    if (filteredDroneIds.length === 0) {
+      return;
+    }
+
+    setCommandTargetMode('selected');
+    setCommandSelectedDrones(filteredDroneIds);
+  }, [filteredDroneIds]);
   const toggleDroneCommandScope = React.useCallback((droneId) => {
     const normalizedDroneId = normalizeComparableId(droneId);
     if (!normalizedDroneId) {
@@ -395,7 +428,8 @@ const Overview = ({ setSelectedDrone }) => {
             </article>
           </div>
           <div className={`overview-summary-toggle ${fleetPanelExpanded ? 'is-open' : ''}`} aria-hidden="true">
-            {fleetPanelExpanded ? 'Details open' : 'Tap for details'}
+            <span>{fleetPanelExpanded ? 'Details' : 'Summary'}</span>
+            <FaChevronDown className="overview-summary-toggle-icon" />
           </div>
           {fleetPanelExpanded && (
             <div className="overview-summary-grid" role="list" aria-label="Expanded fleet overview">
@@ -434,19 +468,32 @@ const Overview = ({ setSelectedDrone }) => {
           onSelectedDronesChange={setCommandSelectedDrones}
           selectedClusterScope={commandClusterScope}
           onSelectedClusterScopeChange={setCommandClusterScope}
-          visibleDroneIds={filteredDroneIds}
         />
       </div>
 
       <div className="connected-drones-header">
         <div>
           <h2>Fleet</h2>
-          <p>Filters stay visual until you copy them into dispatch scope.</p>
+          <p>Filter the card wall, then apply the visible subset to dispatch when needed.</p>
         </div>
         <div className="connected-drones-header__actions">
           <span className="connected-drones-count">
             {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
           </span>
+          <span className="connected-drones-scope" title="Current dispatch scope">
+            {commandScopeSummary}
+          </span>
+          <button
+            type="button"
+            className="connected-drones-action"
+            onClick={applyVisibleCardsToCommandScope}
+            disabled={filteredDroneIds.length === 0 || visibleScopeMatchesSelection}
+            title={visibleScopeMatchesSelection
+              ? 'The currently visible fleet already matches the manual dispatch scope.'
+              : 'Copy the currently visible fleet cards into the manual dispatch scope.'}
+          >
+            {visibleScopeMatchesSelection ? 'Visible in dispatch' : 'Use visible'}
+          </button>
         </div>
       </div>
 
@@ -481,7 +528,7 @@ const Overview = ({ setSelectedDrone }) => {
         </div>
         {clusterScopeOptions.length > 1 && (
           <ClusterScopeBar
-            label="Cluster scope"
+            label="Visible clusters"
             options={clusterScopeOptions}
             selectedId={clusterScope}
             onSelect={setClusterScope}
