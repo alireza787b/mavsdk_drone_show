@@ -25,7 +25,7 @@ If the repo/branch must also work on GCS and real drones, start with [Custom Rep
 
 ### Step 1: Set Your Configuration
 
-Copy and paste these commands, replacing them with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys. For private GitHub repos, plain HTTPS is not enough by itself: use authenticated HTTPS with `MDS_GIT_AUTH_TOKEN_FILE`, or provide a build/runtime environment that already has valid non-interactive Git credentials.
+Copy and paste these commands, replacing them with your repository details. For public GitHub repos, prefer HTTPS unless the container or build environment has working SSH keys. For private GitHub repos, plain HTTPS is not enough by itself: use authenticated HTTPS with `MDS_GIT_AUTH_TOKEN_FILE`, or provide a build/runtime environment that already has valid non-interactive Git credentials such as `MDS_GIT_SSH_KEY_FILE` for SSH runtime sync.
 
 Do **not** point `MDS_DOCKER_IMAGE` at a custom tag yet unless that image already exists. The clean first pass is:
 
@@ -93,6 +93,7 @@ Notes:
 - `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`.
 - `startup_sitl.sh` now validates the preserved `venv` before trusting it. If the interpreter version, site-packages layout, or core imports do not match, the container rebuilds the `venv` and re-syncs requirements automatically instead of running with a broken Python environment.
 - `MDS_GIT_AUTH_TOKEN_FILE` is the preferred non-interactive path for private GitHub SITL runtime sync and image preparation. It is used only for git clone/fetch inside the containerized flow and is not written into the final flattened image.
+- `MDS_GIT_SSH_KEY_FILE` is the SSH equivalent for mutable runtime sync when the host already has a deploy key or machine-user key that should be mounted into the SITL containers.
 - `MDS_GIT_AUTH_TOKEN` still exists as a legacy fallback, but the preferred file-based path avoids placing the raw token in process arguments during containerized image prep/runtime.
 - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development and rapid rollout, but it is not a reproducible release mode because PX4, `mavsdk_server`, and system packages stay pinned in the image.
 - Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 and the baked `mavsdk_server` binary are intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.
@@ -128,7 +129,7 @@ export MDS_DOCKER_IMAGE="your-custom-image:latest"
 echo 'export MDS_DOCKER_IMAGE="your-custom-image:latest"' >> ~/.mds_config
 ```
 
-`tools/build_custom_image.sh` ensures `/root/mavsdk_drone_show/mavsdk_server` exists in the final image. It now really does honor exported `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` during image preparation, so you can bake a pinned MAVSDK binary into the image instead of downloading it at container boot. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container. For private GitHub repos, export `MDS_GIT_AUTH_TOKEN_FILE` so the builder can clone through authenticated HTTPS without injecting SSH keys into every container.
+`tools/build_custom_image.sh` ensures `/root/mavsdk_drone_show/mavsdk_server` exists in the final image. It now really does honor exported `MDS_MAVSDK_VERSION` and `MDS_MAVSDK_URL` during image preparation, so you can bake a pinned MAVSDK binary into the image instead of downloading it at container boot. If you build images manually by copying only git-tracked files into a container, you must preserve or re-download `mavsdk_server` or takeoff/mission scripts will fail at runtime. For public GitHub repos, both the runtime launcher and image builder retry over HTTPS automatically if an SSH GitHub URL fails inside the container. For private GitHub repos, export `MDS_GIT_AUTH_TOKEN_FILE` for image builds; for mutable runtime sync, you can also mount `MDS_GIT_SSH_KEY_FILE` when the host already has a valid non-interactive SSH key.
 `tools/build_custom_image.sh` now builds a clean custom image without `docker commit`. It prepares a shallow repo checkout for your selected branch, pre-installs the Python venv, preserves runtime git sync for later container startups, and flattens the final filesystem into a fresh image layer stack.
 
 ### Step 3: Deploy Your Drones

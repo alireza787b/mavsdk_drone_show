@@ -142,7 +142,7 @@ collect_mds_env_args() {
     local env_name
     while IFS='=' read -r env_name _; do
         case "$env_name" in
-            MDS_BASE_DIR|MDS_HWID_DIR|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE)
+            MDS_BASE_DIR|MDS_HWID_DIR|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
                 continue
                 ;;
         esac
@@ -150,6 +150,7 @@ collect_mds_env_args() {
     done < <(env | sort | grep '^MDS_[A-Za-z0-9_]*=' || true)
 
     prepare_git_auth_secret_args
+    prepare_git_ssh_secret_args
 }
 
 prepare_git_auth_secret_args() {
@@ -183,6 +184,23 @@ prepare_git_auth_secret_args() {
 
     DOCKER_SECRET_ARGS+=(-v "${host_secret_file}:${container_secret_file}:ro")
     DOCKER_ENV_ARGS+=(-e "MDS_GIT_AUTH_TOKEN_FILE=${container_secret_file}")
+}
+
+prepare_git_ssh_secret_args() {
+    local host_secret_file="${MDS_GIT_SSH_KEY_FILE:-}"
+    local container_secret_file="/run/secrets/mds_git_ssh_key"
+
+    if [[ -z "$host_secret_file" ]]; then
+        return 0
+    fi
+
+    if [[ ! -r "$host_secret_file" ]]; then
+        printf "Error: MDS_GIT_SSH_KEY_FILE is not readable: %s\n" "$host_secret_file" >&2
+        exit 1
+    fi
+
+    DOCKER_SECRET_ARGS+=(-v "${host_secret_file}:${container_secret_file}:ro")
+    DOCKER_ENV_ARGS+=(-e "MDS_GIT_SSH_KEY_FILE=${container_secret_file}")
 }
 
 print_launcher_configuration() {

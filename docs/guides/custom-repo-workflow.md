@@ -46,7 +46,7 @@ Use the same variable names everywhere:
 |--------|-----------------|------|
 | GCS | `/etc/mds/gcs.env` | `MDS_REPO_URL`, `MDS_BRANCH`, `MDS_GIT_AUTO_PUSH` |
 | Real drone hardware | `/etc/mds/local.env` and `/etc/mds/node_identity.json` | `MDS_REPO_URL`, `MDS_BRANCH`, node-local bootstrap identity |
-| SITL runtime | exported shell env before launch | `MDS_REPO_URL`, `MDS_BRANCH`, optional `MDS_GIT_AUTH_TOKEN_FILE`, optional `MDS_DOCKER_IMAGE` |
+| SITL runtime | exported shell env before launch | `MDS_REPO_URL`, `MDS_BRANCH`, optional `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE`, optional `MDS_DOCKER_IMAGE` |
 | GCS backend defaults | `src/params.py` | fallback only when env files are absent |
 
 Important rules:
@@ -63,14 +63,14 @@ Important rules:
 | GCS read-only evaluation | HTTPS + `MDS_GIT_AUTO_PUSH=false` | simplest safe demo path |
 | Real drones | SSH deploy key or HTTPS read-only | drones normally pull only |
 | SITL development (public repo) | HTTPS | easiest when many containers come and go |
-| SITL development (private GitHub repo) | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` | easiest non-interactive path for many containers without leaking the token into process args |
+| SITL development (private GitHub repo) | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` or SSH via `MDS_GIT_SSH_KEY_FILE` | token auth is still the easiest large-fleet path; SSH is useful when the host already has a deploy key or machine-user key |
 | Custom SITL image build for private repo | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` or a pre-authenticated build environment | build happens inside a containerized prep flow |
 
 Practical recommendation:
 - GCS: SSH if it must push customer changes
 - GCS private read-only demo/evaluation: explicit `https://github.com/...git` plus `MDS_GIT_AUTH_TOKEN_FILE`
 - drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine
-- SITL: HTTPS for public repos; for private GitHub repos, use `MDS_GIT_AUTH_TOKEN_FILE` unless you deliberately provision SSH credentials into the build/runtime environment
+- SITL: HTTPS for public repos; for private GitHub repos, use `MDS_GIT_AUTH_TOKEN_FILE` unless you deliberately provision SSH credentials into the build/runtime environment with `MDS_GIT_SSH_KEY_FILE`
 
 Important GitHub note:
 - use a dedicated long-lived read-only GitHub credential file for documented private HTTPS bootstrap/runtime flows

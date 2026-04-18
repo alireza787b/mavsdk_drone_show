@@ -121,6 +121,7 @@ MDS supports environment variable overrides for advanced configuration:
 |----------|---------|---------|
 | `MDS_REPO_URL` | Custom git repository URL | Official repo |
 | `MDS_BRANCH` | Custom git branch | `main-candidate` |
+| `MDS_GIT_SSH_KEY_FILE` | Optional SSH private key file for private GitHub SSH runtime sync | unset |
 | `MDS_GIT_AUTO_PUSH` | Allow dashboard saves/imports to commit + push on the GCS | `true` in writable setups |
 | `MDS_DOCKER_IMAGE` | Custom Docker image | Official image |
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup (`true` = mutable latest-on-boot mode) | `true` |

@@ -49,6 +49,7 @@ set -euo pipefail
 #   MDS_GIT_AUTH_TOKEN_FILE - Preferred path to an authenticated HTTPS token file for private GitHub repos
 #   MDS_GIT_AUTH_TOKEN      - Legacy fallback authenticated HTTPS token for private GitHub repos
 #   MDS_GIT_AUTH_USERNAME   - Optional HTTPS username for token auth (default: x-access-token)
+#   MDS_GIT_SSH_KEY_FILE    - Optional SSH private key path for private GitHub SSH repos
 #
 # NOTE: These variables are checked at container startup time
 # =============================================================================
@@ -60,6 +61,7 @@ GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_sho
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
 # Script Metadata and repository path detection
 SCRIPT_NAME=$(basename "$0")
@@ -239,6 +241,21 @@ load_git_auth_token() {
 
         GIT_AUTH_TOKEN="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
     fi
+}
+
+load_git_ssh_key() {
+    if [[ -z "$GIT_SSH_KEY_FILE" ]]; then
+        return 0
+    fi
+
+    if [[ ! -r "$GIT_SSH_KEY_FILE" ]]; then
+        log_message "ERROR: MDS_GIT_SSH_KEY_FILE is not readable: $GIT_SSH_KEY_FILE"
+        exit 1
+    fi
+
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+    export GIT_SSH_COMMAND="ssh -i $GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
 }
 
 # Function to handle script termination and cleanup
@@ -563,6 +580,9 @@ log_startup_configuration() {
     log_message "  Kill Stale PX4/GZ Processes: $KILL_STALE_SIM_PROCESSES"
     log_message "  Git Sync on Startup: $SITL_GIT_SYNC"
     log_message "  Requirements Sync on Startup: $SITL_REQUIREMENTS_SYNC"
+    if [[ -n "$GIT_SSH_KEY_FILE" ]]; then
+        log_message "  Git SSH Key: configured"
+    fi
     log_message "  File Log Mode: $SITL_FILE_LOG_MODE"
     log_message "  File Log Max Bytes: $SITL_FILE_LOG_MAX_BYTES"
     log_message "  File Log Backup Count: $SITL_FILE_LOG_BACKUP_COUNT"
@@ -716,6 +736,12 @@ github_https_fallback_url() {
     return 1
 }
 
+should_prefer_ssh_repo_url() {
+    local repo_url="$1"
+    [[ -n "$GIT_SSH_KEY_FILE" ]] || return 1
+    [[ "$repo_url" =~ ^git@github\.com: ]]
+}
+
 urlencode_value() {
     python3 - "$1" <<'PY'
 import sys
@@ -841,7 +867,9 @@ bootstrap_repository_checkout() {
         cp "$PX4_SUBMODULE_STATUS_FILE" "$preserve_dir/.mds_px4_submodules.txt"
     fi
 
-    if authenticated_repo_url=$(github_authenticated_https_url "$repo_url"); then
+    if should_prefer_ssh_repo_url "$repo_url"; then
+        effective_repo_url="$repo_url"
+    elif authenticated_repo_url=$(github_authenticated_https_url "$repo_url"); then
         effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     fi
@@ -913,7 +941,14 @@ update_repository() {
     local authenticated_repo_url=""
     local fallback_repo_url=""
     local effective_repo_url="$GITHUB_REPO_URL"
-    if authenticated_repo_url=$(github_authenticated_https_url "$GITHUB_REPO_URL"); then
+    if should_prefer_ssh_repo_url "$GITHUB_REPO_URL"; then
+        effective_repo_url="$GITHUB_REPO_URL"
+        if fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
+            :
+        else
+            fallback_repo_url=""
+        fi
+    elif authenticated_repo_url=$(github_authenticated_https_url "$GITHUB_REPO_URL"); then
         effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     elif fallback_repo_url=$(github_https_fallback_url "$GITHUB_REPO_URL"); then
@@ -1478,6 +1513,7 @@ run_coordinator() {
 # Parse script arguments
 parse_args "$@"
 load_git_auth_token
+load_git_ssh_key
 
 # Trap SIGINT and SIGTERM to execute cleanup
 trap 'cleanup' INT TERM
