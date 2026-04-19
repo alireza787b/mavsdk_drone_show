@@ -325,7 +325,12 @@ run_git_access_preflight() {
     fi
 
     echo "Git Access     : validating ${repo_url}@${branch} before launching containers"
-    if ! bash "$REPO_ROOT/tools/mds_git_access_check.sh" \
+    if ! MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+        MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+        MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-}" \
+        MDS_GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}" \
+        MDS_GIT_KNOWN_HOSTS_FILE="${MDS_GIT_KNOWN_HOSTS_FILE:-}" \
+        bash "$REPO_ROOT/tools/mds_git_access_check.sh" \
         --repo-url "$repo_url" \
         --branch "$branch" \
         --mode sitl-read; then

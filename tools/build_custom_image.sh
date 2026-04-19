@@ -81,7 +81,12 @@ main() {
     docker_sitl_check_image_exists "$BASE_IMAGE"
 
     if [[ "${MDS_SKIP_GIT_ACCESS_PREFLIGHT:-false}" != "true" ]]; then
-        bash "$SCRIPT_DIR/mds_git_access_check.sh" \
+        MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
+            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
+            MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-}" \
+            MDS_GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}" \
+            MDS_GIT_KNOWN_HOSTS_FILE="${MDS_GIT_KNOWN_HOSTS_FILE:-}" \
+            bash "$SCRIPT_DIR/mds_git_access_check.sh" \
             --repo-url "$repo_url" \
             --branch "$branch" \
             --mode image-prep

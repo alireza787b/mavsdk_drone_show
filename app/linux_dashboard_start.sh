@@ -162,9 +162,13 @@ load_gcs_system_config() {
             MDS_GIT_AUTH_TOKEN_FILE \
             MDS_GIT_AUTH_TOKEN \
             MDS_GIT_AUTH_USERNAME \
+            MDS_GIT_SSH_KEY_FILE \
+            MDS_GIT_KNOWN_HOSTS_FILE \
             MDS_DOCKER_IMAGE \
             MDS_SITL_GIT_SYNC \
+            MDS_SITL_GIT_SYNC_PREFLIGHT \
             MDS_SITL_REQUIREMENTS_SYNC \
+            MDS_SITL_USE_HOST_STARTUP_SCRIPT \
             2>/dev/null || true
         return 0
     fi
