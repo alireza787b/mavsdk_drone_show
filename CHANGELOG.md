@@ -7,6 +7,25 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [5.2] - 2026-04-19
+
+### Added
+- Custom SITL/private repository authentication handoff:
+  documented public, public-fork, and private-repo auth paths; added
+  non-interactive Git access preflight for SITL runtime sync and image
+  preparation; and verified private SSH read/write operation on Hetzner.
+- Operator-friendly Mission Config optional-field templates for `callsign`,
+  `marker_color`, `notes`, and `role_hint`.
+
+### Changed
+- Dashboard startup, SITL launcher, and image-release scripts now propagate
+  read-only SSH/token auth settings consistently into child preflight checks.
+- Private SITL image workflow now closes on a flattened `latest` image at the
+  validated client branch, while public official usage remains unauthenticated.
+
+---
+
+
 ## [Unreleased]
 
 ### Added
