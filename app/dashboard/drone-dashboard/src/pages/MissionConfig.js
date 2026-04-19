@@ -1404,7 +1404,7 @@ const MissionConfig = () => {
             <div className="identity-brief-card">
               <span className="identity-brief-label">Additional fields</span>
               <strong>Optional metadata stays secondary</strong>
-              <p>Add JSON-backed fields like <code>callsign</code>, <code>notes</code>, or maintenance tags without changing the core identity model.</p>
+              <p>Add guided fields like <code>callsign</code>, <code>marker_color</code>, <code>notes</code>, or custom metadata without changing the core identity model.</p>
             </div>
           </div>
         </details>

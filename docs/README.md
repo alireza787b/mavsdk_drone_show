@@ -19,6 +19,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | inspect Smart Swarm tracking quality | [Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md) |
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
+| configure private SITL/container repo auth | [Custom SITL Auth Guide](guides/custom-sitl-auth.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
 | deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
 | build or redistribute a validated custom SITL image | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
@@ -54,6 +55,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 ### Core Secondary Guides
 
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
+- **[Custom SITL Auth Guide](guides/custom-sitl-auth.md)** - official/public/private repo auth split for GCS write access, SITL read access, and image-prep credentials
 - **[SITL Control Guide](guides/sitl-control.md)** - dashboard-based local SITL lifecycle control, image save flow, and operator-focused container management
 - **[Mapbox Setup](guides/mapbox-setup.md)** - optional Mapbox token setup and fallback behavior for map views
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
@@ -76,6 +78,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** | Expected vs actual follower tracking proof during leader jogs and frame changes | Maintainers / evaluators |
 | **[SITL Control](guides/sitl-control.md)** | Dashboard-driven local SITL lifecycle control, reconcile, logs, and image save workflow | Operators / maintainers |
 | **[Custom Repo Workflow](guides/custom-repo-workflow.md)** | Customer repo/branch selection across GCS, drones, and SITL | Advanced users |
+| **[Custom SITL Auth](guides/custom-sitl-auth.md)** | GCS write credential, SITL read credential, and image-prep auth split for public/private repos | Advanced users / AI agents |
 | **[Advanced SITL](guides/advanced-sitl.md)** | Custom configuration, environment variables, production deployments | Advanced users |
 | **[SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md)** | Fork maintenance, clean image rebuilds, package/archive distribution | Advanced users |
 
@@ -123,10 +126,12 @@ MDS supports environment variable overrides for advanced configuration:
 |----------|---------|---------|
 | `MDS_REPO_URL` | Custom git repository URL | Official repo |
 | `MDS_BRANCH` | Custom git branch | `main-candidate` |
+| `MDS_GIT_AUTH_TOKEN_FILE` | Preferred read-only GitHub HTTPS token file for private SITL/image-prep/GCS read setups | unset |
 | `MDS_GIT_SSH_KEY_FILE` | Optional SSH private key file for private GitHub SSH runtime sync | unset |
 | `MDS_GIT_AUTO_PUSH` | Allow dashboard saves/imports to commit + push on the GCS | `true` in writable setups |
 | `MDS_DOCKER_IMAGE` | Custom Docker image | Official image |
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup (`true` = mutable latest-on-boot mode) | `true` |
+| `MDS_SITL_GIT_SYNC_PREFLIGHT` | Validate repo/branch/read credential before creating SITL containers | `true` |
 | `MDS_SITL_REQUIREMENTS_SYNC` | Reinstall Python deps when `requirements.txt` changes | `true` |
 | `MDS_SITL_FILE_LOG_MODE` | Runtime file log retention (`bounded`, `full`, `discard`) | `bounded` |
 | `MDS_SITL_STRIP_PXH_PROMPTS` | Remove repetitive PX4 shell prompt noise from SITL logs | `true` |

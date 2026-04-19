@@ -90,7 +90,7 @@ For production or customer-specific deployments, use a repo you control:
 
 ### SSH Deploy Keys
 
-For write access (fork or collaborator), you'll set up an SSH deploy key:
+For GCS write access (fork or collaborator), set up an SSH deploy key on the GCS host:
 
 1. The installer generates a key at `~/.ssh/mds_gcs_deploy_key`
 2. Add the public key to your GitHub repository:
@@ -101,6 +101,8 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
    For a first-time private SSH bootstrap, non-interactive `-y` only works if that deploy key is already authorized on GitHub.
    After you authorize the deploy key, rerunning `mds_gcs_init.sh` with the same repo/branch updates `/etc/mds/gcs.env` to match, so the launcher and backend stay on the same source of truth.
 
+Do not reuse this write-capable GCS key inside disposable SITL containers. Private SITL containers should use a separate read-only token/key as documented in [Custom SITL Auth Guide](custom-sitl-auth.md).
+
 ### Access Modes
 
 | Mode | Write Access | Git Sync | Use Case |
@@ -110,7 +112,7 @@ For write access (fork or collaborator), you'll set up an SSH deploy key:
 | SSH (custom repo) | Yes | Yes | Production shows |
 
 For a full customer repo decision tree, see [Custom Repo Workflow](custom-repo-workflow.md).
-For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_only_token`; plain HTTPS alone is not sufficient.
+For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_only_token`; plain HTTPS alone is not sufficient. For SITL/private image auth, use [Custom SITL Auth Guide](custom-sitl-auth.md).
 
 ---
 

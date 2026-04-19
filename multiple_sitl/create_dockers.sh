@@ -45,11 +45,12 @@ echo "For ADVANCED USERS - Custom Repository Configuration:"
 echo "  Set environment variables before running this script:"
 echo "    export MDS_REPO_URL=\"git@github.com:yourorg/yourrepo.git\""
 echo "    export MDS_BRANCH=\"your-branch\""
-echo "    export MDS_GIT_AUTH_TOKEN_FILE=\"/secure/path/github_read_token\""
+echo "    export MDS_GIT_AUTH_TOKEN_FILE=\"/secure/path/github_read_token\"  # private HTTPS read-only"
+echo "    export MDS_GIT_SSH_KEY_FILE=\"/secure/path/github_read_key\"       # private SSH read-only fallback"
 echo "    export MDS_DOCKER_IMAGE=\"your-image:tag\""
 echo "  Then run: bash create_dockers.sh <number>"
 echo "  All MDS_* environment variables are forwarded into the container runtime."
-echo "  See: docs/guides/advanced-sitl.md for complete guide"
+echo "  See: docs/guides/custom-sitl-auth.md and docs/guides/advanced-sitl.md"
 echo
 echo "==============================================================="
 echo
@@ -72,6 +73,7 @@ echo
 #     export MDS_REPO_URL="git@github.com:company/fork.git"
 #     export MDS_BRANCH="production"
 #     export MDS_GIT_AUTH_TOKEN_FILE="/secure/path/github_read_token"   # private GitHub HTTPS only
+#     export MDS_GIT_SSH_KEY_FILE="/secure/path/github_read_key"        # private GitHub SSH fallback
 #   - All containers will use your custom image and repository
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
@@ -116,6 +118,7 @@ FAILED_CONTAINERS=()
 WAIT_FOR_READY="${MDS_SITL_WAIT_FOR_READY:-true}"
 READY_TIMEOUT_SECONDS="${MDS_SITL_READY_TIMEOUT_SECONDS:-60}"
 READY_POLL_INTERVAL_SECONDS="${MDS_SITL_READY_POLL_INTERVAL_SECONDS:-2}"
+SITL_GIT_SYNC_PREFLIGHT="${MDS_SITL_GIT_SYNC_PREFLIGHT:-true}"
 
 # Variables for custom network, starting drone ID, and starting IP
 CUSTOM_SUBNET="172.18.0.0/24"  # Default subnet
@@ -268,6 +271,14 @@ validate_launcher_configuration() {
             ;;
     esac
 
+    case "$SITL_GIT_SYNC_PREFLIGHT" in
+        true|false) ;;
+        *)
+            printf "Error: MDS_SITL_GIT_SYNC_PREFLIGHT must be 'true' or 'false'.\n" >&2
+            exit 1
+            ;;
+    esac
+
     case "$SHARE_HOST_SWARM_TRAJECTORY" in
         true|false) ;;
         *)
@@ -295,6 +306,38 @@ print_scale_guidance() {
     if (( num_instances >= 10 )) && [[ "$effective_requirements_sync" == "true" ]]; then
         printf "Notice: if requirements.txt changes, MDS_SITL_REQUIREMENTS_SYNC=true can also trigger one pip sync per container at boot.\n" >&2
         printf "For validated large-fleet runs, usually keep MDS_SITL_REQUIREMENTS_SYNC=false after baking the approved venv into the image.\n" >&2
+    fi
+}
+
+run_git_access_preflight() {
+    local effective_git_sync="${MDS_SITL_GIT_SYNC:-true}"
+    local repo_url="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+    local branch="${MDS_BRANCH:-main-candidate}"
+
+    if [[ "$effective_git_sync" != "true" ]]; then
+        echo "Git Access     : skipped (MDS_SITL_GIT_SYNC=false; using baked image checkout)"
+        return 0
+    fi
+
+    if [[ "$SITL_GIT_SYNC_PREFLIGHT" != "true" ]]; then
+        echo "Git Access     : skipped (MDS_SITL_GIT_SYNC_PREFLIGHT=false)"
+        return 0
+    fi
+
+    echo "Git Access     : validating ${repo_url}@${branch} before launching containers"
+    if ! bash "$REPO_ROOT/tools/mds_git_access_check.sh" \
+        --repo-url "$repo_url" \
+        --branch "$branch" \
+        --mode sitl-read; then
+        cat >&2 <<'EOF'
+
+SITL repo access preflight failed.
+Containers were not created because startup git sync would fail inside them.
+Fix the repo URL, branch, or read-only credential, then rerun this command.
+
+Guide: docs/guides/custom-sitl-auth.md
+EOF
+        exit 1
     fi
 }
 
@@ -649,6 +692,7 @@ main() {
     collect_mds_env_args
     print_launcher_configuration
     print_scale_guidance "$num_instances"
+    run_git_access_preflight
 
     # Setup Docker network
     setup_docker_network

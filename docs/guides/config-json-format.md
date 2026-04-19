@@ -48,10 +48,21 @@ MDS uses JSON files for fleet and swarm configuration. The format supports optio
 
 Any additional fields are preserved. Recommended pattern:
 - keep core mission identity in `hw_id` and `pos_id`
-- use custom fields only for secondary metadata such as `callsign`, `marker_color`, `notes`, `maintenance_tag`, or `payload_type`
+- use custom fields only for secondary metadata such as `callsign`, `marker_color`, `notes`, `role_hint`, `maintenance_tag`, or `payload_type`
 - prefer lowercase `snake_case` keys for long-term compatibility
 
 Examples: `"maintenance_tag": "A2"`, `"payload_type": "smoke"`, `"marker_color": "#ff9800"`, `"ready_for_show": true`.
+
+Mission Config includes predefined optional-field templates for common fields:
+
+| Template | Saved key | Type | Purpose |
+|----------|-----------|------|---------|
+| Callsign | `callsign` | text | Operator alias shown in dense cards, maps, and reports |
+| Marker Color | `marker_color` | color | `#RGB` or `#RRGGBB` map/globe marker color override |
+| Notes | `notes` | text | Short operator maintenance or test note |
+| Role Hint | `role_hint` | text | Human planning hint only; does not override mission/swarm logic |
+
+Use **Custom field** only when the predefined templates do not cover the metadata you need.
 
 Marker asset note:
 

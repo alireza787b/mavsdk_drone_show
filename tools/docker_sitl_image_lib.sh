@@ -72,6 +72,36 @@ docker_sitl_cleanup_git_auth_secret() {
     docker exec "$container_name" rm -f /run/secrets/mds_git_auth_token >/dev/null 2>&1 || true
 }
 
+docker_sitl_stage_git_ssh_secret() {
+    local container_name="$1"
+    local secret_mount_path="/run/secrets/mds_git_ssh_key"
+    local host_secret_file="${MDS_GIT_SSH_KEY_FILE:-}"
+
+    if [[ -z "$host_secret_file" ]]; then
+        return 0
+    fi
+
+    [[ -r "$host_secret_file" ]] || {
+        printf 'Error: MDS_GIT_SSH_KEY_FILE is not readable: %s\n' "$host_secret_file" >&2
+        exit 1
+    }
+
+    docker exec "$container_name" mkdir -p /run/secrets >/dev/null
+    docker cp "$host_secret_file" "${container_name}:${secret_mount_path}"
+    docker exec "$container_name" chmod 600 "$secret_mount_path" >/dev/null
+}
+
+docker_sitl_cleanup_git_ssh_secret() {
+    local container_name="$1"
+    docker exec "$container_name" rm -f /run/secrets/mds_git_ssh_key >/dev/null 2>&1 || true
+}
+
+docker_sitl_cleanup_git_secrets() {
+    local container_name="$1"
+    docker_sitl_cleanup_git_auth_secret "$container_name"
+    docker_sitl_cleanup_git_ssh_secret "$container_name"
+}
+
 docker_sitl_run_prepare_script() {
     local container_name="$1"
     local repo_url="$2"
@@ -99,6 +129,11 @@ docker_sitl_run_prepare_script() {
         docker_exec_args+=(-e "MDS_GIT_AUTH_TOKEN_FILE=/run/secrets/mds_git_auth_token")
     fi
 
+    if [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" ]]; then
+        docker_sitl_stage_git_ssh_secret "$container_name"
+        docker_exec_args+=(-e "MDS_GIT_SSH_KEY_FILE=/run/secrets/mds_git_ssh_key")
+    fi
+
     if [[ -n "${MDS_GIT_AUTH_USERNAME:-}" ]]; then
         docker_exec_args+=(-e "MDS_GIT_AUTH_USERNAME=${MDS_GIT_AUTH_USERNAME}")
     fi
@@ -108,11 +143,11 @@ docker_sitl_run_prepare_script() {
     "${docker_exec_args[@]}" || exec_status=$?
 
     if [[ "$exec_status" -eq 0 ]]; then
-        docker_sitl_cleanup_git_auth_secret "$container_name"
+        docker_sitl_cleanup_git_secrets "$container_name"
         return 0
     fi
 
-    docker_sitl_cleanup_git_auth_secret "$container_name"
+    docker_sitl_cleanup_git_secrets "$container_name"
     return "$exec_status"
 }
 

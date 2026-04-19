@@ -11,6 +11,7 @@ BRANCH="${2:-${MDS_BRANCH:-$DEFAULT_BRANCH}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 VENV_DIR="$BASE_DIR/venv"
 VENV_REQUIREMENTS_MARKER="$VENV_DIR/.mds_requirements_state"
 RUNTIME_VENV_HEALTH_CHECKER="$BASE_DIR/tools/check_runtime_venv.py"
@@ -38,6 +39,17 @@ load_git_auth_token() {
         [[ -r "$GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is not readable: $GIT_AUTH_TOKEN_FILE"
         GIT_AUTH_TOKEN="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
     fi
+}
+
+load_git_ssh_key() {
+    if [[ -z "$GIT_SSH_KEY_FILE" ]]; then
+        return 0
+    fi
+
+    [[ -r "$GIT_SSH_KEY_FILE" ]] || fail "MDS_GIT_SSH_KEY_FILE is not readable: $GIT_SSH_KEY_FILE"
+    mkdir -p "$HOME/.ssh"
+    chmod 700 "$HOME/.ssh"
+    export GIT_SSH_COMMAND="ssh -i $GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
 }
 
 retry_cmd() {
@@ -68,6 +80,11 @@ github_https_fallback_url() {
         return 0
     fi
     return 1
+}
+
+should_prefer_ssh_repo_url() {
+    [[ -n "$GIT_SSH_KEY_FILE" ]] || return 1
+    [[ "$1" =~ ^git@github\.com: ]]
 }
 
 urlencode_value() {
@@ -126,7 +143,9 @@ fresh_clone_mds_repo() {
     local preserve_dir
     preserve_dir=$(mktemp -d)
 
-    if authenticated_repo_url=$(github_authenticated_https_url "$REPO_URL"); then
+    if should_prefer_ssh_repo_url "$REPO_URL"; then
+        effective_repo_url="$REPO_URL"
+    elif authenticated_repo_url=$(github_authenticated_https_url "$REPO_URL"); then
         effective_repo_url="$authenticated_repo_url"
         fallback_repo_url=""
     elif fallback_repo_url=$(github_https_fallback_url "$REPO_URL"); then
@@ -318,6 +337,7 @@ EOF
 
 main() {
     load_git_auth_token
+    load_git_ssh_key
     require_cmd git
     require_cmd python3
     require_cmd sha256sum

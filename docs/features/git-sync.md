@@ -101,6 +101,7 @@ This is parsed by `actions.py` for logging and status tracking.
 | HTTPS remote detected | GCS using HTTPS | Switch to SSH remote for push access |
 | Merge conflict on rebase | Concurrent edits | Auto-resolved: abort rebase, reset, retry |
 | Fetch timeout on drone | Network issue | Graceful degradation: drone continues with cached code |
+| SITL repo access preflight fails | Missing read-only token/key, wrong branch, or private repo without auth | Fix `MDS_REPO_URL`, `MDS_BRANCH`, `MDS_GIT_AUTH_TOKEN_FILE`, or `MDS_GIT_SSH_KEY_FILE`; see Custom SITL Auth Guide |
 | Connectivity probe fails inside Docker/SITL | ICMP blocked or `ping` unavailable | The probe is advisory only; `git fetch` is the definitive check |
 | Sync accepted but never verified | Runtime command parameter missing or git update failed on drone | Check drone session logs; success is only reported after branch/commit/status match |
 
@@ -130,6 +131,7 @@ This is parsed by `actions.py` for logging and status tracking.
 
 ### SITL
 - `multiple_sitl/startup_sitl.sh` - `update_repository()` with retry/jitter
+- `tools/mds_git_access_check.sh` - host-side repo/branch/auth preflight before SITL container launch or image prep
 
 ### Frontend
 - `src/components/SyncWarningBanner.js` - Out-of-sync warning banner
@@ -151,7 +153,7 @@ For custom forks, org repos, or private customer repos, the following override c
 |-----------|-------------|-----------------|
 | GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/gcs.env` |
 | Drone boot sync and `UPDATE_CODE` action | `update_repo_ssh.sh` | Set `MDS_REPO_URL`/`MDS_BRANCH` in `/etc/mds/local.env` |
-| SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` before running `create_dockers.sh` |
+| SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` and optional read-only `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE` before running `create_dockers.sh` |
 | `/api/v1/git/sync-operations` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
 
 The GCS launcher sources `/etc/mds/gcs.env` on startup. Drone boot sync and dashboard-triggered `UPDATE_CODE` both load `/etc/mds/local.env`, so hardware repo/branch selection stays aligned across boot-time and operator-triggered sync.
@@ -161,3 +163,4 @@ Generated SITL provenance files (`.mds_sitl_image_build.env`, `.mds_px4_source_p
 If you are validating a fix that changes the drone-side sync runtime itself, recreate existing SITL containers once so they boot with the corrected updater before you rely on operator-triggered `Sync Now` for later revisions.
 
 For the end-to-end customer/private repo workflow, see [Custom Repo Workflow](../guides/custom-repo-workflow.md).
+For SITL/private image authentication rules, see [Custom SITL Auth Guide](../guides/custom-sitl-auth.md).

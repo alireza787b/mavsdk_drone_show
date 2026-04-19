@@ -55,6 +55,9 @@ Result:
   - For a private GitHub repo, prefer MDS_GIT_AUTH_TOKEN_FILE so image
     preparation can clone through authenticated HTTPS without exposing the
     token in process arguments. MDS_GIT_AUTH_TOKEN remains a legacy fallback.
+  - MDS_GIT_SSH_KEY_FILE is also supported as a read-only SSH fallback. The
+    release helper stages it only during image prep and removes it before
+    flattening the final image.
   - Export MDS_SITL_KEEP_ARM_TOOLCHAIN=true before running only if you
     intentionally need the PX4 ARM firmware toolchain preserved in the image
 EOF
@@ -124,6 +127,13 @@ done
 
 docker_sitl_check_docker
 docker_sitl_check_image_exists "$BASE_IMAGE"
+
+if [[ "${MDS_SKIP_GIT_ACCESS_PREFLIGHT:-false}" != "true" ]]; then
+    bash "$SCRIPT_DIR/mds_git_access_check.sh" \
+        --repo-url "$REPO_URL" \
+        --branch "$BRANCH" \
+        --mode image-prep
+fi
 
 TEMP_CONTAINER="mds-sitl-release-$(date +%s)-$$"
 trap 'docker_sitl_cleanup_container "$TEMP_CONTAINER"' EXIT

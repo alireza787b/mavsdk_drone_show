@@ -14,14 +14,16 @@ Typical reasons:
 This guide is the source of truth for:
 - custom repo and branch selection
 - where each component stores that selection
-- SSH vs HTTPS recommendations
-- writable vs read-only Git workflows
+- how GCS, drones, and SITL select the same repo/branch
 - upstream sync strategy
 - GitHub public-fork versus private-customer decisions
+
+For the credential split itself, use [Custom SITL Auth Guide](custom-sitl-auth.md) as the source of truth. This workflow guide intentionally links there instead of duplicating all token/key rules.
 
 It complements these guides:
 - [GCS Setup Guide](gcs-setup.md)
 - [MDS Init Setup Guide](mds-init-setup.md)
+- [Custom SITL Auth Guide](custom-sitl-auth.md)
 - [Advanced SITL Guide](advanced-sitl.md)
 - [SITL Custom Release Workflow](sitl-custom-release-workflow.md)
 - [Git Sync System](../features/git-sync.md)
@@ -59,18 +61,18 @@ Important rules:
 
 | Target | Recommended access | Why |
 |--------|--------------------|-----|
-| GCS with dashboard write-back | SSH deploy key or another non-interactive writable Git credential | config/show saves may need commit + push |
+| GCS with dashboard write-back | host-only SSH deploy key or another non-interactive writable Git credential | config/show saves may need commit + push |
 | GCS read-only evaluation | HTTPS + `MDS_GIT_AUTO_PUSH=false` | simplest safe demo path |
 | Real drones | SSH deploy key or HTTPS read-only | drones normally pull only |
-| SITL development (public repo) | HTTPS | easiest when many containers come and go |
-| SITL development (private GitHub repo) | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` or SSH via `MDS_GIT_SSH_KEY_FILE` | token auth is still the easiest large-fleet path; SSH is useful when the host already has a deploy key or machine-user key |
-| Custom SITL image build for private repo | authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` or a pre-authenticated build environment | build happens inside a containerized prep flow |
+| SITL development, public repo | public HTTPS | easiest when many containers come and go |
+| SITL development, private GitHub repo | read-only `MDS_GIT_AUTH_TOKEN_FILE` or read-only `MDS_GIT_SSH_KEY_FILE` | containers pull only and should not receive write access |
+| Custom SITL image build for private repo | temporary read-only `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE` | build happens inside a containerized prep flow; final image must not contain secrets |
 
 Practical recommendation:
-- GCS: SSH if it must push customer changes
-- GCS private read-only demo/evaluation: explicit `https://github.com/...git` plus `MDS_GIT_AUTH_TOKEN_FILE`
+- GCS: SSH write key only if it must push customer changes
+- GCS private read-only demo/evaluation: explicit `https://github.com/...git` plus `MDS_GIT_AUTO_PUSH=false`
 - drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine
-- SITL: HTTPS for public repos; for private GitHub repos, use `MDS_GIT_AUTH_TOKEN_FILE` unless you deliberately provision SSH credentials into the build/runtime environment with `MDS_GIT_SSH_KEY_FILE`
+- SITL: public HTTPS for public repos; read-only token/key for private repos; no write credentials in containers
 
 Important GitHub note:
 - use a dedicated long-lived read-only GitHub credential file for documented private HTTPS bootstrap/runtime flows
@@ -293,6 +295,17 @@ export MDS_SITL_REQUIREMENTS_SYNC=true
 bash multiple_sitl/create_dockers.sh 5
 ```
 
+Before creating containers, the launcher now validates repo/branch/read access with:
+
+```bash
+bash tools/mds_git_access_check.sh \
+  --repo-url "$MDS_REPO_URL" \
+  --branch "$MDS_BRANCH" \
+  --mode sitl-read
+```
+
+This preflight also runs automatically from `multiple_sitl/create_dockers.sh` while `MDS_SITL_GIT_SYNC=true`. If it fails, fix the read credential before creating containers.
+
 Legacy fallback:
 - `MDS_GIT_AUTH_TOKEN` still works if you already have automation built around it
 - `MDS_GIT_AUTH_TOKEN_FILE` is now preferred because the launcher/builder can pass only a mounted secret file path into containers instead of placing the raw token in process arguments
@@ -335,15 +348,17 @@ Important:
 - do not use `docker commit` as the release workflow
 
 For private repo builds, make sure the build environment has real Git access.
-Authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` is usually easier than
-injecting SSH keys into the containerized image-prep flow.
+Authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE` is usually easiest. Read-only
+SSH via `MDS_GIT_SSH_KEY_FILE` is also supported for organizations that prefer
+SSH-only Git access.
 
 Credential split:
 
 - GCS write-back: use a dedicated SSH deploy key or machine-user key with write
   access only when dashboard saves must push back to the customer repo
 - drone/SITL read-sync: prefer a read-only HTTPS token file exposed as
-  `MDS_GIT_AUTH_TOKEN_FILE`
+  `MDS_GIT_AUTH_TOKEN_FILE`; use `MDS_GIT_SSH_KEY_FILE` as a read-only SSH
+  fallback
 - public official images: use unauthenticated HTTPS against the public official
   repo
 - do not bake tokens or private SSH keys into redistributed images; the release
@@ -394,6 +409,7 @@ These areas matter:
 | Dashboard save/import flow | may need writable Git credentials |
 | SITL launch | export `MDS_REPO_URL` / `MDS_BRANCH` or use a custom image |
 | Private GitHub SITL auth | export a read-only `MDS_GIT_AUTH_TOKEN_FILE` for mutable runtime sync or image prep |
+| Private GitHub SITL preflight | launcher validates access before creating containers |
 | Release packaging | customer image/tag/archive naming now belongs to the customer workflow |
 | Upstream maintenance | customer repo must deliberately fetch and review official updates |
 
@@ -452,5 +468,6 @@ For serious customer work:
 - [GCS Setup Guide](gcs-setup.md)
 - [MDS Init Setup Guide](mds-init-setup.md)
 - [Advanced SITL Guide](advanced-sitl.md)
+- [Custom SITL Auth Guide](custom-sitl-auth.md)
 - [SITL Custom Release Workflow](sitl-custom-release-workflow.md)
 - [Git Sync System](../features/git-sync.md)

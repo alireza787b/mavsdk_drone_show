@@ -15,6 +15,8 @@ This guide is about the **Docker SITL image workflow**. It does not replace the 
 
 If you are aligning GCS, drones, and SITL around the same customer repo/branch, read [Custom Repo Workflow](custom-repo-workflow.md) first.
 
+For public/private repo authentication, read [Custom SITL Auth Guide](custom-sitl-auth.md). It is the source of truth for keeping GCS write credentials separate from read-only SITL/image-prep credentials.
+
 ## Choose The Right Workflow
 
 | Goal | Recommended workflow |
@@ -45,7 +47,7 @@ What it does **not** auto-update:
 - baked `mavsdk_server`
 
 That means runtime git sync is useful for development, but it is not a full image refresh and not a reproducible release process.
-For private GitHub repos, add `MDS_GIT_AUTH_TOKEN_FILE` during mutable runtime sync or image preparation; plain HTTPS alone will not clone a private repo. `MDS_GIT_AUTH_TOKEN` remains a legacy fallback, but the file-based path avoids putting the raw token into process arguments during containerized flows.
+For private GitHub repos, add `MDS_GIT_AUTH_TOKEN_FILE` or read-only `MDS_GIT_SSH_KEY_FILE` during mutable runtime sync or image preparation; plain HTTPS alone will not clone a private repo. `MDS_GIT_AUTH_TOKEN` remains a legacy fallback, but the file-based path avoids putting the raw token into process arguments during containerized flows.
 If the build fails with a GitHub `403` and `The token in this link has expired`,
 refresh the token file and rerun the build. That is an environment credential
 expiry issue, not a reason to switch back to mutable in-container edits.
@@ -88,6 +90,7 @@ Recommended rules:
 - do not rely on editing files inside running containers
 - rebuild the image once the fork state is approved and needs to become a stable release
 - for private repos, make sure the runtime environment can authenticate before you rely on mutable boot sync
+- keep `MDS_SITL_GIT_SYNC_PREFLIGHT=true` so the launcher checks repo/branch/read auth before starting containers
 
 ## Build A Clean Custom Image
 
@@ -109,7 +112,8 @@ Notes:
 - the final image is flattened so old `docker commit` layer history does not accumulate
 - export `MDS_MAVSDK_VERSION` or `MDS_MAVSDK_URL` before building if you intentionally want a different baked `mavsdk_server`
 - export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before building only if your custom image intentionally needs the PX4 ARM toolchain
-- for private repos, prefer authenticated HTTPS or another pre-authenticated Git path during image preparation
+- for private repos, prefer authenticated HTTPS via `MDS_GIT_AUTH_TOKEN_FILE`; read-only SSH via `MDS_GIT_SSH_KEY_FILE` is also supported
+- the helper validates repo/branch/auth before starting image preparation unless `MDS_SKIP_GIT_ACCESS_PREFLIGHT=true`
 
 ## Rebuild And Package A Validated Release
 
@@ -257,4 +261,5 @@ For PX4 updates:
 
 - [SITL Comprehensive Guide](sitl-comprehensive.md)
 - [Advanced SITL Configuration Guide](advanced-sitl.md)
+- [Custom SITL Auth Guide](custom-sitl-auth.md)
 - [Documentation Index](../README.md)

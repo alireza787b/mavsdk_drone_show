@@ -8,6 +8,8 @@ If you need a full release-maintenance workflow instead of just runtime override
 
 If the repo/branch must also work on GCS and real drones, start with [Custom Repo Workflow](custom-repo-workflow.md) first. This guide focuses only on the SITL side.
 
+For private/public repo auth rules, use [Custom SITL Auth Guide](custom-sitl-auth.md). That guide is the source of truth for the GCS write credential, disposable SITL read credential, and image-prep credential split.
+
 > **⚠️ Prerequisites Required:**
 > - Good understanding of Git, Docker, and Linux
 > - Experience with environment variables and bash commands
@@ -95,6 +97,7 @@ Notes:
 - `MDS_GIT_AUTH_TOKEN_FILE` is the preferred non-interactive path for private GitHub SITL runtime sync and image preparation. It is used only for git clone/fetch inside the containerized flow and is not written into the final flattened image.
 - `MDS_GIT_SSH_KEY_FILE` is the SSH equivalent for mutable runtime sync when the host already has a deploy key or machine-user key that should be mounted into the SITL containers.
 - `MDS_GIT_AUTH_TOKEN` still exists as a legacy fallback, but the preferred file-based path avoids placing the raw token in process arguments during containerized image prep/runtime.
+- `MDS_SITL_GIT_SYNC_PREFLIGHT=true` makes `create_dockers.sh` validate repo/branch/read access before launching containers. Leave it enabled unless you are deliberately testing offline/pinned-image behavior.
 - `MDS_SITL_GIT_SYNC=true` is a mutable latest-on-boot mode. It is convenient for active development and rapid rollout, but it is not a reproducible release mode because PX4, `mavsdk_server`, and system packages stay pinned in the image.
 - Only the `mavsdk_drone_show` repo auto-syncs at container startup. PX4 and the baked `mavsdk_server` binary are intentionally pinned in the image and should be updated only through a validated image rebuild, not by runtime auto-pull.
 - For validated production-style SITL releases, rebuild the image after approval so the baked repo commit, PX4 tree, and `mavsdk_server` version are all tested together. Leave `MDS_SITL_GIT_SYNC=true` only if you explicitly want mutable rollout behavior.
@@ -245,7 +248,10 @@ echo "Branch: $MDS_BRANCH"
 echo "Docker Image: $MDS_DOCKER_IMAGE"
 
 # Test repository access
-git ls-remote "$MDS_REPO_URL"
+bash tools/mds_git_access_check.sh \
+  --repo-url "$MDS_REPO_URL" \
+  --branch "$MDS_BRANCH" \
+  --mode sitl-read
 ```
 
 ### Check Container Status

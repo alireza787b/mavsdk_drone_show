@@ -27,6 +27,7 @@ export const CUSTOM_FIELD_TYPES = {
   NUMBER: 'number',
   BOOLEAN: 'boolean',
   JSON: 'json',
+  COLOR: 'color',
 };
 
 export const CUSTOM_FIELD_TYPE_OPTIONS = [
@@ -34,6 +35,7 @@ export const CUSTOM_FIELD_TYPE_OPTIONS = [
   { value: CUSTOM_FIELD_TYPES.NUMBER, label: 'Number' },
   { value: CUSTOM_FIELD_TYPES.BOOLEAN, label: 'Boolean' },
   { value: CUSTOM_FIELD_TYPES.JSON, label: 'JSON' },
+  { value: CUSTOM_FIELD_TYPES.COLOR, label: 'Color' },
 ];
 
 const FIELD_LABEL_OVERRIDES = {
@@ -46,11 +48,57 @@ const FIELD_LABEL_OVERRIDES = {
   callsign: 'Callsign',
   display_name: 'Display Name',
   nickname: 'Nickname',
+  marker_color: 'Marker Color',
+  role_hint: 'Role Hint',
 };
 
 const PROMOTED_CUSTOM_FIELD_KEYS = ['callsign', 'display_name', 'nickname', 'name', 'alias'];
 const CUSTOM_FIELD_KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const ACRONYM_WORDS = new Set(['id', 'ip', 'gps', 'gcs', 'mavlink', 'rtl', 'udp', 'tcp']);
+
+export const MISSION_CUSTOM_FIELD_TEMPLATES = [
+  {
+    key: 'callsign',
+    label: 'Callsign',
+    type: CUSTOM_FIELD_TYPES.TEXT,
+    defaultValue: '',
+    placeholder: 'VIPER-01',
+    description: 'Operator alias shown on cards, maps, and reports without changing hardware or show slot IDs.',
+  },
+  {
+    key: 'marker_color',
+    label: 'Marker Color',
+    type: CUSTOM_FIELD_TYPES.COLOR,
+    defaultValue: '#00d4ff',
+    placeholder: '#00d4ff',
+    description: 'Optional map/globe marker color. Use #RGB or #RRGGBB.',
+  },
+  {
+    key: 'notes',
+    label: 'Notes',
+    type: CUSTOM_FIELD_TYPES.TEXT,
+    defaultValue: '',
+    placeholder: 'Battery swapped, payload note, or test context',
+    description: 'Short operator note preserved in config JSON.',
+  },
+  {
+    key: 'role_hint',
+    label: 'Role Hint',
+    type: CUSTOM_FIELD_TYPES.TEXT,
+    defaultValue: '',
+    placeholder: 'leader, follower, scout, spare',
+    description: 'Human-readable planning hint only; it does not override mission or swarm logic.',
+  },
+];
+
+export const CUSTOM_FIELD_TEMPLATE_OPTIONS = [
+  ...MISSION_CUSTOM_FIELD_TEMPLATES.map((template) => ({
+    value: template.key,
+    label: template.label,
+  })),
+  { value: '__custom__', label: 'Custom field' },
+];
 
 let customFieldDraftCounter = 0;
 
@@ -100,7 +148,17 @@ export function normalizeMissionCustomFieldKey(value) {
     .toLowerCase();
 }
 
-export function inferMissionCustomFieldType(value) {
+export function getMissionCustomFieldTemplate(key) {
+  const normalizedKey = normalizeMissionCustomFieldKey(key);
+  return MISSION_CUSTOM_FIELD_TEMPLATES.find((template) => template.key === normalizedKey) || null;
+}
+
+export function inferMissionCustomFieldType(value, key = '') {
+  const template = getMissionCustomFieldTemplate(key);
+  if (template) {
+    return template.type;
+  }
+
   if (typeof value === 'boolean') {
     return CUSTOM_FIELD_TYPES.BOOLEAN;
   }
@@ -127,6 +185,10 @@ export function formatMissionCustomFieldValue(value, type = inferMissionCustomFi
 
   if (type === CUSTOM_FIELD_TYPES.NUMBER) {
     return String(value);
+  }
+
+  if (type === CUSTOM_FIELD_TYPES.COLOR) {
+    return String(value || '').trim() || 'Not set';
   }
 
   if (type === CUSTOM_FIELD_TYPES.JSON) {
@@ -156,13 +218,16 @@ export function getMissionConfigCustomFields(drone = {}) {
   return Object.entries(drone)
     .filter(([key]) => !RESERVED_MISSION_CONFIG_FIELDS.has(key))
     .map(([key, value]) => {
-      const type = inferMissionCustomFieldType(value);
+      const type = inferMissionCustomFieldType(value, key);
+      const template = getMissionCustomFieldTemplate(key);
       return {
         key,
-        label: humanizeMissionConfigFieldKey(key),
+        label: template?.label || humanizeMissionConfigFieldKey(key),
         type,
         value,
         displayValue: formatMissionCustomFieldValue(value, type),
+        description: template?.description || null,
+        isTemplate: Boolean(template),
         isPromoted: getPromotedFieldPriority(key) !== Number.MAX_SAFE_INTEGER,
       };
     })
@@ -193,6 +258,20 @@ export function createMissionCustomFieldDraft(overrides = {}) {
   };
 }
 
+export function createMissionCustomFieldDraftFromTemplate(templateKey, overrides = {}) {
+  const template = getMissionCustomFieldTemplate(templateKey);
+  if (!template) {
+    return createMissionCustomFieldDraft(overrides);
+  }
+
+  return createMissionCustomFieldDraft({
+    key: template.key,
+    type: template.type,
+    value: template.defaultValue,
+    ...overrides,
+  });
+}
+
 export function coerceMissionCustomFieldValueForEditor(type, value) {
   if (type === CUSTOM_FIELD_TYPES.BOOLEAN) {
     if (typeof value === 'boolean') {
@@ -207,6 +286,10 @@ export function coerceMissionCustomFieldValueForEditor(type, value) {
     }
     const candidate = String(value ?? '').trim();
     return candidate;
+  }
+
+  if (type === CUSTOM_FIELD_TYPES.COLOR) {
+    return String(value ?? '').trim() || '#00d4ff';
   }
 
   if (type === CUSTOM_FIELD_TYPES.JSON) {
@@ -270,6 +353,8 @@ function parseMissionCustomFieldDraftValue(field) {
       return field.value === true || String(field.value).toLowerCase() === 'true';
     case CUSTOM_FIELD_TYPES.JSON:
       return JSON.parse(String(field.value || '{}'));
+    case CUSTOM_FIELD_TYPES.COLOR:
+      return String(field.value ?? '').trim();
     default:
       return String(field.value ?? '');
   }
@@ -331,6 +416,15 @@ export function validateMissionCustomFields(customFields = []) {
         fieldErrors.value = 'Enter a number.';
       } else if (!Number.isFinite(Number(candidate))) {
         fieldErrors.value = 'Number value is invalid.';
+      }
+    }
+
+    if (field.type === CUSTOM_FIELD_TYPES.COLOR || normalizedKey === 'marker_color') {
+      const candidate = String(field.value ?? '').trim();
+      if (!candidate) {
+        fieldErrors.value = 'Enter a marker color.';
+      } else if (!HEX_COLOR_PATTERN.test(candidate)) {
+        fieldErrors.value = 'Use #RGB or #RRGGBB.';
       }
     }
 

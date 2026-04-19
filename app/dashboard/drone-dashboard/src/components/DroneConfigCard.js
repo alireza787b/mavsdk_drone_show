@@ -35,10 +35,13 @@ import {
   buildMissionConfigFormState,
   coerceMissionCustomFieldValueForEditor,
   createMissionCustomFieldDraft,
+  createMissionCustomFieldDraftFromTemplate,
+  CUSTOM_FIELD_TEMPLATE_OPTIONS,
   CUSTOM_FIELD_TYPES,
   CUSTOM_FIELD_TYPE_OPTIONS,
   formatMissionCustomFieldValue,
   getMissionConfigCustomFields,
+  getMissionCustomFieldTemplate,
   getPromotedMissionConfigField,
   humanizeMissionConfigFieldKey,
   normalizeMissionCustomFieldKey,
@@ -62,6 +65,8 @@ const BAUDRATE_OPTIONS = [
   { value: '115200', label: '115200 (High Speed)' },
   { value: '921600', label: '921600 (Very High Speed)' },
 ];
+
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 function getCustomFieldValuePreview(field) {
   if (!field) {
@@ -708,6 +713,14 @@ const DroneEditForm = memo(function DroneEditForm({
     : String(droneData.baudrate || '');
   const customFields = Array.isArray(droneData.custom_fields) ? droneData.custom_fields : [];
 
+  const handleAddCustomFieldSelection = (event) => {
+    const { value } = event.target;
+    if (!value) {
+      return;
+    }
+    onAddCustomField(value === '__custom__' ? null : value);
+  };
+
   /** Generic onChange for other fields. */
   const handleGenericChange = (e) => {
     onFieldChange(e);
@@ -793,6 +806,9 @@ const DroneEditForm = memo(function DroneEditForm({
   };
 
   const renderCustomFieldValueControl = (field) => {
+    const normalizedKey = normalizeMissionCustomFieldKey(field.key);
+    const fieldTemplate = getMissionCustomFieldTemplate(normalizedKey);
+
     if (field.type === CUSTOM_FIELD_TYPES.BOOLEAN) {
       return (
         <select
@@ -823,6 +839,31 @@ const DroneEditForm = memo(function DroneEditForm({
       );
     }
 
+    if (field.type === CUSTOM_FIELD_TYPES.COLOR || normalizedKey === 'marker_color') {
+      const colorValue = String(field.value || '').trim();
+      const safeColorValue = HEX_COLOR_PATTERN.test(colorValue) ? colorValue : '#00d4ff';
+      return (
+        <div className="custom-color-field">
+          <input
+            type="color"
+            value={safeColorValue}
+            onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
+            className="custom-color-picker"
+            aria-label={`${field.key || 'Marker color'} picker`}
+          />
+          <input
+            type="text"
+            value={field.value}
+            onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
+            className="form-input"
+            placeholder={fieldTemplate?.placeholder || '#00d4ff'}
+            spellCheck={false}
+            aria-label={`${field.key || 'Marker color'} value`}
+          />
+        </div>
+      );
+    }
+
     return (
       <input
         type={field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'number' : 'text'}
@@ -830,7 +871,7 @@ const DroneEditForm = memo(function DroneEditForm({
         onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
         className="form-input"
         inputMode={field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'decimal' : undefined}
-        placeholder={field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'Enter numeric value' : 'Enter value'}
+        placeholder={fieldTemplate?.placeholder || (field.type === CUSTOM_FIELD_TYPES.NUMBER ? 'Enter numeric value' : 'Enter value')}
         aria-label={`${field.key || 'Custom field'} value`}
       />
     );
@@ -1106,18 +1147,34 @@ const DroneEditForm = memo(function DroneEditForm({
               <div>
                 <div className="form-section-title">Additional Mission Fields</div>
                 <div className="form-section-description">
-                  Optional per-drone metadata such as callsign, notes, or maintenance tags. Saved in JSON and preserved across dashboard edits.
+                  Optional per-drone metadata such as callsign, marker color, notes, or maintenance tags. Saved in JSON and preserved across dashboard edits.
                 </div>
               </div>
-              <button
-                type="button"
-                className="action-button secondary compact"
-                onClick={onAddCustomField}
-                title="Add additional field"
-                aria-label="Add additional field"
-              >
-                <FontAwesomeIcon icon={faPlusCircle} /> Add field
-              </button>
+              <div className="custom-field-add-controls">
+                <select
+                  value=""
+                  onChange={handleAddCustomFieldSelection}
+                  className="form-select custom-field-template-select"
+                  title="Add a predefined mission field or create a custom one"
+                  aria-label="Add additional mission field"
+                >
+                  <option value="" disabled>Add field...</option>
+                  {CUSTOM_FIELD_TEMPLATE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="action-button secondary compact"
+                  onClick={() => onAddCustomField(null)}
+                  title="Create a blank custom field"
+                  aria-label="Create custom additional field"
+                >
+                  <FontAwesomeIcon icon={faPlusCircle} /> Custom
+                </button>
+              </div>
             </div>
 
             {customFields.length > 0 ? (
@@ -1125,11 +1182,22 @@ const DroneEditForm = memo(function DroneEditForm({
                 {customFields.map((field) => {
                   const fieldError = customFieldErrors?.[field.id] || {};
                   const normalizedPreviewKey = normalizeMissionCustomFieldKey(field.key);
+                  const fieldTemplate = getMissionCustomFieldTemplate(normalizedPreviewKey);
                   return (
                     <div key={field.id} className="custom-field-editor-card">
                       <div className="custom-field-editor-grid">
                         <div className="form-field">
-                          <label className="form-label">Field Name</label>
+                          <label className="form-label">
+                            Field Name
+                            {fieldTemplate && (
+                              <span
+                                className="custom-field-template-badge"
+                                title={fieldTemplate.description}
+                              >
+                                defined
+                              </span>
+                            )}
+                          </label>
                           <input
                             type="text"
                             value={field.key}
@@ -1138,12 +1206,12 @@ const DroneEditForm = memo(function DroneEditForm({
                             }
                             onBlur={() => onCustomFieldKeyCommit(field.id)}
                             className={`form-input ${fieldError.key ? 'input-invalid' : ''}`}
-                            placeholder="e.g., callsign"
+                            placeholder={fieldTemplate?.key || 'e.g., callsign'}
                             spellCheck={false}
                             aria-label="Additional field name"
                           />
                           <div className="field-help">
-                            Saved as lowercase snake_case.
+                            {fieldTemplate?.description || 'Saved as lowercase snake_case.'}
                             {normalizedPreviewKey && normalizedPreviewKey !== field.key.trim() && (
                               <span className="field-help-preview">
                                 {` Saved key: ${normalizedPreviewKey}`}
@@ -1462,10 +1530,25 @@ export default function DroneConfigCard({
               ),
             }));
           }}
-          onAddCustomField={() => {
+          onAddCustomField={(templateKey = null) => {
+            const template = getMissionCustomFieldTemplate(templateKey);
+            if (template) {
+              const alreadyExists = (droneData.custom_fields || []).some(
+                (field) => normalizeMissionCustomFieldKey(field.key) === template.key
+              );
+              if (alreadyExists) {
+                toast.info(`${template.label} already exists for this drone.`);
+                return;
+              }
+            }
             setDroneData((current) => ({
               ...current,
-              custom_fields: [...(current.custom_fields || []), createMissionCustomFieldDraft()],
+              custom_fields: [
+                ...(current.custom_fields || []),
+                template
+                  ? createMissionCustomFieldDraftFromTemplate(template.key)
+                  : createMissionCustomFieldDraft(),
+              ],
             }));
           }}
           onRemoveCustomField={(fieldId) => {
