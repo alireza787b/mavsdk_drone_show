@@ -215,13 +215,25 @@
 .connected-drones-scope {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     padding: 0.5rem 0.85rem;
     border-radius: var(--border-radius-full);
     border: 1px solid var(--color-primary-border);
     background: rgba(var(--color-primary-rgb), 0.12);
     color: var(--color-text-primary);
+    font: inherit;
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+    transition: var(--transition-all);
+}
+
+.connected-drones-scope:hover,
+.connected-drones-scope:focus-visible {
+    background: rgba(var(--color-primary-rgb), 0.18);
+    border-color: var(--color-primary);
+    outline: none;
+    transform: translateY(-1px);
 }
 
 .connected-drones-action {

@@ -49,6 +49,7 @@ const Overview = ({ setSelectedDrone }) => {
   const [error, setError] = useState(null);
   const [notification, setNotification] = useState(null);
   const droneRefs = useRef({});
+  const commandDispatchRef = useRef(null);
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
   useEffect(() => {
@@ -326,6 +327,12 @@ const Overview = ({ setSelectedDrone }) => {
     setCommandTargetMode('selected');
     setCommandSelectedDrones(filteredDroneIds);
   }, [filteredDroneIds]);
+  const focusCommandDispatch = React.useCallback(() => {
+    commandDispatchRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }, []);
   const toggleDroneCommandScope = React.useCallback((droneId) => {
     const normalizedDroneId = normalizeComparableId(droneId);
     if (!normalizedDroneId) {
@@ -458,7 +465,11 @@ const Overview = ({ setSelectedDrone }) => {
         </div>
       </header>
 
-      <div className="mission-trigger-section">
+      <div
+        className="mission-trigger-section"
+        ref={commandDispatchRef}
+        id="command-dispatch"
+      >
         <CommandSender
           drones={drones}
           swarmData={swarmAssignments}
@@ -480,9 +491,15 @@ const Overview = ({ setSelectedDrone }) => {
           <span className="connected-drones-count">
             {filteredDrones.length}/{fleetSummary.total} card{fleetSummary.total === 1 ? '' : 's'} visible
           </span>
-          <span className="connected-drones-scope" title="Current dispatch scope">
+          <button
+            type="button"
+            className="connected-drones-scope"
+            title="Jump to command dispatch scope controls"
+            onClick={focusCommandDispatch}
+            aria-controls="command-dispatch"
+          >
             {commandScopeSummary}
-          </span>
+          </button>
           <button
             type="button"
             className="connected-drones-action"

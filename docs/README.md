@@ -17,6 +17,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | fly a Drone Show from the dashboard | [Drone Show Guide](features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
 | inspect Smart Swarm tracking quality | [Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md) |
+| package runtime proof reports | [Runtime Evidence Reporting](guides/runtime-evidence-reporting.md) |
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | configure private SITL/container repo auth | [Custom SITL Auth Guide](guides/custom-sitl-auth.md) |
@@ -47,6 +48,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[AI Agent SITL Audit Loop](superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md)** - deeper agent-only execution contract for reproduce, patch, validate, package, and handoff phases
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
+- **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage
 
 ### Project Videos
 
@@ -60,6 +62,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[Mapbox Setup](guides/mapbox-setup.md)** - optional Mapbox token setup and fallback behavior for map views
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - dedicated follower-tracking capture and plots built on the Smart Swarm websocket stream
+- **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - package accepted run summaries, metrics, visuals, logs, and optional PDFs in a customer-neutral format
 - **`tools/sitl_plans/`** - checked-in named SITL scenario library for maintainers, CI, and AI agents
 - **[QuickScout Guide](quickscout.md)** - SAR / recon workflows
 - **[Versioning Guide](VERSIONING.md)** - release flow and version management
@@ -76,6 +79,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | **[SITL Comprehensive](guides/sitl-comprehensive.md)** | Complete SITL setup from scratch | Beginners |
 | **[SITL Validation Platform](guides/sitl-validation-platform.md)** | Reusable end-to-end SITL regression templates, plans, and artifacts | Maintainers / CI / AI agents |
 | **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** | Expected vs actual follower tracking proof during leader jogs and frame changes | Maintainers / evaluators |
+| **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** | Customer-neutral report/PDF package generation from accepted run summaries, metrics, visuals, and logs | Maintainers / evaluators |
 | **[SITL Control](guides/sitl-control.md)** | Dashboard-driven local SITL lifecycle control, reconcile, logs, and image save workflow | Operators / maintainers |
 | **[Custom Repo Workflow](guides/custom-repo-workflow.md)** | Customer repo/branch selection across GCS, drones, and SITL | Advanced users |
 | **[Custom SITL Auth](guides/custom-sitl-auth.md)** | GCS write credential, SITL read credential, and image-prep auth split for public/private repos | Advanced users / AI agents |
