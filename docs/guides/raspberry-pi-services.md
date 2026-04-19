@@ -86,6 +86,15 @@ sudo ./install_mavlink_router.sh
 sudo ./configure_mavlink_router.sh
 ```
 
+By default, current `mavlink-anywhere` installs a GCS listener on `14550/udp`, so QGroundControl normally connects to the Pi/CM4 IP on that port. If you are using the Holybro Pixhawk RPi CM4 baseboard, match PX4 `TELEM2` at `921600` on the FC side.
+
+If you expose the web dashboard to the network, keep that explicit as well:
+
+```bash
+sudo ./configure_mavlink_router.sh --install-dashboard \
+  --dashboard-listen 0.0.0.0:9070
+```
+
 ### 5. coordinator.service
 
 **Purpose:** Main drone swarm coordination application

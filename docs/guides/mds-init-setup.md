@@ -324,6 +324,21 @@ If you intentionally keep routing manual, bootstrap and enrollment still work.
 In that case, manage `mavlink-anywhere` yourself and keep that routing profile
 documented for the fleet.
 
+Current `mavlink-anywhere` defaults include a device-side GCS listener on `14550/udp`, so the normal QGC workflow is to connect **to the Pi/CM4 IP on port 14550**. Add explicit `GCS_IP:24550` push endpoints only when you intentionally need remote push-mode delivery.
+
+If you are using the Holybro Pixhawk RPi CM4 baseboard, the PX4/Holybro docs wire the CM4 to the FC through **TELEM2** and expect PX4 to use:
+
+- `MAV_1_CONFIG = TELEM2 (102)`
+- `MAV_1_MODE = Onboard (2)`
+- `SER_TEL2_BAUD = 921600`
+
+If you want the web dashboard reachable from the LAN or VPN, expose it explicitly:
+
+```bash
+sudo ./configure_mavlink_router.sh --install-dashboard \
+  --dashboard-listen 0.0.0.0:9070
+```
+
 ### Reboot
 
 After installation, reboot to start all services:

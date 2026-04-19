@@ -67,10 +67,10 @@ For real hardware, all MAVLink traffic flows through the router from the serial 
 | Port  | Service               | Direction | Description                          |
 |-------|-----------------------|-----------|--------------------------------------|
 | 14540 | MAVSDK                | Local     | Direct PX4 connection (SITL) or routed (real HW) |
-| 14550 | PX4 GCS Output        | Local     | PX4 SITL default GCS port (router input) |
+| 14550 | PX4 GCS Output / GCS Listen | Local / Network | PX4 SITL router input, or the default device-side GCS listener on real hardware |
 | 12550 | LocalMavlinkController| Local     | pymavlink telemetry monitoring       |
 | 14569 | mavlink2rest target   | Local     | Routed local endpoint for an optional mavlink2rest process |
-| 24550 | Remote GCS            | Network   | QGroundControl over VPN/WAN          |
+| 24550 | Remote GCS Push       | Network   | Optional push-mode QGroundControl endpoint over VPN/WAN |
 | 34550 | Router Listen         | Network   | Legacy server-side listen port       |
 
 ## Setup Options
@@ -135,19 +135,37 @@ sudo ./configure_mavlink_router.sh
 
 When prompted, enter:
 - **UART device**: `/dev/ttyS0` (Pi Zero/3/4) or `/dev/ttyAMA0` (older Pi)
-- **Baud rate**: `57600` (must match Pixhawk TELEM port setting)
-- **UDP endpoints**: `127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 YOUR_GCS_IP:24550`
+- **Baud rate**: must match the FC MAVLink serial port setting
+- **UDP endpoints**: `127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550`
 
-**Example for remote GCS at 192.168.1.100**:
-```
-UDP endpoints: 127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 192.168.1.100:24550
+`mavlink-anywhere` automatically adds a default **server-mode** listener on `0.0.0.0:14550` for ground stations. This is the normal same-LAN / same-VPN workflow:
+
+- QGroundControl creates a UDP link to `<device-ip>:14550`
+- QGC sends first, so `mavlink-router` learns the active remote peer
+- No device-side pre-configuration of the GCS IP is required
+
+If you also want an explicit push endpoint to a remote VPN GCS, add it as an extra UDP endpoint:
+
+```text
+127.0.0.1:14540 127.0.0.1:14569 127.0.0.1:12550 192.168.1.100:24550
 ```
 
-**Important**: Include all four endpoints:
+**Important**: Always include the three local service endpoints:
 - `127.0.0.1:14540` - MAVSDK (coordinator.py)
 - `127.0.0.1:14569` - mavlink2rest
 - `127.0.0.1:12550` - LocalMavlinkController (pymavlink telemetry)
-- `GCS_IP:24550` - Remote Ground Control Station (QGC connects on this port)
+
+Add `GCS_IP:24550` only when you intentionally want device-side push to a known remote GCS.
+
+#### Holybro Pixhawk RPi CM4 Baseboard Note
+
+For the Holybro Pixhawk RPi CM4 baseboard, official Holybro/PX4 docs state that the CM4 is internally connected to the flight controller through **TELEM2**, and PX4 should use:
+
+- `MAV_1_CONFIG = TELEM2 (102)`
+- `MAV_1_MODE = Onboard (2)`
+- `SER_TEL2_BAUD = 921600`
+
+On the CM4 side, the matching serial device is typically `/dev/serial0` or `/dev/ttyS0` at **921600**.
 
 #### Step 4: Enable and Start Service
 
@@ -169,7 +187,8 @@ sudo journalctl -u mavlink-router -f
 
 ## Manual Configuration (Alternative)
 
-If you prefer manual configuration, create `/etc/mavlink-router/main.conf`:
+If you prefer manual configuration, create `/etc/mavlink-router/main.conf`.
+The example below matches the Holybro Pixhawk RPi CM4 baseboard serial path (`TELEM2`/`921600`):
 
 ```ini
 [General]
@@ -178,7 +197,12 @@ ReportStats=false
 
 [UartEndpoint uart]
 Device=/dev/ttyS0
-Baud=57600
+Baud=921600
+
+[UdpEndpoint gcs_listen]
+Mode=server
+Address=0.0.0.0
+Port=14550
 
 [UdpEndpoint mavsdk]
 Mode=normal
@@ -201,15 +225,25 @@ Address=192.168.1.100
 Port=24550
 ```
 
-Replace `192.168.1.100` with your actual GCS IP address. QGC should be configured to listen on port **24550**.
+Replace `192.168.1.100` with your actual remote GCS IP address only if you want push-mode delivery. For the built-in listener workflow, QGC should connect to the device IP on port **14550**.
+
+### Dashboard Exposure
+
+The `mavlink-anywhere` dashboard binds to `127.0.0.1:9070` by default. If you want LAN/VPN browser access, expose it explicitly:
+
+```bash
+sudo ./configure_mavlink_router.sh --install-dashboard \
+  --dashboard-listen 0.0.0.0:9070
+```
 
 ## Troubleshooting
 
 ### No MAVLink Data
 
 1. **Check serial cable connection** - Ensure TX/RX are crossed correctly
-2. **Verify baud rate** - Must match Pixhawk TELEM port (usually 57600)
+2. **Verify baud rate** - Must match the PX4 MAVLink serial port. Holybro Pixhawk RPi CM4 baseboard typically uses `TELEM2` at `921600`
 3. **Check UART permissions** - `ls -l /dev/ttyS0` should show `crw-rw----`
+4. **Check QGC mode** - for the default listener workflow, QGC must point to `<device-ip>:14550`
 
 ### Permission Denied on Serial Port
 
@@ -233,6 +267,12 @@ Check for conflicting processes:
 ```bash
 sudo netstat -tulpn | grep -E "14540|14550|14569|12550|24550"
 ```
+
+### QGroundControl Does Not Connect Even on the Same LAN
+
+This is usually not a firewall problem by itself. `mavlink-router` UDP **server mode** can only send replies after the remote peer sends first.
+
+Use a manual QGC UDP link pointed at `<device-ip>:14550`. Do not expect a passive listener on the desktop alone to be enough.
 
 ### coordinator.py Can't Connect to MAVSDK
 

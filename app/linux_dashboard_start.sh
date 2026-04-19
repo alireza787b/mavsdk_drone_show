@@ -25,8 +25,11 @@
 #   1. Install mavlink-anywhere: git clone https://github.com/alireza787b/mavlink-anywhere
 #   2. Run: cd mavlink-anywhere && sudo ./install_mavlink_router.sh
 #   3. Configure: sudo ./configure_mavlink_router.sh
-#      - Input: /dev/ttyS0:57600 (your serial port and baudrate)
-#      - Outputs: 127.0.0.1:14540, 127.0.0.1:12550, 127.0.0.1:14569, GCS_IP:14550
+#      - Input: /dev/ttyS0:<baud> (your serial port and baudrate)
+#        Holybro Pixhawk RPi CM4 baseboard typically uses /dev/ttyS0:921600 via FC TELEM2
+#      - Local outputs: 127.0.0.1:14540, 127.0.0.1:12550, 127.0.0.1:14569
+#      - Default GCS listener: device_ip:14550
+#      - Optional remote push endpoint: GCS_IP:24550
 #   4. Enable: sudo systemctl enable mavlink-router
 #   5. Start: sudo systemctl start mavlink-router
 #
