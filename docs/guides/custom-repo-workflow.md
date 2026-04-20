@@ -213,7 +213,7 @@ The same token-file path is now preserved into `/etc/mds/gcs.env` and the runtim
 For a drone that should follow the customer repo:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
   sudo bash -s -- \
   -d 1 \
   --fork yourorg/customer-mds \
@@ -224,7 +224,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 Or:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
   sudo bash -s -- \
   -d 1 \
   --repo-url git@github.com:yourorg/customer-mds.git \

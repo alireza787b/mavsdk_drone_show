@@ -79,14 +79,14 @@ coordinator.service ────────────────────
 
 **Location:** Created by mavlink-anywhere (NOT in this repo)
 
-**Note:** This service is managed by the mavlink-anywhere repository. It must be installed and configured separately using:
+**Note:** In the normal managed path, `tools/mds_node_init.sh --mavlink-auto` installs and configures this service for you. Manual `mavlink-anywhere` setup remains supported when you intentionally want to own the routing profile yourself:
 ```bash
 cd ~/mavlink-anywhere
 sudo ./install_mavlink_router.sh
 sudo ./configure_mavlink_router.sh
 ```
 
-By default, current `mavlink-anywhere` installs a GCS listener on `14550/udp`, so QGroundControl normally connects to the Pi/CM4 IP on that port. If you are using the Holybro Pixhawk RPi CM4 baseboard, match PX4 `TELEM2` at `921600` on the FC side.
+By default, current `mavlink-anywhere` installs a GCS listener on `14550/udp`, so QGroundControl normally connects to the node / CM4 IP on that port. If you are using the Holybro Pixhawk RPi CM4 baseboard, match PX4 `TELEM2` at `921600` on the FC side.
 
 If you expose the web dashboard to the network, keep that explicit as well:
 

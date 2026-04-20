@@ -558,7 +558,7 @@ GCS Server (100.64.0.1) ◄──NetBird VPN──► Drone 1 (100.64.0.2)
 1. **Configure Mapbox Token** (optional): Edit `.env` file to add your Mapbox access token for map features
 2. **Set up VPN Networking**: See [NetBird Setup](netbird-setup.md) for secure drone-GCS communication
 3. **Set up MAVLink Routing**: See [MAVLink Routing Setup](mavlink-routing-setup.md)
-4. **Configure Drones**: See [MDS Init Setup](mds-init-setup.md) for Raspberry Pi drones
+4. **Configure Companion Nodes**: See [MDS Init Setup](mds-init-setup.md) for companion-computer hardware
 5. **Review SITL Guide**: See [SITL Comprehensive Guide](sitl-comprehensive.md) for simulation testing
 
 ---

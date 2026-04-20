@@ -15,10 +15,12 @@ The `mds_node_init.sh` script supports fully automated, non-interactive installa
 
 Use the bootstrap scripts this way:
 
-- `install_mds_node.sh` on a fresh host with no local repo clone yet
+- `install_companion.sh` on a fresh host with no local repo clone yet
 - `mds_node_init.sh` when the repo is already present on the node
 - `mds_node_announce.sh` when bootstrap already succeeded but GCS discovery must
   be retried
+
+`install_mds_node.sh` remains supported as a compatibility alias for existing automation.
 
 ## Non-Interactive Mode
 

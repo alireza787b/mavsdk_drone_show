@@ -1,12 +1,14 @@
 # NetBird VPN Setup Guide
 
-**Secure networking for MDS Ground Control Station and drones**
+**Secure networking for MDS Ground Control Station and companion-computer nodes**
 
 ---
 
 ## Overview
 
-For drones to communicate with your GCS server over the internet, both the GCS and all drones must be connected to the same VPN network. NetBird provides a secure, easy-to-setup solution for this.
+For nodes to communicate with your GCS server over the internet, both the GCS and all nodes must be connected to the same VPN network. NetBird provides a secure, easy-to-setup solution for this.
+
+For same-LAN deployments, NetBird is optional. QGroundControl can connect directly to the node IP when `mavlink-anywhere` exposes the default `14550/udp` listener.
 
 ---
 
@@ -52,7 +54,7 @@ For production deployments or if you need full control:
 1. **Deploy NetBird Management Server**:
    See [NetBird self-hosting guide](https://docs.netbird.io/selfhosted/selfhosted-guide)
 
-2. **Configure your GCS and drones** to connect to your self-hosted server
+2. **Configure your GCS and nodes** to connect to your self-hosted server
 
 ### Option 3: NetBird on GCS Machine
 
@@ -64,15 +66,22 @@ You can run the NetBird management server on the same machine as your GCS:
 
 ---
 
-## Configuring Drones
+## Configuring Nodes
 
 After your GCS is connected to NetBird:
 
-1. **Install NetBird on each Raspberry Pi drone**:
+1. **Install NetBird on each companion computer**:
    ```bash
    curl -fsSL https://pkgs.netbird.io/install.sh | sh
    sudo netbird up
    ```
+
+   For automated enrollment, prefer a reusable setup key with:
+   - non-ephemeral peers
+   - bounded expiry
+   - a usage limit that matches the number of boards you plan to enroll
+
+   Already-registered boards do not need a new setup key unless they lost authentication and must be re-enrolled.
 
 2. **Configure the node runtime to use the GCS overlay IP**:
 
@@ -91,6 +100,11 @@ After your GCS is connected to NetBird:
    ```bash
    ping 100.x.x.x  # GCS NetBird IP
    ```
+
+4. **Operational model**:
+   - keep all boards, tablets, and operator laptops in the same NetBird network/tenant
+   - each board should be its own peer/device
+   - you do not need a separate NetBird account per board
 
 ---
 
@@ -198,4 +212,4 @@ While NetBird is recommended, other options include:
 
 ---
 
-**Last Updated:** February 2026 (Version 4.4.0)
+**Last Updated:** April 2026 (Version 4.5.0)

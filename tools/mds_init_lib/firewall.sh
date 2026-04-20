@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Firewall Configuration
 # =============================================================================
-# Version: 4.4.0
+# Version: 4.5.0
 # Description: UFW firewall setup and port configuration for MDS services
 # Author: MDS Team
 # =============================================================================

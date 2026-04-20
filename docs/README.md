@@ -164,7 +164,7 @@ See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 
 | Guide | Description |
 |-------|-------------|
-| **[MDS Init Setup](guides/mds-init-setup.md)** | Complete step-by-step companion-node bootstrap |
+| **[MDS Init Setup](guides/mds-init-setup.md)** | Complete step-by-step companion-node bootstrap (`install_companion.sh` / `mds_node_init.sh`) |
 | **[CLI Reference](guides/mds-init-cli-reference.md)** | All CLI arguments, environment variables, examples |
 | **[Headless Automation](guides/headless-automation.md)** | Fleet provisioning, CI/CD, batch deployment |
 | **[Troubleshooting](guides/mds-init-troubleshooting.md)** | Common issues, recovery procedures, FAQ |

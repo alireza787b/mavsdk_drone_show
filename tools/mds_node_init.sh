@@ -180,7 +180,7 @@ MAVSDK OPTIONS:
     --mavsdk-url URL            Direct URL to MAVSDK binary (overrides version)
 
 MAVLINK-ROUTER OPTIONS (NEW in v4.5):
-    --mavlink-auto              Auto-configure mavlink-router (recommended)
+    --mavlink-auto              Auto-configure mavlink-router with recommended defaults
     --mavlink-skip              Skip mavlink-router setup entirely
     --mavlink-uart DEVICE       UART device (e.g., /dev/ttyS0)
     --mavlink-baud RATE         Baud rate (default: 57600)
@@ -235,8 +235,11 @@ EXAMPLES:
     # Auto-configure mavlink-router with GCS IP (NEW)
     sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
 
-    # Headless mavlink configuration
+    # Headless UART mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
+
+    # Headless UDP-input mavlink configuration
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-input udp --mavlink-input-port 14550 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550"
 
     # Dry run to see what would happen
     sudo ./mds_node_init.sh -d 1 --dry-run

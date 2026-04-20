@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Prerequisites Check
 # =============================================================================
-# Version: 4.4.0
+# Version: 4.5.0
 # Description: System prerequisites validation and package installation
 # Author: MDS Team
 # =============================================================================

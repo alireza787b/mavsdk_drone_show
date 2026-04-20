@@ -43,31 +43,31 @@ repo cloned locally. This is the public bootstrap wrapper.
 The fastest way to set up a fresh companion-computer node:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
 ```
 
 **With drone ID (non-interactive):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- -d 1 -y
 ```
 
 **Using your own fork or org repo:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --fork yourusername -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- --fork yourusername -d 1 -y
 ```
 
 For confidentiality-sensitive customers, prefer an org-owned private repo instead of assuming a normal GitHub fork will be private.
 
 **Using a customer org/private repo path:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
 ```
 
 For a first-time private SSH bootstrap, omit `-y` unless the deploy key is already authorized on GitHub. Non-interactive `-y` is safe only after that prerequisite is already satisfied.
 
 **Using an explicit repository URL:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
 ```
 
 **Using a private HTTPS repository with a read-only token file:**
@@ -75,13 +75,15 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 install -m 600 /dev/null /home/droneshow/.mds_git_read_token
 printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /home/droneshow/.mds_git_read_token
 
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
   sudo bash -s -- \
   --repo-url https://github.com/yourorg/customer-mds.git \
   --branch customer-demo \
   --git-auth-token-file /home/droneshow/.mds_git_read_token \
   -d 1 -y
 ```
+
+`install_mds_node.sh` remains supported as a compatibility alias. `install_companion.sh` is the clearer public entrypoint for fresh hardware.
 
 ### Option 2: Manual Installation
 
@@ -93,7 +95,7 @@ node.
 
 | Scenario | Recommended entrypoint |
 |------|--------------------------|
-| Fresh OS image, no repo cloned yet | `install_mds_node.sh` |
+| Fresh OS image, no repo cloned yet | `install_companion.sh` (`install_mds_node.sh` also works) |
 | Repo already cloned on the node | `mds_node_init.sh` |
 | Resume or repair an interrupted init on the same node | `mds_node_init.sh --resume` |
 | Provisioned node could not reach GCS during bootstrap | `mds_node_announce.sh` |
@@ -241,6 +243,8 @@ sudo ./tools/mds_node_init.sh -d 5 \
     -y
 ```
 
+NetBird is optional. For same-LAN or static-IP deployments, omit `--netbird-key` and use the node's reachable LAN IP for QGroundControl or for any explicit `--gcs-ip` push endpoint you intentionally configure.
+
 ### Scenario 4: Resume Interrupted Installation
 
 If the script was interrupted, resume from the last checkpoint:
@@ -301,8 +305,10 @@ cat /var/log/mds/mds_init.log
 Current best practice:
 
 - use `mds_node_init.sh --mavlink-auto` for the default managed path
+- interactive bootstrap lets the operator choose between recommended defaults, a guided `mavlink-anywhere` wizard, or fully manual routing
 - or provide explicit headless routing flags such as `--mavlink-uart` and
   `--mavlink-endpoints`
+- use `--mavlink-input udp --mavlink-input-port ...` when the node should ingest MAVLink from a network source instead of a serial FC link
 - use manual routing only when you intentionally manage `mavlink-anywhere`
   yourself
 
@@ -320,11 +326,20 @@ sudo ./tools/mds_node_init.sh \
   -y
 ```
 
+```bash
+sudo ./tools/mds_node_init.sh \
+  -d 1 \
+  --mavlink-input udp \
+  --mavlink-input-port 14550 \
+  --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550" \
+  -y
+```
+
 If you intentionally keep routing manual, bootstrap and enrollment still work.
 In that case, manage `mavlink-anywhere` yourself and keep that routing profile
 documented for the fleet.
 
-Current `mavlink-anywhere` defaults include a device-side GCS listener on `14550/udp`, so the normal QGC workflow is to connect **to the Pi/CM4 IP on port 14550**. Add explicit `GCS_IP:24550` push endpoints only when you intentionally need remote push-mode delivery.
+Current `mavlink-anywhere` defaults include a device-side GCS listener on `14550/udp`, so the normal QGC workflow is to connect **to the node / CM4 IP on port 14550**. Add explicit `GCS_IP:24550` push endpoints only when you intentionally need remote push-mode delivery.
 
 If you are using the Holybro Pixhawk RPi CM4 baseboard, the PX4/Holybro docs wire the CM4 to the FC through **TELEM2** and expect PX4 to use:
 

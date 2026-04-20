@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Repository Operations
 # =============================================================================
-# Version: 4.4.0
+# Version: 4.5.0
 # Description: Git repository cloning, updating, and SSH key management
 # Author: MDS Team
 # =============================================================================

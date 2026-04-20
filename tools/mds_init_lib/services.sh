@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Systemd Services
 # =============================================================================
-# Version: 4.4.0
+# Version: 4.5.0
 # Description: Systemd service installation, sudoers, polkit, and GPIO setup
 # Author: MDS Team
 # =============================================================================

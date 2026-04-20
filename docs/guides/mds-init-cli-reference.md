@@ -43,6 +43,18 @@ These parameters are required but can be provided interactively if omitted:
 | `--mavsdk-version VERSION` | Specific MAVSDK version (e.g., `v3.15.0`) | Auto-detect latest |
 | `--mavsdk-url URL` | Direct URL to MAVSDK binary (overrides version) | - |
 
+## MAVLink Routing Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--mavlink-auto` | Managed routing path with recommended defaults: UART auto-detect, standard local fanout, optional GCS push when `--gcs-ip` is set | off |
+| `--mavlink-skip` | Skip MAVLink routing setup entirely | off |
+| `--mavlink-uart DEVICE` | Explicit FC-facing serial device for headless UART setup | auto-detect in managed mode |
+| `--mavlink-baud RATE` | Serial baud rate for the MAVLink input | `57600` |
+| `--mavlink-endpoints LIST` | Comma-separated routed outputs | `127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550` |
+| `--mavlink-input TYPE` | MAVLink input source for headless config: `uart` or `udp` | `uart` |
+| `--mavlink-input-port PORT` | UDP input port when `--mavlink-input udp` is used | `14550` |
+
 ## Skip Flags
 
 Use these flags to skip specific phases:
@@ -179,6 +191,36 @@ sudo ./tools/mds_node_init.sh -d 1 \
     -y
 ```
 
+### MAVLink Routing
+
+Managed defaults:
+```bash
+sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 100.96.32.75 -y
+```
+
+Headless UART routing:
+```bash
+sudo ./tools/mds_node_init.sh -d 1 \
+    --mavlink-uart /dev/ttyS0 \
+    --mavlink-baud 57600 \
+    --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550" \
+    -y
+```
+
+Headless UDP-input routing:
+```bash
+sudo ./tools/mds_node_init.sh -d 1 \
+    --mavlink-input udp \
+    --mavlink-input-port 14550 \
+    --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550" \
+    -y
+```
+
+Operator note:
+- interactive mode presents a guided routing choice
+- `--mavlink-auto` does not prompt; it applies the recommended UART-first defaults
+- use manual `mavlink-anywhere` only when you intentionally own that routing profile outside MDS bootstrap
+
 ### Selective Installation
 
 Skip firewall and NTP:
@@ -310,13 +352,15 @@ The following changes affect users upgrading from older versions:
 - [Headless Automation](headless-automation.md) - Fleet deployment
 - [Troubleshooting](mds-init-troubleshooting.md) - Common issues
 
-## Bootstrap Installer (install_mds_node.sh)
+## Bootstrap Installer (`install_companion.sh`)
 
 For fresh companion-computer installations, use the bootstrap installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
 ```
+
+`install_mds_node.sh` remains supported as a compatibility alias.
 
 To emit a machine-readable report for Ansible or an AI agent:
 
@@ -359,4 +403,4 @@ curl -fsSL ... | sudo bash -s -- --branch develop -d 1 --netbird-key "XXXXX" -y
 
 ---
 
-**Version:** 4.4.0 | **Last Updated:** January 2026
+**Version:** 4.5.0 | **Last Updated:** April 2026

@@ -9,6 +9,8 @@
 # =============================================================================
 #
 # Usage:
+#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
+#   # compatibility alias:
 #   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
 #
 #   Or with options:
@@ -579,6 +581,9 @@ ENVIRONMENT VARIABLES:
 
 EXAMPLES:
     # Basic installation (interactive)
+    curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
+
+    # Compatibility alias
     curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
 
     # With drone ID (non-interactive)
