@@ -828,3 +828,33 @@ Residual drift after this slice:
 - private repo still needs the clean official convergence applied and verified
 - the clean private GCS bootstrap on Hetzner still needs to be retried with the
   existing working SSH key file
+
+## Slice 12
+
+Goal:
+
+- unblock the live private GCS launcher after the clean Hetzner bootstrap
+- remove the last dangling call to the retired `real.mode` compatibility-marker
+  helper from the active launcher path
+
+Implemented:
+
+- updated `app/linux_dashboard_start.sh`
+  - removed the stale `sync_runtime_compatibility_marker` call
+  - kept canonical runtime mode ownership on `MDS_MODE` plus
+    `/etc/mds/gcs.env`
+- extended regression coverage:
+  - `tests/test_bootstrap_installers.py` now asserts the launcher no longer
+    references `sync_runtime_compatibility_marker`
+
+Verification:
+
+- local shell validation and targeted bootstrap/runtime suite rerun after the
+  change
+- follow-up live proof target:
+  - restart the private Hetzner GCS successfully in `--real --prod` mode
+
+Residual drift after this slice:
+
+- official/private repos still need this tiny launcher fix committed and pushed
+- Hetzner `/opt/mds` still needs a repo refresh before the live GCS can start

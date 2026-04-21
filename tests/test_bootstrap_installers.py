@@ -408,6 +408,7 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "Git Auto Push:" in start_text
     assert "repo_authority_status() {" in start_text
     assert "get_repo_access_mode() {" in start_text
+    assert "sync_runtime_compatibility_marker" not in start_text
     assert start_text.index("load_gcs_system_config") < start_text.index('if [[ "$STATUS_ONLY" == "true" ]]')
     assert "/api/v1/system/health" in start_text
     assert "/api/v1/system/health" in verify_text

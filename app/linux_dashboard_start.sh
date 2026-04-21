@@ -1413,7 +1413,6 @@ echo "-----------------------------------------------------------------------"
 
 # Execute setup sequence (minimal output)
 apply_requested_runtime_mode
-sync_runtime_compatibility_marker
 update_repository
 if [[ "$RUN_GUI_APP" == "true" ]]; then
     ensure_nodejs_in_path
