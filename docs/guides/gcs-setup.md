@@ -270,6 +270,11 @@ DASHBOARD_PORT=3030
 VENV_PATH=~/mavsdk_drone_show/venv
 ```
 
+Use [Runtime Config Sources](runtime-config-sources.md) as the source of truth
+for what belongs in `/etc/mds/gcs.env`, what belongs in `/etc/mds/local.env`,
+and what still belongs in repo files such as `config.json`, `swarm.json`, or
+`src/params.py`.
+
 ---
 
 ## Firewall Ports

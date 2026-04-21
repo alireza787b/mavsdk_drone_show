@@ -372,6 +372,41 @@ def test_service_source_path_maps_known_units_without_associative_array_lookup()
     assert result.returncode == 0, result.stderr
 
 
+def test_run_services_phase_reconciles_runtime_services_after_enable():
+    result = run_bash(
+        f"""
+        source "{COMMON_LIB}"
+        source "{SERVICES_LIB}"
+        mkdir -p "${{MDS_INSTALL_DIR}}"
+        SKIP_SERVICES="false"
+        print_phase_header() {{ :; }}
+        print_section() {{ :; }}
+        set_led_state() {{ :; }}
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_warn() {{ :; }}
+        log_success() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        configure_sudoers() {{ :; }}
+        configure_polkit() {{ :; }}
+        configure_gpio_access() {{ :; }}
+        install_all_services() {{ echo install; }}
+        reload_systemd() {{ echo reload; }}
+        enable_all_services() {{ echo enable; }}
+        reconcile_runtime_services() {{ echo reconcile; }}
+        verify_services() {{ echo verify; }}
+        run_services_phase
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "install" in result.stdout
+    assert "reload" in result.stdout
+    assert "enable" in result.stdout
+    assert "reconcile" in result.stdout
+    assert "verify" in result.stdout
+
+
 def test_python_env_prefers_node_requirements_when_present():
     result = run_bash(
         f"""

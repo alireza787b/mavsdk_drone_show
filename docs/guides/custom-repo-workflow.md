@@ -23,6 +23,7 @@ For the credential split itself, use [Custom SITL Auth Guide](custom-sitl-auth.m
 It complements these guides:
 - [GCS Setup Guide](gcs-setup.md)
 - [MDS Init Setup Guide](mds-init-setup.md)
+- [Runtime Config Sources](runtime-config-sources.md)
 - [Custom SITL Auth Guide](custom-sitl-auth.md)
 - [Advanced SITL Guide](advanced-sitl.md)
 - [SITL Custom Release Workflow](sitl-custom-release-workflow.md)

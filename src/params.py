@@ -25,7 +25,8 @@ logger = get_logger("params")
 # Load local overrides from /etc/mds/local.env if it exists.
 # This allows per-drone configuration without modifying the repository.
 #
-# Priority: local.env settings > environment variables > hardcoded defaults
+# Effective priority after this preload step:
+#   process environment > /etc/mds/local.env > hardcoded defaults
 #
 # See tools/local.env.template for available settings.
 # ===================================================================================
@@ -145,7 +146,8 @@ class Params:
     #   - SITL: Uses Docker gateway (172.18.0.1)
     #   - Real: Uses Tailscale/physical network IP
     #
-    # Override via MDS_GCS_IP environment variable or /etc/mds/local.env
+    # Override via process env or /etc/mds/local.env.
+    # For real deployments, prefer host runtime env files over editing this module.
     # ===================================================================================
     if sim_mode:
         GCS_IP = os.environ.get('MDS_GCS_IP', "172.18.0.1")  # SITL: Docker gateway IP

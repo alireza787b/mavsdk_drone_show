@@ -129,17 +129,34 @@ sudo ./configure_mavlink_router.sh --install-dashboard \
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Source Of Truth
+
+Use these ownership rules:
+
+1. `config.json` / `swarm.json`
+   Fleet membership, network transport settings, and Smart Swarm assignments.
+   These are the real-mode fleet source of truth on GCS.
+
+2. `/etc/mds/local.env`
+   Per-node runtime overrides such as `MDS_HW_ID`, `MDS_GCS_IP`, and
+   `MDS_GCS_API_BASE_URL`. This is the node-local source of truth outside the
+   repo and survives git sync.
+
+3. `src/params.py`
+   Repo-wide code defaults and fallback values only. Do not treat it as the
+   normal place to customize a real deployment.
+
 ### Fleet-Wide Changes
 
-To change ALL drones:
-1. Edit `src/params.py`
-2. `git commit && git push`
-3. All drones auto-sync on next boot (or run `./tools/recovery.sh force-sync`)
+To change the real fleet manifest:
+1. Edit `config.json` / `swarm.json` on GCS, or use the dashboard / Fleet Enrollment workflow
+2. `git commit && git push` if auto-push is disabled
+3. Sync the affected nodes so their local repo state matches the GCS manifest
 
-### Per-Drone Changes
+### Per-Node Runtime Changes
 
-To change ONE drone:
-1. SSH to the drone
+To change one companion computer's runtime routing or identity:
+1. SSH to the node
 2. Edit `/etc/mds/local.env`
 3. `sudo systemctl restart coordinator`
 

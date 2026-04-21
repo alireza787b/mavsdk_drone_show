@@ -368,12 +368,30 @@ After installation, key configuration files are:
 
 | File | Purpose |
 |------|---------|
-| `/etc/mds/local.env` | Per-node runtime overrides (drone ID, GCS IP, optional GCS API URL, repo/branch overrides, etc.) |
+| `/etc/mds/local.env` | Per-node runtime overrides (hardware ID, GCS routing, optional GCS API URL, repo/branch overrides, etc.) |
 | `/etc/mds/node_identity.json` | Structured machine-readable node manifest for automation, enrollment, and diagnostics |
 | `/var/lib/mds/init_state.json` | Installation state tracking |
 | `~/mavsdk_drone_show/<N>.hwID` | Current runtime hardware-ID marker read by the drone runtime |
-| `~/mavsdk_drone_show/config.json` | Drone hardware configuration |
-| `~/mavsdk_drone_show/src/params.py` | Global parameters |
+| `~/mavsdk_drone_show/config.json` | Fleet manifest source of truth for real-mode membership and per-node transport settings |
+| `~/mavsdk_drone_show/swarm.json` | Smart Swarm / follow-chain source of truth for real mode |
+| `~/mavsdk_drone_show/src/params.py` | Code defaults and fallback values when deployment-specific env/config files are absent |
+
+### Source Of Truth
+
+Use these ownership rules consistently:
+
+- `config.json` / `swarm.json`: fleet manifest and mission-structure source of truth on GCS
+- `Fleet Enrollment`: canonical workflow that mutates `config.json` for accept / replace / recover
+- `/etc/mds/local.env`: node-local runtime identity and GCS routing source of truth on each companion computer
+- `src/params.py`: fallback defaults only; not the normal operator customization point for real hardware
+- See [Runtime Config Sources](runtime-config-sources.md) for the full precedence table and ownership model.
+
+Practical consequence:
+
+- changing `MDS_GCS_IP` or `MDS_GCS_API_BASE_URL` belongs in `/etc/mds/local.env`
+- enrolling a new node belongs in `Fleet Enrollment`, which updates `config.json`
+- replacing a failed airframe also belongs in `Fleet Enrollment`; replacement rewrites the affected `config.json` row and any relevant `swarm.json` references
+- editing `src/params.py` should be reserved for code-level defaults that apply repo-wide, not for per-deployment runtime state
 
 ### Editing Local Configuration
 

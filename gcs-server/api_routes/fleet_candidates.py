@@ -144,6 +144,16 @@ def _build_mutation_response(
 def create_fleet_candidates_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    async def _reconcile_runtime_fleet(warnings: list[str]) -> None:
+        reconciler = getattr(deps, "reconcile_background_services", None)
+        if not callable(reconciler):
+            return
+        try:
+            await reconciler()
+        except Exception as exc:
+            deps.log_system_error(f"Runtime fleet reconciliation failed: {exc}", "fleet_enrollment")
+            warnings.append(f"Runtime fleet reconciliation warning: {exc}")
+
     @router.get(GCS_FLEET_CANDIDATES_ROUTE, response_model=FleetCandidateListResponse, tags=["Fleet Enrollment"])
     async def list_fleet_candidates(include_inactive: bool = Query(False, description="Include resolved candidates")):
         try:
@@ -177,6 +187,7 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
     ):
         try:
             candidate, warnings = deps.accept_fleet_candidate(candidate_id, payload)
+            await _reconcile_runtime_fleet(warnings)
             git_result = None
             should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
             if should_commit:
@@ -206,6 +217,7 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
     ):
         try:
             candidate, warnings = deps.replace_fleet_candidate(candidate_id, payload)
+            await _reconcile_runtime_fleet(warnings)
             git_result = None
             should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
             if should_commit:
@@ -235,6 +247,7 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
     ):
         try:
             candidate, warnings = deps.recover_fleet_candidate(candidate_id, payload)
+            await _reconcile_runtime_fleet(warnings)
             git_result = None
             should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH
             if should_commit:

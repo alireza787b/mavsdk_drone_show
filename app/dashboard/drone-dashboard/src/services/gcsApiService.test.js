@@ -22,7 +22,6 @@ import {
   getRecentCommandsResponse,
   importCustomShowResponse,
   importShowResponse,
-  saveGcsConfigResponse,
   saveFleetConfigResponse,
   submitCommandResponse,
   setOriginResponse,
@@ -399,18 +398,6 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/system/gcs-config',
       { timeout: 1200 }
-    );
-  });
-
-  it('saves GCS config through the canonical system resource with PUT', async () => {
-    axios.put.mockResolvedValue({ data: { success: true } });
-
-    await saveGcsConfigResponse({ sim_mode: true }, { timeout: 2100 });
-
-    expect(axios.put).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/v1/system/gcs-config',
-      { sim_mode: true },
-      { timeout: 2100 }
     );
   });
 

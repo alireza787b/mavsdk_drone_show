@@ -1,6 +1,11 @@
 """
 GCS Configuration Updater
-Handles programmatic editing of src/params.py for GCS IP configuration
+Legacy helper for programmatic editing of src/params.py for GCS IP configuration.
+
+The active FastAPI runtime now treats src/params.py as fallback-only for
+deployment defaults and runtime policy. Real deployment routing should be
+managed through /etc/mds/gcs.env and /etc/mds/local.env instead of editing
+params.py from the dashboard.
 """
 import os
 import re

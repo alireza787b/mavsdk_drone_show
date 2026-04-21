@@ -1,6 +1,14 @@
 # Configuration CSV Migration Guide (Legacy)
 
 > **Note (v4.0):** MDS now uses JSON configuration files (`config.json`, `swarm.json`). This guide is retained for historical reference. See [Config JSON Format Reference](config-json-format.md) for the current format.
+>
+> **Important (v4.5+):** This guide is not the source of truth for active runtime configuration anymore. Current deployments should use:
+> - `/etc/mds/gcs.env` for GCS host runtime overrides
+> - `/etc/mds/local.env` for node runtime overrides
+> - `config.json` / `swarm.json` for real-mode fleet and swarm membership
+> - `config_sitl.json` / `swarm_sitl.json` for SITL
+>
+> `src/params.py` is fallback-only for deployment defaults and runtime policy when host env files are absent. The older “Configure GCS” save flow described in this legacy document should not be treated as the active deployment workflow.
 
 ## Configuration System Cleanup (v3.4)
 
@@ -31,7 +39,7 @@ hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 | Column | Reason for Removal | New Location |
 |--------|-------------------|--------------|
 | `debug_port` | Deprecated UDP telemetry feature no longer used | Removed entirely |
-| `gcs_ip` | Same for all drones; causes configuration redundancy | Centralized in `src/params.py` with UI configuration |
+| `gcs_ip` | Same for all drones; causes configuration redundancy | Centralized in host runtime config (`/etc/mds/gcs.env`, `/etc/mds/local.env`) with `src/params.py` fallback only |
 | `x` | Redundant; caused synchronization bugs | Positions come from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`) |
 | `y` | Redundant; caused synchronization bugs | Positions come from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`) |
 
@@ -39,9 +47,9 @@ hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 
 ✅ **Cleaner Configuration** - Reduced from 10 to 6 columns
 ✅ **Single Source of Truth** - Positions (x,y) come only from trajectory CSV files, not config.csv
-✅ **GCS Configuration UI** - New "Configure GCS" button for centralized GCS IP management
+✅ **Runtime Separation** - Host runtime env files replace per-row GCS IP duplication
 ✅ **Custom Hardware Options** - UI dropdowns now support custom serial ports and baudrates
-✅ **Git Integration** - GCS configuration changes auto-commit to repository
+✅ **Cleaner Ownership** - Fleet membership stays in config JSON; host routing stays in host env files
 ✅ **No Backward Compatibility** - Only supports new 6-column format (clean break)
 
 ---
@@ -52,7 +60,7 @@ hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 
 **1. Redundant GCS IP Configuration**
 - ❌ Old: GCS IP repeated in every drone row (same value 50+ times)
-- ✅ New: Single GCS IP in `src/params.py`, editable via UI
+- ✅ New: Single runtime GCS IP per host via `/etc/mds/gcs.env` and `/etc/mds/local.env`, with `src/params.py` fallback only
 
 **2. Deprecated Debug Port**
 - ❌ Old: `debug_port` column unused (UDP telemetry deprecated in v2.0)
@@ -64,9 +72,13 @@ hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 
 ---
 
-## GCS IP Configuration (New Feature)
+## Historical GCS IP Configuration (Superseded)
 
-### Centralized Management
+### Historical Approach
+
+This section documents the older transition period where GCS IP changes were
+still discussed in terms of `src/params.py` and a dashboard flow. For current
+deployments, use [Runtime Config Sources](runtime-config-sources.md) instead.
 
 GCS IP is now configured in `src/params.py`:
 

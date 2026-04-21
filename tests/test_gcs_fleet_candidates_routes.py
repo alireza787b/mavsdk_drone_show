@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -51,6 +52,7 @@ def _make_deps():
         Params=SimpleNamespace(GIT_AUTO_PUSH=False),
         BASE_DIR="/tmp/mds",
         git_operations=lambda *args, **kwargs: {"status": "skipped"},
+        reconcile_background_services=AsyncMock(),
         list_fleet_candidates=lambda include_inactive=False: [_candidate_record()] if not include_inactive else [_candidate_record()],
         get_fleet_candidate=lambda candidate_id: _candidate_record(candidate_id=candidate_id),
         announce_fleet_candidate=lambda payload: _candidate_record(node_uuid=payload.node_uuid or "node-101"),
@@ -126,6 +128,7 @@ def test_fleet_candidates_router_accepts_candidate():
     assert body["candidate"]["replacement_target_pos_id"] == "12"
     assert body["post_sync"]["mode"] == "manual_repo_sync_required"
     assert body["post_sync"]["target_pos_id"] == "12"
+    deps.reconcile_background_services.assert_awaited_once()
 
 
 def test_fleet_candidates_router_replaces_candidate():
@@ -144,6 +147,7 @@ def test_fleet_candidates_router_replaces_candidate():
     assert body["candidate"]["resolution"] == "replaced_existing"
     assert body["candidate"]["replacement_target_hw_id"] == "12"
     assert body["post_sync"]["mode"] == "manual_repo_sync_required"
+    deps.reconcile_background_services.assert_awaited_once()
 
 
 def test_fleet_candidates_router_recovers_candidate():
@@ -162,6 +166,7 @@ def test_fleet_candidates_router_recovers_candidate():
     assert body["candidate"]["resolution"] == "recovered_existing"
     assert body["candidate"]["replacement_target_hw_id"] == "12"
     assert body["post_sync"]["mode"] == "manual_repo_sync_required"
+    deps.reconcile_background_services.assert_awaited_once()
 
 
 def test_fleet_candidates_router_surfaces_git_push_failure_as_warning():

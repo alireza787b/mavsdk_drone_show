@@ -26,8 +26,9 @@ import os
 import signal
 import sys
 import zipfile
+import importlib.util
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
 from io import BytesIO
 
 # Mock signal.signal BEFORE any imports that might use it
@@ -312,6 +313,78 @@ class TestBackgroundTelemetryHelpers:
         assert payload['readiness_status'] == 'unknown'
         assert payload['preflight_blockers']
 
+    def test_build_background_unavailable_record_preserves_identity(self):
+        from app_fastapi import _build_background_unavailable_record, last_heartbeats
+
+        existing = {
+            'hw_id': '101',
+            'pos_id': 101,
+            'position_lat': 48.1234,
+            'position_long': 2.1234,
+            'position_alt': 42.0,
+            'battery_voltage': 15.2,
+            'update_time': int(time.time()) - 10,
+            'is_armed': True,
+            'readiness_status': 'ready',
+            'readiness_summary': 'Ready to fly',
+        }
+
+        with patch.dict(last_heartbeats, {
+            '101': {
+                'timestamp': 1700000000123,
+                'first_seen': 1699999999.0,
+                'network_info': {'reachable': True},
+            }
+        }, clear=True):
+            payload = _build_background_unavailable_record(
+                hw_id='101',
+                pos_id=101,
+                ip='100.82.72.33',
+                error_message='Unable to reach the drone telemetry endpoint.',
+                existing=existing,
+            )
+
+        assert payload['hw_id'] == '101'
+        assert payload['pos_id'] == 101
+        assert payload['ip'] == '100.82.72.33'
+        assert payload['position_lat'] == pytest.approx(48.1234)
+        assert payload['battery_voltage'] == pytest.approx(15.2)
+        assert payload['telemetry_available'] is False
+        assert 'Unable to reach' in payload['telemetry_error']
+        assert payload['heartbeat_last_seen'] == 1700000000123
+        assert payload['heartbeat_network_info'] == {'reachable': True}
+
+    def test_background_services_apply_drone_targets_seeds_placeholders_and_prunes_removed(self):
+        module_path = Path(__file__).resolve().parents[1] / "gcs-server" / "app_fastapi.py"
+        spec = importlib.util.spec_from_file_location("app_fastapi_real_targets_test", module_path)
+        assert spec is not None and spec.loader is not None
+        real_app = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = real_app
+        spec.loader.exec_module(real_app)
+
+        service = real_app.BackgroundServices()
+        real_app.telemetry_data_all_drones.clear()
+        real_app.git_status_data_all_drones.clear()
+
+        real_app.telemetry_data_all_drones['old'] = {'hw_id': 'old', 'pos_id': 9, 'ip': '10.0.0.9'}
+        real_app.git_status_data_all_drones['old'] = {'branch': 'main'}
+
+        summary = service.apply_drone_targets([
+            {'hw_id': 101, 'pos_id': 101, 'ip': '100.82.72.33'},
+        ])
+
+        assert summary == {'managed': 1, 'added': 1, 'removed': 0}
+        assert '101' in real_app.telemetry_data_all_drones
+        assert real_app.telemetry_data_all_drones['101']['telemetry_available'] is False
+        assert real_app.telemetry_data_all_drones['101']['pos_id'] == 101
+
+        summary = service.apply_drone_targets([])
+
+        assert summary == {'managed': 0, 'added': 0, 'removed': 1}
+        assert '101' not in real_app.telemetry_data_all_drones
+        assert 'old' not in real_app.telemetry_data_all_drones
+        assert 'old' not in real_app.git_status_data_all_drones
+
 
 # ============================================================================
 # Configuration Tests
@@ -341,6 +414,18 @@ class TestConfigurationEndpoints:
         data = response.json()
         assert data['success'] == True
         assert 'updated_count' in data
+
+    @patch('app_fastapi.reconcile_background_services', new_callable=AsyncMock)
+    @patch('app_fastapi.save_config')
+    @patch('app_fastapi.validate_and_process_config')
+    def test_save_config_reconciles_background_services(self, mock_validate, mock_save, mock_reconcile, test_client, mock_config):
+        mock_validate.return_value = {'updated_config': mock_config}
+
+        response = test_client.request("PUT", "/api/v1/config/fleet", json=mock_config)
+
+        assert response.status_code == 200
+        mock_save.assert_called_once()
+        mock_reconcile.assert_awaited_once()
 
     @patch('app_fastapi.validate_and_process_config')
     def test_validate_config(self, mock_validate, test_client, mock_config):
@@ -2233,4 +2318,6 @@ class TestAPIV1Aliases:
 
         assert response.status_code == 200
         data = response.json()
-        assert "network_sta
+        assert "network_status" in data
+        assert "reachable_count" in data
+        assert "timestamp" in data

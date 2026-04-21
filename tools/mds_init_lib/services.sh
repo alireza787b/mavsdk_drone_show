@@ -355,6 +355,59 @@ enable_all_services() {
     return 0
 }
 
+restart_service_if_needed() {
+    local service_name="$1"
+
+    if is_dry_run; then
+        echo -e "  ${DIM}[DRY-RUN] Would reconcile runtime: ${service_name}${NC}"
+        return 0
+    fi
+
+    case "$service_name" in
+        led_indicator.service|git_sync_mds.service)
+            log_debug "Skipping runtime restart for ${service_name}"
+            return 0
+            ;;
+    esac
+
+    if service_is_active "$service_name"; then
+        if systemctl restart "$service_name" 2>/dev/null; then
+            log_debug "Restarted: ${service_name}"
+        else
+            log_warn "Failed to restart: ${service_name}"
+            return 1
+        fi
+        return 0
+    fi
+
+    if systemctl start "$service_name" 2>/dev/null; then
+        log_debug "Started: ${service_name}"
+    else
+        log_warn "Failed to start: ${service_name}"
+        return 1
+    fi
+
+    return 0
+}
+
+reconcile_runtime_services() {
+    log_step "Reapplying runtime services..."
+
+    local failed=0
+
+    for service_name in "${SERVICE_ORDER[@]}"; do
+        if ! restart_service_if_needed "$service_name"; then
+            ((failed++))
+        fi
+    done
+
+    if [[ $failed -gt 0 ]]; then
+        log_warn "$failed service(s) failed to restart cleanly"
+    fi
+
+    return 0
+}
+
 # =============================================================================
 # VERIFICATION
 # =============================================================================
@@ -432,6 +485,9 @@ run_services_phase() {
 
     # Enable services
     enable_all_services
+
+    # Restart long-running services so updated local.env/service files apply immediately
+    reconcile_runtime_services
 
     print_section "Verification"
 

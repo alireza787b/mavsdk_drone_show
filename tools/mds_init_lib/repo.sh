@@ -586,7 +586,7 @@ validate_repo_structure() {
     return 0
 }
 
-# Check if params.py matches fork configuration
+# Compare selected repo settings against src/params.py fallback defaults
 verify_fork_config() {
     local expected_url="${1:-}"
     local expected_branch="${2:-}"
@@ -622,8 +622,8 @@ verify_fork_config() {
 
     if [[ "$mismatch" == "true" ]]; then
         echo ""
-        echo -e "  ${YELLOW}Note: Environment variables (MDS_REPO_URL, MDS_BRANCH) will override${NC}"
-        echo -e "  ${YELLOW}params.py settings at runtime via /etc/mds/local.env${NC}"
+        echo -e "  ${YELLOW}Note: runtime overrides from process env or /etc/mds/local.env will override${NC}"
+        echo -e "  ${YELLOW}src/params.py fallback repo settings at runtime${NC}"
         echo ""
     else
         log_success "Fork configuration matches"

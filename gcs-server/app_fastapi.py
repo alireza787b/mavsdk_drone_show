@@ -195,27 +195,123 @@ class BackgroundServices:
         self.running = False
         self.drones = []
 
+    def _normalize_drones(self, drones: List[Dict]) -> List[Dict[str, Any]]:
+        """Normalize managed drone targets into a stable internal representation."""
+        normalized: List[Dict[str, Any]] = []
+        for drone in drones or []:
+            try:
+                hw_id = str(drone.get("hw_id")).strip()
+            except Exception:
+                hw_id = ""
+            ip = str(drone.get("ip", "")).strip()
+            if not hw_id or not ip:
+                continue
+
+            try:
+                pos_id = int(drone.get("pos_id", 0) or 0)
+            except Exception:
+                pos_id = 0
+
+            normalized.append(
+                {
+                    "hw_id": hw_id,
+                    "pos_id": pos_id,
+                    "ip": ip,
+                }
+            )
+        return normalized
+
+    def apply_drone_targets(self, drones: List[Dict]) -> dict[str, int]:
+        """
+        Reconcile in-memory polling targets with the current fleet manifest.
+
+        This keeps the FastAPI runtime aligned with config.json / Fleet Enrollment
+        changes without requiring a backend restart.
+        """
+        normalized = self._normalize_drones(drones)
+        previous_ids = {str(drone.get("hw_id")) for drone in self.drones}
+        next_ids = {str(drone.get("hw_id")) for drone in normalized}
+        added_ids = next_ids - previous_ids
+        removed_ids = previous_ids - next_ids
+
+        self.drones = normalized
+
+        with telemetry_lock:
+            for drone in normalized:
+                hw_id = str(drone["hw_id"])
+                telemetry_data_all_drones[hw_id] = _build_background_unavailable_record(
+                    hw_id=hw_id,
+                    pos_id=drone.get("pos_id", 0),
+                    ip=drone["ip"],
+                    error_message="Waiting for drone telemetry.",
+                    existing=telemetry_data_all_drones.get(hw_id),
+                )
+
+            for hw_id in list(telemetry_data_all_drones.keys()):
+                if str(hw_id) not in next_ids:
+                    telemetry_data_all_drones.pop(hw_id, None)
+
+        with data_lock_git_status:
+            for hw_id in list(git_status_data_all_drones.keys()):
+                if str(hw_id) not in next_ids:
+                    git_status_data_all_drones.pop(hw_id, None)
+
+        return {
+            "managed": len(normalized),
+            "added": len(added_ids),
+            "removed": len(removed_ids),
+        }
+
     async def start(self, drones: List[Dict]):
         """Start all background services"""
-        self.drones = drones
+        target_summary = self.apply_drone_targets(drones)
+        if self.running:
+            log_system_event(
+                (
+                    "Background services target set refreshed "
+                    f"({target_summary['managed']} managed, "
+                    f"+{target_summary['added']}, -{target_summary['removed']})"
+                ),
+                "INFO",
+                "system",
+            )
+            return
+
         self.running = True
 
         # Start telemetry polling
         self.telemetry_task = asyncio.create_task(self._poll_telemetry())
         log_system_event(
-            f"Telemetry polling started for {len(drones)} drones",
+            f"Telemetry polling started for {len(self.drones)} drones",
             "INFO", "telemetry"
         )
 
         # Start git status polling
         self.git_status_task = asyncio.create_task(self._poll_git_status())
         log_system_event(
-            f"Git status polling started for {len(drones)} drones",
+            f"Git status polling started for {len(self.drones)} drones",
             "INFO", "git"
         )
 
         self.command_timeout_task = asyncio.create_task(self._poll_command_timeouts())
         log_system_event("Command timeout monitoring started", "INFO", "command")
+
+    async def reconcile(self, drones: List[Dict]):
+        """Apply a fresh fleet manifest to the live background pollers."""
+        if not self.running:
+            await self.start(drones)
+            return
+
+        target_summary = self.apply_drone_targets(drones)
+        log_system_event(
+            (
+                "Background services reconciled with current fleet manifest "
+                f"({target_summary['managed']} managed, "
+                f"+{target_summary['added']}, -{target_summary['removed']})"
+            ),
+            "INFO",
+            "system",
+        )
 
     async def stop(self):
         """Stop all background services gracefully"""
@@ -241,6 +337,10 @@ class BackgroundServices:
                 await self.command_timeout_task
             except asyncio.CancelledError:
                 pass
+
+        self.telemetry_task = None
+        self.git_status_task = None
+        self.command_timeout_task = None
 
         log_system_event("Background services stopped", "INFO", "system")
 
@@ -272,10 +372,25 @@ class BackgroundServices:
                             data = response.json()
                             with telemetry_lock:
                                 telemetry_data_all_drones[hw_id] = _build_background_telemetry_record(hw_id, ip, data)
+                        else:
+                            with telemetry_lock:
+                                telemetry_data_all_drones[hw_id] = _build_background_unavailable_record(
+                                    hw_id=hw_id,
+                                    pos_id=drone.get("pos_id", 0),
+                                    ip=ip,
+                                    error_message=f"Drone telemetry endpoint returned HTTP {response.status_code}.",
+                                    existing=telemetry_data_all_drones.get(hw_id),
+                                )
 
-                    except Exception as e:
-                        # Silent failure - telemetry polling errors are expected
-                        pass
+                    except Exception:
+                        with telemetry_lock:
+                            telemetry_data_all_drones[hw_id] = _build_background_unavailable_record(
+                                hw_id=hw_id,
+                                pos_id=drone.get("pos_id", 0),
+                                ip=ip,
+                                error_message="Unable to reach the drone telemetry endpoint.",
+                                existing=telemetry_data_all_drones.get(hw_id),
+                            )
 
                 # Sleep between polls
                 await asyncio.sleep(Params.telem_poll_interval)
@@ -460,6 +575,13 @@ def set_fleet_candidate_state(
     )
 
 
+async def reconcile_background_services() -> list[dict[str, Any]]:
+    """Refresh live pollers after fleet-manifest mutations without restarting GCS."""
+    drones = load_config()
+    await background_services.reconcile(drones)
+    return drones
+
+
 def _local_mavlink_stale_threshold_ms() -> int:
     configured_timeout = getattr(Params, "LOCAL_MAVLINK_STALE_TIMEOUT_SEC", None)
     if configured_timeout is None:
@@ -478,6 +600,77 @@ def _build_stale_background_blocker(message: str, timestamp_ms: int) -> Dict[str
         "message": message,
         "timestamp": timestamp_ms,
     }
+
+
+def _build_background_unavailable_record(
+    hw_id: Any,
+    pos_id: Any,
+    ip: str,
+    error_message: str,
+    *,
+    existing: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Build a stable typed telemetry row even when live telemetry is unavailable."""
+    normalized_hw_id = str(hw_id)
+    now_ms = int(time.time() * 1000)
+    stale_threshold_ms = _local_mavlink_stale_threshold_ms()
+    existing = dict(existing or {})
+
+    with last_heartbeats_lock:
+        heartbeat_data = (last_heartbeats.get(normalized_hw_id) or {}).copy()
+
+    record = {
+        "hw_id": str(existing.get("hw_id", normalized_hw_id)),
+        "pos_id": int(existing.get("pos_id", pos_id or 0) or 0),
+        "detected_pos_id": existing.get("detected_pos_id", 0),
+        "state": existing.get("state", 999),
+        "mission": existing.get("mission", 0),
+        "last_mission": existing.get("last_mission", 0),
+        "position_lat": existing.get("position_lat", 0.0),
+        "position_long": existing.get("position_long", 0.0),
+        "position_alt": existing.get("position_alt", 0.0),
+        "velocity_north": existing.get("velocity_north", 0.0),
+        "velocity_east": existing.get("velocity_east", 0.0),
+        "velocity_down": existing.get("velocity_down", 0.0),
+        "yaw": existing.get("yaw", 0.0),
+        "battery_voltage": existing.get("battery_voltage", 0.0),
+        "follow_mode": existing.get("follow_mode", 0),
+        "update_time": existing.get("update_time"),
+        "timestamp": existing.get("timestamp", now_ms),
+        "server_time": existing.get("server_time"),
+        "trigger_time": existing.get("trigger_time", 0),
+        "flight_mode": existing.get("flight_mode", "UNKNOWN"),
+        "base_mode": existing.get("base_mode", "UNKNOWN"),
+        "system_status": existing.get("system_status", "UNKNOWN"),
+        "is_armed": bool(existing.get("is_armed", False)),
+        "is_ready_to_arm": False,
+        "home_position_set": bool(existing.get("home_position_set", False)),
+        "readiness_status": "unknown",
+        "readiness_summary": error_message,
+        "readiness_checks": existing.get("readiness_checks", []),
+        "preflight_blockers": [_build_stale_background_blocker(error_message, now_ms)],
+        "preflight_warnings": [],
+        "status_messages": existing.get("status_messages", []),
+        "preflight_last_update": now_ms,
+        "hdop": existing.get("hdop", 99.99),
+        "vdop": existing.get("vdop", 99.99),
+        "gps_fix_type": existing.get("gps_fix_type", 0),
+        "satellites_visible": existing.get("satellites_visible", 0),
+        "ip": existing.get("ip", ip),
+        "telemetry_available": False,
+        "telemetry_error": error_message,
+        "heartbeat_last_seen": heartbeat_data.get("timestamp"),
+        "heartbeat_network_info": heartbeat_data.get("network_info") or {},
+        "heartbeat_first_seen": _normalize_heartbeat_first_seen(heartbeat_data.get("first_seen")),
+        "telemetry_last_update_age_ms": None,
+        "telemetry_stale_threshold_ms": stale_threshold_ms,
+    }
+
+    update_time_ms = _normalize_update_time_ms(record.get("update_time"))
+    if update_time_ms is not None:
+        record["telemetry_last_update_age_ms"] = max(0, now_ms - update_time_ms)
+
+    return record
 
 
 def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -551,8 +744,10 @@ async def lifespan(app: FastAPI):
         log_system_warning("No drones found in configuration", "startup")
     else:
         log_system_event(f"Loaded {len(drones)} drone(s) from configuration", "INFO", "startup")
-        # Start background services
-        await background_services.start(drones)
+
+    # Start background services even with an empty manifest so runtime fleet
+    # changes can reconcile in-process without requiring a backend restart.
+    await background_services.start(drones)
 
     log_system_event("GCS FastAPI server ready - all services started", "INFO", "startup")
 

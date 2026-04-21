@@ -184,7 +184,7 @@ display_readonly_warning() {
     echo ""
 }
 
-# Verify fork configuration matches src/params.py (if using custom repo)
+# Compare selected repo settings against src/params.py fallback defaults
 verify_fork_config() {
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
     local params_file="${install_dir}/src/params.py"
@@ -232,8 +232,8 @@ verify_fork_config() {
         echo ""
         echo -e "  ${WHITE}What this means:${NC}"
         echo -e "  ${DIM}• GCS dashboard startup uses /etc/mds/gcs.env (your selection above)${NC}"
-        echo -e "  ${DIM}• params.py defaults are only used when env vars are not set${NC}"
-        echo -e "  ${DIM}• Drones use their own params.py — update each drone separately${NC}"
+        echo -e "  ${DIM}• src/params.py is fallback-only when runtime env files are absent${NC}"
+        echo -e "  ${DIM}• Real nodes use /etc/mds/local.env for host-specific repo/branch overrides${NC}"
         echo ""
         echo -e "  ${WHITE}No action needed${NC} — the dashboard start script exports your"
         echo -e "  selection as MDS_REPO_URL / MDS_BRANCH so the backend picks it up."

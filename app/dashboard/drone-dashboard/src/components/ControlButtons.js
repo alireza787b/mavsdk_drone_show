@@ -11,7 +11,6 @@ import {
   faFileCsv,
   faUndo,
   faMapMarkerAlt,
-  faServer,
   faSync,
   faCodeBranch,
 } from '@fortawesome/free-solid-svg-icons';
@@ -21,7 +20,7 @@ import { useSyncDrones } from '../hooks/useSyncDrones';
 /**
  * ControlButtons
  *
- * Provides top-level actions: Save, Add Drone, Set Origin, Configure GCS, Import, Export, Revert, Sync Drones
+ * Provides top-level actions: Save, Add Drone, Set Origin, Import, Export, Revert, Sync Drones
  * with a consistent UI/UX approach.
  */
 const ControlButtons = ({
@@ -32,7 +31,6 @@ const ControlButtons = ({
   exportConfig,
   exportConfigCSV,
   openOriginModal,
-  openGcsConfigModal,
   handleResetToDefault,
   configData,
   setConfigData,
@@ -99,11 +97,6 @@ const ControlButtons = ({
           <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
             <FontAwesomeIcon icon={faMapMarkerAlt} />
             Set Origin
-          </button>
-
-          <button className="configure-gcs" onClick={openGcsConfigModal} title="Configure GCS Server IP">
-            <FontAwesomeIcon icon={faServer} />
-            Configure GCS
           </button>
         </div>
       )}
@@ -177,7 +170,6 @@ ControlButtons.propTypes = {
   exportConfig: PropTypes.func.isRequired,
   exportConfigCSV: PropTypes.func,
   openOriginModal: PropTypes.func.isRequired,
-  openGcsConfigModal: PropTypes.func.isRequired,
   handleResetToDefault: PropTypes.func.isRequired,
   configData: PropTypes.array.isRequired,
   setConfigData: PropTypes.func.isRequired,

@@ -91,8 +91,8 @@ The script respects these environment variables (override CLI defaults):
 |----------|---------|---------|
 | `MDS_REPO_URL` | Override repository URL | CLI or default |
 | `MDS_BRANCH` | Override git branch | CLI or default |
-| `MDS_GCS_IP` | Override GCS IP address | From params.py |
-| `MDS_GCS_API_BASE_URL` | Override candidate-announce API base URL | Derived from `MDS_GCS_IP` |
+| `MDS_GCS_IP` | Override node-local GCS control IP | `/etc/mds/local.env`, then environment, then `src/params.py` fallback |
+| `MDS_GCS_API_BASE_URL` | Override candidate-announce API base URL | Explicit value, otherwise derived from `MDS_GCS_IP` |
 
 ## Exit Codes
 

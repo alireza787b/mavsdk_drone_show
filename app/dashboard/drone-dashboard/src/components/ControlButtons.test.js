@@ -20,7 +20,6 @@ const baseProps = {
   exportConfig: jest.fn(),
   exportConfigCSV: jest.fn(),
   openOriginModal: jest.fn(),
-  openGcsConfigModal: jest.fn(),
   handleResetToDefault: jest.fn(),
   configData: [],
   setConfigData: jest.fn(),

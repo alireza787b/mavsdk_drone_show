@@ -27,6 +27,11 @@ def _get_trajectory_start_position_payload(deps: Any, pos_id: int) -> dict[str, 
 def create_configuration_router(deps: Any) -> APIRouter:
     router = APIRouter()
 
+    async def _reconcile_runtime_fleet() -> None:
+        reconciler = getattr(deps, "reconcile_background_services", None)
+        if callable(reconciler):
+            await reconciler()
+
     @router.get("/api/v1/config/fleet", response_model=list[FleetConfigEntryPayload], tags=["Configuration"])
     async def get_config():
         """Get current drone configuration."""
@@ -52,6 +57,7 @@ def create_configuration_router(deps: Any) -> APIRouter:
             report = deps.validate_and_process_config(normalized_config, sim_mode)
 
             deps.save_config(report["updated_config"])
+            await _reconcile_runtime_fleet()
             deps.log_system_event("✅ Configuration saved successfully", "INFO", "config")
 
             should_commit = commit if commit is not None else deps.Params.GIT_AUTO_PUSH

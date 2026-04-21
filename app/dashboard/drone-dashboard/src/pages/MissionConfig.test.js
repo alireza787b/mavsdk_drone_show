@@ -35,7 +35,6 @@ jest.mock('../components/DroneConfigCard', () => ({ drone }) => (
 ));
 jest.mock('../components/ControlButtons', () => () => <div data-testid="control-buttons" />);
 jest.mock('../components/MissionLayout', () => () => <div data-testid="mission-layout" />);
-jest.mock('../components/GcsConfigModal', () => () => <div data-testid="gcs-config-modal" />);
 jest.mock('../components/DronePositionMap', () => () => <div data-testid="drone-position-map" />);
 jest.mock('../components/SaveReviewDialog', () => () => <div data-testid="save-review-dialog" />);
 jest.mock('../components/ClusterScopeBar', () => () => <div data-testid="cluster-scope-bar" />);
@@ -51,7 +50,6 @@ jest.mock('../services/gcsApiService', () => ({
   GCS_ROUTE_KEYS: {
     fleetConfig: 'fleetConfig',
     origin: 'origin',
-    gcsConfig: 'gcsConfig',
     positionDeviations: 'positionDeviations',
     fleetTelemetry: 'fleetTelemetry',
     gitStatus: 'gitStatus',
@@ -63,7 +61,6 @@ jest.mock('../services/gcsApiService', () => ({
   },
   getPositionDeviationsResponse: jest.fn(),
   getTrajectoryFirstRowResponse: jest.fn(() => Promise.resolve({ data: { x: 0, y: 0 } })),
-  saveGcsConfigResponse: jest.fn(),
   setOriginResponse: jest.fn(),
   unwrapSwarmConfigPayload: jest.fn(() => []),
 }));
@@ -86,11 +83,6 @@ const buildFetchResponseMap = (originResponse, overrides = {}) => ({
     error: null,
   },
   origin: originResponse,
-  gcsConfig: {
-    data: { data: { gcs_ip: '127.0.0.1' } },
-    loading: false,
-    error: null,
-  },
   positionDeviations: { data: {}, loading: false, error: null },
   fleetTelemetry: { data: {}, loading: false, error: null },
   networkInfo: { data: [], loading: false, error: null },

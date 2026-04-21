@@ -10,7 +10,6 @@ import DroneConfigCard from '../components/DroneConfigCard';
 import ControlButtons from '../components/ControlButtons';
 import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
-import GcsConfigModal from '../components/GcsConfigModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import ClusterScopeBar from '../components/ClusterScopeBar';
@@ -57,7 +56,6 @@ import {
   GCS_ROUTE_KEYS,
   getPositionDeviationsResponse,
   getTrajectoryFirstRowResponse,
-  saveGcsConfigResponse,
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
@@ -96,10 +94,6 @@ const MissionConfig = () => {
   const [origin, setOrigin] = useState({ lat: null, lon: null });
   const [originAvailable, setOriginAvailable] = useState(false);
   const [showOriginModal, setShowOriginModal] = useState(false);
-
-  // GCS Configuration
-  const [showGcsConfigModal, setShowGcsConfigModal] = useState(false);
-  const [gcsConfig, setGcsConfig] = useState({ gcs_ip: null });
 
   // Role Swap Details Modal
   const [showRoleSwapModal, setShowRoleSwapModal] = useState(false);
@@ -152,7 +146,6 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   const { data: configDataFetched } = useFetch(GCS_ROUTE_KEYS.fleetConfig);
   const { data: originDataFetched, loading: originLoading, error: originError } = useFetch(GCS_ROUTE_KEYS.origin);
-  const { data: gcsConfigFetched } = useFetch(GCS_ROUTE_KEYS.gcsConfig, null);
   const { data: deviationDataFetched } = useFetch(
     GCS_ROUTE_KEYS.positionDeviations,
     originAvailable ? 5000 : null
@@ -265,12 +258,6 @@ const MissionConfig = () => {
       setHeartbeats(heartbeatsDict);
     }
   }, [heartbeatsFetched]);
-
-  useEffect(() => {
-    if (gcsConfigFetched?.data?.gcs_ip) {
-      setGcsConfig(gcsConfigFetched.data);
-    }
-  }, [gcsConfigFetched]);
 
   useEffect(() => {
     if (!Array.isArray(savedDronePositionsFetched)) {
@@ -438,51 +425,6 @@ const MissionConfig = () => {
         console.error('Error saving origin to backend:', error);
         toast.error('Failed to save origin to server.');
       });
-  };
-
-  // -----------------------------------------------------
-  // GCS Configuration Modal submission
-  // -----------------------------------------------------
-  const handleGcsConfigSubmit = async (newGcsConfig) => {
-    try {
-      const response = await saveGcsConfigResponse(newGcsConfig);
-
-      if (response.data.success) {
-        setGcsConfig(newGcsConfig);
-        setShowGcsConfigModal(false);
-
-        // Show success message with warnings
-        toast.success(response.data.message || 'GCS IP updated successfully');
-
-        if (response.data.warnings && response.data.warnings.length > 0) {
-          response.data.warnings.forEach(warning => {
-            toast.warning(warning, { autoClose: 8000 });
-          });
-        }
-
-        if (response.data.git_status) {
-          // Handle both string and object git_status formats
-          if (typeof response.data.git_status === 'string') {
-            toast.info(`Git: ${response.data.git_status}`, { autoClose: 5000 });
-          } else if (typeof response.data.git_status === 'object') {
-            // Format git status object properly to avoid "[object Object]" display
-            const gitStatus = response.data.git_status;
-            const branch = gitStatus.branch || gitStatus.current_branch || 'unknown';
-            const commit = gitStatus.commit || gitStatus.latest_commit || 'unknown';
-            const shortCommit = typeof commit === 'string' ? commit.slice(0, 7) : commit;
-            toast.info(`Git: ${branch} @ ${shortCommit}`, { autoClose: 5000 });
-          }
-        }
-      } else {
-        toast.error(response.data.message || 'Failed to update GCS IP');
-      }
-    } catch (error) {
-      console.error('Error saving GCS configuration:', error);
-      toast.error(
-        error.response?.data?.message ||
-        'Failed to save GCS configuration to server.'
-      );
-    }
   };
 
   // -----------------------------------------------------
@@ -1199,16 +1141,6 @@ const MissionConfig = () => {
         />
       )}
 
-      {/* GCS Configuration Modal */}
-      {showGcsConfigModal && (
-        <GcsConfigModal
-          isOpen={showGcsConfigModal}
-          onClose={() => setShowGcsConfigModal(false)}
-          onSubmit={handleGcsConfigSubmit}
-          currentGcsIp={gcsConfig.gcs_ip}
-        />
-      )}
-
       {/* Role Swap Details Modal */}
       {showRoleSwapModal && (
         <div
@@ -1368,7 +1300,6 @@ const MissionConfig = () => {
             exportConfig={handleExportConfigWrapper}
             exportConfigCSV={handleExportConfigCSVWrapper}
             openOriginModal={() => setShowOriginModal(true)}
-            openGcsConfigModal={() => setShowGcsConfigModal(true)}
             handleResetToDefault={handleResetToDefault}
             configData={configData}
             setConfigData={setConfigData}
