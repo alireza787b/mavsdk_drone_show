@@ -20,9 +20,23 @@ readonly DEFAULT_PROJECT_NAME="${DEFAULT_REPO_SLUG##*/}"
 readonly DEFAULT_REPO_URL="${MDS_DEFAULT_REPO_URL_SSH}"
 readonly DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS}"
 readonly DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH}"
-readonly SSH_KEY_PATH="${MDS_HOME}/.ssh/id_rsa_git_deploy"
+readonly DEFAULT_SSH_KEY_PATH="${MDS_HOME}/.ssh/id_rsa_git_deploy"
+SSH_KEY_PATH=""
+
+sync_node_ssh_key_path() {
+    if [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" ]]; then
+        SSH_KEY_PATH="${MDS_GIT_SSH_KEY_FILE}"
+    else
+        SSH_KEY_PATH="${DEFAULT_SSH_KEY_PATH}"
+    fi
+}
+
+node_ssh_key_is_explicit() {
+    [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" ]]
+}
 
 mds_git_ssh_command() {
+    sync_node_ssh_key_path
     printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$SSH_KEY_PATH"
 }
 
@@ -31,6 +45,7 @@ is_github_ssh_repo_url() {
 }
 
 prepare_repo_ssh_runtime() {
+    sync_node_ssh_key_path
     local ssh_dir="${MDS_HOME}/.ssh"
 
     mkdir -p "$ssh_dir"
@@ -93,12 +108,15 @@ reconcile_repo_checkout_remote() {
 
 # Check if SSH key exists
 ssh_key_exists() {
+    sync_node_ssh_key_path
     [[ -f "${SSH_KEY_PATH}" ]]
 }
 
 # Generate SSH deploy key
 generate_ssh_key() {
     log_step "Generating SSH deploy key..."
+
+    sync_node_ssh_key_path
 
     if is_dry_run; then
         echo -e "  ${DIM}[DRY-RUN] Would generate SSH key at: ${SSH_KEY_PATH}${NC}"
@@ -118,6 +136,12 @@ generate_ssh_key() {
     if ssh_key_exists; then
         log_info "SSH key already exists at: ${SSH_KEY_PATH}"
         return 0
+    fi
+
+    if node_ssh_key_is_explicit; then
+        log_error "Configured --git-ssh-key-file is not readable: ${SSH_KEY_PATH}"
+        log_info "Provide an existing SSH private key file or omit --git-ssh-key-file to let the installer manage ${DEFAULT_SSH_KEY_PATH}"
+        return 1
     fi
 
     # Generate new SSH key
@@ -155,6 +179,8 @@ configure_ssh_for_github() {
 display_deploy_key_instructions() {
     local repo_url="${1:-$DEFAULT_REPO_URL}"
 
+    sync_node_ssh_key_path
+
     echo ""
     echo -e "${CYAN}┌────────────────────────────────────────────────────────────────────────────┐${NC}"
     echo -e "${CYAN}│${NC}  ${WHITE}GitHub Deploy Key Setup${NC}                                                  ${CYAN}│${NC}"
@@ -171,7 +197,7 @@ display_deploy_key_instructions() {
         cat "${SSH_KEY_PATH}.pub"
         echo -e "${NC}"
     else
-        echo -e "${YELLOW}  [Public key not found]${NC}"
+        echo -e "${YELLOW}  [Public key not found. If you supplied an existing private key, authorize its matching public key on GitHub.]${NC}"
     fi
 
     echo ""
@@ -194,6 +220,8 @@ display_deploy_key_instructions() {
 # Test SSH connection to GitHub
 test_ssh_connection() {
     log_step "Testing SSH connection to GitHub..."
+
+    sync_node_ssh_key_path
 
     # Test connection (suppress expected "You've successfully authenticated" message)
     local output

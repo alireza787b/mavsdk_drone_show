@@ -750,3 +750,81 @@ Residual drift after this slice:
 - official repo still needs this slice committed and pushed
 - private repo still needs the clean official convergence applied and verified
 - hardware/bootstrap validation should resume only after that convergence
+
+## Slice 11
+
+Goal:
+
+- make private GitHub SSH auth a first-class runtime/bootstrap configuration for
+  both GCS and companion nodes
+- remove the last hardcoded bootstrap assumption that only one legacy SSH key
+  path exists for GCS or node provisioning
+- keep runtime git-sync, bootstrap wrappers, and rendered env files aligned
+
+Implemented:
+
+- updated GCS bootstrap/init flow:
+  - `tools/install_gcs.sh` now accepts `--git-ssh-key-file`
+  - `tools/mds_gcs_init.sh` now accepts and exports
+    `--git-ssh-key-file`
+  - `tools/mds_gcs_init_lib/gcs_repo.sh` now resolves the SSH key path from
+    `MDS_GIT_SSH_KEY_FILE` and only generates the default managed key when no
+    explicit key file was supplied
+  - `tools/mds_gcs_init_lib/gcs_env_config.sh` now persists
+    `MDS_GIT_SSH_KEY_FILE` into `/etc/mds/gcs.env`
+- updated companion-node bootstrap/init flow:
+  - `tools/install_mds_node.sh` now accepts `--git-ssh-key-file`
+  - `tools/mds_node_init.sh` now accepts and exports
+    `--git-ssh-key-file`
+  - `tools/mds_init_lib/repo.sh` now resolves the SSH key path from
+    `MDS_GIT_SSH_KEY_FILE` and only generates the default managed key when no
+    explicit key file was supplied
+  - `tools/mds_init_lib/identity.sh` now persists `MDS_GIT_SSH_KEY_FILE` into
+    `/etc/mds/local.env`
+- tightened direct-init GCS behavior:
+  - non-interactive SSH bootstrap no longer silently flips to HTTPS when the
+    SSH key is missing or unauthorized; it now fails with a clear remediation
+    path
+- updated operator docs:
+  - `docs/guides/gcs-setup.md`
+  - `docs/guides/mds-init-setup.md`
+- extended regression coverage for:
+  - wrapper help text advertising `--git-ssh-key-file`
+  - wrapper/runtime git commands honoring the configured SSH key file
+  - GCS env persistence of `MDS_GIT_SSH_KEY_FILE`
+  - node local-env persistence of `MDS_GIT_SSH_KEY_FILE`
+
+Local verification:
+
+- shell validation passed for:
+  - `tools/install_gcs.sh`
+  - `tools/mds_gcs_init.sh`
+  - `tools/mds_gcs_init_lib/gcs_repo.sh`
+  - `tools/mds_gcs_init_lib/gcs_env_config.sh`
+  - `tools/install_mds_node.sh`
+  - `tools/mds_node_init.sh`
+  - `tools/mds_init_lib/repo.sh`
+  - `tools/mds_init_lib/identity.sh`
+- targeted local regression suite:
+  - `tests/test_bootstrap_installers.py`
+  - `tests/test_runtime_settings.py`
+  - `tests/test_coordinator.py`
+  - `tests/test_drone_config_components.py`
+- result: 146 passed
+
+Hetzner verification:
+
+- synced worktree to:
+  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+- remote shell validation passed for the same shell entrypoints
+- recreated the temporary isolated venv under:
+  - `/tmp/mds_runtime_arch_phase1_remote/.venv-test/`
+- remote targeted regression suite passed
+- result: 146 passed
+
+Residual drift after this slice:
+
+- official repo still needs this slice committed and pushed
+- private repo still needs the clean official convergence applied and verified
+- the clean private GCS bootstrap on Hetzner still needs to be retried with the
+  existing working SSH key file

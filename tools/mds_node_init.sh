@@ -77,6 +77,7 @@ REPO_URL="${MDS_REPO_URL:-}"
 BRANCH="${MDS_BRANCH:-}"
 USE_HTTPS="false"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 NETBIRD_KEY=""
 NETBIRD_URL=""
 STATIC_IP=""
@@ -175,6 +176,7 @@ REPOSITORY OPTIONS:
     --fork OWNER[/REPO]         Use GitHub fork or custom repo path
     --https                     Use HTTPS instead of SSH for git operations
     --git-auth-token-file PATH  Preferred private HTTPS Git auth token file
+    --git-ssh-key-file PATH     Existing SSH private key file for private GitHub SSH access
 
 OPTIONAL COMPONENTS:
     --netbird-key KEY           Netbird VPN setup key
@@ -273,6 +275,7 @@ ENVIRONMENT VARIABLES:
     MDS_REPO_URL                Override repository URL
     MDS_BRANCH                  Override git branch
     MDS_GIT_AUTH_TOKEN_FILE     Preferred private HTTPS Git token file
+    MDS_GIT_SSH_KEY_FILE        Existing SSH private key file for private GitHub SSH access
     MDS_GCS_IP                  Override GCS IP address
     MDS_GCS_API_BASE_URL        Override candidate-announce API base URL
 
@@ -295,7 +298,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
         -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -333,6 +336,14 @@ parse_args() {
                 ;;
             --git-auth-token-file)
                 GIT_AUTH_TOKEN_FILE="$2"
+                shift 2
+                ;;
+            --git-ssh-key-file)
+                GIT_SSH_KEY_FILE="$2"
+                MDS_GIT_SSH_KEY_FILE="$2"
+                if declare -F sync_node_ssh_key_path >/dev/null 2>&1; then
+                    sync_node_ssh_key_path
+                fi
                 shift 2
                 ;;
             --netbird-key)
@@ -506,7 +517,7 @@ parse_args() {
     done
 
     # Export all configuration for use by libraries
-    export DRONE_ID REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE
+    export DRONE_ID REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE
     export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP GCS_API_URL
     export MDS_CONNECTIVITY_BACKEND SMART_WIFI_MANAGER_MODE SMART_WIFI_MANAGER_IMPORT_MODE
     export SMART_WIFI_MANAGER_PROFILE_SOURCE SMART_WIFI_MANAGER_CONFIG_FILE

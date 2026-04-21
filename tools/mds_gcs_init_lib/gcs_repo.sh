@@ -15,11 +15,26 @@ _MDS_GCS_REPO_LOADED=1
 # CONSTANTS
 # =============================================================================
 
-readonly GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
-readonly GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
 readonly GCS_DEFAULT_PROJECT_NAME="${MDS_DEFAULT_REPO_SLUG##*/}"
+readonly GCS_DEFAULT_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
+GCS_SSH_KEY_PATH=""
+GCS_SSH_KEY_PUB=""
+
+sync_gcs_ssh_key_paths() {
+    if [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" ]]; then
+        GCS_SSH_KEY_PATH="${MDS_GIT_SSH_KEY_FILE}"
+    else
+        GCS_SSH_KEY_PATH="${GCS_DEFAULT_SSH_KEY_PATH}"
+    fi
+    GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
+}
+
+gcs_ssh_key_is_explicit() {
+    [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" ]]
+}
 
 gcs_git_ssh_command() {
+    sync_gcs_ssh_key_paths
     printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$GCS_SSH_KEY_PATH"
 }
 
@@ -28,6 +43,7 @@ is_github_ssh_repo_url() {
 }
 
 prepare_gcs_ssh_runtime() {
+    sync_gcs_ssh_key_paths
     mkdir -p "${HOME}/.ssh"
     chmod 700 "${HOME}/.ssh"
 
@@ -328,6 +344,8 @@ prompt_repository_selection() {
 generate_ssh_key() {
     log_step "Generating SSH deploy key..."
 
+    sync_gcs_ssh_key_paths
+
     if is_dry_run; then
         echo -e "  ${DIM}[DRY-RUN] Would generate SSH key at: ${GCS_SSH_KEY_PATH}${NC}"
         return 0
@@ -341,6 +359,12 @@ generate_ssh_key() {
     if [[ -f "$GCS_SSH_KEY_PATH" ]]; then
         log_info "SSH key already exists: ${GCS_SSH_KEY_PATH}"
         return 0
+    fi
+
+    if gcs_ssh_key_is_explicit; then
+        log_error "Configured --git-ssh-key-file is not readable: ${GCS_SSH_KEY_PATH}"
+        log_info "Provide an existing SSH private key file or omit --git-ssh-key-file to let the installer manage ${GCS_DEFAULT_SSH_KEY_PATH}"
+        return 1
     fi
 
     # Generate new key
@@ -361,6 +385,7 @@ generate_ssh_key() {
 
 # Display SSH key and instructions
 display_ssh_key_instructions() {
+    sync_gcs_ssh_key_paths
     echo ""
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
     echo -e "${CYAN}|${NC}  ${WHITE}SSH DEPLOY KEY SETUP REQUIRED${NC}"
@@ -371,8 +396,13 @@ display_ssh_key_instructions() {
     echo -e "  ${WHITE}Your deploy key (copy this entire key):${NC}"
     echo -e "  ${DIM}───────────────────────────────────────────────────────────────────────────${NC}"
     echo ""
-    cat "$GCS_SSH_KEY_PUB"
-    echo ""
+    if [[ -f "$GCS_SSH_KEY_PUB" ]]; then
+        cat "$GCS_SSH_KEY_PUB"
+        echo ""
+    else
+        echo -e "  ${YELLOW}Public key file not found. If you supplied an existing private key, authorize its matching public key for this repository.${NC}"
+        echo ""
+    fi
     echo -e "  ${DIM}───────────────────────────────────────────────────────────────────────────${NC}"
     echo ""
     echo -e "  ${WHITE}Steps to add the deploy key:${NC}"
@@ -409,6 +439,8 @@ configure_ssh_github() {
 test_ssh_connection() {
     log_step "Testing SSH connection to GitHub..."
 
+    sync_gcs_ssh_key_paths
+
     if is_dry_run; then
         echo -e "  ${DIM}[DRY-RUN] Would test SSH connection to GitHub${NC}"
         return 0
@@ -438,11 +470,10 @@ test_ssh_connection() {
 # Wait for user to configure SSH key
 wait_for_ssh_key() {
     if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
-        log_warn "SSH key not authorized in non-interactive mode"
-        log_info "Falling back to HTTPS (read-only access, no git sync features)"
-        USE_HTTPS="true"
-        export USE_HTTPS
-        return 0
+        log_error "Non-interactive mode: SSH key is not yet authorized on GitHub"
+        log_info "Authorize the key, then rerun this script with the same repo/branch selection"
+        log_info "Or switch to an HTTPS repo URL with --git-auth-token-file if you want read-only/private access"
+        return 1
     fi
 
     display_ssh_key_instructions

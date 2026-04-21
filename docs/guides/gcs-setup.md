@@ -103,9 +103,10 @@ For production or customer-specific deployments, use a repo you control:
 
 ### SSH Deploy Keys
 
-For GCS write access (fork or collaborator), set up an SSH deploy key on the GCS host:
+For GCS write access (fork or collaborator), either let the installer manage the default key or point it at an existing write-capable SSH key:
 
-1. The installer generates a key at `~/.ssh/mds_gcs_deploy_key`
+1. Default managed mode: the installer generates a key at `~/.ssh/mds_gcs_deploy_key`
+2. Existing-key mode: pass `--git-ssh-key-file /path/to/key` and the installer will reuse that key instead of generating a new one
 2. Add the public key to your GitHub repository:
    - Go to Repository → Settings → Deploy keys → Add deploy key
    - **Enable "Allow write access"**
@@ -125,7 +126,7 @@ Do not reuse this write-capable GCS key inside disposable SITL containers. Priva
 | SSH (custom repo) | Yes | Yes | Production shows |
 
 For a full customer repo decision tree, see [Custom Repo Workflow](custom-repo-workflow.md).
-For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_only_token`; plain HTTPS alone is not sufficient. For SITL/private image auth, use [Custom SITL Auth Guide](custom-sitl-auth.md).
+For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_only_token`; plain HTTPS alone is not sufficient. For private GitHub repo access over SSH, use `--git-ssh-key-file /path/to/private_key` when you want to reuse an existing repo-scoped or machine-user key. For SITL/private image auth, use [Custom SITL Auth Guide](custom-sitl-auth.md).
 
 ---
 
@@ -228,6 +229,9 @@ sudo ./tools/mds_gcs_init.sh --repo-url git@github.com:yourorg/customer-mds.git 
 # Explicit private HTTPS repo + token file
 sudo ./tools/mds_gcs_init.sh --repo-url https://github.com/yourorg/customer-mds.git --branch customer-demo --git-auth-token-file /root/.mds_git_read_token
 
+# Explicit private SSH repo + existing write-capable key
+sudo ./tools/mds_gcs_init.sh --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo --git-ssh-key-file /root/.ssh/customer_gcs_write_key
+
 # Dry run to preview changes
 sudo ./tools/mds_gcs_init.sh --dry-run
 
@@ -240,7 +244,8 @@ sudo ./tools/mds_gcs_init.sh --skip-firewall
 # Customer/private repo with write-back
 sudo ./tools/mds_gcs_init.sh \
   --repo-url git@github.com:yourorg/customer-mds.git \
-  --branch customer-demo
+  --branch customer-demo \
+  --git-ssh-key-file /root/.ssh/customer_gcs_write_key
 ```
 
 ---

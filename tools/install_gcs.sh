@@ -54,10 +54,13 @@ else
     DEFAULT_HOME="$HOME"
 fi
 INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/${DEFAULT_PROJECT_NAME}}"
-GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
+DEFAULT_GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
+GCS_SSH_KEY_PATH="${DEFAULT_GCS_SSH_KEY_PATH}"
+GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
 
 # Colors
 RED='\033[0;31m'
@@ -85,6 +88,21 @@ log_error() {
 log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
+
+set_wrapper_ssh_key_path() {
+    if [[ -n "${GIT_SSH_KEY_FILE:-}" ]]; then
+        GCS_SSH_KEY_PATH="${GIT_SSH_KEY_FILE}"
+    else
+        GCS_SSH_KEY_PATH="${DEFAULT_GCS_SSH_KEY_PATH}"
+    fi
+    GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
+}
+
+wrapper_ssh_key_is_explicit() {
+    [[ -n "${GIT_SSH_KEY_FILE:-}" ]]
+}
+
+set_wrapper_ssh_key_path
 
 normalize_github_repo_path() {
     local spec="${1:-}"
@@ -227,8 +245,8 @@ prepare_wrapper_repo_ssh_runtime() {
         chmod 600 "$GCS_SSH_KEY_PATH"
     fi
 
-    if [[ -f "${GCS_SSH_KEY_PATH}.pub" ]]; then
-        chmod 644 "${GCS_SSH_KEY_PATH}.pub"
+    if [[ -f "${GCS_SSH_KEY_PUB}" ]]; then
+        chmod 644 "${GCS_SSH_KEY_PUB}"
     fi
 
     if ! grep -q "github.com" "${HOME}/.ssh/known_hosts" 2>/dev/null; then
@@ -248,11 +266,17 @@ generate_wrapper_deploy_key() {
         return 0
     fi
 
+    if wrapper_ssh_key_is_explicit; then
+        log_error "Configured --git-ssh-key-file is not readable: ${GCS_SSH_KEY_PATH}"
+        log_info "Provide an existing SSH private key file or omit --git-ssh-key-file to let the installer manage ${DEFAULT_GCS_SSH_KEY_PATH}"
+        exit 1
+    fi
+
     prepare_wrapper_repo_ssh_runtime
 
     if ssh-keygen -t ed25519 -f "$GCS_SSH_KEY_PATH" -N "" -C "mds-gcs@$(hostname)" >/dev/null 2>&1; then
         chmod 600 "$GCS_SSH_KEY_PATH"
-        chmod 644 "${GCS_SSH_KEY_PATH}.pub"
+        chmod 644 "$GCS_SSH_KEY_PUB"
         log_success "Bootstrap SSH deploy key generated"
     else
         log_error "Failed to generate bootstrap SSH deploy key"
@@ -269,10 +293,13 @@ display_wrapper_deploy_key_instructions() {
     echo -e "${CYAN}================================================${NC}"
     echo ""
     echo -e "${WHITE}Repository:${NC} ${repo_url}"
-    echo -e "${WHITE}Key path:${NC} ${GCS_SSH_KEY_PATH}.pub"
+    echo -e "${WHITE}Key path:${NC} ${GCS_SSH_KEY_PUB}"
     echo ""
-    if [[ -f "${GCS_SSH_KEY_PATH}.pub" ]]; then
-        cat "${GCS_SSH_KEY_PATH}.pub"
+    if [[ -f "${GCS_SSH_KEY_PUB}" ]]; then
+        cat "${GCS_SSH_KEY_PUB}"
+        echo ""
+    else
+        echo "Public key file not found. If you supplied an existing private key, authorize its matching public key for this repository."
         echo ""
     fi
     echo "GitHub path: Settings -> Deploy keys -> Add deploy key"
@@ -326,7 +353,7 @@ ensure_wrapper_repo_access() {
 
     if wrapper_non_interactive; then
         log_error "Non-interactive bootstrap cannot continue until the GCS deploy key is authorized on GitHub"
-        log_info "Authorize ${GCS_SSH_KEY_PATH}.pub on the target repository, then rerun the same bootstrap command"
+        log_info "Authorize ${GCS_SSH_KEY_PUB} on the target repository, then rerun the same bootstrap command"
         exit 1
     fi
 
@@ -437,6 +464,8 @@ OPTIONS:
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     --git-auth-token-file PATH
                         Read private HTTPS Git auth token from PATH
+    --git-ssh-key-file PATH
+                        Use an existing SSH private key file for private GitHub SSH access
     --install-dir PATH  Installation directory (default: ${INSTALL_DIR})
     -h, --help          Show this help message
 
@@ -447,6 +476,8 @@ ENVIRONMENT VARIABLES:
     MDS_BRANCH          Git branch
     MDS_GIT_AUTH_TOKEN_FILE
                         Preferred private HTTPS Git token file
+    MDS_GIT_SSH_KEY_FILE
+                        Existing SSH private key file for private GitHub SSH access
     MDS_INSTALL_DIR     Installation directory
 
 EXAMPLES:
@@ -464,6 +495,9 @@ EXAMPLES:
 
     # Private HTTPS with token file
     curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo --git-auth-token-file /root/.mds_git_read_token
+
+    # Private SSH with an existing deploy or machine-user key
+    curl -fsSL ... | sudo bash -s -- --repo-url git@github.com:myorg/customer-mds.git --branch customer-demo --git-ssh-key-file /root/.ssh/customer_gcs_write_key
 
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop
@@ -537,6 +571,12 @@ main() {
                 passthrough_args+=("--git-auth-token-file" "$2")
                 shift 2
                 ;;
+            --git-ssh-key-file)
+                GIT_SSH_KEY_FILE="$2"
+                set_wrapper_ssh_key_path
+                passthrough_args+=("--git-ssh-key-file" "$2")
+                shift 2
+                ;;
             -h|--help)
                 show_help
                 exit 0
@@ -565,6 +605,9 @@ main() {
     fi
     if [[ -n "${GIT_AUTH_TOKEN:-}" ]]; then
         export MDS_GIT_AUTH_TOKEN="$GIT_AUTH_TOKEN"
+    fi
+    if [[ -n "${GIT_SSH_KEY_FILE:-}" ]]; then
+        export MDS_GIT_SSH_KEY_FILE="$GIT_SSH_KEY_FILE"
     fi
     export MDS_GIT_AUTH_USERNAME="$GIT_AUTH_USERNAME"
 

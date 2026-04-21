@@ -97,6 +97,16 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
   -d 1 -y
 ```
 
+**Using a private SSH repository with an existing read-only key:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+  sudo bash -s -- \
+  --repo-url git@github.com:yourorg/customer-mds.git \
+  --branch customer-demo \
+  --git-ssh-key-file /home/<mds-user>/.ssh/customer_git_read_key \
+  -d 1 -y
+```
+
 `install_mds_node.sh` remains supported as a compatibility alias. `install_companion.sh` is the clearer public entrypoint for fresh hardware.
 
 ### Option 2: Manual Installation
@@ -186,6 +196,16 @@ sudo ./tools/mds_node_init.sh -d 1 \
     --repo-url https://github.com/yourorg/customer-mds.git \
     --branch customer-demo \
     --git-auth-token-file /home/droneshow/.mds_git_read_token \
+    -y
+```
+
+Private read-only SSH is also supported explicitly:
+
+```bash
+sudo ./tools/mds_node_init.sh -d 1 \
+    --repo-url git@github.com:yourorg/customer-mds.git \
+    --branch customer-demo \
+    --git-ssh-key-file /home/droneshow/.ssh/customer_git_read_key \
     -y
 ```
 

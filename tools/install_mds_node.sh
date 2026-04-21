@@ -53,10 +53,12 @@ BRANCH="${MDS_BRANCH:-${DEFAULT_BRANCH}}"
 # User and installation settings
 MDS_USER="${MDS_USER:-droneshow}"
 INSTALL_DIR="${MDS_INSTALL_DIR:-/home/${MDS_USER}/${DEFAULT_PROJECT_NAME}}"
-SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
+DEFAULT_SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
+SSH_KEY_PATH="${DEFAULT_SSH_KEY_PATH}"
 
 # Colors
 RED='\033[0;31m'
@@ -87,6 +89,20 @@ log_error() {
 log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $1"
 }
+
+set_wrapper_ssh_key_path() {
+    if [[ -n "${GIT_SSH_KEY_FILE:-}" ]]; then
+        SSH_KEY_PATH="${GIT_SSH_KEY_FILE}"
+    else
+        SSH_KEY_PATH="${DEFAULT_SSH_KEY_PATH}"
+    fi
+}
+
+wrapper_ssh_key_is_explicit() {
+    [[ -n "${GIT_SSH_KEY_FILE:-}" ]]
+}
+
+set_wrapper_ssh_key_path
 
 normalize_github_repo_path() {
     local spec="${1:-}"
@@ -320,6 +336,12 @@ generate_wrapper_deploy_key() {
     if wrapper_ssh_key_exists; then
         log_success "Bootstrap SSH key already exists"
         return 0
+    fi
+
+    if wrapper_ssh_key_is_explicit; then
+        log_error "Configured --git-ssh-key-file is not readable: ${SSH_KEY_PATH}"
+        log_info "Provide an existing SSH private key file or omit --git-ssh-key-file to let the installer manage ${DEFAULT_SSH_KEY_PATH}"
+        exit 1
     fi
 
     prepare_wrapper_repo_ssh_runtime
@@ -577,6 +599,8 @@ BOOTSTRAP OPTIONS:
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     --git-auth-token-file PATH
                         Read private HTTPS Git auth token from PATH
+    --git-ssh-key-file PATH
+                        Use an existing SSH private key file for private GitHub SSH access
     -h, --help          Show this help message
 
     All other options are passed to mds_node_init.sh
@@ -607,6 +631,8 @@ ENVIRONMENT VARIABLES:
     MDS_INSTALL_DIR     Installation directory for the repo checkout (default: ${INSTALL_DIR})
     MDS_GIT_AUTH_TOKEN_FILE
                         Preferred private HTTPS Git token file
+    MDS_GIT_SSH_KEY_FILE
+                        Existing SSH private key file for private GitHub SSH access
 
 EXAMPLES:
     # Basic installation (interactive)
@@ -629,6 +655,9 @@ EXAMPLES:
 
     # Private HTTPS with token file
     curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo --git-auth-token-file /home/${MDS_USER}/.mds_git_read_token -d 1 -y
+
+    # Private SSH with an existing read-only deploy or machine-user key
+    curl -fsSL ... | sudo bash -s -- --repo-url git@github.com:myorg/customer-mds.git --branch customer-demo --git-ssh-key-file /home/${MDS_USER}/.ssh/customer_git_read_key -d 1 -y
 
     # Custom runtime user and install directory
     curl -fsSL ... | sudo env MDS_USER=companion MDS_INSTALL_DIR=/srv/${DEFAULT_PROJECT_NAME} bash -s -- -d 1 -y
@@ -699,6 +728,12 @@ main() {
                 passthrough_args+=("--git-auth-token-file" "$2")
                 shift 2
                 ;;
+            --git-ssh-key-file)
+                GIT_SSH_KEY_FILE="$2"
+                set_wrapper_ssh_key_path
+                passthrough_args+=("--git-ssh-key-file" "$2")
+                shift 2
+                ;;
             -y|--yes)
                 WRAPPER_NON_INTERACTIVE="true"
                 passthrough_args+=("$1")
@@ -732,6 +767,9 @@ main() {
     fi
     if [[ -n "${GIT_AUTH_TOKEN:-}" ]]; then
         export MDS_GIT_AUTH_TOKEN="$GIT_AUTH_TOKEN"
+    fi
+    if [[ -n "${GIT_SSH_KEY_FILE:-}" ]]; then
+        export MDS_GIT_SSH_KEY_FILE="$GIT_SSH_KEY_FILE"
     fi
     export MDS_GIT_AUTH_USERNAME="$GIT_AUTH_USERNAME"
 

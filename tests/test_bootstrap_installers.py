@@ -152,11 +152,33 @@ def test_gcs_bootstrap_wrapper_help_mentions_private_https_token_file():
     assert result.returncode == 0, result.stderr
 
 
+def test_gcs_bootstrap_wrapper_help_mentions_private_ssh_key_file():
+    result = run_bash(
+        f"""
+        cat "{GCS_INSTALLER}" | bash -s -- --help >/tmp/gcs_wrapper_help.txt
+        grep -q -- "--git-ssh-key-file" /tmp/gcs_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_node_bootstrap_wrapper_help_mentions_private_https_token_file():
     result = run_bash(
         f"""
         cat "{NODE_INSTALLER}" | bash -s -- --help >/tmp/node_wrapper_help.txt
         grep -q -- "--git-auth-token-file" /tmp/node_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_bootstrap_wrapper_help_mentions_private_ssh_key_file():
+    result = run_bash(
+        f"""
+        cat "{NODE_INSTALLER}" | bash -s -- --help >/tmp/node_wrapper_help.txt
+        grep -q -- "--git-ssh-key-file" /tmp/node_wrapper_help.txt
         """
     )
 
@@ -199,6 +221,27 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_gcs_wrapper_private_ssh_auth_uses_configured_key_file():
+    result = run_bash(
+        f"""
+        source "{GCS_INSTALLER}"
+        fakebin="$(mktemp -d)"
+        GIT_SSH_KEY_FILE="/tmp/customer_gcs_key"
+        set_wrapper_ssh_key_path
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$GIT_SSH_COMMAND"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        run_git_as_root "git@github.com:demo/private.git" status >/tmp/gcs_wrapper_ssh.txt
+        grep -q '/tmp/customer_gcs_key' /tmp/gcs_wrapper_ssh.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_gcs_repo_phase_prefers_https_for_noninteractive_private_https_repo_with_token_file():
     result = run_bash(
         f"""
@@ -233,6 +276,27 @@ def test_gcs_repo_phase_keeps_ssh_for_noninteractive_explicit_ssh_repo():
     assert result.returncode == 0, result.stderr
 
 
+def test_gcs_repo_phase_uses_configured_ssh_key_file_for_runtime_git_commands():
+    result = run_bash(
+        f"""
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_repo.sh'}"
+        fakebin="$(mktemp -d)"
+        MDS_GIT_SSH_KEY_FILE="/tmp/customer_gcs_runtime_key"
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$GIT_SSH_COMMAND"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        run_gcs_git_command "git@github.com:demo/private.git" status >/tmp/gcs_repo_runtime_ssh.txt
+        grep -q '/tmp/customer_gcs_runtime_key' /tmp/gcs_repo_runtime_ssh.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_node_wrapper_private_https_auth_uses_askpass_token_file():
     result = run_bash(
         f"""
@@ -256,6 +320,33 @@ EOF
         run_git_as_mds_user "https://github.com/demo/private.git" status >/tmp/node_wrapper_auth.txt
         grep -q '/tmp/mds_node_git_askpass.sh|0|' /tmp/node_wrapper_auth.txt
         grep -q "$token_file" /tmp/node_wrapper_auth.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_wrapper_private_ssh_auth_uses_configured_key_file():
+    result = run_bash(
+        f"""
+        source "{NODE_INSTALLER}"
+        sudo() {{
+            if [[ "$1" == "-u" ]]; then
+                shift 2
+            fi
+            "$@"
+        }}
+        fakebin="$(mktemp -d)"
+        GIT_SSH_KEY_FILE="/tmp/customer_node_key"
+        set_wrapper_ssh_key_path
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$GIT_SSH_COMMAND"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        run_git_as_mds_user "git@github.com:demo/private.git" status >/tmp/node_wrapper_ssh.txt
+        grep -q '/tmp/customer_node_key' /tmp/node_wrapper_ssh.txt
         """
     )
 
@@ -530,6 +621,40 @@ def test_node_repo_reconcile_updates_remote_to_requested_runtime_repo():
     assert result.returncode == 0, result.stderr
 
 
+def test_node_repo_runtime_uses_configured_ssh_key_file():
+    result = run_bash(
+        f"""
+        sudo() {{
+            if [[ "$1" == "-u" ]]; then
+                shift 2
+            fi
+            "$@"
+        }}
+        fakebin="$(mktemp -d)"
+        cat >"$fakebin/git" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$GIT_SSH_COMMAND"
+EOF
+        chmod +x "$fakebin/git"
+        PATH="$fakebin:$PATH"
+        MDS_USER="$(whoami)"
+        MDS_HOME="$(mktemp -d)"
+        MDS_INSTALL_DIR="$MDS_HOME/repo"
+        MDS_DEFAULT_REPO_SLUG="demo/customer-mds"
+        MDS_DEFAULT_REPO_URL_SSH="git@github.com:demo/customer-mds.git"
+        MDS_DEFAULT_REPO_URL_HTTPS="https://github.com/demo/customer-mds.git"
+        MDS_DEFAULT_BRANCH="main"
+        MDS_GIT_SSH_KEY_FILE="/tmp/customer_node_runtime_key"
+        source "{COMMON_LIB}"
+        source "{REPO_LIB}"
+        run_git_as_mds_user_for_repo "git@github.com:demo/private.git" status >/tmp/node_repo_runtime_ssh.txt
+        grep -q '/tmp/customer_node_runtime_key' /tmp/node_repo_runtime_ssh.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_gcs_repo_reconcile_updates_remote_to_requested_runtime_repo():
     result = run_bash(
         f"""
@@ -658,6 +783,7 @@ def test_setup_local_env_writes_clean_override_lines():
         MDS_LOCAL_ENV="$tmpdir/local.env"
         MDS_VERSION="4.5.0"
         MDS_GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
+        MDS_GIT_SSH_KEY_FILE="/home/droneshow/.ssh/customer_git_read_key"
         log_step() {{ :; }}
         log_success() {{ :; }}
         is_dry_run() {{ return 1; }}
@@ -670,6 +796,7 @@ def test_setup_local_env_writes_clean_override_lines():
         grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/customer_git_read_key$' "$MDS_LOCAL_ENV"
         ! grep -q '^MDS_HW_ID=.*#' "$MDS_LOCAL_ENV"
         """
     )
@@ -813,6 +940,42 @@ def test_configure_gcs_env_persists_private_https_token_file():
         grep -q '^MDS_BRANCH=customer-demo$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GIT_AUTO_PUSH=false$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/root/.mds_git_read_token$' "$GCS_CONFIG_FILE"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_configure_gcs_env_persists_private_ssh_key_file():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        GCS_CONFIG_FILE="$tmpdir/gcs.env"
+        GCS_INSTALL_DIR="/opt/mds"
+        GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
+        GCS_DEFAULT_BRANCH="main-candidate"
+        MDS_GIT_SSH_KEY_FILE="/root/.ssh/customer_gcs_write_key"
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        backup_file() {{ :; }}
+        confirm() {{ return 1; }}
+        is_dry_run() {{ return 1; }}
+        gcs_state_get_value() {{
+            case "$1" in
+                repo_url) echo "git@github.com:example-org/private-mds.git" ;;
+                repo_branch) echo "customer-demo" ;;
+                access_method) echo "ssh" ;;
+                *) echo "$2" ;;
+            esac
+        }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
+        configure_gcs_env
+        grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_BRANCH=customer-demo$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_GIT_AUTO_PUSH=true$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_GIT_SSH_KEY_FILE=/root/.ssh/customer_gcs_write_key$' "$GCS_CONFIG_FILE"
         """
     )
 

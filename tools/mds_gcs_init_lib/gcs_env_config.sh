@@ -147,6 +147,7 @@ configure_gcs_env() {
     repo_branch=$(gcs_state_get_value "repo_branch" "$GCS_DEFAULT_BRANCH")
     local gcs_api_port="${MDS_DEFAULT_GCS_API_PORT:-5000}"
     local git_auth_token_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
+    local git_ssh_key_file="${MDS_GIT_SSH_KEY_FILE:-}"
     local access_method
     access_method=$(gcs_state_get_value "access_method" "ssh")
     local git_auto_push="true"
@@ -161,6 +162,7 @@ configure_gcs_env() {
     local existing_repo_branch=""
     local existing_git_auto_push=""
     local existing_git_auth_token_file=""
+    local existing_git_ssh_key_file=""
     local existing_install_dir=""
     local existing_mode=""
     local config_matches="false"
@@ -170,6 +172,7 @@ configure_gcs_env() {
         existing_repo_branch=$(get_existing_gcs_env_value "MDS_BRANCH" "$GCS_CONFIG_FILE" || true)
         existing_git_auto_push=$(get_existing_gcs_env_value "MDS_GIT_AUTO_PUSH" "$GCS_CONFIG_FILE" || true)
         existing_git_auth_token_file=$(get_existing_gcs_env_value "MDS_GIT_AUTH_TOKEN_FILE" "$GCS_CONFIG_FILE" || true)
+        existing_git_ssh_key_file=$(get_existing_gcs_env_value "MDS_GIT_SSH_KEY_FILE" "$GCS_CONFIG_FILE" || true)
         existing_install_dir=$(get_existing_gcs_env_value "MDS_INSTALL_DIR" "$GCS_CONFIG_FILE" || true)
         existing_mode=$(get_existing_gcs_env_value "MDS_MODE" "$GCS_CONFIG_FILE" || true)
 
@@ -177,6 +180,7 @@ configure_gcs_env() {
            [[ "$existing_repo_branch" == "$repo_branch" ]] && \
            [[ "$existing_git_auto_push" == "$git_auto_push" ]] && \
            [[ "$existing_git_auth_token_file" == "$git_auth_token_file" ]] && \
+           [[ "$existing_git_ssh_key_file" == "$git_ssh_key_file" ]] && \
            [[ "$existing_install_dir" == "$install_dir" ]] && \
            [[ "$existing_mode" == "real" ]]; then
             config_matches="true"
@@ -217,6 +221,7 @@ MDS_REPO_URL=${repo_url}
 MDS_BRANCH=${repo_branch}
 MDS_GIT_AUTO_PUSH=${git_auto_push}
 MDS_GIT_AUTH_TOKEN_FILE=${git_auth_token_file}
+MDS_GIT_SSH_KEY_FILE=${git_ssh_key_file}
 MDS_INSTALL_DIR=${install_dir}
 
 # Dashboard Settings
