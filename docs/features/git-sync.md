@@ -92,6 +92,11 @@ The runtime flow is:
 This preserves git-driven fleet rollout without embedding Wi-Fi runtime logic
 inside MDS core services.
 
+Repo-driven rollout for Smart Wi-Fi Manager now covers two separate concerns:
+
+- tool version/channel intent in `deployment/defaults.env`
+- tool configuration intent in `deployment/connectivity/smart-wifi-manager/profile.json`
+
 ## Auto-Commit on Config Save
 
 When `GIT_AUTO_PUSH` is enabled, saving configuration, swarm data, or imported show assets via the dashboard automatically:

@@ -9,9 +9,16 @@
 [[ -n "${_MDS_CONNECTIVITY_LOADED:-}" ]] && return 0
 _MDS_CONNECTIVITY_LOADED=1
 
+SMART_WIFI_MANAGER_REPO_URL_EXPLICIT="false"
+SMART_WIFI_MANAGER_REF_EXPLICIT="false"
+[[ -n "${MDS_SMART_WIFI_MANAGER_REPO_URL+x}" ]] && SMART_WIFI_MANAGER_REPO_URL_EXPLICIT="true"
+[[ -n "${MDS_SMART_WIFI_MANAGER_REF+x}" ]] && SMART_WIFI_MANAGER_REF_EXPLICIT="true"
+
 MDS_CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
 SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-observe}}"
 SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-replace}}"
+SMART_WIFI_MANAGER_REPO_URL="${MDS_SMART_WIFI_MANAGER_REPO_URL:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG:-alireza787b/smart-wifi-manager}.git}}"
+SMART_WIFI_MANAGER_REF="${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.0}}"
 SMART_WIFI_MANAGER_INSTALL_DIR="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-${MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}}"
 SMART_WIFI_MANAGER_DASHBOARD_LISTEN="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-${MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}}"
 SMART_WIFI_MANAGER_PROFILE_SOURCE="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
@@ -160,53 +167,14 @@ prompt_connectivity_backend() {
     return 0
 }
 
-clone_smart_wifi_manager_release() {
-    local target_dir="$1"
-    local repo_slug="${MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG:-alireza787b/smart-wifi-manager}"
-    local repo_ref="${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.0.0}"
-    local repo_url="https://github.com/${repo_slug}.git"
-
-    log_info "Fetching Smart Wi-Fi Manager (${repo_slug}@${repo_ref})..."
-    git clone --depth 1 --branch "${repo_ref}" "${repo_url}" "${target_dir}" >/dev/null 2>&1
-}
-
-install_smart_wifi_manager_runtime() {
-    if is_dry_run; then
-        echo -e "  ${DIM}[DRY-RUN] Would install Smart Wi-Fi Manager into ${SMART_WIFI_MANAGER_INSTALL_DIR}${NC}"
-        return 0
-    fi
-
-    local temp_dir=""
-    temp_dir="$(mktemp -d /tmp/smart-wifi-manager.XXXXXX)" || {
-        log_error "Failed to allocate temporary directory for Smart Wi-Fi Manager"
-        return 1
-    }
-
-    if ! clone_smart_wifi_manager_release "${temp_dir}"; then
-        rm -rf "${temp_dir}"
-        log_error "Failed to fetch Smart Wi-Fi Manager"
-        return 1
-    fi
-
-    mkdir -p "${SMART_WIFI_MANAGER_INSTALL_DIR}"
-    cp -a "${temp_dir}/." "${SMART_WIFI_MANAGER_INSTALL_DIR}/"
-    rm -rf "${temp_dir}"
-
-    local install_args=("--dashboard-listen" "${SMART_WIFI_MANAGER_DASHBOARD_LISTEN}")
-    if [[ "${SMART_WIFI_MANAGER_SKIP_DASHBOARD}" == "true" ]]; then
-        install_args=("--skip-dashboard")
-    fi
-
-    log_info "Installing Smart Wi-Fi Manager into ${SMART_WIFI_MANAGER_INSTALL_DIR}"
-    (cd "${SMART_WIFI_MANAGER_INSTALL_DIR}" && bash ./install.sh "${install_args[@]}")
-}
-
 persist_connectivity_local_env() {
     update_local_env_value "MDS_CONNECTIVITY_BACKEND" "${MDS_CONNECTIVITY_BACKEND}"
 
     if [[ "${MDS_CONNECTIVITY_BACKEND}" != "smart-wifi-manager" ]]; then
         remove_local_env_value "MDS_SMART_WIFI_MANAGER_MODE"
         remove_local_env_value "MDS_SMART_WIFI_MANAGER_IMPORT_MODE"
+        remove_local_env_value "MDS_SMART_WIFI_MANAGER_REPO_URL"
+        remove_local_env_value "MDS_SMART_WIFI_MANAGER_REF"
         remove_local_env_value "MDS_SMART_WIFI_MANAGER_INSTALL_DIR"
         remove_local_env_value "MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN"
         remove_local_env_value "MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE"
@@ -217,6 +185,16 @@ persist_connectivity_local_env() {
 
     update_local_env_value "MDS_SMART_WIFI_MANAGER_MODE" "${SMART_WIFI_MANAGER_MODE}"
     update_local_env_value "MDS_SMART_WIFI_MANAGER_IMPORT_MODE" "${SMART_WIFI_MANAGER_IMPORT_MODE}"
+    if [[ "${SMART_WIFI_MANAGER_REPO_URL_EXPLICIT}" == "true" ]]; then
+        update_local_env_value "MDS_SMART_WIFI_MANAGER_REPO_URL" "${SMART_WIFI_MANAGER_REPO_URL}"
+    else
+        remove_local_env_value "MDS_SMART_WIFI_MANAGER_REPO_URL"
+    fi
+    if [[ "${SMART_WIFI_MANAGER_REF_EXPLICIT}" == "true" ]]; then
+        update_local_env_value "MDS_SMART_WIFI_MANAGER_REF" "${SMART_WIFI_MANAGER_REF}"
+    else
+        remove_local_env_value "MDS_SMART_WIFI_MANAGER_REF"
+    fi
     update_local_env_value "MDS_SMART_WIFI_MANAGER_INSTALL_DIR" "${SMART_WIFI_MANAGER_INSTALL_DIR}"
     update_local_env_value "MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN" "${SMART_WIFI_MANAGER_DASHBOARD_LISTEN}"
     update_local_env_value "MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD" "${SMART_WIFI_MANAGER_SKIP_DASHBOARD}"
@@ -280,9 +258,6 @@ run_connectivity_phase() {
         return 1
     fi
     export SMART_WIFI_MANAGER_MODE SMART_WIFI_MANAGER_IMPORT_MODE
-
-    print_section "Smart Wi-Fi Manager Installation"
-    install_smart_wifi_manager_runtime || return 1
 
     print_section "Connectivity Runtime Configuration"
     persist_connectivity_local_env || return 1

@@ -394,6 +394,7 @@ write_node_identity_manifest() {
     local node_uuid hostname repo_url branch commit network_mode primary_control_ip netbird_ip
     local mavlink_routing_mode mavlink_input_type mavlink_input_device role_hint runtime_mode
     local connectivity_backend smart_wifi_manager_mode smart_wifi_profile_source
+    local smart_wifi_manager_repo_url smart_wifi_manager_ref
     local netbird_enabled generated_at created_at
 
     node_uuid=$(get_or_create_node_uuid)
@@ -417,6 +418,8 @@ write_node_identity_manifest() {
     runtime_mode=$(get_local_env_value "MDS_MODE" "real")
     connectivity_backend=$(get_local_env_value "MDS_CONNECTIVITY_BACKEND" "none")
     smart_wifi_manager_mode=$(get_local_env_value "MDS_SMART_WIFI_MANAGER_MODE" "")
+    smart_wifi_manager_repo_url=$(get_local_env_value "MDS_SMART_WIFI_MANAGER_REPO_URL" "")
+    smart_wifi_manager_ref=$(get_local_env_value "MDS_SMART_WIFI_MANAGER_REF" "")
     smart_wifi_profile_source=$(get_local_env_value "MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE" "")
     generated_at=$(date -Iseconds)
     created_at=""
@@ -462,6 +465,8 @@ write_node_identity_manifest() {
         --arg runtime_mode "$runtime_mode" \
         --arg connectivity_backend "$connectivity_backend" \
         --arg smart_wifi_manager_mode "$smart_wifi_manager_mode" \
+        --arg smart_wifi_manager_repo_url "$smart_wifi_manager_repo_url" \
+        --arg smart_wifi_manager_ref "$smart_wifi_manager_ref" \
         --arg smart_wifi_profile_source "$smart_wifi_profile_source" \
         --arg created_at "$created_at" \
         --arg generated_at "$generated_at" \
@@ -475,6 +480,8 @@ write_node_identity_manifest() {
             mode: $runtime_mode,
             connectivity_backend: $connectivity_backend,
             smart_wifi_manager_mode: (if $smart_wifi_manager_mode == "" then null else $smart_wifi_manager_mode end),
+            smart_wifi_manager_repo_url: (if $smart_wifi_manager_repo_url == "" then null else $smart_wifi_manager_repo_url end),
+            smart_wifi_manager_ref: (if $smart_wifi_manager_ref == "" then null else $smart_wifi_manager_ref end),
             smart_wifi_profile_source: (if $smart_wifi_profile_source == "" then null else $smart_wifi_profile_source end),
             hostname: $hostname,
             role_hint: (if $role_hint == "" then null else $role_hint end),

@@ -59,6 +59,8 @@ also apply:
 
 - `MDS_SMART_WIFI_MANAGER_MODE`
 - `MDS_SMART_WIFI_MANAGER_IMPORT_MODE`
+- `MDS_SMART_WIFI_MANAGER_REPO_URL`
+- `MDS_SMART_WIFI_MANAGER_REF`
 - `MDS_SMART_WIFI_MANAGER_INSTALL_DIR`
 - `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`
 - `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE`
@@ -124,3 +126,9 @@ If the change is:
 - repo-wide deployment defaults -> `deployment/defaults.env`
 - repo-owned optional connectivity profile -> `deployment/connectivity/smart-wifi-manager/profile.json`
 - runtime policy -> typed settings / code defaults (`src/params.py` remains the transition shim until the typed settings rollout is complete)
+
+For Smart Wi-Fi Manager specifically:
+
+- tool version/channel intent belongs in `deployment/defaults.env`
+- tool configuration intent belongs in `deployment/connectivity/smart-wifi-manager/profile.json`
+- host-specific exceptions belong in `/etc/mds/local.env`

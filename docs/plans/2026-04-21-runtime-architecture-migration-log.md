@@ -678,3 +678,75 @@ Residual drift intentionally deferred to the next slice:
   convergence applied cleanly
 - Arnaud hardware workflow still needs the downstream official->private sync
   before real-node 0-100 bootstrap/enrollment validation resumes
+
+## Slice 10
+
+Goal:
+
+- make Smart Wi-Fi Manager lifecycle management truly repo-driven by moving the
+  external tool install/update path into `tools/reconcile_connectivity.sh`
+- keep `deployment/defaults.env` authoritative for the fleet-wide Smart Wi-Fi
+  Manager repo/ref channel
+- avoid freezing nodes on copied defaults inside `/etc/mds/local.env`
+
+Implemented:
+
+- updated deployment defaults and loader:
+  - added `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS`
+  - bumped default Smart Wi-Fi Manager ref to `v2.1.0`
+- updated `tools/mds_init_lib/connectivity.sh`
+  - removed one-time bootstrap clone/install logic
+  - added support for optional host-local `MDS_SMART_WIFI_MANAGER_REPO_URL`
+    and `MDS_SMART_WIFI_MANAGER_REF` overrides
+  - fixed local-env persistence so repo/ref defaults remain repo-owned unless a
+    host explicitly overrides them
+- updated `tools/reconcile_connectivity.sh`
+  - now sources `tools/load_deployment_profile.sh`
+  - resolves effective Smart Wi-Fi Manager repo URL/ref
+  - ensures the external runtime checkout matches the desired ref
+  - runs `install.sh` with the matching `--dashboard-version`
+  - includes repo/ref in the connectivity state hash
+  - reports repo/ref in `status`
+- updated node identity reporting:
+  - `tools/mds_init_lib/identity.sh` now records Smart Wi-Fi Manager repo URL
+    and ref when present as host-local overrides
+- updated active docs/templates:
+  - `deployment/defaults.env`
+  - `tools/load_deployment_profile.sh`
+  - `tools/local.env.template`
+  - `docs/guides/runtime-config-sources.md`
+  - `docs/features/git-sync.md`
+- extended regression coverage for:
+  - deployment loader exporting Smart Wi-Fi Manager repo URL defaults
+  - reconcile helper installing/configuring against deployment-profile repo/ref
+  - local-env persistence keeping repo/ref in the defaults layer unless
+    explicitly overridden
+
+Local verification:
+
+- shell validation passed for:
+  - `tools/mds_init_lib/connectivity.sh`
+  - `tools/reconcile_connectivity.sh`
+  - `tools/load_deployment_profile.sh`
+- targeted local regression suite:
+  - `tests/test_bootstrap_installers.py`
+  - `tests/test_runtime_settings.py`
+  - `tests/test_coordinator.py`
+  - `tests/test_drone_config_components.py`
+- result: 139 passed
+
+Hetzner verification:
+
+- synced worktree to:
+  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+- remote shell validation passed for the same shell entrypoints
+- recreated a temporary isolated venv under:
+  - `/tmp/mds_runtime_arch_phase1_remote/.venv-test/`
+- remote targeted regression suite passed
+- result: 139 passed
+
+Residual drift after this slice:
+
+- official repo still needs this slice committed and pushed
+- private repo still needs the clean official convergence applied and verified
+- hardware/bootstrap validation should resume only after that convergence

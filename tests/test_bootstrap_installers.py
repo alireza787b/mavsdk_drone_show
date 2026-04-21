@@ -494,6 +494,7 @@ def test_common_lib_loads_git_tracked_deployment_profile_defaults():
     assert 'MDS_DEFAULT_REPO_URL_SSH' in loader_text
     assert 'MDS_DEFAULT_BRANCH' in loader_text
     assert 'MDS_DEFAULT_CONNECTIVITY_BACKEND' in loader_text
+    assert 'MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS' in loader_text
     assert 'MDS_DEFAULT_SMART_WIFI_MANAGER_REF' in loader_text
 
 
@@ -682,7 +683,13 @@ def test_reconcile_connectivity_uses_repo_profile_when_backend_is_smart_wifi_man
         tmpdir="$(mktemp -d)"
         repo_dir="$tmpdir/repo"
         mkdir -p "$repo_dir/deployment/connectivity/smart-wifi-manager"
-        cp "{RECONCILE_CONNECTIVITY_SCRIPT}" "$repo_dir/tools.reconcile.sh"
+        mkdir -p "$repo_dir/tools"
+        cp "{RECONCILE_CONNECTIVITY_SCRIPT}" "$repo_dir/tools/reconcile_connectivity.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment/defaults.env" <<'EOF'
+MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git
+MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
+EOF
         cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
 {{"mode":"manage","profiles":[]}}
 EOF
@@ -693,18 +700,67 @@ MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
 MDS_SMART_WIFI_MANAGER_INSTALL_DIR=TMPDIR_REPLACE/swm
 MDS_SMART_WIFI_MANAGER_MODE=manage
 MDS_SMART_WIFI_MANAGER_IMPORT_MODE=replace
+MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
 EOF
         sed -i "s|TMPDIR_REPLACE|$tmpdir|g" "$config_dir/local.env"
-        cat > "$tmpdir/configure_smart_wifi_manager.sh" <<'EOF'
-#!/bin/sh
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+if [[ "$1" == "clone" ]]; then
+    target="${{@: -1}}"
+    mkdir -p "$target/.git"
+    cat > "$target/install.sh" <<'EOS'
+#!/bin/bash
+printf '%s\n' "$*" > "$TMPDIR/install_args.txt"
+EOS
+    chmod +x "$target/install.sh"
+    cat > "$target/configure_smart_wifi_manager.sh" <<'EOS'
+#!/bin/bash
 printf '%s\n' "$*" > "$TMPDIR/configure_args.txt"
+EOS
+    chmod +x "$target/configure_smart_wifi_manager.sh"
+fi
+exit 0
 EOF
-        chmod +x "$tmpdir/configure_smart_wifi_manager.sh"
-        mkdir -p "$tmpdir/swm"
-        cp "$tmpdir/configure_smart_wifi_manager.sh" "$tmpdir/swm/configure_smart_wifi_manager.sh"
-        TMPDIR="$tmpdir" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH=deployment/connectivity/smart-wifi-manager/profile.json bash "$repo_dir/tools.reconcile.sh" apply --force
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/systemctl"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
+        grep -q -- 'clone --depth 1 --branch v9.9.9 https://github.com/demo/smart-wifi-manager.git' "$tmpdir/git_args.txt"
+        grep -q -- '--dashboard-version v9.9.9' "$tmpdir/install_args.txt"
         grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
         grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_connectivity_persistence_keeps_repo_ref_in_defaults_layer_unless_explicit():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        MDS_DEFAULT_CONNECTIVITY_BACKEND=none
+        MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git
+        MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'connectivity.sh'}"
+        update_local_env_value() {{ printf 'set:%s=%s\\n' "$1" "$2" >> "$tmpdir/out.txt"; }}
+        remove_local_env_value() {{ printf 'remove:%s\\n' "$1" >> "$tmpdir/out.txt"; }}
+        MDS_CONNECTIVITY_BACKEND="smart-wifi-manager"
+        SMART_WIFI_MANAGER_MODE="observe"
+        SMART_WIFI_MANAGER_IMPORT_MODE="replace"
+        SMART_WIFI_MANAGER_REPO_URL_EXPLICIT="false"
+        SMART_WIFI_MANAGER_REF_EXPLICIT="false"
+        persist_connectivity_local_env
+        grep -q '^remove:MDS_SMART_WIFI_MANAGER_REPO_URL$' "$tmpdir/out.txt"
+        grep -q '^remove:MDS_SMART_WIFI_MANAGER_REF$' "$tmpdir/out.txt"
+        ! grep -q '^set:MDS_SMART_WIFI_MANAGER_REPO_URL=' "$tmpdir/out.txt"
+        ! grep -q '^set:MDS_SMART_WIFI_MANAGER_REF=' "$tmpdir/out.txt"
         """
     )
 
