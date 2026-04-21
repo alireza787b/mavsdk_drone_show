@@ -21,17 +21,38 @@
 
 set -euo pipefail
 
+# Load the git-tracked deployment profile when running from a local checkout.
+# When this wrapper is fetched remotely or piped, it falls back to the embedded
+# official defaults below so the bootstrap remains self-contained.
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+if [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/load_deployment_profile.sh" ]]; then
+    MDS_REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    # shellcheck disable=SC1090
+    source "${SCRIPT_DIR}/load_deployment_profile.sh"
+fi
+
+DEFAULT_REPO_SLUG="${MDS_DEFAULT_REPO_SLUG:-alireza787b/mavsdk_drone_show}"
+DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/${DEFAULT_REPO_SLUG}.git}"
+DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main-candidate}"
+DEFAULT_PROJECT_NAME="${DEFAULT_REPO_SLUG##*/}"
+DEFAULT_REPO_WEB_URL="https://github.com/${DEFAULT_REPO_SLUG}"
+DEFAULT_INSTALL_COMPANION_URL="https://raw.githubusercontent.com/${DEFAULT_REPO_SLUG}/${DEFAULT_BRANCH}/tools/install_companion.sh"
+DEFAULT_INSTALL_NODE_URL="https://raw.githubusercontent.com/${DEFAULT_REPO_SLUG}/${DEFAULT_BRANCH}/tools/install_mds_node.sh"
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
 # Repository settings
-REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
-BRANCH="${MDS_BRANCH:-main-candidate}"
+REPO_URL="${MDS_REPO_URL:-${DEFAULT_REPO_URL_HTTPS}}"
+BRANCH="${MDS_BRANCH:-${DEFAULT_BRANCH}}"
 
 # User and installation settings
-MDS_USER="droneshow"
-INSTALL_DIR="/home/${MDS_USER}/mavsdk_drone_show"
+MDS_USER="${MDS_USER:-droneshow}"
+INSTALL_DIR="${MDS_INSTALL_DIR:-/home/${MDS_USER}/${DEFAULT_PROJECT_NAME}}"
 SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
@@ -81,7 +102,7 @@ normalize_github_repo_path() {
     fi
 
     if [[ "$spec" != */* ]]; then
-        spec="${spec}/mavsdk_drone_show"
+        spec="${spec}/${DEFAULT_PROJECT_NAME}"
     fi
 
     printf '%s\n' "$spec"
@@ -242,7 +263,7 @@ check_architecture() {
 # USER MANAGEMENT
 # =============================================================================
 
-create_droneshow_user() {
+create_runtime_user() {
     log_info "Checking for '${MDS_USER}' user..."
 
     if id "${MDS_USER}" &>/dev/null; then
@@ -497,7 +518,7 @@ clone_repository() {
             run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" checkout -b "$BRANCH" "origin/$BRANCH"
         run_git_as_mds_user "$REPO_URL" -C "$INSTALL_DIR" reset --hard "origin/$BRANCH"
     else
-        # Clone as the droneshow user
+        # Clone as the runtime MDS user
         run_git_as_mds_user "$REPO_URL" clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR" || {
             log_error "Failed to clone repository"
             exit 1
@@ -543,7 +564,7 @@ run_init_script() {
 # =============================================================================
 
 show_help() {
-    cat << 'EOF'
+    cat <<EOF
 MDS Companion Node Bootstrap Installer (v4.5.0)
 
 USAGE:
@@ -551,7 +572,7 @@ USAGE:
     curl -fsSL <url> | sudo bash -s -- [OPTIONS]
 
 BOOTSTRAP OPTIONS:
-    --branch BRANCH     Git branch to use (default: main-candidate)
+    --branch BRANCH     Git branch to use (default: ${BRANCH})
     --repo-url URL      Use an explicit repository URL for bootstrap and init
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     --git-auth-token-file PATH
@@ -567,6 +588,12 @@ PASSTHROUGH OPTIONS (to mds_node_init.sh):
     --netbird-key KEY   Netbird VPN setup key
     --static-ip IP      Static IP address (CIDR format)
     --gcs-api-url URL   Explicit GCS API base URL for candidate announce
+    --connectivity-backend NAME
+                        Connectivity backend: none|smart-wifi-manager
+    --smart-wifi-mode MODE
+                        Smart Wi-Fi Manager mode: manage|observe|disabled
+    --smart-wifi-config PATH
+                        Smart Wi-Fi Manager JSON profile to import
     --report-json PATH  Write machine-readable bootstrap report to PATH ('-' = stdout)
     --announce-report-json PATH  Write candidate-announce report to PATH ('-' = stdout)
     --dry-run           Show what would be done
@@ -576,15 +603,17 @@ PASSTHROUGH OPTIONS (to mds_node_init.sh):
 ENVIRONMENT VARIABLES:
     MDS_REPO_URL        Git repository URL
     MDS_BRANCH          Git branch
+    MDS_USER            Runtime user created for the companion node (default: ${MDS_USER})
+    MDS_INSTALL_DIR     Installation directory for the repo checkout (default: ${INSTALL_DIR})
     MDS_GIT_AUTH_TOKEN_FILE
                         Preferred private HTTPS Git token file
 
 EXAMPLES:
     # Basic installation (interactive)
-    curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
+    curl -fsSL ${DEFAULT_INSTALL_COMPANION_URL} | sudo bash
 
     # Compatibility alias
-    curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
+    curl -fsSL ${DEFAULT_INSTALL_NODE_URL} | sudo bash
 
     # With drone ID (non-interactive)
     curl -fsSL ... | sudo bash -s -- -d 1 -y
@@ -599,7 +628,10 @@ EXAMPLES:
     curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo -d 1 -y
 
     # Private HTTPS with token file
-    curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo --git-auth-token-file /home/droneshow/.mds_git_read_token -d 1 -y
+    curl -fsSL ... | sudo bash -s -- --repo-url https://github.com/myorg/customer-mds.git --branch customer-demo --git-auth-token-file /home/${MDS_USER}/.mds_git_read_token -d 1 -y
+
+    # Custom runtime user and install directory
+    curl -fsSL ... | sudo env MDS_USER=companion MDS_INSTALL_DIR=/srv/${DEFAULT_PROJECT_NAME} bash -s -- -d 1 -y
 
     # Custom branch
     curl -fsSL ... | sudo bash -s -- --branch develop -d 1 -y
@@ -611,12 +643,12 @@ EXAMPLES:
     curl -fsSL ... | sudo bash -s -- -d 5 --gcs-api-url https://gcs.example/api -y
 
 WHAT THIS SCRIPT DOES:
-    1. Creates 'droneshow' user if needed
+    1. Creates '${MDS_USER}' user if needed
     2. Installs git, curl, jq prerequisites
     3. Clones the MDS repository
     4. Runs the full mds_node_init.sh initialization
 
-For more information: https://github.com/alireza787b/mavsdk_drone_show
+For more information: ${DEFAULT_REPO_WEB_URL}
 EOF
 }
 
@@ -717,7 +749,7 @@ main() {
     echo ""
 
     # Setup
-    create_droneshow_user
+    create_runtime_user
     install_prerequisites
     ensure_wrapper_repo_access "$REPO_URL"
     clone_repository

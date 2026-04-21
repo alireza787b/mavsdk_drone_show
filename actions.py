@@ -40,7 +40,7 @@ This script executes various drone actions using MAVSDK:
  - Safely manages MAVSDK server launch/teardown.
  - Provides logging, exit codes, LED status feedback, and robust error handling.
  - Supports setting multiple PX4 parameters in a single run via repeated --param.
- - Supports automatically setting MAV_SYS_ID based on a local .hwID file with 'init_sysid'.
+ - Supports automatically setting MAV_SYS_ID based on canonical runtime identity with 'init_sysid'.
  - Now supports applying a shared set of parameters stored in the repo-managed
    common params CSV via the 'apply_common_params' action.
 

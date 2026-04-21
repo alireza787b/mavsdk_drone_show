@@ -63,6 +63,7 @@ source_library "python_env.sh"
 source_library "mavsdk.sh"
 source_library "services.sh"
 source_library "network.sh"
+source_library "connectivity.sh"
 source_library "verify.sh"
 source_library "announce.sh"
 
@@ -110,6 +111,15 @@ MAVLINK_BAUD="57600"
 MAVLINK_ENDPOINTS=""
 MAVLINK_INPUT_TYPE="uart"
 MAVLINK_INPUT_PORT="14550"
+MDS_CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
+SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-observe}}"
+SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-replace}}"
+SMART_WIFI_MANAGER_PROFILE_SOURCE="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
+SMART_WIFI_MANAGER_CONFIG_FILE="${MDS_SMART_WIFI_MANAGER_CONFIG_FILE:-}"
+SMART_WIFI_MANAGER_INSTALL_DIR="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-${MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}}"
+SMART_WIFI_MANAGER_DASHBOARD_LISTEN="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-${MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}}"
+SMART_WIFI_MANAGER_SKIP_DASHBOARD="${MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD:-false}"
+CONNECTIVITY_SELECTION_EXPLICIT="false"
 
 normalize_github_repo_path() {
     local spec="${1:-}"
@@ -173,6 +183,12 @@ OPTIONAL COMPONENTS:
     --gateway IP                Gateway for static IP
     --gcs-ip IP                 Override GCS IP address
     --gcs-api-url URL           Override GCS API base URL for candidate announce
+    --connectivity-backend NAME Connectivity backend: none|smart-wifi-manager
+    --smart-wifi-mode MODE      Smart Wi-Fi Manager mode: manage|observe|disabled
+    --smart-wifi-config PATH    Smart Wi-Fi Manager JSON profile to import
+    --smart-wifi-import-mode M  Smart Wi-Fi import mode: replace|merge
+    --smart-wifi-dashboard ADDR Smart Wi-Fi dashboard listen address
+    --skip-smart-wifi-dashboard Install Smart Wi-Fi Manager without dashboard
 
 MAVSDK OPTIONS:
     --mavsdk-version VERSION    Specific MAVSDK version (e.g., v3.15.0)
@@ -232,6 +248,12 @@ EXAMPLES:
     # Explicit GCS API URL for candidate announce
     sudo ./mds_node_init.sh -d 5 --gcs-api-url https://gcs.example/api -y
 
+    # Install Smart Wi-Fi Manager in observe mode
+    sudo ./mds_node_init.sh -d 5 --connectivity-backend smart-wifi-manager --smart-wifi-mode observe -y
+
+    # Install Smart Wi-Fi Manager and import a local profile
+    sudo ./mds_node_init.sh -d 5 --connectivity-backend smart-wifi-manager --smart-wifi-config /tmp/profile.json -y
+
     # Auto-configure mavlink-router with GCS IP (NEW)
     sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
 
@@ -273,7 +295,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
         -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -336,6 +358,40 @@ parse_args() {
             --gcs-api-url)
                 GCS_API_URL="$2"
                 shift 2
+                ;;
+            --connectivity-backend)
+                MDS_CONNECTIVITY_BACKEND="$2"
+                CONNECTIVITY_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --smart-wifi-mode)
+                SMART_WIFI_MANAGER_MODE="$2"
+                CONNECTIVITY_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --smart-wifi-config)
+                SMART_WIFI_MANAGER_CONFIG_FILE="$2"
+                SMART_WIFI_MANAGER_PROFILE_SOURCE="file:$2"
+                MDS_CONNECTIVITY_BACKEND="smart-wifi-manager"
+                CONNECTIVITY_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --smart-wifi-import-mode)
+                SMART_WIFI_MANAGER_IMPORT_MODE="$2"
+                CONNECTIVITY_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --smart-wifi-dashboard)
+                SMART_WIFI_MANAGER_DASHBOARD_LISTEN="$2"
+                MDS_CONNECTIVITY_BACKEND="smart-wifi-manager"
+                CONNECTIVITY_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --skip-smart-wifi-dashboard)
+                SMART_WIFI_MANAGER_SKIP_DASHBOARD="true"
+                MDS_CONNECTIVITY_BACKEND="smart-wifi-manager"
+                CONNECTIVITY_SELECTION_EXPLICIT="true"
+                shift
                 ;;
             --mavsdk-version)
                 MAVSDK_VERSION="$2"
@@ -452,6 +508,10 @@ parse_args() {
     # Export all configuration for use by libraries
     export DRONE_ID REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE
     export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP GCS_API_URL
+    export MDS_CONNECTIVITY_BACKEND SMART_WIFI_MANAGER_MODE SMART_WIFI_MANAGER_IMPORT_MODE
+    export SMART_WIFI_MANAGER_PROFILE_SOURCE SMART_WIFI_MANAGER_CONFIG_FILE
+    export SMART_WIFI_MANAGER_INSTALL_DIR SMART_WIFI_MANAGER_DASHBOARD_LISTEN
+    export SMART_WIFI_MANAGER_SKIP_DASHBOARD CONNECTIVITY_SELECTION_EXPLICIT
     export MAVSDK_VERSION MAVSDK_URL
     export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS
     export MAVLINK_INPUT_TYPE MAVLINK_INPUT_PORT
@@ -477,6 +537,7 @@ declare -a PHASES=(
     "ntp"
     "netbird"
     "static_ip"
+    "connectivity"
     "verify"
     "candidate_announce"
 )
@@ -540,6 +601,9 @@ run_phase() {
             ;;
         static_ip)
             run_static_ip_phase || result=$?
+            ;;
+        connectivity)
+            run_connectivity_phase || result=$?
             ;;
         verify)
             run_verify_phase || result=$?

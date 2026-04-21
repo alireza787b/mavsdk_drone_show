@@ -4,13 +4,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MDS_REPO_ROOT="$REPO_ROOT"
+DEPLOYMENT_PROFILE_LOADER="$SCRIPT_DIR/load_deployment_profile.sh"
+if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
+    # shellcheck disable=SC1090
+    source "$DEPLOYMENT_PROFILE_LOADER"
+fi
 source "$SCRIPT_DIR/docker_sitl_image_lib.sh"
 
 DEFAULT_BASE_IMAGE="${MDS_SITL_BASE_IMAGE:-mavsdk-drone-show-sitl:latest}"
 DEFAULT_IMAGE_REPO="${MDS_SITL_IMAGE_REPO:-mavsdk-drone-show-sitl}"
 DEFAULT_VERSION_TAG="${MDS_SITL_VERSION_TAG:-v5}"
-DEFAULT_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
-DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
+DEFAULT_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
+DEFAULT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
 DEFAULT_ARCHIVE_BASENAME="${MDS_SITL_IMAGE_ARCHIVE_BASENAME:-mavsdk-drone-show-sitl-image}"
 
 BASE_IMAGE="$DEFAULT_BASE_IMAGE"

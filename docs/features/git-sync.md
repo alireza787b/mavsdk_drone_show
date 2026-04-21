@@ -27,6 +27,39 @@ Drones / SITL (pull latest configured branch)
 | Real Drones | SSH | Read only (pull) | `tools/update_repo_ssh.sh` |
 | SITL Containers | HTTPS or SSH-compatible git remote | Read only by default (pull/reset) | `multiple_sitl/startup_sitl.sh` `update_repository()` |
 
+## Recommended Auth Topology
+
+Use the runtime auth model below unless you have a specific reason to do
+otherwise:
+
+- Official public repo:
+  - GCS, drones, and SITL can use plain HTTPS without secrets.
+- Private customer repo, GCS host:
+  - make the GCS the only write-capable runtime.
+  - acceptable today: one repo-scoped SSH deploy key with write access on the
+    target customer repo.
+  - better long-term at scale: a centrally managed machine-user token or
+    GitHub App installation token exposed to the runtime as a file-backed
+    secret.
+- Private customer repo, drones:
+  - keep drones read-only only.
+  - prefer `MDS_GIT_AUTH_TOKEN_FILE` for non-interactive HTTPS read access.
+  - use `MDS_GIT_SSH_KEY_FILE` only as a fallback when HTTPS token auth is not
+    available.
+- Private customer repo, disposable SITL:
+  - keep SITL read-only only.
+  - inject read credentials at runtime or image-prep time; never bake them
+    into the final image.
+
+Rules:
+
+- do not put raw credentials inside `MDS_REPO_URL`
+- do not reuse the GCS write credential on drones
+- keep `/etc/mds/gcs.env` and `/etc/mds/local.env` limited to secret file paths
+  and runtime repo selection, not secret values
+- for private HTTPS read paths, prefer file-backed tokens over raw env values so
+  tokens are not exposed in command arguments
+
 ## Sync Trigger Paths
 
 | Trigger | When | What Happens |
@@ -36,6 +69,28 @@ Drones / SITL (pull latest configured branch)
 | UI "Save & Commit" button | Config/swarm save | `git_operations()` commits + pushes on GCS |
 | UI "Commit Mission Outputs" | Swarm Trajectory review | creates a local git commit, and only pushes when `MDS_GIT_AUTO_PUSH=true` |
 | UPDATE_CODE command | GCS command | Drone runs `actions.py --action=update_code` which calls `update_repo_ssh.sh` |
+
+## Connectivity Profile Sync
+
+When a node sets `MDS_CONNECTIVITY_BACKEND=smart-wifi-manager`, the git sync
+path also reconciles the optional external connectivity backend after each
+successful repo update.
+
+Supported profile sources:
+
+- `repo:deployment/connectivity/smart-wifi-manager/profile.json`
+- `file:/absolute/path/to/profile.json`
+
+The runtime flow is:
+
+1. `update_repo_ssh.sh` reloads `/etc/mds/local.env`
+2. it runs `tools/reconcile_connectivity.sh apply`
+3. `reconcile_connectivity.sh` checks the effective profile hash
+4. the external `smart-wifi-manager` config helper only re-applies when the
+   profile or mode changed
+
+This preserves git-driven fleet rollout without embedding Wi-Fi runtime logic
+inside MDS core services.
 
 ## Auto-Commit on Config Save
 
@@ -141,9 +196,11 @@ This is parsed by `actions.py` for logging and status tracking.
 - `src/utilities/utilities.js` - URL helpers (`getSyncReposURL`, `getUnifiedGitStatusURL`)
 
 ### Configuration
-- `src/params.py` - `GIT_REPO_URL`, `GIT_BRANCH`, `GIT_AUTO_PUSH` (overridable via `MDS_REPO_URL`/`MDS_BRANCH`/`MDS_GIT_AUTO_PUSH` env vars or `/etc/mds/gcs.env` and `/etc/mds/local.env`)
+- `src/params.py` - fallback runtime policy only
+- `deployment/defaults.env` - repo-owned deployment defaults (repo/branch/GCS/connectivity defaults)
 - `tools/git_sync_mds/git_sync_mds.service` - Systemd service template (sources `/etc/mds/local.env` for fork config)
 - `tools/git_sync_mds/install_git_sync_mds.sh` - Service installer (substitutes user/home at install time)
+- `tools/reconcile_connectivity.sh` - optional connectivity backend apply/reconcile helper
 
 ## Custom Repository Configuration
 

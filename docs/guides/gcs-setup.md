@@ -29,6 +29,19 @@ The fastest way to set up a GCS server on a fresh Ubuntu VPS:
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
 ```
 
+By default the wrapper clones into `~/mavsdk_drone_show` for the invoking user.
+Override that wrapper-level default with `MDS_INSTALL_DIR` if your host layout
+requires a different checkout path:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+  sudo env MDS_INSTALL_DIR=/srv/customer-mds bash
+```
+
+When you run the wrapper from a local checkout instead of the raw GitHub URL, it
+also loads repo defaults from `deployment/defaults.env` before applying any
+environment overrides.
+
 This script will:
 - Detect your system and validate prerequisites
 - Install all required dependencies (Python, Node.js, etc.)
@@ -272,8 +285,8 @@ VENV_PATH=~/mavsdk_drone_show/venv
 
 Use [Runtime Config Sources](runtime-config-sources.md) as the source of truth
 for what belongs in `/etc/mds/gcs.env`, what belongs in `/etc/mds/local.env`,
-and what still belongs in repo files such as `config.json`, `swarm.json`, or
-`src/params.py`.
+what belongs in repo files such as `deployment/defaults.env`, `config.json`,
+`swarm.json`, and what still remains runtime policy in `src/params.py`.
 
 ---
 

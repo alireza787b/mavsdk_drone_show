@@ -4,7 +4,7 @@ This guide is the source of truth for where MDS runtime configuration lives.
 
 Use it whenever there is ambiguity between:
 
-- repo files such as `config.json`, `swarm.json`, or `src/params.py`
+- repo files such as `deployment/defaults.env`, `config.json`, `swarm.json`, or `src/params.py`
 - GCS host runtime files such as `/etc/mds/gcs.env`
 - node runtime files such as `/etc/mds/local.env`
 - SITL launch-time environment variables
@@ -15,12 +15,14 @@ Use it whenever there is ambiguity between:
 |--------|-----------------------|-------|
 | Real fleet membership | `config.json` | GCS-side repo file |
 | Real swarm topology | `swarm.json` | GCS-side repo file |
-| SITL fleet membership | `config_sitl.json` | Selected when `real.mode` is absent |
-| SITL swarm topology | `swarm_sitl.json` | Selected when `real.mode` is absent |
+| Repo-owned deployment defaults | `deployment/defaults.env` | Git-tracked repo/branch/GCS-address fallback layer |
+| Runtime mode | `MDS_MODE=real|sitl` | Canonical mode selector for both GCS and nodes |
+| SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
+| SITL swarm topology | `swarm_sitl.json` | Selected when `MDS_MODE=sitl` |
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |
-| Node runtime overrides | `/etc/mds/local.env` | `MDS_HW_ID`, GCS routing, repo/branch/auth overrides for that node |
-| Node identity metadata | `/etc/mds/node_identity.json` | Bootstrap identity/reporting metadata |
-| Fallback defaults and runtime policy | `src/params.py` | Only when host env files or explicit process env are absent |
+| Node runtime overrides | `/etc/mds/local.env` | `MDS_HW_ID`, `MDS_MODE`, GCS routing, repo/branch/auth/connectivity overrides for that node |
+| Node identity metadata | `/etc/mds/node_identity.json` | Canonical structured node identity/reporting metadata |
+| Fallback runtime policy | `src/params.py` | Runtime policy and final code defaults only |
 
 ## Effective Precedence
 
@@ -31,7 +33,8 @@ are not already set. That means the effective order is:
 
 1. process environment
 2. `/etc/mds/local.env`
-3. hardcoded defaults in `src/params.py`
+3. `deployment/defaults.env`
+4. code defaults
 
 ### Node announce URL resolution
 
@@ -42,11 +45,34 @@ are not already set. That means the effective order is:
 3. `MDS_GCS_API_BASE_URL` in `/etc/mds/local.env`
 4. `MDS_GCS_IP` plus the default API port (`5000`)
 
+### Connectivity backend resolution
+
+Companion nodes resolve connectivity ownership in this order:
+
+1. process env `MDS_CONNECTIVITY_BACKEND`
+2. `/etc/mds/local.env`
+3. `deployment/defaults.env`
+4. fallback `none`
+
+When `MDS_CONNECTIVITY_BACKEND=smart-wifi-manager`, these companion-node values
+also apply:
+
+- `MDS_SMART_WIFI_MANAGER_MODE`
+- `MDS_SMART_WIFI_MANAGER_IMPORT_MODE`
+- `MDS_SMART_WIFI_MANAGER_INSTALL_DIR`
+- `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`
+- `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE`
+
 ### GCS backend runtime
 
 `gcs-server/start_gcs_server.sh` sources `/etc/mds/gcs.env` before launching the
 backend. Those exported values take precedence over repo fallback defaults in
-`src/params.py`.
+`deployment/defaults.env` and `src/params.py`.
+
+`MDS_REPO_URL` in `/etc/mds/gcs.env` and `/etc/mds/local.env` is the canonical
+runtime repo authority for that host. The checkout remote (`git remote get-url
+origin`) is derived state and must be reconciled to match the configured
+runtime repo URL; it is not a second source of truth.
 
 ## What Not To Do
 
@@ -54,8 +80,16 @@ Do not use `src/params.py` as the normal place to store:
 
 - a node’s hardware ID
 - a deployment-specific GCS IP
+- the default repo URL or default branch for a customer fleet
+- a fleet connectivity backend or Wi-Fi profile source
 - customer-specific host secrets or token file paths
 - day-2 operational runtime changes
+
+The following retired markers are no longer read by the active runtime path:
+
+- `.hwID`
+- `real.mode`
+- `MDS_SIM_MODE`
 
 Do not expect Fleet Enrollment to rewrite swarm topology automatically.
 
@@ -70,17 +104,23 @@ Do not expect Fleet Enrollment to rewrite swarm topology automatically.
 2. bootstrap each node and write `/etc/mds/local.env`
 3. use Fleet Enrollment to add real nodes into `config.json`
 4. manage swarm relationships through `swarm.json` or the GCS swarm UI/APIs
+5. commit repo-wide repo/branch/network default changes in `deployment/defaults.env`
+6. if you intentionally want repo-driven Wi-Fi rollout, commit
+   `deployment/connectivity/smart-wifi-manager/profile.json` in a private fleet repo
 
 ### SITL
 
 1. use `config_sitl.json` and `swarm_sitl.json`
 2. export `MDS_REPO_URL`, `MDS_BRANCH`, and optional auth env vars before launch when needed
-3. avoid editing `src/params.py` just to point SITL at a different repo or branch
+3. use `deployment/defaults.env` for repo-wide defaults and process env for temporary overrides
+4. avoid editing `src/params.py` just to point SITL at a different repo or branch
 
 ## Practical Rule
 
 If the change is:
 
-- host-specific -> `/etc/mds/gcs.env` or `/etc/mds/local.env`
+- host-specific -> `/etc/mds/gcs.env`, `/etc/mds/local.env`, or `/etc/mds/node_identity.json`
 - fleet/swarm membership -> `config*.json` / `swarm*.json`
-- repo-wide fallback or runtime policy -> `src/params.py`
+- repo-wide deployment defaults -> `deployment/defaults.env`
+- repo-owned optional connectivity profile -> `deployment/connectivity/smart-wifi-manager/profile.json`
+- runtime policy -> typed settings / code defaults (`src/params.py` remains the transition shim until the typed settings rollout is complete)

@@ -88,7 +88,7 @@ Or use the recovery tool:
 ## Troubleshooting
 
 ### LED stays RED after boot
-- Check `journalctl -u wifi-manager` for network issues
+- If this node uses `smart-wifi-manager`, check `journalctl -u smart-wifi-manager`
 - Check `journalctl -u git_sync_mds` for git sync issues
 
 ### LED is YELLOW (not green)

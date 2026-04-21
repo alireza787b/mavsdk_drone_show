@@ -4,6 +4,15 @@
 set -e
 set -o pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MDS_REPO_ROOT="$REPO_ROOT"
+DEPLOYMENT_PROFILE_LOADER="$REPO_ROOT/tools/load_deployment_profile.sh"
+if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
+    # shellcheck disable=SC1090
+    source "$DEPLOYMENT_PROFILE_LOADER"
+fi
+
 cat << "EOF"
 
 
@@ -79,7 +88,7 @@ echo
 # ENVIRONMENT VARIABLES SUPPORTED:
 #   MDS_DOCKER_IMAGE  - Docker image name to use (default: mavsdk-drone-show-sitl:latest)
 #   Any MDS_* runtime variable exported on the host is forwarded into the
-#   container, except the internal MDS_BASE_DIR / MDS_HWID_DIR paths which are
+#   container, except the internal MDS_BASE_DIR path which is
 #   fixed by this launcher.
 #
 # EXAMPLES:
@@ -99,7 +108,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STARTUP_SCRIPT_HOST="$REPO_ROOT/multiple_sitl/startup_sitl.sh"
 STARTUP_SCRIPT_CONTAINER="/tmp/mds_startup_sitl.sh"
 HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$HOME/.local/share/mavsdk_drone_show/sitl_runtime}"
-RUNTIME_FILES_CONTAINER="/tmp/mds_runtime"
 HOST_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_HOST_SWARM_TRAJECTORY_DIR:-$REPO_ROOT/shapes_sitl/swarm_trajectory}"
 CONTAINER_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR:-/tmp/mds_shared_swarm_trajectory}"
 SHARE_HOST_SWARM_TRAJECTORY="${MDS_SITL_SHARE_SWARM_TRAJECTORY:-true}"
@@ -138,14 +146,13 @@ usage() {
 collect_mds_env_args() {
     DOCKER_ENV_ARGS=(
         -e "MDS_BASE_DIR=/root/mavsdk_drone_show"
-        -e "MDS_HWID_DIR=${HWID_CONTAINER_DIR}"
     )
     DOCKER_SECRET_ARGS=()
 
     local env_name
     while IFS='=' read -r env_name _; do
         case "$env_name" in
-            MDS_BASE_DIR|MDS_HWID_DIR|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
+            MDS_BASE_DIR|MDS_HW_ID|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
                 continue
                 ;;
         esac
@@ -216,8 +223,7 @@ print_launcher_configuration() {
         echo "  Startup Script : image-baked (${STARTUP_SCRIPT_IMAGE})"
     fi
     echo "  Container Repo : /root/mavsdk_drone_show"
-    echo "  HWID Directory : ${HWID_CONTAINER_DIR}"
-    echo "  Runtime Files  : ${HOST_RUNTIME_ROOT}"
+    echo "  Runtime Root   : ${HOST_RUNTIME_ROOT}"
     echo "  Shared Traj    : ${SHARE_HOST_SWARM_TRAJECTORY}"
     if [[ "${SHARE_HOST_SWARM_TRAJECTORY}" == "true" ]]; then
         echo "  Traj Source    : ${HOST_SHARED_SWARM_TRAJECTORY_DIR}"
@@ -311,8 +317,8 @@ print_scale_guidance() {
 
 run_git_access_preflight() {
     local effective_git_sync="${MDS_SITL_GIT_SYNC:-true}"
-    local repo_url="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
-    local branch="${MDS_BRANCH:-main-candidate}"
+    local repo_url="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
+    local branch="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
 
     if [[ "$effective_git_sync" != "true" ]]; then
         echo "Git Access     : skipped (MDS_SITL_GIT_SYNC=false; using baked image checkout)"
@@ -344,19 +350,6 @@ Guide: docs/guides/custom-sitl-auth.md
 EOF
         exit 1
     fi
-}
-
-ensure_container_git_excludes() {
-    local container_name=$1
-    local repo_dir="/root/mavsdk_drone_show"
-
-    docker exec "$container_name" bash -lc "
-        set -e
-        cd '$repo_dir'
-        mkdir -p .git/info
-        touch .git/info/exclude
-        grep -qxF '*.hwID' .git/info/exclude || echo '*.hwID' >> .git/info/exclude
-    " >/dev/null
 }
 
 # Validate the number of instances and inputs
@@ -473,8 +466,6 @@ create_instance() {
     local instance_num=$1
     local drone_id=$((START_ID + instance_num -1))
     local container_name="drone-$drone_id"
-    local runtime_dir
-    local hwid_file
     local startup_script_container
     local startup_bootstrap
     local detached_command
@@ -486,17 +477,6 @@ create_instance() {
     if docker ps -a --format '{{.Names}}' | grep -Eq "^${container_name}\$"; then
         printf "Container '%s' already exists. Removing it...\n" "$container_name"
         docker rm -f "$container_name" >/dev/null 2>&1
-    fi
-
-    runtime_dir="${HOST_RUNTIME_ROOT}/${container_name}"
-    rm -rf "$runtime_dir"
-    mkdir -p "$runtime_dir"
-    hwid_file="${runtime_dir}/${drone_id}.hwID"
-
-    # Create an empty .hwID file for the container
-    if ! touch "$hwid_file"; then
-        printf "Error: Failed to create hwID file '%s'\n" "$hwid_file" >&2
-        return 1
     fi
 
     # Calculate IP address
@@ -516,9 +496,9 @@ create_instance() {
         --network "$DOCKER_NETWORK_NAME"
         --ip "$IP_ADDRESS"
         --restart "$DOCKER_RESTART_POLICY"
+        -e "MDS_HW_ID=${drone_id}"
         "${DOCKER_ENV_ARGS[@]}"
         "${DOCKER_SECRET_ARGS[@]}"
-        -v "${runtime_dir}:${RUNTIME_FILES_CONTAINER}:ro"
     )
 
     if [[ "${SHARE_HOST_SWARM_TRAJECTORY}" == "true" ]]; then
@@ -534,7 +514,7 @@ create_instance() {
         docker_run_args+=(-v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro")
     fi
 
-    startup_bootstrap="mkdir -p '$HWID_CONTAINER_DIR/logs' && cp '$RUNTIME_FILES_CONTAINER'/*.hwID '$HWID_CONTAINER_DIR/' && exec bash '$startup_script_container'"
+    startup_bootstrap="mkdir -p '$HWID_CONTAINER_DIR/logs' && exec bash '$startup_script_container'"
     detached_command="${startup_bootstrap} >> '$STARTUP_LOG_CONTAINER' 2>&1"
 
     # If verbose mode is enabled, run attached mode for debugging purposes
@@ -555,19 +535,10 @@ create_instance() {
     printf "Starting container '%s' with startup_sitl.sh as PID 1...\n" "$container_name"
     if ! docker run "${docker_run_args[@]}" -d "$TEMPLATE_IMAGE" bash -lc "$detached_command" >/dev/null; then
         printf "Error: Failed to start container '%s'\n" "$container_name" >&2
-        rm -rf "$runtime_dir"
         return 1
     fi
 
     printf "Container '%s' started successfully with IP '%s'.\n" "$container_name" "$IP_ADDRESS"
-
-    if ! ensure_container_git_excludes "$container_name"; then
-        printf "Error: Failed to configure local git excludes in '%s'\n" "$container_name" >&2
-        docker stop "$container_name" >/dev/null
-        docker rm "$container_name" >/dev/null
-        rm -rf "$runtime_dir"
-        return 1
-    fi
 
     printf "Instance '%s' launched. Awaiting readiness verification.\n" "$container_name"
     CREATED_CONTAINERS+=("$container_name")

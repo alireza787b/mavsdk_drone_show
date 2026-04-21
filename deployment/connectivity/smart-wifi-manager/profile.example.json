@@ -1,0 +1,17 @@
+{
+  "mode": "manage",
+  "allow_open_networks": false,
+  "scan_interval_sec": 15,
+  "signal_switch_threshold": 10,
+  "cooldown_sec": 45,
+  "connect_timeout_sec": 20,
+  "profiles": [
+    {
+      "id": "example-primary",
+      "ssid": "example-ssid",
+      "priority": 100,
+      "password": "replace-me",
+      "autoconnect": true
+    }
+  ]
+}

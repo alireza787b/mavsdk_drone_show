@@ -31,16 +31,18 @@ class TestConfigLoader:
         assert result is None
 
     def test_get_hw_id_with_none_and_no_file(self):
-        """Test that None is returned when no .hwID file exists"""
-        with patch('glob.glob', return_value=[]):
+        """Test that None is returned when no canonical identity source exists."""
+        with patch.dict(
+            os.environ,
+            {
+                'MDS_HW_ID': '',
+                'MDS_LOCAL_ENV_FILE': '/tmp/missing-local.env',
+                'MDS_NODE_IDENTITY_FILE': '/tmp/missing-node-identity.json',
+            },
+            clear=False,
+        ):
             result = ConfigLoader.get_hw_id(None)
             assert result is None
-
-    def test_get_hw_id_with_file(self):
-        """Test that hw_id is read from .hwID file"""
-        with patch('glob.glob', return_value=['42.hwID']):
-            result = ConfigLoader.get_hw_id(None)
-            assert result == 42
 
     def test_get_hw_id_from_mds_hw_id_env(self):
         """Test that MDS_HW_ID overrides filesystem lookup."""
@@ -48,14 +50,21 @@ class TestConfigLoader:
             result = ConfigLoader.get_hw_id(None)
             assert result == 17
 
-    def test_get_hw_id_from_mds_hwid_dir(self, tmp_path):
-        """Test that MDS_HWID_DIR is searched for .hwID files."""
-        hwid_file = tmp_path / "24.hwID"
-        hwid_file.write_text("")
+    def test_get_hw_id_from_node_identity_manifest(self, tmp_path):
+        """Test that node_identity.json is the canonical fallback."""
+        identity_file = tmp_path / "node_identity.json"
+        identity_file.write_text('{"hw_id": 31, "node_uuid": "abc"}', encoding="utf-8")
 
-        with patch.dict(os.environ, {'MDS_HWID_DIR': str(tmp_path)}, clear=False):
+        with patch.dict(
+            os.environ,
+            {
+                'MDS_NODE_IDENTITY_FILE': str(identity_file),
+                'MDS_LOCAL_ENV_FILE': str(tmp_path / "missing-local.env"),
+            },
+            clear=False,
+        ):
             result = ConfigLoader.get_hw_id(None)
-            assert result == 24
+            assert result == 31
 
     def test_read_file_success(self, tmp_path):
         """Test reading a valid JSON config file"""
@@ -446,10 +455,9 @@ class TestDroneConfigFacade:
                         result = config.get_hw_id(99)
                         assert result == 99
 
-                        # Test with None - will try to read from .hwID file
-                        with patch('glob.glob', return_value=['42.hwID']):
+                        with patch.object(ConfigLoader, 'get_hw_id', return_value=None):
                             result = config.get_hw_id(None)
-                            assert result == 42
+                            assert result is None
 
                         # Test radian_to_degrees_heading
                         import math

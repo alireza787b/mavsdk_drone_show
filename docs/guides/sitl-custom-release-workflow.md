@@ -38,7 +38,7 @@ For public/private repo authentication, read [Custom SITL Auth Guide](custom-sit
 
 When `MDS_SITL_GIT_SYNC=true`:
 - the container fetches and hard-resets the `mavsdk_drone_show` repo to the configured branch
-- untracked MDS files are cleaned, while runtime artifacts such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server` are preserved
+- untracked MDS files are cleaned, while runtime artifacts such as `venv/`, `logs/`, and the baked `mavsdk_server` are preserved
 
 What it does **not** auto-update:
 - PX4 source tree

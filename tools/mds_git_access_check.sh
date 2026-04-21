@@ -2,8 +2,17 @@
 
 set -euo pipefail
 
-DEFAULT_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
-DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MDS_REPO_ROOT="$REPO_ROOT"
+DEPLOYMENT_PROFILE_LOADER="$SCRIPT_DIR/load_deployment_profile.sh"
+if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
+    # shellcheck disable=SC1090
+    source "$DEPLOYMENT_PROFILE_LOADER"
+fi
+
+DEFAULT_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
+DEFAULT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
 DOCS_PATH="${MDS_GIT_AUTH_DOCS_PATH:-docs/guides/custom-sitl-auth.md}"
 
 REPO_URL="$DEFAULT_REPO_URL"

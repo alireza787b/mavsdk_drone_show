@@ -13,6 +13,8 @@ This module includes:
 """
 
 import pytest
+from src.settings.deployment_profile import reset_deployment_profile_cache
+from src.settings.runtime import reset_preloaded_local_env_state
 import asyncio
 import httpx
 import tempfile
@@ -683,6 +685,16 @@ def cleanup_async_tasks():
                 task.cancel()
     except RuntimeError:
         pass  # No event loop
+
+
+@pytest.fixture(autouse=True)
+def reset_runtime_env_preload_state():
+    """Keep runtime-env preload state isolated across tests."""
+    reset_deployment_profile_cache()
+    reset_preloaded_local_env_state()
+    yield
+    reset_preloaded_local_env_state()
+    reset_deployment_profile_cache()
 
 
 # ============================================================================

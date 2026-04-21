@@ -92,7 +92,7 @@ Notes:
 - `SDLOG_MODE=0` keeps file-backed PX4 ULogs enabled in SITL so onboard log review and download workflows match real hardware more closely.
 - Set `MDS_SITL_PARAM_OVERRIDES=none` if you intentionally want no SITL PX4 parameter overrides.
 - `CBRK_SUPPLY_CHK=894281` is the PX4 circuit-breaker value for bypassing the supply check in SITL.
-- `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, `*.hwID`, and the baked `mavsdk_server`.
+- `startup_sitl.sh` keeps runtime git sync enabled by default. Each container start fetches the requested branch, hard-resets the worktree, and cleans untracked MDS files while preserving runtime state such as `venv/`, `logs/`, and the baked `mavsdk_server`.
 - `startup_sitl.sh` now validates the preserved `venv` before trusting it. If the interpreter version, site-packages layout, or core imports do not match, the container rebuilds the `venv` and re-syncs requirements automatically instead of running with a broken Python environment.
 - `MDS_GIT_AUTH_TOKEN_FILE` is the preferred non-interactive path for private GitHub SITL runtime sync and image preparation. It is used only for git clone/fetch inside the containerized flow and is not written into the final flattened image.
 - `MDS_GIT_SSH_KEY_FILE` is the SSH equivalent for mutable runtime sync when the host already has a deploy key or machine-user key that should be mounted into the SITL containers.

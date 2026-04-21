@@ -10,12 +10,12 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/coordinator.py
-WorkingDirectory=/home/droneshow/mavsdk_drone_show
-User=droneshow
-Group=droneshow
-Environment="HOME=/home/droneshow"
-Environment="PATH=/home/droneshow/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=__MDS_INSTALL_DIR__/venv/bin/python __MDS_INSTALL_DIR__/coordinator.py
+WorkingDirectory=__MDS_INSTALL_DIR__
+User=__MDS_USER__
+Group=__MDS_USER__
+Environment="HOME=__MDS_HOME__"
+Environment="PATH=__MDS_INSTALL_DIR__/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 
 # Restart policy

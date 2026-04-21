@@ -49,7 +49,7 @@ Usage:
 
 Command Line Arguments:
   --start_time              UNIX epoch time to delay mission start (default: now)
-  --position_id             Position ID for trajectory file (default: HW_ID from .hwID file)
+  --position_id             Position ID for trajectory file (default: canonical HW_ID)
   --end_behavior            End of mission behavior override
   --debug                   Turn on detailed (DEBUG) logging
 

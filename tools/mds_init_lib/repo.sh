@@ -15,10 +15,12 @@ _MDS_REPO_LOADED=1
 # CONSTANTS
 # =============================================================================
 
-readonly DEFAULT_REPO_URL="git@github.com:alireza787b/mavsdk_drone_show.git"
-readonly DEFAULT_REPO_URL_HTTPS="https://github.com/alireza787b/mavsdk_drone_show.git"
-readonly DEFAULT_BRANCH="main-candidate"
-readonly SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
+readonly DEFAULT_REPO_SLUG="${MDS_DEFAULT_REPO_SLUG}"
+readonly DEFAULT_PROJECT_NAME="${DEFAULT_REPO_SLUG##*/}"
+readonly DEFAULT_REPO_URL="${MDS_DEFAULT_REPO_URL_SSH}"
+readonly DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS}"
+readonly DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH}"
+readonly SSH_KEY_PATH="${MDS_HOME}/.ssh/id_rsa_git_deploy"
 
 mds_git_ssh_command() {
     printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$SSH_KEY_PATH"
@@ -29,7 +31,7 @@ is_github_ssh_repo_url() {
 }
 
 prepare_repo_ssh_runtime() {
-    local ssh_dir="/home/${MDS_USER}/.ssh"
+    local ssh_dir="${MDS_HOME}/.ssh"
 
     mkdir -p "$ssh_dir"
     chown "${MDS_USER}:${MDS_USER}" "$ssh_dir"
@@ -62,6 +64,29 @@ configure_repo_ssh_command() {
     fi
 }
 
+reconcile_repo_checkout_remote() {
+    local repo_url="$1"
+    local current_remote=""
+
+    if ! repo_exists; then
+        return 0
+    fi
+
+    current_remote=$(sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" remote get-url origin 2>/dev/null || echo "")
+    if [[ -n "$current_remote" && "$current_remote" != "$repo_url" ]]; then
+        log_info "Updating repository remote to match requested runtime repo"
+        log_info "  From: $current_remote"
+        log_info "  To:   $repo_url"
+        run_git_as_mds_user_for_repo "$repo_url" -C "${MDS_INSTALL_DIR}" remote set-url origin "$repo_url" || {
+            log_error "Failed to update repository remote"
+            return 1
+        }
+    fi
+
+    configure_repo_ssh_command "$repo_url"
+    return 0
+}
+
 # =============================================================================
 # SSH KEY MANAGEMENT
 # =============================================================================
@@ -80,7 +105,7 @@ generate_ssh_key() {
         return 0
     fi
 
-    local ssh_dir="/home/${MDS_USER}/.ssh"
+    local ssh_dir="${MDS_HOME}/.ssh"
 
     # Create .ssh directory if needed
     if [[ ! -d "$ssh_dir" ]]; then
@@ -209,7 +234,7 @@ normalize_github_repo_path() {
     fi
 
     if [[ "$spec" != */* ]]; then
-        spec="${spec}/mavsdk_drone_show"
+        spec="${spec}/${DEFAULT_PROJECT_NAME}"
     fi
 
     printf '%s\n' "$spec"
@@ -509,26 +534,25 @@ clone_repository() {
 
 # Update existing repository
 update_repository() {
-    local branch="${1:-$DEFAULT_BRANCH}"
+    local repo_url="${1:-${REPO_URL:-$DEFAULT_REPO_URL}}"
+    local branch="${2:-$DEFAULT_BRANCH}"
 
     log_step "Updating repository..."
 
     if is_dry_run; then
-        echo -e "  ${DIM}[DRY-RUN] Would update repository to branch: ${branch}${NC}"
+        echo -e "  ${DIM}[DRY-RUN] Would update repository to: ${repo_url} (branch: ${branch})${NC}"
         return 0
     fi
 
     cd "${MDS_INSTALL_DIR}" || return 1
-    local current_remote
-    current_remote=$(sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" remote get-url origin 2>/dev/null || echo "")
-    configure_repo_ssh_command "$current_remote"
+    reconcile_repo_checkout_remote "$repo_url" || return 1
 
     # Fetch latest
     log_info "Fetching latest changes..."
-    if ! run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" fetch --all --prune; then
+    if ! run_git_as_mds_user_for_repo "$repo_url" -C "${MDS_INSTALL_DIR}" fetch --all --prune; then
         log_warn "Failed to fetch, attempting repair..."
         sudo -u "${MDS_USER}" git-repair 2>/dev/null || true
-        run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" fetch --all --prune || {
+        run_git_as_mds_user_for_repo "$repo_url" -C "${MDS_INSTALL_DIR}" fetch --all --prune || {
             log_error "Failed to fetch after repair"
             return 1
         }
@@ -536,15 +560,15 @@ update_repository() {
 
     # Checkout branch
     log_info "Checking out branch: $branch"
-    run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" checkout "$branch" 2>/dev/null || \
-        run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" checkout -b "$branch" "origin/$branch" || {
+    run_git_as_mds_user_for_repo "$repo_url" -C "${MDS_INSTALL_DIR}" checkout "$branch" 2>/dev/null || \
+        run_git_as_mds_user_for_repo "$repo_url" -C "${MDS_INSTALL_DIR}" checkout -b "$branch" "origin/$branch" || {
         log_error "Failed to checkout branch: $branch"
         return 1
     }
 
     # Reset to origin
     log_info "Synchronizing with remote..."
-    run_git_as_mds_user_for_repo "$current_remote" -C "${MDS_INSTALL_DIR}" reset --hard "origin/$branch" || {
+    run_git_as_mds_user_for_repo "$repo_url" -C "${MDS_INSTALL_DIR}" reset --hard "origin/$branch" || {
         log_error "Failed to reset to origin/$branch"
         return 1
     }
@@ -552,6 +576,11 @@ update_repository() {
     # Get current commit
     local commit
     commit=$(sudo -u "${MDS_USER}" git rev-parse --short HEAD)
+    REPO_URL="$repo_url"
+    BRANCH="$branch"
+    export REPO_URL BRANCH
+    state_set_value "repo_url" "$repo_url"
+    state_set_value "repo_branch" "$branch"
     state_set_value "repo_commit" "$commit"
 
     log_success "Repository updated to commit: $commit"
@@ -586,7 +615,7 @@ validate_repo_structure() {
     return 0
 }
 
-# Compare selected repo settings against src/params.py fallback defaults
+# Compare selected repo settings against the git-tracked deployment profile defaults
 verify_fork_config() {
     local expected_url="${1:-}"
     local expected_branch="${2:-}"
@@ -597,33 +626,25 @@ verify_fork_config() {
 
     log_step "Verifying fork configuration..."
 
-    local params_file="${MDS_INSTALL_DIR}/src/params.py"
-
-    if [[ ! -f "$params_file" ]]; then
-        log_warn "Cannot verify fork config - params.py not found"
-        return 0
-    fi
-
-    local config_url config_branch
-    config_url=$(grep -oP "GIT_REPO_URL\s*=.*?['\"]([^'\"]+)['\"]" "$params_file" 2>/dev/null | grep -oP "['\"][^'\"]+['\"]" | tr -d "'\"" || echo "")
-    config_branch=$(grep -oP "GIT_BRANCH\s*=.*?['\"]([^'\"]+)['\"]" "$params_file" 2>/dev/null | grep -oP "['\"][^'\"]+['\"]" | tr -d "'\"" || echo "")
+    local profile_url="${DEFAULT_REPO_URL}"
+    local profile_branch="${DEFAULT_BRANCH}"
 
     local mismatch=false
 
-    if [[ -n "$expected_url" && "$config_url" != *"$expected_url"* ]]; then
-        log_warn "params.py GIT_REPO_URL ($config_url) differs from specified ($expected_url)"
+    if [[ -n "$expected_url" ]] && [[ "${profile_url}" != "$expected_url" ]] && [[ "${DEFAULT_REPO_URL_HTTPS}" != "$expected_url" ]]; then
+        log_warn "deployment/defaults.env repo URL (${profile_url}) differs from specified (${expected_url})"
         mismatch=true
     fi
 
-    if [[ -n "$expected_branch" && "$config_branch" != "$expected_branch" ]]; then
-        log_warn "params.py GIT_BRANCH ($config_branch) differs from specified ($expected_branch)"
+    if [[ -n "$expected_branch" && "$profile_branch" != "$expected_branch" ]]; then
+        log_warn "deployment/defaults.env branch (${profile_branch}) differs from specified (${expected_branch})"
         mismatch=true
     fi
 
     if [[ "$mismatch" == "true" ]]; then
         echo ""
         echo -e "  ${YELLOW}Note: runtime overrides from process env or /etc/mds/local.env will override${NC}"
-        echo -e "  ${YELLOW}src/params.py fallback repo settings at runtime${NC}"
+        echo -e "  ${YELLOW}deployment/defaults.env when the node is rendered for a specific host${NC}"
         echo ""
     else
         log_success "Fork configuration matches"
@@ -725,7 +746,7 @@ run_repository_phase() {
 
     if repo_exists; then
         log_info "Repository exists, updating..."
-        update_repository "$branch" || return 1
+        update_repository "$repo_url" "$branch" || return 1
     else
         log_info "Cloning repository..."
         clone_repository "$repo_url" "$branch" "$access_method" || return 1

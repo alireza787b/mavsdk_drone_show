@@ -8,11 +8,14 @@ GCS_INSTALLER = REPO_ROOT / "tools" / "install_gcs.sh"
 COMMON_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "common.sh"
 NETWORK_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "network.sh"
 REPO_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "repo.sh"
+GCS_COMMON_LIB = REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_common.sh"
+GCS_REPO_LIB = REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_repo.sh"
 MAVLINK_SETUP_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavlink_setup.sh"
 MAVSDK_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "mavsdk.sh"
 SERVICES_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "services.sh"
 PYTHON_ENV_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "python_env.sh"
 GIT_SYNC_SCRIPT = REPO_ROOT / "tools" / "update_repo_ssh.sh"
+RECONCILE_CONNECTIVITY_SCRIPT = REPO_ROOT / "tools" / "reconcile_connectivity.sh"
 
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
@@ -45,6 +48,71 @@ def test_gcs_bootstrap_wrapper_can_be_sourced_and_resolves_repo_urls():
         [[ "$(resolve_target_repo_url '' 'demo/customer-mds' false)" == "git@github.com:demo/customer-mds.git" ]]
         [[ "$(resolve_target_repo_url '' 'demo/customer-mds' true)" == "https://github.com/demo/customer-mds.git" ]]
         [[ "$(resolve_target_repo_url 'git@github.com:demo/explicit.git' '' false)" == "git@github.com:demo/explicit.git" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_bootstrap_wrapper_uses_local_deployment_profile_defaults_when_available():
+    result = run_bash(
+        f"""
+        profile_file="$(mktemp)"
+        cat >"$profile_file" <<'EOF'
+MDS_DEFAULT_REPO_SLUG=demo/customer-mds
+MDS_DEFAULT_REPO_URL_HTTPS=https://github.com/demo/customer-mds.git
+MDS_DEFAULT_REPO_URL_SSH=git@github.com:demo/customer-mds.git
+MDS_DEFAULT_BRANCH=release-candidate
+EOF
+        export MDS_DEPLOYMENT_PROFILE_FILE="$profile_file"
+        source "{NODE_INSTALLER}"
+        [[ "$REPO_URL" == "https://github.com/demo/customer-mds.git" ]]
+        [[ "$BRANCH" == "release-candidate" ]]
+        [[ "$INSTALL_DIR" == "/home/droneshow/customer-mds" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_bootstrap_wrapper_uses_local_deployment_profile_defaults_when_available():
+    result = run_bash(
+        f"""
+        profile_file="$(mktemp)"
+        cat >"$profile_file" <<'EOF'
+MDS_DEFAULT_REPO_SLUG=demo/customer-mds
+MDS_DEFAULT_REPO_URL_HTTPS=https://github.com/demo/customer-mds.git
+MDS_DEFAULT_REPO_URL_SSH=git@github.com:demo/customer-mds.git
+MDS_DEFAULT_BRANCH=release-candidate
+EOF
+        export MDS_DEPLOYMENT_PROFILE_FILE="$profile_file"
+        source "{GCS_INSTALLER}"
+        [[ "$REPO_URL" == "https://github.com/demo/customer-mds.git" ]]
+        [[ "$BRANCH" == "release-candidate" ]]
+        [[ "$INSTALL_DIR" == "$HOME/customer-mds" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_bootstrap_wrapper_respects_runtime_user_and_install_dir_env_overrides():
+    result = run_bash(
+        f"""
+        profile_file="$(mktemp)"
+        cat >"$profile_file" <<'EOF'
+MDS_DEFAULT_REPO_SLUG=demo/customer-mds
+MDS_DEFAULT_REPO_URL_HTTPS=https://github.com/demo/customer-mds.git
+MDS_DEFAULT_REPO_URL_SSH=git@github.com:demo/customer-mds.git
+MDS_DEFAULT_BRANCH=release-candidate
+EOF
+        export MDS_DEPLOYMENT_PROFILE_FILE="$profile_file"
+        export MDS_USER="companion"
+        export MDS_INSTALL_DIR="/srv/customer-stack"
+        source "{NODE_INSTALLER}"
+        [[ "$INSTALL_DIR" == "/srv/customer-stack" ]]
+        grep -q "MDS_USER            Runtime user created for the companion node (default: companion)" <(show_help)
+        grep -q "MDS_INSTALL_DIR     Installation directory for the repo checkout (default: /srv/customer-stack)" <(show_help)
         """
     )
 
@@ -89,6 +157,19 @@ def test_node_bootstrap_wrapper_help_mentions_private_https_token_file():
         f"""
         cat "{NODE_INSTALLER}" | bash -s -- --help >/tmp/node_wrapper_help.txt
         grep -q -- "--git-auth-token-file" /tmp/node_wrapper_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_node_bootstrap_help_mentions_connectivity_backend_options():
+    result = run_bash(
+        f"""
+        cat "{NODE_INSTALLER}" | bash -s -- --help >/tmp/node_wrapper_help.txt
+        grep -q -- "--connectivity-backend" /tmp/node_wrapper_help.txt
+        grep -q -- "--smart-wifi-mode" /tmp/node_wrapper_help.txt
+        grep -q -- "--smart-wifi-config" /tmp/node_wrapper_help.txt
         """
     )
 
@@ -218,16 +299,30 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
-def test_dashboard_start_uses_root_real_mode_marker_and_canonical_health_path():
+def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
     verify_script = REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_verify.sh"
 
     start_text = start_script.read_text(encoding="utf-8")
     verify_text = verify_script.read_text(encoding="utf-8")
 
-    assert 'REAL_MODE_FILE="$PROJECT_ROOT/real.mode"' in start_text
+    assert '--status) STATUS_ONLY=true; shift ;;' in start_text
+    assert "resolve_current_runtime_mode() {" in start_text
+    assert "persist_runtime_mode_in_gcs_config() {" in start_text
+    assert "Mode Source:" in start_text
+    assert "Configured Repo:" in start_text
+    assert "Origin Remote:" in start_text
+    assert "Repo Authority:" in start_text
+    assert "Repo Access:" in start_text
+    assert "Git Auto Push:" in start_text
+    assert "repo_authority_status() {" in start_text
+    assert "get_repo_access_mode() {" in start_text
+    assert start_text.index("load_gcs_system_config") < start_text.index('if [[ "$STATUS_ONLY" == "true" ]]')
     assert "/api/v1/system/health" in start_text
     assert "/api/v1/system/health" in verify_text
+    assert "Configured Repo:" in verify_text
+    assert "Origin Remote:" in verify_text
+    assert "Repo Authority:" in verify_text
     assert "MDS_DOCKER_IMAGE" in start_text
     assert "MDS_SITL_GIT_SYNC" in start_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in start_text
@@ -237,6 +332,7 @@ def test_gcs_server_launcher_exports_sitl_runtime_env_from_system_config():
     launcher_script = REPO_ROOT / "gcs-server" / "start_gcs_server.sh"
     launcher_text = launcher_script.read_text(encoding="utf-8")
 
+    assert "MDS_MODE" in launcher_text
     assert "MDS_DOCKER_IMAGE" in launcher_text
     assert "MDS_SITL_GIT_SYNC" in launcher_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in launcher_text
@@ -372,6 +468,134 @@ def test_service_source_path_maps_known_units_without_associative_array_lookup()
     assert result.returncode == 0, result.stderr
 
 
+def test_common_lib_respects_runtime_user_and_install_dir_overrides():
+    result = run_bash(
+        f"""
+        MDS_USER="skyfleet"
+        MDS_HOME="/srv/skyfleet"
+        MDS_INSTALL_DIR="/srv/skyfleet/mds"
+        source "{COMMON_LIB}"
+        [[ "$MDS_USER" == "skyfleet" ]]
+        [[ "$MDS_HOME" == "/srv/skyfleet" ]]
+        [[ "$MDS_INSTALL_DIR" == "/srv/skyfleet/mds" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_common_lib_loads_git_tracked_deployment_profile_defaults():
+    common_text = COMMON_LIB.read_text()
+    loader_text = (REPO_ROOT / "tools" / "load_deployment_profile.sh").read_text()
+
+    assert 'DEPLOYMENT_PROFILE_LOADER="${MDS_REPO_ROOT}/tools/load_deployment_profile.sh"' in common_text
+    assert 'source "${MDS_DEPLOYMENT_PROFILE_FILE}"' in loader_text
+    assert 'MDS_DEFAULT_REPO_URL_HTTPS' in loader_text
+    assert 'MDS_DEFAULT_REPO_URL_SSH' in loader_text
+    assert 'MDS_DEFAULT_BRANCH' in loader_text
+    assert 'MDS_DEFAULT_CONNECTIVITY_BACKEND' in loader_text
+    assert 'MDS_DEFAULT_SMART_WIFI_MANAGER_REF' in loader_text
+
+
+def test_node_repo_reconcile_updates_remote_to_requested_runtime_repo():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        git init -q "$repo_dir"
+        git -C "$repo_dir" remote add origin git@github.com:demo/old-mds.git
+        sudo() {{
+            if [[ "$1" == "-u" ]]; then
+                shift 2
+            fi
+            "$@"
+        }}
+        log_info() {{ :; }}
+        log_error() {{ echo "$1" >&2; }}
+        MDS_USER="$(whoami)"
+        MDS_HOME="$tmpdir/home"
+        MDS_INSTALL_DIR="$repo_dir"
+        MDS_DEFAULT_REPO_SLUG="demo/customer-mds"
+        MDS_DEFAULT_REPO_URL_SSH="git@github.com:demo/customer-mds.git"
+        MDS_DEFAULT_REPO_URL_HTTPS="https://github.com/demo/customer-mds.git"
+        MDS_DEFAULT_BRANCH="main"
+        source "{COMMON_LIB}"
+        source "{REPO_LIB}"
+        reconcile_repo_checkout_remote "https://github.com/demo/customer-mds.git"
+        [[ "$(git -C "$repo_dir" remote get-url origin)" == "https://github.com/demo/customer-mds.git" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_repo_reconcile_updates_remote_to_requested_runtime_repo():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        home_dir="$tmpdir/home"
+        mkdir -p "$home_dir"
+        git init -q "$repo_dir"
+        git -C "$repo_dir" remote add origin git@github.com:demo/old-mds.git
+        HOME="$home_dir"
+        log_info() {{ :; }}
+        log_error() {{ echo "$1" >&2; }}
+        log_success() {{ :; }}
+        MDS_DEFAULT_REPO_SLUG="demo/customer-mds"
+        MDS_DEFAULT_REPO_URL_HTTPS="https://github.com/demo/customer-mds.git"
+        MDS_DEFAULT_REPO_URL_SSH="git@github.com:demo/customer-mds.git"
+        MDS_DEFAULT_BRANCH="main"
+        source "{GCS_COMMON_LIB}"
+        source "{GCS_REPO_LIB}"
+        reconcile_gcs_repo_checkout_remote "$repo_dir" "https://github.com/demo/customer-mds.git"
+        [[ "$(git -C "$repo_dir" remote get-url origin)" == "https://github.com/demo/customer-mds.git" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_install_service_renders_runtime_user_and_install_dir():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        MDS_USER="skyfleet"
+        MDS_HOME="/srv/skyfleet"
+        MDS_INSTALL_DIR="{REPO_ROOT}"
+        MDS_SYSTEMD_DIR="$tmpdir/systemd"
+        mkdir -p "$MDS_SYSTEMD_DIR"
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_warn() {{ echo "$1" >&2; }}
+        log_success() {{ :; }}
+        backup_file() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        source "{COMMON_LIB}"
+        source "{SERVICES_LIB}"
+        install_service coordinator.service tools/coordinator.service
+        service_file="$MDS_SYSTEMD_DIR/coordinator.service"
+        test -f "$service_file"
+        grep -q '^User=skyfleet$' "$service_file"
+        grep -q '^Group=skyfleet$' "$service_file"
+        grep -q '^WorkingDirectory={REPO_ROOT}$' "$service_file"
+        grep -q '__MDS_' "$service_file" && exit 1 || true
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_repo_verification_uses_deployment_profile_defaults_not_params_file():
+    gcs_repo_text = (REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_repo.sh").read_text()
+    node_repo_text = REPO_LIB.read_text()
+
+    assert "deployment/defaults.env is the repo-owned default layer" in gcs_repo_text
+    assert "src/params.py fallback repo settings" not in gcs_repo_text
+    assert "deployment/defaults.env repo URL" in node_repo_text
+    assert "params.py GIT_REPO_URL" not in node_repo_text
+
+
 def test_run_services_phase_reconciles_runtime_services_after_enable():
     result = run_bash(
         f"""
@@ -439,6 +663,7 @@ def test_setup_local_env_writes_clean_override_lines():
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
         setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5000
         grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_CONNECTIVITY_BACKEND=none$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GCS_IP=100.64.20.10$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5000$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
@@ -449,6 +674,57 @@ def test_setup_local_env_writes_clean_override_lines():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_reconcile_connectivity_uses_repo_profile_when_backend_is_smart_wifi_manager():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/deployment/connectivity/smart-wifi-manager"
+        cp "{RECONCILE_CONNECTIVITY_SCRIPT}" "$repo_dir/tools.reconcile.sh"
+        cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
+{{"mode":"manage","profiles":[]}}
+EOF
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<'EOF'
+MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
+MDS_SMART_WIFI_MANAGER_INSTALL_DIR=TMPDIR_REPLACE/swm
+MDS_SMART_WIFI_MANAGER_MODE=manage
+MDS_SMART_WIFI_MANAGER_IMPORT_MODE=replace
+EOF
+        sed -i "s|TMPDIR_REPLACE|$tmpdir|g" "$config_dir/local.env"
+        cat > "$tmpdir/configure_smart_wifi_manager.sh" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" > "$TMPDIR/configure_args.txt"
+EOF
+        chmod +x "$tmpdir/configure_smart_wifi_manager.sh"
+        mkdir -p "$tmpdir/swm"
+        cp "$tmpdir/configure_smart_wifi_manager.sh" "$tmpdir/swm/configure_smart_wifi_manager.sh"
+        TMPDIR="$tmpdir" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH=deployment/connectivity/smart-wifi-manager/profile.json bash "$repo_dir/tools.reconcile.sh" apply --force
+        grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
+        grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_runtime_git_sync_reconciles_optional_connectivity_backend():
+    git_sync_text = GIT_SYNC_SCRIPT.read_text(encoding="utf-8")
+
+    assert "check_connectivity_updates()" in git_sync_text
+    assert 'sudo "${reconcile_script}" apply --quiet' in git_sync_text
+    assert '"wifi-manager"' not in git_sync_text
+
+
+def test_services_lib_core_service_order_excludes_embedded_wifi_manager():
+    services_text = SERVICES_LIB.read_text(encoding="utf-8")
+
+    assert '"wifi-manager.service"' not in services_text
+    assert '/bin/systemctl restart smart-wifi-manager' in services_text
+    assert '/tools/reconcile_connectivity.sh' in services_text
 
 
 def test_configure_gcs_env_persists_private_https_token_file():
@@ -522,9 +798,11 @@ def test_verify_hw_id_stays_safe_under_nounset():
         f"""
         set -u
         tmpdir="$(mktemp -d)"
-        MDS_INSTALL_DIR="$tmpdir"
+        MDS_CONFIG_DIR="$tmpdir/etc-mds"
+        MDS_LOCAL_ENV="$tmpdir/etc-mds/local.env"
         DRONE_ID=101
-        touch "$tmpdir/101.hwID"
+        mkdir -p "$MDS_CONFIG_DIR"
+        printf 'MDS_HW_ID=101\\n' > "$MDS_LOCAL_ENV"
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'verify.sh'}"
         verify_hw_id
         [[ "$(verify_get_result hw_id)" == "PASS:Drone 101" ]]
@@ -532,6 +810,17 @@ def test_verify_hw_id_stays_safe_under_nounset():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
+    create_text = (REPO_ROOT / "multiple_sitl" / "create_dockers.sh").read_text(encoding="utf-8")
+    startup_text = (REPO_ROOT / "multiple_sitl" / "startup_sitl.sh").read_text(encoding="utf-8")
+
+    assert '-e "MDS_HW_ID=${drone_id}"' in create_text
+    assert "resolve_runtime_hwid()" in startup_text
+    assert "MDS_HW_ID is required for SITL container startup." in startup_text
+    assert "wait_for_hwid()" not in startup_text
+    assert "cp '$RUNTIME_FILES_CONTAINER'/*.hwID" not in create_text
 
 
 def test_verify_netbird_parses_detail_output_and_extracts_primary_ip():

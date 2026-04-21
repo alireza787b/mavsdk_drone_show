@@ -19,13 +19,32 @@
 
 set -euo pipefail
 
+# Load the git-tracked deployment profile when running from a local checkout.
+# When this wrapper is fetched remotely or piped, it falls back to the embedded
+# official defaults below so the bootstrap remains self-contained.
+SCRIPT_DIR=""
+if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+if [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/load_deployment_profile.sh" ]]; then
+    MDS_REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    # shellcheck disable=SC1090
+    source "${SCRIPT_DIR}/load_deployment_profile.sh"
+fi
+
+DEFAULT_REPO_SLUG="${MDS_DEFAULT_REPO_SLUG:-alireza787b/mavsdk_drone_show}"
+DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/${DEFAULT_REPO_SLUG}.git}"
+DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main-candidate}"
+DEFAULT_PROJECT_NAME="${DEFAULT_REPO_SLUG##*/}"
+DEFAULT_INSTALL_GCS_URL="https://raw.githubusercontent.com/${DEFAULT_REPO_SLUG}/${DEFAULT_BRANCH}/tools/install_gcs.sh"
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
 # Repository settings
-REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
-BRANCH="${MDS_BRANCH:-main-candidate}"
+REPO_URL="${MDS_REPO_URL:-${DEFAULT_REPO_URL_HTTPS}}"
+BRANCH="${MDS_BRANCH:-${DEFAULT_BRANCH}}"
 
 # Installation directory - defaults to user's home directory
 # When running via sudo, SUDO_USER contains the original user
@@ -34,7 +53,7 @@ if [[ -n "${SUDO_USER:-}" ]]; then
 else
     DEFAULT_HOME="$HOME"
 fi
-INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/mavsdk_drone_show}"
+INSTALL_DIR="${MDS_INSTALL_DIR:-${DEFAULT_HOME}/${DEFAULT_PROJECT_NAME}}"
 GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
@@ -81,7 +100,7 @@ normalize_github_repo_path() {
     fi
 
     if [[ "$spec" != */* ]]; then
-        spec="${spec}/mavsdk_drone_show"
+        spec="${spec}/${DEFAULT_PROJECT_NAME}"
     fi
 
     printf '%s\n' "$spec"
@@ -413,12 +432,12 @@ USAGE:
     curl -fsSL <url> | sudo bash -s -- [OPTIONS]
 
 OPTIONS:
-    --branch BRANCH     Git branch to use (default: main-candidate)
+    --branch BRANCH     Git branch to use (default: ${BRANCH})
     --repo-url URL      Use an explicit repository URL for bootstrap and init
     --fork OWNER[/REPO] Use a GitHub fork or custom repo path
     --git-auth-token-file PATH
                         Read private HTTPS Git auth token from PATH
-    --install-dir PATH  Installation directory (default: \$HOME/mavsdk_drone_show)
+    --install-dir PATH  Installation directory (default: ${INSTALL_DIR})
     -h, --help          Show this help message
 
     All other options are passed to mds_gcs_init.sh
@@ -431,8 +450,8 @@ ENVIRONMENT VARIABLES:
     MDS_INSTALL_DIR     Installation directory
 
 EXAMPLES:
-    # Default installation (installs to ~/mavsdk_drone_show)
-    curl -fsSL https://raw.githubusercontent.com/.../install_gcs.sh | sudo bash
+    # Default installation
+    curl -fsSL ${DEFAULT_INSTALL_GCS_URL} | sudo bash
 
     # Use your own fork
     curl -fsSL ... | sudo bash -s -- --fork myusername
@@ -454,6 +473,9 @@ EXAMPLES:
 
     # Custom install directory
     curl -fsSL ... | sudo bash -s -- --install-dir /opt/mds
+
+    # Custom repo-derived install dir via environment
+    curl -fsSL ... | sudo env MDS_INSTALL_DIR=/srv/${DEFAULT_PROJECT_NAME} bash
 
 EOF
 }

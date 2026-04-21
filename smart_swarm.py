@@ -36,7 +36,7 @@
 
  Workflow:
    1. Initialization:
-      - Read the hardware ID from a .hwID file.
+      - Read the hardware ID from the canonical runtime identity model.
       - Load drone configuration from config.json and swarm configuration from swarm.json.
       - Determine if the drone is operating as a Leader or Follower.
       - Set formation offsets and body coordinate mode based on the swarm configuration.
@@ -1608,7 +1608,7 @@ async def run_smart_swarm():
     #      Initialization         #
     # --------------------------- #
 
-    # Read hardware ID from .hwID file
+    # Read hardware ID from the canonical runtime identity model
     HW_ID = ConfigLoader.get_hw_id()
     if HW_ID is None:
         logger.error("Hardware ID not found.")

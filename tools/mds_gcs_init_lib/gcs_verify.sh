@@ -11,6 +11,35 @@
 [[ -n "${_MDS_GCS_VERIFY_LOADED:-}" ]] && return 0
 _MDS_GCS_VERIFY_LOADED=1
 
+normalize_repo_url_for_compare() {
+    local repo_url="${1:-}"
+
+    repo_url="${repo_url%.git}"
+    repo_url="${repo_url#git@github.com:}"
+    repo_url="${repo_url#https://github.com/}"
+    repo_url="${repo_url#github.com/}"
+    printf '%s\n' "$repo_url"
+}
+
+get_gcs_origin_remote_url() {
+    local install_dir="${1:-${GCS_INSTALL_DIR:-$(pwd)}}"
+    git -C "$install_dir" remote get-url origin 2>/dev/null || echo "UNAVAILABLE"
+}
+
+get_gcs_repo_access_mode() {
+    local repo_url="${1:-${MDS_REPO_URL:-}}"
+
+    if [[ "$repo_url" == git@github.com:* ]]; then
+        echo "SSH deploy key"
+    elif [[ "$repo_url" == https://github.com/* ]] && [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then
+        echo "HTTPS token file"
+    elif [[ "$repo_url" == https://github.com/* ]]; then
+        echo "HTTPS public/read-only"
+    else
+        echo "CUSTOM/UNKNOWN"
+    fi
+}
+
 # =============================================================================
 # VERIFICATION CHECKS
 # =============================================================================
@@ -37,16 +66,37 @@ verify_repository() {
     branch=$(git branch --show-current 2>/dev/null)
     local commit
     commit=$(git rev-parse --short HEAD 2>/dev/null)
+    local configured_repo_url="${MDS_REPO_URL:-UNSET}"
+    local origin_remote
+    origin_remote=$(get_gcs_origin_remote_url "$install_dir")
     local status
     status=$(git status --porcelain 2>/dev/null | wc -l)
+    local repo_authority="MATCH"
+
+    if [[ "$configured_repo_url" == "UNSET" ]]; then
+        repo_authority="NO CONFIGURED REPO"
+    elif [[ "$origin_remote" == "UNAVAILABLE" ]]; then
+        repo_authority="NO GIT REMOTE"
+    elif [[ "$(normalize_repo_url_for_compare "$configured_repo_url")" != "$(normalize_repo_url_for_compare "$origin_remote")" ]]; then
+        repo_authority="MISMATCH"
+    fi
 
     echo -e "    Branch: ${GREEN}${branch}${NC}"
     echo -e "    Commit: ${GREEN}${commit}${NC}"
+    echo -e "    Configured Repo: ${GREEN}${configured_repo_url}${NC}"
+    echo -e "    Origin Remote: ${GREEN}${origin_remote}${NC}"
+    echo -e "    Repo Authority: ${GREEN}${repo_authority}${NC}"
+    echo -e "    Repo Access: ${GREEN}$(get_gcs_repo_access_mode "$configured_repo_url")${NC}"
+    echo -e "    Git Auto Push: ${GREEN}${MDS_GIT_AUTO_PUSH:-UNSET}${NC}"
 
     if [[ "$status" -gt 0 ]]; then
         echo -e "    Status: ${YELLOW}${status} modified files${NC}"
     else
         echo -e "    Status: ${GREEN}Clean${NC}"
+    fi
+
+    if [[ "$repo_authority" == "MISMATCH" ]]; then
+        log_warn "Configured MDS_REPO_URL does not match the checkout remote. Re-run mds_gcs_init.sh or update_repo_ssh.sh to reconcile runtime repo authority."
     fi
 
     log_success "Repository verified"

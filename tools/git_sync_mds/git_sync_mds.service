@@ -1,6 +1,6 @@
 [Unit]
 Description=MDS Git Synchronization Service
-After=wifi-manager.service network-online.target
+After=network-online.target
 Wants=network-online.target
 # Restart limits (must be in [Unit] for systemd 249+)
 StartLimitIntervalSec=600
@@ -9,9 +9,9 @@ StartLimitBurst=3
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-# __MDS_USER__ and __MDS_HOME__ are replaced at install time by install_git_sync_mds.sh
-ExecStart=__MDS_HOME__/mavsdk_drone_show/tools/update_repo_ssh.sh
-WorkingDirectory=__MDS_HOME__/mavsdk_drone_show
+# __MDS_USER__, __MDS_HOME__, and __MDS_INSTALL_DIR__ are replaced at install time.
+ExecStart=__MDS_INSTALL_DIR__/tools/update_repo_ssh.sh
+WorkingDirectory=__MDS_INSTALL_DIR__
 User=__MDS_USER__
 Group=__MDS_USER__
 TimeoutStartSec=600
@@ -22,7 +22,7 @@ EnvironmentFile=-/etc/mds/local.env
 EnvironmentFile=-__MDS_HOME__/.config/mds/env
 
 Environment="HOME=__MDS_HOME__"
-Environment="PATH=__MDS_HOME__/mavsdk_drone_show/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=__MDS_INSTALL_DIR__/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
 # Security hardening
 PrivateTmp=yes

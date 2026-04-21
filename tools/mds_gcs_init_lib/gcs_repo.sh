@@ -17,6 +17,7 @@ _MDS_GCS_REPO_LOADED=1
 
 readonly GCS_SSH_KEY_PATH="${HOME}/.ssh/mds_gcs_deploy_key"
 readonly GCS_SSH_KEY_PUB="${GCS_SSH_KEY_PATH}.pub"
+readonly GCS_DEFAULT_PROJECT_NAME="${MDS_DEFAULT_REPO_SLUG##*/}"
 
 gcs_git_ssh_command() {
     printf 'ssh -i %q -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new' "$GCS_SSH_KEY_PATH"
@@ -56,6 +57,31 @@ configure_repo_ssh_command() {
     else
         git -C "$repo_dir" config --unset-all core.sshCommand >/dev/null 2>&1 || true
     fi
+}
+
+reconcile_gcs_repo_checkout_remote() {
+    local repo_dir="$1"
+    local repo_url="$2"
+    local current_remote=""
+
+    if ! [[ -d "${repo_dir}/.git" ]]; then
+        return 0
+    fi
+
+    current_remote=$(git -C "$repo_dir" remote get-url origin 2>/dev/null || echo "")
+    if [[ -n "$current_remote" && "$current_remote" != "$repo_url" ]]; then
+        log_info "Updating remote URL..."
+        log_info "  From: $current_remote"
+        log_info "  To:   $repo_url"
+        run_gcs_git_command "$repo_url" -C "$repo_dir" remote set-url origin "$repo_url" || {
+            log_error "Failed to update remote URL"
+            return 1
+        }
+        log_success "Remote URL updated"
+    fi
+
+    configure_repo_ssh_command "$repo_dir" "$repo_url"
+    return 0
 }
 
 is_github_https_repo_url() {
@@ -152,7 +178,7 @@ normalize_github_repo_path() {
     fi
 
     if [[ "$spec" != */* ]]; then
-        spec="${spec}/mavsdk_drone_show"
+        spec="${spec}/${GCS_DEFAULT_PROJECT_NAME}"
     fi
 
     printf '%s\n' "$spec"
@@ -170,7 +196,7 @@ display_readonly_warning() {
     echo -e "${YELLOW}├────────────────────────────────────────────────────────────────────────────┤${NC}"
     echo -e "${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}  You're using the default MDS repository:"
-    echo -e "${YELLOW}│${NC}  ${DIM}github.com/${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show${NC}"
+        echo -e "${YELLOW}│${NC}  ${DIM}github.com/${MDS_DEFAULT_REPO_SLUG}${NC}"
     echo -e "${YELLOW}│${NC}"
     echo -e "${YELLOW}│${NC}  ${WHITE}Unless you are the owner or a collaborator:${NC}"
     echo -e "${YELLOW}│${NC}    • ${RED}NO write access${NC} - you cannot push changes"
@@ -184,47 +210,42 @@ display_readonly_warning() {
     echo ""
 }
 
-# Compare selected repo settings against src/params.py fallback defaults
+# Compare selected repo settings against the git-tracked deployment profile defaults
 verify_fork_config() {
-    local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
-    local params_file="${install_dir}/src/params.py"
-
-    # Only check if we have a custom repo and params.py exists
-    if [[ -z "${REPO_URL:-}" ]] || [[ ! -f "$params_file" ]]; then
+    if [[ -z "${REPO_URL:-}" ]]; then
         return 0
     fi
 
     log_step "Verifying fork configuration..."
 
-    local params_repo params_branch
-    params_repo=$(grep -E "^GIT_REPO_URL\s*=" "$params_file" 2>/dev/null | cut -d'"' -f2 || echo "")
-    params_branch=$(grep -E "^GIT_BRANCH\s*=" "$params_file" 2>/dev/null | cut -d'"' -f2 || echo "")
+    local profile_repo="${GCS_DEFAULT_REPO_SSH}"
+    local profile_branch="${GCS_DEFAULT_BRANCH}"
 
     local current_repo="${REPO_URL}"
     local current_branch="${BRANCH:-$GCS_DEFAULT_BRANCH}"
 
     # Convert both to comparable format (remove .git suffix)
-    local clean_params_repo="${params_repo%.git}"
+    local clean_profile_repo="${profile_repo%.git}"
     local clean_current_repo="${current_repo%.git}"
     # Convert SSH to HTTPS format for comparison
-    clean_params_repo=$(echo "$clean_params_repo" | sed 's|git@github.com:|https://github.com/|')
+    clean_profile_repo=$(echo "$clean_profile_repo" | sed 's|git@github.com:|https://github.com/|')
     clean_current_repo=$(echo "$clean_current_repo" | sed 's|git@github.com:|https://github.com/|')
 
     local mismatches=0
 
-    if [[ -n "$params_repo" ]] && [[ "$clean_params_repo" != "$clean_current_repo" ]]; then
+    if [[ -n "$profile_repo" ]] && [[ "$clean_profile_repo" != "$clean_current_repo" ]]; then
         echo ""
-        echo -e "  ${YELLOW}⚠ Repository mismatch detected:${NC}"
+        echo -e "  ${YELLOW}⚠ Repository override detected:${NC}"
         echo -e "    Configured (GCS): ${CYAN}${current_repo}${NC}"
-        echo -e "    In params.py:     ${CYAN}${params_repo}${NC}"
+        echo -e "    Profile default:  ${CYAN}${profile_repo}${NC}"
         ((mismatches++))
     fi
 
-    if [[ -n "$params_branch" ]] && [[ "$params_branch" != "$current_branch" ]]; then
+    if [[ -n "$profile_branch" ]] && [[ "$profile_branch" != "$current_branch" ]]; then
         echo ""
-        echo -e "  ${YELLOW}⚠ Branch mismatch detected:${NC}"
+        echo -e "  ${YELLOW}⚠ Branch override detected:${NC}"
         echo -e "    Configured (GCS): ${CYAN}${current_branch}${NC}"
-        echo -e "    In params.py:     ${CYAN}${params_branch}${NC}"
+        echo -e "    Profile default:  ${CYAN}${profile_branch}${NC}"
         ((mismatches++))
     fi
 
@@ -232,7 +253,7 @@ verify_fork_config() {
         echo ""
         echo -e "  ${WHITE}What this means:${NC}"
         echo -e "  ${DIM}• GCS dashboard startup uses /etc/mds/gcs.env (your selection above)${NC}"
-        echo -e "  ${DIM}• src/params.py is fallback-only when runtime env files are absent${NC}"
+        echo -e "  ${DIM}• deployment/defaults.env is the repo-owned default layer${NC}"
         echo -e "  ${DIM}• Real nodes use /etc/mds/local.env for host-specific repo/branch overrides${NC}"
         echo ""
         echo -e "  ${WHITE}No action needed${NC} — the dashboard start script exports your"
@@ -251,15 +272,15 @@ prompt_repository_selection() {
     # Skip if non-interactive or already have a custom repo URL
     if [[ "${NON_INTERACTIVE:-false}" == "true" ]]; then
         log_info "Using default repository (non-interactive mode)"
-        log_info "Repository: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show"
-        log_info "Branch: ${BRANCH:-main-candidate}"
+        log_info "Repository: ${MDS_DEFAULT_REPO_SLUG}"
+        log_info "Branch: ${BRANCH:-$GCS_DEFAULT_BRANCH}"
         return 0
     fi
 
     # If REPO_URL is already set (via CLI or env), use it
     if [[ -n "${REPO_URL:-}" ]]; then
         log_info "Using provided repository: ${REPO_URL}"
-        log_info "Branch: ${BRANCH:-main-candidate}"
+        log_info "Branch: ${BRANCH:-$GCS_DEFAULT_BRANCH}"
         return 0
     fi
 
@@ -268,12 +289,12 @@ prompt_repository_selection() {
     echo -e "${CYAN}|${NC}  ${WHITE}Repository Selection${NC}"
     echo -e "${CYAN}+------------------------------------------------------------------------------+${NC}"
     echo ""
-    echo -e "  Default: ${GREEN}github.com/${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show${NC}"
-    echo -e "  Branch:  ${CYAN}${BRANCH:-main-candidate}${NC}"
+    echo -e "  Default: ${GREEN}github.com/${MDS_DEFAULT_REPO_SLUG}${NC}"
+    echo -e "  Branch:  ${CYAN}${BRANCH:-$GCS_DEFAULT_BRANCH}${NC}"
     echo ""
 
     if confirm "Use default repository?" "y"; then
-        log_info "Using: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show (${BRANCH:-main-candidate})"
+        log_info "Using: ${MDS_DEFAULT_REPO_SLUG} (${BRANCH:-$GCS_DEFAULT_BRANCH})"
     else
         echo ""
         echo -e "  ${WHITE}Enter your custom GitHub repository:${NC}"
@@ -291,7 +312,7 @@ prompt_repository_selection() {
             export REPO_URL
             echo ""
             log_info "Repository: ${REPO_URL}"
-            log_info "Branch: ${BRANCH:-main-candidate}"
+            log_info "Branch: ${BRANCH:-$GCS_DEFAULT_BRANCH}"
         else
             log_warn "No repository provided, using default repository"
         fi
@@ -477,6 +498,10 @@ clone_or_update_repo() {
     local branch="${BRANCH:-$GCS_DEFAULT_BRANCH}"
     local install_dir="${GCS_INSTALL_DIR:-$(pwd)}"
 
+    REPO_URL="$repo_url"
+    BRANCH="$branch"
+    export REPO_URL BRANCH
+
     log_step "Repository: $repo_url"
     log_step "Branch: $branch"
     log_step "Install directory: $install_dir"
@@ -490,22 +515,7 @@ clone_or_update_repo() {
     if [[ -d "${install_dir}/.git" ]]; then
         cd "$install_dir" || return 1
 
-        # Check if remote URL needs to be updated (user selected different fork)
-        local current_remote
-        current_remote=$(git remote get-url origin 2>/dev/null || echo "")
-
-        if [[ "$current_remote" != "$repo_url" ]]; then
-            log_info "Updating remote URL..."
-            log_info "  From: $current_remote"
-            log_info "  To:   $repo_url"
-            run_gcs_git_command "$repo_url" remote set-url origin "$repo_url" || {
-                log_error "Failed to update remote URL"
-                return 1
-            }
-            log_success "Remote URL updated"
-        fi
-
-        configure_repo_ssh_command "$install_dir" "$repo_url"
+        reconcile_gcs_repo_checkout_remote "$install_dir" "$repo_url" || return 1
         log_info "Fetching from remote..."
 
         # Fetch and checkout branch
@@ -626,7 +636,7 @@ run_repository_phase() {
         echo -e "${CYAN}├────────────────────────────────────────────────────────────────────────────┤${NC}"
         echo -e "${CYAN}│${NC}"
         echo -e "${CYAN}│${NC}  ${WHITE}[1]${NC} ${GREEN}No - Use default repository (Recommended for testing)${NC}"
-        echo -e "${CYAN}│${NC}      github.com/${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show"
+        echo -e "${CYAN}│${NC}      github.com/${MDS_DEFAULT_REPO_SLUG}"
         echo -e "${CYAN}│${NC}      ${YELLOW}⚠ Limited: SITL/testing only unless you have collaborator access${NC}"
         echo -e "${CYAN}│${NC}"
         echo -e "${CYAN}│${NC}  ${WHITE}[2]${NC} Yes - I have my own fork"
@@ -647,14 +657,14 @@ run_repository_phase() {
             read -p "  Your GitHub username: " github_user </dev/tty
 
             if [[ -n "$github_user" ]]; then
-                read -p "  Branch name [main-candidate]: " custom_branch </dev/tty
-                custom_branch=${custom_branch:-main-candidate}
+                read -p "  Branch name [${GCS_DEFAULT_BRANCH}]: " custom_branch </dev/tty
+                custom_branch=${custom_branch:-$GCS_DEFAULT_BRANCH}
 
-                REPO_URL="https://github.com/${github_user}/mavsdk_drone_show.git"
+                REPO_URL="https://github.com/${github_user}/${GCS_DEFAULT_PROJECT_NAME}.git"
                 BRANCH="$custom_branch"
                 export REPO_URL BRANCH
 
-                log_info "Using fork: ${github_user}/mavsdk_drone_show"
+                log_info "Using fork: ${github_user}/${GCS_DEFAULT_PROJECT_NAME}"
                 log_info "Branch: ${BRANCH}"
 
                 # Fork users need SSH for write access
@@ -665,8 +675,8 @@ run_repository_phase() {
                 using_default_repo="true"
             fi
         else
-            log_info "Using official repository: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show"
-            log_info "Branch: ${BRANCH:-main-candidate}"
+            log_info "Using official repository: ${MDS_DEFAULT_REPO_SLUG}"
+            log_info "Branch: ${BRANCH:-$GCS_DEFAULT_BRANCH}"
 
             # Show read-only warning for default repo
             display_readonly_warning
@@ -688,9 +698,9 @@ run_repository_phase() {
             log_info "Repository: ${REPO_URL}"
             using_default_repo="false"
         else
-            log_info "Repository: ${GCS_DEFAULT_REPO_OWNER}/mavsdk_drone_show (default)"
+            log_info "Repository: ${MDS_DEFAULT_REPO_SLUG} (default)"
         fi
-        log_info "Branch: ${BRANCH:-main-candidate}"
+        log_info "Branch: ${BRANCH:-$GCS_DEFAULT_BRANCH}"
         echo ""
     fi
 

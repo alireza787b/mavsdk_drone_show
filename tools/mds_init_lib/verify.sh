@@ -21,7 +21,8 @@ VERIFY_RESULTS_TEXT=""
 verify_component_stream() {
     cat <<'EOF'
 hw_id
-real_mode
+runtime_mode
+connectivity_backend
 repository
 python_env
 mavsdk
@@ -33,6 +34,7 @@ mavlink_router
 serial_config
 netbird
 network
+smart_wifi_manager
 EOF
 }
 
@@ -74,32 +76,65 @@ verify_run_git_query() {
         sudo -u "${MDS_USER}" git -C "${MDS_INSTALL_DIR}" "$@" 2>/dev/null || true
 }
 
-# Verify hardware ID
-verify_hw_id() {
+get_verified_hw_id() {
     local drone_id="${DRONE_ID:-}"
 
     if [[ -z "$drone_id" ]]; then
-        # Try to detect from hwID file
-        drone_id=$(get_current_hwid 2>/dev/null || echo "")
+        drone_id=$(grep "^MDS_HW_ID=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2 || true)
     fi
 
-    if [[ -n "$drone_id" ]] && [[ -f "${MDS_INSTALL_DIR}/${drone_id}.hwID" ]]; then
+    if [[ -z "$drone_id" ]] && [[ -f "${MDS_NODE_IDENTITY_FILE}" ]] && command -v jq &>/dev/null; then
+        drone_id=$(jq -r '.hw_id // ""' "${MDS_NODE_IDENTITY_FILE}" 2>/dev/null || echo "")
+    fi
+
+    printf '%s\n' "$drone_id"
+}
+
+# Verify hardware ID
+verify_hw_id() {
+    local drone_id
+    drone_id="$(get_verified_hw_id)"
+
+    if [[ -n "$drone_id" ]]; then
         verify_set_result "hw_id" "PASS:Drone ${drone_id}"
         return 0
     fi
 
-    verify_set_result "hw_id" "FAIL:No hwID file found"
+    verify_set_result "hw_id" "FAIL:No canonical HW_ID found"
     return 1
 }
 
-# Verify real.mode marker
-verify_real_mode() {
-    if [[ -f "${MDS_INSTALL_DIR}/real.mode" ]]; then
-        verify_set_result "real_mode" "PASS:Present"
+# Verify runtime mode
+verify_runtime_mode() {
+    local runtime_mode=""
+    runtime_mode=$(grep "^MDS_MODE=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2 || true)
+
+    if [[ "$runtime_mode" == "real" || "$runtime_mode" == "sitl" ]]; then
+        verify_set_result "runtime_mode" "PASS:${runtime_mode}"
         return 0
     fi
 
-    verify_set_result "real_mode" "WARN:Not present (SITL mode)"
+    verify_set_result "runtime_mode" "WARN:canonical MDS_MODE missing"
+    return 0
+}
+
+verify_connectivity_backend() {
+    local backend=""
+    backend=$(grep "^MDS_CONNECTIVITY_BACKEND=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2 || true)
+    [[ -z "$backend" ]] && backend="${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}"
+
+    case "$backend" in
+        none|manual)
+            verify_set_result "connectivity_backend" "PASS:none"
+            ;;
+        smart-wifi-manager)
+            verify_set_result "connectivity_backend" "PASS:smart-wifi-manager"
+            ;;
+        *)
+            verify_set_result "connectivity_backend" "WARN:Unknown (${backend})"
+            ;;
+    esac
+
     return 0
 }
 
@@ -158,15 +193,16 @@ verify_local_env() {
         return 0
     fi
 
-    local hw_id
+    local hw_id runtime_mode
     hw_id=$(grep "^MDS_HW_ID=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2)
+    runtime_mode=$(grep "^MDS_MODE=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2)
 
-    if [[ -n "$hw_id" ]]; then
-        verify_set_result "local_env" "PASS:HW_ID=${hw_id}"
+    if [[ -n "$hw_id" ]] && [[ -n "$runtime_mode" ]]; then
+        verify_set_result "local_env" "PASS:HW_ID=${hw_id},MODE=${runtime_mode}"
         return 0
     fi
 
-    verify_set_result "local_env" "WARN:HW_ID not set"
+    verify_set_result "local_env" "WARN:HW_ID or MDS_MODE not set"
     return 0
 }
 
@@ -191,7 +227,7 @@ verify_firewall() {
 
 # Verify services
 verify_service_status() {
-    local services=("led_indicator" "wifi-manager" "git_sync_mds" "coordinator")
+    local services=("led_indicator" "git_sync_mds" "coordinator")
     local enabled=0
     local total=${#services[@]}
 
@@ -207,6 +243,45 @@ verify_service_status() {
     fi
 
     verify_set_result "services" "WARN:${enabled}/${total} enabled"
+    return 0
+}
+
+verify_smart_wifi_manager() {
+    local backend=""
+    backend=$(grep "^MDS_CONNECTIVITY_BACKEND=" "${MDS_LOCAL_ENV}" 2>/dev/null | cut -d= -f2 || true)
+    [[ -z "$backend" ]] && backend="${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}"
+
+    if [[ "$backend" != "smart-wifi-manager" ]]; then
+        verify_set_result "smart_wifi_manager" "SKIP:Not selected"
+        return 0
+    fi
+
+    if ! systemctl is-enabled smart-wifi-manager.service &>/dev/null; then
+        verify_set_result "smart_wifi_manager" "WARN:Not enabled"
+        return 0
+    fi
+
+    if systemctl is-active smart-wifi-manager.service &>/dev/null; then
+        local mode="unknown"
+        local connected_ssid=""
+
+        if [[ -f /etc/smart-wifi-manager/config.json ]] && command -v jq &>/dev/null; then
+            mode=$(jq -r '.mode // "unknown"' /etc/smart-wifi-manager/config.json 2>/dev/null || echo "unknown")
+        fi
+
+        if [[ -f /run/smart-wifi-manager/status.json ]] && command -v jq &>/dev/null; then
+            connected_ssid=$(jq -r '.connected_ssid // ""' /run/smart-wifi-manager/status.json 2>/dev/null || echo "")
+        fi
+
+        if [[ -n "$connected_ssid" ]]; then
+            verify_set_result "smart_wifi_manager" "PASS:${mode} (${connected_ssid})"
+        else
+            verify_set_result "smart_wifi_manager" "PASS:${mode}"
+        fi
+        return 0
+    fi
+
+    verify_set_result "smart_wifi_manager" "WARN:Enabled but not running"
     return 0
 }
 
@@ -413,7 +488,8 @@ run_all_verifications() {
     log_step "Running verification checks..."
 
     verify_hw_id
-    verify_real_mode
+    verify_runtime_mode
+    verify_connectivity_backend
     verify_repository
     verify_python_env
     verify_mavsdk
@@ -425,6 +501,7 @@ run_all_verifications() {
     verify_serial_config
     verify_netbird
     verify_network
+    verify_smart_wifi_manager
 
     return 0
 }
@@ -455,7 +532,7 @@ run_recovery_health() {
 
 # Generate summary report
 generate_summary_report() {
-    local drone_id="${DRONE_ID:-$(get_current_hwid 2>/dev/null || echo 'Unknown')}"
+    local drone_id="${DRONE_ID:-$(get_verified_hw_id 2>/dev/null || echo 'Unknown')}"
 
     echo ""
     echo -e "${CYAN}╔══════════════════════════════════════════════════════════════════════════════╗${NC}"
@@ -614,6 +691,15 @@ display_next_steps() {
         echo -e "      ${DIM}Interface Options → Serial Port → Login shell: NO, Hardware: YES${NC}"
     fi
 
+    local connectivity_status
+    connectivity_status="$(verify_get_result "smart_wifi_manager")"
+    if [[ "$connectivity_status" == WARN:* ]]; then
+        echo ""
+        echo -e "  ${WARN} Smart Wi-Fi Manager is selected but not healthy"
+        echo -e "      ${GREEN}sudo ./tools/reconcile_connectivity.sh apply --force${NC}"
+        echo -e "      ${DIM}Then inspect: journalctl -u smart-wifi-manager --since '10 minutes ago'${NC}"
+    fi
+
     echo ""
     echo -e "  ${INFO} Reboot to apply all changes: ${GREEN}sudo reboot${NC}"
     echo ""
@@ -628,7 +714,7 @@ display_next_steps() {
 # =============================================================================
 
 run_verify_phase() {
-    print_phase_header "13" "Verification"
+    print_phase_header "14" "Verification"
 
     set_led_state "STARTUP_COMPLETE"
 

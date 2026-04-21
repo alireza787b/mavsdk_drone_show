@@ -87,6 +87,13 @@ SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 # The script is in PROJECT_ROOT/app/, so PARENT_DIR is PROJECT_ROOT
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$PARENT_DIR"
+MDS_REPO_ROOT="$PROJECT_ROOT"
+DEPLOYMENT_PROFILE_LOADER="$PROJECT_ROOT/tools/load_deployment_profile.sh"
+if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
+    # shellcheck disable=SC1090
+    source "$DEPLOYMENT_PROFILE_LOADER"
+    DEV_GCS_PORT="${MDS_DEFAULT_GCS_API_PORT:-$DEV_GCS_PORT}"
+fi
 
 # All paths are relative to PROJECT_ROOT (the repository root)
 REACT_APP_DIR="$PROJECT_ROOT/app/dashboard/drone-dashboard"
@@ -103,7 +110,6 @@ fi
 
 ENV_FILE_PATH="$REACT_APP_DIR/.env"
 BUILD_DIR="$REACT_APP_DIR/build"
-REAL_MODE_FILE="$PROJECT_ROOT/real.mode"
 UPDATE_SCRIPT_PATH="$PROJECT_ROOT/tools/update_repo_ssh.sh"
 VERSION_FILE_PATH="$PROJECT_ROOT/VERSION"
 SPA_SERVER_SCRIPT="$PROJECT_ROOT/tools/spa_static_server.py"
@@ -120,12 +126,13 @@ USE_TMUX=true
 COMBINED_VIEW=true
 USE_SITL=false
 USE_REAL=false
+STATUS_ONLY=false
 OVERWRITE_IP=""
 SKIP_DEPENDENCY_CHECK=false
 # Repository Configuration: Environment Variable Support (MDS v3.1+)
 # This script now supports custom branches via environment variables
 # Default behavior unchanged for normal users
-BRANCH_NAME="${MDS_BRANCH:-main-candidate}"
+BRANCH_NAME="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
 PROJECT_VERSION="unknown"
 
 if [[ -f "$VERSION_FILE_PATH" ]]; then
@@ -257,15 +264,155 @@ configure_react_version_env() {
     export REACT_APP_GIT_BRANCH="$git_branch"
 }
 
+normalize_runtime_mode() {
+    local value="${1:-}"
+    value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]')"
+
+    case "$value" in
+        real|hardware|production) echo "real" ;;
+        sitl|sim|simulation|simulated) echo "sitl" ;;
+        *) echo "" ;;
+    esac
+}
+
 # ===========================================
 # STATUS AND DIAGNOSTIC FUNCTIONS
 # ===========================================
+resolve_current_runtime_mode() {
+    local normalized_mode=""
+    normalized_mode="$(normalize_runtime_mode "${MDS_MODE:-}")"
+
+    if [[ -n "$normalized_mode" ]]; then
+        echo "$normalized_mode"
+        return 0
+    fi
+
+    echo "sitl"
+}
+
+get_runtime_mode_source() {
+    local normalized_mode=""
+    normalized_mode="$(normalize_runtime_mode "${MDS_MODE:-}")"
+
+    if [[ -n "$normalized_mode" ]]; then
+        echo "env:MDS_MODE"
+        return 0
+    fi
+
+    echo "default:sitl"
+}
+
 get_current_drone_mode() {
-    if [[ -f "$REAL_MODE_FILE" ]]; then
+    local runtime_mode
+    runtime_mode="$(resolve_current_runtime_mode)"
+
+    if [[ "$runtime_mode" == "real" ]]; then
         echo "REAL (Hardware)"
     else
         echo "SITL (Simulation)"
     fi
+}
+
+normalize_repo_url_for_compare() {
+    local repo_url="${1:-}"
+
+    repo_url="${repo_url%.git}"
+    repo_url="${repo_url#git@github.com:}"
+    repo_url="${repo_url#https://github.com/}"
+    repo_url="${repo_url#github.com/}"
+    printf '%s\n' "$repo_url"
+}
+
+get_configured_repo_url() {
+    if [[ -n "${MDS_REPO_URL:-}" ]]; then
+        printf '%s\n' "$MDS_REPO_URL"
+    else
+        echo "UNSET"
+    fi
+}
+
+get_origin_remote_url() {
+    git -C "$PROJECT_ROOT" remote get-url origin 2>/dev/null || echo "UNAVAILABLE"
+}
+
+repo_authority_status() {
+    local configured_repo="${MDS_REPO_URL:-}"
+    local origin_remote=""
+
+    origin_remote="$(get_origin_remote_url)"
+
+    if [[ -z "$configured_repo" ]]; then
+        echo "NO CONFIGURED REPO"
+        return 0
+    fi
+
+    if [[ "$origin_remote" == "UNAVAILABLE" ]]; then
+        echo "NO GIT REMOTE"
+        return 0
+    fi
+
+    if [[ "$(normalize_repo_url_for_compare "$configured_repo")" == "$(normalize_repo_url_for_compare "$origin_remote")" ]]; then
+        echo "MATCH"
+    else
+        echo "MISMATCH"
+    fi
+}
+
+get_repo_access_mode() {
+    local repo_url="${MDS_REPO_URL:-$(get_origin_remote_url)}"
+
+    if [[ "$repo_url" == git@github.com:* ]]; then
+        echo "SSH deploy key"
+    elif [[ "$repo_url" == https://github.com/* ]] && [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then
+        echo "HTTPS token file"
+    elif [[ "$repo_url" == https://github.com/* ]]; then
+        echo "HTTPS public/read-only"
+    else
+        echo "CUSTOM/UNKNOWN"
+    fi
+}
+
+get_git_auto_push_status() {
+    if [[ -n "${MDS_GIT_AUTO_PUSH:-}" ]]; then
+        printf '%s\n' "$MDS_GIT_AUTO_PUSH"
+    else
+        echo "UNSET"
+    fi
+}
+
+persist_runtime_mode_in_gcs_config() {
+    local runtime_mode="$1"
+
+    [[ -f "$GCS_SYSTEM_CONFIG" ]] || return 0
+
+    if [[ ! -w "$GCS_SYSTEM_CONFIG" ]]; then
+        log_warn "Cannot persist MDS_MODE=${runtime_mode} to ${GCS_SYSTEM_CONFIG}; using process override only."
+        return 0
+    fi
+
+    if grep -q '^MDS_MODE=' "$GCS_SYSTEM_CONFIG"; then
+        sed -i "s/^MDS_MODE=.*/MDS_MODE=${runtime_mode}/" "$GCS_SYSTEM_CONFIG"
+    else
+        printf '\nMDS_MODE=%s\n' "$runtime_mode" >> "$GCS_SYSTEM_CONFIG"
+    fi
+}
+
+apply_requested_runtime_mode() {
+    local requested_mode=""
+
+    if [[ "$USE_REAL" == "true" ]]; then
+        requested_mode="real"
+        log_info "Switching canonical runtime mode to REAL..."
+    elif [[ "$USE_SITL" == "true" ]]; then
+        requested_mode="sitl"
+        log_info "Switching canonical runtime mode to SITL..."
+    else
+        return 0
+    fi
+
+    export MDS_MODE="$requested_mode"
+    persist_runtime_mode_in_gcs_config "$requested_mode"
+    log_success "Runtime mode set to ${requested_mode}."
 }
 
 show_current_status() {
@@ -274,8 +421,13 @@ show_current_status() {
 ===============================================
   DRONE SERVICES - CURRENT STATUS
 ===============================================
-Drone Mode:       $(get_current_drone_mode)
-Real Mode File:   $([[ -f "$REAL_MODE_FILE" ]] && echo "EXISTS" || echo "NOT PRESENT")
+Runtime Mode:     $(get_current_drone_mode)
+Mode Source:      $(get_runtime_mode_source)
+Configured Repo:  $(get_configured_repo_url)
+Origin Remote:    $(get_origin_remote_url)
+Repo Authority:   $(repo_authority_status)
+Repo Access:      $(get_repo_access_mode)
+Git Auto Push:    $(get_git_auto_push_status)
 Backend:          $GCS_BACKEND
 Backend Reload:   $([[ "$DEPLOYMENT_MODE" == "production" ]] && echo "DISABLED (production)" || (backend_reload_enabled && echo "ENABLED (dev override)" || echo "DISABLED (state-safe default)"))
 Virtual Env:      $([[ -d "$VENV_PATH" ]] && echo "OK ($VENV_PATH)" || echo "MISSING")
@@ -424,8 +576,8 @@ run_configuration_check() {
         log_info "  Server URL: Will auto-detect from browser"
     fi
 
-    # Check current drone mode
-    log_info "Current drone mode: $(get_current_drone_mode)"
+    # Check current runtime mode
+    log_info "Current runtime mode: $(get_current_drone_mode) ($(get_runtime_mode_source))"
 
     # Check tmux
     if command -v tmux &> /dev/null; then
@@ -530,7 +682,7 @@ SERVICE OPTIONS:
 
 DIAGNOSTICS:
   --check               : Check configuration and dependencies without starting
-  --status              : Show current mode (SITL/Real) and configuration
+  --status              : Show current runtime mode and configuration
 
 NETWORK OPTIONS:
   --overwrite-ip <IP>   : Override server IP in environment
@@ -559,7 +711,7 @@ parse_arguments() {
             --rebuild|--force-rebuild) FORCE_REBUILD=true; shift ;;
             --skip-deps) SKIP_DEPENDENCY_CHECK=true; shift ;;
             --check) CHECK_ONLY=true; shift ;;
-            --status) show_current_status; exit 0 ;;
+            --status) STATUS_ONLY=true; shift ;;
             --sitl)
                 if [[ "$USE_REAL" == "true" ]]; then
                     log_error "Cannot use --sitl and --real simultaneously."
@@ -640,24 +792,6 @@ load_virtualenv() {
         log_error "Virtual environment not found: $VENV_PATH"
         log_error "Please create virtual environment first."
         exit 1
-    fi
-}
-
-handle_real_mode_file() {
-    if [[ "$USE_REAL" == "true" ]]; then
-        log_info "Switching to Real Mode..."
-        touch "$REAL_MODE_FILE"
-        log_success "Real mode file created."
-    elif [[ "$USE_SITL" == "true" ]]; then
-        log_info "Switching to Simulation Mode..."
-        if [[ -f "$REAL_MODE_FILE" ]]; then
-            rm "$REAL_MODE_FILE"
-            log_success "Real mode file removed."
-        else
-            log_info "Already in Simulation Mode."
-        fi
-    else
-        log_info "No mode switch requested. Current mode preserved."
     fi
 }
 
@@ -1149,11 +1283,11 @@ EOF
     fi
 
     if [[ "$USE_REAL" == "true" ]]; then
-        echo "Drone Mode: REAL (Hardware) [switching]"
+        echo "Runtime Mode: REAL (Hardware) [switching]"
     elif [[ "$USE_SITL" == "true" ]]; then
-        echo "Drone Mode: SITL (Simulation) [switching]"
+        echo "Runtime Mode: SITL (Simulation) [switching]"
     else
-        echo "Drone Mode: $(get_current_drone_mode) [current]"
+        echo "Runtime Mode: $(get_current_drone_mode) [current via $(get_runtime_mode_source)]"
     fi
 
     if [[ -n "$OVERWRITE_IP" ]]; then
@@ -1249,6 +1383,11 @@ parse_arguments "$@"
 # Load GCS system configuration if available
 load_gcs_system_config 2>/dev/null || true
 
+if [[ "$STATUS_ONLY" == "true" ]]; then
+    show_current_status
+    exit 0
+fi
+
 # Handle --check option (run checks only, don't start services)
 if [[ "$CHECK_ONLY" == "true" ]]; then
     run_configuration_check
@@ -1273,7 +1412,8 @@ echo "  CONFIGURATION"
 echo "-----------------------------------------------------------------------"
 
 # Execute setup sequence (minimal output)
-handle_real_mode_file
+apply_requested_runtime_mode
+sync_runtime_compatibility_marker
 update_repository
 if [[ "$RUN_GUI_APP" == "true" ]]; then
     ensure_nodejs_in_path

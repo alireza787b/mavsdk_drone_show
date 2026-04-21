@@ -14,9 +14,6 @@ led_indicator.service ──────────────────► 
 basic.target
     │
     ▼
-wifi-manager.service ───────────────────► LED: BLUE (network init)
-    │
-    ▼
 network-online.target
     │
     ▼
@@ -44,21 +41,7 @@ coordinator.service ────────────────────
 - Runs early (before basic.target)
 - Sets LED to BOOT_STARTED state
 
-### 2. wifi-manager.service
-
-**Purpose:** Establish WiFi network connection
-
-**Location:** `tools/wifi-manager/wifi-manager.service`
-
-**Key Configuration:**
-- Type: simple
-- Runs as root (for nmcli access)
-- Has 60-second timeout to prevent boot hang
-- Runs BEFORE network-online.target (it establishes the network)
-
-**Configuration File:** `tools/wifi-manager/known_networks.conf`
-
-### 3. git_sync_mds.service
+### 2. git_sync_mds.service
 
 **Purpose:** Synchronize code from git repository
 
@@ -73,7 +56,7 @@ coordinator.service ────────────────────
 
 **Script:** `tools/update_repo_ssh.sh`
 
-### 4. mavlink-router.service
+### 3. mavlink-router.service
 
 **Purpose:** Route MAVLink from flight controller to applications
 
@@ -95,7 +78,7 @@ sudo ./configure_mavlink_router.sh --install-dashboard \
   --dashboard-listen 0.0.0.0:9070
 ```
 
-### 5. coordinator.service
+### 4. coordinator.service
 
 **Purpose:** Main drone swarm coordination application
 
@@ -134,17 +117,17 @@ sudo ./configure_mavlink_router.sh --install-dashboard \
 Use these ownership rules:
 
 1. `config.json` / `swarm.json`
-   Fleet membership, network transport settings, and Smart Swarm assignments.
-   These are the real-mode fleet source of truth on GCS.
+   Fleet membership and swarm topology on GCS.
 
-2. `/etc/mds/local.env`
-   Per-node runtime overrides such as `MDS_HW_ID`, `MDS_GCS_IP`, and
-   `MDS_GCS_API_BASE_URL`. This is the node-local source of truth outside the
-   repo and survives git sync.
+2. `deployment/defaults.env`
+   Repo-owned deployment defaults for repo/branch/GCS/connectivity selection.
 
-3. `src/params.py`
-   Repo-wide code defaults and fallback values only. Do not treat it as the
-   normal place to customize a real deployment.
+3. `/etc/mds/local.env`
+   Per-node runtime overrides such as `MDS_HW_ID`, `MDS_GCS_IP`,
+   `MDS_CONNECTIVITY_BACKEND`, and optional Smart Wi-Fi Manager settings.
+
+4. `src/params.py`
+   Runtime fallback policy only. Do not treat it as the normal customization layer.
 
 ### Fleet-Wide Changes
 
@@ -159,6 +142,7 @@ To change one companion computer's runtime routing or identity:
 1. SSH to the node
 2. Edit `/etc/mds/local.env`
 3. `sudo systemctl restart coordinator`
+4. If connectivity settings changed: `sudo ./tools/reconcile_connectivity.sh apply --force`
 
 ### Local Configuration File
 
@@ -183,15 +167,23 @@ MDS_LOG_LEVEL=DEBUG
 The services are installed by `tools/mds_node_init.sh` (the enterprise initialization script). To manually install:
 
 ```bash
-# Copy service files
+# Copy core MDS service files
 sudo cp tools/coordinator.service /etc/systemd/system/
 sudo cp tools/git_sync_mds/git_sync_mds.service /etc/systemd/system/
-sudo cp tools/wifi-manager/wifi-manager.service /etc/systemd/system/
 sudo cp tools/led_indicator/led_indicator.service /etc/systemd/system/
 
 # Reload and enable
 sudo systemctl daemon-reload
-sudo systemctl enable coordinator git_sync_mds wifi-manager led_indicator
+sudo systemctl enable coordinator git_sync_mds led_indicator
+```
+
+If you want an optional managed Wi-Fi backend, install the external public tool:
+
+```bash
+git clone https://github.com/alireza787b/smart-wifi-manager.git
+cd smart-wifi-manager
+sudo ./install.sh --dashboard-listen 0.0.0.0:9080
+sudo ./configure_smart_wifi_manager.sh
 ```
 
 ## Troubleshooting
@@ -205,7 +197,7 @@ sudo systemctl enable coordinator git_sync_mds wifi-manager led_indicator
 # Detailed status
 systemctl status coordinator
 systemctl status git_sync_mds
-systemctl status wifi-manager
+systemctl status smart-wifi-manager   # only if selected
 ```
 
 ### View Logs
@@ -231,10 +223,10 @@ journalctl -u git_sync_mds --since "10 minutes ago"
 - Check SSH keys: `ssh -T git@github.com`
 - Force retry: `./tools/recovery.sh force-sync`
 
-**WiFi not connecting:**
-- Check known_networks.conf: `cat tools/wifi-manager/known_networks.conf`
-- View WiFi logs: `journalctl -u wifi-manager`
-- Reset network: `./tools/recovery.sh reset-net`
+**Optional Smart Wi-Fi Manager not converging:**
+- Check status: `sudo /opt/smart-wifi-manager/configure_smart_wifi_manager.sh --help`
+- View logs: `journalctl -u smart-wifi-manager`
+- Re-apply node connectivity policy: `sudo ./tools/reconcile_connectivity.sh apply --force`
 
 **LED not working:**
 - Test LED: `./tools/recovery.sh led-test`
@@ -259,9 +251,9 @@ Use `./tools/recovery.sh` for diagnostics and recovery:
 The services are configured with security best practices:
 
 - **coordinator.service:** Reduced capabilities (no CAP_SYS_BOOT, CAP_SYS_TIME), PrivateTmp, NoNewPrivileges
-- **wifi-manager.service:** Runs as root (required for nmcli) but with timeout
 - **git_sync_mds.service:** Runs as droneshow user, no elevated privileges
 - **led_indicator.service:** Minimal capabilities (CAP_SYS_RAWIO for GPIO only)
+- **smart-wifi-manager.service:** Optional external connectivity runtime; review its own docs before enabling on a production node
 
 ## Service Dependencies
 
@@ -274,11 +266,11 @@ coordinator
 
 git_sync_mds
 ├── Wants: network-online.target
-└── After: wifi-manager.service
+└── After: network-online.target
 
-wifi-manager
-├── After: basic.target
-└── Before: network-online.target
+smart-wifi-manager (optional external service)
+├── Manages Wi-Fi independently of core MDS services
+└── Is reconciled by tools/reconcile_connectivity.sh when selected
 
 led_indicator
 ├── After: sysinit.target

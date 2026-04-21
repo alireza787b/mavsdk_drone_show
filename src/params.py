@@ -6,6 +6,8 @@ from enum import Enum
 from pathlib import Path
 
 from mds_logging import get_logger
+from src.settings.deployment_profile import load_deployment_profile
+from src.settings.runtime import preload_local_env, resolve_runtime_mode
 from src.drone_api_routes import (
     DRONE_COMMANDS_ROUTE,
     DRONE_LIVE_ARMABILITY_ROUTE,
@@ -30,23 +32,8 @@ logger = get_logger("params")
 #
 # See tools/local.env.template for available settings.
 # ===================================================================================
-_local_env_path = Path('/etc/mds/local.env')
-if _local_env_path.exists():
-    try:
-        with open(_local_env_path) as f:
-            for line in f:
-                line = line.strip()
-                # Skip comments and empty lines
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    # Only set if not already set (allows env vars to override)
-                    if key not in os.environ:
-                        os.environ[key] = value
-        logger.debug(f"Loaded local config from {_local_env_path}")
-    except Exception as e:
-        logger.warning(f"Failed to load local config from {_local_env_path}: {e}")
+_local_env_path = preload_local_env(logger)
+_deployment_profile = load_deployment_profile()
 
 
 def _safe_int(value: str, default: int) -> int:
@@ -76,9 +63,9 @@ def _env_flag(name: str, default: bool) -> bool:
 
 class Params:
     """
-    Params class manages configuration settings for the drone system,
-    determining whether to operate in simulation (SITL) mode or real-life mode
-    based on the presence of the 'real.mode' file.
+    Params class manages configuration settings for the drone system.
+
+    Canonical runtime mode is `MDS_MODE=real|sitl`.
 
     This class contains class variables that can be accessed throughout the code
     without instantiation. The variables are initialized at module load time,
@@ -92,12 +79,10 @@ class Params:
         (Other attributes as per project requirements.)
     """
 
-    # Path to the 'real.mode' file relative to the current directory
-    real_mode_file = 'real.mode'
-
-    # Determine simulation mode based on the existence of 'real.mode'
-    # If 'real.mode' exists, sim_mode is False (real-life mode)
-    sim_mode = not os.path.exists(real_mode_file)
+    runtime_mode_info = resolve_runtime_mode()
+    runtime_mode = runtime_mode_info.mode
+    mode_source = runtime_mode_info.source
+    sim_mode = runtime_mode_info.sim_mode
 
     # Optional legacy online configuration endpoints.
     # Production hardware now defaults to local file mode via /etc/mds/local.env
@@ -113,9 +98,8 @@ class Params:
     # These settings now support environment variable override for advanced deployments
     # while maintaining 100% backward compatibility for normal users.
     #
-    # FOR NORMAL USERS (99%):
-    #   - No action required - defaults work identically to previous versions
-    #   - Uses: git@github.com:alireza787b/mavsdk_drone_show.git@main-candidate
+    # Git-tracked repo defaults now come from deployment/defaults.env.
+    # Host-local runtime env files still override them when present.
     #
     # FOR ADVANCED USERS (Custom Forks):
     #   - Set environment variables before running any MDS scripts:
@@ -129,8 +113,8 @@ class Params:
     #   MDS_GIT_AUTO_PUSH  - Enable/disable automatic commit+push from GCS workflows
     # ===================================================================================
     GIT_AUTO_PUSH = _env_flag('MDS_GIT_AUTO_PUSH', True)
-    GIT_REPO_URL = os.environ.get('MDS_REPO_URL', 'git@github.com:alireza787b/mavsdk_drone_show.git')
-    GIT_BRANCH = os.environ.get('MDS_BRANCH', 'main-candidate')
+    GIT_REPO_URL = os.environ.get('MDS_REPO_URL', _deployment_profile.repo_url_ssh)
+    GIT_BRANCH = os.environ.get('MDS_BRANCH', _deployment_profile.branch)
 
     # ===================================================================================
     # GCS (Ground Control Station) CONFIGURATION
@@ -150,11 +134,14 @@ class Params:
     # For real deployments, prefer host runtime env files over editing this module.
     # ===================================================================================
     if sim_mode:
-        GCS_IP = os.environ.get('MDS_GCS_IP', "172.18.0.1")  # SITL: Docker gateway IP
+        GCS_IP = os.environ.get('MDS_GCS_IP', _deployment_profile.sitl_gcs_ip)
     else:
-        GCS_IP = os.environ.get('MDS_GCS_IP', "100.96.32.75")  # Real mode: default GCS IP
+        GCS_IP = os.environ.get('MDS_GCS_IP', _deployment_profile.real_gcs_ip)
 
-    gcs_api_port = _safe_int(os.environ.get('MDS_GCS_API_PORT', '5000'), 5000)
+    gcs_api_port = _safe_int(
+        os.environ.get('MDS_GCS_API_PORT', str(_deployment_profile.gcs_api_port)),
+        _deployment_profile.gcs_api_port,
+    )
     connectivity_check_ip = os.environ.get('MDS_CONNECTIVITY_IP', GCS_IP)
     connectivity_check_port = _safe_int(os.environ.get('MDS_CONNECTIVITY_PORT', str(gcs_api_port)), gcs_api_port)
     connectivity_check_interval = 10       # Interval in seconds between connectivity checks

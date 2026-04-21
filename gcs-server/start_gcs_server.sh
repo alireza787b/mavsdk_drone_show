@@ -143,6 +143,7 @@ load_gcs_system_config() {
         export \
             MDS_REPO_URL \
             MDS_BRANCH \
+            MDS_MODE \
             MDS_INSTALL_DIR \
             MDS_GIT_AUTO_PUSH \
             MDS_GIT_AUTH_TOKEN_FILE \

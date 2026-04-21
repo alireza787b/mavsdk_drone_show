@@ -323,7 +323,7 @@ class DroneCommunicator:
         """Update mutable drone state values.
 
         Note: hw_id and pos_id are immutable configuration values loaded from
-        the drone's .hwID file and config. They cannot be changed at runtime.
+        the canonical node identity + fleet config model.
         Only state and trigger_time are mutable runtime values.
         """
         self.drone_config.state = state

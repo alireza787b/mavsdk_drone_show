@@ -149,7 +149,7 @@ losing context.
 | Real | `config.json` | `swarm.json` |
 | SITL | `config_sitl.json` | `swarm_sitl.json` |
 
-Selected automatically by `src/params.py` based on the presence of `real.mode` file.
+Selected by canonical runtime mode (`MDS_MODE=real|sitl`).
 
 ## Import/Export
 

@@ -5,14 +5,13 @@ Configuration Loader
 Static utilities for loading drone configuration from files and network.
 
 This module provides stateless methods for:
-- Reading hardware ID from MDS runtime env or .hwID files
+- Resolving hardware ID from the runtime identity model
 - Loading config.json and swarm.json files
 - Fetching online configurations
 - Loading trajectory-based drone positions
 """
 
 import csv
-import glob
 import logging
 import os
 from typing import Dict, Optional, Any
@@ -20,6 +19,7 @@ from typing import Dict, Optional, Any
 import requests
 
 from src.params import Params
+from src.settings.identity import resolve_hw_id
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,7 @@ class ConfigLoader:
     @staticmethod
     def get_hw_id(hw_id: Optional[int] = None) -> Optional[int]:
         """
-        Retrieve the hardware ID from provided value, MDS runtime env, or
-        a discovered `.hwID` file.
+        Retrieve the hardware ID from the canonical runtime model.
 
         Args:
             hw_id: Optional hardware ID (int). If provided, returned as-is.
@@ -68,53 +67,7 @@ class ConfigLoader:
         Returns:
             Hardware ID as int, or None if not found.
         """
-        if hw_id is not None:
-            try:
-                return int(hw_id)
-            except (ValueError, TypeError):
-                logger.error(f"Provided hw_id is not a valid integer: {hw_id}")
-                return None
-
-        env_hw_id = os.environ.get("MDS_HW_ID")
-        if env_hw_id:
-            try:
-                resolved_hw_id = int(env_hw_id)
-                logger.info(f"Hardware ID loaded from MDS_HW_ID: {resolved_hw_id}")
-                return resolved_hw_id
-            except ValueError:
-                logger.error(f"MDS_HW_ID is not a valid integer: {env_hw_id}")
-
-        search_dirs = []
-        for directory in (
-            os.environ.get("MDS_HWID_DIR"),
-            os.getcwd(),
-            os.environ.get("MDS_BASE_DIR"),
-            os.path.expanduser("~/mavsdk_drone_show"),
-        ):
-            if directory and directory not in search_dirs:
-                search_dirs.append(directory)
-
-        searched_patterns = []
-        for directory in search_dirs:
-            pattern = os.path.join(directory, "*.hwID")
-            searched_patterns.append(pattern)
-            hw_id_files = sorted(glob.glob(pattern))
-            if hw_id_files:
-                hw_id_file = hw_id_files[0]
-                logger.info(f"Hardware ID file found: {hw_id_file}")
-                try:
-                    resolved_hw_id = int(os.path.basename(hw_id_file).split(".")[0])
-                except ValueError:
-                    logger.error(f"Hardware ID filename is not a valid integer: {hw_id_file}")
-                    return None
-                logger.info(f"Hardware ID: {resolved_hw_id}")
-                return resolved_hw_id
-
-        logger.error(
-            "Hardware ID file not found. Checked MDS_HW_ID and patterns: %s",
-            ", ".join(searched_patterns) if searched_patterns else "<none>",
-        )
-        return None
+        return resolve_hw_id(hw_id)
 
     @staticmethod
     def read_file(filename: str, source: str, hw_id: int) -> Optional[Dict[str, Any]]:

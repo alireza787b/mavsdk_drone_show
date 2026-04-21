@@ -11,6 +11,14 @@
 [[ -n "${_MDS_COMMON_LOADED:-}" ]] && return 0
 _MDS_COMMON_LOADED=1
 
+_MDS_COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MDS_REPO_ROOT="${MDS_REPO_ROOT:-$(cd "${_MDS_COMMON_SCRIPT_DIR}/../.." && pwd)}"
+MDS_DEPLOYMENT_PROFILE_LOADER="${MDS_REPO_ROOT}/tools/load_deployment_profile.sh"
+if [[ -f "${MDS_DEPLOYMENT_PROFILE_LOADER}" ]]; then
+    # shellcheck disable=SC1090
+    source "${MDS_DEPLOYMENT_PROFILE_LOADER}"
+fi
+
 # =============================================================================
 # CONSTANTS
 # =============================================================================
@@ -21,8 +29,14 @@ readonly MDS_STATE_FILE="${MDS_STATE_DIR}/init_state.json"
 readonly MDS_CONFIG_DIR="/etc/mds"
 readonly MDS_LOCAL_ENV="${MDS_CONFIG_DIR}/local.env"
 readonly MDS_NODE_IDENTITY_FILE="${MDS_CONFIG_DIR}/node_identity.json"
-readonly MDS_INSTALL_DIR="/home/droneshow/mavsdk_drone_show"
-readonly MDS_USER="droneshow"
+MDS_USER="${MDS_USER:-droneshow}"
+_MDS_HOME_DEFAULT="$(getent passwd "${MDS_USER}" 2>/dev/null | cut -d: -f6 || true)"
+[[ -z "${_MDS_HOME_DEFAULT}" ]] && _MDS_HOME_DEFAULT="/home/${MDS_USER}"
+MDS_HOME="${MDS_HOME:-${_MDS_HOME_DEFAULT}}"
+MDS_INSTALL_DIR="${MDS_INSTALL_DIR:-${MDS_HOME}/mavsdk_drone_show}"
+readonly MDS_USER
+readonly MDS_HOME
+readonly MDS_INSTALL_DIR
 readonly MDS_LOG_DIR="/var/log/mds"
 readonly MDS_LOG_FILE="${MDS_LOG_DIR}/mds_init.log"
 
@@ -142,7 +156,6 @@ log_step() {
 # =============================================================================
 
 # Source the shared banner file
-_MDS_COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MDS_BANNER_PATH="${_MDS_COMMON_SCRIPT_DIR}/../mds_banner.sh"
 if [[ -f "$MDS_BANNER_PATH" ]]; then
     source "$MDS_BANNER_PATH"
@@ -545,7 +558,7 @@ set_led_state() {
     log_debug "LED state: $state"
 }
 
-# Check if droneshow user exists
+# Check if a runtime user exists
 user_exists() {
     local username="${1:-$MDS_USER}"
     id "$username" &>/dev/null
@@ -639,4 +652,4 @@ cleanup_handler() {
 # =============================================================================
 
 export MDS_VERSION MDS_STATE_DIR MDS_STATE_FILE MDS_CONFIG_DIR MDS_LOCAL_ENV MDS_NODE_IDENTITY_FILE
-export MDS_INSTALL_DIR MDS_USER MDS_LOG_DIR MDS_LOG_FILE
+export MDS_INSTALL_DIR MDS_USER MDS_HOME MDS_LOG_DIR MDS_LOG_FILE

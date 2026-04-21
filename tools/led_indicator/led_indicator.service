@@ -8,10 +8,10 @@ Before=basic.target
 Type=oneshot
 RemainAfterExit=no
 # Use --state for semantic state (BOOT_STARTED = red)
-ExecStart=/home/droneshow/mavsdk_drone_show/venv/bin/python /home/droneshow/mavsdk_drone_show/led_indicator.py --state BOOT_STARTED
-WorkingDirectory=/home/droneshow/mavsdk_drone_show
-User=droneshow
-Group=droneshow
+ExecStart=__MDS_INSTALL_DIR__/venv/bin/python __MDS_INSTALL_DIR__/led_indicator.py --state BOOT_STARTED
+WorkingDirectory=__MDS_INSTALL_DIR__
+User=__MDS_USER__
+Group=__MDS_USER__
 
 # GPIO access for LED control
 CapabilityBoundingSet=CAP_SYS_RAWIO

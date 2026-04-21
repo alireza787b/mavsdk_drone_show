@@ -15,7 +15,7 @@ The `mds_node_init.sh` script is an enterprise-grade bootstrap system that confi
 - Firewall configuration with SSH port detection
 - NTP time synchronization
 - Candidate announce to the GCS enrollment registry when the API is reachable
-- Optional: NetBird VPN (official or self-hosted), Static IP
+- Optional: NetBird VPN (official or self-hosted), Static IP, Smart Wi-Fi Manager
 
 ## Prerequisites
 
@@ -46,6 +46,20 @@ The fastest way to set up a fresh companion-computer node:
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
 ```
 
+By default the wrapper creates the `droneshow` runtime user and clones the repo
+into `/home/droneshow/<repo-dir>`. Override those wrapper-level defaults with
+`MDS_USER` and `MDS_INSTALL_DIR` if you need a different runtime identity or
+install location:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+  sudo env MDS_USER=companion MDS_INSTALL_DIR=/srv/customer-mds bash -s -- -d 1 -y
+```
+
+When you run the wrapper from a local checkout instead of the raw GitHub URL, it
+also loads repo defaults from `deployment/defaults.env` before applying any
+environment overrides.
+
 **With drone ID (non-interactive):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- -d 1 -y
@@ -72,14 +86,14 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 
 **Using a private HTTPS repository with a read-only token file:**
 ```bash
-install -m 600 /dev/null /home/droneshow/.mds_git_read_token
-printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /home/droneshow/.mds_git_read_token
+install -m 600 /dev/null /home/<mds-user>/.mds_git_read_token
+printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /home/<mds-user>/.mds_git_read_token
 
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
   sudo bash -s -- \
   --repo-url https://github.com/yourorg/customer-mds.git \
   --branch customer-demo \
-  --git-auth-token-file /home/droneshow/.mds_git_read_token \
+  --git-auth-token-file /home/<mds-user>/.mds_git_read_token \
   -d 1 -y
 ```
 
@@ -201,8 +215,9 @@ The script runs through these phases automatically:
 | 10. NTP | Configures time synchronization |
 | 11. Netbird | (Optional) Configures VPN access |
 | 12. Static IP | (Optional) Configures static IP address |
-| 13. Verify | Final verification of installation |
-| 14. Candidate Announce | Sends the node identity to the GCS enrollment registry when reachable |
+| 13. Connectivity Backend | (Optional) Installs Smart Wi-Fi Manager or keeps manual networking |
+| 14. Verify | Final verification of installation |
+| 15. Candidate Announce | Sends the node identity to the GCS enrollment registry when reachable |
 
 ## Common Setup Scenarios
 
@@ -371,10 +386,9 @@ After installation, key configuration files are:
 | `/etc/mds/local.env` | Per-node runtime overrides (hardware ID, GCS routing, optional GCS API URL, repo/branch overrides, etc.) |
 | `/etc/mds/node_identity.json` | Structured machine-readable node manifest for automation, enrollment, and diagnostics |
 | `/var/lib/mds/init_state.json` | Installation state tracking |
-| `~/mavsdk_drone_show/<N>.hwID` | Current runtime hardware-ID marker read by the drone runtime |
 | `~/mavsdk_drone_show/config.json` | Fleet manifest source of truth for real-mode membership and per-node transport settings |
 | `~/mavsdk_drone_show/swarm.json` | Smart Swarm / follow-chain source of truth for real mode |
-| `~/mavsdk_drone_show/src/params.py` | Code defaults and fallback values when deployment-specific env/config files are absent |
+| `~/mavsdk_drone_show/src/params.py` | Transitional code defaults and fallback values while the typed settings layer is rolled out |
 
 ### Source Of Truth
 

@@ -13,6 +13,16 @@
 # if an undefined variable is used, or if any command in a pipeline fails
 set -euo pipefail
 
+SCRIPT_NAME=$(basename "$0")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_BASE_FROM_SCRIPT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MDS_REPO_ROOT="${REPO_BASE_FROM_SCRIPT}"
+DEPLOYMENT_PROFILE_LOADER="$REPO_BASE_FROM_SCRIPT/tools/load_deployment_profile.sh"
+if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
+    # shellcheck disable=SC1090
+    source "$DEPLOYMENT_PROFILE_LOADER"
+fi
+
 # =============================================================================
 # REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
 # =============================================================================
@@ -46,6 +56,7 @@ set -euo pipefail
 # ENVIRONMENT VARIABLES SUPPORTED:
 #   MDS_REPO_URL         - Git repository URL (SSH or HTTPS format)
 #   MDS_BRANCH           - Git branch name to checkout and use
+#   MDS_HW_ID           - Canonical hardware ID for this SITL container
 #   MDS_GIT_AUTH_TOKEN_FILE - Preferred path to an authenticated HTTPS token file for private GitHub repos
 #   MDS_GIT_AUTH_TOKEN      - Legacy fallback authenticated HTTPS token for private GitHub repos
 #   MDS_GIT_AUTH_USERNAME   - Optional HTTPS username for token auth (default: x-access-token)
@@ -56,17 +67,12 @@ set -euo pipefail
 
 # GitHub Repository Details (with environment variable override support)
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="${MDS_BRANCH:-main-candidate}"
-GITHUB_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+DEFAULT_GIT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+GITHUB_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
-
-# Script Metadata and repository path detection
-SCRIPT_NAME=$(basename "$0")
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_BASE_FROM_SCRIPT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # The launcher may copy this script outside the repo (for example to /tmp inside
 # the container). Prefer an explicit MDS_BASE_DIR, otherwise fall back to the
@@ -78,6 +84,7 @@ else
 fi
 
 BASE_DIR="${MDS_BASE_DIR:-$DEFAULT_BASE_DIR}"
+export MDS_MODE="${MDS_MODE:-sitl}"
 
 load_stock_sitl_origin_defaults() {
     local default_origin_file="$BASE_DIR/data/origin.sitl.default.json"
@@ -122,7 +129,6 @@ DEFAULT_ALT=1278
 load_stock_sitl_origin_defaults
 
 # Directory Paths
-HWID_DIR="${MDS_HWID_DIR:-$BASE_DIR}"
 VENV_DIR="$BASE_DIR/venv"
 CONFIG_FILE="$BASE_DIR/config_sitl.json"
 PX4_DIR="${MDS_PX4_DIR:-$HOME/PX4-Autopilot}"
@@ -380,26 +386,20 @@ check_dependencies() {
     fi
 }
 
-# Function to wait for the .hwID file
-wait_for_hwid() {
-    log_message "Waiting for .hwID file in $HWID_DIR..."
-    while true; do
-        HWID_FILE=$(ls "$HWID_DIR"/*.hwID 2>/dev/null | head -n 1 || true)
-        if [[ -n "$HWID_FILE" ]]; then
-            HWID=$(basename "$HWID_FILE" .hwID)
-            log_message "Found .hwID file: $HWID.hwID"
-            break
-        else
-            log_message "  - .hwID file not found. Retrying in 1 second..."
-            sleep 1
-        fi
-    done
+resolve_runtime_hwid() {
+    HWID="${MDS_HW_ID:-}"
 
-    # Validate that HWID is a positive integer
-    if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
-        log_message "ERROR: Extracted HWID '$HWID' is not a positive integer."
+    if [[ -z "$HWID" ]]; then
+        log_message "ERROR: MDS_HW_ID is required for SITL container startup."
         exit 1
     fi
+
+    if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
+        log_message "ERROR: MDS_HW_ID '$HWID' is not a positive integer."
+        exit 1
+    fi
+
+    log_message "Resolved runtime HW_ID from MDS_HW_ID=$HWID"
 }
 
 ensure_runtime_paths() {
@@ -841,12 +841,6 @@ bootstrap_repository_checkout() {
         mv "$BASE_DIR/logs" "$preserve_dir/logs"
     fi
 
-    shopt -s nullglob
-    for runtime_item in "$BASE_DIR"/*.hwID; do
-        mv "$runtime_item" "$preserve_dir/"
-    done
-    shopt -u nullglob
-
     if [ -f "$BASE_DIR/mavsdk_server" ]; then
         mv "$BASE_DIR/mavsdk_server" "$preserve_dir/mavsdk_server"
     fi
@@ -897,12 +891,6 @@ bootstrap_repository_checkout() {
     else
         mkdir -p "$BASE_DIR/logs"
     fi
-
-    shopt -s nullglob
-    for runtime_item in "$preserve_dir"/*.hwID; do
-        mv "$runtime_item" "$BASE_DIR/"
-    done
-    shopt -u nullglob
 
     if [ -f "$preserve_dir/mavsdk_server" ] && [ ! -f "$BASE_DIR/mavsdk_server" ]; then
         mv "$preserve_dir/mavsdk_server" "$BASE_DIR/mavsdk_server"
@@ -1009,7 +997,6 @@ update_repository() {
     if ! git clean -ffd \
         -e venv/ \
         -e logs/ \
-        -e '*.hwID' \
         -e mavsdk_server \
         -e .mds_sitl_image_build.env \
         -e .mds_px4_source_provenance.env \
@@ -1531,8 +1518,8 @@ log_message ""
 # Check for necessary dependencies
 check_dependencies
 
-# Wait for the .hwID file
-wait_for_hwid
+# Resolve the canonical runtime hardware identity
+resolve_runtime_hwid
 
 # Resolve per-drone runtime values once HWID is known
 resolve_gz_partition

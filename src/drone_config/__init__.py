@@ -48,7 +48,9 @@ class DroneConfig:
 
         Args:
             drones: Dictionary of all drones in the swarm
-            hw_id: Optional hardware ID. If not provided, read from .hwID file.
+            hw_id: Optional hardware ID. If not provided, resolve it from the
+                canonical runtime identity model (`MDS_HW_ID` /
+                `/etc/mds/node_identity.json`).
         """
         # TODO(deferred): Validate config on drone boot — query GCS for
         # duplicate pos_ids and refuse to arm if collision detected.

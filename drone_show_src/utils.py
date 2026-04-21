@@ -38,7 +38,7 @@ def calculate_ned_origin(current_gps, ned_position):
 
 
 def read_hw_id():
-    """Read hardware ID from .hwID file. Delegates to ConfigLoader.
+    """Read hardware ID from canonical runtime identity sources.
     Returns int or None if not found (callers check for None)."""
     from src.drone_config import ConfigLoader
     return ConfigLoader.get_hw_id()

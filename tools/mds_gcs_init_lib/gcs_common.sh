@@ -78,11 +78,11 @@ readonly GCS_NODE_TARGET_VERSION="22"
 # Python minimum version
 readonly GCS_PYTHON_MIN_VERSION="3.11"
 
-# Default repository settings
-readonly GCS_DEFAULT_REPO="https://github.com/alireza787b/mavsdk_drone_show.git"
-readonly GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
-readonly GCS_DEFAULT_BRANCH="main-candidate"
-readonly GCS_DEFAULT_REPO_OWNER="alireza787b"
+# Default repository settings (git-tracked deployment profile)
+readonly GCS_DEFAULT_REPO="${MDS_DEFAULT_REPO_URL_HTTPS}"
+readonly GCS_DEFAULT_REPO_SSH="${MDS_DEFAULT_REPO_URL_SSH}"
+readonly GCS_DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH}"
+readonly GCS_DEFAULT_REPO_OWNER="${MDS_DEFAULT_REPO_OWNER}"
 
 # =============================================================================
 # PROGRESS SPINNER (UX feedback for long operations)

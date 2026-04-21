@@ -294,7 +294,7 @@ install_missing_packages() {
     return 0
 }
 
-# Check if droneshow user exists
+# Check if the configured MDS runtime user exists
 check_user_exists() {
     log_step "Checking for '${MDS_USER}' user..."
 
@@ -309,7 +309,7 @@ check_user_exists() {
     return 1
 }
 
-# Create the droneshow user
+# Create the configured MDS runtime user
 create_mds_user() {
     log_step "Creating '${MDS_USER}' user..."
 
@@ -323,8 +323,8 @@ create_mds_user() {
         return 0
     fi
 
-    # Create user with home directory
-    if ! useradd -m -s /bin/bash "${MDS_USER}"; then
+    # Create user with the configured home directory
+    if ! useradd -m -d "${MDS_HOME}" -s /bin/bash "${MDS_USER}"; then
         log_error "Failed to create user '${MDS_USER}'"
         return 1
     fi
@@ -342,11 +342,11 @@ create_mds_user() {
     return 0
 }
 
-# Check /home/droneshow directory
+# Check configured home directory
 check_home_directory() {
     log_step "Checking home directory..."
 
-    local home_dir="/home/${MDS_USER}"
+    local home_dir="${MDS_HOME}"
 
     if [[ -d "$home_dir" ]]; then
         log_success "Home directory exists: $home_dir"

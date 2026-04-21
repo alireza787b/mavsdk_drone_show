@@ -17,8 +17,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 LED_CMD="$REPO_DIR/venv/bin/python $REPO_DIR/led_indicator.py"
-# Droneshow user home for cleanup operations
-DRONESHOW_HOME="/home/droneshow"
+LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
+
+if [[ -f "${LOCAL_ENV_FILE}" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "${LOCAL_ENV_FILE}"
+    set +a
+fi
+
+MDS_RUNTIME_USER="${MDS_USER:-droneshow}"
+MDS_RUNTIME_HOME="${MDS_HOME:-$(getent passwd "${MDS_RUNTIME_USER}" 2>/dev/null | cut -d: -f6 || echo "/home/${MDS_RUNTIME_USER}")}"
+CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-none}"
+CONNECTIVITY_RECONCILE_SCRIPT="${REPO_DIR}/tools/reconcile_connectivity.sh"
 
 # Colors for output
 RED='\033[0;31m'
@@ -33,15 +44,21 @@ print_header() {
     echo -e "${CYAN}========================================${NC}"
 }
 
+get_managed_services() {
+    local services=("led_indicator" "git_sync_mds" "mavlink-router" "coordinator")
+    if [[ "${CONNECTIVITY_BACKEND}" == "smart-wifi-manager" ]]; then
+        services=("led_indicator" "smart-wifi-manager" "git_sync_mds" "mavlink-router" "coordinator")
+    fi
+    printf '%s\n' "${services[@]}"
+}
+
 show_status() {
     print_header
     echo ""
     echo "Service Status:"
     echo "---------------"
 
-    local services=("led_indicator" "wifi-manager" "git_sync_mds" "mavlink-router" "coordinator")
-
-    for svc in "${services[@]}"; do
+    while IFS= read -r svc; do
         if systemctl is-active --quiet "$svc" 2>/dev/null; then
             echo -e "  [$svc] ${GREEN}RUNNING${NC}"
         elif systemctl is-enabled --quiet "$svc" 2>/dev/null; then
@@ -49,7 +66,7 @@ show_status() {
         else
             echo -e "  [$svc] ${RED}NOT INSTALLED${NC}"
         fi
-    done
+    done < <(get_managed_services)
 
     echo ""
     echo "System Info:"
@@ -73,7 +90,11 @@ show_logs() {
     echo ""
     echo "Recent logs (last hour):"
     echo "------------------------"
-    journalctl -u coordinator -u git_sync_mds -u wifi-manager --since "1 hour ago" --no-pager -n 50
+    local journal_args=(-u coordinator -u git_sync_mds)
+    if [[ "${CONNECTIVITY_BACKEND}" == "smart-wifi-manager" ]]; then
+        journal_args+=(-u smart-wifi-manager)
+    fi
+    journalctl "${journal_args[@]}" --since "1 hour ago" --no-pager -n 50
 }
 
 restart_coordinator() {
@@ -117,11 +138,17 @@ reset_network() {
     print_header
     echo ""
     echo "Resetting network failure counter..."
-    # Use explicit path for droneshow user (not current user's home)
-    rm -f "$DRONESHOW_HOME/.mds/network_failures"
-    echo "Restarting wifi-manager..."
-    sudo systemctl restart wifi-manager
-    echo -e "${GREEN}Network reset complete${NC}"
+    rm -f "${MDS_RUNTIME_HOME}/.mds/network_failures"
+
+    if [[ "${CONNECTIVITY_BACKEND}" == "smart-wifi-manager" && -x "${CONNECTIVITY_RECONCILE_SCRIPT}" ]]; then
+        echo "Reapplying Smart Wi-Fi Manager connectivity profile..."
+        sudo "${CONNECTIVITY_RECONCILE_SCRIPT}" apply --force
+        echo -e "${GREEN}Connectivity reset complete${NC}"
+        return 0
+    fi
+
+    echo -e "${YELLOW}No managed connectivity backend is configured on this node${NC}"
+    echo -e "${GREEN}Network reset counter cleared${NC}"
 }
 
 test_led() {
@@ -169,7 +196,11 @@ health_check() {
 
     # Check services
     echo "1. Service Status:"
-    for svc in coordinator git_sync_mds wifi-manager; do
+    local health_services=("coordinator" "git_sync_mds")
+    if [[ "${CONNECTIVITY_BACKEND}" == "smart-wifi-manager" ]]; then
+        health_services+=("smart-wifi-manager")
+    fi
+    for svc in "${health_services[@]}"; do
         if ! systemctl is-active --quiet "$svc" 2>/dev/null; then
             echo -e "   ${RED}[FAIL]${NC} $svc not running"
             issues=$((issues + 1))
@@ -236,7 +267,8 @@ show_help() {
     echo "  logs        Show recent logs from all services"
     echo "  restart     Restart the coordinator service"
     echo "  force-sync  Force a git sync"
-    echo "  reset-net   Reset network failure counter"
+echo "  reset-net   Reset network failure counter"
+    echo "              Re-applies Smart Wi-Fi Manager when selected"
     echo "  led-test    Test LED colors"
     echo "  health      Full health check"
     echo "  help        Show this help message"

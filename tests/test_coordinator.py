@@ -124,8 +124,8 @@ class TestComponentInitialization:
         """Test Params correctly detects sim mode"""
         from src.params import Params
 
-        # Params.sim_mode is based on existence of 'real.mode' file
-        # In test environment, it should be True (SITL mode)
+        # Params.sim_mode now resolves canonical MDS_MODE first and defaults to
+        # SITL when the runtime env does not specify a mode.
         assert hasattr(Params, 'sim_mode')
 
     def test_drone_api_server_initialization(self, mock_params, mock_drone_config):

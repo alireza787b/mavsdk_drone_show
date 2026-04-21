@@ -16,17 +16,19 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# Determine the MDS user (default: droneshow, override via MDS_USER env var or first arg)
+# Determine the MDS user/install paths (defaults remain backward compatible)
 MDS_USER="${1:-${MDS_USER:-droneshow}}"
-MDS_HOME=$(eval echo "~${MDS_USER}")
+MDS_HOME="${MDS_HOME:-$(eval echo "~${MDS_USER}")}"
+MDS_INSTALL_DIR="${MDS_INSTALL_DIR:-${MDS_HOME}/mavsdk_drone_show}"
 
 echo "MDS User: ${MDS_USER}"
 echo "MDS Home: ${MDS_HOME}"
+echo "MDS Install Dir: ${MDS_INSTALL_DIR}"
 
 # Define paths
-GIT_SYNC_SCRIPT="${MDS_HOME}/mavsdk_drone_show/tools/update_repo_ssh.sh"
+GIT_SYNC_SCRIPT="${MDS_INSTALL_DIR}/tools/update_repo_ssh.sh"
 SERVICE_FILE="/etc/systemd/system/git_sync_mds.service"
-SOURCE_TEMPLATE="${MDS_HOME}/mavsdk_drone_show/tools/git_sync_mds/git_sync_mds.service"
+SOURCE_TEMPLATE="${MDS_INSTALL_DIR}/tools/git_sync_mds/git_sync_mds.service"
 
 # Step 1: Check if the Git sync script exists
 if [ ! -f "$GIT_SYNC_SCRIPT" ]; then
@@ -46,6 +48,7 @@ fi
 echo "Installing service file with user=${MDS_USER}, home=${MDS_HOME}..."
 sed -e "s|__MDS_USER__|${MDS_USER}|g" \
     -e "s|__MDS_HOME__|${MDS_HOME}|g" \
+    -e "s|__MDS_INSTALL_DIR__|${MDS_INSTALL_DIR}|g" \
     "$SOURCE_TEMPLATE" > "$SERVICE_FILE"
 
 # Reload systemd daemon to register the new service

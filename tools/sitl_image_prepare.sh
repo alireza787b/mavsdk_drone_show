@@ -2,8 +2,17 @@
 
 set -euo pipefail
 
-DEFAULT_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
-DEFAULT_BRANCH="main-candidate"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+MDS_REPO_ROOT="$REPO_ROOT"
+DEPLOYMENT_PROFILE_LOADER="$SCRIPT_DIR/load_deployment_profile.sh"
+if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
+    # shellcheck disable=SC1090
+    source "$DEPLOYMENT_PROFILE_LOADER"
+fi
+
+DEFAULT_REPO_URL="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main-candidate}"
 BASE_DIR="${MDS_BASE_DIR:-/root/mavsdk_drone_show}"
 PX4_DIR="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
 REPO_URL="${1:-${MDS_REPO_URL:-$DEFAULT_REPO_URL}}"
@@ -273,7 +282,6 @@ cleanup_runtime_baggage() {
 
     rm -rf "$BASE_DIR/logs"
     mkdir -p "$BASE_DIR/logs"
-    find "$BASE_DIR" -maxdepth 1 -name '*.hwID' -delete
     rm -rf "$BASE_DIR/app/dashboard/drone-dashboard/node_modules"
     rm -rf "$BASE_DIR/app/dashboard/drone-dashboard/build"
     rm -rf "$BASE_DIR/.pytest_cache"

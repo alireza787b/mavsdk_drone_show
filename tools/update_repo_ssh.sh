@@ -11,6 +11,14 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MDS_REPO_ROOT="${MDS_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+DEPLOYMENT_PROFILE_LOADER="${MDS_REPO_ROOT}/tools/load_deployment_profile.sh"
+if [[ -f "${DEPLOYMENT_PROFILE_LOADER}" ]]; then
+    # shellcheck disable=SC1090
+    source "${DEPLOYMENT_PROFILE_LOADER}"
+fi
+
 # ----------------------------------
 # Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
@@ -34,12 +42,12 @@ NETWORK_TIMEOUT="${NETWORK_TIMEOUT:-30}"
 
 # Branch configuration
 SITL_BRANCH="${SITL_BRANCH:-docker-sitl-2}"
-REAL_BRANCH="${REAL_BRANCH:-main-candidate}"
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main-candidate}"
+REAL_BRANCH="${REAL_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
 
 # Repository URLs
-DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-git@github.com:alireza787b/mavsdk_drone_show.git}"
-DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
+DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-${MDS_DEFAULT_REPO_URL_SSH:-git@github.com:alireza787b/mavsdk_drone_show.git}}"
+DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 
@@ -147,7 +155,10 @@ set_led_status() {
 check_service_updates() {
     local component="SERVICE-UPDATE"
     local changed=false
-    local services=("coordinator" "git_sync_mds" "wifi-manager" "led_indicator")
+    local services=("coordinator" "git_sync_mds" "led_indicator")
+    local mds_user="${MDS_USER:-$(id -un)}"
+    local mds_home="${MDS_HOME:-${HOME}}"
+    local mds_install_dir="${MDS_INSTALL_DIR:-${REPO_DIR}}"
 
     log_info "$component" "Checking for service file changes..."
 
@@ -162,10 +173,6 @@ check_service_updates() {
                 src_file="/etc/systemd/system/git_sync_mds.service"
                 repo_file="$REPO_DIR/tools/git_sync_mds/git_sync_mds.service"
                 ;;
-            wifi-manager)
-                src_file="/etc/systemd/system/wifi-manager.service"
-                repo_file="$REPO_DIR/tools/wifi-manager/wifi-manager.service"
-                ;;
             led_indicator)
                 src_file="/etc/systemd/system/led_indicator.service"
                 repo_file="$REPO_DIR/tools/led_indicator/led_indicator.service"
@@ -176,7 +183,11 @@ check_service_updates() {
         if [[ -f "$repo_file" ]]; then
             local temp_file
             temp_file=$(mktemp) || continue
-            cp "$repo_file" "$temp_file" 2>/dev/null || { rm -f "$temp_file"; continue; }
+            sed \
+                -e "s|__MDS_USER__|${mds_user}|g" \
+                -e "s|__MDS_HOME__|${mds_home}|g" \
+                -e "s|__MDS_INSTALL_DIR__|${mds_install_dir}|g" \
+                "$repo_file" > "$temp_file" 2>/dev/null || { rm -f "$temp_file"; continue; }
 
             if ! cmp -s "$src_file" "$temp_file" 2>/dev/null; then
                 log_info "$component" "Service file changed: $service"
@@ -196,6 +207,33 @@ check_service_updates() {
     if $changed; then
         log_info "$component" "Reloading systemd daemon..."
         sudo systemctl daemon-reload 2>/dev/null || log_warn "$component" "Failed to reload systemd daemon"
+    fi
+}
+
+check_connectivity_updates() {
+    local component="CONNECTIVITY"
+    local backend="${MDS_CONNECTIVITY_BACKEND:-none}"
+    local reconcile_script="${REPO_DIR}/tools/reconcile_connectivity.sh"
+
+    case "$backend" in
+        smart-wifi-manager|smart_wifi_manager|smartwifi|wifi)
+            ;;
+        *)
+            log_debug "$component" "Connectivity backend is '${backend}', nothing to reconcile"
+            return 0
+            ;;
+    esac
+
+    if [[ ! -x "${reconcile_script}" ]]; then
+        log_warn "$component" "Connectivity reconcile helper is missing: ${reconcile_script}"
+        return 0
+    fi
+
+    log_info "$component" "Reapplying connectivity backend configuration..."
+    if sudo "${reconcile_script}" apply --quiet; then
+        log_info "$component" "Connectivity backend reconciled"
+    else
+        log_warn "$component" "Connectivity reconcile did not complete cleanly"
     fi
 }
 
@@ -875,6 +913,7 @@ main() {
     # Post-sync checks: service files and requirements
     set_led_status "GIT_SUCCESS"
     check_service_updates
+    check_connectivity_updates
     check_requirements_update
 
     # Get commit information for logging

@@ -338,7 +338,7 @@ announce_candidate_to_gcs() {
 }
 
 run_candidate_announce_phase() {
-    print_phase_header "14" "Candidate Announce"
+    print_phase_header "15" "Candidate Announce"
 
     local bootstrap_status
     bootstrap_status="$(determine_bootstrap_status_for_announce)"
