@@ -31,15 +31,15 @@ fi
 # GCS-SPECIFIC CONSTANTS (Override base constants)
 # =============================================================================
 
-GCS_REPO_ROOT="$(cd "${GCS_SCRIPT_DIR}/../.." && pwd)"
+GCS_REPO_ROOT="${GCS_REPO_ROOT:-$(cd "${GCS_SCRIPT_DIR}/../.." && pwd)}"
 if [[ -f "${GCS_REPO_ROOT}/VERSION" ]]; then
     readonly GCS_VERSION="$(tr -d '[:space:]' < "${GCS_REPO_ROOT}/VERSION")"
 else
     readonly GCS_VERSION="5.0"
 fi
-readonly GCS_STATE_FILE="${MDS_STATE_DIR}/gcs_init_state.json"
-readonly GCS_CONFIG_FILE="${MDS_CONFIG_DIR}/gcs.env"
-readonly GCS_LOG_FILE="${MDS_LOG_DIR}/mds_gcs_init.log"
+readonly GCS_STATE_FILE="${GCS_STATE_FILE:-${MDS_STATE_DIR}/gcs_init_state.json}"
+readonly GCS_CONFIG_FILE="${GCS_CONFIG_FILE:-${MDS_CONFIG_DIR}/gcs.env}"
+readonly GCS_LOG_FILE="${GCS_LOG_FILE:-${MDS_LOG_DIR}/mds_gcs_init.log}"
 
 # GCS Phases
 readonly -a GCS_PHASES=(
@@ -79,10 +79,10 @@ readonly GCS_NODE_TARGET_VERSION="22"
 readonly GCS_PYTHON_MIN_VERSION="3.11"
 
 # Default repository settings (git-tracked deployment profile)
-readonly GCS_DEFAULT_REPO="${MDS_DEFAULT_REPO_URL_HTTPS}"
-readonly GCS_DEFAULT_REPO_SSH="${MDS_DEFAULT_REPO_URL_SSH}"
-readonly GCS_DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH}"
-readonly GCS_DEFAULT_REPO_OWNER="${MDS_DEFAULT_REPO_OWNER}"
+readonly GCS_DEFAULT_REPO="${GCS_DEFAULT_REPO:-${MDS_DEFAULT_REPO_URL_HTTPS}}"
+readonly GCS_DEFAULT_REPO_SSH="${GCS_DEFAULT_REPO_SSH:-${MDS_DEFAULT_REPO_URL_SSH}}"
+readonly GCS_DEFAULT_BRANCH="${GCS_DEFAULT_BRANCH:-${MDS_DEFAULT_BRANCH}}"
+readonly GCS_DEFAULT_REPO_OWNER="${GCS_DEFAULT_REPO_OWNER:-${MDS_DEFAULT_REPO_OWNER}}"
 
 # =============================================================================
 # PROGRESS SPINNER (UX feedback for long operations)
