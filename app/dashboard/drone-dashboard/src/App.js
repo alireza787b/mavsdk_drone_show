@@ -47,6 +47,7 @@ const Px4ParametersPage = lazy(() => import('./pages/Px4ParametersPage'));
 const FleetEnrollmentPage = lazy(() => import('./pages/FleetEnrollmentPage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
 const SitlControlPage = lazy(() => import('./pages/SitlControlPage'));
+const RuntimeAdminPage = lazy(() => import('./pages/RuntimeAdminPage'));
 
 /**
  * Main Application Component
@@ -166,6 +167,7 @@ const App = () => {
                       <Route path="/quickscout" element={<QuickScoutPage />} />
 
                       {/* System */}
+                      <Route path="/runtime-admin" element={<RuntimeAdminPage />} />
                       <Route path="/logs" element={<LogViewer />} />
                       <Route path="/sitl-control" element={<SitlControlPage />} />
 

@@ -25,6 +25,15 @@ class DeploymentProfile:
     real_gcs_ip: str
     sitl_gcs_ip: str
     gcs_api_port: int
+    connectivity_backend: str
+    smart_wifi_manager_repo_url_https: str
+    smart_wifi_manager_ref: str
+    mavlink_management_mode: str
+    mavlink_anywhere_repo_url_https: str
+    mavlink_anywhere_ref: str
+    mavlink_anywhere_install_dir: str
+    mavlink_anywhere_dashboard_listen: str
+    mavlink_anywhere_skip_dashboard: bool
     source: str
 
     @property
@@ -83,6 +92,27 @@ def _build_profile(path: Path) -> DeploymentProfile:
         )
         gcs_api_port = 5000
 
+    connectivity_backend = data.get("MDS_DEFAULT_CONNECTIVITY_BACKEND", "none")
+    smart_wifi_manager_repo_url_https = data.get(
+        "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS",
+        "https://github.com/alireza787b/smart-wifi-manager.git",
+    )
+    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "main")
+    mavlink_management_mode = data.get("MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE", "managed")
+    mavlink_anywhere_repo_url_https = data.get(
+        "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS",
+        "https://github.com/alireza787b/mavlink-anywhere.git",
+    )
+    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.5")
+    mavlink_anywhere_install_dir = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR", "/opt/mavlink-anywhere")
+    mavlink_anywhere_dashboard_listen = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN", "127.0.0.1:9070")
+    mavlink_anywhere_skip_dashboard = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
     return DeploymentProfile(
         profile_id=data.get("MDS_DEFAULT_PROFILE_ID", "official-default"),
         repo_slug=repo_slug,
@@ -92,6 +122,15 @@ def _build_profile(path: Path) -> DeploymentProfile:
         real_gcs_ip=real_gcs_ip,
         sitl_gcs_ip=sitl_gcs_ip,
         gcs_api_port=gcs_api_port,
+        connectivity_backend=connectivity_backend,
+        smart_wifi_manager_repo_url_https=smart_wifi_manager_repo_url_https,
+        smart_wifi_manager_ref=smart_wifi_manager_ref,
+        mavlink_management_mode=mavlink_management_mode,
+        mavlink_anywhere_repo_url_https=mavlink_anywhere_repo_url_https,
+        mavlink_anywhere_ref=mavlink_anywhere_ref,
+        mavlink_anywhere_install_dir=mavlink_anywhere_install_dir,
+        mavlink_anywhere_dashboard_listen=mavlink_anywhere_dashboard_listen,
+        mavlink_anywhere_skip_dashboard=mavlink_anywhere_skip_dashboard,
         source=source,
     )
 
