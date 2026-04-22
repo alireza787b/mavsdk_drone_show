@@ -1117,3 +1117,84 @@ def test_join_ntp_servers_is_stable_when_ifs_is_newline_tab():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_update_service_renders_coordinator_template_for_custom_runtime_paths():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        bin_dir="$tmpdir/bin"
+        mkdir -p "$repo_dir/tools" "$systemd_dir" "$bin_dir" "$tmpdir/home/companion"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        MDS_USER="companion" \
+        MDS_HOME="$tmpdir/home/companion" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash "{REPO_ROOT / 'tools' / 'update_service.sh'}"
+
+        service_file="$systemd_dir/coordinator.service"
+        [[ -f "$service_file" ]]
+        grep -q "^User=companion$" "$service_file"
+        grep -q "^Group=companion$" "$service_file"
+        grep -q "^WorkingDirectory=$repo_dir$" "$service_file"
+        grep -q "^ExecStart=$repo_dir/venv/bin/python $repo_dir/coordinator.py$" "$service_file"
+        ! grep -q "__MDS_" "$service_file"
+        grep -q "daemon-reload" "$tmpdir/systemctl.log"
+        grep -q "restart coordinator.service" "$tmpdir/systemctl.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_check_and_update_service_wraps_safe_renderer():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        bin_dir="$tmpdir/bin"
+        mkdir -p "$repo_dir/tools" "$systemd_dir" "$bin_dir" "$tmpdir/home/companion"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        MDS_USER="companion" \
+        MDS_HOME="$tmpdir/home/companion" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash "{REPO_ROOT / 'tools' / 'check_and_update_service.sh'}"
+
+        service_file="$systemd_dir/coordinator.service"
+        [[ -f "$service_file" ]]
+        grep -q "^User=companion$" "$service_file"
+        ! grep -q "__MDS_" "$service_file"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
