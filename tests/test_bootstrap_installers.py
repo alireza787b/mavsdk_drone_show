@@ -185,6 +185,34 @@ def test_node_bootstrap_wrapper_help_mentions_private_ssh_key_file():
     assert result.returncode == 0, result.stderr
 
 
+def test_identity_setup_local_env_persists_node_git_auth_file_paths():
+    identity_lib = REPO_ROOT / "tools" / "mds_init_lib" / "identity.sh"
+
+    result = run_bash(
+        f"""
+        source "{identity_lib}"
+        log_step() {{ :; }}
+        log_success() {{ :; }}
+        log_info() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        get_repo_origin_url() {{ printf '%s\\n' 'https://github.com/demo/private.git'; }}
+        get_repo_branch() {{ printf '%s\\n' 'main-candidate'; }}
+        MDS_VERSION="test"
+        MDS_CONNECTIVITY_BACKEND="none"
+        MDS_DEFAULT_CONNECTIVITY_BACKEND="none"
+        MDS_CONFIG_DIR="$(mktemp -d)"
+        MDS_LOCAL_ENV="$MDS_CONFIG_DIR/local.env"
+        GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
+        GIT_SSH_KEY_FILE="/home/droneshow/.ssh/customer_read_key"
+        setup_local_env 2 "100.82.207.49" "https://github.com/Catch-A-Drone/mavsdk_drone_show.git" "main-candidate" "http://100.82.207.49:5000"
+        grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/customer_read_key$' "$MDS_LOCAL_ENV"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_node_bootstrap_help_mentions_connectivity_backend_options():
     result = run_bash(
         f"""

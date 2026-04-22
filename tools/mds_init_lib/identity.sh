@@ -147,8 +147,8 @@ setup_local_env() {
     local repo_url="${3:-}"
     local branch="${4:-}"
     local gcs_api_url="${5:-}"
-    local git_auth_token_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-    local git_ssh_key_file="${MDS_GIT_SSH_KEY_FILE:-}"
+    local git_auth_token_file="${GIT_AUTH_TOKEN_FILE:-${MDS_GIT_AUTH_TOKEN_FILE:-}}"
+    local git_ssh_key_file="${GIT_SSH_KEY_FILE:-${MDS_GIT_SSH_KEY_FILE:-}}"
 
     log_step "Setting up local environment configuration..."
 
