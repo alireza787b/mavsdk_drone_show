@@ -28,6 +28,7 @@ It complements these guides:
 - [Advanced SITL Guide](advanced-sitl.md)
 - [SITL Custom Release Workflow](sitl-custom-release-workflow.md)
 - [Git Sync System](../features/git-sync.md)
+- [Fleet Sync And Secrets](fleet-sync-and-secrets.md)
 
 ## First Decisions
 
@@ -74,6 +75,13 @@ Practical recommendation:
 - GCS private read-only demo/evaluation: explicit `https://github.com/...git` plus `MDS_GIT_AUTO_PUSH=false`
 - drones: SSH if customer wants private repo pull access, HTTPS if repo is public and read-only is fine
 - SITL: public HTTPS for public repos; read-only token/key for private repos; no write credentials in containers
+
+Credential boundary rule:
+
+- the GCS does not distribute raw repo secrets to nodes through git
+- each node keeps its own local read credential
+- normal fleet config changes should propagate through git desired state without
+  re-touching node secrets
 
 Important GitHub note:
 - use a dedicated long-lived read-only GitHub credential file for documented private HTTPS bootstrap/runtime flows

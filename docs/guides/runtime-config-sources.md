@@ -9,6 +9,10 @@ Use it whenever there is ambiguity between:
 - node runtime files such as `/etc/mds/local.env`
 - SITL launch-time environment variables
 
+For how those layers should propagate across a fleet, and how secrets should be
+handled separately from normal desired state, see
+[Fleet Sync And Secrets](fleet-sync-and-secrets.md).
+
 ## Ownership Model
 
 | Concern | Real source of truth | Notes |
@@ -109,6 +113,7 @@ Do not expect Fleet Enrollment to rewrite swarm topology automatically.
 5. commit repo-wide repo/branch/network default changes in `deployment/defaults.env`
 6. if you intentionally want repo-driven Wi-Fi rollout, commit
    `deployment/connectivity/smart-wifi-manager/profile.json` in a private fleet repo
+7. keep private read credentials in local secret files; do not put them in git
 
 ### SITL
 
@@ -132,3 +137,6 @@ For Smart Wi-Fi Manager specifically:
 - tool version/channel intent belongs in `deployment/defaults.env`
 - tool configuration intent belongs in `deployment/connectivity/smart-wifi-manager/profile.json`
 - host-specific exceptions belong in `/etc/mds/local.env`
+
+For the fleet-scale propagation model and operator rules, see
+[Fleet Sync And Secrets](fleet-sync-and-secrets.md).

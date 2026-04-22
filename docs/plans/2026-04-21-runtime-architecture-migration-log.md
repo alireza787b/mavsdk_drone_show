@@ -896,3 +896,43 @@ Residual drift after this slice:
 - `CM4-02` private bootstrap must be retried against the new code
 - the temporary read-only token used for this validation should be rotated after
   the test because it was pasted into chat
+
+## Slice 14
+
+Goal:
+
+- consolidate the operator/agent explanation of fleet desired state versus
+  host-local runtime versus secrets
+- remove ambiguity around how large fleets should sync normal config without
+  re-touching node credentials
+- make the bootstrap/auth/runbook docs point to one canonical guidance layer
+
+Implemented:
+
+- added canonical guide:
+  - `docs/guides/fleet-sync-and-secrets.md`
+- updated cross-links and operator guidance in:
+  - `docs/README.md`
+  - `docs/guides/runtime-config-sources.md`
+  - `docs/features/git-sync.md`
+  - `docs/guides/custom-repo-workflow.md`
+  - `docs/guides/headless-automation.md`
+- updated headless automation examples so they:
+  - prefer `mds_node_init.sh` over ad hoc pre-bootstrap git reset flows
+  - show local token-file usage for private repo nodes
+  - call out structured `--report-json` / `--announce-report-json` for
+    automation and AI-agent use
+
+Verification:
+
+- manual doc review against current runtime/auth implementation completed
+- link-path grep verified the new canonical guide is referenced from the main
+  entry points above
+
+Residual drift after this slice:
+
+- official/private repos still need this doc-only slice committed and pushed
+- Smart Wi-Fi Manager fleet-profile integration is still a planned next slice,
+  not a live Arnaud-board capability yet
+- hardware convergence remains blocked on private token approval from the
+  Catch-A-Drone org

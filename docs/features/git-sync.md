@@ -4,6 +4,10 @@
 
 The MDS git sync system uses git as the transport mechanism to keep code and configuration synchronized between the GCS (Ground Control Station) server and the drone fleet.
 
+For the higher-level fleet propagation model, secret boundaries, and what
+should change once versus per node, see
+[Fleet Sync And Secrets](../guides/fleet-sync-and-secrets.md).
+
 ```
 GCS Server
   - SSH write-back mode (read + write)
@@ -59,6 +63,25 @@ Rules:
   and runtime repo selection, not secret values
 - for private HTTPS read paths, prefer file-backed tokens over raw env values so
   tokens are not exposed in command arguments
+
+## Current Behavior Versus Planned Fleet Behavior
+
+What exists today:
+
+- repo/branch/channel intent can be git-tracked
+- nodes can pull that desired state automatically
+- host-local runtime files render the effective runtime for each host
+- node read credentials can be file-backed and local-only
+
+What is planned next, but not fully operator-complete yet:
+
+- richer fleet-default versus node-override management for connectivity tools
+- first-class Smart Wi-Fi Manager fleet profile rollout
+- future fleet-default MAVLink Anywhere profile handling
+- improved dashboard-level rollout visibility for those profile classes
+
+Do not assume that every fleet-wide profile edit already has a complete GCS UI
+just because the runtime foundation exists.
 
 ## Sync Trigger Paths
 
@@ -226,3 +249,4 @@ If you are validating a fix that changes the drone-side sync runtime itself, rec
 
 For the end-to-end customer/private repo workflow, see [Custom Repo Workflow](../guides/custom-repo-workflow.md).
 For SITL/private image authentication rules, see [Custom SITL Auth Guide](../guides/custom-sitl-auth.md).
+For the fleet-default versus host-local model, see [Fleet Sync And Secrets](../guides/fleet-sync-and-secrets.md).

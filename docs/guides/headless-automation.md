@@ -3,6 +3,8 @@
 Guide for automated fleet provisioning, CI/CD integration, and batch deployment of MDS drones.
 
 If your fleet follows a customer-owned repo or private branch, read [Custom Repo Workflow](custom-repo-workflow.md) first. This guide assumes you already know which repo/branch each target should follow.
+For the fleet-default versus host-local secret model, read
+[Fleet Sync And Secrets](fleet-sync-and-secrets.md) as well.
 
 ## Overview
 
@@ -35,6 +37,7 @@ sudo ./tools/mds_node_init.sh -d 1 -y
 1. **Drone ID must be specified** via `-d` flag
 2. **SSH key must already exist** if using SSH for git (or use `--https`)
 3. **All required information** must be provided via CLI flags
+4. **Private repo nodes need their own local read credential**, typically via `--git-auth-token-file`
 
 ### Recommended Flags for Automation
 
@@ -46,6 +49,7 @@ sudo ./tools/mds_node_init.sh \
     --https \
     --repo-url https://github.com/YOURORG/YOURREPO.git \
     -b customer-demo \
+    --git-auth-token-file /home/droneshow/.mds_git_read_token \
     --report-json /var/lib/mds/bootstrap-report.json \
     --announce-report-json /var/lib/mds/announce-report.json \
     -y
@@ -61,6 +65,12 @@ For CI, MCP, and AI-agent workflows, prefer:
 Those reports are the canonical structured outputs for bootstrap and candidate
 discovery status. Avoid scraping colored terminal output when automation can use
 the JSON reports directly.
+
+Secret rule:
+
+- do not store the raw token inside your inventory or git repo
+- place the token on the node first, then pass the file path to bootstrap
+- if the token rotates later, keep the same file path when possible
 
 ## Fleet Provisioning
 
@@ -95,6 +105,7 @@ sudo ./tools/mds_node_init.sh \
     --https \
     --repo-url https://github.com/YOURORG/YOURREPO.git \
     --branch customer-demo \
+    --git-auth-token-file /home/droneshow/.mds_git_read_token \
     -y \
     2>&1 | tee "/var/log/mds/provision_${DRONE_ID}.log"
 
@@ -122,10 +133,15 @@ for entry in "${DRONES[@]}"; do
 
     ssh -o StrictHostKeyChecking=accept-new "droneshow@$ip" << EOF
         cd ~/mavsdk_drone_show
-        git fetch origin customer-demo
-        git checkout customer-demo
-        git reset --hard origin/customer-demo
-        sudo ./tools/mds_node_init.sh -d $drone_id --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
+        sudo ./tools/mds_node_init.sh \
+          -d $drone_id \
+          --https \
+          --repo-url https://github.com/YOURORG/YOURREPO.git \
+          --branch customer-demo \
+          --git-auth-token-file /home/droneshow/.mds_git_read_token \
+          --report-json /var/lib/mds/bootstrap-report.json \
+          --announce-report-json /var/lib/mds/announce-report.json \
+          -y
 EOF
 
     if [[ $? -eq 0 ]]; then
@@ -167,6 +183,7 @@ done
         ./tools/mds_node_init.sh
         -d {{ drone_id }}
         --https
+        --git-auth-token-file /home/droneshow/.mds_git_read_token
         -y
       args:
         chdir: /home/droneshow/mavsdk_drone_show
@@ -224,14 +241,12 @@ jobs:
           key: ${{ secrets.DRONE_SSH_KEY }}
           script: |
             cd ~/mavsdk_drone_show
-            git fetch origin customer-demo
-            git checkout customer-demo
-            git reset --hard origin/customer-demo
             sudo ./tools/mds_node_init.sh \
               -d ${{ github.event.inputs.drone_id }} \
               --https \
               --repo-url https://github.com/YOURORG/YOURREPO.git \
               --branch customer-demo \
+              --git-auth-token-file /home/droneshow/.mds_git_read_token \
               -y
 ```
 
@@ -244,15 +259,26 @@ deploy_drone:
   script:
     - ssh droneshow@${DRONE_IP} "
         cd ~/mavsdk_drone_show &&
-        git fetch origin customer-demo &&
-        git checkout customer-demo &&
-        git reset --hard origin/customer-demo &&
-        sudo ./tools/mds_node_init.sh -d ${DRONE_ID} --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo -y
+        sudo ./tools/mds_node_init.sh -d ${DRONE_ID} --https --repo-url https://github.com/YOURORG/YOURREPO.git --branch customer-demo --git-auth-token-file /home/droneshow/.mds_git_read_token -y
       "
   only:
     - customer-demo
   when: manual
 ```
+
+## Fleet-Scale Rule
+
+At scale, aim for this split:
+
+- ordinary fleet configuration changes:
+  - commit/push desired state once
+  - let nodes pull/apply it
+- new nodes:
+  - bootstrap identity + local secret
+  - then inherit fleet desired state
+- secret rotation:
+  - update the local secret file
+  - do not treat it like an ordinary git-tracked config save
 
 ## Image-Based Deployment
 
