@@ -210,7 +210,7 @@ path_requires_coordinator_restart() {
         tools/build_custom_image.sh|tools/package_sitl_image.sh|tools/release_sitl_image.sh|tools/docker_sitl_image_lib.sh|tools/sitl_*|tools/run_sitl_*|tools/mds_git_access_check.sh)
             return 1
             ;;
-        tools/update_repo_ssh.sh|tools/git_sync_mds/*|tools/led_indicator/*|tools/local.env.template)
+        tools/update_repo_ssh.sh|tools/git_sync_mds/*|tools/led_indicator/*|tools/local.env.template|tools/reconcile_connectivity.sh|tools/reconcile_mavlink_runtime.sh)
             return 1
             ;;
         *)
@@ -406,6 +406,33 @@ check_connectivity_updates() {
         log_info "$component" "Connectivity backend reconciled"
     else
         log_warn "$component" "Connectivity reconcile did not complete cleanly"
+    fi
+}
+
+check_mavlink_runtime_updates() {
+    local component="MAVLINK-RUNTIME"
+    local management_mode="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}"
+    local reconcile_script="${REPO_DIR}/tools/reconcile_mavlink_runtime.sh"
+
+    case "$management_mode" in
+        managed|"")
+            ;;
+        *)
+            log_debug "$component" "MAVLink runtime ownership is '${management_mode}', nothing to reconcile"
+            return 0
+            ;;
+    esac
+
+    if [[ ! -x "${reconcile_script}" ]]; then
+        log_warn "$component" "MAVLink runtime reconcile helper is missing: ${reconcile_script}"
+        return 0
+    fi
+
+    log_info "$component" "Reapplying managed mavlink-anywhere runtime..."
+    if sudo "${reconcile_script}" apply --quiet; then
+        log_info "$component" "Managed mavlink-anywhere runtime reconciled"
+    else
+        log_warn "$component" "Managed mavlink-anywhere reconcile did not complete cleanly"
     fi
 }
 
@@ -1101,6 +1128,7 @@ main() {
     check_runtime_process_updates "$previous_head" "$(git rev-parse HEAD 2>/dev/null || echo "")"
     check_service_updates
     check_connectivity_updates
+    check_mavlink_runtime_updates
     check_requirements_update
     apply_post_sync_service_actions
 

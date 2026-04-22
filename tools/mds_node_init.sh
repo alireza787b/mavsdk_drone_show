@@ -112,6 +112,15 @@ MAVLINK_BAUD="57600"
 MAVLINK_ENDPOINTS=""
 MAVLINK_INPUT_TYPE="uart"
 MAVLINK_INPUT_PORT="14550"
+MAVLINK_MANAGEMENT_MODE="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}"
+MAVLINK_ANYWHERE_REPO_URL="${MDS_MAVLINK_ANYWHERE_REPO_URL:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG:-alireza787b/mavlink-anywhere}.git}}"
+MAVLINK_ANYWHERE_REF="${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.5}}"
+MAVLINK_ANYWHERE_INSTALL_DIR="${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}"
+MAVLINK_ANYWHERE_DASHBOARD_LISTEN="${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}"
+MAVLINK_ANYWHERE_SKIP_DASHBOARD="${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}"
+MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="false"
+MAVLINK_ANYWHERE_REF_EXPLICIT="false"
+MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="false"
 MDS_CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
 SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-observe}}"
 SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-replace}}"
@@ -205,6 +214,11 @@ MAVLINK-ROUTER OPTIONS (NEW in v4.5):
     --mavlink-endpoints LIST    Comma-separated endpoints
     --mavlink-input TYPE        Input type: uart (default) or udp
     --mavlink-input-port PORT   UDP input port (default: 14550)
+    --mavlink-repo-url URL      Managed mavlink-anywhere repo URL override
+    --mavlink-ref REF           Managed mavlink-anywhere git ref/tag override
+    --mavlink-install-dir DIR   Managed mavlink-anywhere install directory
+    --mavlink-dashboard ADDR    Dashboard listen address (default: 127.0.0.1:9070)
+    --skip-mavlink-dashboard    Keep router managed but do not install/update dashboard
 
 SKIP FLAGS:
     --skip-firewall             Skip UFW firewall configuration
@@ -262,6 +276,9 @@ EXAMPLES:
     # Headless UART mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
 
+    # Pin managed mavlink-anywhere to a specific release tag
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --mavlink-ref v3.0.5
+
     # Headless UDP-input mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-input udp --mavlink-input-port 14550 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550"
 
@@ -278,6 +295,12 @@ ENVIRONMENT VARIABLES:
     MDS_GIT_SSH_KEY_FILE        Existing SSH private key file for private GitHub SSH access
     MDS_GCS_IP                  Override GCS IP address
     MDS_GCS_API_BASE_URL        Override candidate-announce API base URL
+    MDS_MAVLINK_MANAGEMENT_MODE Managed or manual mavlink-anywhere ownership
+    MDS_MAVLINK_ANYWHERE_REPO_URL Managed mavlink-anywhere repo URL override
+    MDS_MAVLINK_ANYWHERE_REF    Managed mavlink-anywhere ref/tag override
+    MDS_MAVLINK_ANYWHERE_INSTALL_DIR Managed mavlink-anywhere install directory
+    MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN Managed dashboard listen address
+    MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD Skip dashboard installation/update
 
 STATE FILE:
     /var/lib/mds/init_state.json    Persistent state tracking
@@ -298,7 +321,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,mavlink-repo-url:,mavlink-ref:,mavlink-install-dir:,mavlink-dashboard:,skip-mavlink-dashboard,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
         -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -464,6 +487,38 @@ parse_args() {
                 MAVLINK_INPUT_PORT="$2"
                 shift 2
                 ;;
+            --mavlink-repo-url)
+                MAVLINK_ANYWHERE_REPO_URL="$2"
+                MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="true"
+                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --mavlink-ref)
+                MAVLINK_ANYWHERE_REF="$2"
+                MAVLINK_ANYWHERE_REF_EXPLICIT="true"
+                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --mavlink-install-dir)
+                MAVLINK_ANYWHERE_INSTALL_DIR="$2"
+                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --mavlink-dashboard)
+                MAVLINK_ANYWHERE_DASHBOARD_LISTEN="$2"
+                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
+                shift 2
+                ;;
+            --skip-mavlink-dashboard)
+                MAVLINK_ANYWHERE_SKIP_DASHBOARD="true"
+                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
+                shift
+                ;;
             -y|--yes)
                 NON_INTERACTIVE="true"
                 shift
@@ -526,6 +581,9 @@ parse_args() {
     export MAVSDK_VERSION MAVSDK_URL
     export MAVLINK_AUTO MAVLINK_SKIP MAVLINK_UART MAVLINK_BAUD MAVLINK_ENDPOINTS
     export MAVLINK_INPUT_TYPE MAVLINK_INPUT_PORT
+    export MAVLINK_MANAGEMENT_MODE MAVLINK_ANYWHERE_REPO_URL MAVLINK_ANYWHERE_REF
+    export MAVLINK_ANYWHERE_INSTALL_DIR MAVLINK_ANYWHERE_DASHBOARD_LISTEN MAVLINK_ANYWHERE_SKIP_DASHBOARD
+    export MAVLINK_ANYWHERE_REPO_URL_EXPLICIT MAVLINK_ANYWHERE_REF_EXPLICIT MAVLINK_MANAGEMENT_SELECTION_EXPLICIT
     export SKIP_FIREWALL SKIP_NETBIRD SKIP_NTP SKIP_SERVICES SKIP_MAVSDK SKIP_VENV
     export NON_INTERACTIVE DRY_RUN REPORT_JSON ANNOUNCE_REPORT_JSON ANNOUNCE_TIMEOUT_SEC RESUME FORCE VERBOSE DEBUG
 }

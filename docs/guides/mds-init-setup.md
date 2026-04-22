@@ -340,6 +340,10 @@ cat /var/log/mds/mds_init.log
 Current best practice:
 
 - use `mds_node_init.sh --mavlink-auto` for the default managed path
+- keep the managed `mavlink-anywhere` repo/ref/install defaults in
+  `deployment/defaults.env`
+- use `/etc/mds/local.env` only for node-specific MAVLink ownership overrides
+  when a board needs different runtime handling
 - interactive bootstrap lets the operator choose between recommended defaults, a guided `mavlink-anywhere` wizard, or fully manual routing
 - or provide explicit headless routing flags such as `--mavlink-uart` and
   `--mavlink-endpoints`
@@ -357,6 +361,7 @@ sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 100.96.32.75 -y
 sudo ./tools/mds_node_init.sh \
   -d 1 \
   --mavlink-uart /dev/ttyS0 \
+  --mavlink-ref v3.0.5 \
   --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,100.96.32.75:24550" \
   -y
 ```
@@ -373,6 +378,27 @@ sudo ./tools/mds_node_init.sh \
 If you intentionally keep routing manual, bootstrap and enrollment still work.
 In that case, manage `mavlink-anywhere` yourself and keep that routing profile
 documented for the fleet.
+
+Managed runtime ownership and local overrides:
+
+- `deployment/defaults.env`
+  - `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE`
+  - `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS`
+  - `MDS_DEFAULT_MAVLINK_ANYWHERE_REF`
+  - `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR`
+- `/etc/mds/local.env`
+  - `MDS_MAVLINK_MANAGEMENT_MODE`
+  - optional `MDS_MAVLINK_ANYWHERE_REPO_URL`
+  - optional `MDS_MAVLINK_ANYWHERE_REF`
+  - `MDS_MAVLINK_ANYWHERE_INSTALL_DIR`
+  - `MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`
+  - `MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD`
+
+After changing only the managed runtime ownership settings on an existing node:
+
+```bash
+sudo ./tools/reconcile_mavlink_runtime.sh apply --force
+```
 
 Current `mavlink-anywhere` defaults include a device-side GCS listener on `14550/udp`, so the normal QGC workflow is to connect **to the node / CM4 IP on port 14550**. Add explicit `GCS_IP:24550` push endpoints only when you intentionally need remote push-mode delivery.
 

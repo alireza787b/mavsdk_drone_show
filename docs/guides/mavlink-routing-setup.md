@@ -99,6 +99,19 @@ export MDS_PX4_GCS_PORT=14550
 
 For real hardware deployment, you need to set up mavlink-anywhere as a systemd service.
 
+If you are using the normal managed MDS bootstrap path, treat this document as
+the ownership model and troubleshooting reference. The actual tool checkout/ref
+should come from:
+
+- fleet defaults in `deployment/defaults.env`
+- optional node override in `/etc/mds/local.env`
+
+Current managed defaults include:
+
+- `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed`
+- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.5`
+- `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/mavlink-anywhere`
+
 #### Prerequisites
 
 - Raspberry Pi with serial UART enabled
@@ -121,6 +134,7 @@ sudo raspi-config
 cd ~
 git clone https://github.com/alireza787b/mavlink-anywhere.git
 cd mavlink-anywhere
+git checkout v3.0.5
 chmod +x install_mavlink_router.sh
 sudo ./install_mavlink_router.sh
 ```
@@ -234,6 +248,15 @@ The `mavlink-anywhere` dashboard binds to `127.0.0.1:9070` by default. If you wa
 ```bash
 sudo ./configure_mavlink_router.sh --install-dashboard \
   --dashboard-listen 0.0.0.0:9070
+```
+
+If the node is using managed MDS ownership for `mavlink-anywhere`, keep the
+runtime checkout/ref inside MDS defaults and use the reconcile helper after a
+local override change:
+
+```bash
+sudo ./tools/reconcile_mavlink_runtime.sh status
+sudo ./tools/reconcile_mavlink_runtime.sh apply --force
 ```
 
 ## Troubleshooting

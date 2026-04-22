@@ -16,6 +16,7 @@ SERVICES_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "services.sh"
 PYTHON_ENV_LIB = REPO_ROOT / "tools" / "mds_init_lib" / "python_env.sh"
 GIT_SYNC_SCRIPT = REPO_ROOT / "tools" / "update_repo_ssh.sh"
 RECONCILE_CONNECTIVITY_SCRIPT = REPO_ROOT / "tools" / "reconcile_connectivity.sh"
+RECONCILE_MAVLINK_SCRIPT = REPO_ROOT / "tools" / "reconcile_mavlink_runtime.sh"
 
 
 def run_bash(script: str) -> subprocess.CompletedProcess[str]:
@@ -616,6 +617,9 @@ def test_common_lib_loads_git_tracked_deployment_profile_defaults():
     assert 'MDS_DEFAULT_CONNECTIVITY_BACKEND' in loader_text
     assert 'MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS' in loader_text
     assert 'MDS_DEFAULT_SMART_WIFI_MANAGER_REF' in loader_text
+    assert 'MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE' in loader_text
+    assert 'MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS' in loader_text
+    assert 'MDS_DEFAULT_MAVLINK_ANYWHERE_REF' in loader_text
 
 
 def test_node_repo_reconcile_updates_remote_to_requested_runtime_repo():
@@ -820,6 +824,10 @@ def test_setup_local_env_writes_clean_override_lines():
         setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5000
         grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_CONNECTIVITY_BACKEND=none$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_MAVLINK_MANAGEMENT_MODE=managed$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/mavlink-anywhere$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=127.0.0.1:9070$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GCS_IP=100.64.20.10$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5000$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
@@ -923,12 +931,127 @@ def test_connectivity_persistence_keeps_repo_ref_in_defaults_layer_unless_explic
     assert result.returncode == 0, result.stderr
 
 
+def test_mavlink_persistence_keeps_repo_ref_in_defaults_layer_unless_explicit():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        source "{COMMON_LIB}"
+        source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
+        source "{MAVLINK_SETUP_LIB}"
+        update_local_env_value() {{ printf 'set:%s=%s\\n' "$1" "$2" >> "$tmpdir/out.txt"; }}
+        remove_local_env_value() {{ printf 'remove:%s\\n' "$1" >> "$tmpdir/out.txt"; }}
+        MAVLINK_MANAGEMENT_MODE="managed"
+        MAVLINK_ANYWHERE_REPO_URL="https://github.com/demo/mavlink-anywhere.git"
+        MAVLINK_ANYWHERE_REF="v9.9.9"
+        MAVLINK_ANYWHERE_DIR="/opt/demo-mavlink"
+        MAVLINK_ANYWHERE_DASHBOARD_LISTEN="127.0.0.1:9070"
+        MAVLINK_ANYWHERE_SKIP_DASHBOARD="false"
+        MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="false"
+        MAVLINK_ANYWHERE_REF_EXPLICIT="false"
+        persist_mavlink_local_env
+        grep -q '^set:MDS_MAVLINK_MANAGEMENT_MODE=managed$' "$tmpdir/out.txt"
+        grep -q '^remove:MDS_MAVLINK_ANYWHERE_REPO_URL$' "$tmpdir/out.txt"
+        grep -q '^remove:MDS_MAVLINK_ANYWHERE_REF$' "$tmpdir/out.txt"
+        grep -q '^set:MDS_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/demo-mavlink$' "$tmpdir/out.txt"
+        grep -q '^set:MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=127.0.0.1:9070$' "$tmpdir/out.txt"
+        grep -q '^set:MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false$' "$tmpdir/out.txt"
+        ! grep -q '^set:MDS_MAVLINK_ANYWHERE_REPO_URL=' "$tmpdir/out.txt"
+        ! grep -q '^set:MDS_MAVLINK_ANYWHERE_REF=' "$tmpdir/out.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_reconcile_mavlink_runtime_uses_repo_ref_when_managed():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/tools"
+        cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment.defaults" <<'EOF'
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
+MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
+MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=TMPDIR_REPLACE/ma
+MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=0.0.0.0:9070
+MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false
+EOF
+        sed -i "s|TMPDIR_REPLACE|$tmpdir|g" "$repo_dir/deployment.defaults"
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<'EOF'
+MDS_MAVLINK_MANAGEMENT_MODE=managed
+EOF
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+if [[ "$1" == "clone" ]]; then
+    target="${{@: -1}}"
+    mkdir -p "$target/.git" "$target/lib"
+    cat > "$target/install_mavlink_router.sh" <<'EOS'
+#!/bin/bash
+printf '%s\n' "$*" > "$TMPDIR/install_args.txt"
+EOS
+    chmod +x "$target/install_mavlink_router.sh"
+    cat > "$target/configure_mavlink_router.sh" <<'EOS'
+#!/bin/bash
+printf '%s\n' "$*" > "$TMPDIR/configure_args.txt"
+EOS
+    chmod +x "$target/configure_mavlink_router.sh"
+    cat > "$target/lib/dashboard.sh" <<'EOS'
+#!/bin/bash
+install_dashboard_binary() {{
+    printf '%s\n' "$1" > "$TMPDIR/dashboard_version.txt"
+}}
+setup_dashboard_service() {{
+    printf '%s\n' "$1" > "$TMPDIR/dashboard_listen.txt"
+}}
+EOS
+fi
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/systemctl"
+        cat > "$fakebin/mavlink-routerd" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/mavlink-routerd"
+        mkdir -p "$tmpdir/etc/mavlink-router"
+        : > "$tmpdir/etc/mavlink-router/main.conf"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_DEPLOYMENT_PROFILE_FILE="$repo_dir/deployment.defaults" MDS_LOCAL_ENV_FILE="$config_dir/local.env" MAVLINK_ROUTER_CONFIG="$tmpdir/etc/mavlink-router/main.conf" MDS_MAVLINK_STATE_DIR="$tmpdir/state" bash "$repo_dir/tools/reconcile_mavlink_runtime.sh" apply --force
+        grep -q -- 'clone --depth 1 --branch v9.9.9 https://github.com/demo/mavlink-anywhere.git' "$tmpdir/git_args.txt"
+        grep -q '^v9.9.9$' "$tmpdir/dashboard_version.txt"
+        grep -q '^0.0.0.0:9070$' "$tmpdir/dashboard_listen.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_runtime_git_sync_reconciles_optional_connectivity_backend():
     git_sync_text = GIT_SYNC_SCRIPT.read_text(encoding="utf-8")
 
     assert "check_connectivity_updates()" in git_sync_text
     assert 'sudo "${reconcile_script}" apply --quiet' in git_sync_text
     assert '"wifi-manager"' not in git_sync_text
+
+
+def test_runtime_git_sync_reconciles_managed_mavlink_runtime():
+    git_sync_text = GIT_SYNC_SCRIPT.read_text(encoding="utf-8")
+
+    assert "check_mavlink_runtime_updates()" in git_sync_text
+    assert '/tools/reconcile_mavlink_runtime.sh' in git_sync_text
+    assert "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE" in git_sync_text
 
 
 def test_services_lib_core_service_order_excludes_embedded_wifi_manager():

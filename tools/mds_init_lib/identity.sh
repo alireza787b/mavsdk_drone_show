@@ -149,6 +149,14 @@ setup_local_env() {
     local gcs_api_url="${5:-}"
     local git_auth_token_file="${GIT_AUTH_TOKEN_FILE:-${MDS_GIT_AUTH_TOKEN_FILE:-}}"
     local git_ssh_key_file="${GIT_SSH_KEY_FILE:-${MDS_GIT_SSH_KEY_FILE:-}}"
+    local mavlink_management_mode="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}}"
+    local mavlink_install_dir="${MAVLINK_ANYWHERE_DIR:-${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}}"
+    local mavlink_dashboard_listen="${MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}}"
+    local mavlink_skip_dashboard="${MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}}}"
+    local mavlink_repo_url="${MAVLINK_ANYWHERE_REPO_URL:-${MDS_MAVLINK_ANYWHERE_REPO_URL:-}}"
+    local mavlink_ref="${MAVLINK_ANYWHERE_REF:-${MDS_MAVLINK_ANYWHERE_REF:-}}"
+    local mavlink_repo_url_explicit="${MAVLINK_ANYWHERE_REPO_URL_EXPLICIT:-false}"
+    local mavlink_ref_explicit="${MAVLINK_ANYWHERE_REF_EXPLICIT:-false}"
 
     log_step "Setting up local environment configuration..."
 
@@ -175,6 +183,20 @@ setup_local_env() {
         printf 'MDS_MODE=real\n'
         printf '\n# Optional connectivity backend for this host\n'
         printf 'MDS_CONNECTIVITY_BACKEND=%s\n' "${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
+
+        printf '\n# MAVLink runtime ownership for this host\n'
+        printf 'MDS_MAVLINK_MANAGEMENT_MODE=%s\n' "${mavlink_management_mode}"
+        if [[ "${mavlink_management_mode}" == "managed" ]]; then
+            printf 'MDS_MAVLINK_ANYWHERE_INSTALL_DIR=%s\n' "${mavlink_install_dir}"
+            printf 'MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=%s\n' "${mavlink_dashboard_listen}"
+            printf 'MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=%s\n' "${mavlink_skip_dashboard}"
+            if [[ "${mavlink_repo_url_explicit}" == "true" && -n "${mavlink_repo_url}" ]]; then
+                printf 'MDS_MAVLINK_ANYWHERE_REPO_URL=%s\n' "${mavlink_repo_url}"
+            fi
+            if [[ "${mavlink_ref_explicit}" == "true" && -n "${mavlink_ref}" ]]; then
+                printf 'MDS_MAVLINK_ANYWHERE_REF=%s\n' "${mavlink_ref}"
+            fi
+        fi
 
         if [[ -n "$gcs_ip" ]]; then
             printf '\n# Ground Control Station IP override\n'
