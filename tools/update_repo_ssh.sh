@@ -69,6 +69,12 @@ LOG_FILE="$RESOLVED_HOME/logs/drone_git_sync.log"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
+RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-2}"
+
+SERVICE_RELOAD_REQUIRED=false
+COORDINATOR_RESTART_NEEDED=false
+declare -a COORDINATOR_RESTART_REASONS=()
+declare -a UPDATED_SYSTEMD_UNITS=()
 
 # ----------------------------------
 # Enhanced Logging System (FIXED - No variable corruption)
@@ -149,6 +155,159 @@ set_led_status() {
     fi
 }
 
+remember_updated_unit() {
+    local unit_name="$1"
+    local existing=""
+    for existing in "${UPDATED_SYSTEMD_UNITS[@]}"; do
+        [[ "$existing" == "$unit_name" ]] && return 0
+    done
+    UPDATED_SYSTEMD_UNITS+=("$unit_name")
+}
+
+mark_coordinator_restart_needed() {
+    local reason="$1"
+    local existing=""
+    COORDINATOR_RESTART_NEEDED=true
+    for existing in "${COORDINATOR_RESTART_REASONS[@]}"; do
+        [[ "$existing" == "$reason" ]] && return 0
+    done
+    COORDINATOR_RESTART_REASONS+=("$reason")
+}
+
+validate_rendered_unit_file() {
+    local unit_path="$1"
+    local component="${2:-SERVICE-UPDATE}"
+
+    if ! command -v systemd-analyze >/dev/null 2>&1; then
+        log_debug "$component" "systemd-analyze not available; skipping unit verification for $unit_path"
+        return 0
+    fi
+
+    if systemd-analyze verify "$unit_path" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log_error "$component" "Rendered unit validation failed for $unit_path"
+    return 1
+}
+
+path_requires_coordinator_restart() {
+    local changed_path="$1"
+
+    case "$changed_path" in
+        docs/*|tests/*|.github/*|README.md|CHANGELOG.md|LICENSE|*.md)
+            return 1
+            ;;
+        gcs-server/*|app/dashboard/*|app/linux_dashboard_start.sh|multiple_sitl/*)
+            return 1
+            ;;
+        deployment/connectivity/smart-wifi-manager/profile.json|deployment/defaults.env)
+            return 1
+            ;;
+        tools/install_gcs.sh|tools/mds_gcs_init.sh|tools/mds_gcs_init_lib/*|tools/install_companion.sh|tools/install_mds_node.sh)
+            return 1
+            ;;
+        tools/build_custom_image.sh|tools/package_sitl_image.sh|tools/release_sitl_image.sh|tools/docker_sitl_image_lib.sh|tools/sitl_*|tools/run_sitl_*|tools/mds_git_access_check.sh)
+            return 1
+            ;;
+        tools/update_repo_ssh.sh|tools/git_sync_mds/*|tools/led_indicator/*|tools/local.env.template)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+check_runtime_process_updates() {
+    local old_head="${1:-}"
+    local new_head="${2:-}"
+    local component="RUNTIME-RESTART"
+    local changed_path=""
+    local -a relevant_paths=()
+
+    if [[ -z "$old_head" || -z "$new_head" || "$old_head" == "$new_head" ]]; then
+        log_debug "$component" "No revision delta to inspect for runtime restart"
+        return 0
+    fi
+
+    while IFS= read -r changed_path; do
+        [[ -z "$changed_path" ]] && continue
+        if path_requires_coordinator_restart "$changed_path"; then
+            relevant_paths+=("$changed_path")
+        fi
+    done < <(git diff --name-only "$old_head" "$new_head" 2>/dev/null || true)
+
+    if [[ ${#relevant_paths[@]} -eq 0 ]]; then
+        log_debug "$component" "No coordinator-affecting paths changed between ${old_head} and ${new_head}"
+        return 0
+    fi
+
+    mark_coordinator_restart_needed "runtime files changed"
+    log_info "$component" "Coordinator restart required due to runtime file changes: ${relevant_paths[*]}"
+}
+
+schedule_systemd_restart() {
+    local service_name="$1"
+    local action="${2:-restart}"
+    local delay_seconds="${3:-$RUNTIME_RESTART_DELAY_SECONDS}"
+    local component="RUNTIME-RESTART"
+    local unit_name="mds-post-sync-${service_name%.service}-${action}-$$"
+
+    if command -v systemd-run >/dev/null 2>&1; then
+        if sudo systemd-run \
+            --unit "$unit_name" \
+            --collect \
+            --property=Type=oneshot \
+            --on-active="${delay_seconds}s" \
+            /bin/systemctl "$action" "$service_name" >/dev/null 2>&1; then
+            log_info "$component" "Scheduled '${action}' for ${service_name} in ${delay_seconds}s via ${unit_name}"
+            return 0
+        fi
+        log_warn "$component" "systemd-run failed while scheduling ${service_name}; falling back to shell background restart"
+    fi
+
+    if sudo sh -c "( sleep ${delay_seconds}; systemctl ${action} ${service_name} ) >/dev/null 2>&1 &"; then
+        log_info "$component" "Scheduled '${action}' for ${service_name} in ${delay_seconds}s via shell fallback"
+        return 0
+    fi
+
+    log_warn "$component" "Failed to schedule ${action} for ${service_name}"
+    return 1
+}
+
+apply_post_sync_service_actions() {
+    local component="RUNTIME-RESTART"
+    local restart_action=""
+
+    if [[ "$SERVICE_RELOAD_REQUIRED" == "true" ]]; then
+        log_info "$component" "Updated systemd units: ${UPDATED_SYSTEMD_UNITS[*]}"
+        if printf '%s\n' "${UPDATED_SYSTEMD_UNITS[@]}" | grep -qx 'git_sync_mds.service'; then
+            log_info "$component" "git_sync_mds.service changes will apply on the next service invocation"
+        fi
+        if printf '%s\n' "${UPDATED_SYSTEMD_UNITS[@]}" | grep -qx 'led_indicator.service'; then
+            log_info "$component" "led_indicator.service changes will apply on the next boot"
+        fi
+    fi
+
+    if [[ "$COORDINATOR_RESTART_NEEDED" != "true" ]]; then
+        log_debug "$component" "No coordinator restart required after sync"
+        return 0
+    fi
+
+    if sudo systemctl is-active --quiet coordinator.service; then
+        restart_action="restart"
+    elif sudo systemctl is-failed --quiet coordinator.service; then
+        restart_action="restart"
+    else
+        log_info "$component" "Coordinator is inactive; leaving it stopped. Restart reasons: ${COORDINATOR_RESTART_REASONS[*]}"
+        return 0
+    fi
+
+    log_info "$component" "Coordinator restart requested: ${COORDINATOR_RESTART_REASONS[*]}"
+    schedule_systemd_restart "coordinator.service" "$restart_action" "$RUNTIME_RESTART_DELAY_SECONDS" || true
+}
+
 # ----------------------------------
 # Service Update Detection (runs after git pull)
 # ----------------------------------
@@ -191,9 +350,18 @@ check_service_updates() {
 
             if ! cmp -s "$src_file" "$temp_file" 2>/dev/null; then
                 log_info "$component" "Service file changed: $service"
+                if ! validate_rendered_unit_file "$temp_file" "$component"; then
+                    log_warn "$component" "Skipping invalid ${service} unit update"
+                    rm -f "$temp_file"
+                    continue
+                fi
                 if sudo mv "$temp_file" "$src_file" 2>/dev/null; then
                     log_info "$component" "Updated $service service file"
                     changed=true
+                    remember_updated_unit "${service}.service"
+                    if [[ "$service" == "coordinator" ]]; then
+                        mark_coordinator_restart_needed "coordinator unit updated"
+                    fi
                 else
                     log_warn "$component" "Failed to update $service service file (sudo may not be available)"
                     rm -f "$temp_file"
@@ -206,7 +374,11 @@ check_service_updates() {
 
     if $changed; then
         log_info "$component" "Reloading systemd daemon..."
-        sudo systemctl daemon-reload 2>/dev/null || log_warn "$component" "Failed to reload systemd daemon"
+        if sudo systemctl daemon-reload 2>/dev/null; then
+            SERVICE_RELOAD_REQUIRED=true
+        else
+            log_warn "$component" "Failed to reload systemd daemon"
+        fi
     fi
 }
 
@@ -268,6 +440,7 @@ check_requirements_update() {
                 if "$REPO_DIR/venv/bin/pip" install -r "$REPO_DIR/requirements.txt" --quiet 2>/dev/null; then
                     log_info "$component" "Python requirements updated successfully"
                     echo "$current_hash" > "$req_hash_file"
+                    mark_coordinator_restart_needed "python requirements updated"
                 else
                     log_warn "$component" "Failed to update Python requirements"
                 fi
@@ -814,6 +987,7 @@ EOF
 # ----------------------------------
 main() {
     local start_time=$(date +%s)
+    local previous_head=""
     
     # Initialize logging
     mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
@@ -853,6 +1027,7 @@ main() {
     fi
     
     cd "$REPO_DIR" || log_error_and_exit "VALIDATION" "Failed to cd into $REPO_DIR"
+    previous_head=$(git rev-parse HEAD 2>/dev/null || echo "")
     
     # Clean up any stale git locks
     cleanup_git_locks "$REPO_DIR"
@@ -923,9 +1098,11 @@ main() {
 
     # Post-sync checks: service files and requirements
     set_led_status "GIT_SUCCESS"
+    check_runtime_process_updates "$previous_head" "$(git rev-parse HEAD 2>/dev/null || echo "")"
     check_service_updates
     check_connectivity_updates
     check_requirements_update
+    apply_post_sync_service_actions
 
     # Get commit information for logging
     local commit_hash

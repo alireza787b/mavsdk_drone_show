@@ -72,6 +72,13 @@ What exists today:
 - nodes can pull that desired state automatically
 - host-local runtime files render the effective runtime for each host
 - node read credentials can be file-backed and local-only
+- post-sync connectivity reconciliation already exists for optional external
+  backends such as Smart Wi-Fi Manager
+- rendered systemd unit updates are now syntax-validated before install so a bad
+  service template does not replace a working node unit
+- coordinator restarts are now queued only when the synced change affects the
+  live node runtime (for example runtime code, coordinator unit, or Python
+  requirements), instead of restarting all services unconditionally
 
 What is planned next, but not fully operator-complete yet:
 
@@ -92,6 +99,38 @@ just because the runtime foundation exists.
 | UI "Save & Commit" button | Config/swarm save | `git_operations()` commits + pushes on GCS |
 | UI "Commit Mission Outputs" | Swarm Trajectory review | creates a local git commit, and only pushes when `MDS_GIT_AUTO_PUSH=true` |
 | UPDATE_CODE command | GCS command | Drone runs `actions.py --action=update_code` which calls `update_repo_ssh.sh` |
+
+## Post-Sync Runtime Reconcile
+
+After a successful node pull/reset, `update_repo_ssh.sh` now performs a narrow
+runtime reconcile instead of leaving changed units inert or restarting every
+service blindly.
+
+Current behavior:
+
+1. compare rendered systemd units against the installed node units
+2. validate changed rendered units with `systemd-analyze verify` when available
+3. replace only the validated units that actually changed
+4. run `systemctl daemon-reload` once if any unit changed
+5. re-apply optional connectivity backend state via `tools/reconcile_connectivity.sh`
+6. update Python requirements if `requirements.txt` changed
+7. schedule a delayed coordinator restart only when the synced revision affects
+   the live node runtime
+
+Important service semantics:
+
+- `coordinator.service`
+  - restarted after sync only when runtime-affecting code, its rendered unit, or
+    Python requirements changed
+- `git_sync_mds.service`
+  - its unit file is updated safely, but the currently running oneshot sync is
+    not restarted from inside itself
+  - the new unit applies on the next service invocation
+- `led_indicator.service`
+  - its unit file can be updated safely
+  - the new unit applies on the next boot
+
+This keeps the node converged without turning every pull into a blanket restart.
 
 ## Connectivity Profile Sync
 

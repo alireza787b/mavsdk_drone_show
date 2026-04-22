@@ -52,9 +52,21 @@ coordinator.service ────────────────────
 - 10-minute timeout for slow networks
 - Runs as droneshow user
 - Automatically detects and updates service files after pull
+- Validates rendered service units before installing them
 - Checks and updates pip requirements if changed
+- Schedules a delayed coordinator restart only when the synced change affects
+  the live runtime
 
 **Script:** `tools/update_repo_ssh.sh`
+
+**Safe post-sync behavior:**
+- changed `git_sync_mds.service` unit:
+  - install if valid, reload systemd, apply on next sync invocation
+- changed `led_indicator.service` unit:
+  - install if valid, reload systemd, apply on next boot
+- changed coordinator runtime code / unit / requirements:
+  - queue a delayed coordinator restart so the pull converges to the new runtime
+  - do not restart every service blindly
 
 ### 3. mavlink-router.service
 
@@ -143,6 +155,11 @@ To change one companion computer's runtime routing or identity:
 2. Edit `/etc/mds/local.env`
 3. `sudo systemctl restart coordinator`
 4. If connectivity settings changed: `sudo ./tools/reconcile_connectivity.sh apply --force`
+
+Note:
+- ordinary git-synced runtime code changes no longer require a separate manual
+  `systemctl restart coordinator` just to pick up the new revision
+- host-local env changes still do require an explicit restart or re-apply step
 
 ### Local Configuration File
 
