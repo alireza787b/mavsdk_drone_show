@@ -83,6 +83,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/policy/precision-move",
         "/api/v1/commands/{command_id}",
         "/api/v1/system/gcs-config",
+        "/api/v1/system/runtime-status",
         "/api/v1/system/sitl/policy",
         "/api/v1/system/sitl/host",
         "/api/v1/system/sitl/images",
@@ -140,6 +141,9 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/swarm-trajectories/clear-drone/{drone_id}",
         "/api/v1/swarm-trajectories/commit",
         "/api/v1/system/sitl/reconcile",
+        "/api/v1/system/sitl/instances",
+        "/api/v1/system/sitl/instances/actions",
+        "/api/v1/system/sitl/images/release",
         "/api/v1/system/sitl/instances/{instance_name}/restart",
         "/api/logs/frontend",
         "/api/logs/export",
@@ -196,6 +200,7 @@ DRONE_EXPECTED_HTTP = {
         "/api/v1/system/health",
         "/api/v1/network/status",
         "/api/v1/swarm/config",
+        "/api/v1/swarm/state",
         "/api/v1/telemetry/local-position",
         "/api/v1/px4-params/policy",
         "/api/v1/px4-params/snapshots/current",
@@ -227,6 +232,7 @@ DRONE_EXPECTED_HTTP = {
 
 DRONE_EXPECTED_WS = {
     "/ws/drone-state",
+    "/ws/swarm-state",
 }
 
 

@@ -20,6 +20,7 @@ import {
   getTrajectoryFirstRowResponse,
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
+  getRuntimeStatusResponse,
   importCustomShowResponse,
   importShowResponse,
   saveFleetConfigResponse,
@@ -94,6 +95,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/commands')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/policy/precision-move')).toBe(GCS_ROUTE_KEYS.precisionMovePolicy);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
+    expect(resolveGcsRouteKey('/api/v1/system/runtime-status')).toBe(GCS_ROUTE_KEYS.systemRuntimeStatus);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryBase);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/status')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryStatus);
@@ -398,6 +400,17 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/system/gcs-config',
       { timeout: 1200 }
+    );
+  });
+
+  it('fetches runtime admin status from the canonical system runtime resource', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+
+    await getRuntimeStatusResponse({ timeout: 900 });
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/runtime-status',
+      { timeout: 900 }
     );
   });
 

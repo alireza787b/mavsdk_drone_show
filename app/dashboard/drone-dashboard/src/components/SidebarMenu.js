@@ -22,6 +22,7 @@ import {
   FaSlidersH,
   FaUserCheck,
   FaDocker,
+  FaServer,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -29,11 +30,13 @@ import '../styles/SidebarMenu.css';
 import CurrentTime from './CurrentTime';
 import GitInfo from './GitInfo';
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
+import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
 import { VERSION_DISPLAY } from '../version';
 
 const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate, onToggle }) => {
   const { isDark } = useTheme();
   const gitInfo = useGcsGitInfo();
+  const runtimeStatus = useGcsRuntimeStatus();
   // Use props if provided, otherwise fall back to local state for backwards compatibility
   const [localCollapsed, setLocalCollapsed] = useState(window.innerWidth < 768);
   const [activeTooltip, setActiveTooltip] = useState(null);
@@ -71,6 +74,7 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
     {
       label: 'System',
       items: [
+        { to: '/runtime-admin', icon: FaServer, label: 'Runtime Admin' },
         { to: '/sitl-control', icon: FaDocker, label: 'SITL Control' },
         { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
       ],
@@ -107,6 +111,9 @@ const SidebarMenu = ({ collapsed, mobile = false, mobileOpen = false, onNavigate
               <div className="brand-text">
                 <h3>MDS Control</h3>
                 <span className="version">{VERSION_DISPLAY}</span>
+                <span className={`sidebar-mode-pill sidebar-mode-pill--${runtimeStatus.mode}`}>
+                  {runtimeStatus.modeLabel}
+                </span>
                 <span className="version-meta version-meta--repo">{gitInfo.repo}</span>
                 <span className="version-meta">{gitInfo.runtimeLabel}</span>
               </div>

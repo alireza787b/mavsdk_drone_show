@@ -1,0 +1,38 @@
+import useFetch from './useFetch';
+import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
+
+const DEFAULT_POLL_INTERVAL_MS = 15000;
+
+function normalizeModeLabel(mode) {
+  const normalized = String(mode || '').trim().toLowerCase();
+  if (normalized === 'real') {
+    return 'REAL';
+  }
+  if (normalized === 'sitl') {
+    return 'SITL';
+  }
+  return 'UNKNOWN';
+}
+
+export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERVAL_MS) {
+  const { data, error, loading } = useFetch(GCS_ROUTE_KEYS.systemRuntimeStatus, pollIntervalMs);
+  const mode = String(data?.mode || '').trim().toLowerCase() || 'unknown';
+  const modeLabel = normalizeModeLabel(mode);
+
+  return {
+    raw: data || null,
+    error,
+    loading,
+    mode,
+    modeLabel,
+    modeSource: data?.mode_source || '',
+    repoAccessMode: data?.repo_access_mode || 'unknown',
+    repoUrl: data?.repo_url || '',
+    repoBranch: data?.repo_branch || '',
+    gitAutoPush: Boolean(data?.git_auto_push),
+    installDir: data?.install_dir || '',
+    gcsConfigPath: data?.gcs_config_path || '',
+    fleetDefaults: data?.fleet_defaults || null,
+    docs: data?.docs || {},
+  };
+}

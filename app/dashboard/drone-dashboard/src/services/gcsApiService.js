@@ -40,6 +40,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   computeOrigin: 'computeOrigin',
   desiredLaunchPositions: 'desiredLaunchPositions',
   gcsConfig: 'gcsConfig',
+  systemRuntimeStatus: 'systemRuntimeStatus',
   sitlControlPolicy: 'sitlControlPolicy',
   sitlControlHost: 'sitlControlHost',
   sitlControlImages: 'sitlControlImages',
@@ -104,6 +105,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.computeOrigin]: '/api/v1/origin/compute',
   [GCS_ROUTE_KEYS.desiredLaunchPositions]: '/api/v1/origin/launch-positions',
   [GCS_ROUTE_KEYS.gcsConfig]: '/api/v1/system/gcs-config',
+  [GCS_ROUTE_KEYS.systemRuntimeStatus]: '/api/v1/system/runtime-status',
   [GCS_ROUTE_KEYS.sitlControlPolicy]: '/api/v1/system/sitl/policy',
   [GCS_ROUTE_KEYS.sitlControlHost]: '/api/v1/system/sitl/host',
   [GCS_ROUTE_KEYS.sitlControlImages]: '/api/v1/system/sitl/images',
@@ -171,6 +173,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/origin/compute': GCS_ROUTE_KEYS.computeOrigin,
   '/api/v1/origin/launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
   '/api/v1/system/gcs-config': GCS_ROUTE_KEYS.gcsConfig,
+  '/api/v1/system/runtime-status': GCS_ROUTE_KEYS.systemRuntimeStatus,
   '/api/v1/system/sitl/policy': GCS_ROUTE_KEYS.sitlControlPolicy,
   '/api/v1/system/sitl/host': GCS_ROUTE_KEYS.sitlControlHost,
   '/api/v1/system/sitl/images': GCS_ROUTE_KEYS.sitlControlImages,
@@ -468,6 +471,10 @@ export async function getNetworkInfoResponse(config = {}) {
 
 export async function getGcsConfigResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.gcsConfig, config);
+}
+
+export async function getRuntimeStatusResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.systemRuntimeStatus, config);
 }
 
 export async function computeOriginResponse(payload, config = {}) {

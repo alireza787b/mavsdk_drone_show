@@ -144,6 +144,35 @@
   font-family: var(--font-family-mono);
 }
 
+.sidebar-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.45rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: var(--border-radius-full);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.sidebar-mode-pill--real {
+  background: rgba(18, 124, 93, 0.14);
+  border-color: rgba(18, 124, 93, 0.35);
+  color: #0e7d5d;
+}
+
+.sidebar-mode-pill--sitl {
+  background: rgba(var(--color-primary-rgb), 0.14);
+  border-color: rgba(var(--color-primary-rgb), 0.35);
+  color: var(--color-primary);
+}
+
 .version-meta {
   display: block;
   margin-top: 0.3rem;

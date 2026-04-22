@@ -1106,6 +1106,57 @@ class GCSConfigSaveResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
 
 
+class RuntimeDocsResponse(BaseModel):
+    """Doc links surfaced in the runtime admin view."""
+
+    mds_init_setup: Optional[str] = Field(None, description="Bootstrap/setup guide URL")
+    fleet_sync_and_secrets: Optional[str] = Field(None, description="Fleet sync and secrets guide URL")
+    mavlink_routing_setup: Optional[str] = Field(None, description="MAVLink routing guide URL")
+    git_sync_feature: Optional[str] = Field(None, description="Git sync feature guide URL")
+
+
+class RuntimeFleetDefaultsResponse(BaseModel):
+    """Git-tracked fleet defaults exposed to the operator."""
+
+    profile_id: str = Field(..., description="Deployment profile identifier")
+    profile_source: str = Field(..., description="Deployment profile source")
+    connectivity_backend: str = Field(..., description="Default connectivity backend for new nodes")
+    smart_wifi_manager_repo_url_https: str = Field(..., description="Default Smart Wi-Fi Manager repo URL")
+    smart_wifi_manager_ref: str = Field(..., description="Default Smart Wi-Fi Manager ref")
+    mavlink_management_mode: str = Field(..., description="Default mavlink-anywhere management mode")
+    mavlink_anywhere_repo_url_https: str = Field(..., description="Default mavlink-anywhere repo URL")
+    mavlink_anywhere_ref: str = Field(..., description="Default mavlink-anywhere ref")
+    mavlink_anywhere_install_dir: str = Field(..., description="Default mavlink-anywhere install dir")
+    mavlink_anywhere_dashboard_listen: str = Field(..., description="Default mavlink-anywhere dashboard listen address")
+    mavlink_anywhere_skip_dashboard: bool = Field(..., description="Whether mavlink-anywhere dashboard is disabled by default")
+
+
+class RuntimeStatusResponse(BaseModel):
+    """Expanded runtime/admin status surface for the GCS."""
+
+    version: str = Field(..., description="Running MDS version")
+    timestamp: int = Field(..., description="Server timestamp (Unix ms)")
+    uptime_seconds: float = Field(..., ge=0, description="GCS process uptime in seconds")
+    mode: str = Field(..., description="Canonical runtime mode")
+    mode_source: str = Field(..., description="How the runtime mode was resolved")
+    sim_mode: bool = Field(..., description="Whether the current runtime is simulation mode")
+    gcs_port: int = Field(..., ge=1, description="Configured GCS API port")
+    acceptable_deviation: float = Field(..., ge=0, description="Allowed launch-position deviation in meters")
+    repo_url: str = Field(..., description="Configured repository URL")
+    repo_branch: str = Field(..., description="Configured repository branch")
+    repo_access_mode: str = Field(..., description="Resolved repository access posture")
+    git_auto_push: bool = Field(..., description="Whether git auto-push is enabled")
+    install_dir: Optional[str] = Field(None, description="Configured install directory for the GCS checkout")
+    gcs_config_path: str = Field(..., description="Path to the system GCS config file")
+    gcs_config_present: bool = Field(..., description="Whether the system GCS config file exists")
+    git_auth_token_file: Optional[str] = Field(None, description="Configured HTTPS token-file path")
+    git_auth_token_file_readable: bool = Field(..., description="Whether the configured HTTPS token-file path is readable")
+    git_ssh_key_file: Optional[str] = Field(None, description="Configured SSH private key path")
+    git_ssh_key_file_readable: bool = Field(..., description="Whether the configured SSH private key path is readable")
+    fleet_defaults: RuntimeFleetDefaultsResponse = Field(..., description="Git-tracked defaults for future node bootstraps")
+    docs: RuntimeDocsResponse = Field(..., description="Relevant operator and agent guide links")
+
+
 # ============================================================================
 # Network & System Schemas
 # ============================================================================

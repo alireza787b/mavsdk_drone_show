@@ -28,6 +28,7 @@ import sys
 import zipfile
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
 from io import BytesIO
 
@@ -1205,6 +1206,58 @@ class TestGCSManagementEndpoints:
             'git_auto_push': False,
             'acceptable_deviation': 4.5,
         }
+
+    def test_get_runtime_status(self, test_client, monkeypatch, tmp_path):
+        import api_routes.management as management_module
+        import app_fastapi
+
+        gcs_env = tmp_path / 'gcs.env'
+        gcs_env.write_text('MDS_MODE=real\n', encoding='utf-8')
+        token_file = tmp_path / 'token.txt'
+        token_file.write_text('demo', encoding='utf-8')
+
+        monkeypatch.setattr(app_fastapi, 'MDS_VERSION', '5.2-test', raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'gcs_api_port', 3030, raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'acceptable_deviation', 4.5, raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_REPO_URL', 'https://github.com/demo/customer-mds.git', raising=False)
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_BRANCH', 'customer-demo', raising=False)
+        monkeypatch.setattr(
+            management_module,
+            'resolve_runtime_mode',
+            lambda: SimpleNamespace(mode='real', sim_mode=False, source='env:MDS_MODE'),
+        )
+        monkeypatch.setattr(
+            management_module,
+            'load_deployment_profile',
+            lambda: SimpleNamespace(
+                profile_id='customer-alpha',
+                source='file:/tmp/deployment.env',
+                connectivity_backend='smart-wifi-manager',
+                smart_wifi_manager_repo_url_https='https://github.com/demo/smart-wifi-manager.git',
+                smart_wifi_manager_ref='v1.2.3',
+                mavlink_management_mode='managed',
+                mavlink_anywhere_repo_url_https='https://github.com/demo/mavlink-anywhere.git',
+                mavlink_anywhere_ref='v9.9.9',
+                mavlink_anywhere_install_dir='/opt/demo-mavlink',
+                mavlink_anywhere_dashboard_listen='0.0.0.0:9070',
+                mavlink_anywhere_skip_dashboard=False,
+            ),
+        )
+        monkeypatch.setenv('MDS_GCS_SYSTEM_CONFIG', str(gcs_env))
+        monkeypatch.setenv('MDS_INSTALL_DIR', '/opt/demo-gcs')
+        monkeypatch.setenv('MDS_GIT_AUTH_TOKEN_FILE', str(token_file))
+        monkeypatch.delenv('MDS_GIT_SSH_KEY_FILE', raising=False)
+
+        response = test_client.get('/api/v1/system/runtime-status')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['version'] == '5.2-test'
+        assert data['mode'] == 'real'
+        assert data['repo_access_mode'] == 'https_token_file'
+        assert data['fleet_defaults']['smart_wifi_manager_ref'] == 'v1.2.3'
+        assert data['docs']['fleet_sync_and_secrets'] == 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/fleet-sync-and-secrets.md'
 
     def test_save_gcs_config_returns_explicit_stub_ack(self, test_client):
         response = test_client.request('PUT', '/api/v1/system/gcs-config', json={'sim_mode': True})

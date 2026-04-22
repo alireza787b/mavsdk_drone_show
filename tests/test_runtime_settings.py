@@ -126,6 +126,15 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
                 "MDS_DEFAULT_REAL_GCS_IP=10.0.0.55",
                 "MDS_DEFAULT_SITL_GCS_IP=172.30.0.1",
                 "MDS_DEFAULT_GCS_API_PORT=5050",
+                "MDS_DEFAULT_CONNECTIVITY_BACKEND=smart-wifi-manager",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v1.2.3",
+                "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed",
+                "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git",
+                "MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9",
+                "MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/demo-mavlink",
+                "MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=0.0.0.0:9070",
+                "MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD=true",
             ]
         )
         + "\n",
@@ -143,6 +152,15 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
     assert profile.real_gcs_ip == "10.0.0.55"
     assert profile.sitl_gcs_ip == "172.30.0.1"
     assert profile.gcs_api_port == 5050
+    assert profile.connectivity_backend == "smart-wifi-manager"
+    assert profile.smart_wifi_manager_repo_url_https == "https://github.com/demo/smart-wifi-manager.git"
+    assert profile.smart_wifi_manager_ref == "v1.2.3"
+    assert profile.mavlink_management_mode == "managed"
+    assert profile.mavlink_anywhere_repo_url_https == "https://github.com/demo/mavlink-anywhere.git"
+    assert profile.mavlink_anywhere_ref == "v9.9.9"
+    assert profile.mavlink_anywhere_install_dir == "/opt/demo-mavlink"
+    assert profile.mavlink_anywhere_dashboard_listen == "0.0.0.0:9070"
+    assert profile.mavlink_anywhere_skip_dashboard is True
 
 
 def test_params_use_deployment_profile_defaults_when_runtime_env_is_absent(monkeypatch, tmp_path):
