@@ -28,8 +28,6 @@ _MDS_MAVLINK_SETUP_LOADED=1
 # CONFIGURATION CONSTANTS
 # =============================================================================
 
-readonly MAVLINK_ANYWHERE_REPO="https://github.com/alireza787b/mavlink-anywhere.git"
-readonly MAVLINK_ANYWHERE_DIR="/opt/mavlink-anywhere"
 readonly MAVLINK_ROUTER_CONFIG="/etc/mavlink-router/main.conf"
 readonly MAVLINK_ROUTER_SERVICE="mavlink-router"
 
@@ -48,6 +46,15 @@ MAVLINK_BAUD="${MAVLINK_BAUD:-57600}"
 MAVLINK_ENDPOINTS="${MAVLINK_ENDPOINTS:-}"
 MAVLINK_INPUT_TYPE="${MAVLINK_INPUT_TYPE:-uart}"
 MAVLINK_INPUT_PORT="${MAVLINK_INPUT_PORT:-14550}"
+MAVLINK_MANAGEMENT_MODE="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}}"
+MAVLINK_ANYWHERE_REPO_URL="${MAVLINK_ANYWHERE_REPO_URL:-${MDS_MAVLINK_ANYWHERE_REPO_URL:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG:-alireza787b/mavlink-anywhere}.git}}}"
+MAVLINK_ANYWHERE_REF="${MAVLINK_ANYWHERE_REF:-${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.5}}}"
+MAVLINK_ANYWHERE_DIR="${MAVLINK_ANYWHERE_DIR:-${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}}"
+MAVLINK_ANYWHERE_DASHBOARD_LISTEN="${MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}}"
+MAVLINK_ANYWHERE_SKIP_DASHBOARD="${MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}}}"
+MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="${MAVLINK_ANYWHERE_REPO_URL_EXPLICIT:-false}"
+MAVLINK_ANYWHERE_REF_EXPLICIT="${MAVLINK_ANYWHERE_REF_EXPLICIT:-false}"
+MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="${MAVLINK_MANAGEMENT_SELECTION_EXPLICIT:-false}"
 
 # =============================================================================
 # MAVLINK-ROUTER STATUS CHECKS
@@ -329,27 +336,114 @@ auto_fix_uart_config() {
 # MAVLINK-ANYWHERE INSTALLATION
 # =============================================================================
 
+resolve_mavlink_repo_url() {
+    printf '%s\n' "${MAVLINK_ANYWHERE_REPO_URL}"
+}
+
+resolve_mavlink_ref() {
+    printf '%s\n' "${MAVLINK_ANYWHERE_REF}"
+}
+
+persist_mavlink_local_env() {
+    if ! declare -F update_local_env_value >/dev/null 2>&1; then
+        return 0
+    fi
+
+    update_local_env_value "MDS_MAVLINK_MANAGEMENT_MODE" "${MAVLINK_MANAGEMENT_MODE}"
+
+    if [[ "${MAVLINK_MANAGEMENT_MODE}" != "managed" ]]; then
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_REPO_URL"
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_REF"
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_INSTALL_DIR"
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN"
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD"
+        return 0
+    fi
+
+    if [[ "${MAVLINK_ANYWHERE_REPO_URL_EXPLICIT}" == "true" ]]; then
+        update_local_env_value "MDS_MAVLINK_ANYWHERE_REPO_URL" "${MAVLINK_ANYWHERE_REPO_URL}"
+    else
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_REPO_URL"
+    fi
+
+    if [[ "${MAVLINK_ANYWHERE_REF_EXPLICIT}" == "true" ]]; then
+        update_local_env_value "MDS_MAVLINK_ANYWHERE_REF" "${MAVLINK_ANYWHERE_REF}"
+    else
+        remove_local_env_value "MDS_MAVLINK_ANYWHERE_REF"
+    fi
+
+    update_local_env_value "MDS_MAVLINK_ANYWHERE_INSTALL_DIR" "${MAVLINK_ANYWHERE_DIR}"
+    update_local_env_value "MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN" "${MAVLINK_ANYWHERE_DASHBOARD_LISTEN}"
+    update_local_env_value "MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD" "${MAVLINK_ANYWHERE_SKIP_DASHBOARD}"
+}
+
+ensure_mavlink_dashboard_managed() {
+    local repo_ref dashboard_listen
+    repo_ref="$(resolve_mavlink_ref)"
+    dashboard_listen="${MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}"
+
+    if [[ "${MAVLINK_ANYWHERE_SKIP_DASHBOARD}" == "true" ]]; then
+        log_info "Skipping mavlink-anywhere dashboard reconcile (disabled by configuration)"
+        return 0
+    fi
+
+    if is_dry_run; then
+        log_info "[DRY-RUN] Would ensure mavlink-anywhere dashboard at ${dashboard_listen} (${repo_ref})"
+        return 0
+    fi
+
+    if [[ -f "${MAVLINK_ANYWHERE_DIR}/lib/dashboard.sh" ]]; then
+        (
+            cd "${MAVLINK_ANYWHERE_DIR}"
+            # shellcheck disable=SC1091
+            source "./lib/dashboard.sh"
+            install_dashboard_binary "${repo_ref}" || true
+            setup_dashboard_service "${dashboard_listen}"
+        )
+        return $?
+    fi
+
+    if [[ -x "${MAVLINK_ANYWHERE_DIR}/configure_mavlink_router.sh" ]]; then
+        (
+            cd "${MAVLINK_ANYWHERE_DIR}"
+            ./configure_mavlink_router.sh --install-dashboard --dashboard-listen "${dashboard_listen}"
+        )
+        return $?
+    fi
+
+    log_warn "mavlink-anywhere dashboard helper not found in ${MAVLINK_ANYWHERE_DIR}"
+    return 1
+}
+
 # Clone or update mavlink-anywhere repository
 clone_mavlink_anywhere() {
-    if [[ -d "$MAVLINK_ANYWHERE_DIR" ]]; then
+    local repo_url repo_ref
+    repo_url="$(resolve_mavlink_repo_url)"
+    repo_ref="$(resolve_mavlink_ref)"
+
+    if [[ -d "$MAVLINK_ANYWHERE_DIR/.git" ]]; then
         log_step "Updating mavlink-anywhere..."
         if is_dry_run; then
-            log_info "[DRY-RUN] Would update mavlink-anywhere"
+            log_info "[DRY-RUN] Would update mavlink-anywhere (${repo_ref}) from ${repo_url}"
             return 0
         fi
 
         cd "$MAVLINK_ANYWHERE_DIR"
-        git fetch origin
-        git reset --hard origin/main || git reset --hard origin/master
+        git remote set-url origin "$repo_url"
+        git fetch --depth 1 origin "$repo_ref"
+        git checkout -f FETCH_HEAD
         cd - > /dev/null
     else
         log_step "Cloning mavlink-anywhere..."
         if is_dry_run; then
-            log_info "[DRY-RUN] Would clone mavlink-anywhere"
+            log_info "[DRY-RUN] Would clone mavlink-anywhere (${repo_ref}) from ${repo_url}"
             return 0
         fi
 
-        git clone "$MAVLINK_ANYWHERE_REPO" "$MAVLINK_ANYWHERE_DIR"
+        if [[ -e "$MAVLINK_ANYWHERE_DIR" ]]; then
+            rm -rf "$MAVLINK_ANYWHERE_DIR"
+        fi
+        git clone --depth 1 --branch "$repo_ref" "$repo_url" "$MAVLINK_ANYWHERE_DIR"
     fi
 
     return 0
@@ -357,7 +451,10 @@ clone_mavlink_anywhere() {
 
 # Run mavlink-router installation
 run_mavlink_install() {
-    log_step "Installing mavlink-router (this may take several minutes)..."
+    local repo_ref
+    repo_ref="$(resolve_mavlink_ref)"
+
+    log_step "Installing mavlink-router from ${repo_ref} (this may take several minutes)..."
 
     if is_dry_run; then
         log_info "[DRY-RUN] Would run install_mavlink_router.sh"
@@ -383,6 +480,7 @@ run_mavlink_configure_headless() {
     local endpoints="$3"
     local input_type="${4:-uart}"
     local input_port="${5:-14550}"
+    local -a dashboard_args=()
 
     log_step "Configuring mavlink-router..."
 
@@ -398,18 +496,26 @@ run_mavlink_configure_headless() {
         chmod +x "${MAVLINK_ANYWHERE_DIR}/configure_mavlink_router.sh"
     fi
 
+    if [[ "${MAVLINK_ANYWHERE_SKIP_DASHBOARD}" == "true" ]]; then
+        dashboard_args+=(--skip-dashboard)
+    else
+        dashboard_args+=(--dashboard-listen "${MAVLINK_ANYWHERE_DASHBOARD_LISTEN}")
+    fi
+
     cd "$MAVLINK_ANYWHERE_DIR"
 
     if [[ "$input_type" == "udp" ]]; then
         ./configure_mavlink_router.sh --headless \
             --input-type udp \
             --input-port "$input_port" \
-            --endpoints "$endpoints"
+            --endpoints "$endpoints" \
+            "${dashboard_args[@]}"
     else
         ./configure_mavlink_router.sh --headless \
             --uart "$uart_device" \
             --baud "$baud_rate" \
-            --endpoints "$endpoints"
+            --endpoints "$endpoints" \
+            "${dashboard_args[@]}"
     fi
 
     local result=$?
@@ -436,6 +542,12 @@ verify_mavlink_service() {
     fi
 
     log_success "mavlink-router service is running"
+
+    if [[ "${MAVLINK_MANAGEMENT_MODE}" == "managed" ]]; then
+        ensure_mavlink_dashboard_managed || log_warn "Managed mavlink-anywhere dashboard reconcile did not complete cleanly"
+        persist_mavlink_local_env
+    fi
+
     return 0
 }
 
@@ -720,6 +832,7 @@ run_mavlink_auto_config() {
     local uart_device baud_rate endpoints
 
     log_step "Starting auto-configuration..."
+    MAVLINK_MANAGEMENT_MODE="managed"
 
     if is_raspberry_pi; then
         if check_serial_console_enabled || ! check_uart_enabled; then
@@ -728,10 +841,11 @@ run_mavlink_auto_config() {
         fi
     fi
 
+    clone_mavlink_anywhere || return 1
+
     # Step 1: Check/install mavlink-router
     if ! check_mavlink_router_installed; then
         log_info "mavlink-router not installed, installing..."
-        clone_mavlink_anywhere || return 1
         run_mavlink_install || return 1
     else
         log_success "mavlink-router already installed"
@@ -767,6 +881,8 @@ run_mavlink_auto_config() {
 # =============================================================================
 
 run_mavlink_setup_phase() {
+    local management_overrides_requested="false"
+
     print_phase_header "2" "MAVLink Router Setup"
 
     set_led_state "NETWORK_INIT"
@@ -785,13 +901,17 @@ run_mavlink_setup_phase() {
     if check_mavlink_router_installed && check_mavlink_router_running; then
         log_success "mavlink-router is installed and running"
 
+        if [[ "${MAVLINK_MANAGEMENT_SELECTION_EXPLICIT:-false}" == "true" || "${MAVLINK_ANYWHERE_REPO_URL_EXPLICIT:-false}" == "true" || "${MAVLINK_ANYWHERE_REF_EXPLICIT:-false}" == "true" ]]; then
+            management_overrides_requested="true"
+        fi
+
         if [[ "${NON_INTERACTIVE:-false}" != "true" ]]; then
-            if confirm "mavlink-router appears configured. Skip setup?" "y"; then
+            if [[ "${management_overrides_requested}" != "true" ]] && confirm "mavlink-router appears configured. Skip setup?" "y"; then
                 return 0
             fi
         else
             # In non-interactive mode, skip if already configured
-            if [[ "${MAVLINK_AUTO:-false}" != "true" ]]; then
+            if [[ "${MAVLINK_AUTO:-false}" != "true" && "${management_overrides_requested}" != "true" ]]; then
                 log_info "Using existing mavlink-router configuration"
                 return 0
             fi
@@ -801,6 +921,8 @@ run_mavlink_setup_phase() {
     # Handle CLI-specified options
     if [[ "${MAVLINK_SKIP:-false}" == "true" ]]; then
         log_info "Skipping mavlink-router setup (--mavlink-skip)"
+        MAVLINK_MANAGEMENT_MODE="manual"
+        persist_mavlink_local_env
         return 0
     fi
 
@@ -813,6 +935,7 @@ run_mavlink_setup_phase() {
     # Handle headless configuration with CLI options
     if [[ -n "${MAVLINK_UART:-}" ]] || [[ -n "${MAVLINK_ENDPOINTS:-}" ]]; then
         log_info "Running headless configuration with CLI options"
+        MAVLINK_MANAGEMENT_MODE="managed"
 
         local uart_device="${MAVLINK_UART:-$(detect_uart_device)}"
         local baud_rate="${MAVLINK_BAUD:-57600}"
@@ -823,9 +946,10 @@ run_mavlink_setup_phase() {
             endpoints="${endpoints},${GCS_IP}:24550"
         fi
 
+        clone_mavlink_anywhere || return 1
+
         # Install if needed
         if ! check_mavlink_router_installed; then
-            clone_mavlink_anywhere || return 1
             run_mavlink_install || return 1
         fi
 
@@ -856,6 +980,7 @@ run_mavlink_setup_phase() {
         1)
             # Auto-configure
             log_info "Selected: Auto-configure"
+            MAVLINK_MANAGEMENT_MODE="managed"
 
             # Check serial prerequisites first
             if is_raspberry_pi; then
@@ -898,6 +1023,7 @@ run_mavlink_setup_phase() {
         2)
             # Interactive configuration
             log_info "Selected: Interactive configuration"
+            MAVLINK_MANAGEMENT_MODE="managed"
 
             # Prompt for GCS IP if not set
             if [[ -z "${GCS_IP:-}" ]]; then
@@ -905,17 +1031,25 @@ run_mavlink_setup_phase() {
             fi
 
             # Install if needed
+            clone_mavlink_anywhere || return 1
             if ! check_mavlink_router_installed; then
                 log_info "Installing mavlink-router..."
-                clone_mavlink_anywhere || return 1
                 run_mavlink_install || return 1
             fi
 
             # Run interactive configuration
             cd "$MAVLINK_ANYWHERE_DIR"
-            ./configure_mavlink_router.sh
+            if [[ "${MAVLINK_ANYWHERE_SKIP_DASHBOARD}" == "true" ]]; then
+                ./configure_mavlink_router.sh --skip-dashboard
+            else
+                ./configure_mavlink_router.sh --dashboard-listen "${MAVLINK_ANYWHERE_DASHBOARD_LISTEN}"
+            fi
             local result=$?
             cd - > /dev/null
+
+            if [[ $result -eq 0 ]]; then
+                verify_mavlink_service || return 1
+            fi
 
             return $result
             ;;
@@ -923,6 +1057,7 @@ run_mavlink_setup_phase() {
         3)
             # Manual setup - show instructions
             log_info "Selected: Manual setup"
+            MAVLINK_MANAGEMENT_MODE="manual"
             display_mavlink_instructions "${GCS_IP:-}"
 
             if [[ "${VERBOSE:-false}" == "true" ]]; then
@@ -931,6 +1066,7 @@ run_mavlink_setup_phase() {
 
             echo ""
             if confirm "Continue with initialization (configure mavlink later)?" "y"; then
+                persist_mavlink_local_env
                 return 0
             else
                 return 1
@@ -940,6 +1076,8 @@ run_mavlink_setup_phase() {
         4)
             # Skip
             log_info "Skipping mavlink-router setup"
+            MAVLINK_MANAGEMENT_MODE="manual"
+            persist_mavlink_local_env
             return 0
             ;;
 

@@ -53,6 +53,8 @@ coordinator.service ────────────────────
 - Runs as droneshow user
 - Automatically detects and updates service files after pull
 - Validates rendered service units before installing them
+- Reconciles the managed `mavlink-anywhere` runtime when the node keeps
+  `MDS_MAVLINK_MANAGEMENT_MODE=managed`
 - Checks and updates pip requirements if changed
 - Schedules a delayed coordinator restart only when the synced change affects
   the live runtime
@@ -110,17 +112,30 @@ sudo ./configure_mavlink_router.sh --install-dashboard \
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  LAYER 1: GLOBAL DEFAULTS (in repo, git-synced)            │
-│  └── src/params.py                                         │
-│      Change here → ALL drones updated via git sync          │
+│  LAYER 1: DEPLOYMENT DEFAULTS (in repo, git-synced)        │
+│  └── deployment/defaults.env                               │
+│      Repo/branch/channel/tool defaults for the fleet       │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  LAYER 2: LOCAL OVERRIDES (outside repo, preserved)        │
+│  LAYER 2: FLEET DESIRED STATE (in repo, git-synced)        │
+│  └── config.json / swarm.json / optional tool profiles     │
+│      Fleet membership, swarm topology, repo-owned profiles │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  LAYER 3: LOCAL OVERRIDES (outside repo, preserved)        │
 │  └── /etc/mds/local.env                                    │
-│      Drone-specific settings (HW_ID, custom GCS IP, etc.)  │
-│      NOT overwritten by git sync                           │
+│      Node identity, host-specific overrides, secret paths  │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  LAYER 4: RUNTIME FALLBACK POLICY                          │
+│  └── src/params.py                                         │
+│      Last-resort defaults only, not the normal config UI   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -136,7 +151,8 @@ Use these ownership rules:
 
 3. `/etc/mds/local.env`
    Per-node runtime overrides such as `MDS_HW_ID`, `MDS_GCS_IP`,
-   `MDS_CONNECTIVITY_BACKEND`, and optional Smart Wi-Fi Manager settings.
+   `MDS_CONNECTIVITY_BACKEND`, optional Smart Wi-Fi Manager settings, and
+   managed MAVLink Anywhere ownership settings.
 
 4. `src/params.py`
    Runtime fallback policy only. Do not treat it as the normal customization layer.
@@ -155,6 +171,8 @@ To change one companion computer's runtime routing or identity:
 2. Edit `/etc/mds/local.env`
 3. `sudo systemctl restart coordinator`
 4. If connectivity settings changed: `sudo ./tools/reconcile_connectivity.sh apply --force`
+5. If managed MAVLink Anywhere ownership changed:
+   `sudo ./tools/reconcile_mavlink_runtime.sh apply --force`
 
 Note:
 - ordinary git-synced runtime code changes no longer require a separate manual
@@ -174,6 +192,10 @@ MDS_HW_ID=42
 
 # Override GCS IP for this drone only
 MDS_GCS_IP=192.168.1.100
+
+# Keep mavlink-anywhere managed, but pin this node to a specific release
+MDS_MAVLINK_MANAGEMENT_MODE=managed
+MDS_MAVLINK_ANYWHERE_REF=v3.0.5
 
 # Enable debug logging
 MDS_LOG_LEVEL=DEBUG
@@ -244,6 +266,12 @@ journalctl -u git_sync_mds --since "10 minutes ago"
 - Check status: `sudo /opt/smart-wifi-manager/configure_smart_wifi_manager.sh --help`
 - View logs: `journalctl -u smart-wifi-manager`
 - Re-apply node connectivity policy: `sudo ./tools/reconcile_connectivity.sh apply --force`
+
+**Managed mavlink-anywhere not converging:**
+- Check status: `sudo ./tools/reconcile_mavlink_runtime.sh status`
+- Re-apply managed runtime ownership: `sudo ./tools/reconcile_mavlink_runtime.sh apply --force`
+- If `/etc/mavlink-router/main.conf` is missing, rerun bootstrap or explicitly
+  reconfigure the node's router profile with the correct UART / UDP input
 
 **LED not working:**
 - Test LED: `./tools/recovery.sh led-test`
