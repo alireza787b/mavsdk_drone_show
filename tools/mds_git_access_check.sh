@@ -127,6 +127,19 @@ AUTH_MODE="public-or-preconfigured"
 EFFECTIVE_REPO_URL="$REPO_URL"
 TMP_DIR=""
 
+runtime_tmp_dir() {
+    local candidate
+    for candidate in "${XDG_RUNTIME_DIR:-}" "${HOME:-}/.cache/mds-runtime" "/var/tmp/mds-runtime"; do
+        [[ -n "$candidate" ]] || continue
+        mkdir -p "$candidate" 2>/dev/null || continue
+        chmod 700 "$candidate" 2>/dev/null || true
+        printf '%s\n' "$candidate"
+        return 0
+    done
+
+    printf '%s\n' "/var/tmp"
+}
+
 cleanup() {
     if [[ -n "$TMP_DIR" ]]; then
         rm -rf "$TMP_DIR"
@@ -153,7 +166,7 @@ elif [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" || -n "${MDS_GIT_AUTH_TOKEN:-}" ]]; th
         fail "Token auth supports GitHub HTTPS or git@github.com URLs only: $(printf '%s' "$REPO_URL" | redact_url)"
     fi
 
-    TMP_DIR="$(mktemp -d)"
+    TMP_DIR="$(mktemp -d -p "$(runtime_tmp_dir)")"
     ASKPASS="$TMP_DIR/git-askpass.sh"
     cat > "$ASKPASS" <<'EOS'
 #!/bin/sh
@@ -182,7 +195,7 @@ elif fallback_url="$(github_https_fallback_url "$REPO_URL")"; then
     EFFECTIVE_REPO_URL="$fallback_url"
 fi
 
-TMP_DIR="${TMP_DIR:-$(mktemp -d)}"
+TMP_DIR="${TMP_DIR:-$(mktemp -d -p "$(runtime_tmp_dir)")}"
 STDOUT_FILE="$TMP_DIR/ls-remote.out"
 STDERR_FILE="$TMP_DIR/ls-remote.err"
 

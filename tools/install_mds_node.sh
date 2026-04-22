@@ -136,17 +136,36 @@ wrapper_git_auth_enabled() {
     [[ -n "${GIT_AUTH_TOKEN_FILE:-}" && -r "${GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${GIT_AUTH_TOKEN:-}" ]]
 }
 
+wrapper_mds_user_home() {
+    local user_home
+    user_home="$(getent passwd "${MDS_USER}" | cut -d: -f6 2>/dev/null || true)"
+    if [[ -z "$user_home" ]]; then
+        user_home="/home/${MDS_USER}"
+    fi
+    printf '%s\n' "$user_home"
+}
+
 wrapper_git_askpass_path() {
-    printf '%s\n' "/tmp/mds_node_git_askpass.sh"
+    local user_home
+    user_home="$(wrapper_mds_user_home)"
+    printf '%s\n' "${user_home}/.cache/mds-runtime/mds_node_git_askpass.sh"
 }
 
 prepare_wrapper_git_askpass() {
     local askpass_path
+    local askpass_dir
     askpass_path="$(wrapper_git_askpass_path)"
+    askpass_dir="$(dirname "$askpass_path")"
 
     if [[ -x "$askpass_path" ]]; then
         return 0
     fi
+
+    mkdir -p "$askpass_dir"
+    if id "${MDS_USER}" &>/dev/null; then
+        chown -R "${MDS_USER}:${MDS_USER}" "$(dirname "$askpass_dir")" "$askpass_dir"
+    fi
+    chmod 700 "$(dirname "$askpass_dir")" "$askpass_dir" 2>/dev/null || true
 
     cat >"$askpass_path" <<'EOF'
 #!/bin/sh
@@ -163,6 +182,9 @@ printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
 EOF
 
     chmod 700 "$askpass_path"
+    if id "${MDS_USER}" &>/dev/null; then
+        chown "${MDS_USER}:${MDS_USER}" "$askpass_path"
+    fi
 }
 
 mds_git_ssh_command() {

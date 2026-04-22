@@ -130,17 +130,28 @@ gcs_git_auth_enabled() {
     [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
 }
 
+gcs_runtime_home() {
+    printf '%s\n' "${HOME:-/root}"
+}
+
 gcs_git_askpass_path() {
-    printf '%s\n' "/tmp/mds_gcs_git_askpass_runtime.sh"
+    local gcs_home
+    gcs_home="$(gcs_runtime_home)"
+    printf '%s\n' "${gcs_home}/.cache/mds-runtime/mds_gcs_git_askpass_runtime.sh"
 }
 
 prepare_gcs_git_askpass() {
     local askpass_path
+    local askpass_dir
     askpass_path="$(gcs_git_askpass_path)"
+    askpass_dir="$(dirname "$askpass_path")"
 
     if [[ -x "$askpass_path" ]]; then
         return 0
     fi
+
+    mkdir -p "$askpass_dir"
+    chmod 700 "$(dirname "$askpass_dir")" "$askpass_dir" 2>/dev/null || true
 
     cat >"$askpass_path" <<'EOF'
 #!/bin/sh

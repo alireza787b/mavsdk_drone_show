@@ -858,3 +858,41 @@ Residual drift after this slice:
 
 - official/private repos still need this tiny launcher fix committed and pushed
 - Hetzner `/opt/mds` still needs a repo refresh before the live GCS can start
+
+## Slice 13
+
+Goal:
+
+- unblock private HTTPS bootstrap/runtime sync on real boards where `/tmp`
+  cannot execute the generated Git askpass helper
+- keep the credential model file-based and non-interactive without falling back
+  to broad write credentials on nodes
+
+Implemented:
+
+- updated bootstrap/runtime Git askpass helpers to use per-user cache/runtime
+  paths instead of `/tmp`
+  - `tools/install_mds_node.sh`
+  - `tools/mds_init_lib/repo.sh`
+  - `tools/install_gcs.sh`
+  - `tools/mds_gcs_init_lib/gcs_repo.sh`
+  - `tools/update_repo_ssh.sh`
+  - `tools/mds_git_access_check.sh`
+- adjusted bootstrap regression coverage to assert the new
+  `.cache/mds-runtime` helper paths instead of `/tmp`
+
+Verification:
+
+- shell validation passed for every changed script
+- targeted bootstrap/runtime auth regression suite passed:
+  - `tests/test_bootstrap_installers.py` → 52 passed
+  - `tests/test_mds_git_access_check.py` → 3 passed
+- live proof target after commit:
+  - rerun private-token bootstrap on `CM4-02`
+
+Residual drift after this slice:
+
+- official/private repos still need this askpass-path fix committed and pushed
+- `CM4-02` private bootstrap must be retried against the new code
+- the temporary read-only token used for this validation should be rotated after
+  the test because it was pasted into chat

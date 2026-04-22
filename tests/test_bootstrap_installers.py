@@ -213,7 +213,7 @@ EOF
         PATH="$fakebin:$PATH"
         GIT_AUTH_TOKEN_FILE="$token_file"
         run_git_as_root "https://github.com/demo/private.git" status >/tmp/gcs_wrapper_auth.txt
-        grep -q '/tmp/mds_gcs_git_askpass.sh|0|' /tmp/gcs_wrapper_auth.txt
+        grep -Eq '.*/\\.cache/mds-runtime/mds_gcs_git_askpass\\.sh\\|0\\|' /tmp/gcs_wrapper_auth.txt
         grep -q "$token_file" /tmp/gcs_wrapper_auth.txt
         """
     )
@@ -318,7 +318,7 @@ EOF
         PATH="$fakebin:$PATH"
         GIT_AUTH_TOKEN_FILE="$token_file"
         run_git_as_mds_user "https://github.com/demo/private.git" status >/tmp/node_wrapper_auth.txt
-        grep -q '/tmp/mds_node_git_askpass.sh|0|' /tmp/node_wrapper_auth.txt
+        grep -Eq '.*/\\.cache/mds-runtime/mds_node_git_askpass\\.sh\\|0\\|' /tmp/node_wrapper_auth.txt
         grep -q "$token_file" /tmp/node_wrapper_auth.txt
         """
     )
@@ -382,7 +382,7 @@ EOF
         PATH="$fakebin:$PATH"
         MDS_GIT_AUTH_TOKEN_FILE="$token_file"
         run_git_command "https://github.com/demo/private.git" status >/tmp/runtime_git_sync_auth.txt
-        grep -q '/tmp/mds_git_sync_askpass.sh|0|' /tmp/runtime_git_sync_auth.txt
+        grep -Eq '.*/\\.cache/mds-runtime/mds_git_sync_askpass\\.sh\\|0\\|' /tmp/runtime_git_sync_auth.txt
         grep -q "$token_file" /tmp/runtime_git_sync_auth.txt
         """
     )

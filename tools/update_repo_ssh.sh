@@ -324,17 +324,28 @@ git_https_auth_enabled() {
     [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
 }
 
+git_runtime_home() {
+    printf '%s\n' "${HOME:-/root}"
+}
+
 git_askpass_path() {
-    printf '%s\n' "/tmp/mds_git_sync_askpass.sh"
+    local runtime_home
+    runtime_home="$(git_runtime_home)"
+    printf '%s\n' "${runtime_home}/.cache/mds-runtime/mds_git_sync_askpass.sh"
 }
 
 prepare_git_askpass() {
     local askpass_path
+    local askpass_dir
     askpass_path="$(git_askpass_path)"
+    askpass_dir="$(dirname "$askpass_path")"
 
     if [[ -x "$askpass_path" ]]; then
         return 0
     fi
+
+    mkdir -p "$askpass_dir"
+    chmod 700 "$(dirname "$askpass_dir")" "$askpass_dir" 2>/dev/null || true
 
     cat >"$askpass_path" <<'EOF'
 #!/bin/sh
