@@ -146,8 +146,8 @@ function resolveLocalDashboardUrl(listen) {
 }
 
 function RuntimeAdminPage() {
-  const runtime = useGcsRuntimeStatus();
-  const gitInfo = useGcsGitInfo();
+  const runtime = useGcsRuntimeStatus() || {};
+  const gitInfo = useGcsGitInfo() || {};
 
   const runtimeTone = runtime.mode === 'real' ? 'real' : runtime.mode === 'sitl' ? 'sitl' : 'neutral';
   const authHealthTone = formatAuthHealthTone(runtime.gitAuthHealth?.status);
