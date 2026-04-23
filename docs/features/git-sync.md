@@ -146,6 +146,32 @@ Important service semantics:
 
 This keeps the node converged without turning every pull into a blanket restart.
 
+### Operator visibility from node/GCS APIs
+
+The node-local sync runtime summary now reports enough detail for operators and
+automation to tell what really happened after a pull:
+
+- `updated_units`
+- `service_reload_status`
+- `service_reload_message`
+- `deferred_unit_actions`
+- `coordinator_restart_scheduled`
+- connectivity / MAVLink / requirements reconcile outcomes
+
+That summary is exposed:
+
+- on the node via `GET /api/v1/git/status`
+- on the GCS via aggregated fleet git status
+
+Use it to distinguish:
+
+- unit updates that applied immediately after `daemon-reload`
+- unit changes that were rolled back safely
+- `git_sync_mds.service` changes that wait for the next invocation
+- `led_indicator.service` changes that wait for the next boot
+- coordinator changes that still need manual restart because the service was
+  inactive or restart scheduling failed
+
 Version ownership for optional sidecars is separate from the MDS Python/systemd
 units:
 
