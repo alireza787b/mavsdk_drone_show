@@ -565,6 +565,10 @@ class DroneGitStatus(BaseModel):
     commits_ahead: int = Field(0, ge=0, description="Commits ahead of origin")
     commits_behind: int = Field(0, ge=0, description="Commits behind origin")
     uncommitted_changes: List[str] = Field(default_factory=list, description="List of uncommitted file changes")
+    repo_access_mode: str = Field("custom_or_unknown", description="Resolved node repository access posture")
+    git_auth_health_status: str = Field("unknown", description="Resolved node git auth health status")
+    git_auth_health_summary: Optional[str] = Field(None, description="Operator-facing node git auth health summary")
+    git_auth_health_issues: List[str] = Field(default_factory=list, description="Operator-facing node git auth issues")
 
     # Timestamps
     last_check: int = Field(..., description="Last status check timestamp (Unix ms)")

@@ -11,6 +11,21 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { areGitRevisionsEquivalent } from '../utilities/missionIdentityUtils';
 
+const formatRepoAccessMode = (value) => {
+  switch (value) {
+    case 'ssh_key':
+      return 'SSH key';
+    case 'https_token_file':
+      return 'HTTPS token file';
+    case 'https_public_or_read_only':
+      return 'HTTPS public/read-only';
+    case 'custom_or_unknown':
+      return 'Custom/unknown';
+    default:
+      return value || 'Unknown';
+  }
+};
+
 const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
@@ -67,6 +82,12 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
   const toggleDetails = () => {
     setIsExpanded(!isExpanded);
   };
+
+  const gitAuthHealthStatus = gitStatus.git_auth_health_status || 'unknown';
+  const gitAuthIssues = Array.isArray(gitStatus.git_auth_health_issues)
+    ? gitStatus.git_auth_health_issues
+    : [];
+  const hasGitAuthWarning = gitAuthHealthStatus === 'warning' || gitAuthHealthStatus === 'error';
 
   // Add null checks for gitStatus.commit
   const shortCommitHash = gitStatus.commit ? gitStatus.commit.slice(0, 7) : 'N/A';
@@ -136,6 +157,28 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
                 : 'N/A'}
             </span>
           </div>
+          <div className="detail-row">
+            <span className="detail-label">Access</span>
+            <span className="detail-value">
+              {formatRepoAccessMode(gitStatus.repo_access_mode)}
+            </span>
+          </div>
+          <div className="detail-row">
+            <span className="detail-label">Auth</span>
+            <span className={`detail-value git-auth-status git-auth-status-${gitAuthHealthStatus}`}>
+              {gitStatus.git_auth_health_summary || 'N/A'}
+            </span>
+          </div>
+          {gitAuthIssues.length > 0 && (
+            <div className="detail-row">
+              <span className="detail-label">Auth Issues</span>
+              <ul className="changes-list">
+                {gitAuthIssues.map((issue, index) => (
+                  <li key={index}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {gitStatus.uncommitted_changes && gitStatus.uncommitted_changes.length > 0 && (
             <div className="detail-row">
               <span className="detail-label">Changes</span>
@@ -146,6 +189,11 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
               </ul>
             </div>
           )}
+        </div>
+      )}
+      {hasGitAuthWarning && (
+        <div className={`git-warning git-auth-warning ${gitAuthHealthStatus}`}>
+          {gitStatus.git_auth_health_summary || 'Git auth needs operator attention.'}
         </div>
       )}
       {!isInSync && (
@@ -173,6 +221,10 @@ DroneGitStatus.propTypes = {
     author_name: PropTypes.string,
     author_email: PropTypes.string,
     uncommitted_changes: PropTypes.arrayOf(PropTypes.string),
+    repo_access_mode: PropTypes.string,
+    git_auth_health_status: PropTypes.string,
+    git_auth_health_summary: PropTypes.string,
+    git_auth_health_issues: PropTypes.arrayOf(PropTypes.string),
   }),
   gcsGitStatus: PropTypes.shape({
     commit: PropTypes.string,

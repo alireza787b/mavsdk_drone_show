@@ -13,11 +13,13 @@ All Git operations should use these functions to ensure consistent
 error handling and logging across the codebase.
 """
 
+import os
 import subprocess
 import logging
 import requests
 from typing import Dict, Any, Optional
 from src.drone_api_routes import DRONE_GIT_STATUS_ROUTE
+from src.settings.runtime import preload_local_env
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +154,73 @@ def get_tracking_branch_sync_counts(
     return commits_ahead, commits_behind
 
 
+def describe_repo_access_mode(
+    repo_url: Optional[str],
+    *,
+    token_file: Optional[str] = None,
+    ssh_key_file: Optional[str] = None,
+) -> str:
+    """Classify the current repo/auth posture without leaking credential paths."""
+    normalized = str(repo_url or '').strip()
+    if normalized.startswith('git@github.com:'):
+        return 'ssh_key'
+    if normalized.startswith('https://github.com/') and token_file:
+        return 'https_token_file'
+    if normalized.startswith('https://github.com/'):
+        return 'https_public_or_read_only'
+    return 'custom_or_unknown'
+
+
+def build_read_only_git_auth_health(
+    *,
+    repo_access_mode: str,
+    token_file: Optional[str],
+    token_file_readable: bool,
+    ssh_key_file: Optional[str],
+    ssh_key_file_readable: bool,
+) -> dict[str, Any]:
+    """Summarize whether the node's current repo/auth posture is usable for read-only sync."""
+    issues: list[str] = []
+
+    if repo_access_mode == 'https_token_file' and not token_file_readable:
+        issues.append(
+            'HTTPS token-file mode is selected but the configured token file is missing or unreadable.'
+        )
+    if repo_access_mode == 'ssh_key' and not ssh_key_file_readable:
+        issues.append(
+            'SSH-key mode is selected but the configured SSH key file is missing or unreadable.'
+        )
+    if repo_access_mode == 'custom_or_unknown':
+        issues.append(
+            'Repo/auth posture is custom or unknown; verify node read access explicitly.'
+        )
+
+    if issues:
+        status = 'error' if any('missing or unreadable' in issue for issue in issues) else 'warning'
+    else:
+        status = 'healthy'
+
+    if status == 'healthy':
+        if repo_access_mode == 'https_token_file':
+            summary = 'HTTPS token-file access is configured and readable for node sync.'
+        elif repo_access_mode == 'ssh_key':
+            summary = 'SSH-key access is configured and readable for node sync.'
+        elif repo_access_mode == 'https_public_or_read_only':
+            summary = 'HTTPS public/read-only access is active; this is valid for node sync.'
+        else:
+            summary = 'Node git auth posture does not report any immediate issues.'
+    elif status == 'warning':
+        summary = 'Node git auth posture is usable but needs operator attention.'
+    else:
+        summary = 'Node git auth posture is broken for the currently selected access mode.'
+
+    return {
+        'status': status,
+        'summary': summary,
+        'issues': issues,
+    }
+
+
 # ============================================================================
 # Local Git Operations (for GCS machine)
 # ============================================================================
@@ -204,6 +273,8 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
         Or {'error': message} on failure
     """
     try:
+        preload_local_env(logger)
+
         # Get current branch
         branch = resolve_current_git_branch(execute_git_command, cwd=repo_path)
         if not branch:
@@ -252,6 +323,21 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
         ) or ''
         filtered_changes = parse_filtered_git_status(status_output)
 
+        git_auth_token_file = str(os.environ.get('MDS_GIT_AUTH_TOKEN_FILE') or '').strip()
+        git_ssh_key_file = str(os.environ.get('MDS_GIT_SSH_KEY_FILE') or '').strip()
+        repo_access_mode = describe_repo_access_mode(
+            remote_url,
+            token_file=git_auth_token_file,
+            ssh_key_file=git_ssh_key_file,
+        )
+        git_auth_health = build_read_only_git_auth_health(
+            repo_access_mode=repo_access_mode,
+            token_file=git_auth_token_file,
+            token_file_readable=bool(git_auth_token_file and os.path.isfile(git_auth_token_file)),
+            ssh_key_file=git_ssh_key_file,
+            ssh_key_file_readable=bool(git_ssh_key_file and os.path.isfile(git_ssh_key_file)),
+        )
+
         return {
             'branch': branch,
             'commit': commit,
@@ -265,6 +351,10 @@ def get_local_git_report(repo_path: Optional[str] = None) -> Dict[str, Any]:
             'uncommitted_changes': filtered_changes,
             'commits_ahead': commits_ahead,
             'commits_behind': commits_behind,
+            'repo_access_mode': repo_access_mode,
+            'git_auth_health_status': git_auth_health['status'],
+            'git_auth_health_summary': git_auth_health['summary'],
+            'git_auth_health_issues': git_auth_health['issues'],
         }
 
     except Exception as e:

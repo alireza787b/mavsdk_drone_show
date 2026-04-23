@@ -213,6 +213,18 @@
   text-align: left;
 }
 
+.git-auth-status {
+  text-align: left;
+}
+
+.git-auth-status-warning {
+  color: var(--color-warning-text);
+}
+
+.git-auth-status-error {
+  color: var(--color-danger-text);
+}
+
 /* Changes List */
 .changes-list {
   margin: 0;
@@ -237,6 +249,18 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   text-align: center;
+}
+
+.git-auth-warning.warning {
+  background: var(--color-warning-light);
+  border-top-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.git-auth-warning.error {
+  background: var(--color-danger-light);
+  border-top-color: var(--color-danger-border);
+  color: var(--color-danger-text);
 }
 
 /* Loading/Error States */

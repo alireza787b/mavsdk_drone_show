@@ -811,6 +811,10 @@ class TestGitStatus:
                 'uncommitted_changes': [],
                 'commits_ahead': 0,
                 'commits_behind': 0,
+                'repo_access_mode': 'https_token_file',
+                'git_auth_health_status': 'healthy',
+                'git_auth_health_summary': 'HTTPS token-file access is configured and readable for node sync.',
+                'git_auth_health_issues': [],
             },
         )
 
@@ -823,6 +827,8 @@ class TestGitStatus:
         assert 'commit' in data
         assert 'status' in data
         assert data['status'] == 'clean'
+        assert data['repo_access_mode'] == 'https_token_file'
+        assert data['git_auth_health_status'] == 'healthy'
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
         """Drone git status should expose a usable branch name from detached worktrees."""

@@ -1456,7 +1456,16 @@ class TestGitStatusEndpoints:
     """Test git status endpoints"""
 
     @patch('app_fastapi.git_status_data_all_drones', {
-        '1': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []},
+        '1': {
+            'status': 'clean',
+            'branch': 'main',
+            'commit': 'abc12345',
+            'uncommitted_changes': [],
+            'repo_access_mode': 'https_token_file',
+            'git_auth_health_status': 'healthy',
+            'git_auth_health_summary': 'HTTPS token-file access is configured and readable for node sync.',
+            'git_auth_health_issues': [],
+        },
         '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
     })
     @patch('app_fastapi.get_gcs_git_report')
@@ -1476,6 +1485,8 @@ class TestGitStatusEndpoints:
         assert data['git_status']['1']['commit'] == 'abc12345'
         assert data['git_status']['1']['ip'] == '10.0.0.1'
         assert data['git_status']['1']['in_sync_with_gcs'] is True
+        assert data['git_status']['1']['repo_access_mode'] == 'https_token_file'
+        assert data['git_status']['1']['git_auth_health_status'] == 'healthy'
         assert data['needs_sync_count'] == 0
 
     @patch('app_fastapi.git_status_data_all_drones', {
