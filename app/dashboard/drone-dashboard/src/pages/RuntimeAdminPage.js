@@ -89,6 +89,27 @@ function buildNotice(payload, fallbackTone = 'neutral') {
   };
 }
 
+function resolveLocalDashboardUrl(listen) {
+  const normalized = String(listen || '').trim();
+  if (!normalized || typeof window === 'undefined') {
+    return null;
+  }
+
+  const parts = normalized.split(':');
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const port = parts[parts.length - 1];
+  if (!port) {
+    return null;
+  }
+
+  const protocol = window.location?.protocol || 'http:';
+  const hostname = window.location?.hostname || 'localhost';
+  return `${protocol}//${hostname}:${port}/`;
+}
+
 function RuntimeAdminPage() {
   const runtime = useGcsRuntimeStatus();
   const gitInfo = useGcsGitInfo();
@@ -151,6 +172,8 @@ function RuntimeAdminPage() {
   const sitlInventoryWarningMessage = runtime.mode === 'sitl'
     ? `${sitlInstanceCount} local SITL instance(s) are still running. A REAL restart will fence their heartbeats, but it will not stop the containers automatically.`
     : `${sitlInstanceCount} local SITL instance(s) are still running on this host while the GCS runtime is in REAL mode. Their heartbeats are fenced, but you should reconcile or stop them explicitly.`;
+  const localMavlinkDashboardUrl = resolveLocalDashboardUrl(runtime.mavlinkRuntime?.dashboard_listen);
+  const localConnectivityDashboardUrl = resolveLocalDashboardUrl(runtime.connectivityRuntime?.dashboard_listen);
 
   const setModeDraft = (nextMode) => {
     setDraftMode(nextMode);
@@ -576,8 +599,21 @@ function RuntimeAdminPage() {
               <StatusPill tone={formatServiceStatusTone(runtime.mavlinkRuntime?.dashboard_service_status)}>
                 Dashboard {runtime.mavlinkRuntime?.dashboard_service_status || 'unknown'}
               </StatusPill>
+              {localMavlinkDashboardUrl ? (
+                <a
+                  className="runtime-admin-page__doc-link"
+                  href={localMavlinkDashboardUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open local dashboard
+                </a>
+              ) : null}
             </div>
           ) : null}
+          <p className="runtime-admin-page__empty">
+            Runtime Admin only links GCS-local managed dashboards here. Node-local sidecar dashboards are not centrally proxied yet.
+          </p>
         </article>
 
         <article className="runtime-admin-page__card">
@@ -635,8 +671,21 @@ function RuntimeAdminPage() {
               <StatusPill tone={formatServiceStatusTone(runtime.connectivityRuntime?.service_status)}>
                 Service {runtime.connectivityRuntime?.service_status || 'unknown'}
               </StatusPill>
+              {localConnectivityDashboardUrl ? (
+                <a
+                  className="runtime-admin-page__doc-link"
+                  href={localConnectivityDashboardUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open local dashboard
+                </a>
+              ) : null}
             </div>
           ) : null}
+          <p className="runtime-admin-page__empty">
+            Use fleet bootstrap defaults and node-local runtime env for node-side overrides; this panel is the GCS-local inspection surface only.
+          </p>
         </article>
 
         <article className="runtime-admin-page__card runtime-admin-page__card--wide">

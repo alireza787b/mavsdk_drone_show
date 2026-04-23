@@ -37,6 +37,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   runtime status/config now report local SITL inventory count, and Runtime
   Admin warns before REAL-mode restart when local SITL containers would remain
   running and only be heartbeat-fenced rather than stopped automatically.
+- Runtime Admin local sidecar entry points:
+  the GCS-local `mavlink-anywhere` and Smart Wi-Fi cards now expose direct
+  local dashboard links derived from their configured listen addresses, while
+  explicitly warning that node-local sidecar dashboards are not centrally
+  proxied by MDS yet.
 - dashboard/operator refinement for final tester handoff:
   drone cards now support direct command-scope toggles, per-drone jog access,
   per-drone mission cancel affordances, quieter command-history monitoring,
