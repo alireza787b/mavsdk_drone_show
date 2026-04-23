@@ -40,6 +40,18 @@ jest.mock('../hooks/useGcsRuntimeStatus', () => jest.fn(() => ({
     summary: 'HTTPS token-file access is configured and readable.',
     issues: [],
   },
+  repoSyncStatus: {
+    branch: 'customer-demo',
+    commit: 'abcdef12',
+    remote_url: 'https://github.com/demo/customer-mds.git',
+    tracking_branch: 'origin/customer-demo',
+    status: 'clean',
+    commits_ahead: 0,
+    commits_behind: 2,
+    update_readiness: 'ready_to_fast_forward',
+    update_summary: 'Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.',
+    fast_forward_update_available: true,
+  },
   fleetDefaults: {
     profile_id: 'customer-alpha',
     profile_source: 'file:/tmp/deployment.env',
@@ -110,6 +122,7 @@ describe('RuntimeAdminPage', () => {
     expect(screen.getByText('/opt/demo-gcs')).toBeInTheDocument();
     expect(screen.getByText('smart-wifi-manager')).toBeInTheDocument();
     expect(screen.getByText(/https token-file access is configured and readable/i)).toBeInTheDocument();
+    expect(screen.getByText(/tracking branch is ahead by 2 commit\(s\)/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-mavlink')).toBeInTheDocument();
     expect(screen.getByText('/tmp/demo-profile.json')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /bootstrap guide/i })).toHaveAttribute(

@@ -1468,3 +1468,48 @@ Residual drift after this slice:
   sidecar control/profile rollout remains a later fleet-control slice
 - frontend execution for this slice still needs the designated
   dashboard-validation host because dependencies are not installed locally here
+
+## Slice 27
+
+Goal:
+
+- turn the raw GCS git report into an explicit update-readiness contract for
+  Runtime Admin so operators can see whether a safe fast-forward update is even
+  possible before any self-update mutation path is exposed
+
+Implemented:
+
+- added a typed `repo_sync_status` block to Runtime Admin status with:
+  - current branch / commit / tracking branch / remote
+  - ahead / behind counts
+  - working tree status
+  - resolved update posture (`up_to_date`, `ready_to_fast_forward`,
+    `blocked_dirty`, `divergent`, `local_ahead`, `no_tracking_branch`)
+  - operator-facing summary
+  - `fast_forward_update_available`
+- updated Runtime Admin to show:
+  - repo sync state
+  - tracking branch
+  - update summary
+  - an explicit note when a controlled fast-forward update is available but the
+    mutation UX is still intentionally deferred
+- extended Runtime Admin frontend tests to cover the new summary path
+
+Verification:
+
+- focused backend verification passed:
+  - `python3 -m pytest --no-cov tests/test_gcs_management_routes.py -k "runtime_status"`
+  - `python3 -m pytest --no-cov tests/test_gcs_api_http.py -k "test_get_runtime_status"`
+- clean-worktree `git diff --check`: passed
+- frontend changes were statically reviewed in:
+  - `app/dashboard/drone-dashboard/src/hooks/useGcsRuntimeStatus.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.test.js`
+
+Residual drift after this slice:
+
+- operators can now see update readiness clearly, but no GCS self-update
+  mutation endpoint/button exists yet
+- the next step is to audit whether the existing repo-update tooling can be
+  safely reused as a fast-forward-only GCS self-update path with restart
+  protection
