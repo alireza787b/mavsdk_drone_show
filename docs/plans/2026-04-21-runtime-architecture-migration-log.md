@@ -1022,3 +1022,50 @@ Residual drift after this slice:
   re-verified
 - runtime control plane work (self-update, explicit mode switch, external tool
   profile orchestration) remains the next planned implementation area
+
+## Slice 17
+
+Goal:
+
+- extend Runtime Admin beyond raw repo/mode posture so operators can see the
+  actual local runtime health for git auth, managed mavlink-anywhere, and
+  Smart Wi-Fi Manager before mutation controls are added
+
+Implemented:
+
+- expanded deployment-profile parsing to include the Smart Wi-Fi Manager default
+  mode, import mode, install dir, dashboard listen address, and profile path
+- extended `GET /api/v1/system/runtime-status` with:
+  - resolved git auth health summary/issues
+  - managed mavlink-anywhere runtime status
+  - connectivity backend runtime status
+- reused the existing reconcile status helpers as the runtime-admin status
+  source instead of inventing a second parallel source of truth
+- updated Runtime Admin frontend state/page contract so the operator view can
+  surface:
+  - auth health summary/issues
+  - live mavlink-anywhere runtime/service posture
+  - live Smart Wi-Fi Manager runtime/service posture
+  - repo links for the external tool runtimes
+- added/updated backend tests for the richer runtime-status payload
+
+Verification:
+
+- official backend/runtime verification passed:
+  - `tests/test_bootstrap_installers.py`
+  - `tests/test_git_sync.py`
+  - `tests/test_runtime_settings.py`
+  - `tests/test_gcs_management_routes.py`
+  - `tests/test_gcs_api_http.py`
+  - `tests/test_api_route_inventory.py`
+  - total: `187 passed`
+
+Residual drift after this slice:
+
+- private repo still needs the same runtime-tool-status slice cherry-picked and
+  re-verified
+- frontend tests for the Runtime Admin UI updates remain deferred to the
+  frontend-capable environment because Node installs are intentionally avoided
+  on this host
+- runtime mutation controls (self-update, explicit mode switch, controlled
+  external tool profile rollout) remain the next implementation area

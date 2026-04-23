@@ -129,6 +129,11 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
                 "MDS_DEFAULT_CONNECTIVITY_BACKEND=smart-wifi-manager",
                 "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git",
                 "MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v1.2.3",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_MODE=manage",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE=merge",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR=/opt/demo-smartwifi",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080",
+                "MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH=deployment/connectivity/demo/profile.json",
                 "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed",
                 "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git",
                 "MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9",
@@ -155,6 +160,11 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
     assert profile.connectivity_backend == "smart-wifi-manager"
     assert profile.smart_wifi_manager_repo_url_https == "https://github.com/demo/smart-wifi-manager.git"
     assert profile.smart_wifi_manager_ref == "v1.2.3"
+    assert profile.smart_wifi_manager_mode == "manage"
+    assert profile.smart_wifi_manager_import_mode == "merge"
+    assert profile.smart_wifi_manager_install_dir == "/opt/demo-smartwifi"
+    assert profile.smart_wifi_manager_dashboard_listen == "0.0.0.0:9080"
+    assert profile.smart_wifi_manager_profile_path == "deployment/connectivity/demo/profile.json"
     assert profile.mavlink_management_mode == "managed"
     assert profile.mavlink_anywhere_repo_url_https == "https://github.com/demo/mavlink-anywhere.git"
     assert profile.mavlink_anywhere_ref == "v9.9.9"

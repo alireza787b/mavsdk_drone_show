@@ -29,11 +29,38 @@ function StatusPill({ tone = 'neutral', children }) {
   return <span className={`runtime-admin-page__pill runtime-admin-page__pill--${tone}`}>{children}</span>;
 }
 
+function formatAuthHealthTone(status) {
+  switch (status) {
+    case 'healthy':
+      return 'good';
+    case 'warning':
+      return 'warning';
+    case 'error':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
+
+function formatServiceStatusTone(status) {
+  switch (status) {
+    case 'active':
+      return 'good';
+    case 'enabled':
+      return 'warning';
+    case 'absent':
+      return 'neutral';
+    default:
+      return 'warning';
+  }
+}
+
 function RuntimeAdminPage() {
   const runtime = useGcsRuntimeStatus();
   const gitInfo = useGcsGitInfo();
 
   const runtimeTone = runtime.mode === 'real' ? 'real' : runtime.mode === 'sitl' ? 'sitl' : 'neutral';
+  const authHealthTone = formatAuthHealthTone(runtime.gitAuthHealth?.status);
   const docs = [
     { key: 'mds_init_setup', label: 'Bootstrap guide' },
     { key: 'fleet_sync_and_secrets', label: 'Fleet sync and secrets' },
@@ -58,6 +85,7 @@ function RuntimeAdminPage() {
             {runtime.gitAutoPush ? 'Auto-push on' : 'Auto-push off'}
           </StatusPill>
           <StatusPill>{formatRepoAccessModeLabel(runtime.repoAccessMode)}</StatusPill>
+          <StatusPill tone={authHealthTone}>{runtime.gitAuthHealth?.status || 'unknown'} auth</StatusPill>
         </div>
       </header>
 
@@ -122,6 +150,10 @@ function RuntimeAdminPage() {
               <dd>{formatRepoAccessModeLabel(runtime.repoAccessMode)}</dd>
             </div>
             <div>
+              <dt>Auth health</dt>
+              <dd>{runtime.gitAuthHealth?.summary || 'Unknown'}</dd>
+            </div>
+            <div>
               <dt>Auto-push</dt>
               <dd>{runtime.gitAutoPush ? 'Enabled' : 'Disabled'}</dd>
             </div>
@@ -142,6 +174,13 @@ function RuntimeAdminPage() {
               <dd>{runtime.raw?.git_ssh_key_file_readable ? 'Yes' : 'No'}</dd>
             </div>
           </dl>
+          {runtime.gitAuthHealth?.issues?.length ? (
+            <ul className="runtime-admin-page__issues">
+              {runtime.gitAuthHealth.issues.map((issue) => (
+                <li key={issue}>{issue}</li>
+              ))}
+            </ul>
+          ) : null}
         </article>
 
         <article className="runtime-admin-page__card">
@@ -166,6 +205,10 @@ function RuntimeAdminPage() {
               <dd>{runtime.fleetDefaults?.connectivity_backend || 'Unknown'}</dd>
             </div>
             <div>
+              <dt>Smart Wi-Fi mode</dt>
+              <dd>{runtime.fleetDefaults?.smart_wifi_manager_mode || 'Unknown'}</dd>
+            </div>
+            <div>
               <dt>MAVLink mode</dt>
               <dd>{runtime.fleetDefaults?.mavlink_management_mode || 'Unknown'}</dd>
             </div>
@@ -182,30 +225,123 @@ function RuntimeAdminPage() {
 
         <article className="runtime-admin-page__card">
           <div className="runtime-admin-page__card-header">
-            <FaWifi />
+            <FaSatelliteDish />
             <div>
-              <h2>Optional Tooling</h2>
-              <p>Default external tool posture promoted from the deployment profile.</p>
+              <h2>MAVLink Runtime</h2>
+              <p>Live managed mavlink-anywhere posture on this GCS host.</p>
             </div>
           </div>
           <dl className="runtime-admin-page__facts">
             <div>
-              <dt>mavlink-anywhere repo</dt>
-              <dd>{runtime.fleetDefaults?.mavlink_anywhere_repo_url_https || 'Unknown'}</dd>
+              <dt>Management mode</dt>
+              <dd>{runtime.mavlinkRuntime?.management_mode || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Ref</dt>
+              <dd>{runtime.mavlinkRuntime?.ref || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Install dir</dt>
+              <dd>{runtime.mavlinkRuntime?.install_dir || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Checkout present</dt>
+              <dd>{runtime.mavlinkRuntime?.runtime_present ? 'Yes' : 'No'}</dd>
+            </div>
+            <div>
+              <dt>Router service</dt>
+              <dd>{runtime.mavlinkRuntime?.router_service_status || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Dashboard service</dt>
+              <dd>{runtime.mavlinkRuntime?.dashboard_service_status || 'Unknown'}</dd>
             </div>
             <div>
               <dt>Dashboard listen</dt>
-              <dd>{runtime.fleetDefaults?.mavlink_anywhere_dashboard_listen || 'Unknown'}</dd>
+              <dd>{runtime.mavlinkRuntime?.dashboard_listen || 'Unknown'}</dd>
             </div>
             <div>
-              <dt>Dashboard enabled</dt>
-              <dd>{runtime.fleetDefaults?.mavlink_anywhere_skip_dashboard ? 'No' : 'Yes'}</dd>
-            </div>
-            <div>
-              <dt>Smart Wi-Fi repo</dt>
-              <dd>{runtime.fleetDefaults?.smart_wifi_manager_repo_url_https || 'Unknown'}</dd>
+              <dt>Router binary</dt>
+              <dd>{runtime.mavlinkRuntime?.router_binary_present ? 'Present' : 'Missing'}</dd>
             </div>
           </dl>
+          {runtime.mavlinkRuntime?.repo_web_url ? (
+            <div className="runtime-admin-page__link-row">
+              <a
+                className="runtime-admin-page__doc-link"
+                href={runtime.mavlinkRuntime.repo_web_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open mavlink-anywhere repo
+              </a>
+              <StatusPill tone={formatServiceStatusTone(runtime.mavlinkRuntime?.router_service_status)}>
+                Router {runtime.mavlinkRuntime?.router_service_status || 'unknown'}
+              </StatusPill>
+              <StatusPill tone={formatServiceStatusTone(runtime.mavlinkRuntime?.dashboard_service_status)}>
+                Dashboard {runtime.mavlinkRuntime?.dashboard_service_status || 'unknown'}
+              </StatusPill>
+            </div>
+          ) : null}
+        </article>
+
+        <article className="runtime-admin-page__card">
+          <div className="runtime-admin-page__card-header">
+            <FaWifi />
+            <div>
+              <h2>Connectivity Runtime</h2>
+              <p>Live Smart Wi-Fi Manager posture on this GCS host.</p>
+            </div>
+          </div>
+          <dl className="runtime-admin-page__facts">
+            <div>
+              <dt>Backend</dt>
+              <dd>{runtime.connectivityRuntime?.backend || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Mode</dt>
+              <dd>{runtime.connectivityRuntime?.mode || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Ref</dt>
+              <dd>{runtime.connectivityRuntime?.ref || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Install dir</dt>
+              <dd>{runtime.connectivityRuntime?.install_dir || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Profile path</dt>
+              <dd>{runtime.connectivityRuntime?.profile_path || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Profile present</dt>
+              <dd>{runtime.connectivityRuntime?.profile_present ? 'Yes' : 'No'}</dd>
+            </div>
+            <div>
+              <dt>Service status</dt>
+              <dd>{runtime.connectivityRuntime?.service_status || 'Unknown'}</dd>
+            </div>
+            <div>
+              <dt>Dashboard listen</dt>
+              <dd>{runtime.connectivityRuntime?.dashboard_listen || 'Unknown'}</dd>
+            </div>
+          </dl>
+          {runtime.connectivityRuntime?.repo_web_url ? (
+            <div className="runtime-admin-page__link-row">
+              <a
+                className="runtime-admin-page__doc-link"
+                href={runtime.connectivityRuntime.repo_web_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open Smart Wi-Fi repo
+              </a>
+              <StatusPill tone={formatServiceStatusTone(runtime.connectivityRuntime?.service_status)}>
+                Service {runtime.connectivityRuntime?.service_status || 'unknown'}
+              </StatusPill>
+            </div>
+          ) : null}
         </article>
 
         <article className="runtime-admin-page__card runtime-admin-page__card--wide">
