@@ -68,6 +68,17 @@ const BAUDRATE_OPTIONS = [
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
+function normalizeRuntimeModeValue(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['real', 'hardware', 'production'].includes(normalized)) {
+    return 'real';
+  }
+  if (['sitl', 'sim', 'simulation', 'simulated'].includes(normalized)) {
+    return 'sitl';
+  }
+  return null;
+}
+
 function getCustomFieldValuePreview(field) {
   if (!field) {
     return 'Not set';
@@ -212,7 +223,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const hasWifiSignal = Number.isFinite(wifiSignalStrength);
   const hasRuntimeConnectivity = Boolean(wifiSsid || ethernetInterface || hasWifiSignal);
   const isSitlProfile = !drone.serial_port && ['', '0'].includes(String(drone.baudrate ?? '0'));
-  const showSimulatedNetworkFallback = isSitlProfile && !hasRuntimeConnectivity;
+  const inferredSitlMode = isSitlProfile && !hasRuntimeConnectivity;
+  const declaredRuntimeMode = normalizeRuntimeModeValue(heartbeatStatus !== 'No Heartbeat' ? heartbeatData?.runtime_mode : null);
+  const effectiveRuntimeMode = declaredRuntimeMode || (inferredSitlMode ? 'sitl' : 'real');
+  const showSimulatedNetworkFallback = effectiveRuntimeMode === 'sitl' && !hasRuntimeConnectivity;
   const trajectorySourceLabel = normalizedPosId
     ? `Source Drone ${normalizedPosId}.csv`
     : 'Source file pending';
@@ -256,8 +270,12 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const slotIndicatorNote = slotPresentation.configStr
     ? `P${slotPresentation.configStr}`
     : 'No slot';
-  const runtimeModeLabel = showSimulatedNetworkFallback ? 'SITL' : 'Hardware';
-  const runtimeBadgeTone = showSimulatedNetworkFallback ? 'simulated' : 'hardware';
+  const runtimeModeLabel = effectiveRuntimeMode === 'sitl' ? 'SITL' : 'REAL';
+  const runtimeModeLongLabel = effectiveRuntimeMode === 'sitl' ? 'SITL / simulated' : 'REAL / hardware';
+  const runtimeModeSourceLabel = declaredRuntimeMode
+    ? 'Declared by node heartbeat'
+    : 'Inferred from current profile';
+  const runtimeBadgeTone = effectiveRuntimeMode === 'sitl' ? 'simulated' : 'hardware';
   const linkIndicatorValue = showSimulatedNetworkFallback
     ? 'Simulated'
     : wifiSsid
@@ -404,7 +422,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       <div className="info-section">
         <div className="info-row">
           <span className="info-label">Runtime mode</span>
-          <span className="info-value">{showSimulatedNetworkFallback ? 'SITL / simulated' : 'Hardware / live'}</span>
+          <span className="info-value" title={runtimeModeSourceLabel}>{runtimeModeLongLabel}</span>
         </div>
         <div className="info-row">
           <span className="info-label">Telemetry path</span>
@@ -440,8 +458,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
               <div className="network-row">
                 <span className="network-label">Runtime mode</span>
                 <span className="network-value">
-                  SITL / simulated
-                  <span className="network-status simulated">Expected</span>
+                  {runtimeModeLongLabel}
+                  <span className={`network-status ${declaredRuntimeMode ? 'connected' : 'simulated'}`}>
+                    {declaredRuntimeMode ? 'Declared' : 'Inferred'}
+                  </span>
                 </span>
               </div>
               <div className="network-row">
@@ -570,7 +590,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
             >
               {isRoleSwap ? 'Reassigned slot' : 'Own slot'}
             </span>
-            <span className={`identity-runtime-chip ${runtimeBadgeTone}`}>
+            <span
+              className={`identity-runtime-chip ${runtimeBadgeTone}`}
+              title={`${runtimeModeLongLabel}. ${runtimeModeSourceLabel}.`}
+            >
               {runtimeModeLabel}
             </span>
             {promotedField && (

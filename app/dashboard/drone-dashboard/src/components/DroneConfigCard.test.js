@@ -101,4 +101,48 @@ describe('DroneConfigCard', () => {
 
     expect(screen.getByText('Reassigned slot')).toBeInTheDocument();
   });
+
+  it('prefers the heartbeat-declared runtime mode over local inference', () => {
+    render(
+      <DroneConfigCard
+        drone={{
+          hw_id: '7',
+          pos_id: '7',
+          ip: '10.0.0.17',
+          mavlink_port: '14557',
+          serial_port: '',
+          baudrate: '0',
+        }}
+        gitStatus={null}
+        gcsGitStatus={null}
+        configData={[
+          {
+            hw_id: '7',
+            pos_id: '7',
+          },
+        ]}
+        availableHwIds={['7']}
+        editingDroneId={null}
+        setEditingDroneId={jest.fn()}
+        saveChanges={jest.fn()}
+        removeDrone={jest.fn()}
+        networkInfo={null}
+        heartbeatData={{
+          timestamp: Date.now(),
+          ip: '10.0.0.17',
+          pos_id: '7',
+          runtime_mode: 'real',
+        }}
+      />
+    );
+
+    expect(screen.getByText('REAL')).toBeInTheDocument();
+
+    const indicators = screen.getByLabelText('Operator card indicators');
+    fireEvent.click(within(indicators).getByRole('button', { name: /link/i }));
+
+    expect(screen.getByText('REAL / hardware')).toBeInTheDocument();
+    expect(screen.getByText('Runtime network telemetry unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('SITL / simulated')).not.toBeInTheDocument();
+  });
 });
