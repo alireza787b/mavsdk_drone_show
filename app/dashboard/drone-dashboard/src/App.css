@@ -223,6 +223,12 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: var(--shadow-lg);
 }
 
+.mobile-runtime-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .sidebar-backdrop {
   position: fixed;
   inset: 0;

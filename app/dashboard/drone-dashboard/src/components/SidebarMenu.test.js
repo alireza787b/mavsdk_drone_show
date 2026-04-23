@@ -21,13 +21,23 @@ describe('SidebarMenu', () => {
       <MemoryRouter>
         <SidebarMenu
           collapsed={false}
-          runtimeStatus={{ mode: 'real', modeLabel: 'REAL', restartRequired: true }}
+          runtimeStatus={{
+            mode: 'real',
+            modeLabel: 'REAL',
+            configuredMode: 'sitl',
+            configuredModeLabel: 'SITL',
+            restartRequired: true,
+          }}
         />
       </MemoryRouter>
     );
 
-    expect(screen.getByLabelText(/real runtime, restart required/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/real runtime, configured sitl, restart required/i)).toBeInTheDocument();
     expect(screen.getByText('demo/customer-mds')).toBeInTheDocument();
+    expect(screen.getByText('Running REAL')).toBeInTheDocument();
+    expect(screen.getByText('Configured SITL')).toBeInTheDocument();
+    expect(screen.getByText('Restart pending')).toBeInTheDocument();
+    expect(screen.getByText('Apply')).toBeInTheDocument();
   });
 
   it('keeps the runtime badge visible in collapsed mode', () => {
@@ -35,11 +45,18 @@ describe('SidebarMenu', () => {
       <MemoryRouter>
         <SidebarMenu
           collapsed
-          runtimeStatus={{ mode: 'real', modeLabel: 'REAL', restartRequired: true }}
+          runtimeStatus={{
+            mode: 'real',
+            modeLabel: 'REAL',
+            configuredMode: 'sitl',
+            configuredModeLabel: 'SITL',
+            restartRequired: true,
+          }}
         />
       </MemoryRouter>
     );
 
-    expect(screen.getByLabelText(/real runtime, restart required/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/real runtime, configured sitl, restart required/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open runtime admin to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 });

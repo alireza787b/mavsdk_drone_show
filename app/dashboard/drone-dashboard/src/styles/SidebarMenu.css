@@ -148,6 +148,82 @@
   margin-top: 0.45rem;
 }
 
+.sidebar-runtime-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--border-radius-base);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  transition: var(--transition-all);
+}
+
+.sidebar-runtime-summary:hover {
+  transform: translateY(-1px);
+  border-color: var(--color-primary-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.sidebar-runtime-summary.is-warning {
+  border-color: rgba(180, 125, 24, 0.35);
+  background: rgba(180, 125, 24, 0.08);
+}
+
+.sidebar-runtime-summary.is-aligned {
+  border-color: rgba(63, 134, 61, 0.22);
+}
+
+.sidebar-runtime-summary__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sidebar-runtime-summary__label,
+.sidebar-runtime-summary__detail {
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+
+.sidebar-runtime-summary__label {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.sidebar-runtime-summary__detail {
+  color: var(--color-text-secondary);
+}
+
+.sidebar-runtime-summary__state {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: var(--border-radius-full);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sidebar-runtime-summary__state.is-good {
+  background: rgba(63, 134, 61, 0.14);
+  border-color: rgba(63, 134, 61, 0.35);
+  color: var(--color-success);
+}
+
+.sidebar-runtime-summary__state.is-warning {
+  background: rgba(180, 125, 24, 0.14);
+  border-color: rgba(180, 125, 24, 0.35);
+  color: var(--color-warning);
+}
+
 .version-meta {
   display: block;
   margin-top: 0.3rem;
@@ -186,6 +262,13 @@
 
 .sidebar-runtime-badge--collapsed {
   margin-top: 0;
+}
+
+.sidebar-runtime-summary-collapsed {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 /* Navigation Section - No Scrolling Design */
@@ -286,6 +369,39 @@
 
 .nav-item.active::before {
   width: 4px;
+}
+
+.nav-indicator {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: var(--border-radius-full);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.nav-indicator--warning {
+  background: rgba(180, 125, 24, 0.14);
+  border-color: rgba(180, 125, 24, 0.35);
+  color: var(--color-warning);
+}
+
+.nav-indicator-dot {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--color-bg-primary);
+}
+
+.nav-indicator-dot--warning {
+  background: var(--color-warning);
 }
 
 .nav-icon {

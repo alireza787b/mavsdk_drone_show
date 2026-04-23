@@ -1653,3 +1653,4 @@ Residual drift after this slice:
   manual path
 - a future slice can broaden update automation only after dependency and
   frontend rebuild/restart semantics are explicitly versioned and reconciled
+- 2026-04-23: Surfaced runtime posture in the shared dashboard chrome. Sidebar/mobile header now expose running mode, configured-mode drift, and restart-pending cues without requiring operators to open Runtime Admin first.
