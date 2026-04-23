@@ -1112,6 +1112,7 @@ class GCSConfigResponse(BaseModel):
     acceptable_deviation: float = Field(..., ge=0, description="Allowed launch-position deviation in meters")
     gcs_config_path: str = Field(..., description="Path to the system GCS config file")
     gcs_config_present: bool = Field(..., description="Whether the system GCS config file exists")
+    sitl_instance_count: Optional[int] = Field(None, ge=0, description="Detected local SITL instance count on this GCS host")
     restart_required: bool = Field(..., description="Whether the running process differs from the persisted host config")
 
 
@@ -1247,6 +1248,7 @@ class RuntimeStatusResponse(BaseModel):
     git_auto_push: bool = Field(..., description="Whether git auto-push is enabled")
     configured_git_auto_push: bool = Field(..., description="Configured git auto-push state from the system config")
     restart_required: bool = Field(..., description="Whether the running process differs from the persisted host config")
+    sitl_instance_count: Optional[int] = Field(None, ge=0, description="Detected local SITL instance count on this GCS host")
     install_dir: Optional[str] = Field(None, description="Configured install directory for the GCS checkout")
     gcs_config_path: str = Field(..., description="Path to the system GCS config file")
     gcs_config_present: bool = Field(..., description="Whether the system GCS config file exists")

@@ -44,6 +44,7 @@ def test_management_router_get_gcs_config_uses_live_params_after_router_creation
     app.include_router(create_management_router(deps))
     gcs_env = tmp_path / "gcs.env"
     monkeypatch.setattr(management_module, "_get_gcs_config_path", lambda: gcs_env)
+    monkeypatch.setattr(management_module, "_list_sitl_instance_count", lambda deps: 0)
     monkeypatch.setattr(
         management_module,
         "resolve_runtime_mode",
@@ -68,6 +69,7 @@ def test_management_router_get_gcs_config_uses_live_params_after_router_creation
         "acceptable_deviation": 4.5,
         "gcs_config_path": str(gcs_env),
         "gcs_config_present": False,
+        "sitl_instance_count": 0,
         "restart_required": False,
     }
 
@@ -274,6 +276,7 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     monkeypatch.setenv("MDS_INSTALL_DIR", "/opt/demo-gcs")
     monkeypatch.setenv("MDS_GIT_AUTH_TOKEN_FILE", str(token_file))
     monkeypatch.delenv("MDS_GIT_SSH_KEY_FILE", raising=False)
+    monkeypatch.setattr(management_module, "_list_sitl_instance_count", lambda deps: 3)
 
     with TestClient(app) as client:
         response = client.get("/api/v1/system/runtime-status")
@@ -290,6 +293,7 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     assert data["repo_access_mode"] == "https_token_file"
     assert data["configured_git_auto_push"] is True
     assert data["restart_required"] is False
+    assert data["sitl_instance_count"] == 3
     assert data["gcs_config_path"] == str(gcs_env)
     assert data["gcs_config_present"] is True
     assert data["git_auth_token_file"] == str(token_file)

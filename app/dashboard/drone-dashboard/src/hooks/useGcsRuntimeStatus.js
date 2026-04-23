@@ -40,6 +40,7 @@ export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERV
         : data?.git_auto_push
     ),
     restartRequired: Boolean(data?.restart_required),
+    sitlInstanceCount: Number.isInteger(data?.sitl_instance_count) ? data?.sitl_instance_count : null,
     installDir: data?.install_dir || '',
     gcsConfigPath: data?.gcs_config_path || '',
     gitAuthHealth: data?.git_auth_health || { status: 'unknown', summary: '', issues: [] },
