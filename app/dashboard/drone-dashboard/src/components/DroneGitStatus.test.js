@@ -32,6 +32,11 @@ describe('DroneGitStatus', () => {
         dashboard_access_mode: 'local_only',
         dashboard_url: null,
       },
+      git_sync_runtime: {
+        status: 'success',
+        summary: 'Git synchronization completed successfully · Coordinator restart scheduled',
+        updated_units: ['coordinator.service'],
+      },
     },
   };
 
@@ -42,6 +47,7 @@ describe('DroneGitStatus', () => {
 
     expect(screen.getByText(/managed · v3.0.5 · router active · dashboard direct link/i)).toBeInTheDocument();
     expect(screen.getByText(/smart-wifi-manager · observe · service active · dashboard local only/i)).toBeInTheDocument();
+    expect(screen.getByText(/git synchronization completed successfully · coordinator restart scheduled/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', 'http://10.0.0.101:9070');
   });
 });

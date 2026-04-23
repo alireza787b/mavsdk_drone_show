@@ -1611,6 +1611,16 @@ class TestGitStatusEndpoints:
                 'dashboard_listen': '127.0.0.1:9080',
                 'service_status': 'active',
             },
+            'git_sync_runtime': {
+                'status': 'success',
+                'summary': 'Git synchronization completed successfully · Coordinator restart scheduled',
+                'last_run_at_ms': 1770000000000,
+                'updated_units': ['coordinator.service'],
+                'coordinator_restart_scheduled': True,
+                'connectivity_reconcile_status': 'success',
+                'mavlink_runtime_reconcile_status': 'success',
+                'requirements_update_status': 'unchanged',
+            },
         },
         '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
     })
@@ -1636,6 +1646,7 @@ class TestGitStatusEndpoints:
         assert data['git_status']['1']['mavlink_runtime']['dashboard_access_mode'] == 'direct'
         assert data['git_status']['1']['mavlink_runtime']['dashboard_url'] == 'http://10.0.0.1:9070'
         assert data['git_status']['1']['connectivity_runtime']['dashboard_access_mode'] == 'local_only'
+        assert data['git_status']['1']['git_sync_runtime']['coordinator_restart_scheduled'] is True
         assert data['needs_sync_count'] == 0
 
     @patch('app_fastapi.git_status_data_all_drones', {

@@ -153,6 +153,52 @@ Residual drift intentionally deferred to the next slice:
 - service-update/reconcile restart policy still needs a dedicated operator-safe
   slice instead of relying only on git-sync side effects
 
+## Slice 30
+
+### Scope
+
+- persist a durable node-local post-sync runtime summary during git sync
+- expose that summary through node and GCS git-status payloads
+- make service/unit updates and sidecar reconcile outcomes visible without
+  scraping logs manually
+
+### Checkpoint Result (2026-04-23)
+
+Status: complete
+
+Implemented:
+
+- `tools/update_repo_ssh.sh` now persists node-local sync runtime state to
+  `MDS_GIT_SYNC_STATE_FILE` / `/var/lib/mds/git-sync/last_result.env`
+- recorded state now includes:
+  - latest sync status
+  - updated systemd units
+  - coordinator restart scheduling
+  - connectivity reconcile result
+  - MAVLink runtime reconcile result
+  - Python requirements update result
+- node `GET /api/v1/git/status` now exposes `git_sync_runtime`
+- GCS fleet git aggregation now carries `git_sync_runtime`
+- drone git inspector UI now shows the node-local post-sync summary
+- added shell regression coverage for the persisted state file plus targeted
+  node/GCS Python coverage
+
+Verification:
+
+- `bash -n tools/update_repo_ssh.sh`
+- `tests/test_bootstrap_installers.py -k "git_sync_runtime_state_persists_post_sync_summary or post_sync_runtime_restart"`
+- `tests/test_drone_api_http.py -k git_status`
+- `tests/test_gcs_api_http.py -k git_status`
+- `tests/test_managed_runtime_status.py`
+- `git diff --check`
+
+Residual drift intentionally deferred to the next slice:
+
+- frontend Jest execution in the clean worktree is still blocked by missing
+  local `node_modules` on this host
+- GCS still does not own fleet-wide sidecar profile rollout; it only exposes
+  visibility and node-local entry points today
+
 ## Slice 3
 
 ### Scope

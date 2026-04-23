@@ -10,6 +10,7 @@ from git_status import commits_match
 from schemas import (
     DroneConnectivityRuntimeStatus,
     DroneGitStatus,
+    DroneGitSyncRuntimeStatus,
     DroneMavlinkRuntimeStatus,
     GitStatus,
     GitStatusResponse,
@@ -74,6 +75,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
             drone_ip = drone_info.get("ip", "unknown")
             raw_mavlink_runtime = raw_data.get("mavlink_runtime") if isinstance(raw_data.get("mavlink_runtime"), dict) else None
             raw_connectivity_runtime = raw_data.get("connectivity_runtime") if isinstance(raw_data.get("connectivity_runtime"), dict) else None
+            raw_git_sync_runtime = raw_data.get("git_sync_runtime") if isinstance(raw_data.get("git_sync_runtime"), dict) else None
 
             mavlink_runtime = None
             if raw_mavlink_runtime:
@@ -117,6 +119,19 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     dashboard_url=access.get("dashboard_url"),
                 )
 
+            git_sync_runtime = None
+            if raw_git_sync_runtime:
+                git_sync_runtime = DroneGitSyncRuntimeStatus(
+                    status=raw_git_sync_runtime.get("status", "unknown"),
+                    summary=raw_git_sync_runtime.get("summary", ""),
+                    last_run_at_ms=raw_git_sync_runtime.get("last_run_at_ms"),
+                    updated_units=raw_git_sync_runtime.get("updated_units", []),
+                    coordinator_restart_scheduled=bool(raw_git_sync_runtime.get("coordinator_restart_scheduled", False)),
+                    connectivity_reconcile_status=raw_git_sync_runtime.get("connectivity_reconcile_status", "unknown"),
+                    mavlink_runtime_reconcile_status=raw_git_sync_runtime.get("mavlink_runtime_reconcile_status", "unknown"),
+                    requirements_update_status=raw_git_sync_runtime.get("requirements_update_status", "unknown"),
+                )
+
             transformed_git_status[str(hw_id)] = DroneGitStatus(
                 pos_id=int(drone_info.get("pos_id", hw_id)),
                 hw_id=str(hw_id),
@@ -138,6 +153,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 git_auth_health_issues=raw_data.get("git_auth_health_issues", []),
                 mavlink_runtime=mavlink_runtime,
                 connectivity_runtime=connectivity_runtime,
+                git_sync_runtime=git_sync_runtime,
                 last_check=int(time.time() * 1000),
                 last_sync=None,
             )

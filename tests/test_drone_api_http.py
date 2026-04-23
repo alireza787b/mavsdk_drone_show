@@ -856,6 +856,20 @@ class TestGitStatus:
                 'service_status': 'active',
             },
         )
+        monkeypatch.setattr(
+            drone_api_server,
+            'read_git_sync_runtime_summary',
+            lambda: {
+                'status': 'success',
+                'summary': 'Git synchronization completed successfully · Coordinator restart scheduled',
+                'last_run_at_ms': 1770000000000,
+                'updated_units': ['coordinator.service'],
+                'coordinator_restart_scheduled': True,
+                'connectivity_reconcile_status': 'success',
+                'mavlink_runtime_reconcile_status': 'success',
+                'requirements_update_status': 'unchanged',
+            },
+        )
 
         response = test_client.get("/api/v1/git/status")
 
@@ -870,6 +884,7 @@ class TestGitStatus:
         assert data['git_auth_health_status'] == 'healthy'
         assert data['mavlink_runtime']['router_service_status'] == 'active'
         assert data['connectivity_runtime']['service_status'] == 'active'
+        assert data['git_sync_runtime']['coordinator_restart_scheduled'] is True
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
         """Drone git status should expose a usable branch name from detached worktrees."""
@@ -894,6 +909,7 @@ class TestGitStatus:
         )
         monkeypatch.setattr(drone_api_server, 'build_mavlink_runtime_summary', lambda repo_root: None)
         monkeypatch.setattr(drone_api_server, 'build_connectivity_runtime_summary', lambda repo_root: None)
+        monkeypatch.setattr(drone_api_server, 'read_git_sync_runtime_summary', lambda: None)
 
         response = test_client.get("/api/v1/git/status")
 
