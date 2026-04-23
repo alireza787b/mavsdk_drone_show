@@ -576,6 +576,19 @@ class DroneConnectivityRuntimeStatus(BaseModel):
     dashboard_url: Optional[str] = Field(None, description="Direct dashboard URL when reachable from the GCS operator network")
 
 
+class DroneGitSyncRuntimeStatus(BaseModel):
+    """Compact post-sync runtime/reconcile summary from the node."""
+
+    status: str = Field(..., description="Latest node-local git sync runtime status")
+    summary: str = Field(..., description="Operator-facing post-sync summary")
+    last_run_at_ms: Optional[int] = Field(None, description="Last node-local git sync timestamp")
+    updated_units: List[str] = Field(default_factory=list, description="Systemd units updated by the last node sync")
+    coordinator_restart_scheduled: bool = Field(False, description="Whether the last sync scheduled a coordinator restart")
+    connectivity_reconcile_status: str = Field("unknown", description="Latest connectivity reconcile result")
+    mavlink_runtime_reconcile_status: str = Field("unknown", description="Latest MAVLink runtime reconcile result")
+    requirements_update_status: str = Field("unknown", description="Latest Python requirements update result")
+
+
 class DroneGitStatus(BaseModel):
     """Git status for individual drone.
 
@@ -606,6 +619,7 @@ class DroneGitStatus(BaseModel):
     git_auth_health_issues: List[str] = Field(default_factory=list, description="Operator-facing node git auth issues")
     mavlink_runtime: Optional["DroneMavlinkRuntimeStatus"] = Field(None, description="Node-local managed mavlink-anywhere posture")
     connectivity_runtime: Optional["DroneConnectivityRuntimeStatus"] = Field(None, description="Node-local connectivity backend posture")
+    git_sync_runtime: Optional["DroneGitSyncRuntimeStatus"] = Field(None, description="Latest node-local sync/reconcile runtime summary")
 
     # Timestamps
     last_check: int = Field(..., description="Last status check timestamp (Unix ms)")

@@ -251,6 +251,11 @@
   text-decoration: underline;
 }
 
+.runtime-detail-subtle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
 /* Changes List */
 .changes-list {
   margin: 0;

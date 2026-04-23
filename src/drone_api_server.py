@@ -90,6 +90,7 @@ from src.gcs_api_routes import (
 from src.managed_runtime_status import (
     build_connectivity_runtime_summary,
     build_mavlink_runtime_summary,
+    read_git_sync_runtime_summary,
 )
 from src.mission_startup import probe_offboard_armability
 from src.px4_param_models import (
@@ -288,6 +289,17 @@ class DroneManagedConnectivityRuntimeResponse(BaseModel):
     service_status: str
 
 
+class DroneGitSyncRuntimeResponse(BaseModel):
+    status: str
+    summary: str
+    last_run_at_ms: Optional[int] = None
+    updated_units: List[str] = Field(default_factory=list)
+    coordinator_restart_scheduled: bool = False
+    connectivity_reconcile_status: str = "unknown"
+    mavlink_runtime_reconcile_status: str = "unknown"
+    requirements_update_status: str = "unknown"
+
+
 class HomePositionResponse(BaseModel):
     latitude: float
     longitude: float
@@ -322,6 +334,7 @@ class DroneGitStatusResponse(BaseModel):
     git_auth_health_issues: List[str] = Field(default_factory=list)
     mavlink_runtime: Optional[DroneManagedMavlinkRuntimeResponse] = None
     connectivity_runtime: Optional[DroneManagedConnectivityRuntimeResponse] = None
+    git_sync_runtime: Optional[DroneGitSyncRuntimeResponse] = None
 
 
 class PositionDeviationResponse(BaseModel):
@@ -1052,6 +1065,7 @@ class DroneAPIServer:
                 'git_auth_health_issues': git_report.get('git_auth_health_issues', []),
                 'mavlink_runtime': build_mavlink_runtime_summary(Path(BASE_DIR)),
                 'connectivity_runtime': build_connectivity_runtime_summary(Path(BASE_DIR)),
+                'git_sync_runtime': read_git_sync_runtime_summary(),
             }
 
         @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)

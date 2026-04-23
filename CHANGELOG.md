@@ -38,6 +38,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   and Smart Wi-Fi runtime posture, and the GCS git aggregation/dashboard now
   resolves whether each node dashboard is directly reachable, local-only, or
   disabled before exposing operator links.
+- Node post-sync runtime visibility:
+  node git sync now records a durable local post-sync runtime summary
+  (updated units, coordinator restart scheduling, connectivity reconcile
+  result, MAVLink runtime reconcile result, requirements update posture), and
+  that summary is exposed through node/GCS git-status surfaces.
 - Runtime Admin mixed-mode preflight visibility:
   runtime status/config now report local SITL inventory count, and Runtime
   Admin warns before REAL-mode restart when local SITL containers would remain

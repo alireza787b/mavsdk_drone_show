@@ -71,9 +71,15 @@ LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
 SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
 RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-2}"
+GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-/var/lib/mds/git-sync}"
+GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
 
 SERVICE_RELOAD_REQUIRED=false
 COORDINATOR_RESTART_NEEDED=false
+COORDINATOR_RESTART_SCHEDULED=false
+CONNECTIVITY_RECONCILE_STATUS="not_required"
+MAVLINK_RUNTIME_RECONCILE_STATUS="not_required"
+REQUIREMENTS_UPDATE_STATUS="unchanged"
 declare -a COORDINATOR_RESTART_REASONS=()
 declare -a UPDATED_SYSTEMD_UNITS=()
 
@@ -121,6 +127,7 @@ exit_with_failure_result() {
 
     log_error "$component" "$message"
     set_led_status "$led_state"
+    persist_git_sync_state "error" "${component}: ${message}"
     emit_structured_failure_result "$component" "$message"
     cleanup_on_exit
     exit "$exit_code"
@@ -128,6 +135,51 @@ exit_with_failure_result() {
 
 log_error_and_exit() {
     exit_with_failure_result "$1" "$2" "${3:-1}" "ERROR_CRITICAL"
+}
+
+join_by_comma() {
+    local IFS=","
+    printf '%s' "$*"
+}
+
+sanitize_state_value() {
+    printf '%s' "${1:-}" | tr '\n\r' ' ' | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//'
+}
+
+persist_git_sync_state() {
+    local sync_status="$1"
+    local message="$2"
+    local state_file="${GIT_SYNC_STATE_FILE}"
+    local state_dir
+    local state_tmp=""
+    local commit_hash=""
+    local timestamp_ms=""
+    local updated_units_csv=""
+    local restart_reasons_csv=""
+
+    state_dir="$(dirname "${state_file}")"
+    mkdir -p "${state_dir}" 2>/dev/null || return 0
+    state_tmp=$(mktemp "${state_dir}/last_result.env.XXXXXX") || return 0
+    commit_hash=$(git -C "${REPO_DIR}" rev-parse --short HEAD 2>/dev/null || true)
+    timestamp_ms=$(date +%s%3N 2>/dev/null || echo "")
+    updated_units_csv=$(join_by_comma "${UPDATED_SYSTEMD_UNITS[@]}")
+    restart_reasons_csv=$(join_by_comma "${COORDINATOR_RESTART_REASONS[@]}")
+
+    {
+        printf 'status=%s\n' "$(sanitize_state_value "${sync_status}")"
+        printf 'branch=%s\n' "$(sanitize_state_value "${BRANCH_NAME:-unknown}")"
+        printf 'commit=%s\n' "$(sanitize_state_value "${commit_hash}")"
+        printf 'timestamp_ms=%s\n' "$(sanitize_state_value "${timestamp_ms}")"
+        printf 'message=%s\n' "$(sanitize_state_value "${message}")"
+        printf 'updated_units=%s\n' "$(sanitize_state_value "${updated_units_csv}")"
+        printf 'coordinator_restart_scheduled=%s\n' "$(sanitize_state_value "${COORDINATOR_RESTART_SCHEDULED}")"
+        printf 'coordinator_restart_reasons=%s\n' "$(sanitize_state_value "${restart_reasons_csv}")"
+        printf 'connectivity_reconcile_status=%s\n' "$(sanitize_state_value "${CONNECTIVITY_RECONCILE_STATUS}")"
+        printf 'mavlink_runtime_reconcile_status=%s\n' "$(sanitize_state_value "${MAVLINK_RUNTIME_RECONCILE_STATUS}")"
+        printf 'requirements_update_status=%s\n' "$(sanitize_state_value "${REQUIREMENTS_UPDATE_STATUS}")"
+    } > "${state_tmp}"
+
+    mv "${state_tmp}" "${state_file}" 2>/dev/null || rm -f "${state_tmp}"
 }
 
 # ----------------------------------
@@ -548,7 +600,9 @@ apply_post_sync_service_actions() {
     fi
 
     log_info "$component" "Coordinator restart requested: ${COORDINATOR_RESTART_REASONS[*]}"
-    schedule_systemd_restart "coordinator.service" "$restart_action" "$RUNTIME_RESTART_DELAY_SECONDS" || true
+    if schedule_systemd_restart "coordinator.service" "$restart_action" "$RUNTIME_RESTART_DELAY_SECONDS"; then
+        COORDINATOR_RESTART_SCHEDULED=true
+    fi
 }
 
 # ----------------------------------
@@ -673,20 +727,24 @@ check_connectivity_updates() {
         smart-wifi-manager|smart_wifi_manager|smartwifi|wifi)
             ;;
         *)
+            CONNECTIVITY_RECONCILE_STATUS="not_required"
             log_debug "$component" "Connectivity backend is '${backend}', nothing to reconcile"
             return 0
             ;;
     esac
 
     if [[ ! -x "${reconcile_script}" ]]; then
+        CONNECTIVITY_RECONCILE_STATUS="missing_helper"
         log_warn "$component" "Connectivity reconcile helper is missing: ${reconcile_script}"
         return 0
     fi
 
     log_info "$component" "Reapplying connectivity backend configuration..."
     if sudo "${reconcile_script}" apply --quiet; then
+        CONNECTIVITY_RECONCILE_STATUS="success"
         log_info "$component" "Connectivity backend reconciled"
     else
+        CONNECTIVITY_RECONCILE_STATUS="warning"
         log_warn "$component" "Connectivity reconcile did not complete cleanly"
     fi
 }
@@ -700,20 +758,24 @@ check_mavlink_runtime_updates() {
         managed|"")
             ;;
         *)
+            MAVLINK_RUNTIME_RECONCILE_STATUS="not_required"
             log_debug "$component" "MAVLink runtime ownership is '${management_mode}', nothing to reconcile"
             return 0
             ;;
     esac
 
     if [[ ! -x "${reconcile_script}" ]]; then
+        MAVLINK_RUNTIME_RECONCILE_STATUS="missing_helper"
         log_warn "$component" "MAVLink runtime reconcile helper is missing: ${reconcile_script}"
         return 0
     fi
 
     log_info "$component" "Reapplying managed mavlink-anywhere runtime..."
     if sudo "${reconcile_script}" apply --quiet; then
+        MAVLINK_RUNTIME_RECONCILE_STATUS="success"
         log_info "$component" "Managed mavlink-anywhere runtime reconciled"
     else
+        MAVLINK_RUNTIME_RECONCILE_STATUS="warning"
         log_warn "$component" "Managed mavlink-anywhere reconcile did not complete cleanly"
     fi
 }
@@ -730,6 +792,7 @@ check_requirements_update() {
     mkdir -p "$mds_dir" 2>/dev/null || true
 
     if [[ ! -f "$REPO_DIR/requirements.txt" ]]; then
+        REQUIREMENTS_UPDATE_STATUS="not_required"
         log_debug "$component" "No requirements.txt found, skipping"
         return 0
     fi
@@ -749,20 +812,25 @@ check_requirements_update() {
                 if "$REPO_DIR/venv/bin/pip" install -r "$REPO_DIR/requirements.txt" --quiet 2>/dev/null; then
                     log_info "$component" "Python requirements updated successfully"
                     echo "$current_hash" > "$req_hash_file"
+                    REQUIREMENTS_UPDATE_STATUS="updated"
                     mark_coordinator_restart_needed "python requirements updated"
                 else
+                    REQUIREMENTS_UPDATE_STATUS="warning"
                     log_warn "$component" "Failed to update Python requirements"
                 fi
             else
+                REQUIREMENTS_UPDATE_STATUS="warning"
                 log_warn "$component" "venv pip not found at $REPO_DIR/venv/bin/pip"
             fi
         else
+            REQUIREMENTS_UPDATE_STATUS="unchanged"
             log_debug "$component" "requirements.txt unchanged"
         fi
     else
         # First run - store current hash
         log_info "$component" "Storing initial requirements hash"
         echo "$current_hash" > "$req_hash_file"
+        REQUIREMENTS_UPDATE_STATUS="initialized"
     fi
 }
 
@@ -1368,6 +1436,7 @@ main() {
         if [[ "$RECOVERY_STRATEGY" == "graceful" ]]; then
             log_warn "GIT-FETCH" "Fetch failed, continuing with existing repository state"
             set_led_status "GIT_FAILED_CONTINUING"  # Yellow - indicates cached code being used
+            persist_git_sync_state "warning" "Fetch failed, continuing with cached repository state"
             echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"$BRANCH_NAME\",\"error\":\"fetch_failed_graceful\",\"message\":\"Fetch failed, using cached code\"}"
             exit 0
         else
@@ -1443,6 +1512,7 @@ main() {
     log_info "SUCCESS" "Commit: $commit_hash - $commit_message"
     log_info "SUCCESS" "Duration: ${duration}s"
     log_info "SUCCESS" "=========================================="
+    persist_git_sync_state "success" "Git synchronization completed successfully"
 
     # Structured result for machine parsing (used by actions.py)
     # Escape quotes/backslashes in commit message for valid JSON

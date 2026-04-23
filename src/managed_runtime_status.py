@@ -172,3 +172,72 @@ def resolve_dashboard_access(ip: str | None, listen: str | None) -> dict[str, st
             return {"dashboard_access_mode": "unknown", "dashboard_url": None}
         return {"dashboard_access_mode": "direct", "dashboard_url": f"{scheme}://{ip}:{port}"}
     return {"dashboard_access_mode": "direct", "dashboard_url": f"{scheme}://{host}:{port}"}
+
+
+def read_git_sync_runtime_summary() -> dict[str, Any]:
+    state_path = Path(os.environ.get("MDS_GIT_SYNC_STATE_FILE", "/var/lib/mds/git-sync/last_result.env"))
+    if not state_path.is_file():
+        return {
+            "status": "unknown",
+            "summary": "No node-local git sync runtime state has been recorded yet.",
+            "last_run_at_ms": None,
+            "updated_units": [],
+            "coordinator_restart_scheduled": False,
+            "connectivity_reconcile_status": "unknown",
+            "mavlink_runtime_reconcile_status": "unknown",
+            "requirements_update_status": "unknown",
+        }
+
+    try:
+        data = parse_status_output(state_path.read_text(encoding="utf-8"))
+    except OSError:
+        return {
+            "status": "unknown",
+            "summary": "Node-local git sync runtime state is unreadable.",
+            "last_run_at_ms": None,
+            "updated_units": [],
+            "coordinator_restart_scheduled": False,
+            "connectivity_reconcile_status": "unknown",
+            "mavlink_runtime_reconcile_status": "unknown",
+            "requirements_update_status": "unknown",
+        }
+
+    updated_units = [
+        item.strip() for item in str(data.get("updated_units") or "").split(",") if item.strip()
+    ]
+    status = str(data.get("status") or "unknown").strip().lower() or "unknown"
+    message = str(data.get("message") or "").strip()
+    connectivity_status = str(data.get("connectivity_reconcile_status") or "unknown").strip() or "unknown"
+    mavlink_status = str(data.get("mavlink_runtime_reconcile_status") or "unknown").strip() or "unknown"
+    requirements_status = str(data.get("requirements_update_status") or "unknown").strip() or "unknown"
+    coordinator_restart_scheduled = as_bool(data.get("coordinator_restart_scheduled"), default=False)
+
+    summary_parts: list[str] = []
+    if message:
+        summary_parts.append(message)
+    if updated_units:
+        summary_parts.append(f"Updated units: {', '.join(updated_units)}")
+    if coordinator_restart_scheduled:
+        summary_parts.append("Coordinator restart scheduled")
+    if connectivity_status not in {"unknown", "not_required"}:
+        summary_parts.append(f"Connectivity: {connectivity_status}")
+    if mavlink_status not in {"unknown", "not_required"}:
+        summary_parts.append(f"MAVLink runtime: {mavlink_status}")
+    if requirements_status not in {"unknown", "unchanged", "not_required"}:
+        summary_parts.append(f"Requirements: {requirements_status}")
+
+    try:
+        last_run_at_ms = int(str(data.get("timestamp_ms") or "").strip()) if data.get("timestamp_ms") else None
+    except ValueError:
+        last_run_at_ms = None
+
+    return {
+        "status": status,
+        "summary": " · ".join(summary_parts) if summary_parts else "No node-local git sync runtime details recorded.",
+        "last_run_at_ms": last_run_at_ms,
+        "updated_units": updated_units,
+        "coordinator_restart_scheduled": coordinator_restart_scheduled,
+        "connectivity_reconcile_status": connectivity_status,
+        "mavlink_runtime_reconcile_status": mavlink_status,
+        "requirements_update_status": requirements_status,
+    }

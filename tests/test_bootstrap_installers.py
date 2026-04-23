@@ -1065,6 +1065,35 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_runtime_state_persists_post_sync_summary():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/home/logs" "$tmpdir/repo/.git"
+        HOME="$tmpdir/home"
+        REPO_DIR="$tmpdir/repo"
+        MDS_GIT_SYNC_STATE_FILE="$tmpdir/last_result.env"
+        BRANCH_NAME="main-candidate"
+        source "{GIT_SYNC_SCRIPT}"
+        UPDATED_SYSTEMD_UNITS=("coordinator.service" "git_sync_mds.service")
+        COORDINATOR_RESTART_REASONS=("runtime files changed")
+        COORDINATOR_RESTART_SCHEDULED=true
+        CONNECTIVITY_RECONCILE_STATUS="success"
+        MAVLINK_RUNTIME_RECONCILE_STATUS="warning"
+        REQUIREMENTS_UPDATE_STATUS="updated"
+        persist_git_sync_state "success" "Git synchronization completed successfully"
+        grep -q '^status=success$' "$tmpdir/last_result.env"
+        grep -q '^updated_units=coordinator.service,git_sync_mds.service$' "$tmpdir/last_result.env"
+        grep -q '^coordinator_restart_scheduled=true$' "$tmpdir/last_result.env"
+        grep -q '^connectivity_reconcile_status=success$' "$tmpdir/last_result.env"
+        grep -q '^mavlink_runtime_reconcile_status=warning$' "$tmpdir/last_result.env"
+        grep -q '^requirements_update_status=updated$' "$tmpdir/last_result.env"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_python_env_prefers_node_requirements_when_present():
     result = run_bash(
         f"""

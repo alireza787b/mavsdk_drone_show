@@ -229,6 +229,9 @@ Current expectation:
 - fleet git status shows whether node-local git auth is healthy
 - fleet git status shows compact node-local `mavlink-anywhere` and Smart Wi-Fi
   posture
+- fleet git status shows the latest node-local post-sync runtime summary so an
+  operator can see whether service updates, coordinator restart scheduling, and
+  sidecar reconcile steps actually applied
 - direct dashboard links appear only when the node-side listen address is
   actually reachable from the operator network
 - loopback-only dashboards are shown as local-only instead of rendering broken

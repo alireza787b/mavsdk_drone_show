@@ -248,6 +248,20 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
               </div>
             </div>
           )}
+          {gitStatus.git_sync_runtime && (
+            <div className="detail-row">
+              <span className="detail-label">Sync</span>
+              <div className="detail-value runtime-detail-value">
+                <span>{gitStatus.git_sync_runtime.summary || 'No sync runtime summary'}</span>
+                {Array.isArray(gitStatus.git_sync_runtime.updated_units)
+                  && gitStatus.git_sync_runtime.updated_units.length > 0 && (
+                    <span className="runtime-detail-subtle">
+                      Units: {gitStatus.git_sync_runtime.updated_units.join(', ')}
+                    </span>
+                  )}
+              </div>
+            </div>
+          )}
           {gitAuthIssues.length > 0 && (
             <div className="detail-row">
               <span className="detail-label">Auth Issues</span>
@@ -319,6 +333,11 @@ DroneGitStatus.propTypes = {
       repo_web_url: PropTypes.string,
       dashboard_access_mode: PropTypes.string,
       dashboard_url: PropTypes.string,
+    }),
+    git_sync_runtime: PropTypes.shape({
+      status: PropTypes.string,
+      summary: PropTypes.string,
+      updated_units: PropTypes.arrayOf(PropTypes.string),
     }),
   }),
   gcsGitStatus: PropTypes.shape({
