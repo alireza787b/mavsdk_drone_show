@@ -45,8 +45,8 @@ const SidebarMenu = ({
     restartRequired: false,
   },
 }) => {
-  const { isDark } = useTheme();
-  const gitInfo = useGcsGitInfo();
+  const { isDark = false } = useTheme() || {};
+  const gitInfo = useGcsGitInfo() || {};
   // Use props if provided, otherwise fall back to local state for backwards compatibility
   const [localCollapsed, setLocalCollapsed] = useState(window.innerWidth < 768);
   const [activeTooltip, setActiveTooltip] = useState(null);
