@@ -99,6 +99,11 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
             connectivity_backend="smart-wifi-manager",
             smart_wifi_manager_repo_url_https="https://github.com/demo/smart-wifi-manager.git",
             smart_wifi_manager_ref="v1.2.3",
+            smart_wifi_manager_mode="manage",
+            smart_wifi_manager_import_mode="merge",
+            smart_wifi_manager_install_dir="/opt/demo-smartwifi",
+            smart_wifi_manager_dashboard_listen="0.0.0.0:9080",
+            smart_wifi_manager_profile_path="deployment/connectivity/demo/profile.json",
             mavlink_management_mode="managed",
             mavlink_anywhere_repo_url_https="https://github.com/demo/mavlink-anywhere.git",
             mavlink_anywhere_ref="v9.9.9",
@@ -106,6 +111,45 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
             mavlink_anywhere_dashboard_listen="0.0.0.0:9070",
             mavlink_anywhere_skip_dashboard=False,
         ),
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_build_mavlink_runtime_status",
+        lambda profile: {
+            "status_source": "script",
+            "management_mode": profile.mavlink_management_mode,
+            "repo_url": profile.mavlink_anywhere_repo_url_https,
+            "ref": profile.mavlink_anywhere_ref,
+            "repo_web_url": "https://github.com/demo/mavlink-anywhere/tree/v9.9.9",
+            "install_dir": profile.mavlink_anywhere_install_dir,
+            "install_dir_present": True,
+            "runtime_present": True,
+            "runtime_head": "abc1234",
+            "router_binary_present": True,
+            "router_service_status": "active",
+            "dashboard_enabled": True,
+            "dashboard_listen": profile.mavlink_anywhere_dashboard_listen,
+            "dashboard_service_status": "active",
+        },
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_build_connectivity_runtime_status",
+        lambda profile: {
+            "status_source": "script",
+            "backend": profile.connectivity_backend,
+            "repo_url": profile.smart_wifi_manager_repo_url_https,
+            "ref": profile.smart_wifi_manager_ref,
+            "repo_web_url": "https://github.com/demo/smart-wifi-manager/tree/v1.2.3",
+            "install_dir": profile.smart_wifi_manager_install_dir,
+            "install_dir_present": True,
+            "mode": profile.smart_wifi_manager_mode,
+            "import_mode": profile.smart_wifi_manager_import_mode,
+            "profile_path": "/tmp/demo-profile.json",
+            "profile_present": True,
+            "dashboard_listen": profile.smart_wifi_manager_dashboard_listen,
+            "service_status": "active",
+        },
     )
     monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
     monkeypatch.setenv("MDS_INSTALL_DIR", "/opt/demo-gcs")
@@ -127,8 +171,12 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     assert data["gcs_config_present"] is True
     assert data["git_auth_token_file"] == str(token_file)
     assert data["git_auth_token_file_readable"] is True
+    assert data["git_auth_health"]["status"] == "healthy"
     assert data["fleet_defaults"]["connectivity_backend"] == "smart-wifi-manager"
+    assert data["fleet_defaults"]["smart_wifi_manager_mode"] == "manage"
     assert data["fleet_defaults"]["mavlink_anywhere_ref"] == "v9.9.9"
+    assert data["mavlink_runtime"]["router_service_status"] == "active"
+    assert data["connectivity_runtime"]["service_status"] == "active"
     assert data["docs"]["mds_init_setup"] == "https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mds-init-setup.md"
 
 

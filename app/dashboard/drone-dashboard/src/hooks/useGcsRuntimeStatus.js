@@ -32,7 +32,10 @@ export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERV
     gitAutoPush: Boolean(data?.git_auto_push),
     installDir: data?.install_dir || '',
     gcsConfigPath: data?.gcs_config_path || '',
+    gitAuthHealth: data?.git_auth_health || { status: 'unknown', summary: '', issues: [] },
     fleetDefaults: data?.fleet_defaults || null,
+    mavlinkRuntime: data?.mavlink_runtime || null,
+    connectivityRuntime: data?.connectivity_runtime || null,
     docs: data?.docs || {},
   };
 }

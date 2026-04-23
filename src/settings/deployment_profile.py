@@ -28,6 +28,11 @@ class DeploymentProfile:
     connectivity_backend: str
     smart_wifi_manager_repo_url_https: str
     smart_wifi_manager_ref: str
+    smart_wifi_manager_mode: str
+    smart_wifi_manager_import_mode: str
+    smart_wifi_manager_install_dir: str
+    smart_wifi_manager_dashboard_listen: str
+    smart_wifi_manager_profile_path: str
     mavlink_management_mode: str
     mavlink_anywhere_repo_url_https: str
     mavlink_anywhere_ref: str
@@ -98,6 +103,14 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "https://github.com/alireza787b/smart-wifi-manager.git",
     )
     smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "main")
+    smart_wifi_manager_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "observe")
+    smart_wifi_manager_import_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE", "replace")
+    smart_wifi_manager_install_dir = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR", "/opt/smart-wifi-manager")
+    smart_wifi_manager_dashboard_listen = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN", "127.0.0.1:9080")
+    smart_wifi_manager_profile_path = data.get(
+        "MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH",
+        "deployment/connectivity/smart-wifi-manager/profile.json",
+    )
     mavlink_management_mode = data.get("MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE", "managed")
     mavlink_anywhere_repo_url_https = data.get(
         "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS",
@@ -125,6 +138,11 @@ def _build_profile(path: Path) -> DeploymentProfile:
         connectivity_backend=connectivity_backend,
         smart_wifi_manager_repo_url_https=smart_wifi_manager_repo_url_https,
         smart_wifi_manager_ref=smart_wifi_manager_ref,
+        smart_wifi_manager_mode=smart_wifi_manager_mode,
+        smart_wifi_manager_import_mode=smart_wifi_manager_import_mode,
+        smart_wifi_manager_install_dir=smart_wifi_manager_install_dir,
+        smart_wifi_manager_dashboard_listen=smart_wifi_manager_dashboard_listen,
+        smart_wifi_manager_profile_path=smart_wifi_manager_profile_path,
         mavlink_management_mode=mavlink_management_mode,
         mavlink_anywhere_repo_url_https=mavlink_anywhere_repo_url_https,
         mavlink_anywhere_ref=mavlink_anywhere_ref,

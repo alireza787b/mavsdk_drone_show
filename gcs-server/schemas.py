@@ -1123,12 +1123,62 @@ class RuntimeFleetDefaultsResponse(BaseModel):
     connectivity_backend: str = Field(..., description="Default connectivity backend for new nodes")
     smart_wifi_manager_repo_url_https: str = Field(..., description="Default Smart Wi-Fi Manager repo URL")
     smart_wifi_manager_ref: str = Field(..., description="Default Smart Wi-Fi Manager ref")
+    smart_wifi_manager_mode: str = Field(..., description="Default Smart Wi-Fi Manager mode")
+    smart_wifi_manager_import_mode: str = Field(..., description="Default Smart Wi-Fi Manager import mode")
+    smart_wifi_manager_install_dir: str = Field(..., description="Default Smart Wi-Fi Manager install dir")
+    smart_wifi_manager_dashboard_listen: str = Field(..., description="Default Smart Wi-Fi Manager dashboard listen address")
+    smart_wifi_manager_profile_path: str = Field(..., description="Default Smart Wi-Fi Manager profile path")
     mavlink_management_mode: str = Field(..., description="Default mavlink-anywhere management mode")
     mavlink_anywhere_repo_url_https: str = Field(..., description="Default mavlink-anywhere repo URL")
     mavlink_anywhere_ref: str = Field(..., description="Default mavlink-anywhere ref")
     mavlink_anywhere_install_dir: str = Field(..., description="Default mavlink-anywhere install dir")
     mavlink_anywhere_dashboard_listen: str = Field(..., description="Default mavlink-anywhere dashboard listen address")
     mavlink_anywhere_skip_dashboard: bool = Field(..., description="Whether mavlink-anywhere dashboard is disabled by default")
+
+
+class RuntimeGitAuthHealthResponse(BaseModel):
+    """Resolved git auth/runtime health posture for the current host."""
+
+    status: str = Field(..., description="Resolved auth health status")
+    summary: str = Field(..., description="Operator-facing auth health summary")
+    issues: List[str] = Field(default_factory=list, description="Actionable auth/runtime issues")
+
+
+class RuntimeMavlinkRuntimeResponse(BaseModel):
+    """Managed mavlink-anywhere runtime status surfaced to Runtime Admin."""
+
+    status_source: str = Field(..., description="How the runtime status was resolved")
+    management_mode: str = Field(..., description="Managed/manual posture for mavlink-anywhere")
+    repo_url: str = Field(..., description="Resolved mavlink-anywhere repo URL")
+    ref: str = Field(..., description="Resolved mavlink-anywhere git ref")
+    repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
+    install_dir: str = Field(..., description="Resolved mavlink-anywhere install dir")
+    install_dir_present: bool = Field(..., description="Whether the install dir exists")
+    runtime_present: bool = Field(..., description="Whether a managed runtime checkout is present")
+    runtime_head: Optional[str] = Field(None, description="Current managed runtime checkout commit")
+    router_binary_present: bool = Field(..., description="Whether mavlink-router binary is present")
+    router_service_status: str = Field(..., description="Current mavlink-router service status")
+    dashboard_enabled: bool = Field(..., description="Whether the dashboard should be enabled")
+    dashboard_listen: str = Field(..., description="Configured dashboard listen address")
+    dashboard_service_status: str = Field(..., description="Current mavlink-anywhere dashboard service status")
+
+
+class RuntimeConnectivityRuntimeResponse(BaseModel):
+    """Connectivity backend runtime status surfaced to Runtime Admin."""
+
+    status_source: str = Field(..., description="How the connectivity status was resolved")
+    backend: str = Field(..., description="Resolved connectivity backend")
+    repo_url: str = Field(..., description="Resolved Smart Wi-Fi Manager repo URL")
+    ref: str = Field(..., description="Resolved Smart Wi-Fi Manager git ref")
+    repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
+    install_dir: str = Field(..., description="Resolved Smart Wi-Fi Manager install dir")
+    install_dir_present: bool = Field(..., description="Whether the install dir exists")
+    mode: str = Field(..., description="Resolved Smart Wi-Fi Manager mode")
+    import_mode: str = Field(..., description="Resolved Smart Wi-Fi Manager import mode")
+    profile_path: str = Field(..., description="Resolved Smart Wi-Fi Manager profile path")
+    profile_present: bool = Field(..., description="Whether the resolved profile path exists")
+    dashboard_listen: str = Field(..., description="Configured Smart Wi-Fi Manager dashboard listen address")
+    service_status: str = Field(..., description="Current Smart Wi-Fi Manager service status")
 
 
 class RuntimeStatusResponse(BaseModel):
@@ -1153,7 +1203,10 @@ class RuntimeStatusResponse(BaseModel):
     git_auth_token_file_readable: bool = Field(..., description="Whether the configured HTTPS token-file path is readable")
     git_ssh_key_file: Optional[str] = Field(None, description="Configured SSH private key path")
     git_ssh_key_file_readable: bool = Field(..., description="Whether the configured SSH private key path is readable")
+    git_auth_health: RuntimeGitAuthHealthResponse = Field(..., description="Resolved runtime git auth health posture")
     fleet_defaults: RuntimeFleetDefaultsResponse = Field(..., description="Git-tracked defaults for future node bootstraps")
+    mavlink_runtime: RuntimeMavlinkRuntimeResponse = Field(..., description="Resolved local managed mavlink-anywhere runtime status")
+    connectivity_runtime: RuntimeConnectivityRuntimeResponse = Field(..., description="Resolved local connectivity backend runtime status")
     docs: RuntimeDocsResponse = Field(..., description="Relevant operator and agent guide links")
 
 

@@ -90,6 +90,12 @@
   color: var(--color-warning);
 }
 
+.runtime-admin-page__pill--danger {
+  background: rgba(164, 48, 70, 0.12);
+  border-color: rgba(164, 48, 70, 0.28);
+  color: var(--color-danger, #a43046);
+}
+
 .runtime-admin-page__banner {
   padding: 0.9rem 1rem;
   border-radius: var(--border-radius-lg);
@@ -178,6 +184,13 @@
   gap: 0.85rem;
 }
 
+.runtime-admin-page__link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .runtime-admin-page__doc-link {
   display: inline-flex;
   align-items: center;
@@ -212,6 +225,15 @@
 .runtime-admin-page__empty {
   margin: 0;
   color: var(--color-text-secondary);
+}
+
+.runtime-admin-page__issues {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  color: var(--color-warning);
 }
 
 @media (max-width: 1100px) {
