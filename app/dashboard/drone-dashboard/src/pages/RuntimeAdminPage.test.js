@@ -120,6 +120,14 @@ describe('RuntimeAdminPage', () => {
       'href',
       'https://github.com/demo/mavlink-anywhere/tree/v9.9.9'
     );
+    expect(screen.getAllByRole('link', { name: /open local dashboard/i })[0]).toHaveAttribute(
+      'href',
+      'http://localhost:9070/'
+    );
+    expect(screen.getAllByRole('link', { name: /open local dashboard/i })[1]).toHaveAttribute(
+      'href',
+      'http://localhost:9080/'
+    );
   });
 
   test('persists runtime host config and schedules apply restart', async () => {

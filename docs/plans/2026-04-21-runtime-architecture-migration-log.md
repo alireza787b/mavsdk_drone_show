@@ -1429,3 +1429,42 @@ Residual drift after this slice:
   and central sidecar fleet-control remain later slices
 - frontend execution for the new Runtime Admin warning path still needs to run
   on the designated dashboard-validation host once dependencies are restored
+
+## Slice 26
+
+Goal:
+
+- give operators a direct GCS-local inspection path into managed sidecars from
+  Runtime Admin without pretending MDS already has a full fleet-wide sidecar
+  control plane
+
+Implemented:
+
+- added a small frontend helper that derives browser-safe GCS-local dashboard
+  URLs from configured listen addresses such as `0.0.0.0:9070`
+- updated Runtime Admin so the GCS-local `mavlink-anywhere` and Smart Wi-Fi
+  cards now expose:
+  - repo link
+  - service status pills
+  - direct `Open local dashboard` entry points when a dashboard listen address
+    is present
+- made the operator boundary explicit in the page copy:
+  - these links are GCS-local only
+  - node-local sidecar dashboards are not centrally proxied yet
+  - node-side overrides still belong to bootstrap/defaults plus node-local
+    runtime env until a later fleet-control slice exists
+- extended Runtime Admin frontend tests to cover local dashboard link rendering
+
+Verification:
+
+- clean-worktree `git diff --check`: passed
+- frontend changes were statically reviewed in:
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.test.js`
+
+Residual drift after this slice:
+
+- local dashboard entry points now exist for the GCS host, but node-side
+  sidecar control/profile rollout remains a later fleet-control slice
+- frontend execution for this slice still needs the designated
+  dashboard-validation host because dependencies are not installed locally here
