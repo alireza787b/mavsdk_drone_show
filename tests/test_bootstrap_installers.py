@@ -790,6 +790,134 @@ def test_run_services_phase_reconciles_runtime_services_after_enable():
     assert "verify" in result.stdout
 
 
+def test_git_sync_service_updates_reenable_previously_enabled_units():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools/git_sync_mds" "$repo_dir/tools/led_indicator" "$systemd_dir" "$bin_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+        cp "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'git_sync_mds.service'}" "$repo_dir/tools/git_sync_mds/git_sync_mds.service"
+        cp "{REPO_ROOT / 'tools' / 'led_indicator' / 'led_indicator.service'}" "$repo_dir/tools/led_indicator/led_indicator.service"
+
+        cat > "$systemd_dir/coordinator.service" <<'EOF'
+[Service]
+ExecStart=/old/path/coordinator.py
+EOF
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemd-analyze" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "is-enabled --quiet coordinator.service") exit 0 ;;
+  "daemon-reload") exit 0 ;;
+  "reenable coordinator.service") exit 0 ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemd-analyze" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_service_updates; service_file="$MDS_SYSTEMD_DIR/coordinator.service"; grep -q "^User=companion$" "$service_file"; grep -q "^WorkingDirectory=$REPO_DIR$" "$service_file"; grep -q "^ExecStart=$REPO_DIR/venv/bin/python $REPO_DIR/coordinator.py$" "$service_file"; printf "%s\\n" "${{UPDATED_SYSTEMD_UNITS[@]}}" | grep -qx "coordinator.service"'
+
+        grep -q "^daemon-reload$" "$tmpdir/systemctl.log"
+        grep -q "^reenable coordinator.service$" "$tmpdir/systemctl.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_git_sync_service_updates_restore_previous_units_when_daemon_reload_fails():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools/git_sync_mds" "$repo_dir/tools/led_indicator" "$systemd_dir" "$bin_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+        cp "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'git_sync_mds.service'}" "$repo_dir/tools/git_sync_mds/git_sync_mds.service"
+        cp "{REPO_ROOT / 'tools' / 'led_indicator' / 'led_indicator.service'}" "$repo_dir/tools/led_indicator/led_indicator.service"
+
+        cat > "$systemd_dir/coordinator.service" <<'EOF'
+[Service]
+ExecStart=/old/path/coordinator.py
+EOF
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemd-analyze" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "is-enabled --quiet coordinator.service")
+    exit 0
+    ;;
+  "daemon-reload")
+    count=0
+    if [[ -f "$TMPDIR/daemon-reload.count" ]]; then
+      count=$(cat "$TMPDIR/daemon-reload.count")
+    fi
+    count=$((count + 1))
+    printf '%s\\n' "$count" > "$TMPDIR/daemon-reload.count"
+    if [[ "$count" -eq 1 ]]; then
+      exit 1
+    fi
+    exit 0
+    ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemd-analyze" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_service_updates; service_file="$MDS_SYSTEMD_DIR/coordinator.service"; grep -q "^ExecStart=/old/path/coordinator.py$" "$service_file"; [[ "${{#UPDATED_SYSTEMD_UNITS[@]}}" -eq 0 ]]'
+
+        [[ "$(grep -c "^daemon-reload$" "$tmpdir/systemctl.log")" -eq 2 ]]
+        ! grep -q "^reenable coordinator.service$" "$tmpdir/systemctl.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_python_env_prefers_node_requirements_when_present():
     result = run_bash(
         f"""

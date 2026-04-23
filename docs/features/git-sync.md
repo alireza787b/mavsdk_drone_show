@@ -117,10 +117,12 @@ Current behavior:
    known-good commit and report a sync failure while keeping the node on cached code
 5. replace only the validated units that actually changed
 6. run `systemctl daemon-reload` once if any unit changed
-7. re-apply optional connectivity backend state via `tools/reconcile_connectivity.sh`
-8. re-apply managed MAVLink Anywhere runtime state via `tools/reconcile_mavlink_runtime.sh`
-9. update Python requirements if `requirements.txt` changed
-10. schedule a delayed coordinator restart only when the synced revision affects
+7. refresh enablement links only for units that were already enabled before the update
+8. if `daemon-reload` fails after staged unit replacement, restore the previous unit files and reload again
+9. re-apply optional connectivity backend state via `tools/reconcile_connectivity.sh`
+10. re-apply managed MAVLink Anywhere runtime state via `tools/reconcile_mavlink_runtime.sh`
+11. update Python requirements if `requirements.txt` changed
+12. schedule a delayed coordinator restart only when the synced revision affects
    the live node runtime
 
 Important service semantics:
@@ -131,9 +133,13 @@ Important service semantics:
 - `git_sync_mds.service`
   - its unit file is updated safely, but the currently running oneshot sync is
     not restarted from inside itself
+  - if the unit was already enabled, its enablement links are refreshed after a
+    successful daemon reload
   - the new unit applies on the next service invocation
 - `led_indicator.service`
   - its unit file can be updated safely
+  - if it was already enabled, its enablement links are refreshed after a
+    successful daemon reload
   - the new unit applies on the next boot
 
 This keeps the node converged without turning every pull into a blanket restart.
@@ -156,6 +162,13 @@ If validation fails after the pull/reset:
 - the node keeps running the last known-good runtime instead of applying the bad revision
 - the LED stays in the non-critical `GIT_FAILED_CONTINUING` state rather than escalating to
   a hard fault, unless rollback itself fails
+
+If a rendered unit update succeeds on disk but `systemctl daemon-reload` fails:
+
+- the node restores the previous unit files from staged backups
+- it reruns `systemctl daemon-reload` against the restored units
+- it keeps running the prior service policy instead of leaving partially applied
+  unit changes behind
 
 ## Connectivity Profile Sync
 
