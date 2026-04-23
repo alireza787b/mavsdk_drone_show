@@ -111,6 +111,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the GCS repository phase now respects explicit private HTTPS repo selection
 
 ### Fixed
+- `PUT /api/v1/system/gcs-config` no longer pretends to persist everything:
+  the route now safely writes only host-local `MDS_MODE` /
+  `MDS_GIT_AUTO_PUSH` into `/etc/mds/gcs.env`, reports
+  running-vs-configured drift explicitly, and warns instead of silently
+  accepting unsupported fields such as `gcs_port` or
+  `acceptable_deviation`
 - dashboard first-load delivery on weak/mobile links:
   the lightweight SPA server now serves gzip-compressed large text assets,
   marks fingerprinted `/static/...` files immutable, disables caching for the

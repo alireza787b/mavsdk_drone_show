@@ -1082,15 +1082,24 @@ class GPSGlobalOriginResponse(BaseModel):
 class GCSConfigResponse(BaseModel):
     """Response for GET /get-gcs-config."""
     sim_mode: bool = Field(..., description="Whether the GCS is running in simulation mode")
+    mode: str = Field(..., description="Canonical running runtime mode")
+    mode_source: str = Field(..., description="How the running runtime mode was resolved")
+    configured_mode: str = Field(..., description="Configured host runtime mode from the system config")
+    configured_sim_mode: bool = Field(..., description="Whether the configured host runtime mode is simulation mode")
     gcs_port: int = Field(..., ge=1, description="Configured GCS API port")
     git_auto_push: bool = Field(..., description="Whether git auto-push is enabled")
+    configured_git_auto_push: bool = Field(..., description="Configured git auto-push state from the system config")
     acceptable_deviation: float = Field(..., ge=0, description="Allowed launch-position deviation in meters")
+    gcs_config_path: str = Field(..., description="Path to the system GCS config file")
+    gcs_config_present: bool = Field(..., description="Whether the system GCS config file exists")
+    restart_required: bool = Field(..., description="Whether the running process differs from the persisted host config")
 
 
 class GCSConfigUpdateRequest(BaseModel):
-    """Request payload for the current GCS-config ACK stub."""
+    """Request payload for safe host-local GCS config persistence."""
     model_config = ConfigDict(extra='allow')
 
+    mode: Optional[str] = Field(None, description="Requested canonical runtime mode: real or sitl")
     sim_mode: Optional[bool] = Field(None, description="Requested simulation mode flag")
     gcs_port: Optional[int] = Field(None, ge=1, description="Requested GCS API port")
     git_auto_push: Optional[bool] = Field(None, description="Requested git auto-push flag")
@@ -1098,11 +1107,16 @@ class GCSConfigUpdateRequest(BaseModel):
 
 
 class GCSConfigSaveResponse(BaseModel):
-    """Response for POST /save-gcs-config."""
+    """Response for safe host-local GCS config persistence."""
     success: bool = Field(..., description="Whether the request was accepted")
     status: str = Field(..., description="Compatibility status string")
     message: str = Field(..., description="Operator-facing result summary")
     persisted: bool = Field(..., description="Whether the config was actually written to disk/runtime state")
+    config_path: Optional[str] = Field(None, description="Path to the persisted system config file")
+    updated_keys: List[str] = Field(default_factory=list, description="System-config keys that were updated")
+    configured_mode: Optional[str] = Field(None, description="Configured host runtime mode after persistence")
+    configured_git_auto_push: Optional[bool] = Field(None, description="Configured git auto-push state after persistence")
+    restart_required: bool = Field(..., description="Whether the running process must restart to apply the persisted config")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
 
 
@@ -1190,12 +1204,16 @@ class RuntimeStatusResponse(BaseModel):
     mode: str = Field(..., description="Canonical runtime mode")
     mode_source: str = Field(..., description="How the runtime mode was resolved")
     sim_mode: bool = Field(..., description="Whether the current runtime is simulation mode")
+    configured_mode: str = Field(..., description="Configured host runtime mode from the system config")
+    configured_sim_mode: bool = Field(..., description="Whether the configured host runtime mode is simulation mode")
     gcs_port: int = Field(..., ge=1, description="Configured GCS API port")
     acceptable_deviation: float = Field(..., ge=0, description="Allowed launch-position deviation in meters")
     repo_url: str = Field(..., description="Configured repository URL")
     repo_branch: str = Field(..., description="Configured repository branch")
     repo_access_mode: str = Field(..., description="Resolved repository access posture")
     git_auto_push: bool = Field(..., description="Whether git auto-push is enabled")
+    configured_git_auto_push: bool = Field(..., description="Configured git auto-push state from the system config")
+    restart_required: bool = Field(..., description="Whether the running process differs from the persisted host config")
     install_dir: Optional[str] = Field(None, description="Configured install directory for the GCS checkout")
     gcs_config_path: str = Field(..., description="Path to the system GCS config file")
     gcs_config_present: bool = Field(..., description="Whether the system GCS config file exists")

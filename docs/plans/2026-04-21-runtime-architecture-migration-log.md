@@ -1108,3 +1108,48 @@ Residual drift after this slice:
   and re-verified
 - runtime mutation controls (self-update, explicit mode switch, controlled
   external tool profile rollout) remain the next implementation area
+
+## Slice 19
+
+Goal:
+
+- replace the old `PUT /api/v1/system/gcs-config` persistence stub with a safe
+  host-local write path for the canonical GCS runtime mode surface
+
+Implemented:
+
+- added safe `gcs-config` persistence for the narrow host-local subset only:
+  - `mode` / `sim_mode` -> `MDS_MODE`
+  - `git_auto_push` -> `MDS_GIT_AUTO_PUSH`
+- made the route update `/etc/mds/gcs.env` atomically instead of pretending a
+  save occurred without writing anything
+- added explicit operator warnings for unsupported fields such as `gcs_port`
+  and `acceptable_deviation` so host-local config mutation does not quietly
+  turn into a second conflicting fleet-config path
+- extended `GET /api/v1/system/gcs-config` and
+  `GET /api/v1/system/runtime-status` to report:
+  - running mode
+  - configured mode
+  - configured git auto-push state
+  - whether a restart is required because the running process differs from the
+    persisted host config
+- updated API/changelog docs to match the new truthful contract
+
+Verification:
+
+- official backend/runtime verification passed:
+  - `tests/test_bootstrap_installers.py`
+  - `tests/test_git_sync.py`
+  - `tests/test_runtime_settings.py`
+  - `tests/test_gcs_management_routes.py`
+  - `tests/test_gcs_api_http.py`
+  - `tests/test_api_route_inventory.py`
+
+Residual drift after this slice:
+
+- private repo still needs the same host-local `gcs-config` persistence slice
+  cherry-picked and re-verified
+- Runtime Admin still needs the actual mutation UX layered on top of the now
+  truthful backend persistence surface
+- controlled restart/apply semantics for full GCS self-update remain a later
+  slice; this slice only persists config and reports restart-required status
