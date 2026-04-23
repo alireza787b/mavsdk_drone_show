@@ -1203,6 +1203,51 @@ Verification:
 
 Residual drift after this slice:
 
+- Mission Config drone cards still infer displayed runtime posture from local
+  serial/network heuristics instead of using the same declared `runtime_mode`
+  that the backend heartbeat fence now trusts
+
+## Slice 21
+
+Goal:
+
+- make the operator-facing drone cards show the same runtime-mode truth that
+  the backend now enforces, so mixed SITL/REAL posture is not corrected in the
+  backend but still misrepresented in the UI
+
+Implemented:
+
+- added runtime-mode normalization to Mission Config drone cards so common node
+  aliases such as `hardware`, `production`, `sim`, and `simulation` collapse
+  into canonical `real|sitl`
+- made the runtime badge prefer `heartbeatData.runtime_mode` over legacy local
+  inference, while still falling back safely for older nodes that do not yet
+  declare mode
+- changed the badge wording from ambiguous `Hardware` to explicit `REAL`
+- updated the link/runtime inspector so the detailed runtime row reflects the
+  same effective mode and indicates whether that posture was declared by the
+  node heartbeat or inferred locally
+- added focused frontend regression coverage so a SITL-shaped local profile
+  with a heartbeat-declared `real` mode renders as REAL instead of silently
+  drifting back to the old inferred label
+
+Verification:
+
+- static clean-worktree review of:
+  - `app/dashboard/drone-dashboard/src/components/DroneConfigCard.js`
+  - `app/dashboard/drone-dashboard/src/components/DroneConfigCard.test.js`
+- frontend execution remains deferred on this host because neither the clean
+  worktree nor the root checkout currently has dashboard dependencies
+  installed, and this checkpoint continues to avoid a fresh Node install on
+  the current machine
+
+Residual drift after this slice:
+
+- Runtime Admin and the wider dashboard still need stronger always-visible mode
+  affordances beyond Mission Config cards
+- frontend verification for this slice still needs to be rerun on the
+  designated host with dashboard dependencies available
+
 - private repo still needs the same heartbeat-fencing / Runtime Admin apply
   slice mirrored and re-verified
 - full self-update UX remains a later slice; this one covers host-local apply

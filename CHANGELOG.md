@@ -111,6 +111,13 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the GCS repository phase now respects explicit private HTTPS repo selection
 
 ### Fixed
+- drone-card runtime labels now follow the same canonical `runtime_mode`
+  signal that the backend heartbeat fence uses:
+  Mission Config cards prefer the node-declared mode over local serial/network
+  heuristics, badge REAL/SITL explicitly instead of the ambiguous old
+  `Hardware` label, and mark whether the displayed posture was declared by the
+  node heartbeat or inferred as a fallback when legacy nodes have not yet
+  upgraded
 - heartbeat intake is now runtime-mode aware:
   nodes can declare `runtime_mode`, GCS fences mismatched SITL/REAL heartbeats
   before they contaminate live state, heartbeat/network snapshots now retain the
