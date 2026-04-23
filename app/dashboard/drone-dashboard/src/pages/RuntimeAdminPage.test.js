@@ -7,6 +7,7 @@ import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
 
 const mockSaveGcsConfigResponse = jest.fn();
 const mockApplyGcsConfigResponse = jest.fn();
+const mockApplyRuntimeUpdateResponse = jest.fn();
 
 jest.mock('../hooks/useGcsGitInfo', () => jest.fn(() => ({
   repo: 'demo/customer-mds',
@@ -103,6 +104,7 @@ jest.mock('../hooks/useGcsRuntimeStatus', () => jest.fn(() => ({
 jest.mock('../services/gcsApiService', () => ({
   saveGcsConfigResponse: (...args) => mockSaveGcsConfigResponse(...args),
   applyGcsConfigResponse: (...args) => mockApplyGcsConfigResponse(...args),
+  applyRuntimeUpdateResponse: (...args) => mockApplyRuntimeUpdateResponse(...args),
 }));
 
 describe('RuntimeAdminPage', () => {
@@ -125,6 +127,7 @@ describe('RuntimeAdminPage', () => {
     expect(screen.getByText(/tracking branch is ahead by 2 commit\(s\)/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-mavlink')).toBeInTheDocument();
     expect(screen.getByText('/tmp/demo-profile.json')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /run controlled gcs update/i })).toBeEnabled();
     expect(screen.getByRole('link', { name: /bootstrap guide/i })).toHaveAttribute(
       'href',
       'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mds-init-setup.md'
@@ -197,6 +200,39 @@ describe('RuntimeAdminPage', () => {
     expect(screen.getByText(/gcs restart scheduled/i)).toBeInTheDocument();
   });
 
+  test('runs constrained runtime update when the checkout is fast-forwardable', async () => {
+    mockApplyRuntimeUpdateResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'scheduled',
+        message: 'Controlled GCS update scheduled.',
+        update_readiness: 'ready_to_fast_forward',
+        current_commit: 'abcdef12',
+        target_commit: 'fedcba98',
+        tracking_branch: 'origin/customer-demo',
+        pending_paths_count: 3,
+        blocked_paths: [],
+        scheduled: true,
+        restart_delay_ms: 2000,
+        warnings: [],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /run controlled gcs update/i }));
+
+    await waitFor(() => {
+      expect(mockApplyRuntimeUpdateResponse).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.getByText(/controlled gcs update scheduled/i)).toBeInTheDocument();
+  });
+
   test('warns when switching toward REAL while local SITL containers still exist', () => {
     useGcsRuntimeStatus.mockReturnValueOnce({
       ...useGcsRuntimeStatus(),
@@ -216,5 +252,21 @@ describe('RuntimeAdminPage', () => {
 
     expect(screen.getByText(/2 local SITL instance\(s\) are still running/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open sitl control/i })).toHaveAttribute('href', '/sitl-control');
+  });
+
+  test('disables constrained update when a restart is already pending', () => {
+    useGcsRuntimeStatus.mockReturnValueOnce({
+      ...useGcsRuntimeStatus(),
+      restartRequired: true,
+    });
+
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole('button', { name: /run controlled gcs update/i })).toBeDisabled();
+    expect(screen.getByText(/apply the pending runtime restart before attempting an in-place gcs update/i)).toBeInTheDocument();
   });
 });

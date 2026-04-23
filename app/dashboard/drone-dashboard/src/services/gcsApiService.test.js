@@ -14,6 +14,7 @@ import {
   GCS_ROUTE_KEYS,
   GCS_WS_ROUTES,
   applyGcsConfigResponse,
+  applyRuntimeUpdateResponse,
   getGcsConfigResponse,
   getNetworkInfoResponse,
   getCommandStatusResponse,
@@ -98,6 +99,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/commands/policy/precision-move')).toBe(GCS_ROUTE_KEYS.precisionMovePolicy);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
     expect(resolveGcsRouteKey('/api/v1/system/runtime-status')).toBe(GCS_ROUTE_KEYS.systemRuntimeStatus);
+    expect(resolveGcsRouteKey('/api/v1/system/runtime-update')).toBe(GCS_ROUTE_KEYS.systemRuntimeUpdate);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryBase);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/status')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryStatus);
@@ -225,6 +227,18 @@ describe('gcsApiService', () => {
       'http://gcs.test:5000/api/v1/git/sync-operations',
       { pos_ids: [1, 2] },
       { timeout: 3000 }
+    );
+  });
+
+  it('dispatches constrained runtime update through the canonical runtime update route', async () => {
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    await applyRuntimeUpdateResponse();
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/runtime-update',
+      {},
+      {}
     );
   });
 

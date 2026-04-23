@@ -1435,6 +1435,107 @@ class TestGCSManagementEndpoints:
         assert data['restart_required'] is True
         assert data['warnings']
 
+    def test_runtime_update_schedules_safe_fast_forward(self, test_client, monkeypatch):
+        import api_routes.management as management_module
+
+        monkeypatch.setattr(
+            management_module,
+            '_build_runtime_status_response',
+            lambda deps: SimpleNamespace(
+                mode='real',
+                restart_required=False,
+                repo_sync_status=SimpleNamespace(
+                    commit='abc12345',
+                    tracking_branch='origin/customer-demo',
+                    update_readiness='ready_to_fast_forward',
+                ),
+            ),
+        )
+        monkeypatch.setattr(
+            management_module,
+            '_refresh_repo_sync_status',
+            lambda deps: management_module.RuntimeRepoSyncStatusResponse(
+                branch='customer-demo',
+                commit='abc12345',
+                remote_url='https://github.com/demo/customer-mds.git',
+                tracking_branch='origin/customer-demo',
+                status='clean',
+                commits_ahead=0,
+                commits_behind=2,
+                update_readiness='ready_to_fast_forward',
+                update_summary='Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.',
+                fast_forward_update_available=True,
+            ),
+        )
+        monkeypatch.setattr(
+            management_module,
+            '_list_pending_update_paths',
+            lambda tracking_branch: ['src/runtime.py'],
+        )
+        monkeypatch.setattr(management_module, '_blocked_gcs_update_paths', lambda paths: [])
+        monkeypatch.setattr(management_module, '_resolve_target_commit', lambda tracking_branch: 'fedcba98')
+        monkeypatch.setattr(management_module, '_schedule_gcs_runtime_update', lambda *, target_mode, tracking_branch: True)
+
+        response = test_client.post('/api/v1/system/runtime-update')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['status'] == 'scheduled'
+        assert data['scheduled'] is True
+        assert data['target_commit'] == 'fedcba98'
+
+    def test_runtime_update_blocks_when_pending_changes_require_manual_path(self, test_client, monkeypatch):
+        import api_routes.management as management_module
+
+        monkeypatch.setattr(
+            management_module,
+            '_build_runtime_status_response',
+            lambda deps: SimpleNamespace(
+                mode='real',
+                restart_required=False,
+                repo_sync_status=SimpleNamespace(
+                    commit='abc12345',
+                    tracking_branch='origin/customer-demo',
+                    update_readiness='ready_to_fast_forward',
+                ),
+            ),
+        )
+        monkeypatch.setattr(
+            management_module,
+            '_refresh_repo_sync_status',
+            lambda deps: management_module.RuntimeRepoSyncStatusResponse(
+                branch='customer-demo',
+                commit='abc12345',
+                remote_url='https://github.com/demo/customer-mds.git',
+                tracking_branch='origin/customer-demo',
+                status='clean',
+                commits_ahead=0,
+                commits_behind=2,
+                update_readiness='ready_to_fast_forward',
+                update_summary='Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.',
+                fast_forward_update_available=True,
+            ),
+        )
+        monkeypatch.setattr(
+            management_module,
+            '_list_pending_update_paths',
+            lambda tracking_branch: ['app/dashboard/drone-dashboard/src/App.js'],
+        )
+        monkeypatch.setattr(
+            management_module,
+            '_blocked_gcs_update_paths',
+            lambda paths: ['app/dashboard/drone-dashboard/src/App.js'],
+        )
+        monkeypatch.setattr(management_module, '_resolve_target_commit', lambda tracking_branch: 'fedcba98')
+
+        response = test_client.post('/api/v1/system/runtime-update')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['status'] == 'manual_update_required'
+        assert data['scheduled'] is False
+        assert data['blocked_paths'] == ['app/dashboard/drone-dashboard/src/App.js']
+
     @patch('app_fastapi.get_network_info_from_heartbeats')
     def test_get_network_info(self, mock_network_info, test_client):
         mock_network_info.return_value = [

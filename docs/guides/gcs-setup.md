@@ -540,6 +540,9 @@ Current operator rules:
 - use Runtime Admin for host-local GCS behavior only
 - use fleet config / swarm config for git-tracked fleet desired state
 - do not treat Runtime Admin as the place to edit raw GitHub secrets
+- use the built-in `Update GCS` action only for safe fast-forward runtime
+  updates; it intentionally blocks launcher, frontend, tooling, and dependency
+  changes so those still go through the manual update path
 
 When switching between SITL and real mode:
 
@@ -548,6 +551,18 @@ When switching between SITL and real mode:
 - stop old SITL containers if you are leaving SITL; the backend now fences
   mode-mismatched heartbeats at intake, but explicit cleanup is still the right
   operational practice
+
+When using the constrained GCS self-update path:
+
+- the checkout must be clean and tracking a remote branch
+- the fetched upstream must be fast-forward-only
+- pending changes must stay off blocked surfaces such as:
+  - `app/`
+  - `tools/`
+  - dependency manifests like `package.json`, `requirements*.txt`,
+    `pyproject.toml`
+- Runtime Admin will refuse those blocked updates and tell the operator to use
+  the manual update workflow instead
 
 ### Managing the Services
 

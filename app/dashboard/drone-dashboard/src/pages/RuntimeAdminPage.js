@@ -15,7 +15,7 @@ import {
 
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
-import { applyGcsConfigResponse, saveGcsConfigResponse } from '../services/gcsApiService';
+import { applyGcsConfigResponse, applyRuntimeUpdateResponse, saveGcsConfigResponse } from '../services/gcsApiService';
 import '../styles/RuntimeAdminPage.css';
 
 function formatRepoAccessModeLabel(mode) {
@@ -166,6 +166,7 @@ function RuntimeAdminPage() {
   const [notice, setNotice] = useState(null);
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   const effectiveConfiguredMode = optimisticConfig?.configuredMode || runtime.configuredMode || runtime.mode || 'sitl';
   const effectiveConfiguredModeLabel = optimisticConfig?.configuredModeLabel || runtime.configuredModeLabel || runtime.modeLabel;
@@ -210,6 +211,12 @@ function RuntimeAdminPage() {
     : `${sitlInstanceCount} local SITL instance(s) are still running on this host while the GCS runtime is in REAL mode. Their heartbeats are fenced, but you should reconcile or stop them explicitly.`;
   const localMavlinkDashboardUrl = resolveLocalDashboardUrl(runtime.mavlinkRuntime?.dashboard_listen);
   const localConnectivityDashboardUrl = resolveLocalDashboardUrl(runtime.connectivityRuntime?.dashboard_listen);
+  const canRunControlledUpdate = Boolean(
+    runtime.repoSyncStatus?.fast_forward_update_available && !effectiveRestartRequired
+  );
+  const controlledUpdateHint = effectiveRestartRequired
+    ? 'Apply the pending runtime restart before attempting an in-place GCS update.'
+    : 'Only runtime-safe fast-forward changes are eligible here. Frontend, launcher, tooling, and dependency updates still require the manual update path.';
 
   const setModeDraft = (nextMode) => {
     setDraftMode(nextMode);
@@ -268,6 +275,27 @@ function RuntimeAdminPage() {
       setNotice({ tone: 'danger', message, warnings: [] });
     } finally {
       setApplying(false);
+    }
+  };
+
+  const handleRuntimeUpdate = async () => {
+    setUpdating(true);
+    try {
+      const response = await applyRuntimeUpdateResponse();
+      const payload = response?.data || {};
+      setNotice(buildNotice(payload, payload.scheduled ? 'success' : 'warning'));
+      if (payload.scheduled && typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+        window.setTimeout(() => {
+          if (typeof window.location?.reload === 'function') {
+            window.location.reload();
+          }
+        }, Math.max(Number(payload.restart_delay_ms || 0), 2000) + 3000);
+      }
+    } catch (error) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to schedule a controlled GCS update.';
+      setNotice({ tone: 'danger', message, warnings: [] });
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -410,7 +438,7 @@ function RuntimeAdminPage() {
                 aria-label="Save runtime settings"
               >
                 <FaSave />
-                <span>{saving ? 'Saving…' : 'Save host config'}</span>
+                <span>{saving ? 'Saving...' : 'Save host config'}</span>
               </button>
               <button
                 type="button"
@@ -421,7 +449,7 @@ function RuntimeAdminPage() {
                 aria-label="Apply persisted runtime settings with restart"
               >
                 <FaRedoAlt />
-                <span>{applying ? 'Scheduling…' : 'Apply restart'}</span>
+                <span>{applying ? 'Scheduling...' : 'Apply restart'}</span>
               </button>
             </div>
           </div>
@@ -504,11 +532,20 @@ function RuntimeAdminPage() {
               <dd>{runtime.gcsConfigPath || 'Not reported'}</dd>
             </div>
           </dl>
-          {runtime.repoSyncStatus?.fast_forward_update_available ? (
-            <p className="runtime-admin-page__empty">
-              A controlled fast-forward update is available for this GCS host. Mutation UX is still intentionally deferred until the restart-safe update path is fully closed.
-            </p>
-          ) : null}
+          <div className="runtime-admin-page__control-actions runtime-admin-page__control-actions--inline">
+            <button
+              type="button"
+              className="runtime-admin-page__action-btn"
+              onClick={handleRuntimeUpdate}
+              disabled={!canRunControlledUpdate || saving || applying || updating}
+              title={controlledUpdateHint}
+              aria-label="Run controlled GCS update"
+            >
+              <FaRedoAlt />
+              <span>{updating ? 'Scheduling...' : 'Update GCS'}</span>
+            </button>
+          </div>
+          <p className="runtime-admin-page__empty">{controlledUpdateHint}</p>
         </article>
 
         <article className="runtime-admin-page__card">
