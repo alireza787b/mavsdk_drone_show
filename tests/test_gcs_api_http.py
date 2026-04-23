@@ -1189,22 +1189,37 @@ class TestShowManagementEndpoints:
 class TestGCSManagementEndpoints:
     """Test GCS management, network, and static asset endpoints."""
 
-    def test_get_gcs_config(self, test_client, monkeypatch):
+    def test_get_gcs_config(self, test_client, monkeypatch, tmp_path):
         import app_fastapi
+        import api_routes.management as management_module
 
-        monkeypatch.setattr(app_fastapi.Params, 'sim_mode', True, raising=False)
         monkeypatch.setattr(app_fastapi.Params, 'gcs_api_port', 3030, raising=False)
         monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', False, raising=False)
         monkeypatch.setattr(app_fastapi.Params, 'acceptable_deviation', 4.5, raising=False)
+        gcs_env = tmp_path / 'gcs.env'
+        monkeypatch.setattr(management_module, '_get_gcs_config_path', lambda: gcs_env)
+        monkeypatch.setattr(
+            management_module,
+            'resolve_runtime_mode',
+            lambda: SimpleNamespace(mode='sitl', sim_mode=True, source='default:sitl'),
+        )
 
         response = test_client.get('/api/v1/system/gcs-config')
 
         assert response.status_code == 200
         assert response.json() == {
             'sim_mode': True,
+            'mode': 'sitl',
+            'mode_source': 'default:sitl',
+            'configured_mode': 'sitl',
+            'configured_sim_mode': True,
             'gcs_port': 3030,
             'git_auto_push': False,
+            'configured_git_auto_push': False,
             'acceptable_deviation': 4.5,
+            'gcs_config_path': str(gcs_env),
+            'gcs_config_present': False,
+            'restart_required': False,
         }
 
     def test_get_runtime_status(self, test_client, monkeypatch, tmp_path):
@@ -1299,7 +1314,11 @@ class TestGCSManagementEndpoints:
         data = response.json()
         assert data['version'] == '5.2-test'
         assert data['mode'] == 'real'
+        assert data['configured_mode'] == 'real'
+        assert data['configured_sim_mode'] is False
         assert data['repo_access_mode'] == 'https_token_file'
+        assert data['configured_git_auto_push'] is False
+        assert data['restart_required'] is False
         assert data['git_auth_health']['status'] == 'healthy'
         assert data['fleet_defaults']['smart_wifi_manager_mode'] == 'manage'
         assert data['fleet_defaults']['smart_wifi_manager_ref'] == 'v1.2.3'
@@ -1307,15 +1326,39 @@ class TestGCSManagementEndpoints:
         assert data['connectivity_runtime']['service_status'] == 'active'
         assert data['docs']['fleet_sync_and_secrets'] == 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/fleet-sync-and-secrets.md'
 
-    def test_save_gcs_config_returns_explicit_stub_ack(self, test_client):
-        response = test_client.request('PUT', '/api/v1/system/gcs-config', json={'sim_mode': True})
+    def test_save_gcs_config_persists_safe_host_local_settings(self, test_client, monkeypatch, tmp_path):
+        import api_routes.management as management_module
+        import app_fastapi
+
+        gcs_env = tmp_path / 'gcs.env'
+        gcs_env.write_text('MDS_MODE=real\nMDS_GIT_AUTO_PUSH=true\n', encoding='utf-8')
+        monkeypatch.setenv('MDS_GCS_SYSTEM_CONFIG', str(gcs_env))
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', True, raising=False)
+        monkeypatch.setattr(
+            management_module,
+            'resolve_runtime_mode',
+            lambda: SimpleNamespace(mode='real', sim_mode=False, source='env:MDS_MODE'),
+        )
+
+        response = test_client.request(
+            'PUT',
+            '/api/v1/system/gcs-config',
+            json={'mode': 'sitl', 'git_auto_push': False},
+        )
 
         assert response.status_code == 200
         data = response.json()
         assert data['success'] is True
         assert data['status'] == 'success'
-        assert data['persisted'] is False
-        assert data['warnings']
+        assert data['persisted'] is True
+        assert data['updated_keys'] == ['MDS_MODE', 'MDS_GIT_AUTO_PUSH']
+        assert data['configured_mode'] == 'sitl'
+        assert data['configured_git_auto_push'] is False
+        assert data['restart_required'] is True
+        assert gcs_env.read_text(encoding='utf-8').splitlines() == [
+            'MDS_MODE=sitl',
+            'MDS_GIT_AUTO_PUSH=false',
+        ]
 
     @patch('app_fastapi.get_network_info_from_heartbeats')
     def test_get_network_info(self, mock_network_info, test_client):

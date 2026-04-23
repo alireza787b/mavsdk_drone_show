@@ -1451,22 +1451,38 @@ Get the GCS runtime configuration resource.
 ```json
 {
   "sim_mode": false,
+  "mode": "real",
+  "mode_source": "env:MDS_MODE",
+  "configured_mode": "real",
+  "configured_sim_mode": false,
   "gcs_port": 5000,
   "git_auto_push": true,
-  "acceptable_deviation": 2.0
+  "configured_git_auto_push": true,
+  "acceptable_deviation": 2.0,
+  "gcs_config_path": "/etc/mds/gcs.env",
+  "gcs_config_present": true,
+  "restart_required": false
 }
 ```
 
 #### `PUT /api/v1/system/gcs-config`
 Update the GCS runtime configuration resource.
 
-The current implementation is an explicit stub acknowledgement. It validates the payload shape and returns a truthful non-persisted acknowledgement while the full persistence path remains deferred.
+The current implementation persists only the safe host-local subset of runtime
+settings:
+
+- `mode` / `sim_mode` -> `MDS_MODE` in `/etc/mds/gcs.env`
+- `git_auto_push` -> `MDS_GIT_AUTO_PUSH` in `/etc/mds/gcs.env`
+
+Fields such as `gcs_port` and `acceptable_deviation` are deliberately not
+persisted here because they belong to broader runtime/fleet config ownership,
+not the narrow host-local GCS mode switch surface.
 
 **Request:**
 ```json
 {
-  "sim_mode": false,
-  "git_auto_push": true
+  "mode": "sitl",
+  "git_auto_push": false
 }
 ```
 
@@ -1475,16 +1491,23 @@ The current implementation is an explicit stub acknowledgement. It validates the
 {
   "success": true,
   "status": "success",
-  "persisted": false,
-  "warnings": [
-    "Persistence is not implemented in the FastAPI compatibility layer yet."
-  ]
+  "message": "Host-local GCS settings were persisted. Restart the GCS runtime to apply them.",
+  "persisted": true,
+  "config_path": "/etc/mds/gcs.env",
+  "updated_keys": [
+    "MDS_MODE",
+    "MDS_GIT_AUTO_PUSH"
+  ],
+  "configured_mode": "sitl",
+  "configured_git_auto_push": false,
+  "restart_required": true,
+  "warnings": []
 }
 ```
 
-The current implementation still does not persist config, but malformed or
-non-object JSON payloads now return the shared `422 Validation error` envelope
-instead of route-local string errors.
+Malformed/non-object JSON payloads still return the shared `422 Validation
+error` envelope. Conflicting `mode` and `sim_mode` values also return `422`
+instead of silently guessing which one should win.
 
 ---
 

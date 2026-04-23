@@ -28,12 +28,155 @@ _PROCESS_START_MONOTONIC = time.monotonic()
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _get_gcs_config_path() -> Path:
+    return Path(os.environ.get("MDS_GCS_SYSTEM_CONFIG", "/etc/mds/gcs.env"))
+
+
+def _normalize_runtime_mode_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    normalized = str(value).strip().lower()
+    if normalized in {"real", "hardware", "production"}:
+        return "real"
+    if normalized in {"sitl", "sim", "simulation", "simulated"}:
+        return "sitl"
+    return None
+
+
+def _read_env_assignments(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.is_file():
+        return values
+
+    try:
+        with path.open(encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                values[key.strip()] = value.strip().strip('"').strip("'")
+    except OSError:
+        return {}
+
+    return values
+
+
+def _format_env_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _persist_env_updates(path: Path, updates: dict[str, Any]) -> list[str]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_lines: list[str]
+    if path.exists():
+        original_lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    else:
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        original_lines = [
+            "# MDS GCS Configuration\n",
+            f"# Updated by gcs-server runtime admin on {timestamp}\n\n",
+        ]
+
+    changed_keys: list[str] = []
+    remaining_keys = {key: _format_env_value(value) for key, value in updates.items()}
+    rendered_lines: list[str] = []
+
+    for raw_line in original_lines:
+        line = raw_line.rstrip("\n")
+        stripped = line.strip()
+
+        if stripped and not stripped.startswith("#") and "=" in line:
+            key, _, current_value = line.partition("=")
+            env_key = key.strip()
+            if env_key in remaining_keys:
+                desired_value = remaining_keys.pop(env_key)
+                normalized_current = current_value.strip().strip('"').strip("'")
+                if normalized_current != desired_value:
+                    changed_keys.append(env_key)
+                    rendered_lines.append(f"{env_key}={desired_value}\n")
+                else:
+                    rendered_lines.append(raw_line if raw_line.endswith("\n") else f"{raw_line}\n")
+                continue
+
+        rendered_lines.append(raw_line if raw_line.endswith("\n") else f"{raw_line}\n")
+
+    if remaining_keys:
+        if rendered_lines and rendered_lines[-1].strip():
+            rendered_lines.append("\n")
+        for env_key, desired_value in remaining_keys.items():
+            changed_keys.append(env_key)
+            rendered_lines.append(f"{env_key}={desired_value}\n")
+
+    if not changed_keys:
+        return []
+
+    temp_path = path.with_suffix(f"{path.suffix}.tmp")
+    temp_path.write_text("".join(rendered_lines), encoding="utf-8")
+    if path.exists():
+        try:
+            shutil.copymode(path, temp_path)
+        except OSError:
+            pass
+    else:
+        temp_path.chmod(0o644)
+    temp_path.replace(path)
+    return changed_keys
+
+
+def _resolve_requested_runtime_mode(payload: GCSConfigUpdateRequest | None) -> str | None:
+    if payload is None:
+        return None
+
+    requested_mode = None
+    if payload.mode is not None:
+        requested_mode = _normalize_runtime_mode_value(payload.mode)
+        if requested_mode not in {"real", "sitl"}:
+            raise HTTPException(status_code=422, detail="mode must be either 'real' or 'sitl'")
+
+    if payload.sim_mode is None:
+        return requested_mode
+
+    requested_from_bool = "sitl" if payload.sim_mode else "real"
+    if requested_mode is not None and requested_mode != requested_from_bool:
+        raise HTTPException(status_code=422, detail="mode and sim_mode describe different runtime modes")
+    return requested_from_bool
+
+
+def _resolve_configured_runtime_mode(config_values: dict[str, str], fallback_mode: str) -> str:
+    configured_mode = _normalize_runtime_mode_value(config_values.get("MDS_MODE"))
+    return configured_mode or fallback_mode
+
+
+def _resolve_configured_git_auto_push(config_values: dict[str, str], fallback_value: bool) -> bool:
+    return _as_bool(config_values.get("MDS_GIT_AUTO_PUSH"), default=fallback_value)
+
+
 def _build_gcs_config_response(deps: Any) -> GCSConfigResponse:
+    runtime_mode = resolve_runtime_mode()
+    gcs_config_path = _get_gcs_config_path()
+    config_values = _read_env_assignments(gcs_config_path)
+    running_git_auto_push = bool(deps.Params.GIT_AUTO_PUSH)
+    configured_mode = _resolve_configured_runtime_mode(config_values, runtime_mode.mode)
+    configured_git_auto_push = _resolve_configured_git_auto_push(config_values, running_git_auto_push)
+
     return GCSConfigResponse(
-        sim_mode=bool(deps.Params.sim_mode),
+        sim_mode=bool(runtime_mode.sim_mode),
+        mode=runtime_mode.mode,
+        mode_source=runtime_mode.source,
+        configured_mode=configured_mode,
+        configured_sim_mode=(configured_mode == "sitl"),
         gcs_port=int(deps.Params.gcs_api_port),
-        git_auto_push=bool(deps.Params.GIT_AUTO_PUSH),
+        git_auto_push=running_git_auto_push,
+        configured_git_auto_push=configured_git_auto_push,
         acceptable_deviation=float(deps.Params.acceptable_deviation),
+        gcs_config_path=str(gcs_config_path),
+        gcs_config_present=gcs_config_path.is_file(),
+        restart_required=(configured_mode != runtime_mode.mode or configured_git_auto_push != running_git_auto_push),
     )
 
 
@@ -229,11 +372,15 @@ def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:
     repo_url = str(getattr(deps.Params, "GIT_REPO_URL", os.environ.get("MDS_REPO_URL", "")) or "")
     repo_branch = str(getattr(deps.Params, "GIT_BRANCH", os.environ.get("MDS_BRANCH", "")) or "")
     install_dir = os.environ.get("MDS_INSTALL_DIR") or None
-    gcs_config_path = os.environ.get("MDS_GCS_SYSTEM_CONFIG", "/etc/mds/gcs.env")
+    gcs_config_path = str(_get_gcs_config_path())
+    gcs_config_values = _read_env_assignments(Path(gcs_config_path))
     git_auth_token_file = os.environ.get("MDS_GIT_AUTH_TOKEN_FILE") or None
     git_ssh_key_file = os.environ.get("MDS_GIT_SSH_KEY_FILE") or None
     docs_base = _normalize_github_docs_base(repo_url, repo_branch)
     repo_access_mode = _describe_repo_access_mode(repo_url, git_auth_token_file or "", git_ssh_key_file or "")
+    configured_mode = _resolve_configured_runtime_mode(gcs_config_values, runtime_mode.mode)
+    running_git_auto_push = bool(deps.Params.GIT_AUTO_PUSH)
+    configured_git_auto_push = _resolve_configured_git_auto_push(gcs_config_values, running_git_auto_push)
 
     docs = RuntimeDocsResponse(
         mds_init_setup=f"{docs_base}/docs/guides/mds-init-setup.md" if docs_base else None,
@@ -254,7 +401,11 @@ def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:
         repo_url=repo_url,
         repo_branch=repo_branch,
         repo_access_mode=repo_access_mode,
-        git_auto_push=bool(deps.Params.GIT_AUTO_PUSH),
+        git_auto_push=running_git_auto_push,
+        configured_mode=configured_mode,
+        configured_sim_mode=(configured_mode == "sitl"),
+        configured_git_auto_push=configured_git_auto_push,
+        restart_required=(configured_mode != runtime_mode.mode or configured_git_auto_push != running_git_auto_push),
         install_dir=install_dir,
         gcs_config_path=gcs_config_path,
         gcs_config_present=os.path.isfile(gcs_config_path),
@@ -315,23 +466,68 @@ def create_management_router(deps: Any) -> APIRouter:
 
     @router.put("/api/v1/system/gcs-config", response_model=GCSConfigSaveResponse, tags=["GCS Management"])
     async def save_gcs_config(payload: GCSConfigUpdateRequest | None = None):
-        """Stub acknowledgement for GCS config updates.
-
-        The current UI expects an ACK surface here, but the FastAPI runtime does not
-        persist Params mutations yet. Return an explicit compatibility response
-        instead of pretending a durable save occurred.
-        """
+        """Persist the safe host-local GCS config subset."""
         try:
-            del payload
+            requested_mode = _resolve_requested_runtime_mode(payload)
+            warnings: list[str] = []
+            updates: dict[str, Any] = {}
+
+            if requested_mode is not None:
+                updates["MDS_MODE"] = requested_mode
+
+            if payload is not None and payload.git_auto_push is not None:
+                updates["MDS_GIT_AUTO_PUSH"] = bool(payload.git_auto_push)
+
+            unsupported_fields: list[str] = []
+            if payload is not None and payload.gcs_port is not None:
+                unsupported_fields.append("gcs_port")
+            if payload is not None and payload.acceptable_deviation is not None:
+                unsupported_fields.append("acceptable_deviation")
+            if unsupported_fields:
+                warnings.append(
+                    "The following fields are not host-local runtime settings and were not persisted here: "
+                    + ", ".join(sorted(unsupported_fields))
+                    + ". Manage them through the canonical fleet/runtime config flow instead."
+                )
+
+            gcs_config_path = _get_gcs_config_path()
+            changed_keys = _persist_env_updates(gcs_config_path, updates) if updates else []
+            config_values = _read_env_assignments(gcs_config_path)
+            runtime_mode = resolve_runtime_mode()
+            running_git_auto_push = bool(deps.Params.GIT_AUTO_PUSH)
+            configured_mode = _resolve_configured_runtime_mode(
+                config_values,
+                updates.get("MDS_MODE", runtime_mode.mode),
+            )
+            configured_git_auto_push = _resolve_configured_git_auto_push(
+                config_values,
+                updates.get("MDS_GIT_AUTO_PUSH", running_git_auto_push),
+            )
+            restart_required = (
+                configured_mode != runtime_mode.mode or configured_git_auto_push != running_git_auto_push
+            )
+
+            if not updates:
+                status = "no_changes"
+                message = "No supported host-local GCS settings were provided."
+            elif changed_keys:
+                status = "success"
+                message = "Host-local GCS settings were persisted. Restart the GCS runtime to apply them."
+            else:
+                status = "success"
+                message = "Requested host-local GCS settings already matched the persisted config."
 
             return GCSConfigSaveResponse(
                 success=True,
-                status="success",
-                message="GCS configuration received, but persistence is not implemented in this runtime",
-                persisted=False,
-                warnings=[
-                    "No server-side config file was changed. This endpoint remains a non-persisted stub until dedicated GCS config persistence is implemented.",
-                ],
+                status=status,
+                message=message,
+                persisted=bool(changed_keys),
+                config_path=str(gcs_config_path),
+                updated_keys=changed_keys,
+                configured_mode=configured_mode,
+                configured_git_auto_push=configured_git_auto_push,
+                restart_required=restart_required,
+                warnings=warnings,
             )
         except HTTPException:
             raise

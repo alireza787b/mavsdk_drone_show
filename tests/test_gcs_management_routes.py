@@ -35,17 +35,19 @@ def test_management_router_registers_expected_routes():
     assert "/api/v1/fleet/network-details" in routes
 
 
-def test_management_router_get_gcs_config_uses_live_params_after_router_creation():
+def test_management_router_get_gcs_config_uses_live_params_after_router_creation(monkeypatch, tmp_path):
     deps = _make_deps()
     app = FastAPI()
     app.include_router(create_management_router(deps))
-
-    deps.Params = SimpleNamespace(
-        sim_mode=True,
-        gcs_api_port=3030,
-        GIT_AUTO_PUSH=False,
-        acceptable_deviation=4.5,
+    gcs_env = tmp_path / "gcs.env"
+    monkeypatch.setattr(management_module, "_get_gcs_config_path", lambda: gcs_env)
+    monkeypatch.setattr(
+        management_module,
+        "resolve_runtime_mode",
+        lambda: SimpleNamespace(mode="sitl", sim_mode=True, source="default:sitl"),
     )
+
+    deps.Params = SimpleNamespace(gcs_api_port=3030, GIT_AUTO_PUSH=False, acceptable_deviation=4.5)
 
     with TestClient(app) as client:
         response = client.get("/api/v1/system/gcs-config")
@@ -53,26 +55,88 @@ def test_management_router_get_gcs_config_uses_live_params_after_router_creation
     assert response.status_code == 200
     assert response.json() == {
         "sim_mode": True,
+        "mode": "sitl",
+        "mode_source": "default:sitl",
+        "configured_mode": "sitl",
+        "configured_sim_mode": True,
         "gcs_port": 3030,
         "git_auto_push": False,
+        "configured_git_auto_push": False,
         "acceptable_deviation": 4.5,
+        "gcs_config_path": str(gcs_env),
+        "gcs_config_present": False,
+        "restart_required": False,
     }
 
 
-def test_management_router_save_gcs_config_returns_explicit_stub_ack():
+def test_management_router_save_gcs_config_persists_safe_subset(monkeypatch, tmp_path):
     deps = _make_deps()
     app = FastAPI()
     app.include_router(create_management_router(deps))
+    gcs_env = tmp_path / "gcs.env"
+    gcs_env.write_text("MDS_MODE=real\nMDS_GIT_AUTO_PUSH=true\n", encoding="utf-8")
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
+    monkeypatch.setattr(
+        management_module,
+        "resolve_runtime_mode",
+        lambda: SimpleNamespace(mode="real", sim_mode=False, source="env:MDS_MODE"),
+    )
 
     with TestClient(app) as client:
-        response = client.put("/api/v1/system/gcs-config", json={"sim_mode": True})
+        response = client.put("/api/v1/system/gcs-config", json={"sim_mode": True, "git_auto_push": False})
 
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
     assert data["status"] == "success"
+    assert data["persisted"] is True
+    assert data["updated_keys"] == ["MDS_MODE", "MDS_GIT_AUTO_PUSH"]
+    assert data["configured_mode"] == "sitl"
+    assert data["configured_git_auto_push"] is False
+    assert data["restart_required"] is True
+    assert gcs_env.read_text(encoding="utf-8").splitlines() == [
+        "MDS_MODE=sitl",
+        "MDS_GIT_AUTO_PUSH=false",
+    ]
+
+
+def test_management_router_save_gcs_config_warns_for_unsupported_fields(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    gcs_env = tmp_path / "gcs.env"
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
+    monkeypatch.setattr(
+        management_module,
+        "resolve_runtime_mode",
+        lambda: SimpleNamespace(mode="real", sim_mode=False, source="env:MDS_MODE"),
+    )
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/api/v1/system/gcs-config",
+            json={"gcs_port": 9000, "acceptable_deviation": 7.0},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "no_changes"
     assert data["persisted"] is False
+    assert data["restart_required"] is False
     assert data["warnings"]
+
+
+def test_management_router_save_gcs_config_rejects_conflicting_mode_inputs(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(tmp_path / "gcs.env"))
+
+    with TestClient(app) as client:
+        response = client.put("/api/v1/system/gcs-config", json={"mode": "real", "sim_mode": True})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "mode and sim_mode describe different runtime modes"
 
 
 def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypatch, tmp_path):
@@ -164,9 +228,13 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     assert data["version"] == "5.2"
     assert data["mode"] == "real"
     assert data["mode_source"] == "env:MDS_MODE"
+    assert data["configured_mode"] == "real"
+    assert data["configured_sim_mode"] is False
     assert data["repo_url"] == "https://github.com/demo/customer-mds.git"
     assert data["repo_branch"] == "customer-demo"
     assert data["repo_access_mode"] == "https_token_file"
+    assert data["configured_git_auto_push"] is True
+    assert data["restart_required"] is False
     assert data["gcs_config_path"] == str(gcs_env)
     assert data["gcs_config_present"] is True
     assert data["git_auth_token_file"] == str(token_file)
