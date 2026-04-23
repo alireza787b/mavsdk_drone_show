@@ -294,6 +294,9 @@ class DroneGitSyncRuntimeResponse(BaseModel):
     summary: str
     last_run_at_ms: Optional[int] = None
     updated_units: List[str] = Field(default_factory=list)
+    service_reload_status: str = "unknown"
+    service_reload_message: str = ""
+    deferred_unit_actions: List[str] = Field(default_factory=list)
     coordinator_restart_scheduled: bool = False
     connectivity_reconcile_status: str = "unknown"
     mavlink_runtime_reconcile_status: str = "unknown"

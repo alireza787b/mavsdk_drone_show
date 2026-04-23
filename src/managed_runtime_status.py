@@ -182,6 +182,9 @@ def read_git_sync_runtime_summary() -> dict[str, Any]:
             "summary": "No node-local git sync runtime state has been recorded yet.",
             "last_run_at_ms": None,
             "updated_units": [],
+            "service_reload_status": "unknown",
+            "service_reload_message": "",
+            "deferred_unit_actions": [],
             "coordinator_restart_scheduled": False,
             "connectivity_reconcile_status": "unknown",
             "mavlink_runtime_reconcile_status": "unknown",
@@ -196,6 +199,9 @@ def read_git_sync_runtime_summary() -> dict[str, Any]:
             "summary": "Node-local git sync runtime state is unreadable.",
             "last_run_at_ms": None,
             "updated_units": [],
+            "service_reload_status": "unknown",
+            "service_reload_message": "",
+            "deferred_unit_actions": [],
             "coordinator_restart_scheduled": False,
             "connectivity_reconcile_status": "unknown",
             "mavlink_runtime_reconcile_status": "unknown",
@@ -205,8 +211,13 @@ def read_git_sync_runtime_summary() -> dict[str, Any]:
     updated_units = [
         item.strip() for item in str(data.get("updated_units") or "").split(",") if item.strip()
     ]
+    deferred_unit_actions = [
+        item.strip() for item in str(data.get("deferred_unit_actions") or "").split(",") if item.strip()
+    ]
     status = str(data.get("status") or "unknown").strip().lower() or "unknown"
     message = str(data.get("message") or "").strip()
+    service_reload_status = str(data.get("service_reload_status") or "unknown").strip() or "unknown"
+    service_reload_message = str(data.get("service_reload_message") or "").strip()
     connectivity_status = str(data.get("connectivity_reconcile_status") or "unknown").strip() or "unknown"
     mavlink_status = str(data.get("mavlink_runtime_reconcile_status") or "unknown").strip() or "unknown"
     requirements_status = str(data.get("requirements_update_status") or "unknown").strip() or "unknown"
@@ -217,8 +228,12 @@ def read_git_sync_runtime_summary() -> dict[str, Any]:
         summary_parts.append(message)
     if updated_units:
         summary_parts.append(f"Updated units: {', '.join(updated_units)}")
+    if service_reload_message and service_reload_message != message:
+        summary_parts.append(service_reload_message)
     if coordinator_restart_scheduled:
         summary_parts.append("Coordinator restart scheduled")
+    if deferred_unit_actions:
+        summary_parts.append(f"Deferred apply: {', '.join(deferred_unit_actions)}")
     if connectivity_status not in {"unknown", "not_required"}:
         summary_parts.append(f"Connectivity: {connectivity_status}")
     if mavlink_status not in {"unknown", "not_required"}:
@@ -236,6 +251,9 @@ def read_git_sync_runtime_summary() -> dict[str, Any]:
         "summary": " · ".join(summary_parts) if summary_parts else "No node-local git sync runtime details recorded.",
         "last_run_at_ms": last_run_at_ms,
         "updated_units": updated_units,
+        "service_reload_status": service_reload_status,
+        "service_reload_message": service_reload_message,
+        "deferred_unit_actions": deferred_unit_actions,
         "coordinator_restart_scheduled": coordinator_restart_scheduled,
         "connectivity_reconcile_status": connectivity_status,
         "mavlink_runtime_reconcile_status": mavlink_status,

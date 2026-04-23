@@ -1422,3 +1422,4 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Added focused React coverage for grouped compact browsing plus the shared dialog flow across narrow and touch-coarse viewports.
 - Followed up the compact list alignment so rows now read as a proper operator list: parameter identity stays left-aligned, current value and state icons trail on the right, and snapshot refresh no longer auto-selects a parameter before the operator chooses one.
 - Runtime Admin state is now reflected in the shared dashboard chrome: sidebar and mobile header show the running mode, surface pending restart drift against configured mode, and link directly to Runtime Admin before operators issue mixed-mode actions.
+- Node git-sync runtime state now records systemd unit reload outcomes and deferred apply actions, and fatal post-sync unit reconcile failures abort the sync flow instead of continuing silently.

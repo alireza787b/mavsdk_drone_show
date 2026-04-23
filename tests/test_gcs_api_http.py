@@ -1616,6 +1616,9 @@ class TestGitStatusEndpoints:
                 'summary': 'Git synchronization completed successfully · Coordinator restart scheduled',
                 'last_run_at_ms': 1770000000000,
                 'updated_units': ['coordinator.service'],
+                'service_reload_status': 'updated',
+                'service_reload_message': 'Systemd unit updates were applied successfully.',
+                'deferred_unit_actions': ['git_sync_mds.service:next_invocation'],
                 'coordinator_restart_scheduled': True,
                 'connectivity_reconcile_status': 'success',
                 'mavlink_runtime_reconcile_status': 'success',
@@ -1646,6 +1649,8 @@ class TestGitStatusEndpoints:
         assert data['git_status']['1']['mavlink_runtime']['dashboard_access_mode'] == 'direct'
         assert data['git_status']['1']['mavlink_runtime']['dashboard_url'] == 'http://10.0.0.1:9070'
         assert data['git_status']['1']['connectivity_runtime']['dashboard_access_mode'] == 'local_only'
+        assert data['git_status']['1']['git_sync_runtime']['service_reload_status'] == 'updated'
+        assert data['git_status']['1']['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_status']['1']['git_sync_runtime']['coordinator_restart_scheduled'] is True
         assert data['needs_sync_count'] == 0
 

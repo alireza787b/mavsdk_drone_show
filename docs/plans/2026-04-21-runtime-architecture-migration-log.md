@@ -1654,3 +1654,4 @@ Residual drift after this slice:
 - a future slice can broaden update automation only after dependency and
   frontend rebuild/restart semantics are explicitly versioned and reconciled
 - 2026-04-23: Surfaced runtime posture in the shared dashboard chrome. Sidebar/mobile header now expose running mode, configured-mode drift, and restart-pending cues without requiring operators to open Runtime Admin first.
+- 2026-04-23: Hardened node post-sync service reconcile handling. Git sync state now records unit reload outcomes and deferred apply actions, and fatal service reconcile failures abort the sync flow instead of continuing silently.
