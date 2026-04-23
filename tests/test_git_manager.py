@@ -238,6 +238,102 @@ class TestGetLocalGitReport:
         assert result['commits_ahead'] == 0
         assert result['commits_behind'] == 0
 
+    @patch('functions.git_manager.execute_git_command')
+    def test_get_local_git_report_reports_healthy_https_token_file_access(self, mock_exec, monkeypatch):
+        """Node git reports should surface healthy HTTPS token-file posture without exposing paths."""
+        from functions.git_manager import get_local_git_report
+        from src.settings.runtime import reset_preloaded_local_env_state
+
+        token_path = '/tmp/test-node-token'
+        monkeypatch.setenv('MDS_LOCAL_ENV_FILE', '/tmp/mds-tests-no-local.env')
+        monkeypatch.setenv('MDS_GIT_AUTH_TOKEN_FILE', token_path)
+        monkeypatch.delenv('MDS_GIT_SSH_KEY_FILE', raising=False)
+
+        def mock_git_cmd(cmd, cwd=None):
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', 'HEAD']:
+                return 'main-candidate'
+            if cmd == ['git', 'rev-parse', 'HEAD']:
+                return 'abc123def456789'
+            if '--format=%an' in cmd:
+                return 'Test Author'
+            if '--format=%ae' in cmd:
+                return 'test@example.com'
+            if '--format=%cd' in cmd:
+                return '2026-04-23T10:00:00+00:00'
+            if '--format=%B' in cmd:
+                return 'Healthy token-file commit'
+            if 'remote.origin.url' in cmd:
+                return 'https://github.com/test/repo.git'
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']:
+                return 'origin/main-candidate'
+            if cmd == ['git', 'status', '--porcelain']:
+                return ''
+            if cmd == ['git', 'rev-list', '--left-right', '--count', 'origin/main-candidate...HEAD']:
+                return '0 0'
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        reset_preloaded_local_env_state()
+        try:
+            with patch('os.path.isfile', side_effect=lambda path: path == token_path):
+                result = get_local_git_report()
+        finally:
+            reset_preloaded_local_env_state()
+
+        assert result['repo_access_mode'] == 'https_token_file'
+        assert result['git_auth_health_status'] == 'healthy'
+        assert result['git_auth_health_issues'] == []
+        assert 'token-file access is configured and readable' in result['git_auth_health_summary']
+
+    @patch('functions.git_manager.execute_git_command')
+    def test_get_local_git_report_reports_broken_ssh_key_access(self, mock_exec, monkeypatch):
+        """Node git reports should flag missing SSH credentials as an auth error."""
+        from functions.git_manager import get_local_git_report
+        from src.settings.runtime import reset_preloaded_local_env_state
+
+        monkeypatch.setenv('MDS_LOCAL_ENV_FILE', '/tmp/mds-tests-no-local.env')
+        monkeypatch.delenv('MDS_GIT_AUTH_TOKEN_FILE', raising=False)
+        monkeypatch.setenv('MDS_GIT_SSH_KEY_FILE', '/tmp/test-node-ssh-key')
+
+        def mock_git_cmd(cmd, cwd=None):
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', 'HEAD']:
+                return 'main-candidate'
+            if cmd == ['git', 'rev-parse', 'HEAD']:
+                return 'abc123def456789'
+            if '--format=%an' in cmd:
+                return 'Test Author'
+            if '--format=%ae' in cmd:
+                return 'test@example.com'
+            if '--format=%cd' in cmd:
+                return '2026-04-23T10:00:00+00:00'
+            if '--format=%B' in cmd:
+                return 'Broken ssh commit'
+            if 'remote.origin.url' in cmd:
+                return 'git@github.com:test/repo.git'
+            if cmd == ['git', 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']:
+                return 'origin/main-candidate'
+            if cmd == ['git', 'status', '--porcelain']:
+                return ''
+            if cmd == ['git', 'rev-list', '--left-right', '--count', 'origin/main-candidate...HEAD']:
+                return '0 0'
+            return ''
+
+        mock_exec.side_effect = mock_git_cmd
+
+        reset_preloaded_local_env_state()
+        try:
+            with patch('os.path.isfile', return_value=False):
+                result = get_local_git_report()
+        finally:
+            reset_preloaded_local_env_state()
+
+        assert result['repo_access_mode'] == 'ssh_key'
+        assert result['git_auth_health_status'] == 'error'
+        assert result['git_auth_health_issues'] == [
+            'SSH-key mode is selected but the configured SSH key file is missing or unreadable.'
+        ]
+
 
 class TestGetLocalGitShortStatus:
     """Test abbreviated git status"""

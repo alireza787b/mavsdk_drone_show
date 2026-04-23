@@ -278,6 +278,10 @@ class DroneGitStatusResponse(BaseModel):
     uncommitted_changes: List[str] = Field(default_factory=list)
     commits_ahead: int = 0
     commits_behind: int = 0
+    repo_access_mode: str = "custom_or_unknown"
+    git_auth_health_status: str = "unknown"
+    git_auth_health_summary: str = ""
+    git_auth_health_issues: List[str] = Field(default_factory=list)
 
 
 class PositionDeviationResponse(BaseModel):
@@ -1002,6 +1006,10 @@ class DroneAPIServer:
                 'uncommitted_changes': git_report.get('uncommitted_changes', []),
                 'commits_ahead': git_report.get('commits_ahead', 0),
                 'commits_behind': git_report.get('commits_behind', 0),
+                'repo_access_mode': git_report.get('repo_access_mode', 'custom_or_unknown'),
+                'git_auth_health_status': git_report.get('git_auth_health_status', 'unknown'),
+                'git_auth_health_summary': git_report.get('git_auth_health_summary', ''),
+                'git_auth_health_issues': git_report.get('git_auth_health_issues', []),
             }
 
         @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)

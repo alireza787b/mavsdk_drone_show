@@ -1335,3 +1335,50 @@ Residual drift after this slice:
   for mode and git auto-push only
 - once every node runtime is updated to declare `runtime_mode`, mixed-mode
   protection will be fully explicit instead of partially compatibility-backed
+
+## Slice 24
+
+Goal:
+
+- surface node git auth posture directly in the existing fleet git-status
+  contract so operators can see whether a node is likely to sync successfully
+  without exposing token/key file paths or inventing a second node-management
+  endpoint
+
+Implemented:
+
+- extended `functions/git_manager.get_local_git_report()` so node git status
+  now classifies:
+  - repo access mode (`ssh_key`, `https_token_file`,
+    `https_public_or_read_only`, `custom_or_unknown`)
+  - auth health status / summary / issues for read-only sync posture
+- kept the node contract path-based only internally:
+  - token/key readability still influences health
+  - local secret file paths are not emitted in fleet-facing payloads
+- extended drone API git-status responses and GCS git-status aggregation
+  schemas/routes to pass the new auth posture fields through end-to-end
+- updated the dashboard git card so expanded details now show:
+  - access mode
+  - auth summary
+  - auth issues when present
+- added a visible auth warning banner on git cards when node auth posture is
+  warning/error instead of hiding that state only inside raw API payloads
+- added focused backend regression coverage for:
+  - healthy HTTPS token-file node access
+  - broken SSH-key node access
+  - drone API exposure of the new fields
+  - GCS git-status passthrough of node auth posture
+
+Verification:
+
+- focused backend verification passed:
+  - `python3 -m pytest --no-cov tests/test_git_manager.py -k "get_local_git_report"`
+  - `python3 -m pytest --no-cov tests/test_drone_api_http.py -k "test_get_git_status"`
+  - `python3 -m pytest --no-cov tests/test_gcs_api_http.py -k "test_get_git_status"`
+
+Residual drift after this slice:
+
+- frontend execution for the updated git card remains deferred on this host
+  until dashboard dependencies are restored on the designated validation host
+- auth posture is now visible per node, but fleet-wide auth remediation and
+  Runtime Admin self-update/apply controls remain later slices

@@ -29,6 +29,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- Node git auth visibility on fleet surfaces:
+  drone git-status payloads now expose repo access posture plus node-local git
+  auth health summary/issues without leaking secret file paths, and the GCS git
+  aggregation/dashboard surfaces now carry those warnings through to operators.
 - dashboard/operator refinement for final tester handoff:
   drone cards now support direct command-scope toggles, per-drone jog access,
   per-drone mission cancel affordances, quieter command-history monitoring,

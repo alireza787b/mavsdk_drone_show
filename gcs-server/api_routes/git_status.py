@@ -83,6 +83,10 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 commits_ahead=raw_data.get("commits_ahead", 0),
                 commits_behind=raw_data.get("commits_behind", 0),
                 uncommitted_changes=raw_data.get("uncommitted_changes", []),
+                repo_access_mode=raw_data.get("repo_access_mode", "custom_or_unknown"),
+                git_auth_health_status=raw_data.get("git_auth_health_status", "unknown"),
+                git_auth_health_summary=raw_data.get("git_auth_health_summary"),
+                git_auth_health_issues=raw_data.get("git_auth_health_issues", []),
                 last_check=int(time.time() * 1000),
                 last_sync=None,
             )
