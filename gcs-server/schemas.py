@@ -1154,6 +1154,23 @@ class GCSConfigApplyResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
 
 
+class GCSRuntimeUpdateResponse(BaseModel):
+    """Response for the constrained GCS fast-forward update flow."""
+
+    success: bool = Field(..., description="Whether the update request was accepted")
+    status: str = Field(..., description="Update status such as scheduled, no_update_available, or manual_update_required")
+    message: str = Field(..., description="Operator-facing update result summary")
+    update_readiness: str = Field(..., description="Resolved repo update posture at decision time")
+    current_commit: str = Field(..., description="Current local commit when the decision was made")
+    target_commit: Optional[str] = Field(None, description="Fetched upstream commit that would be applied")
+    tracking_branch: Optional[str] = Field(None, description="Tracking branch used for the update decision")
+    pending_paths_count: int = Field(0, ge=0, description="Number of pending changed paths between HEAD and tracking branch")
+    blocked_paths: List[str] = Field(default_factory=list, description="Changed paths that require manual update handling")
+    scheduled: bool = Field(..., description="Whether a fast-forward update and restart were scheduled")
+    restart_delay_ms: int = Field(0, ge=0, description="Delay before the scheduled update launcher starts")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
+
+
 class RuntimeDocsResponse(BaseModel):
     """Doc links surfaced in the runtime admin view."""
 

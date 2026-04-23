@@ -1513,3 +1513,56 @@ Residual drift after this slice:
 - the next step is to audit whether the existing repo-update tooling can be
   safely reused as a fast-forward-only GCS self-update path with restart
   protection
+
+## Slice 28
+
+Goal:
+
+- add a constrained, restart-safe GCS self-update path without turning Runtime
+  Admin into a generic repo mutation surface
+
+Implemented:
+
+- added a canonical `POST /api/v1/system/runtime-update` route for the GCS host
+- added a dedicated `tools/gcs_fast_forward_update.sh` helper instead of
+  reusing the broader node-oriented `update_repo_ssh.sh`
+- made the backend fetch and re-evaluate repo sync posture before every update
+  decision
+- blocked the self-update path when:
+  - the GCS already has unapplied host-local runtime changes
+  - the checkout is dirty / ahead / divergent / missing an upstream
+  - the fetched diff touches blocked surfaces such as:
+    - `app/`
+    - `tools/`
+    - dependency manifests like `package.json`, `requirements*.txt`,
+      `pyproject.toml`
+- updated Runtime Admin to expose:
+  - an `Update GCS` action
+  - explicit hint text describing the narrow allowed update scope
+  - success/error notices from the new update route
+- updated operator docs so `gcs-setup.md` now explains the constrained update
+  contract and the cases that still require manual update handling
+
+Verification:
+
+- focused backend verification passed:
+  - `python3 -m pytest --no-cov tests/test_gcs_management_routes.py -k "runtime_update or gcs_config or runtime_status"`
+  - `python3 -m pytest --no-cov tests/test_gcs_api_http.py -k "runtime_update or gcs_config or runtime_status"`
+  - `python3 -m pytest --no-cov tests/test_api_route_inventory.py -k "gcs"`
+- shell syntax verification passed:
+  - `bash -n tools/gcs_fast_forward_update.sh`
+- clean-worktree `git diff --check`: passed
+- frontend changes were statically reviewed in:
+  - `app/dashboard/drone-dashboard/src/services/gcsApiService.js`
+  - `app/dashboard/drone-dashboard/src/services/gcsApiService.test.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.test.js`
+  - `app/dashboard/drone-dashboard/src/styles/RuntimeAdminPage.css`
+
+Residual drift after this slice:
+
+- the GCS self-update path is intentionally limited to runtime-safe
+  fast-forward updates; dependency/frontend/launcher changes still require the
+  manual path
+- a future slice can broaden update automation only after dependency and
+  frontend rebuild/restart semantics are explicitly versioned and reconciled

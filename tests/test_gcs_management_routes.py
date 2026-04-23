@@ -35,6 +35,7 @@ def test_management_router_registers_expected_routes():
     assert "/api/v1/system/gcs-config" in routes
     assert "/api/v1/system/runtime-status" in routes
     assert "/api/v1/system/gcs-config/apply" in routes
+    assert "/api/v1/system/runtime-update" in routes
     assert "/api/v1/fleet/network-details" in routes
 
 
@@ -180,6 +181,118 @@ def test_management_router_apply_gcs_config_schedules_restart(monkeypatch, tmp_p
     assert data["configured_git_auto_push"] is False
     assert data["restart_required"] is True
     assert data["restart_delay_ms"] == management_module._RESTART_DELAY_MS
+    assert data["warnings"]
+
+
+def test_management_router_runtime_update_schedules_safe_fast_forward(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    monkeypatch.setattr(
+        management_module,
+        "_build_runtime_status_response",
+        lambda deps: SimpleNamespace(
+            mode="real",
+            restart_required=False,
+            repo_sync_status=SimpleNamespace(
+                commit="abc12345",
+                tracking_branch="origin/customer-demo",
+                update_readiness="ready_to_fast_forward",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_refresh_repo_sync_status",
+        lambda deps: management_module.RuntimeRepoSyncStatusResponse(
+            branch="customer-demo",
+            commit="abc12345",
+            remote_url="https://github.com/demo/customer-mds.git",
+            tracking_branch="origin/customer-demo",
+            status="clean",
+            commits_ahead=0,
+            commits_behind=2,
+            update_readiness="ready_to_fast_forward",
+            update_summary="Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.",
+            fast_forward_update_available=True,
+        ),
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_list_pending_update_paths",
+        lambda tracking_branch: ["src/runtime.py", "docs/guides/runtime.md"],
+    )
+    monkeypatch.setattr(management_module, "_blocked_gcs_update_paths", lambda paths: [])
+    monkeypatch.setattr(management_module, "_resolve_target_commit", lambda tracking_branch: "fedcba98")
+    monkeypatch.setattr(management_module, "_schedule_gcs_runtime_update", lambda *, target_mode, tracking_branch: True)
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/system/runtime-update")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "scheduled"
+    assert data["scheduled"] is True
+    assert data["target_commit"] == "fedcba98"
+    assert data["pending_paths_count"] == 2
+    assert data["blocked_paths"] == []
+    assert data["restart_delay_ms"] == management_module._UPDATE_DELAY_MS
+
+
+def test_management_router_runtime_update_blocks_manual_paths(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    monkeypatch.setattr(
+        management_module,
+        "_build_runtime_status_response",
+        lambda deps: SimpleNamespace(
+            mode="real",
+            restart_required=False,
+            repo_sync_status=SimpleNamespace(
+                commit="abc12345",
+                tracking_branch="origin/customer-demo",
+                update_readiness="ready_to_fast_forward",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_refresh_repo_sync_status",
+        lambda deps: management_module.RuntimeRepoSyncStatusResponse(
+            branch="customer-demo",
+            commit="abc12345",
+            remote_url="https://github.com/demo/customer-mds.git",
+            tracking_branch="origin/customer-demo",
+            status="clean",
+            commits_ahead=0,
+            commits_behind=2,
+            update_readiness="ready_to_fast_forward",
+            update_summary="Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.",
+            fast_forward_update_available=True,
+        ),
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_list_pending_update_paths",
+        lambda tracking_branch: ["app/dashboard/drone-dashboard/src/App.js", "src/runtime.py"],
+    )
+    monkeypatch.setattr(
+        management_module,
+        "_blocked_gcs_update_paths",
+        lambda paths: ["app/dashboard/drone-dashboard/src/App.js"],
+    )
+    monkeypatch.setattr(management_module, "_resolve_target_commit", lambda tracking_branch: "fedcba98")
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/system/runtime-update")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "manual_update_required"
+    assert data["scheduled"] is False
+    assert data["pending_paths_count"] == 2
+    assert data["blocked_paths"] == ["app/dashboard/drone-dashboard/src/App.js"]
     assert data["warnings"]
 
 

@@ -16,6 +16,7 @@ from schemas import (
     GCSConfigApplyResponse,
     GCSConfigResponse,
     GCSConfigSaveResponse,
+    GCSRuntimeUpdateResponse,
     GCSConfigUpdateRequest,
     RuntimeConnectivityRuntimeResponse,
     RuntimeDocsResponse,
@@ -35,6 +36,29 @@ _RESTART_SCHEDULE_LOCK = threading.Lock()
 _LAST_RESTART_SCHEDULE_AT_MONOTONIC = 0.0
 _RESTART_DEBOUNCE_SECONDS = 15.0
 _RESTART_DELAY_MS = 2000
+_UPDATE_SCHEDULE_LOCK = threading.Lock()
+_LAST_UPDATE_SCHEDULE_AT_MONOTONIC = 0.0
+_UPDATE_DEBOUNCE_SECONDS = 15.0
+_UPDATE_DELAY_MS = 2000
+_GCS_RUNTIME_UPDATE_SCRIPT = _REPO_ROOT / "tools" / "gcs_fast_forward_update.sh"
+_GCS_RUNTIME_UPDATE_BLOCKED_PREFIXES = (
+    "app/",
+    "tools/",
+    ".github/workflows/",
+)
+_GCS_RUNTIME_UPDATE_BLOCKED_BASENAMES = {
+    "package.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "requirements.txt",
+    "requirements-gcs.txt",
+    "pyproject.toml",
+    "poetry.lock",
+    "Pipfile",
+    "Pipfile.lock",
+    "uv.lock",
+}
 
 
 def _get_gcs_config_path() -> Path:
@@ -382,12 +406,8 @@ def _build_git_auth_health(
     return RuntimeGitAuthHealthResponse(status=status, summary=summary, issues=issues)
 
 
-def _build_runtime_repo_sync_status(deps: Any) -> RuntimeRepoSyncStatusResponse:
-    try:
-        report = deps.get_gcs_git_report() or {}
-    except Exception:
-        report = {}
-
+def _build_runtime_repo_sync_status_from_report(report: dict[str, Any] | None) -> RuntimeRepoSyncStatusResponse:
+    report = report or {}
     branch = str(report.get("branch") or "unknown")
     commit = str(report.get("commit") or "")
     remote_url = report.get("remote_url")
@@ -433,6 +453,112 @@ def _build_runtime_repo_sync_status(deps: Any) -> RuntimeRepoSyncStatusResponse:
         update_summary=update_summary,
         fast_forward_update_available=fast_forward_update_available,
     )
+
+
+def _build_runtime_repo_sync_status(deps: Any) -> RuntimeRepoSyncStatusResponse:
+    try:
+        report = deps.get_gcs_git_report() or {}
+    except Exception:
+        report = {}
+    return _build_runtime_repo_sync_status_from_report(report)
+
+
+def _run_repo_command(args: list[str], *, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        cwd=str(_REPO_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def _refresh_repo_sync_status(deps: Any) -> RuntimeRepoSyncStatusResponse:
+    report = deps.get_gcs_git_report() or {}
+    tracking_branch = str(report.get("tracking_branch") or "").strip()
+    if tracking_branch:
+        remote_name = tracking_branch.split("/", 1)[0] or "origin"
+    else:
+        remote_name = "origin"
+
+    fetch_result = _run_repo_command(["git", "fetch", "--prune", remote_name], timeout=30)
+    if fetch_result.returncode != 0:
+        stderr = (fetch_result.stderr or fetch_result.stdout or "").strip()
+        raise RuntimeError(stderr or f"git fetch failed for remote {remote_name}")
+
+    refreshed_report = deps.get_gcs_git_report() or {}
+    return _build_runtime_repo_sync_status_from_report(refreshed_report)
+
+
+def _list_pending_update_paths(tracking_branch: str | None) -> list[str]:
+    normalized_tracking = str(tracking_branch or "").strip()
+    if not normalized_tracking:
+        return []
+
+    result = _run_repo_command(["git", "diff", "--name-only", f"HEAD..{normalized_tracking}"], timeout=15)
+    if result.returncode != 0:
+        stderr = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(stderr or f"git diff failed for {normalized_tracking}")
+
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def _resolve_target_commit(tracking_branch: str | None) -> str | None:
+    normalized_tracking = str(tracking_branch or "").strip()
+    if not normalized_tracking:
+        return None
+
+    result = _run_repo_command(["git", "rev-parse", normalized_tracking], timeout=10)
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _blocked_gcs_update_paths(paths: list[str]) -> list[str]:
+    blocked: list[str] = []
+    for raw_path in paths:
+        normalized = str(raw_path or "").strip().lstrip("./")
+        if not normalized:
+            continue
+        if any(normalized.startswith(prefix) for prefix in _GCS_RUNTIME_UPDATE_BLOCKED_PREFIXES):
+            blocked.append(normalized)
+            continue
+        if Path(normalized).name in _GCS_RUNTIME_UPDATE_BLOCKED_BASENAMES:
+            blocked.append(normalized)
+    return blocked
+
+
+def _schedule_gcs_runtime_update(*, target_mode: str, tracking_branch: str) -> bool:
+    global _LAST_UPDATE_SCHEDULE_AT_MONOTONIC
+
+    with _UPDATE_SCHEDULE_LOCK:
+        now = time.monotonic()
+        if now - _LAST_UPDATE_SCHEDULE_AT_MONOTONIC < _UPDATE_DEBOUNCE_SECONDS:
+            return False
+
+        if not _GCS_RUNTIME_UPDATE_SCRIPT.is_file():
+            raise RuntimeError(f"GCS runtime update script not found at {_GCS_RUNTIME_UPDATE_SCRIPT}")
+
+        update_log_path = Path(os.environ.get("MDS_GCS_UPDATE_LOG", "/tmp/mds_gcs_update.log"))
+        env = os.environ.copy()
+        env["MDS_GCS_UPDATE_LOG"] = str(update_log_path)
+        env["MDS_GCS_UPDATE_RESTART_DELAY_SECONDS"] = str(max(1, int(_UPDATE_DELAY_MS / 1000)))
+
+        with open(os.devnull, "rb") as devnull_in, open(os.devnull, "ab") as devnull_out:
+            subprocess.Popen(
+                [str(_GCS_RUNTIME_UPDATE_SCRIPT), tracking_branch, target_mode],
+                cwd=str(_REPO_ROOT),
+                stdin=devnull_in,
+                stdout=devnull_out,
+                stderr=devnull_out,
+                start_new_session=True,
+                close_fds=True,
+                env=env,
+            )
+
+        _LAST_UPDATE_SCHEDULE_AT_MONOTONIC = now
+        return True
 
 
 def _build_mavlink_runtime_status(deployment_profile: Any) -> RuntimeMavlinkRuntimeResponse:
@@ -728,6 +854,114 @@ def create_management_router(deps: Any) -> APIRouter:
             )
         except Exception as exc:
             _log_error(deps, f"GCS runtime apply failed: {exc}")
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.post("/api/v1/system/runtime-update", response_model=GCSRuntimeUpdateResponse, tags=["GCS Management"])
+    async def apply_runtime_update():
+        """Schedule a constrained GCS fast-forward update when the checkout is safe to mutate in place."""
+        try:
+            runtime_status = _build_runtime_status_response(deps)
+            current_commit = runtime_status.repo_sync_status.commit
+            tracking_branch = runtime_status.repo_sync_status.tracking_branch
+            warnings: list[str] = []
+
+            if runtime_status.restart_required:
+                return GCSRuntimeUpdateResponse(
+                    success=True,
+                    status="restart_required_first",
+                    message="Persisted host-local runtime changes are waiting for apply. Restart the GCS cleanly before attempting an in-place update.",
+                    update_readiness=runtime_status.repo_sync_status.update_readiness,
+                    current_commit=current_commit,
+                    target_commit=None,
+                    tracking_branch=tracking_branch,
+                    pending_paths_count=0,
+                    blocked_paths=[],
+                    scheduled=False,
+                    restart_delay_ms=0,
+                    warnings=warnings,
+                )
+
+            refreshed_sync_status = _refresh_repo_sync_status(deps)
+            tracking_branch = refreshed_sync_status.tracking_branch
+            target_commit = _resolve_target_commit(tracking_branch)
+
+            if refreshed_sync_status.update_readiness != "ready_to_fast_forward":
+                return GCSRuntimeUpdateResponse(
+                    success=True,
+                    status=refreshed_sync_status.update_readiness,
+                    message=refreshed_sync_status.update_summary,
+                    update_readiness=refreshed_sync_status.update_readiness,
+                    current_commit=refreshed_sync_status.commit,
+                    target_commit=target_commit,
+                    tracking_branch=tracking_branch,
+                    pending_paths_count=0,
+                    blocked_paths=[],
+                    scheduled=False,
+                    restart_delay_ms=0,
+                    warnings=warnings,
+                )
+
+            pending_paths = _list_pending_update_paths(tracking_branch)
+            blocked_paths = _blocked_gcs_update_paths(pending_paths)
+            if blocked_paths:
+                warnings.append(
+                    "Controlled GCS self-update only covers runtime-safe fast-forward changes. Frontend, launcher, tooling, and dependency changes still require a manual update path."
+                )
+                return GCSRuntimeUpdateResponse(
+                    success=True,
+                    status="manual_update_required",
+                    message="Incoming changes touch frontend, launcher, tooling, or dependency surfaces. Perform a manual GCS update instead of in-place self-update.",
+                    update_readiness=refreshed_sync_status.update_readiness,
+                    current_commit=refreshed_sync_status.commit,
+                    target_commit=target_commit,
+                    tracking_branch=tracking_branch,
+                    pending_paths_count=len(pending_paths),
+                    blocked_paths=blocked_paths,
+                    scheduled=False,
+                    restart_delay_ms=0,
+                    warnings=warnings,
+                )
+
+            scheduled = _schedule_gcs_runtime_update(
+                target_mode=runtime_status.mode,
+                tracking_branch=tracking_branch,
+            )
+            if not scheduled:
+                return GCSRuntimeUpdateResponse(
+                    success=True,
+                    status="already_scheduled",
+                    message="A controlled GCS update was already scheduled. Wait for the launcher to recycle the runtime.",
+                    update_readiness=refreshed_sync_status.update_readiness,
+                    current_commit=refreshed_sync_status.commit,
+                    target_commit=target_commit,
+                    tracking_branch=tracking_branch,
+                    pending_paths_count=len(pending_paths),
+                    blocked_paths=[],
+                    scheduled=False,
+                    restart_delay_ms=_UPDATE_DELAY_MS,
+                    warnings=warnings,
+                )
+
+            _log_event(
+                deps,
+                f"Controlled GCS fast-forward update scheduled (tracking_branch={tracking_branch}, target_commit={target_commit or 'unknown'})",
+            )
+            return GCSRuntimeUpdateResponse(
+                success=True,
+                status="scheduled",
+                message="Controlled GCS update scheduled. The host will fast-forward to the fetched upstream commit and relaunch through the canonical launcher.",
+                update_readiness=refreshed_sync_status.update_readiness,
+                current_commit=refreshed_sync_status.commit,
+                target_commit=target_commit,
+                tracking_branch=tracking_branch,
+                pending_paths_count=len(pending_paths),
+                blocked_paths=[],
+                scheduled=True,
+                restart_delay_ms=_UPDATE_DELAY_MS,
+                warnings=warnings,
+            )
+        except Exception as exc:
+            _log_error(deps, f"GCS runtime update failed: {exc}")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/fleet/network-details", tags=["Network"])

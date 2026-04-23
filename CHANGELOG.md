@@ -38,10 +38,18 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   Admin warns before REAL-mode restart when local SITL containers would remain
   running and only be heartbeat-fenced rather than stopped automatically.
 - Runtime Admin local sidecar entry points:
-  the GCS-local `mavlink-anywhere` and Smart Wi-Fi cards now expose direct
-  local dashboard links derived from their configured listen addresses, while
-  explicitly warning that node-local sidecar dashboards are not centrally
-  proxied by MDS yet.
+  the GCS-local Runtime Admin view now links directly to the local
+  `mavlink-anywhere` and Smart Wi-Fi dashboards when present.
+- Runtime Admin constrained GCS self-update:
+  Runtime Admin now exposes a fast-forward-only `Update GCS` action that
+  fetches the tracked upstream, blocks dirty/diverged/no-upstream states, and
+  refuses updates touching launcher, frontend, tooling, or dependency paths.
+
+### Changed
+- Runtime Admin update-readiness is now actionable rather than advisory only:
+  safe runtime/config/docs-only updates can be scheduled directly from the GCS
+  host, while higher-risk repo mutations are explicitly redirected to the
+  manual update path.
 - Runtime Admin repo update-readiness visibility:
   runtime status now carries a typed GCS repo sync/update posture, and Runtime
   Admin shows whether the host is up to date, behind and fast-forwardable,
