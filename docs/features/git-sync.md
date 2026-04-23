@@ -112,12 +112,15 @@ Current behavior:
 
 1. compare rendered systemd units against the installed node units
 2. validate changed rendered units with `systemd-analyze verify` when available
-3. replace only the validated units that actually changed
-4. run `systemctl daemon-reload` once if any unit changed
-5. re-apply optional connectivity backend state via `tools/reconcile_connectivity.sh`
-6. re-apply managed MAVLink Anywhere runtime state via `tools/reconcile_mavlink_runtime.sh`
-7. update Python requirements if `requirements.txt` changed
-8. schedule a delayed coordinator restart only when the synced revision affects
+3. syntax-check changed runtime shell/Python files before any service reconcile runs
+4. if any changed runtime path fails validation, hard-reset back to the previous
+   known-good commit and report a sync failure while keeping the node on cached code
+5. replace only the validated units that actually changed
+6. run `systemctl daemon-reload` once if any unit changed
+7. re-apply optional connectivity backend state via `tools/reconcile_connectivity.sh`
+8. re-apply managed MAVLink Anywhere runtime state via `tools/reconcile_mavlink_runtime.sh`
+9. update Python requirements if `requirements.txt` changed
+10. schedule a delayed coordinator restart only when the synced revision affects
    the live node runtime
 
 Important service semantics:
@@ -134,6 +137,25 @@ Important service semantics:
   - the new unit applies on the next boot
 
 This keeps the node converged without turning every pull into a blanket restart.
+
+Validation and rollback coverage:
+
+- rendered node units:
+  - `tools/coordinator.service`
+  - `tools/git_sync_mds/git_sync_mds.service`
+  - `tools/led_indicator/led_indicator.service`
+- runtime shell helpers:
+  - any changed `*.sh` path outside docs/tests/frontend-only trees
+- runtime Python files:
+  - any changed `*.py` path outside docs/tests/frontend-only trees
+
+If validation fails after the pull/reset:
+
+- the node rolls the repo back to the previous commit
+- the sync returns a structured failure result
+- the node keeps running the last known-good runtime instead of applying the bad revision
+- the LED stays in the non-critical `GIT_FAILED_CONTINUING` state rather than escalating to
+  a hard fault, unless rollback itself fails
 
 ## Connectivity Profile Sync
 
@@ -257,6 +279,7 @@ This is parsed by `actions.py` for logging and status tracking.
 | HTTPS remote detected | GCS using HTTPS | Switch to SSH remote for push access |
 | Merge conflict on rebase | Concurrent edits | Auto-resolved: abort rebase, reset, retry |
 | Fetch timeout on drone | Network issue | Graceful degradation: drone continues with cached code |
+| Post-sync runtime validation failure | Pulled revision contains invalid runtime shell, Python, or rendered unit changes | Node rolls back to previous commit, reports sync failure, and continues on cached runtime |
 | SITL repo access preflight fails | Missing read-only token/key, wrong branch, or private repo without auth | Fix `MDS_REPO_URL`, `MDS_BRANCH`, `MDS_GIT_AUTH_TOKEN_FILE`, or `MDS_GIT_SSH_KEY_FILE`; see Custom SITL Auth Guide |
 | Connectivity probe fails inside Docker/SITL | ICMP blocked or `ping` unavailable | The probe is advisory only; `git fetch` is the definitive check |
 | Sync accepted but never verified | Runtime command parameter missing or git update failed on drone | Check drone session logs; success is only reported after branch/commit/status match |
