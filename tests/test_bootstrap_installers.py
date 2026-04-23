@@ -1054,6 +1054,148 @@ def test_runtime_git_sync_reconciles_managed_mavlink_runtime():
     assert "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE" in git_sync_text
 
 
+def test_post_sync_validation_rejects_invalid_shell_helper_and_rolls_back():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/tools" "$tmpdir/home/logs"
+        cp "{GIT_SYNC_SCRIPT}" "$repo_dir/tools/update_repo_ssh.sh"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.email test@example.com
+        git -C "$repo_dir" config user.name test
+        cat > "$repo_dir/tools/reconcile_mavlink_runtime.sh" <<'EOF'
+#!/bin/bash
+echo ok
+EOF
+        chmod +x "$repo_dir/tools/reconcile_mavlink_runtime.sh"
+        git -C "$repo_dir" add tools/reconcile_mavlink_runtime.sh
+        git -C "$repo_dir" commit -q -m "baseline"
+        old_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        cat > "$repo_dir/tools/reconcile_mavlink_runtime.sh" <<'EOF'
+#!/bin/bash
+if then
+EOF
+        git -C "$repo_dir" add tools/reconcile_mavlink_runtime.sh
+        git -C "$repo_dir" commit -q -m "broken helper"
+        new_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        ! preflight_validate_post_sync_runtime_changes "$old_head" "$new_head"
+        git -C "$repo_dir" reset --hard "$new_head" >/dev/null
+        rollback_repository_to_previous_head "$old_head" test
+        [[ "$(git -C "$repo_dir" rev-parse HEAD)" == "$old_head" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_post_sync_validation_rejects_invalid_runtime_python_file():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/src" "$tmpdir/home/logs"
+        cp "{GIT_SYNC_SCRIPT}" "$repo_dir/tools_update_repo_ssh.sh"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.email test@example.com
+        git -C "$repo_dir" config user.name test
+        cat > "$repo_dir/src/runtime_check.py" <<'EOF'
+value = 1
+EOF
+        git -C "$repo_dir" add src/runtime_check.py
+        git -C "$repo_dir" commit -q -m "baseline"
+        old_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        cat > "$repo_dir/src/runtime_check.py" <<'EOF'
+def broken(:
+    pass
+EOF
+        git -C "$repo_dir" add src/runtime_check.py
+        git -C "$repo_dir" commit -q -m "broken python"
+        new_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        ! preflight_validate_post_sync_runtime_changes "$old_head" "$new_head"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_post_sync_validation_rejects_invalid_rendered_service_template():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/tools" "$tmpdir/home/logs"
+        cp "{GIT_SYNC_SCRIPT}" "$repo_dir/tools/update_repo_ssh.sh"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.email test@example.com
+        git -C "$repo_dir" config user.name test
+        cat > "$repo_dir/tools/coordinator.service" <<'EOF'
+[Unit]
+Description=Coordinator
+[Service]
+ExecStart=python3 coordinator.py
+EOF
+        git -C "$repo_dir" add tools/coordinator.service
+        git -C "$repo_dir" commit -q -m "baseline"
+        old_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        cat > "$repo_dir/tools/coordinator.service" <<'EOF'
+[Unit]
+Description=Coordinator
+[Service]
+ExecStart=
+EOF
+        git -C "$repo_dir" add tools/coordinator.service
+        git -C "$repo_dir" commit -q -m "broken service"
+        new_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        MDS_USER=droneshow
+        MDS_HOME="$tmpdir/home"
+        MDS_INSTALL_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        ! preflight_validate_post_sync_runtime_changes "$old_head" "$new_head"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_exit_with_failure_result_can_preserve_noncritical_led_state():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/home/logs" "$tmpdir/repo/.git"
+        HOME="$tmpdir/home"
+        REPO_DIR="$tmpdir/repo"
+        source "{GIT_SYNC_SCRIPT}"
+        set_led_status() {{
+            printf '%s\\n' "$1" > "$tmpdir/led_state"
+        }}
+        cleanup_on_exit() {{
+            :
+        }}
+        set +e
+        output="$(
+            exit_with_failure_result "POST-SYNC-VALIDATION" "rolled back safely" 1 "GIT_FAILED_CONTINUING"
+        )"
+        status=$?
+        [[ $status -eq 1 ]]
+        grep -qx "GIT_FAILED_CONTINUING" "$tmpdir/led_state"
+        grep -q '"success":false' <<<"$output"
+        grep -q '"error":"POST-SYNC-VALIDATION"' <<<"$output"
+        grep -q '"message":"rolled back safely"' <<<"$output"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_services_lib_core_service_order_excludes_embedded_wifi_manager():
     services_text = SERVICES_LIB.read_text(encoding="utf-8")
 

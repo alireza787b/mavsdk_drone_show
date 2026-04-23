@@ -936,3 +936,89 @@ Residual drift after this slice:
   not a live Arnaud-board capability yet
 - hardware convergence remains blocked on private token approval from the
   Catch-A-Drone org
+
+## Slice 15
+
+Goal:
+
+- expose the cleaned runtime/config ownership directly in the GCS so operators
+  can see the active mode, repo/profile defaults, and runtime docs without
+  guessing from scripts alone
+- make the runtime state visible to future UI/admin slices without re-reading
+  bootstrap files manually
+
+Implemented:
+
+- added backend runtime status route:
+  - `GET /api/v1/system/runtime-status`
+- added response schemas for runtime docs, fleet defaults, and runtime status
+- surfaced deployment-profile connectivity and MAVLink defaults in the runtime
+  status payload
+- added the frontend Runtime Admin page and sidebar mode pill so the current
+  host mode is always visible in the dashboard
+- corrected route inventory docs/tests to match the live SITL and swarm-state
+  API surface
+
+Verification:
+
+- official/private backend verification passed for the runtime-admin slice:
+  - `183 passed`
+
+Residual drift after this slice:
+
+- runtime control actions (self-update, mode switch, tool profile rollout) are
+  still planned follow-on slices
+- git-sync still needed post-pull safety rails so a bad runtime revision could
+  be fetched successfully even though later reconcile would fail
+
+## Slice 16
+
+Goal:
+
+- prevent a pulled runtime revision from partially applying broken shell,
+  Python, or rendered systemd changes to a node
+- keep nodes on the last known-good runtime when a bad commit reaches the sync
+  path
+
+Implemented:
+
+- added post-sync validation helpers in `tools/update_repo_ssh.sh` for:
+  - changed runtime shell helpers (`bash -n`)
+  - changed runtime Python files (`python3 -m py_compile`)
+  - changed rendered node unit templates (`systemd-analyze verify` when
+    available)
+- added rollback to the previous repo revision when post-sync validation fails
+- kept rollback failures non-destructive:
+  - successful rollback now reports a structured sync failure while leaving the
+    LED in `GIT_FAILED_CONTINUING`
+  - hard-fault escalation is reserved for rollback failure or other truly fatal
+    exits
+- documented the new post-sync validation/rollback behavior in
+  `docs/features/git-sync.md`
+- added regression coverage for:
+  - invalid changed shell helper
+  - invalid changed Python runtime file
+  - invalid rendered service template
+  - non-critical rollback failure-result semantics
+
+Verification:
+
+- shell validation passed:
+  - `bash -n tools/update_repo_ssh.sh`
+- targeted bootstrap/runtime regression coverage passed:
+  - `tests/test_bootstrap_installers.py -k "post_sync_validation or exit_with_failure_result or runtime_git_sync_reconciles_managed_mavlink_runtime"`
+- full official runtime/backend verification passed:
+  - `tests/test_bootstrap_installers.py`
+  - `tests/test_git_sync.py`
+  - `tests/test_runtime_settings.py`
+  - `tests/test_gcs_management_routes.py`
+  - `tests/test_gcs_api_http.py`
+  - `tests/test_api_route_inventory.py`
+  - total: `187 passed`
+
+Residual drift after this slice:
+
+- private repo still needs the same verified guardrail slice cherry-picked and
+  re-verified
+- runtime control plane work (self-update, explicit mode switch, external tool
+  profile orchestration) remains the next planned implementation area

@@ -22,7 +22,7 @@ fi
 # ----------------------------------
 # Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
-readonly SCRIPT_VERSION="2.2.0"
+readonly SCRIPT_VERSION="2.2.1"
 readonly SCRIPT_NAME="git-sync"
 
 # Use dynamic variables for user and home directory
@@ -103,19 +103,30 @@ log_warn() { log "warn" "$@"; }
 log_error() { log "error" "$@"; }
 log_debug() { [[ "${DEBUG:-0}" == "1" ]] && log "debug" "$@" || true; }
 
-log_error_and_exit() {
+emit_structured_failure_result() {
     local component="$1"
     local message="$2"
-    local exit_code="${3:-1}"
 
-    log_error "$component" "$message"
-    set_led_status "ERROR_CRITICAL"
-    # Emit structured failure result for machine parsing (used by actions.py)
     local error_json
     error_json=$(echo "$message" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')
     echo "GIT_SYNC_RESULT={\"success\":false,\"branch\":\"${BRANCH_NAME:-unknown}\",\"error\":\"$component\",\"message\":\"$error_json\"}"
+}
+
+exit_with_failure_result() {
+    local component="$1"
+    local message="$2"
+    local exit_code="${3:-1}"
+    local led_state="${4:-ERROR_CRITICAL}"
+
+    log_error "$component" "$message"
+    set_led_status "$led_state"
+    emit_structured_failure_result "$component" "$message"
     cleanup_on_exit
     exit "$exit_code"
+}
+
+log_error_and_exit() {
+    exit_with_failure_result "$1" "$2" "${3:-1}" "ERROR_CRITICAL"
 }
 
 # ----------------------------------
@@ -191,6 +202,162 @@ validate_rendered_unit_file() {
     return 1
 }
 
+render_service_template_for_validation() {
+    local repo_relative_path="$1"
+    local output_path="$2"
+    local mds_user="${MDS_USER:-$REPO_USER}"
+    local mds_home="${MDS_HOME:-$RESOLVED_HOME}"
+    local mds_install_dir="${MDS_INSTALL_DIR:-$REPO_DIR}"
+
+    sed \
+        -e "s|__MDS_USER__|${mds_user}|g" \
+        -e "s|__MDS_HOME__|${mds_home}|g" \
+        -e "s|__MDS_INSTALL_DIR__|${mds_install_dir}|g" \
+        "${REPO_DIR}/${repo_relative_path}" > "${output_path}"
+}
+
+validate_post_sync_shell_script() {
+    local repo_relative_path="$1"
+    local component="${2:-POST-SYNC-VALIDATION}"
+
+    if ! command -v bash >/dev/null 2>&1; then
+        log_warn "$component" "bash is unavailable; skipping syntax validation for ${repo_relative_path}"
+        return 0
+    fi
+
+    if bash -n "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log_error "$component" "Shell syntax validation failed for ${repo_relative_path}"
+    return 1
+}
+
+validate_post_sync_python_file() {
+    local repo_relative_path="$1"
+    local component="${2:-POST-SYNC-VALIDATION}"
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_warn "$component" "python3 is unavailable; skipping syntax validation for ${repo_relative_path}"
+        return 0
+    fi
+
+    if python3 -m py_compile "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    log_error "$component" "Python syntax validation failed for ${repo_relative_path}"
+    return 1
+}
+
+validate_post_sync_service_template() {
+    local repo_relative_path="$1"
+    local component="${2:-POST-SYNC-VALIDATION}"
+    local temp_file=""
+
+    temp_file=$(mktemp) || {
+        log_error "$component" "Failed to allocate temp file for ${repo_relative_path}"
+        return 1
+    }
+
+    if ! render_service_template_for_validation "$repo_relative_path" "$temp_file"; then
+        log_error "$component" "Failed to render service template ${repo_relative_path}"
+        rm -f "$temp_file"
+        return 1
+    fi
+
+    if ! validate_rendered_unit_file "$temp_file" "$component"; then
+        log_error "$component" "Service template validation failed for ${repo_relative_path}"
+        rm -f "$temp_file"
+        return 1
+    fi
+
+    rm -f "$temp_file"
+    return 0
+}
+
+validate_post_sync_changed_path() {
+    local changed_path="$1"
+    local component="${2:-POST-SYNC-VALIDATION}"
+
+    case "$changed_path" in
+        docs/*|tests/*|.github/*|README.md|CHANGELOG.md|LICENSE|*.md)
+            return 0
+            ;;
+        gcs-server/*|app/dashboard/*|multiple_sitl/*)
+            return 0
+            ;;
+        tools/coordinator.service|tools/git_sync_mds/git_sync_mds.service|tools/led_indicator/led_indicator.service)
+            validate_post_sync_service_template "$changed_path" "$component"
+            return $?
+            ;;
+        *.sh)
+            validate_post_sync_shell_script "$changed_path" "$component"
+            return $?
+            ;;
+        *.py)
+            validate_post_sync_python_file "$changed_path" "$component"
+            return $?
+            ;;
+    esac
+
+    return 0
+}
+
+preflight_validate_post_sync_runtime_changes() {
+    local old_head="${1:-}"
+    local new_head="${2:-}"
+    local component="POST-SYNC-VALIDATION"
+    local changed_path=""
+    local failures=0
+
+    if [[ -z "$old_head" || -z "$new_head" || "$old_head" == "$new_head" ]]; then
+        log_debug "$component" "No revision delta to validate"
+        return 0
+    fi
+
+    while IFS= read -r changed_path; do
+        [[ -z "$changed_path" ]] && continue
+        if ! validate_post_sync_changed_path "$changed_path" "$component"; then
+            ((failures++))
+        fi
+    done < <(git -C "$REPO_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null || true)
+
+    if [[ $failures -gt 0 ]]; then
+        log_error "$component" "Post-sync runtime validation failed for ${failures} path(s)"
+        return 1
+    fi
+
+    return 0
+}
+
+rollback_repository_to_previous_head() {
+    local target_head="$1"
+    local component="${2:-ROLLBACK}"
+
+    if [[ -z "$target_head" ]]; then
+        log_error "$component" "Cannot roll back without a previous commit"
+        return 1
+    fi
+
+    if ! git -C "$REPO_DIR" rev-parse --verify "$target_head" >/dev/null 2>&1; then
+        log_error "$component" "Rollback target is not a valid commit: ${target_head}"
+        return 1
+    fi
+
+    if git -C "$REPO_DIR" reset --hard "$target_head" >/dev/null 2>&1; then
+        SERVICE_RELOAD_REQUIRED=false
+        COORDINATOR_RESTART_NEEDED=false
+        COORDINATOR_RESTART_REASONS=()
+        UPDATED_SYSTEMD_UNITS=()
+        log_warn "$component" "Rolled back runtime repository to ${target_head}"
+        return 0
+    fi
+
+    log_error "$component" "Failed to roll back runtime repository to ${target_head}"
+    return 1
+}
+
 path_requires_coordinator_restart() {
     local changed_path="$1"
 
@@ -236,7 +403,7 @@ check_runtime_process_updates() {
         if path_requires_coordinator_restart "$changed_path"; then
             relevant_paths+=("$changed_path")
         fi
-    done < <(git diff --name-only "$old_head" "$new_head" 2>/dev/null || true)
+    done < <(git -C "$REPO_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null || true)
 
     if [[ ${#relevant_paths[@]} -eq 0 ]]; then
         log_debug "$component" "No coordinator-affecting paths changed between ${old_head} and ${new_head}"
@@ -1125,7 +1292,16 @@ main() {
 
     # Post-sync checks: service files and requirements
     set_led_status "GIT_SUCCESS"
-    check_runtime_process_updates "$previous_head" "$(git rev-parse HEAD 2>/dev/null || echo "")"
+    local current_head
+    current_head=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    check_runtime_process_updates "$previous_head" "$current_head"
+    if ! preflight_validate_post_sync_runtime_changes "$previous_head" "$current_head"; then
+        set_led_status "GIT_FAILED_CONTINUING"
+        if rollback_repository_to_previous_head "$previous_head" "POST-SYNC-ROLLBACK"; then
+            exit_with_failure_result "POST-SYNC-VALIDATION" "Pulled runtime changes failed validation and were rolled back to the previous commit" 1 "GIT_FAILED_CONTINUING"
+        fi
+        log_error_and_exit "POST-SYNC-VALIDATION" "Pulled runtime changes failed validation and rollback did not succeed"
+    fi
     check_service_updates
     check_connectivity_updates
     check_mavlink_runtime_updates
