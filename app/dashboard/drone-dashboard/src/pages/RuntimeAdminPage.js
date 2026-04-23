@@ -1,15 +1,20 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FaBookOpen,
+  FaCheckCircle,
   FaCodeBranch,
+  FaExclamationTriangle,
   FaKey,
+  FaRedoAlt,
   FaSatelliteDish,
+  FaSave,
   FaServer,
   FaWifi,
 } from 'react-icons/fa';
 
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
+import { applyGcsConfigResponse, saveGcsConfigResponse } from '../services/gcsApiService';
 import '../styles/RuntimeAdminPage.css';
 
 function formatRepoAccessModeLabel(mode) {
@@ -55,6 +60,34 @@ function formatServiceStatusTone(status) {
   }
 }
 
+function formatNoticeTone(status, fallback = 'neutral') {
+  switch (status) {
+    case 'scheduled':
+    case 'success':
+      return 'success';
+    case 'already_scheduled':
+    case 'no_restart_required':
+    case 'warning':
+      return 'warning';
+    case 'error':
+      return 'danger';
+    default:
+      return fallback;
+  }
+}
+
+function buildNotice(payload, fallbackTone = 'neutral') {
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    tone: formatNoticeTone(payload.status, fallbackTone),
+    message: payload.message || 'Operation completed.',
+    warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
+  };
+}
+
 function RuntimeAdminPage() {
   const runtime = useGcsRuntimeStatus();
   const gitInfo = useGcsGitInfo();
@@ -68,6 +101,111 @@ function RuntimeAdminPage() {
     { key: 'git_sync_feature', label: 'Git sync feature' },
   ].filter((entry) => runtime.docs?.[entry.key]);
 
+  const [draftMode, setDraftMode] = useState('sitl');
+  const [draftGitAutoPush, setDraftGitAutoPush] = useState(false);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [optimisticConfig, setOptimisticConfig] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  const effectiveConfiguredMode = optimisticConfig?.configuredMode || runtime.configuredMode || runtime.mode || 'sitl';
+  const effectiveConfiguredModeLabel = optimisticConfig?.configuredModeLabel || runtime.configuredModeLabel || runtime.modeLabel;
+  const effectiveConfiguredGitAutoPush = Object.prototype.hasOwnProperty.call(optimisticConfig || {}, 'configuredGitAutoPush')
+    ? optimisticConfig.configuredGitAutoPush
+    : runtime.configuredGitAutoPush;
+  const effectiveRestartRequired = Object.prototype.hasOwnProperty.call(optimisticConfig || {}, 'restartRequired')
+    ? optimisticConfig.restartRequired
+    : runtime.restartRequired;
+
+  useEffect(() => {
+    if (!draftDirty) {
+      setDraftMode(effectiveConfiguredMode || 'sitl');
+      setDraftGitAutoPush(Boolean(effectiveConfiguredGitAutoPush));
+    }
+  }, [draftDirty, effectiveConfiguredGitAutoPush, effectiveConfiguredMode]);
+
+  useEffect(() => {
+    if (
+      optimisticConfig
+      && runtime.configuredMode === optimisticConfig.configuredMode
+      && runtime.configuredGitAutoPush === optimisticConfig.configuredGitAutoPush
+      && runtime.restartRequired === optimisticConfig.restartRequired
+    ) {
+      setOptimisticConfig(null);
+    }
+  }, [
+    optimisticConfig,
+    runtime.configuredGitAutoPush,
+    runtime.configuredMode,
+    runtime.restartRequired,
+  ]);
+
+  const hasDraftChanges = useMemo(
+    () => draftMode !== effectiveConfiguredMode || Boolean(draftGitAutoPush) !== Boolean(effectiveConfiguredGitAutoPush),
+    [draftGitAutoPush, draftMode, effectiveConfiguredGitAutoPush, effectiveConfiguredMode],
+  );
+
+  const setModeDraft = (nextMode) => {
+    setDraftMode(nextMode);
+    setDraftDirty(true);
+  };
+
+  const setGitAutoPushDraft = (nextValue) => {
+    setDraftGitAutoPush(nextValue);
+    setDraftDirty(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const response = await saveGcsConfigResponse({
+        mode: draftMode,
+        git_auto_push: draftGitAutoPush,
+      });
+      const payload = response?.data || {};
+      const configuredMode = String(payload.configured_mode || draftMode || effectiveConfiguredMode).trim().toLowerCase() || 'sitl';
+      const configuredGitAutoPush = Object.prototype.hasOwnProperty.call(payload, 'configured_git_auto_push')
+        ? Boolean(payload.configured_git_auto_push)
+        : Boolean(draftGitAutoPush);
+      const restartRequired = Boolean(payload.restart_required);
+      setOptimisticConfig({
+        configuredMode,
+        configuredModeLabel: configuredMode === 'real' ? 'REAL' : 'SITL',
+        configuredGitAutoPush,
+        restartRequired,
+      });
+      setDraftDirty(false);
+      setNotice(buildNotice(payload, restartRequired ? 'warning' : 'success'));
+    } catch (error) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to persist host-local runtime settings.';
+      setNotice({ tone: 'danger', message, warnings: [] });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleApply = async () => {
+    setApplying(true);
+    try {
+      const response = await applyGcsConfigResponse();
+      const payload = response?.data || {};
+      setNotice(buildNotice(payload, payload.scheduled ? 'success' : 'warning'));
+      if (payload.scheduled && typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+        window.setTimeout(() => {
+          if (typeof window.location?.reload === 'function') {
+            window.location.reload();
+          }
+        }, Math.max(Number(payload.restart_delay_ms || 0), 2000) + 3000);
+      }
+    } catch (error) {
+      const message = error?.response?.data?.detail || error?.message || 'Failed to schedule a clean GCS restart.';
+      setNotice({ tone: 'danger', message, warnings: [] });
+    } finally {
+      setApplying(false);
+    }
+  };
+
   return (
     <div className="runtime-admin-page">
       <header className="runtime-admin-page__hero">
@@ -75,17 +213,20 @@ function RuntimeAdminPage() {
           <span className="runtime-admin-page__eyebrow">System</span>
           <h1>Runtime Admin</h1>
           <p>
-            Live GCS runtime posture, config authority, and fleet defaults. This is the operator-facing read surface
-            for SITL/REAL mode, git access posture, and optional tool defaults before mutation controls are layered in.
+            Live runtime posture, host-local config authority, and restart-safe apply controls for SITL/REAL switching.
           </p>
         </div>
         <div className="runtime-admin-page__hero-pills">
           <StatusPill tone={runtimeTone}>{runtime.modeLabel}</StatusPill>
+          <StatusPill tone={effectiveConfiguredMode === 'real' ? 'real' : 'sitl'}>
+            Config {effectiveConfiguredModeLabel}
+          </StatusPill>
           <StatusPill tone={runtime.gitAutoPush ? 'good' : 'warning'}>
             {runtime.gitAutoPush ? 'Auto-push on' : 'Auto-push off'}
           </StatusPill>
           <StatusPill>{formatRepoAccessModeLabel(runtime.repoAccessMode)}</StatusPill>
           <StatusPill tone={authHealthTone}>{runtime.gitAuthHealth?.status || 'unknown'} auth</StatusPill>
+          {effectiveRestartRequired ? <StatusPill tone="warning">Restart required</StatusPill> : null}
         </div>
       </header>
 
@@ -95,7 +236,137 @@ function RuntimeAdminPage() {
         </div>
       ) : null}
 
+      {effectiveRestartRequired ? (
+        <div className="runtime-admin-page__banner runtime-admin-page__banner--warning">
+          Running GCS runtime and persisted host config do not match. Save any final changes, then apply a clean restart.
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div className={`runtime-admin-page__banner runtime-admin-page__banner--${notice.tone || 'neutral'}`}>
+          <div className="runtime-admin-page__banner-title">
+            {notice.tone === 'danger' ? <FaExclamationTriangle /> : <FaCheckCircle />}
+            <span>{notice.message}</span>
+          </div>
+          {notice.warnings?.length ? (
+            <ul className="runtime-admin-page__issues runtime-admin-page__issues--inline">
+              {notice.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
       <section className="runtime-admin-page__grid">
+        <article className="runtime-admin-page__card runtime-admin-page__card--wide">
+          <div className="runtime-admin-page__card-header">
+            <FaRedoAlt />
+            <div>
+              <h2>Runtime Controls</h2>
+              <p>Persist host-local mode and git auto-push, then relaunch the GCS cleanly through the canonical launcher.</p>
+            </div>
+          </div>
+
+          <div className="runtime-admin-page__controls">
+            <div className="runtime-admin-page__control-group">
+              <span className="runtime-admin-page__control-label">Mode</span>
+              <div className="runtime-admin-page__segmented">
+                <button
+                  type="button"
+                  className={`runtime-admin-page__segmented-btn ${draftMode === 'real' ? 'is-active is-real' : ''}`}
+                  onClick={() => setModeDraft('real')}
+                  title="Persist REAL mode for the next clean GCS restart"
+                  aria-label="Set runtime mode to REAL"
+                  disabled={saving || applying}
+                >
+                  REAL
+                </button>
+                <button
+                  type="button"
+                  className={`runtime-admin-page__segmented-btn ${draftMode === 'sitl' ? 'is-active is-sitl' : ''}`}
+                  onClick={() => setModeDraft('sitl')}
+                  title="Persist SITL mode for the next clean GCS restart"
+                  aria-label="Set runtime mode to SITL"
+                  disabled={saving || applying}
+                >
+                  SITL
+                </button>
+              </div>
+            </div>
+
+            <div className="runtime-admin-page__control-group">
+              <span className="runtime-admin-page__control-label">Git auto-push</span>
+              <div className="runtime-admin-page__segmented">
+                <button
+                  type="button"
+                  className={`runtime-admin-page__segmented-btn ${draftGitAutoPush ? 'is-active is-good' : ''}`}
+                  onClick={() => setGitAutoPushDraft(true)}
+                  title="Persist git auto-push enabled for this GCS host"
+                  aria-label="Enable git auto-push"
+                  disabled={saving || applying}
+                >
+                  ON
+                </button>
+                <button
+                  type="button"
+                  className={`runtime-admin-page__segmented-btn ${!draftGitAutoPush ? 'is-active is-warning' : ''}`}
+                  onClick={() => setGitAutoPushDraft(false)}
+                  title="Persist git auto-push disabled for this GCS host"
+                  aria-label="Disable git auto-push"
+                  disabled={saving || applying}
+                >
+                  OFF
+                </button>
+              </div>
+            </div>
+
+            <div className="runtime-admin-page__control-actions">
+              <button
+                type="button"
+                className="runtime-admin-page__action-btn runtime-admin-page__action-btn--primary"
+                onClick={handleSave}
+                disabled={!hasDraftChanges || saving || applying}
+                title="Persist host-local runtime settings to the GCS env file"
+                aria-label="Save runtime settings"
+              >
+                <FaSave />
+                <span>{saving ? 'Saving…' : 'Save host config'}</span>
+              </button>
+              <button
+                type="button"
+                className="runtime-admin-page__action-btn"
+                onClick={handleApply}
+                disabled={!effectiveRestartRequired || saving || applying}
+                title="Schedule a clean GCS restart through linux_dashboard_start.sh"
+                aria-label="Apply persisted runtime settings with restart"
+              >
+                <FaRedoAlt />
+                <span>{applying ? 'Scheduling…' : 'Apply restart'}</span>
+              </button>
+            </div>
+          </div>
+
+          <dl className="runtime-admin-page__facts runtime-admin-page__facts--compact">
+            <div>
+              <dt>Running mode</dt>
+              <dd>{runtime.modeLabel}</dd>
+            </div>
+            <div>
+              <dt>Configured mode</dt>
+              <dd>{effectiveConfiguredModeLabel}</dd>
+            </div>
+            <div>
+              <dt>Running auto-push</dt>
+              <dd>{runtime.gitAutoPush ? 'Enabled' : 'Disabled'}</dd>
+            </div>
+            <div>
+              <dt>Configured auto-push</dt>
+              <dd>{effectiveConfiguredGitAutoPush ? 'Enabled' : 'Disabled'}</dd>
+            </div>
+          </dl>
+        </article>
+
         <article className="runtime-admin-page__card">
           <div className="runtime-admin-page__card-header">
             <FaServer />
@@ -382,9 +653,9 @@ function RuntimeAdminPage() {
             </div>
           </div>
           <ul className="runtime-admin-page__notes">
-            <li>Use this page to verify the live runtime posture before changing SITL/REAL mode or repo/auth settings.</li>
-            <li>Runtime mutation controls are intentionally being promoted after the status layer so restart/update actions can be tied to explicit guardrails.</li>
-            <li>Fleet defaults shown here are the git-tracked intent for future node bootstraps; node-local overrides still live in each host runtime env.</li>
+            <li>Mode changes are host-local GCS mutations. Save them first, then apply through the canonical launcher restart.</li>
+            <li>Mode-tagged heartbeats are fenced at intake so stale SITL or REAL nodes do not contaminate the other runtime after restart.</li>
+            <li>Fleet defaults shown here are git-tracked intent for future bootstraps; node-local overrides still live in each host runtime env.</li>
           </ul>
         </article>
       </section>

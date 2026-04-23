@@ -465,7 +465,8 @@ Receive heartbeat from drone (fire-and-forget).
 {
   "pos_id": 0,
   "hw_id": "1",
-  "timestamp": 1700000000000
+  "timestamp": 1700000000000,
+  "runtime_mode": "real"
 }
 ```
 
@@ -478,6 +479,17 @@ Receive heartbeat from drone (fire-and-forget).
 }
 ```
 
+Mode-fencing notes:
+
+- Nodes should declare `runtime_mode` as `real` or `sitl`.
+- GCS normalizes common aliases and rejects mode-mismatched heartbeats at
+  intake so SITL and real nodes do not contaminate each other's live state.
+- Legacy nodes that omit `runtime_mode` are still accepted during rollout, but
+  they weaken mixed-mode protection until the node runtime is updated.
+- A rejected heartbeat still returns `success: true` because the transport
+  request itself succeeded; the operator-facing `message` explains that the
+  heartbeat was ignored due to runtime-mode mismatch.
+
 #### `GET /api/v1/fleet/heartbeats`
 Get heartbeat status for all drones.
 
@@ -488,6 +500,7 @@ Get heartbeat status for all drones.
     {
       "pos_id": 0,
       "hw_id": "1",
+      "runtime_mode": "real",
       "online": true,
       "last_heartbeat": 1700000000000
     }
@@ -1508,6 +1521,79 @@ not the narrow host-local GCS mode switch surface.
 Malformed/non-object JSON payloads still return the shared `422 Validation
 error` envelope. Conflicting `mode` and `sim_mode` values also return `422`
 instead of silently guessing which one should win.
+
+#### `POST /api/v1/system/gcs-config/apply`
+Apply the persisted host-local runtime configuration by scheduling a controlled
+GCS relaunch through the canonical launcher.
+
+This route does not mutate the persisted configuration. It compares the running
+process against `/etc/mds/gcs.env`, reports drift, and only schedules a relaunch
+when the configured host-local mode or git auto-push posture differs from the
+active process.
+
+**Request:**
+```json
+{}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "status": "scheduled",
+  "message": "GCS restart scheduled to apply host-local runtime changes.",
+  "configured_mode": "sitl",
+  "configured_git_auto_push": false,
+  "restart_required": true,
+  "scheduled": true,
+  "restart_delay_ms": 2000,
+  "warnings": [
+    "2 SITL instance(s) are still running; mode-tagged heartbeats will be ignored after restart until those instances are stopped or the host returns to SITL mode."
+  ]
+}
+```
+
+If the running process already matches the persisted host-local settings, the
+route returns `status: "no_restart_required"` and does not schedule a relaunch.
+
+#### `GET /api/v1/system/runtime-status`
+Get the resolved runtime/admin posture for the active GCS process.
+
+This is the operator-facing status surface consumed by Runtime Admin. It
+combines:
+
+- running process mode and uptime
+- configured host-local mode from `/etc/mds/gcs.env`
+- repo/auth health for the current checkout
+- local external-tool posture such as managed `mavlink-anywhere` and
+  Smart Wi-Fi Manager runtime status
+- relevant documentation links for operators and headless automation
+
+Example response excerpt:
+
+```json
+{
+  "version": "5.2.0",
+  "mode": "real",
+  "configured_mode": "sitl",
+  "git_auto_push": true,
+  "configured_git_auto_push": false,
+  "restart_required": true,
+  "repo_access_mode": "https_token_file",
+  "git_auth_health": {
+    "status": "healthy"
+  },
+  "fleet_defaults": {
+    "connectivity_backend": "smart-wifi-manager"
+  },
+  "mavlink_runtime": {
+    "dashboard_service_status": "active"
+  },
+  "connectivity_runtime": {
+    "service_status": "active"
+  }
+}
+```
 
 ---
 

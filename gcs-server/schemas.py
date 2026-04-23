@@ -463,6 +463,7 @@ class HeartbeatData(BaseModel):
     hw_id: str = Field(..., description="Hardware ID")
     ip: str = Field(..., description="Drone IP address")
     detected_pos_id: Optional[int] = Field(None, ge=0, description="Auto-detected position ID")
+    runtime_mode: Optional[str] = Field(None, description="Declared node runtime mode if reported")
     last_heartbeat: Optional[int] = Field(None, description="Last heartbeat timestamp (Unix ms)")
     online: bool = Field(..., description="Online status")
     latency_ms: Optional[float] = Field(None, ge=0, description="Network latency (ms)")
@@ -484,6 +485,7 @@ class HeartbeatRequest(BaseModel):
     ip: Optional[str] = Field(None, description="Drone IP address")
     timestamp: Optional[int] = Field(None, description="Client timestamp (Unix ms)")
     network_info: Optional[Dict[str, Any]] = Field(None, description="Optional network details")
+    runtime_mode: Optional[str] = Field(None, description="Canonical node runtime mode: real or sitl")
 
     @field_validator("hw_id", mode="before")
     @classmethod
@@ -512,6 +514,20 @@ class HeartbeatRequest(BaseModel):
         if value.lower() in {"unknown", "n/a", "none", "null"}:
             return None
         return value
+
+    @field_validator("runtime_mode", mode="before")
+    @classmethod
+    def normalize_runtime_mode(cls, value):
+        if value is None:
+            return None
+        value = str(value).strip().lower()
+        if not value:
+            return None
+        if value in {"real", "hardware", "production"}:
+            return "real"
+        if value in {"sitl", "sim", "simulation", "simulated"}:
+            return "sitl"
+        raise ValueError("runtime_mode must be either 'real' or 'sitl'")
 
 
 class HeartbeatPostResponse(BaseModel):
@@ -1117,6 +1133,19 @@ class GCSConfigSaveResponse(BaseModel):
     configured_mode: Optional[str] = Field(None, description="Configured host runtime mode after persistence")
     configured_git_auto_push: Optional[bool] = Field(None, description="Configured git auto-push state after persistence")
     restart_required: bool = Field(..., description="Whether the running process must restart to apply the persisted config")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
+
+
+class GCSConfigApplyResponse(BaseModel):
+    """Response for applying persisted host-local GCS runtime settings."""
+    success: bool = Field(..., description="Whether the apply request was accepted")
+    status: str = Field(..., description="Apply status such as scheduled or no_restart_required")
+    message: str = Field(..., description="Operator-facing result summary")
+    configured_mode: str = Field(..., description="Configured host runtime mode that will be applied")
+    configured_git_auto_push: bool = Field(..., description="Configured git auto-push state that will be applied")
+    restart_required: bool = Field(..., description="Whether a restart was required at call time")
+    scheduled: bool = Field(..., description="Whether a restart was scheduled")
+    restart_delay_ms: int = Field(0, ge=0, description="Delay before the scheduled restart starts")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
 
 

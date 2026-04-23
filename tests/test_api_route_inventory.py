@@ -140,6 +140,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/swarm-trajectories/clear-leader/{leader_id}",
         "/api/v1/swarm-trajectories/clear-drone/{drone_id}",
         "/api/v1/swarm-trajectories/commit",
+        "/api/v1/system/gcs-config/apply",
         "/api/v1/system/sitl/reconcile",
         "/api/v1/system/sitl/instances",
         "/api/v1/system/sitl/instances/actions",

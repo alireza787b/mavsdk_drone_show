@@ -483,13 +483,15 @@ class TestHeartbeatEndpoints:
     @patch('app_fastapi.handle_heartbeat_post')
     def test_post_heartbeat(self, mock_handle, test_client):
         """Test POST /api/v1/fleet/heartbeats"""
+        mock_handle.return_value = {'accepted': True, 'message': 'Heartbeat received'}
         heartbeat_data = {
             'pos_id': 0,
             'hw_id': '1',
             'detected_pos_id': 1,
             'ip': '172.18.0.2',
             'network_info': {'wifi': {'ssid': 'test'}},
-            'timestamp': 1700000000000
+            'timestamp': 1700000000000,
+            'runtime_mode': 'real',
         }
 
         response = test_client.post("/api/v1/fleet/heartbeats", json=heartbeat_data)
@@ -501,14 +503,38 @@ class TestHeartbeatEndpoints:
         assert kwargs['hw_id'] == '1'
         assert kwargs['detected_pos_id'] == 1
         assert kwargs['ip'] == '172.18.0.2'
+        assert kwargs['runtime_mode'] == 'real'
+
+    @patch('app_fastapi.observe_fleet_candidate_heartbeat')
+    @patch('app_fastapi.handle_heartbeat_post')
+    def test_post_heartbeat_ignores_mode_mismatch_without_observing_candidate(self, mock_handle, mock_observer, test_client):
+        mock_handle.return_value = {
+            'accepted': False,
+            'message': 'Heartbeat ignored for runtime mode sitl',
+        }
+
+        response = test_client.post(
+            "/api/v1/fleet/heartbeats",
+            json={
+                'pos_id': 0,
+                'hw_id': '1',
+                'ip': '172.18.0.2',
+                'timestamp': 1700000000000,
+                'runtime_mode': 'sitl',
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()['message'] == 'Heartbeat ignored for runtime mode sitl'
+        mock_observer.assert_not_called()
 
     @patch('app_fastapi.get_all_heartbeats')
     def test_get_heartbeats(self, mock_get_heartbeats, test_client):
         """Test GET /api/v1/fleet/heartbeats"""
         # get_all_heartbeats returns a dict keyed by hw_id
         mock_get_heartbeats.return_value = {
-            '1': {'pos_id': 0, 'hw_id': '1', 'detected_pos_id': 1, 'ip': 'unknown', 'timestamp': 1700000000000},
-            '2': {'pos_id': 1, 'hw_id': '2', 'detected_pos_id': 2, 'ip': '172.18.0.22', 'timestamp': 1700000000000}
+            '1': {'pos_id': 0, 'hw_id': '1', 'detected_pos_id': 1, 'ip': 'unknown', 'timestamp': 1700000000000, 'runtime_mode': 'real'},
+            '2': {'pos_id': 1, 'hw_id': '2', 'detected_pos_id': 2, 'ip': '172.18.0.22', 'timestamp': 1700000000000, 'runtime_mode': 'sitl'}
         }
 
         response = test_client.get("/api/v1/fleet/heartbeats")
@@ -519,7 +545,9 @@ class TestHeartbeatEndpoints:
         heartbeats = {item['hw_id']: item for item in data['heartbeats']}
         assert heartbeats['1']['detected_pos_id'] == 1
         assert heartbeats['1']['ip'] == '192.168.1.101'
+        assert heartbeats['1']['runtime_mode'] == 'real'
         assert heartbeats['2']['ip'] == '172.18.0.22'
+        assert heartbeats['2']['runtime_mode'] == 'sitl'
 
 
 # ============================================================================
@@ -1359,6 +1387,33 @@ class TestGCSManagementEndpoints:
             'MDS_MODE=sitl',
             'MDS_GIT_AUTO_PUSH=false',
         ]
+
+    def test_apply_gcs_config_schedules_restart(self, test_client, monkeypatch, tmp_path):
+        import api_routes.management as management_module
+        import app_fastapi
+
+        gcs_env = tmp_path / 'gcs.env'
+        gcs_env.write_text('MDS_MODE=real\nMDS_GIT_AUTO_PUSH=false\n', encoding='utf-8')
+        monkeypatch.setenv('MDS_GCS_SYSTEM_CONFIG', str(gcs_env))
+        monkeypatch.setattr(app_fastapi.Params, 'GIT_AUTO_PUSH', True, raising=False)
+        monkeypatch.setattr(
+            management_module,
+            'resolve_runtime_mode',
+            lambda: SimpleNamespace(mode='sitl', sim_mode=True, source='env:MDS_MODE'),
+        )
+        monkeypatch.setattr(management_module, '_schedule_gcs_restart', lambda *, target_mode: True)
+        monkeypatch.setattr(management_module, '_list_sitl_instance_count', lambda deps: 2)
+
+        response = test_client.post('/api/v1/system/gcs-config/apply')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['status'] == 'scheduled'
+        assert data['configured_mode'] == 'real'
+        assert data['configured_git_auto_push'] is False
+        assert data['scheduled'] is True
+        assert data['restart_required'] is True
+        assert data['warnings']
 
     @patch('app_fastapi.get_network_info_from_heartbeats')
     def test_get_network_info(self, mock_network_info, test_client):

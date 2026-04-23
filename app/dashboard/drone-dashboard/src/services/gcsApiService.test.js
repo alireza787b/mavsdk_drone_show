@@ -13,6 +13,7 @@ import {
   buildTelemetryWebSocketUrl,
   GCS_ROUTE_KEYS,
   GCS_WS_ROUTES,
+  applyGcsConfigResponse,
   getGcsConfigResponse,
   getNetworkInfoResponse,
   getCommandStatusResponse,
@@ -23,6 +24,7 @@ import {
   getRuntimeStatusResponse,
   importCustomShowResponse,
   importShowResponse,
+  saveGcsConfigResponse,
   saveFleetConfigResponse,
   submitCommandResponse,
   setOriginResponse,
@@ -400,6 +402,30 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5000/api/v1/system/gcs-config',
       { timeout: 1200 }
+    );
+  });
+
+  it('persists GCS config through the canonical system resource with PUT', async () => {
+    axios.put.mockResolvedValue({ data: { success: true } });
+
+    await saveGcsConfigResponse({ mode: 'real', git_auto_push: false }, { timeout: 1100 });
+
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/gcs-config',
+      { mode: 'real', git_auto_push: false },
+      { timeout: 1100 }
+    );
+  });
+
+  it('applies persisted GCS config through the canonical apply route', async () => {
+    axios.post.mockResolvedValue({ data: { success: true } });
+
+    await applyGcsConfigResponse({ timeout: 900 });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5000/api/v1/system/gcs-config/apply',
+      {},
+      { timeout: 900 }
     );
   });
 

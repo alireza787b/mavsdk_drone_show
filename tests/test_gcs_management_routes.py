@@ -20,6 +20,8 @@ def _make_deps():
             GIT_BRANCH="customer-demo",
         ),
         get_network_info_from_heartbeats=lambda: [{"hw_id": "1", "wifi": {"ssid": "mds"}}],
+        log_system_event=lambda *args, **kwargs: None,
+        log_system_error=lambda *args, **kwargs: None,
     )
 
 
@@ -32,6 +34,7 @@ def test_management_router_registers_expected_routes():
 
     assert "/api/v1/system/gcs-config" in routes
     assert "/api/v1/system/runtime-status" in routes
+    assert "/api/v1/system/gcs-config/apply" in routes
     assert "/api/v1/fleet/network-details" in routes
 
 
@@ -123,6 +126,58 @@ def test_management_router_save_gcs_config_warns_for_unsupported_fields(monkeypa
     assert data["status"] == "no_changes"
     assert data["persisted"] is False
     assert data["restart_required"] is False
+    assert data["warnings"]
+
+
+def test_management_router_apply_gcs_config_reports_no_restart_when_running_matches(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    gcs_env = tmp_path / "gcs.env"
+    gcs_env.write_text("MDS_MODE=real\nMDS_GIT_AUTO_PUSH=true\n", encoding="utf-8")
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
+    monkeypatch.setattr(
+        management_module,
+        "resolve_runtime_mode",
+        lambda: SimpleNamespace(mode="real", sim_mode=False, source="env:MDS_MODE"),
+    )
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/system/gcs-config/apply")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "no_restart_required"
+    assert data["scheduled"] is False
+    assert data["restart_required"] is False
+
+
+def test_management_router_apply_gcs_config_schedules_restart(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    gcs_env = tmp_path / "gcs.env"
+    gcs_env.write_text("MDS_MODE=real\nMDS_GIT_AUTO_PUSH=false\n", encoding="utf-8")
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
+    monkeypatch.setattr(
+        management_module,
+        "resolve_runtime_mode",
+        lambda: SimpleNamespace(mode="sitl", sim_mode=True, source="env:MDS_MODE"),
+    )
+    monkeypatch.setattr(management_module, "_schedule_gcs_restart", lambda *, target_mode: True)
+    monkeypatch.setattr(management_module, "_list_sitl_instance_count", lambda deps: 4)
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/system/gcs-config/apply")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "scheduled"
+    assert data["scheduled"] is True
+    assert data["configured_mode"] == "real"
+    assert data["configured_git_auto_push"] is False
+    assert data["restart_required"] is True
+    assert data["restart_delay_ms"] == management_module._RESTART_DELAY_MS
     assert data["warnings"]
 
 

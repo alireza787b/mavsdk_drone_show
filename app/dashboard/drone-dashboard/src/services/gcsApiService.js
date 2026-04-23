@@ -40,6 +40,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   computeOrigin: 'computeOrigin',
   desiredLaunchPositions: 'desiredLaunchPositions',
   gcsConfig: 'gcsConfig',
+  gcsConfigApply: 'gcsConfigApply',
   systemRuntimeStatus: 'systemRuntimeStatus',
   sitlControlPolicy: 'sitlControlPolicy',
   sitlControlHost: 'sitlControlHost',
@@ -105,6 +106,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.computeOrigin]: '/api/v1/origin/compute',
   [GCS_ROUTE_KEYS.desiredLaunchPositions]: '/api/v1/origin/launch-positions',
   [GCS_ROUTE_KEYS.gcsConfig]: '/api/v1/system/gcs-config',
+  [GCS_ROUTE_KEYS.gcsConfigApply]: '/api/v1/system/gcs-config/apply',
   [GCS_ROUTE_KEYS.systemRuntimeStatus]: '/api/v1/system/runtime-status',
   [GCS_ROUTE_KEYS.sitlControlPolicy]: '/api/v1/system/sitl/policy',
   [GCS_ROUTE_KEYS.sitlControlHost]: '/api/v1/system/sitl/host',
@@ -173,6 +175,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/origin/compute': GCS_ROUTE_KEYS.computeOrigin,
   '/api/v1/origin/launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
   '/api/v1/system/gcs-config': GCS_ROUTE_KEYS.gcsConfig,
+  '/api/v1/system/gcs-config/apply': GCS_ROUTE_KEYS.gcsConfigApply,
   '/api/v1/system/runtime-status': GCS_ROUTE_KEYS.systemRuntimeStatus,
   '/api/v1/system/sitl/policy': GCS_ROUTE_KEYS.sitlControlPolicy,
   '/api/v1/system/sitl/host': GCS_ROUTE_KEYS.sitlControlHost,
@@ -471,6 +474,14 @@ export async function getNetworkInfoResponse(config = {}) {
 
 export async function getGcsConfigResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.gcsConfig, config);
+}
+
+export async function saveGcsConfigResponse(payload, config = {}) {
+  return putGcsResource(GCS_ROUTE_KEYS.gcsConfig, payload, config);
+}
+
+export async function applyGcsConfigResponse(config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.gcsConfigApply, {}, config);
 }
 
 export async function getRuntimeStatusResponse(config = {}) {

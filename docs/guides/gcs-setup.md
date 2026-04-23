@@ -521,6 +521,33 @@ Operational note: the FastAPI backend currently keeps heartbeats, command tracki
 - `--prod` intentionally runs a single Gunicorn worker
 - `--sitl` / `--dev` now keep the backend single-process by default as well
 - backend auto-reload is an explicit debug override only: `export MDS_GCS_BACKEND_RELOAD=true`
+- when you change host-local runtime mode, use Runtime Admin or relaunch the
+  canonical launcher so the process restarts cleanly in the target mode instead
+  of trying to mix SITL and real heartbeats in one long-lived backend process
+
+### Runtime Admin
+
+The dashboard Runtime Admin page is the host-local control surface for the GCS
+process. It is intentionally narrow:
+
+- save host-local mode (`MDS_MODE`) and git auto-push posture
+- show running vs configured drift
+- schedule a controlled relaunch through the canonical launcher
+- expose repo/auth, MAVLink, and connectivity health summaries with guide links
+
+Current operator rules:
+
+- use Runtime Admin for host-local GCS behavior only
+- use fleet config / swarm config for git-tracked fleet desired state
+- do not treat Runtime Admin as the place to edit raw GitHub secrets
+
+When switching between SITL and real mode:
+
+- save the desired mode first
+- apply the restart so the backend comes back up cleanly in the new mode
+- stop old SITL containers if you are leaving SITL; the backend now fences
+  mode-mismatched heartbeats at intake, but explicit cleanup is still the right
+  operational practice
 
 ### Managing the Services
 
@@ -582,7 +609,9 @@ GCS Server (100.64.0.1) ◄──NetBird VPN──► Drone 1 (100.64.0.2)
 2. **Set up VPN Networking**: See [NetBird Setup](netbird-setup.md) for secure drone-GCS communication
 3. **Set up MAVLink Routing**: See [MAVLink Routing Setup](mavlink-routing-setup.md)
 4. **Configure Companion Nodes**: See [MDS Init Setup](mds-init-setup.md) for companion-computer hardware
-5. **Review SITL Guide**: See [SITL Comprehensive Guide](sitl-comprehensive.md) for simulation testing
+5. **Review Runtime Config Ownership**: See [Runtime Config Sources](runtime-config-sources.md)
+6. **Review Fleet Sync / Secret Handling**: See [Fleet Sync And Secrets](fleet-sync-and-secrets.md)
+7. **Review SITL Guide**: See [SITL Comprehensive Guide](sitl-comprehensive.md) for simulation testing
 
 ---
 

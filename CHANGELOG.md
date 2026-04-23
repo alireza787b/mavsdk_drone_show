@@ -111,12 +111,22 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the GCS repository phase now respects explicit private HTTPS repo selection
 
 ### Fixed
+- heartbeat intake is now runtime-mode aware:
+  nodes can declare `runtime_mode`, GCS fences mismatched SITL/REAL heartbeats
+  before they contaminate live state, heartbeat/network snapshots now retain the
+  accepted mode, and Runtime Admin can safely rely on a backend-side
+  mixed-mode guard instead of only frontend filtering
 - `PUT /api/v1/system/gcs-config` no longer pretends to persist everything:
   the route now safely writes only host-local `MDS_MODE` /
   `MDS_GIT_AUTO_PUSH` into `/etc/mds/gcs.env`, reports
   running-vs-configured drift explicitly, and warns instead of silently
   accepting unsupported fields such as `gcs_port` or
   `acceptable_deviation`
+- Runtime Admin host-local apply semantics are now explicit:
+  `POST /api/v1/system/gcs-config/apply` compares the running process against
+  `/etc/mds/gcs.env`, schedules a controlled relaunch through the canonical GCS
+  launcher only when drift exists, debounces repeated requests, and warns when
+  SITL instances are still running during a switch back to real mode
 - dashboard first-load delivery on weak/mobile links:
   the lightweight SPA server now serves gzip-compressed large text assets,
   marks fingerprinted `/static/...` files immutable, disables caching for the
