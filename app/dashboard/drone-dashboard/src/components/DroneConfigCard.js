@@ -96,6 +96,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   gcsGitStatus,
   isNew,
   ipMismatch,
+  heartbeatData,
   heartbeatStatus,
   heartbeatAgeSec,
   heartbeatIP,
@@ -1625,6 +1626,7 @@ export default function DroneConfigCard({
           gcsGitStatus={gcsGitStatus}
           isNew={drone.isNew}
           ipMismatch={ipMismatch}
+          heartbeatData={heartbeatData}
           heartbeatStatus={heartbeatStatus}
           heartbeatAgeSec={heartbeatAgeSec}
           heartbeatIP={heartbeatIp}
