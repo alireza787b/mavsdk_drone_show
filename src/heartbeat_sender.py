@@ -98,7 +98,8 @@ class HeartbeatSender:
             "detected_pos_id": detected_pos_id,
             "ip": netbird_ip,
             "timestamp": int(time.time() * 1000),  # ms precision
-            "network_info": network_info  # Include network details
+            "network_info": network_info,  # Include network details
+            "runtime_mode": Params.runtime_mode,
         }
 
         url = f"http://{self.gcs_ip}:{self.gcs_port}{Params.gcs_heartbeat_endpoint}"

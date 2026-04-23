@@ -17,7 +17,9 @@ function normalizeModeLabel(mode) {
 export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERVAL_MS) {
   const { data, error, loading } = useFetch(GCS_ROUTE_KEYS.systemRuntimeStatus, pollIntervalMs);
   const mode = String(data?.mode || '').trim().toLowerCase() || 'unknown';
+  const configuredMode = String(data?.configured_mode || '').trim().toLowerCase() || mode;
   const modeLabel = normalizeModeLabel(mode);
+  const configuredModeLabel = normalizeModeLabel(configuredMode);
 
   return {
     raw: data || null,
@@ -25,11 +27,19 @@ export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERV
     loading,
     mode,
     modeLabel,
+    configuredMode,
+    configuredModeLabel,
     modeSource: data?.mode_source || '',
     repoAccessMode: data?.repo_access_mode || 'unknown',
     repoUrl: data?.repo_url || '',
     repoBranch: data?.repo_branch || '',
     gitAutoPush: Boolean(data?.git_auto_push),
+    configuredGitAutoPush: Boolean(
+      Object.prototype.hasOwnProperty.call(data || {}, 'configured_git_auto_push')
+        ? data?.configured_git_auto_push
+        : data?.git_auto_push
+    ),
+    restartRequired: Boolean(data?.restart_required),
     installDir: data?.install_dir || '',
     gcsConfigPath: data?.gcs_config_path || '',
     gitAuthHealth: data?.git_auth_health || { status: 'unknown', summary: '', issues: [] },

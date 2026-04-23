@@ -49,6 +49,27 @@ are not already set. That means the effective order is:
 3. `MDS_GCS_API_BASE_URL` in `/etc/mds/local.env`
 4. `MDS_GCS_IP` plus the default API port (`5000`)
 
+### Node heartbeat runtime identity
+
+Nodes should send the canonical runtime mode to GCS on heartbeat / announce:
+
+- `runtime_mode=real`
+- `runtime_mode=sitl`
+
+GCS now uses that declaration as the primary mixed-mode intake fence. This is
+intentional:
+
+- safer than inferring mode from IPs, ports, or container naming
+- cheap enough to send on every heartbeat
+- operator-visible in heartbeat status and Runtime Admin diagnostics
+
+Compatibility note:
+
+- legacy nodes that do not yet send `runtime_mode` are still accepted during
+  rollout
+- full mixed-mode protection is strongest once every node runtime has been
+  updated to declare its mode explicitly
+
 ### Connectivity backend resolution
 
 Companion nodes resolve connectivity ownership in this order:

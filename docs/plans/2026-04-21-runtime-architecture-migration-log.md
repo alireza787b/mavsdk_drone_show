@@ -1153,3 +1153,59 @@ Residual drift after this slice:
   truthful backend persistence surface
 - controlled restart/apply semantics for full GCS self-update remain a later
   slice; this slice only persists config and reports restart-required status
+
+## Slice 20
+
+Goal:
+
+- close the mixed SITL/REAL contamination gap by fencing heartbeats on declared
+  runtime mode and add explicit Runtime Admin apply/restart semantics on top of
+  the host-local `gcs-config` persistence surface
+
+Implemented:
+
+- made nodes send canonical `runtime_mode` on heartbeat so GCS does not need to
+  infer SITL/REAL posture from IPs, ports, or container naming
+- updated heartbeat intake so GCS:
+  - normalizes common runtime-mode aliases
+  - rejects heartbeats whose declared mode does not match the active GCS mode
+  - stores accepted `runtime_mode` values in heartbeat/network snapshots
+  - still accepts legacy nodes with no `runtime_mode`, while warning that mixed
+    mode protection remains weaker until those nodes are updated
+- added `POST /api/v1/system/gcs-config/apply` as the explicit host-local apply
+  path:
+  - compares running vs configured mode / git auto-push posture
+  - schedules a controlled relaunch through the canonical launcher only when
+    drift exists
+  - debounces repeated restart requests
+  - warns when SITL instances are still running during a switch back to real
+    mode
+- replaced the old read-only Runtime Admin page with actual host-local mutation
+  controls for:
+  - mode switch
+  - git auto-push switch
+  - save host-local config
+  - apply controlled restart
+- updated API/operator docs so Runtime Admin, heartbeat mode fencing, and the
+  operator restart semantics are documented from the same source of truth
+
+Verification:
+
+- official backend/runtime verification passed:
+  - `tests/test_heartbeat_runtime_mode.py`
+  - `tests/test_gcs_management_routes.py`
+  - `tests/test_gcs_api_http.py`
+  - `tests/test_api_route_inventory.py`
+- frontend unit tests for the new Runtime Admin controls were added, but local
+  execution remains deferred on this host because the clean worktree does not
+  have dashboard dependencies installed and the current checkpoint intentionally
+  avoids introducing a fresh Node install on this machine
+
+Residual drift after this slice:
+
+- private repo still needs the same heartbeat-fencing / Runtime Admin apply
+  slice mirrored and re-verified
+- full self-update UX remains a later slice; this one covers host-local apply
+  for mode and git auto-push only
+- once every node runtime is updated to declare `runtime_mode`, mixed-mode
+  protection will be fully explicit instead of partially compatibility-backed

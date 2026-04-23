@@ -2,6 +2,7 @@ import time
 from threading import Lock
 
 from mds_logging import get_logger
+from src.settings.runtime import resolve_runtime_mode
 
 logger = get_logger("heartbeat")
 
@@ -12,8 +13,58 @@ last_heartbeats_lock = Lock()
 # Thread-safe structure to store network info extracted from heartbeats
 network_info_from_heartbeats = {}  # { hw_id: network_info_dict }
 network_info_lock = Lock()
+_runtime_mode_notice_lock = Lock()
+_legacy_runtime_mode_notice_keys = set()
+_runtime_mode_mismatch_notice_keys = set()
 
-def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestamp=None, network_info=None):
+
+def _normalize_runtime_mode(value):
+    if value is None:
+        return None
+
+    normalized = str(value).strip().lower()
+    if normalized in {"real", "hardware", "production"}:
+        return "real"
+    if normalized in {"sitl", "sim", "simulation", "simulated"}:
+        return "sitl"
+    return None
+
+
+def _resolve_current_runtime_mode():
+    try:
+        return resolve_runtime_mode().mode
+    except Exception:  # pragma: no cover - defensive fallback for runtime bootstrap issues
+        return "sitl"
+
+
+def _log_legacy_runtime_mode_once(hw_id):
+    with _runtime_mode_notice_lock:
+        if hw_id in _legacy_runtime_mode_notice_keys:
+            return
+        _legacy_runtime_mode_notice_keys.add(hw_id)
+
+    logger.warning(
+        "Heartbeat from drone %s did not declare runtime_mode; mixed-mode protection requires synced nodes.",
+        hw_id,
+    )
+
+
+def _log_runtime_mode_mismatch_once(hw_id, declared_mode, current_mode):
+    notice_key = (hw_id, declared_mode, current_mode)
+    with _runtime_mode_notice_lock:
+        if notice_key in _runtime_mode_mismatch_notice_keys:
+            return
+        _runtime_mode_mismatch_notice_keys.add(notice_key)
+
+    logger.info(
+        "Ignoring heartbeat from drone %s declared for %s while GCS runs %s mode.",
+        hw_id,
+        declared_mode,
+        current_mode,
+    )
+
+
+def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestamp=None, network_info=None, runtime_mode=None):
     """
     Handler for POST /api/v1/fleet/heartbeats
     Backend-agnostic function that accepts heartbeat data as parameters.
@@ -30,6 +81,7 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "ethernet": {"interface": "eth0", "connection_name": "..."},
                 "timestamp": 1234567890
             }
+        runtime_mode: Canonical runtime mode declared by the node (optional)
 
     Returns:
         dict: Response data
@@ -40,6 +92,20 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
     hw_id = str(hw_id).strip()
     if not hw_id:
         raise ValueError("Missing hw_id")
+
+    current_runtime_mode = _resolve_current_runtime_mode()
+    declared_runtime_mode = _normalize_runtime_mode(runtime_mode)
+
+    if declared_runtime_mode is None:
+        _log_legacy_runtime_mode_once(hw_id)
+    elif declared_runtime_mode != current_runtime_mode:
+        _log_runtime_mode_mismatch_once(hw_id, declared_runtime_mode, current_runtime_mode)
+        return {
+            "message": f"Heartbeat ignored for runtime mode {declared_runtime_mode}",
+            "accepted": False,
+            "runtime_mode": declared_runtime_mode,
+            "current_mode": current_runtime_mode,
+        }
 
     # We can do further validation if needed
     with last_heartbeats_lock:
@@ -54,6 +120,7 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "ip": ip,
                 "timestamp": timestamp,
                 "network_info": network_info,
+                "runtime_mode": declared_runtime_mode,
                 "first_seen": int(time.time() * 1000),
                 "last_logged": time.time()
             }
@@ -65,7 +132,8 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "detected_pos_id": detected_pos_id,
                 "ip": ip,
                 "timestamp": timestamp,
-                "network_info": network_info
+                "network_info": network_info,
+                "runtime_mode": declared_runtime_mode,
             })
 
             # Log periodic confirmation (every 5 minutes)
@@ -78,10 +146,16 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
         with network_info_lock:
             network_info_from_heartbeats[hw_id] = {
                 "hw_id": hw_id,
+                "runtime_mode": declared_runtime_mode,
                 **network_info  # Spread the network info (wifi, ethernet, timestamp)
             }
 
-    return {"message": "Heartbeat received"}
+    return {
+        "message": "Heartbeat received",
+        "accepted": True,
+        "runtime_mode": declared_runtime_mode,
+        "current_mode": current_runtime_mode,
+    }
 
 def get_all_heartbeats():
     """

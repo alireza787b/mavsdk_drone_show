@@ -1,8 +1,10 @@
 """GCS management and network helper routes."""
 
 import os
+import shlex
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from schemas import (
+    GCSConfigApplyResponse,
     GCSConfigResponse,
     GCSConfigSaveResponse,
     GCSConfigUpdateRequest,
@@ -23,9 +26,14 @@ from schemas import (
 )
 from src.settings.deployment_profile import load_deployment_profile
 from src.settings.runtime import resolve_runtime_mode
+from src.sitl_control_service import SitlControlService
 
 _PROCESS_START_MONOTONIC = time.monotonic()
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_RESTART_SCHEDULE_LOCK = threading.Lock()
+_LAST_RESTART_SCHEDULE_AT_MONOTONIC = 0.0
+_RESTART_DEBOUNCE_SECONDS = 15.0
+_RESTART_DELAY_MS = 2000
 
 
 def _get_gcs_config_path() -> Path:
@@ -154,6 +162,67 @@ def _resolve_configured_runtime_mode(config_values: dict[str, str], fallback_mod
 
 def _resolve_configured_git_auto_push(config_values: dict[str, str], fallback_value: bool) -> bool:
     return _as_bool(config_values.get("MDS_GIT_AUTO_PUSH"), default=fallback_value)
+
+
+def _log_event(deps: Any, message: str, level: str = "INFO", subsystem: str = "runtime_admin") -> None:
+    logger = getattr(deps, "log_system_event", None)
+    if callable(logger):
+        try:
+            logger(message, level, subsystem)
+        except TypeError:
+            logger(message, level)
+
+
+def _log_error(deps: Any, message: str, subsystem: str = "runtime_admin") -> None:
+    logger = getattr(deps, "log_system_error", None)
+    if callable(logger):
+        logger(message, subsystem)
+
+
+def _list_sitl_instance_count(deps: Any) -> int | None:
+    service = getattr(deps, "sitl_control_service", None)
+    if service is None:
+        service = SitlControlService(deps.Params)
+
+    try:
+        summary = service.list_instances()
+    except Exception:
+        return None
+    return int(getattr(summary, "total_instances", 0) or 0)
+
+
+def _schedule_gcs_restart(*, target_mode: str) -> bool:
+    global _LAST_RESTART_SCHEDULE_AT_MONOTONIC
+
+    with _RESTART_SCHEDULE_LOCK:
+        now = time.monotonic()
+        if now - _LAST_RESTART_SCHEDULE_AT_MONOTONIC < _RESTART_DEBOUNCE_SECONDS:
+            return False
+
+        start_script = _REPO_ROOT / "app" / "linux_dashboard_start.sh"
+        if not start_script.is_file():
+            raise RuntimeError(f"GCS launcher not found at {start_script}")
+
+        restart_log_path = Path(os.environ.get("MDS_GCS_RESTART_LOG", "/tmp/mds_gcs_restart.log"))
+        shell_command = (
+            f"sleep {max(1, int(_RESTART_DELAY_MS / 1000))}; "
+            f"cd {shlex.quote(str(_REPO_ROOT))} && "
+            f"{shlex.quote(str(start_script))} --prod --{shlex.quote(str(target_mode))} "
+            f">>{shlex.quote(str(restart_log_path))} 2>&1"
+        )
+        with open(os.devnull, "rb") as devnull_in, open(os.devnull, "ab") as devnull_out:
+            subprocess.Popen(
+                ["bash", "-lc", shell_command],
+                cwd=str(_REPO_ROOT),
+                stdin=devnull_in,
+                stdout=devnull_out,
+                stderr=devnull_out,
+                start_new_session=True,
+                close_fds=True,
+            )
+
+        _LAST_RESTART_SCHEDULE_AT_MONOTONIC = now
+        return True
 
 
 def _build_gcs_config_response(deps: Any) -> GCSConfigResponse:
@@ -532,6 +601,74 @@ def create_management_router(deps: Any) -> APIRouter:
         except HTTPException:
             raise
         except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.post("/api/v1/system/gcs-config/apply", response_model=GCSConfigApplyResponse, tags=["GCS Management"])
+    async def apply_gcs_config():
+        """Apply the persisted host-local runtime config by scheduling a clean GCS restart."""
+        try:
+            runtime_mode = resolve_runtime_mode()
+            gcs_config_path = _get_gcs_config_path()
+            config_values = _read_env_assignments(gcs_config_path)
+            running_git_auto_push = bool(deps.Params.GIT_AUTO_PUSH)
+            configured_mode = _resolve_configured_runtime_mode(config_values, runtime_mode.mode)
+            configured_git_auto_push = _resolve_configured_git_auto_push(config_values, running_git_auto_push)
+            restart_required = (
+                configured_mode != runtime_mode.mode or configured_git_auto_push != running_git_auto_push
+            )
+            warnings: list[str] = []
+
+            if not restart_required:
+                return GCSConfigApplyResponse(
+                    success=True,
+                    status="no_restart_required",
+                    message="Running GCS runtime already matches the persisted host-local config.",
+                    configured_mode=configured_mode,
+                    configured_git_auto_push=configured_git_auto_push,
+                    restart_required=False,
+                    scheduled=False,
+                    restart_delay_ms=0,
+                    warnings=warnings,
+                )
+
+            if runtime_mode.mode == "sitl" and configured_mode == "real":
+                sitl_instance_count = _list_sitl_instance_count(deps)
+                if sitl_instance_count:
+                    warnings.append(
+                        f"{sitl_instance_count} SITL instance(s) are still running. Their mode-tagged heartbeats will be ignored after restart, but the containers themselves are not stopped automatically."
+                    )
+
+            scheduled = _schedule_gcs_restart(target_mode=configured_mode)
+            if not scheduled:
+                return GCSConfigApplyResponse(
+                    success=True,
+                    status="already_scheduled",
+                    message="A GCS runtime restart was already scheduled. Wait for the launcher to recycle the session.",
+                    configured_mode=configured_mode,
+                    configured_git_auto_push=configured_git_auto_push,
+                    restart_required=True,
+                    scheduled=False,
+                    restart_delay_ms=_RESTART_DELAY_MS,
+                    warnings=warnings,
+                )
+
+            _log_event(
+                deps,
+                f"GCS runtime restart scheduled to apply host-local config (mode={configured_mode}, git_auto_push={configured_git_auto_push})",
+            )
+            return GCSConfigApplyResponse(
+                success=True,
+                status="scheduled",
+                message="GCS restart scheduled. The launcher will relaunch the runtime with the persisted host-local config.",
+                configured_mode=configured_mode,
+                configured_git_auto_push=configured_git_auto_push,
+                restart_required=True,
+                scheduled=True,
+                restart_delay_ms=_RESTART_DELAY_MS,
+                warnings=warnings,
+            )
+        except Exception as exc:
+            _log_error(deps, f"GCS runtime apply failed: {exc}")
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @router.get("/api/v1/fleet/network-details", tags=["Network"])

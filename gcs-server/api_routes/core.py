@@ -79,6 +79,7 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
             pos_id=int(hb_data.get("pos_id", 0)),
             ip=str(ip_value) if ip_value else "unknown",
             detected_pos_id=hb_data.get("detected_pos_id"),
+            runtime_mode=hb_data.get("runtime_mode"),
             last_heartbeat=last_timestamp,
             online=is_online,
             latency_ms=latency_ms,
@@ -118,17 +119,18 @@ def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) 
         heartbeat_ip = None
     observed_ip = heartbeat_ip or client_ip
 
-    deps.handle_heartbeat_post(
+    heartbeat_result = deps.handle_heartbeat_post(
         pos_id=heartbeat.pos_id,
         hw_id=heartbeat.hw_id,
         detected_pos_id=heartbeat.detected_pos_id,
         ip=observed_ip,
         timestamp=heartbeat.timestamp,
         network_info=heartbeat.network_info,
+        runtime_mode=heartbeat.runtime_mode,
     )
 
     observer = getattr(deps, "observe_fleet_candidate_heartbeat", None)
-    if callable(observer):
+    if heartbeat_result.get("accepted", True) and callable(observer):
         try:
             observer(
                 {
@@ -138,6 +140,7 @@ def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) 
                     "ip": observed_ip,
                     "timestamp": heartbeat.timestamp,
                     "network_info": heartbeat.network_info,
+                    "runtime_mode": heartbeat.runtime_mode,
                 }
             )
         except Exception as exc:  # pragma: no cover - heartbeat acceptance remains primary
@@ -145,7 +148,7 @@ def _accept_heartbeat(deps: Any, heartbeat: HeartbeatRequest, request: Request) 
 
     return HeartbeatPostResponse(
         success=True,
-        message="Heartbeat received",
+        message=heartbeat_result.get("message", "Heartbeat received"),
         server_time=int(time.time() * 1000),
     )
 

@@ -1,7 +1,10 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import RuntimeAdminPage from './RuntimeAdminPage';
+
+const mockSaveGcsConfigResponse = jest.fn();
+const mockApplyGcsConfigResponse = jest.fn();
 
 jest.mock('../hooks/useGcsGitInfo', () => jest.fn(() => ({
   repo: 'demo/customer-mds',
@@ -11,11 +14,16 @@ jest.mock('../hooks/useGcsGitInfo', () => jest.fn(() => ({
 
 jest.mock('../hooks/useGcsRuntimeStatus', () => jest.fn(() => ({
   error: null,
+  loading: false,
   mode: 'real',
   modeLabel: 'REAL',
+  configuredMode: 'real',
+  configuredModeLabel: 'REAL',
   modeSource: 'env:MDS_MODE',
   repoAccessMode: 'https_token_file',
   gitAutoPush: false,
+  configuredGitAutoPush: false,
+  restartRequired: false,
   installDir: '/opt/demo-gcs',
   gcsConfigPath: '/etc/mds/gcs.env',
   raw: {
@@ -77,7 +85,16 @@ jest.mock('../hooks/useGcsRuntimeStatus', () => jest.fn(() => ({
   },
 })));
 
+jest.mock('../services/gcsApiService', () => ({
+  saveGcsConfigResponse: (...args) => mockSaveGcsConfigResponse(...args),
+  applyGcsConfigResponse: (...args) => mockApplyGcsConfigResponse(...args),
+}));
+
 describe('RuntimeAdminPage', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   test('renders live runtime posture and doc links', () => {
     render(<RuntimeAdminPage />);
 
@@ -96,5 +113,55 @@ describe('RuntimeAdminPage', () => {
       'href',
       'https://github.com/demo/mavlink-anywhere/tree/v9.9.9'
     );
+  });
+
+  test('persists runtime host config and schedules apply restart', async () => {
+    mockSaveGcsConfigResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'success',
+        message: 'Host-local GCS settings were persisted. Restart the GCS runtime to apply them.',
+        configured_mode: 'sitl',
+        configured_git_auto_push: true,
+        restart_required: true,
+        warnings: [],
+      },
+    });
+    mockApplyGcsConfigResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'scheduled',
+        message: 'GCS restart scheduled.',
+        configured_mode: 'sitl',
+        configured_git_auto_push: true,
+        restart_required: true,
+        scheduled: true,
+        restart_delay_ms: 2000,
+        warnings: [],
+      },
+    });
+
+    render(<RuntimeAdminPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /set runtime mode to sitl/i }));
+    fireEvent.click(screen.getByRole('button', { name: /enable git auto-push/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save runtime settings/i }));
+
+    await waitFor(() => {
+      expect(mockSaveGcsConfigResponse).toHaveBeenCalledWith({
+        mode: 'sitl',
+        git_auto_push: true,
+      });
+    });
+
+    expect(screen.getByText(/restart the gcs runtime to apply them/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /apply persisted runtime settings with restart/i }));
+
+    await waitFor(() => {
+      expect(mockApplyGcsConfigResponse).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.getByText(/gcs restart scheduled/i)).toBeInTheDocument();
   });
 });
