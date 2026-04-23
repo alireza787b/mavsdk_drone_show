@@ -111,6 +111,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the GCS repository phase now respects explicit private HTTPS repo selection
 
 ### Fixed
+- shell-level runtime posture is now visible even when navigation is collapsed:
+  the sidebar uses one shared runtime badge in expanded and collapsed states,
+  mobile now keeps the same REAL/SITL badge visible beside the navigation
+  toggle, and restart-required drift is surfaced directly in that shell badge
+  instead of only inside Runtime Admin
 - drone-card runtime labels now follow the same canonical `runtime_mode`
   signal that the backend heartbeat fence uses:
   Mission Config cards prefer the node-declared mode over local serial/network

@@ -23,8 +23,10 @@ import { MapProvider } from './contexts/MapContext';
 import './styles/DesignTokens.css';
 
 import SidebarMenu from './components/SidebarMenu';
+import RuntimeModeBadge from './components/RuntimeModeBadge';
 import SyncWarningBanner from './components/SyncWarningBanner';
 import ErrorBoundary from './components/ErrorBoundary';
+import useGcsRuntimeStatus from './hooks/useGcsRuntimeStatus';
 
 // External styles and toast
 import { ToastContainer } from 'react-toastify';
@@ -68,6 +70,7 @@ const App = () => {
   const [isMobile, setIsMobile] = useState(getIsMobileViewport);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(getIsMobileViewport);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const runtimeStatus = useGcsRuntimeStatus();
 
   useEffect(() => {
     const handleResize = () => {
@@ -119,7 +122,7 @@ const App = () => {
             >
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
-                  <>
+                  <div className="mobile-shell-controls">
                     <button
                       className={`mobile-sidebar-toggle ${mobileSidebarOpen ? 'is-open' : ''}`}
                       onClick={() => setMobileSidebarOpen((current) => !current)}
@@ -127,6 +130,11 @@ const App = () => {
                     >
                       {mobileSidebarOpen ? <FaTimes /> : <FaBars />}
                     </button>
+                    <RuntimeModeBadge
+                      mode={runtimeStatus.mode}
+                      restartRequired={runtimeStatus.restartRequired}
+                      className="mobile-runtime-badge"
+                    />
                     {mobileSidebarOpen && (
                       <button
                         className="sidebar-backdrop"
@@ -135,7 +143,7 @@ const App = () => {
                         onClick={() => setMobileSidebarOpen(false)}
                       />
                     )}
-                  </>
+                  </div>
                 )}
                 <SidebarMenu
                   collapsed={sidebarCollapsed}
@@ -143,6 +151,7 @@ const App = () => {
                   mobileOpen={mobileSidebarOpen}
                   onNavigate={handleSidebarNavigate}
                   onToggle={handleSidebarToggle}
+                  runtimeStatus={runtimeStatus}
                 />
                 <div className={contentClassName}>
                   <SyncWarningBanner />

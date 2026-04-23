@@ -173,9 +173,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .mobile-sidebar-toggle {
-  position: fixed;
-  top: 0.9rem;
-  left: 0.9rem;
+  position: relative;
+  top: auto;
+  left: auto;
   width: 2.75rem;
   height: 2.75rem;
   display: inline-flex;
@@ -205,6 +205,22 @@ h1, h2, h3, h4, h5, h6 {
 .mobile-sidebar-toggle svg {
   width: 1rem;
   height: 1rem;
+}
+
+.mobile-shell-controls {
+  position: fixed;
+  top: 0.9rem;
+  left: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  z-index: calc(var(--z-fixed) + 2);
+}
+
+.mobile-runtime-badge {
+  background: color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-lg);
 }
 
 .sidebar-backdrop {
@@ -364,7 +380,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
-  .mobile-sidebar-toggle {
+  .mobile-shell-controls {
     top: 0.75rem;
     left: 0.75rem;
   }
@@ -389,6 +405,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @media (min-width: 769px) {
+  .mobile-shell-controls,
   .mobile-sidebar-toggle,
   .sidebar-backdrop {
     display: none;
