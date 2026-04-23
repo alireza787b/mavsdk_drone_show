@@ -8,13 +8,16 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from git_status import commits_match
 from schemas import (
+    DroneConnectivityRuntimeStatus,
     DroneGitStatus,
+    DroneMavlinkRuntimeStatus,
     GitStatus,
     GitStatusResponse,
     GitStatusStreamMessage,
     SyncReposRequest,
     SyncReposResponse,
 )
+from src.managed_runtime_status import resolve_dashboard_access
 
 
 def _build_git_status_response(deps: Any) -> GitStatusResponse:
@@ -68,10 +71,56 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 and not raw_data.get("uncommitted_changes")
             )
 
+            drone_ip = drone_info.get("ip", "unknown")
+            raw_mavlink_runtime = raw_data.get("mavlink_runtime") if isinstance(raw_data.get("mavlink_runtime"), dict) else None
+            raw_connectivity_runtime = raw_data.get("connectivity_runtime") if isinstance(raw_data.get("connectivity_runtime"), dict) else None
+
+            mavlink_runtime = None
+            if raw_mavlink_runtime:
+                dashboard_enabled = bool(raw_mavlink_runtime.get("dashboard_enabled", False))
+                access = (
+                    {"dashboard_access_mode": "disabled", "dashboard_url": None}
+                    if not dashboard_enabled
+                    else resolve_dashboard_access(drone_ip, raw_mavlink_runtime.get("dashboard_listen"))
+                )
+                mavlink_runtime = DroneMavlinkRuntimeStatus(
+                    status_source=raw_mavlink_runtime.get("status_source", "unknown"),
+                    management_mode=raw_mavlink_runtime.get("management_mode", "unknown"),
+                    ref=raw_mavlink_runtime.get("ref", "unknown"),
+                    repo_web_url=raw_mavlink_runtime.get("repo_web_url"),
+                    install_dir_present=bool(raw_mavlink_runtime.get("install_dir_present", False)),
+                    runtime_present=bool(raw_mavlink_runtime.get("runtime_present", False)),
+                    runtime_head=raw_mavlink_runtime.get("runtime_head"),
+                    router_service_status=raw_mavlink_runtime.get("router_service_status", "unknown"),
+                    dashboard_enabled=dashboard_enabled,
+                    dashboard_listen=raw_mavlink_runtime.get("dashboard_listen", ""),
+                    dashboard_service_status=raw_mavlink_runtime.get("dashboard_service_status", "unknown"),
+                    dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
+                    dashboard_url=access.get("dashboard_url"),
+                )
+
+            connectivity_runtime = None
+            if raw_connectivity_runtime:
+                access = resolve_dashboard_access(drone_ip, raw_connectivity_runtime.get("dashboard_listen"))
+                connectivity_runtime = DroneConnectivityRuntimeStatus(
+                    status_source=raw_connectivity_runtime.get("status_source", "unknown"),
+                    backend=raw_connectivity_runtime.get("backend", "unknown"),
+                    ref=raw_connectivity_runtime.get("ref", "unknown"),
+                    repo_web_url=raw_connectivity_runtime.get("repo_web_url"),
+                    install_dir_present=bool(raw_connectivity_runtime.get("install_dir_present", False)),
+                    mode=raw_connectivity_runtime.get("mode", "unknown"),
+                    import_mode=raw_connectivity_runtime.get("import_mode", "unknown"),
+                    profile_present=bool(raw_connectivity_runtime.get("profile_present", False)),
+                    dashboard_listen=raw_connectivity_runtime.get("dashboard_listen", ""),
+                    service_status=raw_connectivity_runtime.get("service_status", "unknown"),
+                    dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
+                    dashboard_url=access.get("dashboard_url"),
+                )
+
             transformed_git_status[str(hw_id)] = DroneGitStatus(
                 pos_id=int(drone_info.get("pos_id", hw_id)),
                 hw_id=str(hw_id),
-                ip=drone_info.get("ip", "unknown"),
+                ip=drone_ip,
                 branch=raw_data.get("branch", "unknown"),
                 commit=commit_hash,
                 commit_message=raw_data.get("commit_message"),
@@ -87,6 +136,8 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 git_auth_health_status=raw_data.get("git_auth_health_status", "unknown"),
                 git_auth_health_summary=raw_data.get("git_auth_health_summary"),
                 git_auth_health_issues=raw_data.get("git_auth_health_issues", []),
+                mavlink_runtime=mavlink_runtime,
+                connectivity_runtime=connectivity_runtime,
                 last_check=int(time.time() * 1000),
                 last_sync=None,
             )

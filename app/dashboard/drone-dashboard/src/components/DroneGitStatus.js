@@ -8,6 +8,7 @@ import {
   faChevronDown,
   faChevronUp,
   faCopy,
+  faLink,
 } from '@fortawesome/free-solid-svg-icons';
 import { areGitRevisionsEquivalent } from '../utilities/missionIdentityUtils';
 
@@ -24,6 +25,44 @@ const formatRepoAccessMode = (value) => {
     default:
       return value || 'Unknown';
   }
+};
+
+const formatDashboardAccess = (runtime) => {
+  if (!runtime) {
+    return 'Unknown';
+  }
+  if (runtime.dashboard_access_mode === 'disabled') {
+    return 'Disabled';
+  }
+  if (runtime.dashboard_access_mode === 'local_only') {
+    return 'Local only';
+  }
+  if (runtime.dashboard_access_mode === 'direct' && runtime.dashboard_url) {
+    return 'Direct link';
+  }
+  return 'Unknown';
+};
+
+const renderRuntimeSummary = (runtime, type) => {
+  if (!runtime) {
+    return 'Unavailable';
+  }
+
+  if (type === 'mavlink') {
+    return [
+      runtime.management_mode || 'unknown',
+      runtime.ref || 'unknown',
+      `router ${runtime.router_service_status || 'unknown'}`,
+      `dashboard ${formatDashboardAccess(runtime).toLowerCase()}`,
+    ].join(' · ');
+  }
+
+  return [
+    runtime.backend || 'unknown',
+    runtime.mode || 'unknown',
+    `service ${runtime.service_status || 'unknown'}`,
+    `dashboard ${formatDashboardAccess(runtime).toLowerCase()}`,
+  ].join(' · ');
 };
 
 const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
@@ -169,6 +208,46 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
               {gitStatus.git_auth_health_summary || 'N/A'}
             </span>
           </div>
+          {gitStatus.mavlink_runtime && (
+            <div className="detail-row">
+              <span className="detail-label">MAVLink</span>
+              <div className="detail-value runtime-detail-value">
+                <span>{renderRuntimeSummary(gitStatus.mavlink_runtime, 'mavlink')}</span>
+                <div className="runtime-detail-links">
+                  {gitStatus.mavlink_runtime.repo_web_url && (
+                    <a href={gitStatus.mavlink_runtime.repo_web_url} target="_blank" rel="noreferrer">
+                      Repo
+                    </a>
+                  )}
+                  {gitStatus.mavlink_runtime.dashboard_url && (
+                    <a href={gitStatus.mavlink_runtime.dashboard_url} target="_blank" rel="noreferrer">
+                      <FontAwesomeIcon icon={faLink} /> Dashboard
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {gitStatus.connectivity_runtime && (
+            <div className="detail-row">
+              <span className="detail-label">Connectivity</span>
+              <div className="detail-value runtime-detail-value">
+                <span>{renderRuntimeSummary(gitStatus.connectivity_runtime, 'connectivity')}</span>
+                <div className="runtime-detail-links">
+                  {gitStatus.connectivity_runtime.repo_web_url && (
+                    <a href={gitStatus.connectivity_runtime.repo_web_url} target="_blank" rel="noreferrer">
+                      Repo
+                    </a>
+                  )}
+                  {gitStatus.connectivity_runtime.dashboard_url && (
+                    <a href={gitStatus.connectivity_runtime.dashboard_url} target="_blank" rel="noreferrer">
+                      <FontAwesomeIcon icon={faLink} /> Dashboard
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {gitAuthIssues.length > 0 && (
             <div className="detail-row">
               <span className="detail-label">Auth Issues</span>
@@ -225,6 +304,22 @@ DroneGitStatus.propTypes = {
     git_auth_health_status: PropTypes.string,
     git_auth_health_summary: PropTypes.string,
     git_auth_health_issues: PropTypes.arrayOf(PropTypes.string),
+    mavlink_runtime: PropTypes.shape({
+      management_mode: PropTypes.string,
+      ref: PropTypes.string,
+      repo_web_url: PropTypes.string,
+      router_service_status: PropTypes.string,
+      dashboard_access_mode: PropTypes.string,
+      dashboard_url: PropTypes.string,
+    }),
+    connectivity_runtime: PropTypes.shape({
+      backend: PropTypes.string,
+      mode: PropTypes.string,
+      service_status: PropTypes.string,
+      repo_web_url: PropTypes.string,
+      dashboard_access_mode: PropTypes.string,
+      dashboard_url: PropTypes.string,
+    }),
   }),
   gcsGitStatus: PropTypes.shape({
     commit: PropTypes.string,

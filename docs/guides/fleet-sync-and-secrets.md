@@ -186,6 +186,8 @@ This is a controlled secret event, not a normal config save.
 - own write-capable git operations when enabled
 - expose health / sync status / rollout visibility
 - serve as the operational control point
+- surface node-local sidecar posture without becoming the direct owner of each
+  sidecar config file or secret
 
 ### The GCS should not
 
@@ -216,6 +218,21 @@ Target model:
 - repo owns fleet default routing/profile intent
 - nodes may override input source details when hardware requires it
 - local serial device path and board-specific differences remain host-local
+
+### Operator visibility
+
+The GCS should make node-local runtime posture visible without pretending those
+tools are centrally edited there.
+
+Current expectation:
+
+- fleet git status shows whether node-local git auth is healthy
+- fleet git status shows compact node-local `mavlink-anywhere` and Smart Wi-Fi
+  posture
+- direct dashboard links appear only when the node-side listen address is
+  actually reachable from the operator network
+- loopback-only dashboards are shown as local-only instead of rendering broken
+  links
 
 ## 7. Current Support Versus Planned Support
 

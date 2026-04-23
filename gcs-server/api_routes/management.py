@@ -26,6 +26,11 @@ from schemas import (
     RuntimeRepoSyncStatusResponse,
     RuntimeStatusResponse,
 )
+from src.managed_runtime_status import (
+    as_bool,
+    build_connectivity_runtime_summary,
+    build_mavlink_runtime_summary,
+)
 from src.settings.deployment_profile import load_deployment_profile
 from src.settings.runtime import resolve_runtime_mode
 from src.sitl_control_service import SitlControlService
@@ -186,7 +191,7 @@ def _resolve_configured_runtime_mode(config_values: dict[str, str], fallback_mod
 
 
 def _resolve_configured_git_auto_push(config_values: dict[str, str], fallback_value: bool) -> bool:
-    return _as_bool(config_values.get("MDS_GIT_AUTO_PUSH"), default=fallback_value)
+    return as_bool(config_values.get("MDS_GIT_AUTO_PUSH"), default=fallback_value)
 
 
 def _log_event(deps: Any, message: str, level: str = "INFO", subsystem: str = "runtime_admin") -> None:
@@ -288,20 +293,6 @@ def _normalize_github_docs_base(repo_url: str, branch: str) -> str | None:
     return f"{normalized}/blob/{branch_name}"
 
 
-def _normalize_github_repo_web_url(repo_url: str, ref: str) -> str | None:
-    normalized = str(repo_url or "").strip()
-    if normalized.startswith("git@github.com:"):
-        normalized = normalized.replace("git@github.com:", "https://github.com/", 1)
-    if normalized.startswith("https://github.com/") and normalized.endswith(".git"):
-        normalized = normalized[:-4]
-    if not normalized.startswith("https://github.com/"):
-        return None
-    ref_name = str(ref or "").strip()
-    if ref_name:
-        return f"{normalized}/tree/{ref_name}"
-    return normalized
-
-
 def _describe_repo_access_mode(repo_url: str, token_file: str, ssh_key_file: str) -> str:
     normalized = str(repo_url or "").strip()
     if normalized.startswith("git@github.com:"):
@@ -311,58 +302,6 @@ def _describe_repo_access_mode(repo_url: str, token_file: str, ssh_key_file: str
     if normalized.startswith("https://github.com/"):
         return "https_public_or_read_only"
     return "custom_or_unknown"
-
-
-def _as_bool(value: str | None, *, default: bool = False) -> bool:
-    if value is None:
-        return default
-    return str(value).strip().lower() in {"1", "true", "yes", "on", "present", "active"}
-
-
-def _parse_status_output(stdout: str) -> dict[str, str]:
-    data: dict[str, str] = {}
-    for raw_line in str(stdout or "").splitlines():
-        line = raw_line.strip()
-        if not line or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        data[key.strip()] = value.strip()
-    return data
-
-
-def _read_reconcile_status(script_relative_path: str) -> dict[str, str]:
-    script_path = _REPO_ROOT / script_relative_path
-    if not script_path.is_file():
-        return {"status_source": "missing_script"}
-
-    try:
-        result = subprocess.run(
-            [str(script_path), "status", "--quiet"],
-            cwd=str(_REPO_ROOT),
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return {"status_source": "timeout"}
-    except OSError:
-        return {"status_source": "invoke_error"}
-
-    data = _parse_status_output(result.stdout)
-    data["status_source"] = "script" if result.returncode == 0 else "script_error"
-    if result.returncode != 0 and result.stderr:
-        data["error"] = result.stderr.strip()
-    return data
-
-
-def _resolve_repo_relative_path(path_value: str) -> str:
-    normalized = str(path_value or "").strip()
-    if not normalized:
-        return ""
-    if normalized.startswith("/"):
-        return normalized
-    return str((_REPO_ROOT / normalized).resolve())
 
 
 def _build_git_auth_health(
@@ -562,59 +501,11 @@ def _schedule_gcs_runtime_update(*, target_mode: str, tracking_branch: str) -> b
 
 
 def _build_mavlink_runtime_status(deployment_profile: Any) -> RuntimeMavlinkRuntimeResponse:
-    status = _read_reconcile_status("tools/reconcile_mavlink_runtime.sh")
-    repo_url = status.get("repo_url") or deployment_profile.mavlink_anywhere_repo_url_https
-    ref = status.get("ref") or deployment_profile.mavlink_anywhere_ref
-    install_dir = status.get("install_dir") or deployment_profile.mavlink_anywhere_install_dir
-    install_dir_present = Path(install_dir).is_dir()
-    runtime_present = _as_bool(status.get("runtime_present"), default=Path(install_dir, ".git").is_dir())
-    dashboard_listen = status.get("dashboard_listen") or deployment_profile.mavlink_anywhere_dashboard_listen
-    dashboard_enabled = not _as_bool(
-        status.get("skip_dashboard"),
-        default=bool(deployment_profile.mavlink_anywhere_skip_dashboard),
-    )
-
-    return RuntimeMavlinkRuntimeResponse(
-        status_source=status.get("status_source", "fallback"),
-        management_mode=status.get("mode") or deployment_profile.mavlink_management_mode,
-        repo_url=repo_url,
-        ref=ref,
-        repo_web_url=_normalize_github_repo_web_url(repo_url, ref),
-        install_dir=install_dir,
-        install_dir_present=install_dir_present,
-        runtime_present=runtime_present,
-        runtime_head=status.get("runtime_head") or None,
-        router_binary_present=(status.get("router_binary") == "present") if "router_binary" in status else bool(shutil.which("mavlink-routerd")),
-        router_service_status=status.get("router_service", "unknown"),
-        dashboard_enabled=dashboard_enabled,
-        dashboard_listen=dashboard_listen,
-        dashboard_service_status=status.get("dashboard_service", "unknown"),
-    )
+    return RuntimeMavlinkRuntimeResponse(**build_mavlink_runtime_summary(_REPO_ROOT))
 
 
 def _build_connectivity_runtime_status(deployment_profile: Any) -> RuntimeConnectivityRuntimeResponse:
-    status = _read_reconcile_status("tools/reconcile_connectivity.sh")
-    repo_url = status.get("repo_url") or deployment_profile.smart_wifi_manager_repo_url_https
-    ref = status.get("ref") or deployment_profile.smart_wifi_manager_ref
-    install_dir = status.get("install_dir") or deployment_profile.smart_wifi_manager_install_dir
-    install_dir_present = Path(install_dir).is_dir()
-    profile_path = status.get("profile_path") or _resolve_repo_relative_path(deployment_profile.smart_wifi_manager_profile_path)
-
-    return RuntimeConnectivityRuntimeResponse(
-        status_source=status.get("status_source", "fallback"),
-        backend=status.get("backend") or deployment_profile.connectivity_backend,
-        repo_url=repo_url,
-        ref=ref,
-        repo_web_url=_normalize_github_repo_web_url(repo_url, ref),
-        install_dir=install_dir,
-        install_dir_present=install_dir_present,
-        mode=status.get("mode") or deployment_profile.smart_wifi_manager_mode,
-        import_mode=deployment_profile.smart_wifi_manager_import_mode,
-        profile_path=profile_path,
-        profile_present=bool(profile_path and Path(profile_path).is_file()),
-        dashboard_listen=os.environ.get("MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN") or deployment_profile.smart_wifi_manager_dashboard_listen,
-        service_status=status.get("service_status", "unknown"),
-    )
+    return RuntimeConnectivityRuntimeResponse(**build_connectivity_runtime_summary(_REPO_ROOT))
 
 
 def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:

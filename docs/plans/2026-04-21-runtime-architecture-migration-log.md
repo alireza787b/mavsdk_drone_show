@@ -112,6 +112,47 @@ Residual drift intentionally deferred to the next slice:
 - service/bootstrap ownership around install paths and service templates still needs cleanup
 - SITL docs and image prep still refer to `*.hwID` runtime preservation
 
+## Slice 29
+
+### Scope
+
+- expose compact node-local `mavlink-anywhere` and Smart Wi-Fi posture through
+  the existing node git-status payload
+- propagate that posture through the GCS fleet git-status aggregation
+- distinguish directly reachable node dashboards from loopback-only bindings so
+  operators do not get misleading links
+
+### Checkpoint Result (2026-04-23)
+
+Status: complete
+
+Implemented:
+
+- added shared `src/managed_runtime_status.py` helpers so GCS Runtime Admin and
+  node git-status read the same reconcile-status model
+- extended the node `GET /api/v1/git/status` response with compact
+  `mavlink_runtime` and `connectivity_runtime` summaries
+- extended GCS fleet git aggregation to carry those summaries through and
+  derive `dashboard_access_mode` / `dashboard_url`
+- updated the drone git inspector UI to show compact sidecar posture and only
+  render dashboard links when they are actually reachable
+- added targeted Python regression coverage for node git status, fleet git
+  aggregation, and dashboard access resolution
+
+Verification:
+
+- `tests/test_drone_api_http.py -k git_status`
+- `tests/test_gcs_api_http.py -k git_status`
+- `tests/test_managed_runtime_status.py`
+- `git diff --check`
+
+Residual drift intentionally deferred to the next slice:
+
+- frontend Jest execution in the clean worktree is still blocked by missing
+  local `node_modules` on this host
+- service-update/reconcile restart policy still needs a dedicated operator-safe
+  slice instead of relying only on git-sync side effects
+
 ## Slice 3
 
 ### Scope

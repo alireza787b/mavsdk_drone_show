@@ -817,6 +817,45 @@ class TestGitStatus:
                 'git_auth_health_issues': [],
             },
         )
+        monkeypatch.setattr(
+            drone_api_server,
+            'build_mavlink_runtime_summary',
+            lambda repo_root: {
+                'status_source': 'script',
+                'management_mode': 'managed',
+                'repo_url': 'https://github.com/demo/mavlink-anywhere.git',
+                'ref': 'v3.0.5',
+                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.5',
+                'install_dir': '/opt/mavlink-anywhere',
+                'install_dir_present': True,
+                'runtime_present': True,
+                'runtime_head': 'abc1234',
+                'router_binary_present': True,
+                'router_service_status': 'active',
+                'dashboard_enabled': True,
+                'dashboard_listen': '0.0.0.0:9070',
+                'dashboard_service_status': 'active',
+            },
+        )
+        monkeypatch.setattr(
+            drone_api_server,
+            'build_connectivity_runtime_summary',
+            lambda repo_root: {
+                'status_source': 'script',
+                'backend': 'smart-wifi-manager',
+                'repo_url': 'https://github.com/demo/smart-wifi-manager.git',
+                'ref': 'v2.1.0',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.0',
+                'install_dir': '/opt/smart-wifi-manager',
+                'install_dir_present': True,
+                'mode': 'observe',
+                'import_mode': 'replace',
+                'profile_path': '/etc/smart-wifi-manager/config.json',
+                'profile_present': True,
+                'dashboard_listen': '127.0.0.1:9080',
+                'service_status': 'active',
+            },
+        )
 
         response = test_client.get("/api/v1/git/status")
 
@@ -829,6 +868,8 @@ class TestGitStatus:
         assert data['status'] == 'clean'
         assert data['repo_access_mode'] == 'https_token_file'
         assert data['git_auth_health_status'] == 'healthy'
+        assert data['mavlink_runtime']['router_service_status'] == 'active'
+        assert data['connectivity_runtime']['service_status'] == 'active'
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
         """Drone git status should expose a usable branch name from detached worktrees."""
@@ -851,6 +892,8 @@ class TestGitStatus:
                 'commits_behind': 0,
             },
         )
+        monkeypatch.setattr(drone_api_server, 'build_mavlink_runtime_summary', lambda repo_root: None)
+        monkeypatch.setattr(drone_api_server, 'build_connectivity_runtime_summary', lambda repo_root: None)
 
         response = test_client.get("/api/v1/git/status")
 

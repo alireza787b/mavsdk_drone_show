@@ -225,6 +225,32 @@
   color: var(--color-danger-text);
 }
 
+.runtime-detail-value {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  text-align: left;
+}
+
+.runtime-detail-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.runtime-detail-links a {
+  color: var(--color-primary);
+  font-size: var(--font-size-xs);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.runtime-detail-links a:hover {
+  text-decoration: underline;
+}
+
 /* Changes List */
 .changes-list {
   margin: 0;
