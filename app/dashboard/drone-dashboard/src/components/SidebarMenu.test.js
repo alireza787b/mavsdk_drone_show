@@ -5,16 +5,20 @@ import { MemoryRouter } from 'react-router-dom';
 import SidebarMenu from './SidebarMenu';
 
 jest.mock('../hooks/useTheme', () => ({
+  __esModule: true,
   useTheme: jest.fn(() => ({ isDark: false })),
 }));
 
 jest.mock('./ThemeToggle', () => jest.fn(() => <div>Theme toggle</div>));
 jest.mock('./CurrentTime', () => jest.fn(() => <span>12:00</span>));
 jest.mock('./GitInfo', () => jest.fn(() => <div>Git info</div>));
-jest.mock('../hooks/useGcsGitInfo', () => jest.fn(() => ({
-  repo: 'demo/customer-mds',
-  runtimeLabel: 'main-candidate · abcdef1',
-})));
+jest.mock('../hooks/useGcsGitInfo', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({
+    repo: 'demo/customer-mds',
+    runtimeLabel: 'main-candidate · abcdef1',
+  })),
+}));
 describe('SidebarMenu', () => {
   it('shows the runtime badge in expanded mode', () => {
     render(
