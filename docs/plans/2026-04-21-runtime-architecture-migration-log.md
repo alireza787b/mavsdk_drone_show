@@ -1248,6 +1248,48 @@ Residual drift after this slice:
 - frontend verification for this slice still needs to be rerun on the
   designated host with dashboard dependencies available
 
+## Slice 22
+
+Goal:
+
+- make current GCS runtime posture visible at the shell level, not only inside
+  Runtime Admin or Mission Config, so operators can still see REAL/SITL status
+  when the sidebar is collapsed or mobile navigation is closed
+
+Implemented:
+
+- added a shared `RuntimeModeBadge` component for shell/runtime surfaces
+- replaced the old expanded-sidebar-only mode pill with the shared badge
+- made the collapsed desktop sidebar keep a compact REAL/SITL badge visible
+  beneath the shell icon
+- added a matching mobile shell badge beside the navigation toggle so current
+  runtime posture stays visible even when the sidebar drawer is closed
+- surfaced restart-required drift in the shell badge itself instead of keeping
+  that warning exclusive to Runtime Admin
+- added focused sidebar regression coverage for expanded and collapsed shell
+  rendering
+
+Verification:
+
+- static clean-worktree review of:
+  - `app/dashboard/drone-dashboard/src/App.js`
+  - `app/dashboard/drone-dashboard/src/App.css`
+  - `app/dashboard/drone-dashboard/src/components/SidebarMenu.js`
+  - `app/dashboard/drone-dashboard/src/components/RuntimeModeBadge.js`
+  - `app/dashboard/drone-dashboard/src/components/SidebarMenu.test.js`
+  - `app/dashboard/drone-dashboard/src/styles/SidebarMenu.css`
+  - `app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css`
+- clean-worktree `git diff --check`: passed
+- frontend execution remains deferred on this host because dashboard
+  dependencies are still not installed locally
+
+Residual drift after this slice:
+
+- mobile shell badge integration is covered by static review, but full browser
+  execution still needs to be rerun on the designated dashboard-validation host
+- other views can still benefit from stronger mode-context cues, but the shell
+  layer now keeps current posture visible without opening Runtime Admin
+
 - private repo still needs the same heartbeat-fencing / Runtime Admin apply
   slice mirrored and re-verified
 - full self-update UX remains a later slice; this one covers host-local apply
