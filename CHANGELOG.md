@@ -42,6 +42,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   local dashboard links derived from their configured listen addresses, while
   explicitly warning that node-local sidecar dashboards are not centrally
   proxied by MDS yet.
+- Runtime Admin repo update-readiness visibility:
+  runtime status now carries a typed GCS repo sync/update posture, and Runtime
+  Admin shows whether the host is up to date, behind and fast-forwardable,
+  dirty, ahead, divergent, or missing an upstream before any self-update path
+  is exposed.
 - dashboard/operator refinement for final tester handoff:
   drone cards now support direct command-scope toggles, per-drone jog access,
   per-drone mission cancel affordances, quieter command-history monitoring,

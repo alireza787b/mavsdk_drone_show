@@ -277,6 +277,15 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     monkeypatch.setenv("MDS_GIT_AUTH_TOKEN_FILE", str(token_file))
     monkeypatch.delenv("MDS_GIT_SSH_KEY_FILE", raising=False)
     monkeypatch.setattr(management_module, "_list_sitl_instance_count", lambda deps: 3)
+    deps.get_gcs_git_report = lambda: {
+        "branch": "customer-demo",
+        "commit": "abcdef12",
+        "remote_url": "https://github.com/demo/customer-mds.git",
+        "tracking_branch": "origin/customer-demo",
+        "status": "clean",
+        "commits_ahead": 0,
+        "commits_behind": 2,
+    }
 
     with TestClient(app) as client:
         response = client.get("/api/v1/system/runtime-status")
@@ -299,6 +308,8 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     assert data["git_auth_token_file"] == str(token_file)
     assert data["git_auth_token_file_readable"] is True
     assert data["git_auth_health"]["status"] == "healthy"
+    assert data["repo_sync_status"]["update_readiness"] == "ready_to_fast_forward"
+    assert data["repo_sync_status"]["fast_forward_update_available"] is True
     assert data["fleet_defaults"]["connectivity_backend"] == "smart-wifi-manager"
     assert data["fleet_defaults"]["smart_wifi_manager_mode"] == "manage"
     assert data["fleet_defaults"]["mavlink_anywhere_ref"] == "v9.9.9"

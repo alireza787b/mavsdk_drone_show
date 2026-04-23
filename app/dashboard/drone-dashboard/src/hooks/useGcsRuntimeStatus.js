@@ -44,6 +44,7 @@ export default function useGcsRuntimeStatus(pollIntervalMs = DEFAULT_POLL_INTERV
     installDir: data?.install_dir || '',
     gcsConfigPath: data?.gcs_config_path || '',
     gitAuthHealth: data?.git_auth_health || { status: 'unknown', summary: '', issues: [] },
+    repoSyncStatus: data?.repo_sync_status || null,
     fleetDefaults: data?.fleet_defaults || null,
     mavlinkRuntime: data?.mavlink_runtime || null,
     connectivityRuntime: data?.connectivity_runtime || null,

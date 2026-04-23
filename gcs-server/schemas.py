@@ -1192,6 +1192,21 @@ class RuntimeGitAuthHealthResponse(BaseModel):
     issues: List[str] = Field(default_factory=list, description="Actionable auth/runtime issues")
 
 
+class RuntimeRepoSyncStatusResponse(BaseModel):
+    """Resolved GCS repo sync/update posture for Runtime Admin."""
+
+    branch: str = Field(..., description="Current branch")
+    commit: str = Field(..., description="Current commit hash")
+    remote_url: Optional[str] = Field(None, description="Current remote URL")
+    tracking_branch: Optional[str] = Field(None, description="Current tracking branch")
+    status: str = Field(..., description="Current working tree status")
+    commits_ahead: int = Field(0, ge=0, description="Commits ahead of tracking branch")
+    commits_behind: int = Field(0, ge=0, description="Commits behind tracking branch")
+    update_readiness: str = Field(..., description="Resolved update posture such as up_to_date or ready_to_fast_forward")
+    update_summary: str = Field(..., description="Operator-facing repo sync/update summary")
+    fast_forward_update_available: bool = Field(..., description="Whether a safe fast-forward update is available")
+
+
 class RuntimeMavlinkRuntimeResponse(BaseModel):
     """Managed mavlink-anywhere runtime status surfaced to Runtime Admin."""
 
@@ -1257,6 +1272,7 @@ class RuntimeStatusResponse(BaseModel):
     git_ssh_key_file: Optional[str] = Field(None, description="Configured SSH private key path")
     git_ssh_key_file_readable: bool = Field(..., description="Whether the configured SSH private key path is readable")
     git_auth_health: RuntimeGitAuthHealthResponse = Field(..., description="Resolved runtime git auth health posture")
+    repo_sync_status: RuntimeRepoSyncStatusResponse = Field(..., description="Resolved GCS repo sync/update posture")
     fleet_defaults: RuntimeFleetDefaultsResponse = Field(..., description="Git-tracked defaults for future node bootstraps")
     mavlink_runtime: RuntimeMavlinkRuntimeResponse = Field(..., description="Resolved local managed mavlink-anywhere runtime status")
     connectivity_runtime: RuntimeConnectivityRuntimeResponse = Field(..., description="Resolved local connectivity backend runtime status")

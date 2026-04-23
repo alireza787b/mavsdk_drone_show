@@ -61,6 +61,41 @@ function formatServiceStatusTone(status) {
   }
 }
 
+function formatRepoSyncTone(status) {
+  switch (status) {
+    case 'up_to_date':
+      return 'good';
+    case 'ready_to_fast_forward':
+    case 'no_tracking_branch':
+      return 'warning';
+    case 'blocked_dirty':
+    case 'divergent':
+    case 'local_ahead':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
+
+function formatRepoSyncLabel(status) {
+  switch (status) {
+    case 'up_to_date':
+      return 'Up to date';
+    case 'ready_to_fast_forward':
+      return 'Update available';
+    case 'blocked_dirty':
+      return 'Dirty checkout';
+    case 'divergent':
+      return 'Diverged';
+    case 'local_ahead':
+      return 'Local ahead';
+    case 'no_tracking_branch':
+      return 'No upstream';
+    default:
+      return 'Repo sync unknown';
+  }
+}
+
 function formatNoticeTone(status, fallback = 'neutral') {
   switch (status) {
     case 'scheduled':
@@ -116,6 +151,7 @@ function RuntimeAdminPage() {
 
   const runtimeTone = runtime.mode === 'real' ? 'real' : runtime.mode === 'sitl' ? 'sitl' : 'neutral';
   const authHealthTone = formatAuthHealthTone(runtime.gitAuthHealth?.status);
+  const repoSyncTone = formatRepoSyncTone(runtime.repoSyncStatus?.update_readiness);
   const docs = [
     { key: 'mds_init_setup', label: 'Bootstrap guide' },
     { key: 'fleet_sync_and_secrets', label: 'Fleet sync and secrets' },
@@ -444,6 +480,22 @@ function RuntimeAdminPage() {
               <dd>{gitInfo.commit || 'Unknown'}</dd>
             </div>
             <div>
+              <dt>Repo sync</dt>
+              <dd>
+                <StatusPill tone={repoSyncTone}>
+                  {formatRepoSyncLabel(runtime.repoSyncStatus?.update_readiness)}
+                </StatusPill>
+              </dd>
+            </div>
+            <div>
+              <dt>Tracking</dt>
+              <dd>{runtime.repoSyncStatus?.tracking_branch || 'Not configured'}</dd>
+            </div>
+            <div>
+              <dt>Sync summary</dt>
+              <dd>{runtime.repoSyncStatus?.update_summary || 'Not reported'}</dd>
+            </div>
+            <div>
               <dt>Install dir</dt>
               <dd>{runtime.installDir || 'Not reported'}</dd>
             </div>
@@ -452,6 +504,11 @@ function RuntimeAdminPage() {
               <dd>{runtime.gcsConfigPath || 'Not reported'}</dd>
             </div>
           </dl>
+          {runtime.repoSyncStatus?.fast_forward_update_available ? (
+            <p className="runtime-admin-page__empty">
+              A controlled fast-forward update is available for this GCS host. Mutation UX is still intentionally deferred until the restart-safe update path is fully closed.
+            </p>
+          ) : null}
         </article>
 
         <article className="runtime-admin-page__card">

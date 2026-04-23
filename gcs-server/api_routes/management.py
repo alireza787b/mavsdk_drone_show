@@ -22,6 +22,7 @@ from schemas import (
     RuntimeFleetDefaultsResponse,
     RuntimeGitAuthHealthResponse,
     RuntimeMavlinkRuntimeResponse,
+    RuntimeRepoSyncStatusResponse,
     RuntimeStatusResponse,
 )
 from src.settings.deployment_profile import load_deployment_profile
@@ -381,6 +382,59 @@ def _build_git_auth_health(
     return RuntimeGitAuthHealthResponse(status=status, summary=summary, issues=issues)
 
 
+def _build_runtime_repo_sync_status(deps: Any) -> RuntimeRepoSyncStatusResponse:
+    try:
+        report = deps.get_gcs_git_report() or {}
+    except Exception:
+        report = {}
+
+    branch = str(report.get("branch") or "unknown")
+    commit = str(report.get("commit") or "")
+    remote_url = report.get("remote_url")
+    tracking_branch = report.get("tracking_branch") or None
+    status = str(report.get("status") or "unknown")
+    commits_ahead = int(report.get("commits_ahead") or 0)
+    commits_behind = int(report.get("commits_behind") or 0)
+
+    if status == "dirty":
+        update_readiness = "blocked_dirty"
+        update_summary = "Local working tree has uncommitted changes; controlled fast-forward update is unsafe."
+        fast_forward_update_available = False
+    elif commits_ahead > 0 and commits_behind > 0:
+        update_readiness = "divergent"
+        update_summary = "Local checkout diverged from its tracking branch; manual reconciliation is required."
+        fast_forward_update_available = False
+    elif commits_ahead > 0:
+        update_readiness = "local_ahead"
+        update_summary = "Local checkout is ahead of its tracking branch; automatic reset/pull would discard local history."
+        fast_forward_update_available = False
+    elif commits_behind > 0:
+        update_readiness = "ready_to_fast_forward"
+        update_summary = f"Tracking branch is ahead by {commits_behind} commit(s); a controlled fast-forward update is available."
+        fast_forward_update_available = True
+    elif tracking_branch:
+        update_readiness = "up_to_date"
+        update_summary = "Local checkout matches its tracking branch."
+        fast_forward_update_available = False
+    else:
+        update_readiness = "no_tracking_branch"
+        update_summary = "No tracking branch is configured; update readiness must be evaluated manually."
+        fast_forward_update_available = False
+
+    return RuntimeRepoSyncStatusResponse(
+        branch=branch,
+        commit=commit,
+        remote_url=remote_url,
+        tracking_branch=tracking_branch,
+        status=status,
+        commits_ahead=commits_ahead,
+        commits_behind=commits_behind,
+        update_readiness=update_readiness,
+        update_summary=update_summary,
+        fast_forward_update_available=fast_forward_update_available,
+    )
+
+
 def _build_mavlink_runtime_status(deployment_profile: Any) -> RuntimeMavlinkRuntimeResponse:
     status = _read_reconcile_status("tools/reconcile_mavlink_runtime.sh")
     repo_url = status.get("repo_url") or deployment_profile.mavlink_anywhere_repo_url_https
@@ -494,6 +548,7 @@ def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:
             ssh_key_file=git_ssh_key_file,
             ssh_key_file_readable=bool(git_ssh_key_file and os.path.isfile(git_ssh_key_file)),
         ),
+        repo_sync_status=_build_runtime_repo_sync_status(deps),
         fleet_defaults=RuntimeFleetDefaultsResponse(
             profile_id=deployment_profile.profile_id,
             profile_source=deployment_profile.source,

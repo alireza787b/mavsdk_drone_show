@@ -1268,6 +1268,20 @@ class TestGCSManagementEndpoints:
         monkeypatch.setattr(app_fastapi.Params, 'GIT_REPO_URL', 'https://github.com/demo/customer-mds.git', raising=False)
         monkeypatch.setattr(app_fastapi.Params, 'GIT_BRANCH', 'customer-demo', raising=False)
         monkeypatch.setattr(
+            app_fastapi,
+            'get_gcs_git_report',
+            lambda: {
+                'branch': 'customer-demo',
+                'commit': 'abcdef12',
+                'remote_url': 'https://github.com/demo/customer-mds.git',
+                'tracking_branch': 'origin/customer-demo',
+                'status': 'clean',
+                'commits_ahead': 0,
+                'commits_behind': 2,
+            },
+            raising=False,
+        )
+        monkeypatch.setattr(
             management_module,
             'resolve_runtime_mode',
             lambda: SimpleNamespace(mode='real', sim_mode=False, source='env:MDS_MODE'),
@@ -1352,6 +1366,8 @@ class TestGCSManagementEndpoints:
         assert data['restart_required'] is False
         assert data['sitl_instance_count'] == 3
         assert data['git_auth_health']['status'] == 'healthy'
+        assert data['repo_sync_status']['update_readiness'] == 'ready_to_fast_forward'
+        assert data['repo_sync_status']['fast_forward_update_available'] is True
         assert data['fleet_defaults']['smart_wifi_manager_mode'] == 'manage'
         assert data['fleet_defaults']['smart_wifi_manager_ref'] == 'v1.2.3'
         assert data['mavlink_runtime']['dashboard_service_status'] == 'active'
