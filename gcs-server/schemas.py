@@ -541,6 +541,41 @@ class HeartbeatPostResponse(BaseModel):
 # Git Status Schemas
 # ============================================================================
 
+class DroneMavlinkRuntimeStatus(BaseModel):
+    """Compact node-local mavlink-anywhere posture for fleet views."""
+
+    status_source: str = Field(..., description="How the node-local runtime status was resolved")
+    management_mode: str = Field(..., description="Managed/manual posture")
+    ref: str = Field(..., description="Resolved runtime ref")
+    repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
+    install_dir_present: bool = Field(..., description="Whether the install directory exists")
+    runtime_present: bool = Field(..., description="Whether a managed runtime checkout exists")
+    runtime_head: Optional[str] = Field(None, description="Current runtime checkout commit")
+    router_service_status: str = Field(..., description="Current mavlink-router service status on the node")
+    dashboard_enabled: bool = Field(..., description="Whether the mavlink-anywhere dashboard should be enabled")
+    dashboard_listen: str = Field(..., description="Configured dashboard listen address")
+    dashboard_service_status: str = Field(..., description="Current dashboard service status on the node")
+    dashboard_access_mode: str = Field("unknown", description="Whether the dashboard is directly reachable, local-only, or disabled")
+    dashboard_url: Optional[str] = Field(None, description="Direct dashboard URL when reachable from the GCS operator network")
+
+
+class DroneConnectivityRuntimeStatus(BaseModel):
+    """Compact node-local Smart Wi-Fi Manager posture for fleet views."""
+
+    status_source: str = Field(..., description="How the node-local runtime status was resolved")
+    backend: str = Field(..., description="Resolved node connectivity backend")
+    ref: str = Field(..., description="Resolved Smart Wi-Fi Manager ref")
+    repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
+    install_dir_present: bool = Field(..., description="Whether the install directory exists")
+    mode: str = Field(..., description="Resolved Smart Wi-Fi Manager operating mode")
+    import_mode: str = Field(..., description="Resolved Smart Wi-Fi Manager import mode")
+    profile_present: bool = Field(..., description="Whether the resolved profile file exists")
+    dashboard_listen: str = Field(..., description="Configured dashboard listen address")
+    service_status: str = Field(..., description="Current Smart Wi-Fi Manager service status on the node")
+    dashboard_access_mode: str = Field("unknown", description="Whether the dashboard is directly reachable, local-only, or disabled")
+    dashboard_url: Optional[str] = Field(None, description="Direct dashboard URL when reachable from the GCS operator network")
+
+
 class DroneGitStatus(BaseModel):
     """Git status for individual drone.
 
@@ -569,6 +604,8 @@ class DroneGitStatus(BaseModel):
     git_auth_health_status: str = Field("unknown", description="Resolved node git auth health status")
     git_auth_health_summary: Optional[str] = Field(None, description="Operator-facing node git auth health summary")
     git_auth_health_issues: List[str] = Field(default_factory=list, description="Operator-facing node git auth issues")
+    mavlink_runtime: Optional["DroneMavlinkRuntimeStatus"] = Field(None, description="Node-local managed mavlink-anywhere posture")
+    connectivity_runtime: Optional["DroneConnectivityRuntimeStatus"] = Field(None, description="Node-local connectivity backend posture")
 
     # Timestamps
     last_check: int = Field(..., description="Last status check timestamp (Unix ms)")

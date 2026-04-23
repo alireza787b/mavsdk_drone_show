@@ -32,6 +32,7 @@ import os
 import time
 import subprocess
 import socket
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 
 # FastAPI imports
@@ -85,6 +86,10 @@ from src.drone_api_routes import (
 from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
     GCS_ORIGIN_BOOTSTRAP_ROUTE,
+)
+from src.managed_runtime_status import (
+    build_connectivity_runtime_summary,
+    build_mavlink_runtime_summary,
 )
 from src.mission_startup import probe_offboard_armability
 from src.px4_param_models import (
@@ -250,6 +255,39 @@ class DroneHealthResponse(BaseModel):
     version: str
 
 
+class DroneManagedMavlinkRuntimeResponse(BaseModel):
+    status_source: str
+    management_mode: str
+    repo_url: str
+    ref: str
+    repo_web_url: Optional[str] = None
+    install_dir: str
+    install_dir_present: bool
+    runtime_present: bool
+    runtime_head: Optional[str] = None
+    router_binary_present: bool
+    router_service_status: str
+    dashboard_enabled: bool
+    dashboard_listen: str
+    dashboard_service_status: str
+
+
+class DroneManagedConnectivityRuntimeResponse(BaseModel):
+    status_source: str
+    backend: str
+    repo_url: str
+    ref: str
+    repo_web_url: Optional[str] = None
+    install_dir: str
+    install_dir_present: bool
+    mode: str
+    import_mode: str
+    profile_path: str
+    profile_present: bool
+    dashboard_listen: str
+    service_status: str
+
+
 class HomePositionResponse(BaseModel):
     latitude: float
     longitude: float
@@ -282,6 +320,8 @@ class DroneGitStatusResponse(BaseModel):
     git_auth_health_status: str = "unknown"
     git_auth_health_summary: str = ""
     git_auth_health_issues: List[str] = Field(default_factory=list)
+    mavlink_runtime: Optional[DroneManagedMavlinkRuntimeResponse] = None
+    connectivity_runtime: Optional[DroneManagedConnectivityRuntimeResponse] = None
 
 
 class PositionDeviationResponse(BaseModel):
@@ -1010,6 +1050,8 @@ class DroneAPIServer:
                 'git_auth_health_status': git_report.get('git_auth_health_status', 'unknown'),
                 'git_auth_health_summary': git_report.get('git_auth_health_summary', ''),
                 'git_auth_health_issues': git_report.get('git_auth_health_issues', []),
+                'mavlink_runtime': build_mavlink_runtime_summary(Path(BASE_DIR)),
+                'connectivity_runtime': build_connectivity_runtime_summary(Path(BASE_DIR)),
             }
 
         @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)

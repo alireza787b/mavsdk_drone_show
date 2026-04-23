@@ -1586,6 +1586,31 @@ class TestGitStatusEndpoints:
             'git_auth_health_status': 'healthy',
             'git_auth_health_summary': 'HTTPS token-file access is configured and readable for node sync.',
             'git_auth_health_issues': [],
+            'mavlink_runtime': {
+                'status_source': 'script',
+                'management_mode': 'managed',
+                'ref': 'v3.0.5',
+                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.5',
+                'install_dir_present': True,
+                'runtime_present': True,
+                'runtime_head': 'abc1234',
+                'router_service_status': 'active',
+                'dashboard_enabled': True,
+                'dashboard_listen': '0.0.0.0:9070',
+                'dashboard_service_status': 'active',
+            },
+            'connectivity_runtime': {
+                'status_source': 'script',
+                'backend': 'smart-wifi-manager',
+                'ref': 'v2.1.0',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.0',
+                'install_dir_present': True,
+                'mode': 'observe',
+                'import_mode': 'replace',
+                'profile_present': True,
+                'dashboard_listen': '127.0.0.1:9080',
+                'service_status': 'active',
+            },
         },
         '2': {'status': 'clean', 'branch': 'main', 'commit': 'abc12345', 'uncommitted_changes': []}
     })
@@ -1608,6 +1633,9 @@ class TestGitStatusEndpoints:
         assert data['git_status']['1']['in_sync_with_gcs'] is True
         assert data['git_status']['1']['repo_access_mode'] == 'https_token_file'
         assert data['git_status']['1']['git_auth_health_status'] == 'healthy'
+        assert data['git_status']['1']['mavlink_runtime']['dashboard_access_mode'] == 'direct'
+        assert data['git_status']['1']['mavlink_runtime']['dashboard_url'] == 'http://10.0.0.1:9070'
+        assert data['git_status']['1']['connectivity_runtime']['dashboard_access_mode'] == 'local_only'
         assert data['needs_sync_count'] == 0
 
     @patch('app_fastapi.git_status_data_all_drones', {

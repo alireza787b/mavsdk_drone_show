@@ -33,6 +33,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   drone git-status payloads now expose repo access posture plus node-local git
   auth health summary/issues without leaking secret file paths, and the GCS git
   aggregation/dashboard surfaces now carry those warnings through to operators.
+- Node managed-runtime visibility on fleet surfaces:
+  drone git-status payloads now carry compact node-local `mavlink-anywhere`
+  and Smart Wi-Fi runtime posture, and the GCS git aggregation/dashboard now
+  resolves whether each node dashboard is directly reachable, local-only, or
+  disabled before exposing operator links.
 - Runtime Admin mixed-mode preflight visibility:
   runtime status/config now report local SITL inventory count, and Runtime
   Admin warns before REAL-mode restart when local SITL containers would remain
