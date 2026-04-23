@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FaBookOpen,
   FaCheckCircle,
@@ -145,6 +146,11 @@ function RuntimeAdminPage() {
     () => draftMode !== effectiveConfiguredMode || Boolean(draftGitAutoPush) !== Boolean(effectiveConfiguredGitAutoPush),
     [draftGitAutoPush, draftMode, effectiveConfiguredGitAutoPush, effectiveConfiguredMode],
   );
+  const sitlInstanceCount = Number.isInteger(runtime.sitlInstanceCount) ? runtime.sitlInstanceCount : null;
+  const showSitlInventoryWarning = Boolean(sitlInstanceCount && effectiveConfiguredMode === 'real');
+  const sitlInventoryWarningMessage = runtime.mode === 'sitl'
+    ? `${sitlInstanceCount} local SITL instance(s) are still running. A REAL restart will fence their heartbeats, but it will not stop the containers automatically.`
+    : `${sitlInstanceCount} local SITL instance(s) are still running on this host while the GCS runtime is in REAL mode. Their heartbeats are fenced, but you should reconcile or stop them explicitly.`;
 
   const setModeDraft = (nextMode) => {
     setDraftMode(nextMode);
@@ -239,6 +245,20 @@ function RuntimeAdminPage() {
       {effectiveRestartRequired ? (
         <div className="runtime-admin-page__banner runtime-admin-page__banner--warning">
           Running GCS runtime and persisted host config do not match. Save any final changes, then apply a clean restart.
+        </div>
+      ) : null}
+
+      {showSitlInventoryWarning ? (
+        <div className="runtime-admin-page__banner runtime-admin-page__banner--warning">
+          <div className="runtime-admin-page__banner-title">
+            <FaExclamationTriangle />
+            <span>{sitlInventoryWarningMessage}</span>
+          </div>
+          <div className="runtime-admin-page__banner-actions">
+            <Link className="runtime-admin-page__doc-link" to="/sitl-control">
+              Open SITL Control
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -363,6 +383,10 @@ function RuntimeAdminPage() {
             <div>
               <dt>Configured auto-push</dt>
               <dd>{effectiveConfiguredGitAutoPush ? 'Enabled' : 'Disabled'}</dd>
+            </div>
+            <div>
+              <dt>Local SITL containers</dt>
+              <dd>{sitlInstanceCount ?? 'Unknown'}</dd>
             </div>
           </dl>
         </article>
@@ -655,6 +679,7 @@ function RuntimeAdminPage() {
           <ul className="runtime-admin-page__notes">
             <li>Mode changes are host-local GCS mutations. Save them first, then apply through the canonical launcher restart.</li>
             <li>Mode-tagged heartbeats are fenced at intake so stale SITL or REAL nodes do not contaminate the other runtime after restart.</li>
+            <li>Local SITL containers are not stopped automatically when switching the GCS into REAL mode; reconcile them explicitly through SITL Control.</li>
             <li>Fleet defaults shown here are git-tracked intent for future bootstraps; node-local overrides still live in each host runtime env.</li>
           </ul>
         </article>

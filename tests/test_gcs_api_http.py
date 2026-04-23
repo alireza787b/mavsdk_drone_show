@@ -1231,6 +1231,7 @@ class TestGCSManagementEndpoints:
             'resolve_runtime_mode',
             lambda: SimpleNamespace(mode='sitl', sim_mode=True, source='default:sitl'),
         )
+        monkeypatch.setattr(management_module, '_list_sitl_instance_count', lambda deps: 0)
 
         response = test_client.get('/api/v1/system/gcs-config')
 
@@ -1247,6 +1248,7 @@ class TestGCSManagementEndpoints:
             'acceptable_deviation': 4.5,
             'gcs_config_path': str(gcs_env),
             'gcs_config_present': False,
+            'sitl_instance_count': 0,
             'restart_required': False,
         }
 
@@ -1335,6 +1337,7 @@ class TestGCSManagementEndpoints:
         monkeypatch.setenv('MDS_INSTALL_DIR', '/opt/demo-gcs')
         monkeypatch.setenv('MDS_GIT_AUTH_TOKEN_FILE', str(token_file))
         monkeypatch.delenv('MDS_GIT_SSH_KEY_FILE', raising=False)
+        monkeypatch.setattr(management_module, '_list_sitl_instance_count', lambda deps: 3)
 
         response = test_client.get('/api/v1/system/runtime-status')
 
@@ -1347,6 +1350,7 @@ class TestGCSManagementEndpoints:
         assert data['repo_access_mode'] == 'https_token_file'
         assert data['configured_git_auto_push'] is False
         assert data['restart_required'] is False
+        assert data['sitl_instance_count'] == 3
         assert data['git_auth_health']['status'] == 'healthy'
         assert data['fleet_defaults']['smart_wifi_manager_mode'] == 'manage'
         assert data['fleet_defaults']['smart_wifi_manager_ref'] == 'v1.2.3'

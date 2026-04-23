@@ -232,6 +232,7 @@ def _build_gcs_config_response(deps: Any) -> GCSConfigResponse:
     running_git_auto_push = bool(deps.Params.GIT_AUTO_PUSH)
     configured_mode = _resolve_configured_runtime_mode(config_values, runtime_mode.mode)
     configured_git_auto_push = _resolve_configured_git_auto_push(config_values, running_git_auto_push)
+    sitl_instance_count = _list_sitl_instance_count(deps)
 
     return GCSConfigResponse(
         sim_mode=bool(runtime_mode.sim_mode),
@@ -245,6 +246,7 @@ def _build_gcs_config_response(deps: Any) -> GCSConfigResponse:
         acceptable_deviation=float(deps.Params.acceptable_deviation),
         gcs_config_path=str(gcs_config_path),
         gcs_config_present=gcs_config_path.is_file(),
+        sitl_instance_count=sitl_instance_count,
         restart_required=(configured_mode != runtime_mode.mode or configured_git_auto_push != running_git_auto_push),
     )
 
@@ -450,6 +452,7 @@ def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:
     configured_mode = _resolve_configured_runtime_mode(gcs_config_values, runtime_mode.mode)
     running_git_auto_push = bool(deps.Params.GIT_AUTO_PUSH)
     configured_git_auto_push = _resolve_configured_git_auto_push(gcs_config_values, running_git_auto_push)
+    sitl_instance_count = _list_sitl_instance_count(deps)
 
     docs = RuntimeDocsResponse(
         mds_init_setup=f"{docs_base}/docs/guides/mds-init-setup.md" if docs_base else None,
@@ -475,6 +478,7 @@ def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:
         configured_sim_mode=(configured_mode == "sitl"),
         configured_git_auto_push=configured_git_auto_push,
         restart_required=(configured_mode != runtime_mode.mode or configured_git_auto_push != running_git_auto_push),
+        sitl_instance_count=sitl_instance_count,
         install_dir=install_dir,
         gcs_config_path=gcs_config_path,
         gcs_config_present=os.path.isfile(gcs_config_path),

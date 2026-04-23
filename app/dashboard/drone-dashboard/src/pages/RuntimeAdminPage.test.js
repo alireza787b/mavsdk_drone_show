@@ -1,7 +1,9 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 import RuntimeAdminPage from './RuntimeAdminPage';
+import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
 
 const mockSaveGcsConfigResponse = jest.fn();
 const mockApplyGcsConfigResponse = jest.fn();
@@ -24,6 +26,7 @@ jest.mock('../hooks/useGcsRuntimeStatus', () => jest.fn(() => ({
   gitAutoPush: false,
   configuredGitAutoPush: false,
   restartRequired: false,
+  sitlInstanceCount: 0,
   installDir: '/opt/demo-gcs',
   gcsConfigPath: '/etc/mds/gcs.env',
   raw: {
@@ -96,7 +99,11 @@ describe('RuntimeAdminPage', () => {
   });
 
   test('renders live runtime posture and doc links', () => {
-    render(<RuntimeAdminPage />);
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage />
+      </MemoryRouter>
+    );
 
     expect(screen.getByRole('heading', { name: /runtime admin/i })).toBeInTheDocument();
     expect(screen.getByText('REAL')).toBeInTheDocument();
@@ -141,7 +148,11 @@ describe('RuntimeAdminPage', () => {
       },
     });
 
-    render(<RuntimeAdminPage />);
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /set runtime mode to sitl/i }));
     fireEvent.click(screen.getByRole('button', { name: /enable git auto-push/i }));
@@ -163,5 +174,26 @@ describe('RuntimeAdminPage', () => {
     });
 
     expect(screen.getByText(/gcs restart scheduled/i)).toBeInTheDocument();
+  });
+
+  test('warns when switching toward REAL while local SITL containers still exist', () => {
+    useGcsRuntimeStatus.mockReturnValueOnce({
+      ...useGcsRuntimeStatus(),
+      mode: 'sitl',
+      modeLabel: 'SITL',
+      configuredMode: 'real',
+      configuredModeLabel: 'REAL',
+      restartRequired: true,
+      sitlInstanceCount: 2,
+    });
+
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/2 local SITL instance\(s\) are still running/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open sitl control/i })).toHaveAttribute('href', '/sitl-control');
   });
 });

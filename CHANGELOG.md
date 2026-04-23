@@ -33,6 +33,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   drone git-status payloads now expose repo access posture plus node-local git
   auth health summary/issues without leaking secret file paths, and the GCS git
   aggregation/dashboard surfaces now carry those warnings through to operators.
+- Runtime Admin mixed-mode preflight visibility:
+  runtime status/config now report local SITL inventory count, and Runtime
+  Admin warns before REAL-mode restart when local SITL containers would remain
+  running and only be heartbeat-fenced rather than stopped automatically.
 - dashboard/operator refinement for final tester handoff:
   drone cards now support direct command-scope toggles, per-drone jog access,
   per-drone mission cancel affordances, quieter command-history monitoring,

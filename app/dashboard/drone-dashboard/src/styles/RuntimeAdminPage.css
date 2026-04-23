@@ -121,6 +121,10 @@
   font-weight: 600;
 }
 
+.runtime-admin-page__banner-actions {
+  margin-top: 0.85rem;
+}
+
 .runtime-admin-page__grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));

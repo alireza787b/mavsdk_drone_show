@@ -1382,3 +1382,50 @@ Residual drift after this slice:
   until dashboard dependencies are restored on the designated validation host
 - auth posture is now visible per node, but fleet-wide auth remediation and
   Runtime Admin self-update/apply controls remain later slices
+
+## Slice 25
+
+Goal:
+
+- make the SITL-to-REAL mode-switch edge case explicit before restart by
+  surfacing local SITL inventory in runtime status and warning operators that
+  those containers are fenced, not auto-stopped, after a REAL restart
+
+Implemented:
+
+- extended `/api/v1/system/gcs-config` and `/api/v1/system/runtime-status` with
+  `sitl_instance_count`
+- reused the existing SITL control inventory path so Runtime Admin no longer
+  has to wait for the apply call to reveal that local SITL containers still
+  exist
+- updated Runtime Admin to:
+  - show the detected local SITL container count in Runtime Controls
+  - raise a pre-restart warning banner when the effective configured mode is
+    REAL and local SITL containers are still present
+  - give operators a direct link to `SITL Control`
+  - keep the operational notes explicit that REAL mode does not auto-stop local
+    SITL containers
+- added focused backend regression coverage for:
+  - config/runtime status exposure of SITL inventory
+  - restart/apply semantics staying intact with the new field
+- added focused frontend test coverage for the warning path, pending execution
+  on the designated dashboard-validation host
+
+Verification:
+
+- focused backend verification passed:
+  - `python3 -m pytest --no-cov tests/test_gcs_management_routes.py -k "gcs_config or runtime_status"`
+  - `python3 -m pytest --no-cov tests/test_gcs_api_http.py -k "test_get_gcs_config or test_get_runtime_status or test_apply_gcs_config_schedules_restart"`
+- clean-worktree `git diff --check`: passed
+- frontend Runtime Admin changes were statically reviewed in:
+  - `app/dashboard/drone-dashboard/src/hooks/useGcsRuntimeStatus.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js`
+  - `app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.test.js`
+  - `app/dashboard/drone-dashboard/src/styles/RuntimeAdminPage.css`
+
+Residual drift after this slice:
+
+- Runtime Admin now warns about local SITL leftovers, but full self-update UX
+  and central sidecar fleet-control remain later slices
+- frontend execution for the new Runtime Admin warning path still needs to run
+  on the designated dashboard-validation host once dependencies are restored
