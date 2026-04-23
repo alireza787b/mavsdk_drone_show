@@ -69,6 +69,7 @@ LOG_FILE="$RESOLVED_HOME/logs/drone_git_sync.log"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
+SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
 RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-2}"
 
 SERVICE_RELOAD_REQUIRED=false
@@ -173,6 +174,81 @@ remember_updated_unit() {
         [[ "$existing" == "$unit_name" ]] && return 0
     done
     UPDATED_SYSTEMD_UNITS+=("$unit_name")
+}
+
+cleanup_staged_unit_backup_entries() {
+    local entry=""
+    local backup_path=""
+
+    for entry in "$@"; do
+        IFS='|' read -r _ backup_path _ <<< "$entry"
+        [[ -n "$backup_path" ]] && rm -f "$backup_path"
+    done
+}
+
+restore_staged_unit_backup_entries() {
+    local component="${1:-SERVICE-UPDATE}"
+    shift || true
+
+    local entry=""
+    local unit_path=""
+    local backup_path=""
+    local existed_before=""
+    local restore_failed=0
+
+    for entry in "$@"; do
+        IFS='|' read -r unit_path backup_path existed_before <<< "$entry"
+
+        if [[ "$existed_before" == "true" ]]; then
+            if [[ -z "$backup_path" || ! -f "$backup_path" ]]; then
+                log_error "$component" "Missing staged backup while restoring ${unit_path}"
+                restore_failed=1
+            elif ! sudo cp "$backup_path" "$unit_path" 2>/dev/null; then
+                log_error "$component" "Failed to restore previous unit file for ${unit_path}"
+                restore_failed=1
+            fi
+        elif ! sudo rm -f "$unit_path" 2>/dev/null; then
+            log_error "$component" "Failed to remove staged unit ${unit_path} during rollback"
+            restore_failed=1
+        fi
+
+        [[ -n "$backup_path" ]] && rm -f "$backup_path"
+    done
+
+    if [[ "$restore_failed" -ne 0 ]]; then
+        return 1
+    fi
+
+    if sudo systemctl daemon-reload 2>/dev/null; then
+        log_warn "$component" "Restored previous unit files after daemon-reload failure"
+        return 0
+    fi
+
+    log_error "$component" "Restored previous unit files, but systemd daemon-reload still failed"
+    return 1
+}
+
+reapply_updated_unit_enablement() {
+    local component="${1:-SERVICE-UPDATE}"
+    shift || true
+
+    local unit_name=""
+    local failures=0
+
+    if [[ $# -eq 0 ]]; then
+        return 0
+    fi
+
+    for unit_name in "$@"; do
+        if sudo systemctl reenable "$unit_name" >/dev/null 2>&1; then
+            log_info "$component" "Refreshed enablement links for ${unit_name}"
+        else
+            log_warn "$component" "Failed to refresh enablement links for ${unit_name}"
+            ((failures++))
+        fi
+    done
+
+    [[ "$failures" -eq 0 ]]
 }
 
 mark_coordinator_restart_needed() {
@@ -485,6 +561,9 @@ check_service_updates() {
     local mds_user="${MDS_USER:-$(id -un)}"
     local mds_home="${MDS_HOME:-${HOME}}"
     local mds_install_dir="${MDS_INSTALL_DIR:-${REPO_DIR}}"
+    local -a staged_updated_units=()
+    local -a staged_reenable_units=()
+    local -a staged_restore_entries=()
 
     log_info "$component" "Checking for service file changes..."
 
@@ -492,15 +571,15 @@ check_service_updates() {
         local src_file repo_file
         case $service in
             coordinator)
-                src_file="/etc/systemd/system/coordinator.service"
+                src_file="${SYSTEMD_DIR}/coordinator.service"
                 repo_file="$REPO_DIR/tools/coordinator.service"
                 ;;
             git_sync_mds)
-                src_file="/etc/systemd/system/git_sync_mds.service"
+                src_file="${SYSTEMD_DIR}/git_sync_mds.service"
                 repo_file="$REPO_DIR/tools/git_sync_mds/git_sync_mds.service"
                 ;;
             led_indicator)
-                src_file="/etc/systemd/system/led_indicator.service"
+                src_file="${SYSTEMD_DIR}/led_indicator.service"
                 repo_file="$REPO_DIR/tools/led_indicator/led_indicator.service"
                 ;;
         esac
@@ -508,6 +587,9 @@ check_service_updates() {
         # Atomic service file update (avoids TOCTOU race condition)
         if [[ -f "$repo_file" ]]; then
             local temp_file
+            local previous_file=""
+            local existed_before="false"
+            local was_enabled="false"
             temp_file=$(mktemp) || continue
             sed \
                 -e "s|__MDS_USER__|${mds_user}|g" \
@@ -522,16 +604,36 @@ check_service_updates() {
                     rm -f "$temp_file"
                     continue
                 fi
+
+                if sudo systemctl is-enabled --quiet "${service}.service" 2>/dev/null; then
+                    was_enabled="true"
+                fi
+
+                if [[ -f "$src_file" ]]; then
+                    previous_file=$(mktemp) || {
+                        log_warn "$component" "Failed to allocate rollback backup for ${service}"
+                        rm -f "$temp_file"
+                        continue
+                    }
+                    if ! cp "$src_file" "$previous_file" 2>/dev/null; then
+                        log_warn "$component" "Failed to capture previous unit file for ${service}"
+                        rm -f "$temp_file" "$previous_file"
+                        continue
+                    fi
+                    existed_before="true"
+                fi
+
                 if sudo mv "$temp_file" "$src_file" 2>/dev/null; then
                     log_info "$component" "Updated $service service file"
                     changed=true
-                    remember_updated_unit "${service}.service"
-                    if [[ "$service" == "coordinator" ]]; then
-                        mark_coordinator_restart_needed "coordinator unit updated"
+                    staged_updated_units+=("${service}.service")
+                    staged_restore_entries+=("${src_file}|${previous_file}|${existed_before}")
+                    if [[ "$was_enabled" == "true" ]]; then
+                        staged_reenable_units+=("${service}.service")
                     fi
                 else
                     log_warn "$component" "Failed to update $service service file (sudo may not be available)"
-                    rm -f "$temp_file"
+                    rm -f "$temp_file" "$previous_file"
                 fi
             else
                 rm -f "$temp_file"
@@ -543,8 +645,21 @@ check_service_updates() {
         log_info "$component" "Reloading systemd daemon..."
         if sudo systemctl daemon-reload 2>/dev/null; then
             SERVICE_RELOAD_REQUIRED=true
+            UPDATED_SYSTEMD_UNITS=("${staged_updated_units[@]}")
+            if [[ ${#staged_reenable_units[@]} -gt 0 ]]; then
+                reapply_updated_unit_enablement "$component" "${staged_reenable_units[@]}" || true
+            fi
+            if printf '%s\n' "${UPDATED_SYSTEMD_UNITS[@]}" | grep -qx 'coordinator.service'; then
+                mark_coordinator_restart_needed "coordinator unit updated"
+            fi
+            cleanup_staged_unit_backup_entries "${staged_restore_entries[@]}"
         else
-            log_warn "$component" "Failed to reload systemd daemon"
+            log_warn "$component" "Failed to reload systemd daemon after unit updates; restoring previous units"
+            UPDATED_SYSTEMD_UNITS=()
+            if ! restore_staged_unit_backup_entries "$component" "${staged_restore_entries[@]}"; then
+                log_error "$component" "Unit rollback failed after daemon-reload failure"
+                return 1
+            fi
         fi
     fi
 }

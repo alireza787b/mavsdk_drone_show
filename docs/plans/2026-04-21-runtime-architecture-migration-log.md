@@ -1069,3 +1069,42 @@ Residual drift after this slice:
   on this host
 - runtime mutation controls (self-update, explicit mode switch, controlled
   external tool profile rollout) remain the next implementation area
+
+## Slice 18
+
+Goal:
+
+- harden post-sync unit-file application so node service updates remain safe
+  even when `daemon-reload` or enablement refresh fails
+
+Implemented:
+
+- made the post-sync service update path respect `MDS_SYSTEMD_DIR` so it can be
+  exercised safely in isolated test environments
+- staged rollback backups for changed rendered unit files before replacing the
+  installed node units
+- refreshed enablement links only for units that were already enabled before a
+  successful unit update
+- restored the previous unit files automatically when `systemctl daemon-reload`
+  failed after staged replacement
+- documented the refined service-update semantics in `docs/features/git-sync.md`
+- added backend/bootstrap tests covering:
+  - enablement refresh after a successful unit update
+  - rollback to previous unit files after a `daemon-reload` failure
+
+Verification:
+
+- official backend/runtime verification passed:
+  - `tests/test_bootstrap_installers.py`
+  - `tests/test_git_sync.py`
+  - `tests/test_runtime_settings.py`
+  - `tests/test_gcs_management_routes.py`
+  - `tests/test_gcs_api_http.py`
+  - `tests/test_api_route_inventory.py`
+
+Residual drift after this slice:
+
+- private repo still needs the same post-sync unit-rollback slice cherry-picked
+  and re-verified
+- runtime mutation controls (self-update, explicit mode switch, controlled
+  external tool profile rollout) remain the next implementation area
