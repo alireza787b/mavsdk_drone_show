@@ -1,6 +1,6 @@
 //app/dashboard/drone-dashboard/src/components/SidebarMenu.js
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import {
   FaGlobe,
   FaTachometerAlt,
@@ -53,6 +53,19 @@ const SidebarMenu = ({
 
   const isCollapsed = mobile ? false : (collapsed !== undefined ? collapsed : localCollapsed);
   const handleToggle = onToggle || setLocalCollapsed;
+  const runningModeLabel = runtimeStatus.modeLabel || 'UNKNOWN';
+  const configuredModeLabel = runtimeStatus.configuredModeLabel || runningModeLabel;
+  const runtimeAligned = !runtimeStatus.restartRequired
+    && String(runtimeStatus.mode || '').trim().toLowerCase() === String(runtimeStatus.configuredMode || '').trim().toLowerCase();
+  const runtimeSummaryText = runtimeStatus.restartRequired
+    ? `Configured ${configuredModeLabel}`
+    : runtimeAligned
+      ? 'Host config aligned'
+      : `Configured ${configuredModeLabel}`;
+  const runtimeSummaryStateLabel = runtimeStatus.restartRequired ? 'Restart pending' : 'Aligned';
+  const runtimeAdminTitle = runtimeStatus.restartRequired
+    ? `Running ${runningModeLabel}. Configured ${configuredModeLabel}. Restart pending; open Runtime Admin.`
+    : `Running ${runningModeLabel}. Open Runtime Admin.`;
 
   const menuSections = [
     {
@@ -84,7 +97,13 @@ const SidebarMenu = ({
     {
       label: 'System',
       items: [
-        { to: '/runtime-admin', icon: FaServer, label: 'Runtime Admin' },
+        {
+          to: '/runtime-admin',
+          icon: FaServer,
+          label: 'Runtime Admin',
+          attention: runtimeStatus.restartRequired ? 'Apply' : '',
+          attentionTone: runtimeStatus.restartRequired ? 'warning' : 'neutral',
+        },
         { to: '/sitl-control', icon: FaDocker, label: 'SITL Control' },
         { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
       ],
@@ -123,9 +142,29 @@ const SidebarMenu = ({
                 <span className="version">{VERSION_DISPLAY}</span>
                 <RuntimeModeBadge
                   mode={runtimeStatus.mode}
+                  configuredMode={runtimeStatus.configuredMode}
                   restartRequired={runtimeStatus.restartRequired}
                   className="sidebar-runtime-badge"
                 />
+                <Link
+                  className={`sidebar-runtime-summary ${runtimeStatus.restartRequired ? 'is-warning' : 'is-aligned'}`}
+                  to="/runtime-admin"
+                  onClick={() => {
+                    if (mobile && onNavigate) {
+                      onNavigate();
+                    }
+                  }}
+                  title={runtimeAdminTitle}
+                  aria-label="Open Runtime Admin to review runtime mode"
+                >
+                  <div className="sidebar-runtime-summary__top">
+                    <span className="sidebar-runtime-summary__label">Running {runningModeLabel}</span>
+                    <span className={`sidebar-runtime-summary__state ${runtimeStatus.restartRequired ? 'is-warning' : 'is-good'}`}>
+                      {runtimeSummaryStateLabel}
+                    </span>
+                  </div>
+                  <div className="sidebar-runtime-summary__detail">{runtimeSummaryText}</div>
+                </Link>
                 <span className="version-meta version-meta--repo">{gitInfo.repo}</span>
                 <span className="version-meta">{gitInfo.runtimeLabel}</span>
               </div>
@@ -136,12 +175,25 @@ const SidebarMenu = ({
             <span className="brand-icon-collapsed" aria-hidden="true">
               <FaSatelliteDish />
             </span>
-            <RuntimeModeBadge
-              mode={runtimeStatus.mode}
-              restartRequired={runtimeStatus.restartRequired}
-              compact
-              className="sidebar-runtime-badge sidebar-runtime-badge--collapsed"
-            />
+            <Link
+              className="sidebar-runtime-summary-collapsed"
+              to="/runtime-admin"
+              onClick={() => {
+                if (mobile && onNavigate) {
+                  onNavigate();
+                }
+              }}
+              title={runtimeAdminTitle}
+              aria-label="Open Runtime Admin to review runtime mode"
+            >
+              <RuntimeModeBadge
+                mode={runtimeStatus.mode}
+                configuredMode={runtimeStatus.configuredMode}
+                restartRequired={runtimeStatus.restartRequired}
+                compact
+                className="sidebar-runtime-badge sidebar-runtime-badge--collapsed"
+              />
+            </Link>
           </div>
         )}
       </div>
@@ -172,6 +224,12 @@ const SidebarMenu = ({
                 >
                   <IconComponent className="nav-icon" />
                   {!isCollapsed && <span className="nav-label">{item.label}</span>}
+                  {!isCollapsed && item.attention ? (
+                    <span className={`nav-indicator nav-indicator--${item.attentionTone || 'neutral'}`}>{item.attention}</span>
+                  ) : null}
+                  {isCollapsed && item.attention ? (
+                    <span className={`nav-indicator-dot nav-indicator-dot--${item.attentionTone || 'neutral'}`} aria-hidden="true" />
+                  ) : null}
 
                   {/* Tooltip for collapsed state */}
                   {isCollapsed && activeTooltip === item.label && (

@@ -17,25 +17,40 @@ function normalizeMode(mode) {
 
 export default function RuntimeModeBadge({
   mode,
+  configuredMode = '',
   restartRequired = false,
   compact = false,
   className = '',
 }) {
   const normalizedMode = normalizeMode(mode);
+  const normalizedConfiguredMode = normalizeMode(configuredMode);
   const label = normalizedMode === 'real'
     ? 'REAL'
     : normalizedMode === 'sitl'
       ? 'SITL'
       : 'UNKNOWN';
+  const configuredLabel = normalizedConfiguredMode === 'real'
+    ? 'REAL'
+    : normalizedConfiguredMode === 'sitl'
+      ? 'SITL'
+      : 'UNKNOWN';
+  const configMatches = normalizedConfiguredMode === normalizedMode && normalizedConfiguredMode !== 'unknown';
   const title = restartRequired
-    ? `${label} runtime. Persisted host config differs from the running process; apply restart in Runtime Admin.`
-    : `${label} runtime.`;
+    ? `${label} runtime. Persisted host config is ${configuredLabel}; apply restart in Runtime Admin.`
+    : configMatches
+      ? `${label} runtime. Persisted host config matches the running process.`
+      : `${label} runtime.`;
+  const ariaLabel = restartRequired
+    ? `${label} runtime, configured ${configuredLabel}, restart required`
+    : configMatches
+      ? `${label} runtime, host config aligned`
+      : `${label} runtime`;
 
   return (
     <span
       className={`runtime-mode-badge runtime-mode-badge--${normalizedMode}${compact ? ' runtime-mode-badge--compact' : ''}${restartRequired ? ' runtime-mode-badge--restart-required' : ''}${className ? ` ${className}` : ''}`}
       title={title}
-      aria-label={restartRequired ? `${label} runtime, restart required` : `${label} runtime`}
+      aria-label={ariaLabel}
     >
       <span className="runtime-mode-badge__label">{label}</span>
       {restartRequired ? (
@@ -47,6 +62,7 @@ export default function RuntimeModeBadge({
 
 RuntimeModeBadge.propTypes = {
   mode: PropTypes.string,
+  configuredMode: PropTypes.string,
   restartRequired: PropTypes.bool,
   compact: PropTypes.bool,
   className: PropTypes.string,
