@@ -1065,6 +1065,42 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_post_sync_service_actions_record_deferred_unit_apply_paths():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir" "$bin_dir" "$home_dir/logs"
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+case "$*" in
+  "is-active --quiet coordinator.service") exit 1 ;;
+  "is-failed --quiet coordinator.service") exit 1 ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; SERVICE_RELOAD_REQUIRED=true; UPDATED_SYSTEMD_UNITS=("git_sync_mds.service" "led_indicator.service"); mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "git_sync_mds.service:next_invocation"; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "led_indicator.service:next_boot"; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "coordinator.service:inactive_left_stopped"'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_git_sync_runtime_state_persists_post_sync_summary():
     result = run_bash(
         f"""
@@ -1076,6 +1112,9 @@ def test_git_sync_runtime_state_persists_post_sync_summary():
         BRANCH_NAME="main-candidate"
         source "{GIT_SYNC_SCRIPT}"
         UPDATED_SYSTEMD_UNITS=("coordinator.service" "git_sync_mds.service")
+        DEFERRED_UNIT_ACTIONS=("git_sync_mds.service:next_invocation")
+        SERVICE_RELOAD_STATUS="updated"
+        SERVICE_RELOAD_MESSAGE="Systemd unit updates were applied successfully."
         COORDINATOR_RESTART_REASONS=("runtime files changed")
         COORDINATOR_RESTART_SCHEDULED=true
         CONNECTIVITY_RECONCILE_STATUS="success"
@@ -1084,6 +1123,9 @@ def test_git_sync_runtime_state_persists_post_sync_summary():
         persist_git_sync_state "success" "Git synchronization completed successfully"
         grep -q '^status=success$' "$tmpdir/last_result.env"
         grep -q '^updated_units=coordinator.service,git_sync_mds.service$' "$tmpdir/last_result.env"
+        grep -q '^service_reload_status=updated$' "$tmpdir/last_result.env"
+        grep -q '^service_reload_message=Systemd unit updates were applied successfully.$' "$tmpdir/last_result.env"
+        grep -q '^deferred_unit_actions=git_sync_mds.service:next_invocation$' "$tmpdir/last_result.env"
         grep -q '^coordinator_restart_scheduled=true$' "$tmpdir/last_result.env"
         grep -q '^connectivity_reconcile_status=success$' "$tmpdir/last_result.env"
         grep -q '^mavlink_runtime_reconcile_status=warning$' "$tmpdir/last_result.env"

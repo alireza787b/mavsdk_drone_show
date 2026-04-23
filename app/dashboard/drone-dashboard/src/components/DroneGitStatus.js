@@ -259,6 +259,12 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
                       Units: {gitStatus.git_sync_runtime.updated_units.join(', ')}
                     </span>
                   )}
+                {Array.isArray(gitStatus.git_sync_runtime.deferred_unit_actions)
+                  && gitStatus.git_sync_runtime.deferred_unit_actions.length > 0 && (
+                    <span className="runtime-detail-subtle">
+                      Deferred: {gitStatus.git_sync_runtime.deferred_unit_actions.join(', ')}
+                    </span>
+                  )}
               </div>
             </div>
           )}
@@ -338,6 +344,7 @@ DroneGitStatus.propTypes = {
       status: PropTypes.string,
       summary: PropTypes.string,
       updated_units: PropTypes.arrayOf(PropTypes.string),
+      deferred_unit_actions: PropTypes.arrayOf(PropTypes.string),
     }),
   }),
   gcsGitStatus: PropTypes.shape({

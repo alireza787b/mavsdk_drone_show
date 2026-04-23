@@ -75,6 +75,8 @@ GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-/var/lib/mds/git-sync}"
 GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
 
 SERVICE_RELOAD_REQUIRED=false
+SERVICE_RELOAD_STATUS="not_required"
+SERVICE_RELOAD_MESSAGE=""
 COORDINATOR_RESTART_NEEDED=false
 COORDINATOR_RESTART_SCHEDULED=false
 CONNECTIVITY_RECONCILE_STATUS="not_required"
@@ -82,6 +84,7 @@ MAVLINK_RUNTIME_RECONCILE_STATUS="not_required"
 REQUIREMENTS_UPDATE_STATUS="unchanged"
 declare -a COORDINATOR_RESTART_REASONS=()
 declare -a UPDATED_SYSTEMD_UNITS=()
+declare -a DEFERRED_UNIT_ACTIONS=()
 
 # ----------------------------------
 # Enhanced Logging System (FIXED - No variable corruption)
@@ -156,6 +159,7 @@ persist_git_sync_state() {
     local timestamp_ms=""
     local updated_units_csv=""
     local restart_reasons_csv=""
+    local deferred_unit_actions_csv=""
 
     state_dir="$(dirname "${state_file}")"
     mkdir -p "${state_dir}" 2>/dev/null || return 0
@@ -164,6 +168,7 @@ persist_git_sync_state() {
     timestamp_ms=$(date +%s%3N 2>/dev/null || echo "")
     updated_units_csv=$(join_by_comma "${UPDATED_SYSTEMD_UNITS[@]}")
     restart_reasons_csv=$(join_by_comma "${COORDINATOR_RESTART_REASONS[@]}")
+    deferred_unit_actions_csv=$(join_by_comma "${DEFERRED_UNIT_ACTIONS[@]}")
 
     {
         printf 'status=%s\n' "$(sanitize_state_value "${sync_status}")"
@@ -172,6 +177,9 @@ persist_git_sync_state() {
         printf 'timestamp_ms=%s\n' "$(sanitize_state_value "${timestamp_ms}")"
         printf 'message=%s\n' "$(sanitize_state_value "${message}")"
         printf 'updated_units=%s\n' "$(sanitize_state_value "${updated_units_csv}")"
+        printf 'service_reload_status=%s\n' "$(sanitize_state_value "${SERVICE_RELOAD_STATUS}")"
+        printf 'service_reload_message=%s\n' "$(sanitize_state_value "${SERVICE_RELOAD_MESSAGE}")"
+        printf 'deferred_unit_actions=%s\n' "$(sanitize_state_value "${deferred_unit_actions_csv}")"
         printf 'coordinator_restart_scheduled=%s\n' "$(sanitize_state_value "${COORDINATOR_RESTART_SCHEDULED}")"
         printf 'coordinator_restart_reasons=%s\n' "$(sanitize_state_value "${restart_reasons_csv}")"
         printf 'connectivity_reconcile_status=%s\n' "$(sanitize_state_value "${CONNECTIVITY_RECONCILE_STATUS}")"
@@ -226,6 +234,19 @@ remember_updated_unit() {
         [[ "$existing" == "$unit_name" ]] && return 0
     done
     UPDATED_SYSTEMD_UNITS+=("$unit_name")
+}
+
+record_deferred_unit_action() {
+    local action_name="$1"
+    local existing=""
+
+    [[ -n "$action_name" ]] || return 0
+
+    for existing in "${DEFERRED_UNIT_ACTIONS[@]}"; do
+        [[ "$existing" == "$action_name" ]] && return 0
+    done
+
+    DEFERRED_UNIT_ACTIONS+=("$action_name")
 }
 
 cleanup_staged_unit_backup_entries() {
@@ -475,9 +496,12 @@ rollback_repository_to_previous_head() {
 
     if git -C "$REPO_DIR" reset --hard "$target_head" >/dev/null 2>&1; then
         SERVICE_RELOAD_REQUIRED=false
+        SERVICE_RELOAD_STATUS="not_required"
+        SERVICE_RELOAD_MESSAGE=""
         COORDINATOR_RESTART_NEEDED=false
         COORDINATOR_RESTART_REASONS=()
         UPDATED_SYSTEMD_UNITS=()
+        DEFERRED_UNIT_ACTIONS=()
         log_warn "$component" "Rolled back runtime repository to ${target_head}"
         return 0
     fi
@@ -579,9 +603,11 @@ apply_post_sync_service_actions() {
         log_info "$component" "Updated systemd units: ${UPDATED_SYSTEMD_UNITS[*]}"
         if printf '%s\n' "${UPDATED_SYSTEMD_UNITS[@]}" | grep -qx 'git_sync_mds.service'; then
             log_info "$component" "git_sync_mds.service changes will apply on the next service invocation"
+            record_deferred_unit_action "git_sync_mds.service:next_invocation"
         fi
         if printf '%s\n' "${UPDATED_SYSTEMD_UNITS[@]}" | grep -qx 'led_indicator.service'; then
             log_info "$component" "led_indicator.service changes will apply on the next boot"
+            record_deferred_unit_action "led_indicator.service:next_boot"
         fi
     fi
 
@@ -596,12 +622,15 @@ apply_post_sync_service_actions() {
         restart_action="restart"
     else
         log_info "$component" "Coordinator is inactive; leaving it stopped. Restart reasons: ${COORDINATOR_RESTART_REASONS[*]}"
+        record_deferred_unit_action "coordinator.service:inactive_left_stopped"
         return 0
     fi
 
     log_info "$component" "Coordinator restart requested: ${COORDINATOR_RESTART_REASONS[*]}"
     if schedule_systemd_restart "coordinator.service" "$restart_action" "$RUNTIME_RESTART_DELAY_SECONDS"; then
         COORDINATOR_RESTART_SCHEDULED=true
+    else
+        record_deferred_unit_action "coordinator.service:manual_restart_required"
     fi
 }
 
@@ -620,6 +649,8 @@ check_service_updates() {
     local -a staged_restore_entries=()
 
     log_info "$component" "Checking for service file changes..."
+    SERVICE_RELOAD_STATUS="not_required"
+    SERVICE_RELOAD_MESSAGE=""
 
     for service in "${services[@]}"; do
         local src_file repo_file
@@ -699,6 +730,8 @@ check_service_updates() {
         log_info "$component" "Reloading systemd daemon..."
         if sudo systemctl daemon-reload 2>/dev/null; then
             SERVICE_RELOAD_REQUIRED=true
+            SERVICE_RELOAD_STATUS="updated"
+            SERVICE_RELOAD_MESSAGE="Systemd unit updates were applied successfully."
             UPDATED_SYSTEMD_UNITS=("${staged_updated_units[@]}")
             if [[ ${#staged_reenable_units[@]} -gt 0 ]]; then
                 reapply_updated_unit_enablement "$component" "${staged_reenable_units[@]}" || true
@@ -709,8 +742,12 @@ check_service_updates() {
             cleanup_staged_unit_backup_entries "${staged_restore_entries[@]}"
         else
             log_warn "$component" "Failed to reload systemd daemon after unit updates; restoring previous units"
+            SERVICE_RELOAD_STATUS="rolled_back"
+            SERVICE_RELOAD_MESSAGE="Systemd unit updates failed daemon-reload and were rolled back."
             UPDATED_SYSTEMD_UNITS=()
             if ! restore_staged_unit_backup_entries "$component" "${staged_restore_entries[@]}"; then
+                SERVICE_RELOAD_STATUS="error"
+                SERVICE_RELOAD_MESSAGE="Systemd unit rollback failed after daemon-reload failure."
                 log_error "$component" "Unit rollback failed after daemon-reload failure"
                 return 1
             fi
@@ -1486,7 +1523,9 @@ main() {
         fi
         log_error_and_exit "POST-SYNC-VALIDATION" "Pulled runtime changes failed validation and rollback did not succeed"
     fi
-    check_service_updates
+    if ! check_service_updates; then
+        exit_with_failure_result "SERVICE-UPDATE" "Post-sync systemd unit reconcile failed and requires manual recovery" 1 "GIT_FAILED_CONTINUING"
+    fi
     check_connectivity_updates
     check_mavlink_runtime_updates
     check_requirements_update

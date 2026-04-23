@@ -37,6 +37,9 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
                 "message=Git synchronization completed successfully",
                 "timestamp_ms=1770000000000",
                 "updated_units=coordinator.service,git_sync_mds.service",
+                "service_reload_status=updated",
+                "service_reload_message=Systemd unit updates were applied successfully.",
+                "deferred_unit_actions=git_sync_mds.service:next_invocation,coordinator.service:manual_restart_required",
                 "coordinator_restart_scheduled=true",
                 "connectivity_reconcile_status=success",
                 "mavlink_runtime_reconcile_status=warning",
@@ -50,6 +53,12 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
     result = read_git_sync_runtime_summary()
 
     assert result["status"] == "success"
+    assert result["service_reload_status"] == "updated"
     assert result["coordinator_restart_scheduled"] is True
     assert result["updated_units"] == ["coordinator.service", "git_sync_mds.service"]
+    assert result["deferred_unit_actions"] == [
+        "git_sync_mds.service:next_invocation",
+        "coordinator.service:manual_restart_required",
+    ]
     assert "Coordinator restart scheduled" in result["summary"]
+    assert "Deferred apply: git_sync_mds.service:next_invocation, coordinator.service:manual_restart_required" in result["summary"]

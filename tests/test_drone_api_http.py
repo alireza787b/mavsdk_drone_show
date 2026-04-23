@@ -864,6 +864,9 @@ class TestGitStatus:
                 'summary': 'Git synchronization completed successfully · Coordinator restart scheduled',
                 'last_run_at_ms': 1770000000000,
                 'updated_units': ['coordinator.service'],
+                'service_reload_status': 'updated',
+                'service_reload_message': 'Systemd unit updates were applied successfully.',
+                'deferred_unit_actions': ['git_sync_mds.service:next_invocation'],
                 'coordinator_restart_scheduled': True,
                 'connectivity_reconcile_status': 'success',
                 'mavlink_runtime_reconcile_status': 'success',
@@ -884,6 +887,8 @@ class TestGitStatus:
         assert data['git_auth_health_status'] == 'healthy'
         assert data['mavlink_runtime']['router_service_status'] == 'active'
         assert data['connectivity_runtime']['service_status'] == 'active'
+        assert data['git_sync_runtime']['service_reload_status'] == 'updated'
+        assert data['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_sync_runtime']['coordinator_restart_scheduled'] is True
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
