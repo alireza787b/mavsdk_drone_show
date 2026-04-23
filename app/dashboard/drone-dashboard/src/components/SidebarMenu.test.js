@@ -2,8 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import SidebarMenu from './SidebarMenu';
-
 jest.mock('../hooks/useTheme', () => ({
   __esModule: true,
   useTheme: jest.fn(() => ({ isDark: false })),
@@ -19,6 +17,8 @@ jest.mock('../hooks/useGcsGitInfo', () => ({
     runtimeLabel: 'main-candidate · abcdef1',
   })),
 }));
+
+const SidebarMenu = require('./SidebarMenu').default;
 describe('SidebarMenu', () => {
   it('shows the runtime badge in expanded mode', () => {
     render(

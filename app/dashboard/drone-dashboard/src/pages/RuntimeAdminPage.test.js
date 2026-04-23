@@ -2,9 +2,6 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
-import RuntimeAdminPage from './RuntimeAdminPage';
-import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
-
 const mockSaveGcsConfigResponse = jest.fn();
 const mockApplyGcsConfigResponse = jest.fn();
 const mockApplyRuntimeUpdateResponse = jest.fn();
@@ -112,6 +109,9 @@ jest.mock('../services/gcsApiService', () => ({
   applyGcsConfigResponse: (...args) => mockApplyGcsConfigResponse(...args),
   applyRuntimeUpdateResponse: (...args) => mockApplyRuntimeUpdateResponse(...args),
 }));
+
+const RuntimeAdminPage = require('./RuntimeAdminPage').default;
+const useGcsRuntimeStatus = require('../hooks/useGcsRuntimeStatus').default;
 
 describe('RuntimeAdminPage', () => {
   beforeEach(() => {
