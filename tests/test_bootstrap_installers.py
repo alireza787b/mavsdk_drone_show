@@ -918,6 +918,153 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_service_unit_updates_do_not_restart_running_sync():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools/git_sync_mds" "$systemd_dir" "$bin_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'git_sync_mds.service'}" "$repo_dir/tools/git_sync_mds/git_sync_mds.service"
+
+        cat > "$systemd_dir/git_sync_mds.service" <<'EOF'
+[Service]
+ExecStart=/old/path/update_repo_ssh.sh
+EOF
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemd-analyze" <<'EOF'
+#!/bin/bash
+exit 0
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "is-enabled --quiet git_sync_mds.service") exit 0 ;;
+  "daemon-reload") exit 0 ;;
+  "reenable git_sync_mds.service") exit 0 ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemd-analyze" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_service_updates; service_file="$MDS_SYSTEMD_DIR/git_sync_mds.service"; grep -q "^User=companion$" "$service_file"; grep -q "^WorkingDirectory=$REPO_DIR$" "$service_file"; grep -q "^ExecStart=$REPO_DIR/tools/update_repo_ssh.sh$" "$service_file"; printf "%s\\n" "${{UPDATED_SYSTEMD_UNITS[@]}}" | grep -qx "git_sync_mds.service"'
+
+        grep -q "^daemon-reload$" "$tmpdir/systemctl.log"
+        grep -q "^reenable git_sync_mds.service$" "$tmpdir/systemctl.log"
+        ! grep -q "restart git_sync_mds.service" "$tmpdir/systemctl.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_post_sync_runtime_restart_schedules_coordinator_when_active():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir" "$bin_dir" "$home_dir/logs"
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "is-active --quiet coordinator.service") exit 0 ;;
+  "is-failed --quiet coordinator.service") exit 1 ;;
+esac
+exit 1
+EOF
+        cat > "$bin_dir/systemd-run" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemd-run.log"
+exit 0
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl" "$bin_dir/systemd-run"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions'
+
+        grep -q "is-active --quiet coordinator.service" "$tmpdir/systemctl.log"
+        grep -q "restart coordinator.service" "$tmpdir/systemd-run.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_post_sync_runtime_restart_keeps_inactive_coordinator_stopped():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir" "$bin_dir" "$home_dir/logs"
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exec "$@"
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "is-active --quiet coordinator.service") exit 1 ;;
+  "is-failed --quiet coordinator.service") exit 1 ;;
+esac
+exit 1
+EOF
+        cat > "$bin_dir/systemd-run" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemd-run.log"
+exit 0
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl" "$bin_dir/systemd-run"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; [[ ! -f "$TMPDIR/systemd-run.log" ]]'
+
+        grep -q "is-active --quiet coordinator.service" "$tmpdir/systemctl.log"
+        grep -q "is-failed --quiet coordinator.service" "$tmpdir/systemctl.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_python_env_prefers_node_requirements_when_present():
     result = run_bash(
         f"""

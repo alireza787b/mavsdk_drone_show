@@ -130,6 +130,8 @@ Important service semantics:
 - `coordinator.service`
   - restarted after sync only when runtime-affecting code, its rendered unit, or
     Python requirements changed
+  - if the coordinator was already inactive, git sync leaves it stopped instead
+    of auto-starting a dormant node runtime unexpectedly
 - `git_sync_mds.service`
   - its unit file is updated safely, but the currently running oneshot sync is
     not restarted from inside itself
@@ -143,6 +145,20 @@ Important service semantics:
   - the new unit applies on the next boot
 
 This keeps the node converged without turning every pull into a blanket restart.
+
+Version ownership for optional sidecars is separate from the MDS Python/systemd
+units:
+
+- `smart-wifi-manager`
+  - version/ref intent comes from `deployment/defaults.env` plus optional
+    `/etc/mds/local.env` overrides
+  - git sync does not treat it as an MDS submodule; it re-applies ownership
+    through `tools/reconcile_connectivity.sh`
+- `mavlink-anywhere`
+  - version/ref/install intent comes from `deployment/defaults.env` plus
+    optional `/etc/mds/local.env` overrides
+  - git sync does not restart a random router unit blindly; it re-applies the
+    managed external runtime contract through `tools/reconcile_mavlink_runtime.sh`
 
 Validation and rollback coverage:
 

@@ -1290,6 +1290,45 @@ Residual drift after this slice:
 - other views can still benefit from stronger mode-context cues, but the shell
   layer now keeps current posture visible without opening Runtime Admin
 
+## Slice 23
+
+Goal:
+
+- lock the git-sync post-update service contract down with focused tests and
+  operator-facing wording, so future runtime changes do not quietly regress
+  into blanket restarts or accidental dormant-service activation
+
+Implemented:
+
+- added focused shell regression coverage for:
+  - `git_sync_mds.service` unit updates reloading and re-enabling safely
+    without trying to restart the currently running sync job
+  - coordinator restart scheduling when a post-sync runtime restart is needed
+    and the coordinator is active
+  - leaving the coordinator intentionally stopped when it is inactive at the
+    moment post-sync reconcile runs
+- tightened `tools/local.env.template` wording to use the canonical
+  `coordinator.service` unit name
+- expanded `docs/features/git-sync.md` so it now states explicitly that:
+  - inactive coordinator runtimes stay stopped after sync
+  - `git_sync_mds.service` unit updates apply on the next invocation instead of
+    self-restarting from inside the running sync
+  - external `smart-wifi-manager` and `mavlink-anywhere` ownership is versioned
+    through deployment/defaults plus local env overrides and reconciled by
+    dedicated helpers rather than treated as MDS submodules
+
+Verification:
+
+- focused shell/bootstrap verification passed:
+  - `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "git_sync_service_unit_updates_do_not_restart_running_sync or post_sync_runtime_restart_schedules_coordinator_when_active or post_sync_runtime_restart_keeps_inactive_coordinator_stopped"`
+
+Residual drift after this slice:
+
+- broader service/bootstrap policy is now clearer, but GCS self-update and
+  optional sidecar fleet-control UX are still later slices
+- frontend/dashboard presentation for node-local sidecar policy remains a
+  separate runtime-admin/fleet-ops slice
+
 - private repo still needs the same heartbeat-fencing / Runtime Admin apply
   slice mirrored and re-verified
 - full self-update UX remains a later slice; this one covers host-local apply

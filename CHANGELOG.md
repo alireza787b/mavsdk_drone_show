@@ -111,6 +111,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - the GCS repository phase now respects explicit private HTTPS repo selection
 
 ### Fixed
+- git-sync post-sync service policy is now explicit and regression-tested:
+  coordinator restarts are scheduled only when appropriate, inactive
+  coordinator runtimes stay intentionally stopped after sync, `git_sync_mds`
+  unit updates reapply safely without trying to restart the running sync job,
+  and the node-local env template now points at the canonical
+  `coordinator.service` unit name
 - shell-level runtime posture is now visible even when navigation is collapsed:
   the sidebar uses one shared runtime badge in expanded and collapsed states,
   mobile now keeps the same REAL/SITL badge visible beside the navigation
