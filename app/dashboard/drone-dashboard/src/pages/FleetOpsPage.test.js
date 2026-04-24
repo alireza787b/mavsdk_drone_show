@@ -107,6 +107,10 @@ function mockFleetFeeds() {
   });
 }
 
+function clonePayload(payload) {
+  return JSON.parse(JSON.stringify(payload));
+}
+
 describe('FleetOpsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -146,6 +150,49 @@ describe('FleetOpsPage', () => {
     const attentionCard = screen.getByRole('heading', { name: /hw 2/i }).closest('article');
     expect(within(attentionCard).getByText('Offline')).toBeInTheDocument();
     expect(within(attentionCard).getAllByText('Drift').length).toBeGreaterThan(0);
+  });
+
+  test('drift filter includes sidecar and node-runtime drift, not only repo drift', () => {
+    const driftGitPayload = clonePayload(gitPayload);
+    driftGitPayload.git_status[3] = {
+      pos_id: 3,
+      hw_id: '3',
+      ip: '100.82.47.9',
+      branch: 'main-candidate',
+      commit: 'abcdef1234567890',
+      in_sync_with_gcs: true,
+      repo_access_mode: 'https_token_file',
+      git_auth_health_status: 'healthy',
+      git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
+      mavlink_runtime: {
+        management_mode: 'managed',
+        ref: 'v3.0.8',
+        router_service_status: 'active',
+        dashboard_enabled: false,
+        desired_config_hash: 'aaaaaaaaaaaaaaaa',
+        applied_config_hash: 'bbbbbbbbbbbbbbbb',
+        config_hash_match: false,
+      },
+      connectivity_runtime: { backend: 'none' },
+      git_sync_runtime: {
+        status: 'success',
+        summary: 'Git synchronization completed successfully; unit update requires installer refresh.',
+        service_reload_status: 'warning',
+        deferred_unit_actions: ['git_sync_mds.service:manual_unit_update_required'],
+        mavlink_runtime_reconcile_status: 'success',
+        connectivity_reconcile_status: 'not_required',
+      },
+    };
+    const driftHeartbeatPayload = clonePayload(heartbeatPayload);
+    driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '100.82.47.9', online: true, runtime_mode: 'real' });
+
+    render(<FleetOpsPage gitStatusOverride={driftGitPayload} heartbeatOverride={driftHeartbeatPayload} />);
+
+    fireEvent.change(screen.getByLabelText(/filter/i), { target: { value: 'drift' } });
+
+    expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /hw 3/i })).toBeInTheDocument();
   });
 
   test('shows sidecar detail and treats local-only dashboards as diagnostics, not primary controls', () => {

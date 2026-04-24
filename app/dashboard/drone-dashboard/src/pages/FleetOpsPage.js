@@ -234,7 +234,7 @@ function filterRows(rows, query, filter) {
     if (filter === 'offline' && row.online) {
       return false;
     }
-    if (filter === 'drift' && row.sync.state === 'synced') {
+    if (filter === 'drift' && !row.hasDrift) {
       return false;
     }
 
@@ -250,6 +250,11 @@ function filterRows(rows, query, filter) {
       row.shortCommit,
       row.accessLabel,
       row.runtimeModeLabel,
+      row.sync.detail,
+      row.auth.detail,
+      row.nodeSyncRuntime.detail,
+      row.mavlink.detail,
+      row.connectivity.detail,
     ].join(' ').toLowerCase().includes(normalizedQuery);
   });
 }
@@ -326,8 +331,8 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
           icon={FaNetworkWired}
           label="Sidecars"
           value={`${viewModel.summary.mavlinkHealthy} MAVLink`}
-          detail={`${viewModel.summary.connectivityHealthy} connectivity healthy · ${viewModel.summary.connectivityNotApplicable} not applicable`}
-          tone="neutral"
+          detail={`${viewModel.summary.connectivityHealthy} connectivity healthy · ${viewModel.summary.sidecarAttention} sidecar · ${viewModel.summary.nodeSyncRuntimeAttention} sync attention`}
+          tone={viewModel.summary.sidecarAttention || viewModel.summary.nodeSyncRuntimeAttention ? 'warning' : 'good'}
         />
       </section>
 
