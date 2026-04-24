@@ -408,7 +408,7 @@ validate_post_sync_service_template() {
     local component="${2:-POST-SYNC-VALIDATION}"
     local temp_file=""
 
-    temp_file=$(mktemp) || {
+    temp_file=$(mktemp --suffix=.service) || {
         log_error "$component" "Failed to allocate temp file for ${repo_relative_path}"
         return 1
     }

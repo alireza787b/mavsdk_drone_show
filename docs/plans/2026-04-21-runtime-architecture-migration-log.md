@@ -1655,3 +1655,31 @@ Residual drift after this slice:
   frontend rebuild/restart semantics are explicitly versioned and reconciled
 - 2026-04-23: Surfaced runtime posture in the shared dashboard chrome. Sidebar/mobile header now expose running mode, configured-mode drift, and restart-pending cues without requiring operators to open Runtime Admin first.
 - 2026-04-23: Hardened node post-sync service reconcile handling. Git sync state now records unit reload outcomes and deferred apply actions, and fatal service reconcile failures abort the sync flow instead of continuing silently.
+
+## Slice 31
+
+Goal:
+
+- fix live git-sync unit self-update validation so rendered `*.service` files
+  can be verified and applied during post-sync reconcile instead of being
+  skipped with a false invalid-unit error
+
+Implemented:
+
+- changed post-sync rendered-unit temp file allocation to use a `.service`
+  suffix before running `systemd-analyze verify`
+- added a focused regression test that proves the validator receives a
+  `*.service` path, matching the live failure mode seen during board and GCS
+  self-update
+
+Verification:
+
+- `bash -n tools/update_repo_ssh.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "git_sync_service_template_validation_uses_service_suffix or git_sync_service_template_omits_no_new_privileges or post_sync_runtime_restart or git_sync_runtime_state_persists_post_sync_summary"`
+
+Residual drift after this slice:
+
+- live GCS and both boards still need one more reconcile pass so the repaired
+  git-sync unit update path actually lands on the running systems
+- after that live apply, the remaining work returns to the planned runtime
+  admin and fleet sidecar control slices rather than bootstrap repair
