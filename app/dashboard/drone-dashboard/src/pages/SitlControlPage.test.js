@@ -321,7 +321,7 @@ describe('SitlControlPage', () => {
   });
 
   test('cleanup-only mode keeps local removal available while hiding full SITL lifecycle sections', async () => {
-    getSitlControlPolicy.mockResolvedValueOnce({
+    getSitlControlPolicy.mockResolvedValue({
       sim_mode: false,
       read_only: false,
       defaults: {
