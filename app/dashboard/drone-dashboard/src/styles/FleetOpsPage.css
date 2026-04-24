@@ -278,6 +278,7 @@
 
 .fleet-ops-metric,
 .fleet-ops-facts div,
+.fleet-ops-sidecar-facts div,
 .fleet-ops-sidecar-grid section {
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-lg);
@@ -297,7 +298,8 @@
 }
 
 .fleet-ops-metric span,
-.fleet-ops-facts dt {
+.fleet-ops-facts dt,
+.fleet-ops-sidecar-facts dt {
   display: block;
   font-size: 0.68rem;
   font-weight: 800;
@@ -328,7 +330,8 @@
   padding: 0.85rem;
 }
 
-.fleet-ops-facts dd {
+.fleet-ops-facts dd,
+.fleet-ops-sidecar-facts dd {
   margin: 0.25rem 0 0;
   overflow-wrap: anywhere;
 }
@@ -346,6 +349,17 @@
 .fleet-ops-sidecar-grid h3 {
   margin: 0;
   font-size: 0.95rem;
+}
+
+.fleet-ops-sidecar-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin: 0.75rem 0 0;
+}
+
+.fleet-ops-sidecar-facts div {
+  padding: 0.65rem;
 }
 
 .fleet-ops-node-card__links {
@@ -384,6 +398,7 @@
 @media (max-width: 640px) {
   .fleet-ops-status-grid,
   .fleet-ops-facts,
+  .fleet-ops-sidecar-facts,
   .fleet-ops-sidecar-grid {
     grid-template-columns: 1fr;
   }

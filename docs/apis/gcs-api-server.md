@@ -1418,6 +1418,21 @@ Get git status from all drones.
       "in_sync_with_gcs": true,
       "commits_ahead": 0,
       "commits_behind": 0,
+      "mavlink_runtime": {
+        "management_mode": "managed",
+        "ref": "v3.0.8",
+        "router_service_status": "active",
+        "dashboard_access_mode": "local_only",
+        "desired_config_hash": "9c4d...",
+        "applied_config_hash": "9c4d...",
+        "config_hash_match": true
+      },
+      "connectivity_runtime": {
+        "backend": "none",
+        "ref": "v2.1.0",
+        "profile_hash": null,
+        "config_hash_match": null
+      },
       "last_check": 1700000000000
     }
   },
@@ -1457,6 +1472,9 @@ Sync git repositories on target drones.
 ```
 
 This route is synchronous from the API caller perspective: it dispatches the repo update, verifies convergence, and then returns the verified result. That is why the canonical path is modeled as a sync operation, not a background job resource.
+
+Sidecar hashes are compact compliance markers. They are intended for drift
+visibility and should not be treated as profile content or credentials.
 
 ---
 

@@ -557,6 +557,9 @@ class DroneMavlinkRuntimeStatus(BaseModel):
     dashboard_service_status: str = Field(..., description="Current dashboard service status on the node")
     dashboard_access_mode: str = Field("unknown", description="Whether the dashboard is directly reachable, local-only, or disabled")
     dashboard_url: Optional[str] = Field(None, description="Direct dashboard URL when reachable from the GCS operator network")
+    desired_config_hash: Optional[str] = Field(None, description="Hash of the node's desired mavlink-anywhere ownership/config inputs")
+    applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after mavlink-anywhere reconcile")
+    config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied mavlink-anywhere hashes match")
 
 
 class DroneConnectivityRuntimeStatus(BaseModel):
@@ -570,10 +573,14 @@ class DroneConnectivityRuntimeStatus(BaseModel):
     mode: str = Field(..., description="Resolved Smart Wi-Fi Manager operating mode")
     import_mode: str = Field(..., description="Resolved Smart Wi-Fi Manager import mode")
     profile_present: bool = Field(..., description="Whether the resolved profile file exists")
+    profile_hash: Optional[str] = Field(None, description="SHA-256 hash of the resolved Smart Wi-Fi profile when present")
     dashboard_listen: str = Field(..., description="Configured dashboard listen address")
     service_status: str = Field(..., description="Current Smart Wi-Fi Manager service status on the node")
     dashboard_access_mode: str = Field("unknown", description="Whether the dashboard is directly reachable, local-only, or disabled")
     dashboard_url: Optional[str] = Field(None, description="Direct dashboard URL when reachable from the GCS operator network")
+    desired_config_hash: Optional[str] = Field(None, description="Hash of the node's desired Smart Wi-Fi ownership/config inputs")
+    applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after Smart Wi-Fi reconcile")
+    config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied Smart Wi-Fi hashes match")
 
 
 class DroneGitSyncRuntimeStatus(BaseModel):
@@ -1295,6 +1302,9 @@ class RuntimeMavlinkRuntimeResponse(BaseModel):
     dashboard_enabled: bool = Field(..., description="Whether the dashboard should be enabled")
     dashboard_listen: str = Field(..., description="Configured dashboard listen address")
     dashboard_service_status: str = Field(..., description="Current mavlink-anywhere dashboard service status")
+    desired_config_hash: Optional[str] = Field(None, description="Hash of desired mavlink-anywhere ownership/config inputs")
+    applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after mavlink-anywhere reconcile")
+    config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied mavlink-anywhere hashes match")
 
 
 class RuntimeConnectivityRuntimeResponse(BaseModel):
@@ -1311,8 +1321,12 @@ class RuntimeConnectivityRuntimeResponse(BaseModel):
     import_mode: str = Field(..., description="Resolved Smart Wi-Fi Manager import mode")
     profile_path: str = Field(..., description="Resolved Smart Wi-Fi Manager profile path")
     profile_present: bool = Field(..., description="Whether the resolved profile path exists")
+    profile_hash: Optional[str] = Field(None, description="SHA-256 hash of the resolved Smart Wi-Fi profile when present")
     dashboard_listen: str = Field(..., description="Configured Smart Wi-Fi Manager dashboard listen address")
     service_status: str = Field(..., description="Current Smart Wi-Fi Manager service status")
+    desired_config_hash: Optional[str] = Field(None, description="Hash of desired Smart Wi-Fi ownership/config inputs")
+    applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after Smart Wi-Fi reconcile")
+    config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied Smart Wi-Fi hashes match")
 
 
 class RuntimeStatusResponse(BaseModel):

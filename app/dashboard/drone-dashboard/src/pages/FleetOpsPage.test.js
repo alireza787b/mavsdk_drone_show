@@ -31,6 +31,9 @@ const gitPayload = {
         dashboard_service_status: 'active',
         dashboard_access_mode: 'local_only',
         dashboard_url: null,
+        desired_config_hash: 'abcdef1234567890',
+        applied_config_hash: 'abcdef1234567890',
+        config_hash_match: true,
       },
       connectivity_runtime: {
         backend: 'none',
@@ -38,6 +41,9 @@ const gitPayload = {
         service_status: 'unknown',
         profile_present: false,
         dashboard_access_mode: 'local_only',
+        desired_config_hash: '1111111111111111',
+        applied_config_hash: '1111111111111111',
+        config_hash_match: true,
       },
       git_sync_runtime: {
         status: 'unknown',
@@ -63,6 +69,9 @@ const gitPayload = {
         dashboard_enabled: true,
         dashboard_service_status: 'inactive',
         dashboard_access_mode: 'disabled',
+        desired_config_hash: '2222222222222222',
+        applied_config_hash: '3333333333333333',
+        config_hash_match: false,
       },
       connectivity_runtime: {
         backend: 'smart-wifi-manager',
@@ -70,6 +79,10 @@ const gitPayload = {
         service_status: 'inactive',
         profile_present: false,
         dashboard_access_mode: 'disabled',
+        profile_hash: '4444444444444444',
+        desired_config_hash: '5555555555555555',
+        applied_config_hash: '6666666666666666',
+        config_hash_match: false,
       },
     },
   },
@@ -140,8 +153,10 @@ describe('FleetOpsPage', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /sidecars/i }));
 
-    expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only/i)).toBeInTheDocument();
+    expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByText(/no direct dashboard/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing/i)).toBeInTheDocument();
+    expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing; hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
+    expect(screen.getByText('222222222222')).toBeInTheDocument();
+    expect(screen.getByText('333333333333')).toBeInTheDocument();
   });
 });
