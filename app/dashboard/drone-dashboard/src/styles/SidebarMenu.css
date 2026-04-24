@@ -578,6 +578,7 @@
     max-width: 320px;
     height: 100dvh;
     max-height: 100dvh;
+    z-index: calc(var(--z-tooltip) + 20);
     transform: translateX(-100%);
     transition: transform var(--transition-all);
     overflow-y: auto;
@@ -589,7 +590,8 @@
     background-color: var(--color-bg-primary);
     background:
       linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.08) 0%, transparent 18%),
-      linear-gradient(180deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 55%, var(--color-bg-tertiary) 100%);
+      linear-gradient(180deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 55%, var(--color-bg-tertiary) 100%),
+      var(--color-bg-primary);
   }
 
   .modern-sidebar-wrapper.mobile.mobile-open {
@@ -618,7 +620,8 @@
   .modern-sidebar-wrapper.mobile.light {
     background-color: #fff;
     background:
-      linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.05) 0%, rgba(255, 255, 255, 1) 18%, rgba(248, 251, 253, 1) 100%);
+      linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.05) 0%, rgba(255, 255, 255, 1) 18%, rgba(248, 251, 253, 1) 100%),
+      #fff;
   }
 }
 

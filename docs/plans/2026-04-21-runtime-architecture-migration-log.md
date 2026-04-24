@@ -2112,6 +2112,10 @@ Implemented:
   cannot cover scrolled navigation rows
 - moved the backdrop to the modal-backdrop layer and the sidebar drawer to the
   modal layer, eliminating ambiguous stacking with page content
+- rendered the backdrop outside the mobile control wrapper so the control
+  wrapper cannot lift the dim overlay above the drawer
+- raised the open mobile drawer above the app tooltip/toast layer so sync
+  banners and toast surfaces cannot sit over navigation
 - made the mobile drawer itself the scroll container with momentum scrolling,
   overscroll containment, and vertical touch handling
 - kept mobile nav content non-nested-scroll so operators can drag anywhere on
@@ -2120,6 +2124,8 @@ Implemented:
   looking disabled or washed out by the dim page backdrop
 - disabled mobile drawer backdrop filtering so page blur cannot visually bleed
   into the drawer surface
+- added solid fallback colors behind drawer gradients so no page content can
+  visually show through the panel
 
 Verification:
 

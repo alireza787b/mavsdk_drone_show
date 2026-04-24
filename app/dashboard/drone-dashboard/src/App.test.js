@@ -71,7 +71,9 @@ describe('App', () => {
     expect(sidebar).toHaveAttribute('data-open', 'false');
 
     fireEvent.click(screen.getByLabelText('Open navigation menu'));
-    expect(screen.getByLabelText('Close navigation overlay')).toBeInTheDocument();
+    const backdrop = screen.getByLabelText('Close navigation overlay');
+    expect(backdrop).toBeInTheDocument();
+    expect(backdrop.closest('.mobile-shell-controls')).toBeNull();
     expect(screen.getByLabelText('Close navigation menu').closest('.mobile-shell-controls')).toHaveClass('is-open');
     expect(screen.queryByLabelText('Open Runtime Admin')).not.toBeInTheDocument();
     expect(sidebar).toHaveAttribute('data-open', 'true');
