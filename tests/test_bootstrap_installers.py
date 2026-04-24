@@ -437,6 +437,9 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "Git Auto Push:" in start_text
     assert "repo_authority_status() {" in start_text
     assert "get_repo_access_mode() {" in start_text
+    assert 'get_react_build_marker() {' in start_text
+    assert '$BUILD_DIR/asset-manifest.json' in start_text
+    assert 'Build marker is up-to-date. Skipping rebuild.' in start_text
     assert "sync_runtime_compatibility_marker" not in start_text
     assert start_text.index("load_gcs_system_config") < start_text.index('if [[ "$STATUS_ONLY" == "true" ]]')
     assert "/api/v1/system/health" in start_text
@@ -447,6 +450,117 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "MDS_DOCKER_IMAGE" in start_text
     assert "MDS_SITL_GIT_SYNC" in start_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in start_text
+
+
+def test_dashboard_start_build_check_skips_rebuild_when_marker_is_newer_than_sources():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app/dashboard/drone-dashboard/src" \
+                 "$tmpdir/app/dashboard/drone-dashboard/build" \
+                 "$tmpdir/gcs-server"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        cat >"$tmpdir/app/dashboard/drone-dashboard/package.json" <<'EOF'
+{{"name":"demo-dashboard","version":"1.0.0"}}
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/src/App.js" <<'EOF'
+console.log('demo');
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/asset-manifest.json" <<'EOF'
+{{"files":{{}}}}
+EOF
+        python3 - <<'PY' "$tmpdir"
+from pathlib import Path
+import os
+import sys
+import time
+
+tmpdir = Path(sys.argv[1])
+older = time.time() - 120
+newer = time.time()
+for relative in (
+    "app/dashboard/drone-dashboard/package.json",
+    "app/dashboard/drone-dashboard/src/App.js",
+):
+    path = tmpdir / relative
+    os.utime(path, (older, older))
+marker = tmpdir / "app/dashboard/drone-dashboard/build/asset-manifest.json"
+os.utime(marker, (newer, newer))
+PY
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        if check_build_needed; then
+            echo "unexpected rebuild"
+            exit 1
+        fi
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_dashboard_start_build_check_detects_newer_source_than_marker():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app/dashboard/drone-dashboard/src" \
+                 "$tmpdir/app/dashboard/drone-dashboard/build" \
+                 "$tmpdir/gcs-server"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        cat >"$tmpdir/app/dashboard/drone-dashboard/package.json" <<'EOF'
+{{"name":"demo-dashboard","version":"1.0.0"}}
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/src/App.js" <<'EOF'
+console.log('demo');
+EOF
+        cat >"$tmpdir/app/dashboard/drone-dashboard/build/asset-manifest.json" <<'EOF'
+{{"files":{{}}}}
+EOF
+        python3 - <<'PY' "$tmpdir"
+from pathlib import Path
+import os
+import sys
+import time
+
+tmpdir = Path(sys.argv[1])
+older = time.time() - 120
+newer = time.time()
+marker = tmpdir / "app/dashboard/drone-dashboard/build/asset-manifest.json"
+os.utime(marker, (older, older))
+for relative in (
+    "app/dashboard/drone-dashboard/package.json",
+    "app/dashboard/drone-dashboard/src/App.js",
+):
+    path = tmpdir / relative
+    os.utime(path, (newer, newer))
+PY
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        check_build_needed
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_gcs_server_launcher_exports_sitl_runtime_env_from_system_config():
