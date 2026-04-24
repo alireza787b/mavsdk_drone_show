@@ -69,6 +69,19 @@ def _env_flag(value: str | None, default: bool) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _resolve_host_startup_script_mode(env: dict[str, str] | None = None) -> tuple[bool, str]:
+    env_map = env or os.environ
+    requested = env_map.get("MDS_SITL_USE_HOST_STARTUP_SCRIPT")
+    if requested is not None:
+        enabled = _env_flag(requested, False)
+        return enabled, "host_override" if enabled else "image_baked"
+
+    effective_git_sync = _env_flag(env_map.get("MDS_SITL_GIT_SYNC"), True)
+    if effective_git_sync:
+        return True, "host_override"
+    return False, "image_baked"
+
+
 def _env_map(env_list: list[str] | None) -> dict[str, str]:
     env: dict[str, str] = {}
     for item in env_list or []:
@@ -99,6 +112,7 @@ class SitlControlService:
 
     def build_policy(self) -> SitlControlPolicyResponse:
         docker_state = self._get_docker_state()
+        use_host_startup_script, startup_script_source = _resolve_host_startup_script_mode()
         return SitlControlPolicyResponse(
             sim_mode=bool(getattr(self.params, "sim_mode", False)),
             read_only=False,
@@ -115,6 +129,8 @@ class SitlControlService:
                 default_network_name=os.environ.get("MDS_SITL_DOCKER_NETWORK", "drone-network"),
                 default_git_sync=_env_flag(os.environ.get("MDS_SITL_GIT_SYNC"), True),
                 default_requirements_sync=_env_flag(os.environ.get("MDS_SITL_REQUIREMENTS_SYNC"), True),
+                default_use_host_startup_script=use_host_startup_script,
+                default_startup_script_source=startup_script_source,
                 default_log_tail_lines=_DEFAULT_LOG_LIMIT,
             ),
             docker=docker_state,
@@ -578,6 +594,13 @@ class SitlControlService:
         image_ref = None
         if getattr(container, "image", None) is not None and container.image.tags:
             image_ref = str(container.image.tags[0])
+        startup_script_source = None
+        if "MDS_SITL_USE_HOST_STARTUP_SCRIPT" in env:
+            startup_script_source = (
+                "host_override"
+                if _env_flag(env.get("MDS_SITL_USE_HOST_STARTUP_SCRIPT"), False)
+                else "image_baked"
+            )
 
         return SitlControlInstanceSummary(
             container_id=str(getattr(container, "short_id", None) or getattr(container, "id", "")),
@@ -601,6 +624,7 @@ class SitlControlService:
                 if "MDS_SITL_REQUIREMENTS_SYNC" in env
                 else None
             ),
+            startup_script_source=startup_script_source,
             ip_addresses=ip_addresses,
         )
 
@@ -745,6 +769,8 @@ class SitlControlService:
         env = os.environ.copy()
         env["MDS_SITL_GIT_SYNC"] = "true" if request.git_sync_enabled else "false"
         env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if request.requirements_sync_enabled else "false"
+        if "MDS_SITL_USE_HOST_STARTUP_SCRIPT" not in env:
+            env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] = "true" if request.git_sync_enabled else "false"
         if request.image_ref:
             env["MDS_DOCKER_IMAGE"] = request.image_ref
         if request.docker_network_name:
@@ -755,6 +781,8 @@ class SitlControlService:
         env = os.environ.copy()
         env["MDS_SITL_GIT_SYNC"] = "true" if request.git_sync_enabled else "false"
         env["MDS_SITL_REQUIREMENTS_SYNC"] = "true" if request.requirements_sync_enabled else "false"
+        if "MDS_SITL_USE_HOST_STARTUP_SCRIPT" not in env:
+            env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] = "true" if request.git_sync_enabled else "false"
         if request.image_ref:
             env["MDS_DOCKER_IMAGE"] = request.image_ref
         if request.docker_network_name:
@@ -894,6 +922,15 @@ class SitlControlService:
         self._append_operation_log(
             operation_id,
             f"Sync flags: git={'on' if request.git_sync_enabled else 'off'}, requirements={'on' if request.requirements_sync_enabled else 'off'}",
+        )
+        self._append_operation_log(
+            operation_id,
+            "Startup script: "
+            + (
+                "host override from current repo"
+                if _env_flag(env.get("MDS_SITL_USE_HOST_STARTUP_SCRIPT"), False)
+                else "image-baked script"
+            ),
         )
 
         try:

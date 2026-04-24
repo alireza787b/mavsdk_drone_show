@@ -199,7 +199,7 @@ Moreover, it has an auto hardware ID detection and instance creation system for 
 > - each drone gets its own Gazebo transport partition by default to avoid cross-container interference
 > - legacy Gazebo Classic / jMAVSim modes are no longer the supported Docker SITL path
 > - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` before it reports a container as ready; `startup_sitl.sh` runs as the container main process with Docker restart policy `unless-stopped` by default, and startup-wrapper diagnostics are written to `logs/startup_sitl.log`
-> - the default launcher now uses the image-baked `startup_sitl.sh` for reproducible release behavior; set `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only when you intentionally want a host-side debug override
+> - mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) now default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the repo under test; pinned-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility
 
 #### Need Custom Repository or Advanced Configuration?
 
@@ -351,7 +351,7 @@ The following section covers the standard flow for launching SITL drone instance
     bash multiple_sitl/create_dockers.sh 2
     ```
 
-    **Explanation:** The shell launcher `create_dockers.sh` remains the canonical cold-start path. It initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, injects the canonical `MDS_HW_ID` for that slot, and launches the image-baked `startup_sitl.sh` as the container's main process by default. That startup path can optionally hard-reset the MDS repo to the latest configured branch, re-syncs the Python venv only if `requirements.txt` changed, verifies the baked `mavsdk_server` binary, starts headless PX4 `gz_x500`, applies any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validates PX4 startup, and brings up MAVLink routing plus `coordinator.py`. Use `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only when you intentionally want a host-side debug override instead of the image-baked startup path.
+    **Explanation:** The shell launcher `create_dockers.sh` remains the canonical cold-start path. It initializes Docker containers representing your simulated drones. Each container forwards the active `MDS_*` runtime variables, injects the canonical `MDS_HW_ID` for that slot, and chooses the startup script source based on rollout mode. Mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) now default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the live repo under test. Pinned validated-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility. That startup path can hard-reset the MDS repo to the latest configured branch, re-sync the Python venv only if `requirements.txt` changed, verify the baked `mavsdk_server` binary, start headless PX4 `gz_x500`, apply any SITL PX4 parameter overrides via launch-time `PX4_PARAM_*` environment variables, validate PX4 startup, and bring up MAVLink routing plus `coordinator.py`. Override the script source explicitly with `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true|false` only when you intentionally want the non-default behavior.
 
     > **Hints:** For debugging purposes, use the `--verbose` flag to create a single drone and view detailed logs.
 

@@ -56,6 +56,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   refuses updates touching launcher, frontend, tooling, or dependency paths.
 
 ### Changed
+- SITL mutable latest-on-boot launches now default to the host-mounted current
+  `startup_sitl.sh`, while pinned-image launches stay on the image-baked
+  script, and SITL policy/inventory now surface that startup-script source so
+  operators can see which bootstrap path is active.
 - Runtime Admin update-readiness is now actionable rather than advisory only:
   safe runtime/config/docs-only updates can be scheduled directly from the GCS
   host, while higher-risk repo mutations are explicitly redirected to the

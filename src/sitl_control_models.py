@@ -40,6 +40,8 @@ class SitlControlPolicyDefaults(BaseModel):
     default_network_name: str
     default_git_sync: bool = True
     default_requirements_sync: bool = True
+    default_use_host_startup_script: bool = False
+    default_startup_script_source: Literal["host_override", "image_baked"] = "image_baked"
     default_log_tail_lines: int = Field(200, ge=1)
 
 
@@ -133,6 +135,7 @@ class SitlControlInstanceSummary(BaseModel):
     git_branch: Optional[str] = None
     git_sync_enabled: Optional[bool] = None
     requirements_sync_enabled: Optional[bool] = None
+    startup_script_source: Optional[Literal["host_override", "image_baked"]] = None
     ip_addresses: Dict[str, str] = Field(default_factory=dict)
 
 
