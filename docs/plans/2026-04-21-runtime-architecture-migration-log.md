@@ -2129,5 +2129,11 @@ Implemented:
 
 Verification:
 
-- pending focused frontend tests and mobile screenshot on Hetzner after sync:
-  `npm test -- --runTestsByPath src/App.test.js src/components/SidebarMenu.test.js --watch=false`
+- passed focused frontend tests on Hetzner:
+  `npm test -- --runTestsByPath src/App.test.js src/components/SidebarMenu.test.js src/pages/RuntimeAdminPage.test.js --watch=false`
+- passed deployed mobile screenshot verification:
+  `/tmp/mds_mobile_sidebar_slice44_structural_fix.png`
+- verified runtime layering state from headless Chrome:
+  drawer `z-index=1090`, backdrop `z-index=1080`, control layer
+  `z-index=1092`, backdrop parent `app-container app-mobile`, drawer
+  scroll moved from `0` to `240`, and the drawer hit-test returned `nav-item`
