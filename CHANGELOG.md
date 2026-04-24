@@ -60,6 +60,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   safe runtime/config/docs-only updates can be scheduled directly from the GCS
   host, while higher-risk repo mutations are explicitly redirected to the
   manual update path.
+- GCS launcher build detection no longer relies on the coarse `build/`
+  directory mtime; it now compares real React build markers plus `src/`,
+  `public/`, `.env`, `VERSION`, and dependency manifests so routine runtime
+  restarts do not trigger unnecessary production frontend rebuilds.
 - Runtime Admin repo update-readiness visibility:
   runtime status now carries a typed GCS repo sync/update posture, and Runtime
   Admin shows whether the host is up to date, behind and fast-forwardable,

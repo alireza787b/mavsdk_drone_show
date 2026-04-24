@@ -880,28 +880,88 @@ check_build_needed() {
         log_info "Force rebuild requested."
         return 0
     fi
-    
-    if [[ ! -d "$BUILD_DIR" ]]; then
-        log_info "No build directory found. Build needed."
+
+    local build_marker=""
+    build_marker="$(get_react_build_marker || true)"
+    if [[ -z "$build_marker" ]]; then
+        log_info "No React build marker found. Build needed."
         return 0
     fi
-    
+
     local package_json="$REACT_APP_DIR/package.json"
-    if [[ "$package_json" -nt "$BUILD_DIR" ]]; then
+    if [[ -f "$package_json" && "$package_json" -nt "$build_marker" ]]; then
         log_info "Package.json updated. Build needed."
         return 0
     fi
-    
+
+    local package_lock="$REACT_APP_DIR/package-lock.json"
+    if [[ -f "$package_lock" && "$package_lock" -nt "$build_marker" ]]; then
+        log_info "Package-lock.json updated. Build needed."
+        return 0
+    fi
+
+    if [[ -f "$ENV_FILE_PATH" && "$ENV_FILE_PATH" -nt "$build_marker" ]]; then
+        log_info ".env updated. Build needed."
+        return 0
+    fi
+
+    if [[ -f "$VERSION_FILE_PATH" && "$VERSION_FILE_PATH" -nt "$build_marker" ]]; then
+        log_info "VERSION updated. Build needed."
+        return 0
+    fi
+
+    local public_dir="$REACT_APP_DIR/public"
+    if path_tree_has_updates_since "$public_dir" "$build_marker"; then
+        log_info "Public assets updated. Build needed."
+        return 0
+    fi
+
     local src_dir="$REACT_APP_DIR/src"
-    if [[ -d "$src_dir" ]]; then
-        local newest_src=$(find "$src_dir" -type f -newer "$BUILD_DIR" 2>/dev/null | head -1)
-        if [[ -n "$newest_src" ]]; then
-            log_info "Source files updated. Build needed."
+    if path_tree_has_updates_since "$src_dir" "$build_marker"; then
+        log_info "Source files updated. Build needed."
+        return 0
+    fi
+
+    log_info "Build marker is up-to-date. Skipping rebuild."
+    return 1
+}
+
+get_react_build_marker() {
+    local candidate=""
+
+    for candidate in \
+        "$BUILD_DIR/asset-manifest.json" \
+        "$BUILD_DIR/index.html"
+    do
+        if [[ -f "$candidate" ]]; then
+            printf '%s\n' "$candidate"
             return 0
         fi
+    done
+
+    return 1
+}
+
+path_tree_has_updates_since() {
+    local candidate_path="$1"
+    local reference_path="$2"
+
+    if [[ ! -e "$candidate_path" || ! -e "$reference_path" ]]; then
+        return 1
     fi
-    
-    log_info "Build is up-to-date. Skipping rebuild."
+
+    if [[ -f "$candidate_path" ]]; then
+        [[ "$candidate_path" -nt "$reference_path" ]]
+        return $?
+    fi
+
+    if [[ -d "$candidate_path" ]]; then
+        local newer_file
+        newer_file="$(find "$candidate_path" -type f -newer "$reference_path" 2>/dev/null | head -1 || true)"
+        [[ -n "$newer_file" ]]
+        return $?
+    fi
+
     return 1
 }
 

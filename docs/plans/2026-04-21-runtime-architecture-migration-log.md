@@ -1816,3 +1816,42 @@ Residual drift after this slice:
   convergence cannot proceed yet
 - the next productive non-blocked work returns to GCS/runtime admin and fleet
   sidecar control slices
+
+## Slice 36
+
+Goal:
+
+- stop mode/apply restarts from forcing unnecessary production React rebuilds
+  when the existing frontend bundle is already current
+
+Implemented:
+
+- updated `app/linux_dashboard_start.sh` so frontend build freshness no longer
+  relies on the coarse `build/` directory mtime
+- introduced an explicit React build marker resolver that prefers:
+  - `build/asset-manifest.json`
+  - `build/index.html`
+- added a generic helper for checking whether `src/`, `public/`, `.env`, or
+  version/dependency metadata are newer than the selected build marker
+- extended build invalidation checks to cover:
+  - `package.json`
+  - `package-lock.json`
+  - `.env`
+  - `VERSION`
+  - `public/`
+  - `src/`
+- added executable regression coverage proving:
+  - a newer build marker suppresses rebuild
+  - a newer source file still triggers rebuild
+
+Verification:
+
+- `bash -n app/linux_dashboard_start.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "dashboard_start"`
+- `git diff --check`
+
+Residual drift after this slice:
+
+- live Hetzner still needs one more launcher rollout to verify the corrected
+  build-marker logic on the running private GCS
+- board-side live convergence remains externally blocked on NetBird reachability
