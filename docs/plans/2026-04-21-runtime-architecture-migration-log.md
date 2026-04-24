@@ -2211,8 +2211,45 @@ Implemented:
   even if the process/service is currently active
 - added compact desired/applied/profile hash facts to the Sidecars tab
 - updated `docs/guides/fleet-ops.md`
+- fixed node git-sync hardening issues found during live hardware verification:
+  - repo update now schedules coordinator restart when the commit changes
+  - coordinator restart has a same-user `SIGKILL` fallback so systemd
+    `Restart=on-failure` can recover stale running code even when sudo restart
+    cannot complete from inside the coordinator cgroup
+  - rendered service-unit validation now uses `.service` temp paths
+  - selected GCS git sync no longer leaks `pos_ids` routing metadata into the
+    drone command payload
+  - unit update permission failures now surface as
+    `service_reload_status=warning` plus
+    `*.service:manual_unit_update_required`
+- updated node installer sudoers so future/rehydrated nodes authorize managed
+  `mavlink-anywhere` reconcile through `tools/reconcile_mavlink_runtime.sh`
 
 Verification:
 
-- pending focused tests and Hetzner live sync after private candidate update:
-  `npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/utilities/fleetOpsViewModel.test.js src/components/SidebarMenu.test.js --watch=false`
+- passed focused backend/sync tests locally:
+  - `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "post_sync_runtime_restart or repo_revision_change or git_sync_runtime_state_persists_post_sync_summary"`
+  - `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "git_sync_service_updates or service_template_validation_uses_service_suffix or service_update_permission_failure"`
+  - `python3 -m pytest --no-cov tests/test_gcs_git_routes.py tests/test_gcs_api_http.py -k "git_sync or sync_repos"`
+  - `python3 -m py_compile gcs-server/api_routes/git_status.py`
+- deployed private candidate to Hetzner in REAL mode
+- verified GCS health after each deploy
+- verified fleet sync from GCS:
+  - both real nodes converged to private candidate
+    `42fe3acd7467cababef1a52974647bc98e595ac9`
+  - `synced_count=2`
+  - `needs_sync_count=0`
+  - both nodes online after restart stabilization
+  - both nodes expose sidecar desired/applied hash fields through
+    `GET /api/v1/git/status`
+- verified targeted selected sync works after removing `pos_ids` from drone
+  command payload
+- verified coordinator restart fallback on both boards:
+  - drone 1 restarted at `2026-04-24 17:30:32 CEST`
+  - drone 2 restarted at `2026-04-24 17:30:58 CEST`
+- current hardware note:
+  - existing boards need a node-installer/sudoers refresh before systemd unit
+    file changes and managed `mavlink-anywhere` reconcile can apply without
+    warning
+  - the warning is now explicit in `git_sync_runtime` instead of hidden as
+    `not_required`

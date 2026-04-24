@@ -74,6 +74,7 @@ ${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl status *
 ${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl restart coordinator
 ${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl restart smart-wifi-manager
 ${MDS_USER} ALL=(ALL) NOPASSWD: ${MDS_INSTALL_DIR}/tools/reconcile_connectivity.sh
+${MDS_USER} ALL=(ALL) NOPASSWD: ${MDS_INSTALL_DIR}/tools/reconcile_mavlink_runtime.sh
 
 # Network diagnostics
 ${MDS_USER} ALL=(ALL) NOPASSWD: /sbin/ip addr

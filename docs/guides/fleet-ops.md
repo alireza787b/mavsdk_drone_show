@@ -44,6 +44,13 @@ not accepted by the active GCS mode fence.
 Means the node commit matches the GCS commit. A drifted node may still be
 running, but it should not be treated as handoff-ready until it has synced.
 
+Fleet Ops also surfaces the latest node-local git-sync runtime summary. If
+`service_reload_status=warning` and a deferred action ends in
+`manual_unit_update_required`, the repository sync succeeded but the node could
+not install an updated systemd unit file with its current controlled sudoers.
+Rerun the node installer or refresh sudoers before expecting service unit
+changes to apply automatically.
+
 ### Auth
 
 Shows method and health only. Fleet Ops does not expose raw token values,

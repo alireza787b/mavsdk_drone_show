@@ -169,6 +169,10 @@ Use it to distinguish:
 - unit changes that were rolled back safely
 - `git_sync_mds.service` changes that wait for the next invocation
 - `led_indicator.service` changes that wait for the next boot
+- unit-file changes that could not be applied because the node has not yet
+  refreshed controlled sudoers; these appear as
+  `service_reload_status=warning` with
+  `*.service:manual_unit_update_required`
 - coordinator changes that still need manual restart because the service was
   inactive or restart scheduling failed
 
@@ -211,6 +215,21 @@ If a rendered unit update succeeds on disk but `systemctl daemon-reload` fails:
 - it reruns `systemctl daemon-reload` against the restored units
 - it keeps running the prior service policy instead of leaving partially applied
   unit changes behind
+
+If a rendered unit is valid but the current node user cannot write it into
+`/etc/systemd/system`:
+
+- the repo sync still succeeds
+- the node records `service_reload_status=warning`
+- the affected unit is recorded as `manual_unit_update_required`
+- rerun the node installer or refresh controlled sudoers before expecting
+  systemd unit-file changes to apply automatically
+
+The companion installer configures controlled sudoers for optional runtime
+reconcile helpers:
+
+- `tools/reconcile_mavlink_runtime.sh`
+- `tools/reconcile_connectivity.sh`
 
 ## Connectivity Profile Sync
 
