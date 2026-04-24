@@ -1159,6 +1159,39 @@ def test_git_sync_service_template_omits_no_new_privileges():
     assert "NoNewPrivileges=yes" not in service_text
 
 
+def test_git_sync_service_template_validation_uses_service_suffix():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools/git_sync_mds" "$bin_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'git_sync_mds.service'}" "$repo_dir/tools/git_sync_mds/git_sync_mds.service"
+
+        cat > "$bin_dir/systemd-analyze" <<'EOF'
+#!/bin/bash
+[[ "$1" == "verify" ]] || exit 1
+[[ "$2" == *.service ]] || exit 1
+exit 0
+EOF
+        chmod +x "$bin_dir/systemd-analyze"
+
+        PATH="$bin_dir:$PATH" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; validate_post_sync_service_template "tools/git_sync_mds/git_sync_mds.service"'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_python_env_prefers_node_requirements_when_present():
     result = run_bash(
         f"""
