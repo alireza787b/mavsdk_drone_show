@@ -1718,3 +1718,38 @@ Residual drift after this slice:
   its boot-time git sync stops depending on stale host-local env leftovers
 - board-side live reconciliation remains blocked on NetBird reachability, not
   on the code path anymore
+
+## Slice 33
+
+Goal:
+
+- finish the GCS git-sync source-of-truth repair by recomputing derived runtime
+  paths after env files are loaded, so `MDS_INSTALL_DIR` actually drives
+  `REPO_DIR` and sidecar/script paths on live hosts
+
+Implemented:
+
+- added `refresh_derived_runtime_paths()` to `tools/update_repo_ssh.sh`
+- after env preload, git sync now recomputes:
+  - `REPO_DIR`
+  - `LED_CMD`
+  - `LOG_FILE`
+  - `LOCK_FILE`
+  - `USER_ENV_FILE`
+  - `GIT_SYNC_STATE_DIR`
+  - `GIT_SYNC_STATE_FILE`
+- extended the runtime env precedence regression test to prove a GCS-supplied
+  `MDS_INSTALL_DIR` updates the effective repo and sidecar paths
+
+Verification:
+
+- `bash -n tools/update_repo_ssh.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "git_sync_runtime_env_prefers_local_over_gcs_and_user_env or git_sync_service_template or post_sync_runtime_restart or git_sync_runtime_state_persists_post_sync_summary"`
+- `git diff --check`
+
+Residual drift after this slice:
+
+- live GCS still needs one more post-publish reconcile pass so the repaired
+  path derivation actually lands on the running host
+- board-side live reconciliation remains blocked on NetBird reachability, not
+  on this runtime-path logic

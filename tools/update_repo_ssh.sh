@@ -220,6 +220,29 @@ load_runtime_env_files() {
     fi
 }
 
+refresh_derived_runtime_paths() {
+    if [[ -n "${MDS_USER:-}" ]]; then
+        REPO_USER="${MDS_USER}"
+    fi
+
+    if [[ -n "${MDS_HOME:-}" ]]; then
+        RESOLVED_HOME="${MDS_HOME}"
+    fi
+
+    if [[ -n "${MDS_INSTALL_DIR:-}" ]]; then
+        REPO_DIR="${MDS_INSTALL_DIR}"
+    else
+        REPO_DIR="${REPO_DIR:-${RESOLVED_HOME}/mavsdk_drone_show}"
+    fi
+
+    LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
+    LOG_FILE="${MDS_LOG_FILE:-${RESOLVED_HOME}/logs/drone_git_sync.log}"
+    LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
+    USER_ENV_FILE="${MDS_USER_ENV_FILE:-${RESOLVED_HOME}/.config/mds/env}"
+    GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-${RESOLVED_HOME}/.local/state/mds/git-sync}"
+    GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
+}
+
 # ----------------------------------
 # Status and Notification Functions
 # ----------------------------------
@@ -1472,6 +1495,9 @@ main() {
     log_info "INIT" "=========================================="
 
     load_runtime_env_files
+    refresh_derived_runtime_paths
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+    touch "$LOG_FILE" 2>/dev/null || true
     
     # Parse arguments
     parse_arguments "$@"

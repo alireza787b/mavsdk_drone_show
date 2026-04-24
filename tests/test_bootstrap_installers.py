@@ -1231,7 +1231,7 @@ EOF
         MDS_GCS_ENV_FILE="$config_dir/gcs.env" \
         MDS_LOCAL_ENV_FILE="$config_dir/local.env" \
         MDS_USER_ENV_FILE="$user_env_dir/env" \
-        bash -lc 'source "{GIT_SYNC_SCRIPT}"; load_runtime_env_files; [[ "$MDS_REPO_URL" == "git@github.com:example-org/node.git" ]]; [[ "$MDS_BRANCH" == "user" ]]; [[ "$MDS_INSTALL_DIR" == "/srv/gcs" ]]; [[ "$MDS_GIT_AUTO_PUSH" == "false" ]]'
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; load_runtime_env_files; refresh_derived_runtime_paths; [[ "$MDS_REPO_URL" == "git@github.com:example-org/node.git" ]]; [[ "$MDS_BRANCH" == "user" ]]; [[ "$MDS_INSTALL_DIR" == "/srv/gcs" ]]; [[ "$MDS_GIT_AUTO_PUSH" == "false" ]]; [[ "$REPO_DIR" == "/srv/gcs" ]]; [[ "$LED_CMD" == "/srv/gcs/venv/bin/python /srv/gcs/led_indicator.py" ]]'
         """
     )
 
