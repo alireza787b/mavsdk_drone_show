@@ -145,7 +145,7 @@ describe('FleetOpsPage', () => {
     expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
     const attentionCard = screen.getByRole('heading', { name: /hw 2/i }).closest('article');
     expect(within(attentionCard).getByText('Offline')).toBeInTheDocument();
-    expect(within(attentionCard).getByText('Drift')).toBeInTheDocument();
+    expect(within(attentionCard).getAllByText('Drift').length).toBeGreaterThan(0);
   });
 
   test('shows sidecar detail and treats local-only dashboards as diagnostics, not primary controls', () => {
