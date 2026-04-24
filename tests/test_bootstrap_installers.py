@@ -1384,6 +1384,64 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_reconcile_mavlink_runtime_warns_but_succeeds_without_router_config():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/tools"
+        cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment.defaults" <<'EOF'
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
+MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
+MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=TMPDIR_REPLACE/ma
+MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=127.0.0.1:9070
+MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false
+EOF
+        sed -i "s|TMPDIR_REPLACE|$tmpdir|g" "$repo_dir/deployment.defaults"
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<'EOF'
+MDS_MAVLINK_MANAGEMENT_MODE=managed
+EOF
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "clone" ]]; then
+    target="${{@: -1}}"
+    mkdir -p "$target/.git" "$target/lib"
+    cat > "$target/lib/dashboard.sh" <<'EOS'
+#!/bin/bash
+install_dashboard_binary() {{ :; }}
+setup_dashboard_service() {{ :; }}
+EOS
+    chmod +x "$target/lib/dashboard.sh"
+fi
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/systemctl"
+        cat > "$fakebin/mavlink-routerd" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/mavlink-routerd"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_DEPLOYMENT_PROFILE_FILE="$repo_dir/deployment.defaults" MDS_LOCAL_ENV_FILE="$config_dir/local.env" MAVLINK_ROUTER_CONFIG="$tmpdir/etc/mavlink-router/main.conf" MDS_MAVLINK_STATE_DIR="$tmpdir/state" bash "$repo_dir/tools/reconcile_mavlink_runtime.sh" apply --force >/tmp/reconcile.out 2>/tmp/reconcile.err
+        grep -q 'missing' /tmp/reconcile.err
+        test -f "$tmpdir/state/mavlink_anywhere_runtime.sha256"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_runtime_git_sync_reconciles_optional_connectivity_backend():
     git_sync_text = GIT_SYNC_SCRIPT.read_text(encoding="utf-8")
 

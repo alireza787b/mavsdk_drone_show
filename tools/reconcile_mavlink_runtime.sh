@@ -226,9 +226,8 @@ apply_runtime() {
     ensure_dashboard_runtime || log WARN "Managed dashboard reconcile did not complete cleanly"
 
     if [[ ! -f "${ROUTER_CONFIG_FILE}" ]]; then
-        log ERROR "Managed mavlink-anywhere runtime is present, but ${ROUTER_CONFIG_FILE} is missing"
-        log ERROR "Re-run bootstrap or configure_mavlink_router.sh for this node's actual UART/UDP profile"
-        return 1
+        log WARN "Managed mavlink-anywhere runtime is installed, but ${ROUTER_CONFIG_FILE} is missing"
+        log WARN "Re-run bootstrap or configure_mavlink_router.sh when this host needs a router profile"
     fi
 
     mkdir -p "${STATE_DIR}"
