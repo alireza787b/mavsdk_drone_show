@@ -413,17 +413,22 @@ validate_post_sync_shell_script() {
 validate_post_sync_python_file() {
     local repo_relative_path="$1"
     local component="${2:-POST-SYNC-VALIDATION}"
+    local python_cmd=""
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        log_warn "$component" "python3 is unavailable; skipping syntax validation for ${repo_relative_path}"
+    if [[ -x "${REPO_DIR}/venv/bin/python" ]]; then
+        python_cmd="${REPO_DIR}/venv/bin/python"
+    elif command -v python3 >/dev/null 2>&1; then
+        python_cmd="python3"
+    else
+        log_warn "$component" "No Python interpreter is available; skipping syntax validation for ${repo_relative_path}"
         return 0
     fi
 
-    if python3 -m py_compile "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
+    if "$python_cmd" -m py_compile "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
         return 0
     fi
 
-    log_error "$component" "Python syntax validation failed for ${repo_relative_path}"
+    log_error "$component" "Python syntax validation failed for ${repo_relative_path} using ${python_cmd}"
     return 1
 }
 
