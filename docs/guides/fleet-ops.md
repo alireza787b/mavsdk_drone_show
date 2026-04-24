@@ -51,6 +51,10 @@ not install an updated systemd unit file with its current controlled sudoers.
 Rerun the node installer or refresh sudoers before expecting service unit
 changes to apply automatically.
 
+The **Drift** filter covers more than commit mismatch. It includes repository
+drift, node-local git-sync runtime warnings, and sidecar desired/applied hash
+drift so a synced commit cannot hide an unapplied service or profile update.
+
 ### Auth
 
 Shows method and health only. Fleet Ops does not expose raw token values,

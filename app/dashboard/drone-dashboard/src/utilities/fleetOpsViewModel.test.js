@@ -1,4 +1,9 @@
-import { buildFleetOpsViewModel, classifyMavlinkRuntime, compactHash } from './fleetOpsViewModel';
+import {
+  buildFleetOpsViewModel,
+  classifyGitSyncRuntime,
+  classifyMavlinkRuntime,
+  compactHash,
+} from './fleetOpsViewModel';
 
 describe('fleetOpsViewModel', () => {
   test('builds fleet rows and compliance counters from git status and heartbeat payloads', () => {
@@ -62,6 +67,8 @@ describe('fleetOpsViewModel', () => {
       authHealthy: 1,
       mavlinkHealthy: 1,
       connectivityNotApplicable: 1,
+      sidecarAttention: 0,
+      nodeSyncRuntimeAttention: 0,
       needsAttention: 1,
     });
     expect(viewModel.rows[0]).toMatchObject({
@@ -73,6 +80,7 @@ describe('fleetOpsViewModel', () => {
     expect(viewModel.rows[1]).toMatchObject({
       posId: '2',
       needsAttention: true,
+      hasDrift: true,
       sync: expect.objectContaining({ state: 'drifted' }),
       auth: expect.objectContaining({ tone: 'warning' }),
     });
@@ -97,6 +105,34 @@ describe('fleetOpsViewModel', () => {
       state: 'drifted',
       label: 'Drift',
       tone: 'warning',
+    });
+  });
+
+  test('marks node-local git sync runtime warnings as operator attention', () => {
+    expect(classifyGitSyncRuntime({
+      status: 'success',
+      summary: 'Git synchronization completed successfully; unit update requires installer refresh.',
+      service_reload_status: 'warning',
+      deferred_unit_actions: ['git_sync_mds.service:manual_unit_update_required'],
+      mavlink_runtime_reconcile_status: 'success',
+      connectivity_reconcile_status: 'not_required',
+    })).toMatchObject({
+      state: 'attention',
+      label: 'Attention',
+      tone: 'warning',
+    });
+  });
+
+  test('does not treat not-required runtime steps as warnings', () => {
+    expect(classifyGitSyncRuntime({
+      status: 'success',
+      summary: 'Git synchronization completed successfully.',
+      service_reload_status: 'not_required',
+      mavlink_runtime_reconcile_status: 'success',
+      connectivity_reconcile_status: 'not_required',
+    })).toMatchObject({
+      state: 'healthy',
+      tone: 'good',
     });
   });
 

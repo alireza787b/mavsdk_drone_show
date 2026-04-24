@@ -76,6 +76,31 @@ function classifyTone(value) {
   return normalized ? 'warning' : 'muted';
 }
 
+function classifyRuntimeStepTone(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['not_required', 'unchanged', 'skipped', 'disabled', 'none', 'no_restart_required'].includes(normalized)) {
+    return 'good';
+  }
+  return classifyTone(value);
+}
+
+function isAttentionTone(tone) {
+  return tone === 'warning' || tone === 'danger';
+}
+
+function worstTone(...tones) {
+  if (tones.includes('danger')) {
+    return 'danger';
+  }
+  if (tones.includes('warning')) {
+    return 'warning';
+  }
+  if (tones.includes('good')) {
+    return 'good';
+  }
+  return 'muted';
+}
+
 export function classifyGitSync(gitStatus, gcsStatus) {
   if (!gitStatus) {
     return {
@@ -123,6 +148,39 @@ export function classifyGitAuth(gitStatus) {
     label: rawStatus === 'healthy' ? 'Healthy' : rawStatus.replace(/^./, (value) => value.toUpperCase()),
     tone: classifyTone(rawStatus),
     detail: gitStatus.git_auth_health_summary || 'No auth summary reported.',
+  };
+}
+
+export function classifyGitSyncRuntime(gitSyncRuntime) {
+  if (!gitSyncRuntime) {
+    return {
+      state: 'unknown',
+      label: 'Unknown',
+      tone: 'muted',
+      detail: 'No node-local git sync runtime state has been reported.',
+    };
+  }
+
+  const statusTone = classifyTone(gitSyncRuntime.status);
+  const serviceReloadTone = classifyRuntimeStepTone(gitSyncRuntime.service_reload_status);
+  const mavlinkTone = classifyRuntimeStepTone(gitSyncRuntime.mavlink_runtime_reconcile_status);
+  const connectivityTone = classifyRuntimeStepTone(gitSyncRuntime.connectivity_reconcile_status);
+  const hasDeferredManualAction = Array.isArray(gitSyncRuntime.deferred_unit_actions)
+    && gitSyncRuntime.deferred_unit_actions.some((action) => String(action || '').includes('manual_unit_update_required'));
+  const tone = worstTone(
+    statusTone,
+    serviceReloadTone,
+    mavlinkTone,
+    connectivityTone,
+    hasDeferredManualAction ? 'warning' : 'muted',
+  );
+  const state = tone === 'good' ? 'healthy' : tone === 'muted' ? 'unknown' : 'attention';
+
+  return {
+    state,
+    label: state === 'healthy' ? 'Healthy' : state === 'attention' ? 'Attention' : 'Unknown',
+    tone,
+    detail: gitSyncRuntime.summary || 'Node-local git sync runtime state is incomplete.',
   };
 }
 
@@ -213,14 +271,18 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
 
 function rowNeedsAttention(row) {
   return !row.online
-    || row.sync.tone === 'warning'
-    || row.sync.tone === 'danger'
-    || row.auth.tone === 'warning'
-    || row.auth.tone === 'danger'
-    || row.mavlink.tone === 'warning'
-    || row.mavlink.tone === 'danger'
-    || row.connectivity.tone === 'warning'
-    || row.connectivity.tone === 'danger';
+    || isAttentionTone(row.sync.tone)
+    || isAttentionTone(row.auth.tone)
+    || isAttentionTone(row.nodeSyncRuntime.tone)
+    || isAttentionTone(row.mavlink.tone)
+    || isAttentionTone(row.connectivity.tone);
+}
+
+function rowHasComplianceDrift(row) {
+  return row.sync.state !== 'synced'
+    || row.nodeSyncRuntime.state === 'attention'
+    || row.mavlink.state === 'drifted'
+    || row.connectivity.state === 'drifted';
 }
 
 function normalizeHeartbeatMap(heartbeatPayload) {
@@ -240,6 +302,7 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus) {
   const runtimeMode = normalizeRuntimeMode(heartbeat?.runtime_mode || gitStatus?.runtime_mode);
   const sync = classifyGitSync(gitStatus, gcsStatus);
   const auth = classifyGitAuth(gitStatus);
+  const nodeSyncRuntime = classifyGitSyncRuntime(gitStatus?.git_sync_runtime);
   const mavlink = classifyMavlinkRuntime(gitStatus?.mavlink_runtime, runtimeMode);
   const connectivity = classifyConnectivityRuntime(gitStatus?.connectivity_runtime, runtimeMode);
   const online = Boolean(heartbeat?.online);
@@ -260,6 +323,7 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus) {
     authSummary: gitStatus?.git_auth_health_summary || '',
     sync,
     auth,
+    nodeSyncRuntime,
     mavlink,
     connectivity,
     mavlinkRuntime: gitStatus?.mavlink_runtime || null,
@@ -271,6 +335,7 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus) {
   return {
     ...row,
     needsAttention: rowNeedsAttention(row),
+    hasDrift: rowHasComplianceDrift(row),
   };
 }
 
@@ -318,6 +383,8 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
     mavlinkHealthy: countBy((row) => row.mavlink.tone === 'good'),
     connectivityHealthy: countBy((row) => row.connectivity.tone === 'good'),
     connectivityNotApplicable: countBy((row) => row.connectivity.state === 'not_applicable'),
+    sidecarAttention: countBy((row) => isAttentionTone(row.mavlink.tone) || isAttentionTone(row.connectivity.tone)),
+    nodeSyncRuntimeAttention: countBy((row) => isAttentionTone(row.nodeSyncRuntime.tone)),
     needsAttention: countBy((row) => row.needsAttention),
   };
 
