@@ -1400,6 +1400,81 @@ def test_runtime_git_sync_reconciles_managed_mavlink_runtime():
     assert "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE" in git_sync_text
 
 
+def test_git_sync_reexecs_updated_sync_script_once_to_apply_new_logic():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools" "$home_dir/logs"
+
+        cat > "$repo_dir/tools/update_repo_ssh.sh" <<'EOF'
+#!/bin/bash
+printf 'reexec_count=%s\\n' "${{MDS_GIT_SYNC_REEXEC_COUNT:-}}"
+printf 'previous_head=%s\\n' "${{MDS_GIT_SYNC_PREVIOUS_HEAD:-}}"
+EOF
+        chmod +x "$repo_dir/tools/update_repo_ssh.sh"
+
+        export HOME="$home_dir"
+        export USER="companion"
+        export REPO_USER="companion"
+        export REPO_DIR="$repo_dir"
+
+        source "{GIT_SYNC_SCRIPT}"
+        git() {{
+            if [[ "$1" == "-C" && "$2" == "$REPO_DIR" && "$3" == "diff" && "$4" == "--name-only" ]]; then
+                printf 'tools/update_repo_ssh.sh\\n'
+                return 0
+            fi
+            command git "$@"
+        }}
+        maybe_reexec_updated_sync_script "old123" "new456"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "reexec_count=1" in result.stdout
+    assert "previous_head=old123" in result.stdout
+
+
+def test_git_sync_self_reexec_records_next_invocation_after_max_attempt():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools" "$home_dir/logs"
+
+        cat > "$repo_dir/tools/update_repo_ssh.sh" <<'EOF'
+#!/bin/bash
+touch "$REEXEC_MARKER"
+EOF
+        chmod +x "$repo_dir/tools/update_repo_ssh.sh"
+
+        export HOME="$home_dir"
+        export USER="companion"
+        export REPO_USER="companion"
+        export REPO_DIR="$repo_dir"
+        export REEXEC_MARKER="$tmpdir/reexec-marker"
+        export MDS_GIT_SYNC_REEXEC_COUNT=1
+
+        source "{GIT_SYNC_SCRIPT}"
+        git() {{
+            if [[ "$1" == "-C" && "$2" == "$REPO_DIR" && "$3" == "diff" && "$4" == "--name-only" ]]; then
+                printf 'tools/update_repo_ssh.sh\\n'
+                return 0
+            fi
+            command git "$@"
+        }}
+        maybe_reexec_updated_sync_script "old123" "new456"
+        [[ ! -f "$REEXEC_MARKER" ]]
+        printf '%s\\n' "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx 'git_sync_mds.service:next_invocation'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_post_sync_validation_rejects_invalid_shell_helper_and_rolls_back():
     result = run_bash(
         f"""

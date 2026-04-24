@@ -24,6 +24,9 @@ fi
 # ----------------------------------
 readonly SCRIPT_VERSION="2.2.1"
 readonly SCRIPT_NAME="git-sync"
+readonly MAX_GIT_SYNC_SELF_REEXECS=1
+
+declare -a ORIGINAL_ARGV=("$@")
 
 # Use dynamic variables for user and home directory
 RESOLVED_USER="${USER:-$(whoami 2>/dev/null || echo root)}"
@@ -73,6 +76,7 @@ SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
 RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-2}"
 GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-/var/lib/mds/git-sync}"
 GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
+GIT_SYNC_SELF_REEXEC_COUNT="${MDS_GIT_SYNC_REEXEC_COUNT:-0}"
 
 SERVICE_RELOAD_REQUIRED=false
 SERVICE_RELOAD_STATUS="not_required"
@@ -564,6 +568,57 @@ check_runtime_process_updates() {
 
     mark_coordinator_restart_needed "runtime files changed"
     log_info "$component" "Coordinator restart required due to runtime file changes: ${relevant_paths[*]}"
+}
+
+sync_logic_changed_between_heads() {
+    local old_head="${1:-}"
+    local new_head="${2:-}"
+    local changed_path=""
+
+    if [[ -z "$old_head" || -z "$new_head" || "$old_head" == "$new_head" ]]; then
+        return 1
+    fi
+
+    while IFS= read -r changed_path; do
+        case "$changed_path" in
+            tools/update_repo_ssh.sh|tools/load_deployment_profile.sh)
+                return 0
+                ;;
+        esac
+    done < <(git -C "$REPO_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null || true)
+
+    return 1
+}
+
+maybe_reexec_updated_sync_script() {
+    local old_head="${1:-}"
+    local new_head="${2:-}"
+    local component="SELF-REEXEC"
+    local next_count=0
+    local sync_script="${REPO_DIR}/tools/update_repo_ssh.sh"
+
+    if ! sync_logic_changed_between_heads "$old_head" "$new_head"; then
+        return 0
+    fi
+
+    if [[ "${GIT_SYNC_SELF_REEXEC_COUNT}" -ge "${MAX_GIT_SYNC_SELF_REEXECS}" ]]; then
+        log_warn "$component" "Git sync logic changed, but self re-exec has already been attempted; continuing with current process"
+        record_deferred_unit_action "git_sync_mds.service:next_invocation"
+        return 0
+    fi
+
+    if [[ ! -f "$sync_script" ]]; then
+        log_warn "$component" "Updated git sync script not found at ${sync_script}; continuing with current process"
+        record_deferred_unit_action "git_sync_mds.service:next_invocation"
+        return 0
+    fi
+
+    next_count=$((GIT_SYNC_SELF_REEXEC_COUNT + 1))
+    log_info "$component" "Re-executing updated git sync runtime so newly pulled sync logic applies in this invocation"
+    exec env \
+        MDS_GIT_SYNC_REEXEC_COUNT="${next_count}" \
+        MDS_GIT_SYNC_PREVIOUS_HEAD="${old_head}" \
+        bash "${sync_script}" "${ORIGINAL_ARGV[@]}"
 }
 
 schedule_systemd_restart() {
@@ -1401,7 +1456,7 @@ EOF
 # ----------------------------------
 main() {
     local start_time=$(date +%s)
-    local previous_head=""
+    local previous_head="${MDS_GIT_SYNC_PREVIOUS_HEAD:-}"
     
     # Initialize logging
     mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
@@ -1441,7 +1496,9 @@ main() {
     fi
     
     cd "$REPO_DIR" || log_error_and_exit "VALIDATION" "Failed to cd into $REPO_DIR"
-    previous_head=$(git rev-parse HEAD 2>/dev/null || echo "")
+    if [[ -z "$previous_head" ]]; then
+        previous_head=$(git rev-parse HEAD 2>/dev/null || echo "")
+    fi
     
     # Clean up any stale git locks
     cleanup_git_locks "$REPO_DIR"
@@ -1515,6 +1572,7 @@ main() {
     set_led_status "GIT_SUCCESS"
     local current_head
     current_head=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
+    maybe_reexec_updated_sync_script "$previous_head" "$current_head"
     check_runtime_process_updates "$previous_head" "$current_head"
     if ! preflight_validate_post_sync_runtime_changes "$previous_head" "$current_head"; then
         set_led_status "GIT_FAILED_CONTINUING"
