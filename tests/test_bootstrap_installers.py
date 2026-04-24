@@ -2149,6 +2149,11 @@ def test_services_lib_core_service_order_excludes_embedded_wifi_manager():
 
     assert '"wifi-manager.service"' not in services_text
     assert '/bin/systemctl restart smart-wifi-manager' in services_text
+    assert '/bin/systemctl daemon-reload' in services_text
+    assert '/bin/systemctl reenable git_sync_mds.service' in services_text
+    assert '/usr/bin/mv /tmp/*.service /etc/systemd/system/*.service' in services_text
+    assert '/usr/bin/cp /tmp/* /etc/systemd/system/*.service' in services_text
+    assert '/usr/bin/rm -f /etc/systemd/system/*.service' in services_text
     assert '/tools/reconcile_connectivity.sh' in services_text
     assert '/tools/reconcile_mavlink_runtime.sh' in services_text
 

@@ -71,8 +71,19 @@ ${MDS_USER} ALL=(ALL) NOPASSWD: /usr/bin/raspi-gpio
 
 # System commands for service management
 ${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl status *
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl is-enabled *
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl reenable coordinator.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl reenable git_sync_mds.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl reenable led_indicator.service
 ${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl restart coordinator
 ${MDS_USER} ALL=(ALL) NOPASSWD: /bin/systemctl restart smart-wifi-manager
+${MDS_USER} ALL=(ALL) NOPASSWD: /usr/bin/mv /tmp/*.service /etc/systemd/system/*.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/mv /tmp/*.service /etc/systemd/system/*.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp /tmp/* /etc/systemd/system/*.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/cp /tmp/* /etc/systemd/system/*.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /usr/bin/rm -f /etc/systemd/system/*.service
+${MDS_USER} ALL=(ALL) NOPASSWD: /bin/rm -f /etc/systemd/system/*.service
 ${MDS_USER} ALL=(ALL) NOPASSWD: ${MDS_INSTALL_DIR}/tools/reconcile_connectivity.sh
 ${MDS_USER} ALL=(ALL) NOPASSWD: ${MDS_INSTALL_DIR}/tools/reconcile_mavlink_runtime.sh
 
