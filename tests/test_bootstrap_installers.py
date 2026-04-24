@@ -1192,6 +1192,14 @@ def test_post_sync_runtime_restart_schedules_coordinator_when_active():
 
         cat > "$bin_dir/sudo" <<'EOF'
 #!/bin/bash
+if [[ "$1" == "-n" && "$2" == "-l" ]]; then
+  shift 2
+  printf '%s\n' "$*"
+  exit 0
+fi
+if [[ "$1" == "-n" ]]; then
+  shift
+fi
 exec "$@"
 EOF
         cat > "$bin_dir/systemctl" <<'EOF'
@@ -1200,15 +1208,11 @@ printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
 case "$*" in
   "is-active --quiet coordinator.service") exit 0 ;;
   "is-failed --quiet coordinator.service") exit 1 ;;
+  "restart coordinator") exit 0 ;;
 esac
 exit 1
 EOF
-        cat > "$bin_dir/systemd-run" <<'EOF'
-#!/bin/bash
-printf '%s\\n' "$*" >> "$TMPDIR/systemd-run.log"
-exit 0
-EOF
-        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl" "$bin_dir/systemd-run"
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl"
 
         PATH="$bin_dir:$PATH" \
         TMPDIR="$tmpdir" \
@@ -1216,10 +1220,18 @@ EOF
         USER="companion" \
         REPO_USER="companion" \
         REPO_DIR="$repo_dir" \
+        MDS_SYSTEMCTL_CMD="$bin_dir/systemctl" \
+        RUNTIME_RESTART_DELAY_SECONDS=0 \
         bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions'
 
         grep -q "is-active --quiet coordinator.service" "$tmpdir/systemctl.log"
-        grep -q "restart coordinator.service" "$tmpdir/systemd-run.log"
+        for _ in $(seq 1 20); do
+          if grep -q "restart coordinator" "$tmpdir/systemctl.log"; then
+            exit 0
+          fi
+          sleep 0.1
+        done
+        exit 1
         """
     )
 
@@ -1237,6 +1249,12 @@ def test_post_sync_runtime_restart_keeps_inactive_coordinator_stopped():
 
         cat > "$bin_dir/sudo" <<'EOF'
 #!/bin/bash
+if [[ "$1" == "-n" && "$2" == "-l" ]]; then
+  exit 1
+fi
+if [[ "$1" == "-n" ]]; then
+  shift
+fi
 exec "$@"
 EOF
         cat > "$bin_dir/systemctl" <<'EOF'
@@ -1248,12 +1266,7 @@ case "$*" in
 esac
 exit 1
 EOF
-        cat > "$bin_dir/systemd-run" <<'EOF'
-#!/bin/bash
-printf '%s\\n' "$*" >> "$TMPDIR/systemd-run.log"
-exit 0
-EOF
-        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl" "$bin_dir/systemd-run"
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl"
 
         PATH="$bin_dir:$PATH" \
         TMPDIR="$tmpdir" \
@@ -1261,7 +1274,8 @@ EOF
         USER="companion" \
         REPO_USER="companion" \
         REPO_DIR="$repo_dir" \
-        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; [[ ! -f "$TMPDIR/systemd-run.log" ]]'
+        MDS_SYSTEMCTL_CMD="$bin_dir/systemctl" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; ! grep -q "restart coordinator" "$TMPDIR/systemctl.log"'
 
         grep -q "is-active --quiet coordinator.service" "$tmpdir/systemctl.log"
         grep -q "is-failed --quiet coordinator.service" "$tmpdir/systemctl.log"
@@ -1300,6 +1314,7 @@ EOF
         USER="companion" \
         REPO_USER="companion" \
         REPO_DIR="$repo_dir" \
+        MDS_SYSTEMCTL_CMD="$bin_dir/systemctl" \
         bash -lc 'source "{GIT_SYNC_SCRIPT}"; SERVICE_RELOAD_REQUIRED=true; UPDATED_SYSTEMD_UNITS=("git_sync_mds.service" "led_indicator.service"); mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "git_sync_mds.service:next_invocation"; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "led_indicator.service:next_boot"; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "coordinator.service:inactive_left_stopped"'
         """
     )

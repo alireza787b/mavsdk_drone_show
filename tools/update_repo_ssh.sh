@@ -655,28 +655,29 @@ schedule_systemd_restart() {
     local action="${2:-restart}"
     local delay_seconds="${3:-$RUNTIME_RESTART_DELAY_SECONDS}"
     local component="RUNTIME-RESTART"
-    local unit_name="mds-post-sync-${service_name%.service}-${action}-$$"
+    local systemctl_cmd="${MDS_SYSTEMCTL_CMD:-/bin/systemctl}"
+    local service_alias="${service_name%.service}"
+    local restart_target="$service_alias"
 
-    if command -v systemd-run >/dev/null 2>&1; then
-        if sudo systemd-run \
-            --unit "$unit_name" \
-            --collect \
-            --property=Type=oneshot \
-            --on-active="${delay_seconds}s" \
-            /bin/systemctl "$action" "$service_name" >/dev/null 2>&1; then
-            log_info "$component" "Scheduled '${action}' for ${service_name} in ${delay_seconds}s via ${unit_name}"
-            return 0
+    if [[ ! -x "$systemctl_cmd" ]]; then
+        systemctl_cmd="$(command -v systemctl 2>/dev/null || true)"
+    fi
+    if [[ -z "$systemctl_cmd" ]]; then
+        log_warn "$component" "systemctl is unavailable; cannot schedule ${action} for ${service_name}"
+        return 1
+    fi
+
+    if ! sudo -n -l "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
+        restart_target="$service_name"
+        if ! sudo -n -l "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
+            log_warn "$component" "sudo is not authorized to ${action} ${service_name}; manual restart required"
+            return 1
         fi
-        log_warn "$component" "systemd-run failed while scheduling ${service_name}; falling back to shell background restart"
     fi
 
-    if sudo sh -c "( sleep ${delay_seconds}; systemctl ${action} ${service_name} ) >/dev/null 2>&1 &"; then
-        log_info "$component" "Scheduled '${action}' for ${service_name} in ${delay_seconds}s via shell fallback"
-        return 0
-    fi
-
-    log_warn "$component" "Failed to schedule ${action} for ${service_name}"
-    return 1
+    ( sleep "$delay_seconds"; sudo -n "$systemctl_cmd" "$action" "$restart_target" ) >/dev/null 2>&1 &
+    log_info "$component" "Scheduled '${action}' for ${restart_target} in ${delay_seconds}s via sudo ${systemctl_cmd}"
+    return 0
 }
 
 apply_post_sync_service_actions() {
@@ -700,9 +701,11 @@ apply_post_sync_service_actions() {
         return 0
     fi
 
-    if sudo systemctl is-active --quiet coordinator.service; then
+    local systemctl_cmd="${MDS_SYSTEMCTL_CMD:-systemctl}"
+
+    if "$systemctl_cmd" is-active --quiet coordinator.service; then
         restart_action="restart"
-    elif sudo systemctl is-failed --quiet coordinator.service; then
+    elif "$systemctl_cmd" is-failed --quiet coordinator.service; then
         restart_action="restart"
     else
         log_info "$component" "Coordinator is inactive; leaving it stopped. Restart reasons: ${COORDINATOR_RESTART_REASONS[*]}"
