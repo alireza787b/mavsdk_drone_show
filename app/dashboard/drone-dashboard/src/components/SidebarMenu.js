@@ -23,6 +23,7 @@ import {
   FaUserCheck,
   FaDocker,
   FaServer,
+  FaNetworkWired,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -70,6 +71,7 @@ const SidebarMenu = ({
         { to: '/', icon: FaTachometerAlt, label: 'Dashboard' },
         { to: '/mission-config', icon: FaCog, label: 'Mission Config' },
         { to: '/fleet-enrollment', icon: FaUserCheck, label: 'Fleet Enrollment' },
+        { to: '/fleet-ops', icon: FaNetworkWired, label: 'Fleet Ops' },
         { to: '/px4-parameters', icon: FaSlidersH, label: 'PX4 Parameters' },
         { to: '/globe-view', icon: FaGlobe, label: '3D Globe View' },
       ],

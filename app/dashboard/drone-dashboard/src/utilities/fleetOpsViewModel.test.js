@@ -1,0 +1,84 @@
+import { buildFleetOpsViewModel, classifyMavlinkRuntime } from './fleetOpsViewModel';
+
+describe('fleetOpsViewModel', () => {
+  test('builds fleet rows and compliance counters from git status and heartbeat payloads', () => {
+    const gitPayload = {
+      gcs_status: { commit: 'abcdef123456' },
+      git_status: {
+        1: {
+          pos_id: 1,
+          hw_id: '1',
+          ip: '100.82.72.33',
+          branch: 'main-candidate',
+          commit: 'abcdef123456',
+          in_sync_with_gcs: true,
+          repo_access_mode: 'https_token_file',
+          git_auth_health_status: 'healthy',
+          git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
+          mavlink_runtime: {
+            management_mode: 'managed',
+            ref: 'v3.0.8',
+            router_service_status: 'active',
+            dashboard_service_status: 'active',
+            dashboard_access_mode: 'local_only',
+          },
+          connectivity_runtime: {
+            backend: 'none',
+            service_status: 'unknown',
+            mode: 'observe',
+            profile_present: false,
+          },
+        },
+        2: {
+          pos_id: 2,
+          hw_id: '2',
+          ip: '100.82.47.7',
+          branch: 'main-candidate',
+          commit: '1111111',
+          in_sync_with_gcs: false,
+          repo_access_mode: 'ssh_key',
+          git_auth_health_status: 'warning',
+          git_auth_health_summary: 'SSH key is missing.',
+        },
+      },
+    };
+    const heartbeatPayload = {
+      heartbeats: [
+        { pos_id: 1, hw_id: '1', ip: '100.82.72.33', online: true, runtime_mode: 'real' },
+        { pos_id: 2, hw_id: '2', ip: '100.82.47.7', online: false, runtime_mode: 'real' },
+      ],
+    };
+
+    const viewModel = buildFleetOpsViewModel(gitPayload, heartbeatPayload);
+
+    expect(viewModel.rows).toHaveLength(2);
+    expect(viewModel.summary).toMatchObject({
+      total: 2,
+      online: 1,
+      synced: 1,
+      authHealthy: 1,
+      mavlinkHealthy: 1,
+      connectivityNotApplicable: 1,
+      needsAttention: 1,
+    });
+    expect(viewModel.rows[0]).toMatchObject({
+      posId: '1',
+      runtimeModeLabel: 'REAL',
+      accessLabel: 'HTTPS token',
+      needsAttention: false,
+    });
+    expect(viewModel.rows[1]).toMatchObject({
+      posId: '2',
+      needsAttention: true,
+      sync: expect.objectContaining({ state: 'drifted' }),
+      auth: expect.objectContaining({ tone: 'warning' }),
+    });
+  });
+
+  test('marks managed mavlink-anywhere as not applicable for SITL nodes', () => {
+    expect(classifyMavlinkRuntime({ router_service_status: 'active' }, 'sitl')).toMatchObject({
+      state: 'not_applicable',
+      tone: 'muted',
+    });
+  });
+});

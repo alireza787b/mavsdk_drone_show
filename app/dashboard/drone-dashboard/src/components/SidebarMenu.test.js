@@ -52,6 +52,7 @@ describe('SidebarMenu', () => {
     expect(screen.queryByText('Configured SITL')).not.toBeInTheDocument();
     expect(screen.queryByText('Restart pending')).not.toBeInTheDocument();
     expect(screen.getByText('Apply')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
     expect(screen.getByRole('link', { name: /open runtime admin to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 

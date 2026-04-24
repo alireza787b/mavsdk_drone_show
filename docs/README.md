@@ -21,6 +21,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | understand what should sync fleet-wide versus stay local/secret | [Fleet Sync And Secrets](guides/fleet-sync-and-secrets.md) |
+| inspect per-drone sync/auth/MAVLink/Smart-Wi-Fi posture | [Fleet Ops](guides/fleet-ops.md) |
 | configure private SITL/container repo auth | [Custom SITL Auth Guide](guides/custom-sitl-auth.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
 | deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
@@ -40,6 +41,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | Deployment engineer | [GCS Setup Guide](guides/gcs-setup.md) and [MDS Init Setup](guides/mds-init-setup.md) |
 | Customer maintainer | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | Fleet operator / deployment owner | [Fleet Sync And Secrets](guides/fleet-sync-and-secrets.md) |
+| Fleet ops reviewer | [Fleet Ops](guides/fleet-ops.md) |
 | SITL release maintainer | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
 | AI agent / maintainer | [Repo Agent Operating Spec](../AGENTS.md) |
 
