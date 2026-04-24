@@ -74,7 +74,7 @@ GCS_ENV_FILE="${MDS_GCS_ENV_FILE:-/etc/mds/gcs.env}"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
 SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
-RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-2}"
+RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-10}"
 GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-${RESOLVED_HOME}/.local/state/mds/git-sync}"
 GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
 GIT_SYNC_SELF_REEXEC_COUNT="${MDS_GIT_SYNC_REEXEC_COUNT:-0}"
@@ -965,6 +965,10 @@ acquire_lock() {
     while ! (set -C; echo $$ > "$LOCK_FILE") 2>/dev/null; do
         if [[ -f "$LOCK_FILE" ]]; then
             local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "unknown")
+            if [[ "$lock_pid" == "$$" ]]; then
+                log_debug "LOCK" "Lock already held by current process after self re-exec (PID $$)"
+                return 0
+            fi
             if ! kill -0 "$lock_pid" 2>/dev/null; then
                 log_warn "LOCK" "Removing stale lock file (PID $lock_pid no longer exists)"
                 rm -f "$LOCK_FILE"

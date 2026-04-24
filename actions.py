@@ -1189,6 +1189,7 @@ async def update_code(branch=None):
                 await asyncio.sleep(0.2)
                 led_controller.turn_off()
                 await asyncio.sleep(0.2)
+            raise ActionError(f"Update script failed with exit code {process.returncode}")
         else:
             stdout_text = stdout.decode().strip()
             logger.info(f"Update script successful: {stdout_text}")
