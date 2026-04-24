@@ -814,7 +814,7 @@ check_service_updates() {
             local previous_file=""
             local existed_before="false"
             local was_enabled="false"
-            temp_file=$(mktemp) || continue
+            temp_file=$(mktemp --suffix=.service) || continue
             sed \
                 -e "s|__MDS_USER__|${mds_user}|g" \
                 -e "s|__MDS_HOME__|${mds_home}|g" \
