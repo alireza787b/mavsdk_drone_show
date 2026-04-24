@@ -2094,8 +2094,8 @@ Implemented:
 
 Verification:
 
-- pending focused frontend tests on Hetzner:
-  `npm test -- --runTestsByPath src/pages/RuntimeAdminPage.test.js --watch=false`
+- passed focused frontend tests on Hetzner as part of Slice 44 verification:
+  `npm test -- --runTestsByPath src/App.test.js src/components/SidebarMenu.test.js src/pages/RuntimeAdminPage.test.js --watch=false`
 
 ## Slice 44
 
