@@ -131,28 +131,23 @@ describe('RuntimeAdminPage', () => {
     expect(screen.getByRole('heading', { name: /runtime admin/i })).toBeInTheDocument();
     expect(screen.getByText(/config real/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-gcs')).toBeInTheDocument();
-    expect(screen.getAllByText('smart-wifi-manager')).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: /host capabilities/i })).toBeInTheDocument();
+    expect(screen.getByText('GCS read-only/demo')).toBeInTheDocument();
+    expect(screen.getByText('Token file configured')).toBeInTheDocument();
+    expect(screen.getByText('smart-wifi-manager')).toBeInTheDocument();
     expect(screen.getByText(/https token-file access is configured and readable/i)).toBeInTheDocument();
     expect(screen.getByText(/tracking branch is ahead by 2 commit\(s\)/i)).toBeInTheDocument();
-    expect(screen.getByText('/opt/demo-mavlink')).toBeInTheDocument();
-    expect(screen.getByText('/tmp/demo-profile.json')).toBeInTheDocument();
+    expect(screen.queryByText('/root/.mds_git_read_token')).not.toBeInTheDocument();
+    expect(screen.queryByText('/opt/demo-mavlink')).not.toBeInTheDocument();
+    expect(screen.queryByText('/tmp/demo-profile.json')).not.toBeInTheDocument();
+    expect(screen.getByText(/use fleet ops for per-node mavlink, smart wi-fi, git auth, and profile compliance/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /run controlled gcs update/i })).toBeEnabled();
     expect(screen.getByRole('link', { name: /bootstrap guide/i })).toHaveAttribute(
       'href',
       'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mds-init-setup.md'
     );
-    expect(screen.getByRole('link', { name: /open mavlink-anywhere repo/i })).toHaveAttribute(
-      'href',
-      'https://github.com/demo/mavlink-anywhere/tree/v9.9.9'
-    );
-    expect(screen.getAllByRole('link', { name: /open local dashboard/i })[0]).toHaveAttribute(
-      'href',
-      'http://localhost:9070/'
-    );
-    expect(screen.getAllByRole('link', { name: /open local dashboard/i })[1]).toHaveAttribute(
-      'href',
-      'http://localhost:9080/'
-    );
+    expect(screen.queryByRole('link', { name: /open mavlink-anywhere repo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /open local dashboard/i })).not.toBeInTheDocument();
   });
 
   test('persists runtime host config and schedules apply restart', async () => {

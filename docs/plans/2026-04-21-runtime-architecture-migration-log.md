@@ -2066,3 +2066,33 @@ Verification:
   - the backdrop exists
   - the floating mobile runtime link is gone
   - the sidebar-owned compact runtime link remains visible as `REAL`
+
+## Slice 43
+
+Goal:
+
+- correct Runtime Admin scope so it reads as GCS-host administration, not a
+  partial fleet-node sidecar manager
+
+Implemented:
+
+- removed the prominent GCS-local `mavlink-anywhere` and Smart Wi-Fi dashboard
+  cards from Runtime Admin
+- replaced them with a single `Host Capabilities` card that summarizes:
+  - local SITL inventory risk
+  - git-tracked fleet profile intent
+  - desired MAVLink sidecar policy/ref
+  - desired connectivity sidecar policy/ref
+  - whether optional local GCS diagnostics are present
+- removed normal UI display of raw git token and SSH key paths
+- kept GCS git access visible as role, access method, health summary, and
+  secret posture only
+- updated Runtime Admin tests to assert:
+  - raw secret/tool paths are not rendered
+  - local sidecar dashboard links are not rendered
+  - Fleet Ops is named as the per-node compliance surface
+
+Verification:
+
+- pending focused frontend tests on Hetzner:
+  `npm test -- --runTestsByPath src/pages/RuntimeAdminPage.test.js --watch=false`

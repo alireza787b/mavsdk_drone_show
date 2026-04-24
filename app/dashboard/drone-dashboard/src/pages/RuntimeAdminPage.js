@@ -10,7 +10,6 @@ import {
   FaSatelliteDish,
   FaSave,
   FaServer,
-  FaWifi,
 } from 'react-icons/fa';
 
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
@@ -45,19 +44,6 @@ function formatAuthHealthTone(status) {
       return 'danger';
     default:
       return 'neutral';
-  }
-}
-
-function formatServiceStatusTone(status) {
-  switch (status) {
-    case 'active':
-      return 'good';
-    case 'enabled':
-      return 'warning';
-    case 'absent':
-      return 'neutral';
-    default:
-      return 'warning';
   }
 }
 
@@ -122,27 +108,6 @@ function buildNotice(payload, fallbackTone = 'neutral') {
     message: payload.message || 'Operation completed.',
     warnings: Array.isArray(payload.warnings) ? payload.warnings : [],
   };
-}
-
-function resolveLocalDashboardUrl(listen) {
-  const normalized = String(listen || '').trim();
-  if (!normalized || typeof window === 'undefined') {
-    return null;
-  }
-
-  const parts = normalized.split(':');
-  if (parts.length < 2) {
-    return null;
-  }
-
-  const port = parts[parts.length - 1];
-  if (!port) {
-    return null;
-  }
-
-  const protocol = window.location?.protocol || 'http:';
-  const hostname = window.location?.hostname || 'localhost';
-  return `${protocol}//${hostname}:${port}/`;
 }
 
 function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
@@ -211,14 +176,26 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const sitlInventoryWarningMessage = runtime.mode === 'sitl'
     ? `${sitlInstanceCount} local SITL instance(s) are still running. A REAL restart will fence their heartbeats, but it will not stop the containers automatically.`
     : `${sitlInstanceCount} local SITL instance(s) are still running on this host while the GCS runtime is in REAL mode. Their heartbeats are fenced, but you should reconcile or stop them explicitly.`;
-  const localMavlinkDashboardUrl = resolveLocalDashboardUrl(runtime.mavlinkRuntime?.dashboard_listen);
-  const localConnectivityDashboardUrl = resolveLocalDashboardUrl(runtime.connectivityRuntime?.dashboard_listen);
   const canRunControlledUpdate = Boolean(
     runtime.repoSyncStatus?.fast_forward_update_available && !effectiveRestartRequired
   );
   const controlledUpdateHint = effectiveRestartRequired
     ? 'Apply the pending runtime restart before attempting an in-place GCS update.'
     : 'Only runtime-safe fast-forward changes are eligible here. Frontend, launcher, tooling, and dependency updates still require the manual update path.';
+  const tokenConfigured = Boolean(runtime.raw?.git_auth_token_file_readable || runtime.raw?.git_auth_token_file);
+  const sshKeyConfigured = Boolean(runtime.raw?.git_ssh_key_file_readable || runtime.raw?.git_ssh_key_file);
+  const secretPosture = runtime.repoAccessMode === 'ssh_key'
+    ? (sshKeyConfigured ? 'SSH key configured' : 'SSH key missing')
+    : runtime.repoAccessMode === 'https_token_file'
+      ? (tokenConfigured ? 'Token file configured' : 'Token file missing')
+      : 'No private secret required';
+  const gcsRepoRole = runtime.gitAutoPush || effectiveConfiguredGitAutoPush ? 'GCS writer' : 'GCS read-only/demo';
+  const mavlinkHostSummary = runtime.mavlinkRuntime?.runtime_present
+    ? `GCS-local ${runtime.mavlinkRuntime?.management_mode || 'managed'} runtime; router ${runtime.mavlinkRuntime?.router_service_status || 'unknown'}`
+    : 'Not installed on this GCS host';
+  const connectivityHostSummary = runtime.connectivityRuntime?.install_dir_present || runtime.connectivityRuntime?.service_status === 'active'
+    ? `GCS-local ${runtime.connectivityRuntime?.backend || 'connectivity'} runtime; service ${runtime.connectivityRuntime?.service_status || 'unknown'}`
+    : 'Not installed on this GCS host';
 
   const setModeDraft = (nextMode) => {
     setDraftMode(nextMode);
@@ -555,10 +532,14 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaCodeBranch />
             <div>
               <h2>Git Access</h2>
-              <p>Operator-safe visibility into the current repository auth posture.</p>
+              <p>GCS-host repository role and auth health without exposing secret paths or values.</p>
             </div>
           </div>
           <dl className="runtime-admin-page__facts">
+            <div>
+              <dt>Host role</dt>
+              <dd>{gcsRepoRole}</dd>
+            </div>
             <div>
               <dt>Access mode</dt>
               <dd>{formatRepoAccessModeLabel(runtime.repoAccessMode)}</dd>
@@ -572,20 +553,8 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
               <dd>{runtime.gitAutoPush ? 'Enabled' : 'Disabled'}</dd>
             </div>
             <div>
-              <dt>Token file</dt>
-              <dd>{runtime.raw?.git_auth_token_file || 'Not configured'}</dd>
-            </div>
-            <div>
-              <dt>Token readable</dt>
-              <dd>{runtime.raw?.git_auth_token_file_readable ? 'Yes' : 'No'}</dd>
-            </div>
-            <div>
-              <dt>SSH key</dt>
-              <dd>{runtime.raw?.git_ssh_key_file || 'Not configured'}</dd>
-            </div>
-            <div>
-              <dt>SSH readable</dt>
-              <dd>{runtime.raw?.git_ssh_key_file_readable ? 'Yes' : 'No'}</dd>
+              <dt>Secret posture</dt>
+              <dd>{secretPosture}</dd>
             </div>
           </dl>
           {runtime.gitAuthHealth?.issues?.length ? (
@@ -597,190 +566,40 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
           ) : null}
         </article>
 
-        <article className="runtime-admin-page__card">
+        <article className="runtime-admin-page__card runtime-admin-page__card--wide">
           <div className="runtime-admin-page__card-header">
             <FaSatelliteDish />
             <div>
-              <h2>Fleet Defaults</h2>
-              <p>Git-tracked defaults that new nodes inherit during bootstrap.</p>
+              <h2>Host Capabilities</h2>
+              <p>GCS-local capability summary. Drone-side git auth, MAVLink, and Smart Wi-Fi compliance belong in Fleet Ops.</p>
             </div>
           </div>
-          <dl className="runtime-admin-page__facts">
-            <div>
-              <dt>Profile</dt>
-              <dd>{runtime.fleetDefaults?.profile_id || 'Unknown'}</dd>
+          <div className="runtime-admin-page__capability-grid">
+            <div className="runtime-admin-page__capability">
+              <span className="runtime-admin-page__capability-label">SITL Inventory</span>
+              <StatusPill tone={sitlInstanceCount ? 'warning' : 'good'}>
+                {sitlInstanceCount ?? 'Unknown'} local
+              </StatusPill>
+              <p>Local containers are visible here only as host runtime risk; lifecycle controls stay in SITL Control.</p>
             </div>
-            <div>
-              <dt>Profile source</dt>
-              <dd>{runtime.fleetDefaults?.profile_source || 'Unknown'}</dd>
+            <div className="runtime-admin-page__capability">
+              <span className="runtime-admin-page__capability-label">Fleet Profile</span>
+              <StatusPill>{runtime.fleetDefaults?.profile_id || 'Unknown'}</StatusPill>
+              <p>{runtime.fleetDefaults?.profile_source || 'Profile source not reported'}</p>
             </div>
-            <div>
-              <dt>Connectivity backend</dt>
-              <dd>{runtime.fleetDefaults?.connectivity_backend || 'Unknown'}</dd>
+            <div className="runtime-admin-page__capability">
+              <span className="runtime-admin-page__capability-label">MAVLink Policy</span>
+              <StatusPill>{runtime.fleetDefaults?.mavlink_management_mode || 'Unknown'}</StatusPill>
+              <p>Desired node ref: {runtime.fleetDefaults?.mavlink_anywhere_ref || 'unknown'}. {mavlinkHostSummary}.</p>
             </div>
-            <div>
-              <dt>Smart Wi-Fi mode</dt>
-              <dd>{runtime.fleetDefaults?.smart_wifi_manager_mode || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>MAVLink mode</dt>
-              <dd>{runtime.fleetDefaults?.mavlink_management_mode || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>MAVLink ref</dt>
-              <dd>{runtime.fleetDefaults?.mavlink_anywhere_ref || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Smart Wi-Fi ref</dt>
-              <dd>{runtime.fleetDefaults?.smart_wifi_manager_ref || 'Unknown'}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <article className="runtime-admin-page__card">
-          <div className="runtime-admin-page__card-header">
-            <FaSatelliteDish />
-            <div>
-              <h2>MAVLink Runtime</h2>
-              <p>Live managed mavlink-anywhere posture on this GCS host.</p>
+            <div className="runtime-admin-page__capability">
+              <span className="runtime-admin-page__capability-label">Connectivity Policy</span>
+              <StatusPill>{runtime.fleetDefaults?.connectivity_backend || 'Unknown'}</StatusPill>
+              <p>Desired node ref: {runtime.fleetDefaults?.smart_wifi_manager_ref || 'unknown'}; mode {runtime.fleetDefaults?.smart_wifi_manager_mode || 'unknown'}. {connectivityHostSummary}.</p>
             </div>
           </div>
-          <dl className="runtime-admin-page__facts">
-            <div>
-              <dt>Management mode</dt>
-              <dd>{runtime.mavlinkRuntime?.management_mode || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Ref</dt>
-              <dd>{runtime.mavlinkRuntime?.ref || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Install dir</dt>
-              <dd>{runtime.mavlinkRuntime?.install_dir || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Checkout present</dt>
-              <dd>{runtime.mavlinkRuntime?.runtime_present ? 'Yes' : 'No'}</dd>
-            </div>
-            <div>
-              <dt>Router service</dt>
-              <dd>{runtime.mavlinkRuntime?.router_service_status || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Dashboard service</dt>
-              <dd>{runtime.mavlinkRuntime?.dashboard_service_status || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Dashboard listen</dt>
-              <dd>{runtime.mavlinkRuntime?.dashboard_listen || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Router binary</dt>
-              <dd>{runtime.mavlinkRuntime?.router_binary_present ? 'Present' : 'Missing'}</dd>
-            </div>
-          </dl>
-          {runtime.mavlinkRuntime?.repo_web_url ? (
-            <div className="runtime-admin-page__link-row">
-              <a
-                className="runtime-admin-page__doc-link"
-                href={runtime.mavlinkRuntime.repo_web_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open mavlink-anywhere repo
-              </a>
-              <StatusPill tone={formatServiceStatusTone(runtime.mavlinkRuntime?.router_service_status)}>
-                Router {runtime.mavlinkRuntime?.router_service_status || 'unknown'}
-              </StatusPill>
-              <StatusPill tone={formatServiceStatusTone(runtime.mavlinkRuntime?.dashboard_service_status)}>
-                Dashboard {runtime.mavlinkRuntime?.dashboard_service_status || 'unknown'}
-              </StatusPill>
-              {localMavlinkDashboardUrl ? (
-                <a
-                  className="runtime-admin-page__doc-link"
-                  href={localMavlinkDashboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open local dashboard
-                </a>
-              ) : null}
-            </div>
-          ) : null}
           <p className="runtime-admin-page__empty">
-            Runtime Admin only links GCS-local managed dashboards here. Node-local sidecar dashboards are not centrally proxied yet.
-          </p>
-        </article>
-
-        <article className="runtime-admin-page__card">
-          <div className="runtime-admin-page__card-header">
-            <FaWifi />
-            <div>
-              <h2>Connectivity Runtime</h2>
-              <p>Live Smart Wi-Fi Manager posture on this GCS host.</p>
-            </div>
-          </div>
-          <dl className="runtime-admin-page__facts">
-            <div>
-              <dt>Backend</dt>
-              <dd>{runtime.connectivityRuntime?.backend || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Mode</dt>
-              <dd>{runtime.connectivityRuntime?.mode || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Ref</dt>
-              <dd>{runtime.connectivityRuntime?.ref || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Install dir</dt>
-              <dd>{runtime.connectivityRuntime?.install_dir || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Profile path</dt>
-              <dd>{runtime.connectivityRuntime?.profile_path || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Profile present</dt>
-              <dd>{runtime.connectivityRuntime?.profile_present ? 'Yes' : 'No'}</dd>
-            </div>
-            <div>
-              <dt>Service status</dt>
-              <dd>{runtime.connectivityRuntime?.service_status || 'Unknown'}</dd>
-            </div>
-            <div>
-              <dt>Dashboard listen</dt>
-              <dd>{runtime.connectivityRuntime?.dashboard_listen || 'Unknown'}</dd>
-            </div>
-          </dl>
-          {runtime.connectivityRuntime?.repo_web_url ? (
-            <div className="runtime-admin-page__link-row">
-              <a
-                className="runtime-admin-page__doc-link"
-                href={runtime.connectivityRuntime.repo_web_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open Smart Wi-Fi repo
-              </a>
-              <StatusPill tone={formatServiceStatusTone(runtime.connectivityRuntime?.service_status)}>
-                Service {runtime.connectivityRuntime?.service_status || 'unknown'}
-              </StatusPill>
-              {localConnectivityDashboardUrl ? (
-                <a
-                  className="runtime-admin-page__doc-link"
-                  href={localConnectivityDashboardUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open local dashboard
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-          <p className="runtime-admin-page__empty">
-            Use fleet bootstrap defaults and node-local runtime env for node-side overrides; this panel is the GCS-local inspection surface only.
+            This page does not manage drone-side sidecar dashboards. Use Fleet Ops for per-node MAVLink, Smart Wi-Fi, git auth, and profile compliance.
           </p>
         </article>
 
