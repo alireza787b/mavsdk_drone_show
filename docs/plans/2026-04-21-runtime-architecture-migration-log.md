@@ -2186,3 +2186,33 @@ Verification:
   - `synced_count=2`
   - `needs_sync_count=0`
   - `online_count=2`
+
+## Slice 46
+
+Goal:
+
+- add compact sidecar compliance hashes so Fleet Ops can show whether a node's
+  desired sidecar ownership/profile inputs match what was last applied
+
+Implemented:
+
+- extended `tools/reconcile_mavlink_runtime.sh status` with:
+  - desired config hash
+  - applied config hash
+  - hash match state
+- extended `tools/reconcile_connectivity.sh status` with:
+  - desired config hash
+  - applied config hash
+  - hash match state
+  - Smart Wi-Fi profile hash when a profile exists
+- extended node and GCS runtime schemas so those fields flow through
+  `GET /api/v1/git/status`
+- updated Fleet Ops sidecar classification so hash drift is attention-worthy
+  even if the process/service is currently active
+- added compact desired/applied/profile hash facts to the Sidecars tab
+- updated `docs/guides/fleet-ops.md`
+
+Verification:
+
+- pending focused tests and Hetzner live sync after private candidate update:
+  `npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/utilities/fleetOpsViewModel.test.js src/components/SidebarMenu.test.js --watch=false`

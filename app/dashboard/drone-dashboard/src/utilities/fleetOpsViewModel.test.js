@@ -1,4 +1,4 @@
-import { buildFleetOpsViewModel, classifyMavlinkRuntime } from './fleetOpsViewModel';
+import { buildFleetOpsViewModel, classifyMavlinkRuntime, compactHash } from './fleetOpsViewModel';
 
 describe('fleetOpsViewModel', () => {
   test('builds fleet rows and compliance counters from git status and heartbeat payloads', () => {
@@ -21,6 +21,9 @@ describe('fleetOpsViewModel', () => {
             router_service_status: 'active',
             dashboard_service_status: 'active',
             dashboard_access_mode: 'local_only',
+            desired_config_hash: 'abcdef1234567890abcdef',
+            applied_config_hash: 'abcdef1234567890abcdef',
+            config_hash_match: true,
           },
           connectivity_runtime: {
             backend: 'none',
@@ -80,5 +83,25 @@ describe('fleetOpsViewModel', () => {
       state: 'not_applicable',
       tone: 'muted',
     });
+  });
+
+  test('marks managed sidecar hash drift as operator attention', () => {
+    expect(classifyMavlinkRuntime({
+      management_mode: 'managed',
+      router_service_status: 'active',
+      dashboard_enabled: false,
+      desired_config_hash: 'ffffffffffffffff',
+      applied_config_hash: 'eeeeeeeeeeeeeeee',
+      config_hash_match: false,
+    }, 'real')).toMatchObject({
+      state: 'drifted',
+      label: 'Drift',
+      tone: 'warning',
+    });
+  });
+
+  test('compacts sidecar hashes for fleet display', () => {
+    expect(compactHash('abcdef1234567890')).toBe('abcdef123456');
+    expect(compactHash('')).toBe('unknown');
   });
 });

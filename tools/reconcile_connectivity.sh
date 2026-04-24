@@ -208,15 +208,35 @@ apply_smart_wifi_manager() {
 }
 
 show_status() {
-    local backend
+    local backend profile_path desired_hash applied_hash="" profile_hash=""
     backend="$(normalize_backend "${MDS_CONNECTIVITY_BACKEND:-none}" || echo "unknown")"
     echo "backend=${backend}"
     if [[ "${backend}" == "smart-wifi-manager" ]]; then
+        profile_path="$(resolve_profile_path)"
+        desired_hash="$(smart_wifi_hash_input "${profile_path}")"
+        if [[ -f "${STATE_FILE}" ]]; then
+            applied_hash="$(tr -d '\r\n' < "${STATE_FILE}")"
+        fi
+        if [[ -n "${profile_path}" && -f "${profile_path}" ]]; then
+            profile_hash="$(sha256sum "${profile_path}" | awk '{print $1}')"
+        fi
+
         echo "repo_url=$(resolve_smart_wifi_repo_url)"
         echo "ref=$(resolve_smart_wifi_ref)"
         echo "install_dir=${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
         echo "mode=${MDS_SMART_WIFI_MANAGER_MODE:-observe}"
-        echo "profile_path=$(resolve_profile_path)"
+        echo "import_mode=${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-replace}"
+        echo "profile_path=${profile_path}"
+        echo "profile_hash=${profile_hash:-unknown}"
+        echo "desired_config_hash=${desired_hash}"
+        echo "applied_config_hash=${applied_hash:-unknown}"
+        if [[ -n "${applied_hash}" && "${applied_hash}" == "${desired_hash}" ]]; then
+            echo "config_hash_match=true"
+        else
+            echo "config_hash_match=false"
+        fi
+        echo "dashboard_listen=${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}"
+        echo "skip_dashboard=${MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD:-false}"
         if systemctl is-active --quiet smart-wifi-manager.service 2>/dev/null; then
             echo "service_status=active"
         elif systemctl is-enabled --quiet smart-wifi-manager.service 2>/dev/null; then

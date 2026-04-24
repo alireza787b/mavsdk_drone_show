@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -70,6 +71,33 @@ def read_reconcile_status(repo_root: Path, script_relative_path: str, *, timeout
     return data
 
 
+def file_sha256(path: str | Path | None) -> str | None:
+    if not path:
+        return None
+    candidate = Path(path)
+    if not candidate.is_file():
+        return None
+    digest = hashlib.sha256()
+    try:
+        with candidate.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def optional_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
 def build_mavlink_runtime_summary(repo_root: Path) -> dict[str, Any]:
     deployment_profile = load_deployment_profile()
     status = read_reconcile_status(repo_root, "tools/reconcile_mavlink_runtime.sh")
@@ -103,6 +131,9 @@ def build_mavlink_runtime_summary(repo_root: Path) -> dict[str, Any]:
         "dashboard_enabled": dashboard_enabled,
         "dashboard_listen": dashboard_listen,
         "dashboard_service_status": status.get("dashboard_service", "unknown"),
+        "desired_config_hash": status.get("desired_config_hash") or None,
+        "applied_config_hash": status.get("applied_config_hash") or None,
+        "config_hash_match": optional_bool(status.get("config_hash_match")),
     }
 
 
@@ -131,8 +162,12 @@ def build_connectivity_runtime_summary(repo_root: Path) -> dict[str, Any]:
         "import_mode": deployment_profile.smart_wifi_manager_import_mode,
         "profile_path": profile_path,
         "profile_present": bool(profile_path and Path(profile_path).is_file()),
+        "profile_hash": status.get("profile_hash") or file_sha256(profile_path),
         "dashboard_listen": os.environ.get("MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN") or deployment_profile.smart_wifi_manager_dashboard_listen,
         "service_status": status.get("service_status", "unknown"),
+        "desired_config_hash": status.get("desired_config_hash") or None,
+        "applied_config_hash": status.get("applied_config_hash") or None,
+        "config_hash_match": optional_bool(status.get("config_hash_match")),
     }
 
 

@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fa';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
-import { buildFleetOpsViewModel } from '../utilities/fleetOpsViewModel';
+import { buildFleetOpsViewModel, compactHash } from '../utilities/fleetOpsViewModel';
 import '../styles/FleetOpsPage.css';
 
 const TABS = [
@@ -91,6 +91,35 @@ function DashboardLinks({ runtime }) {
   );
 }
 
+function SidecarHashFacts({ runtime, profile = false }) {
+  if (!runtime) {
+    return null;
+  }
+
+  return (
+    <dl className="fleet-ops-sidecar-facts">
+      <div>
+        <dt>Desired</dt>
+        <dd>{compactHash(runtime.desired_config_hash)}</dd>
+      </div>
+      <div>
+        <dt>Applied</dt>
+        <dd>{compactHash(runtime.applied_config_hash)}</dd>
+      </div>
+      <div>
+        <dt>Match</dt>
+        <dd>{runtime.config_hash_match === true ? 'Yes' : runtime.config_hash_match === false ? 'No' : 'Unknown'}</dd>
+      </div>
+      {profile ? (
+        <div>
+          <dt>Profile</dt>
+          <dd>{compactHash(runtime.profile_hash)}</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
 function NodeDetails({ row, activeTab }) {
   if (activeTab === 'access') {
     return (
@@ -121,11 +150,13 @@ function NodeDetails({ row, activeTab }) {
         <section>
           <h3>MAVLink</h3>
           <p>{row.mavlink.detail}</p>
+          <SidecarHashFacts runtime={row.mavlinkRuntime} />
           <DashboardLinks runtime={row.mavlinkRuntime} />
         </section>
         <section>
           <h3>Connectivity</h3>
           <p>{row.connectivity.detail}</p>
+          <SidecarHashFacts runtime={row.connectivityRuntime} profile />
           <DashboardLinks runtime={row.connectivityRuntime} />
         </section>
       </div>

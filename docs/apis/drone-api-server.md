@@ -286,7 +286,21 @@ Notes:
   "status": "clean",
   "uncommitted_changes": [],
   "commits_ahead": 0,
-  "commits_behind": 0
+  "commits_behind": 0,
+  "mavlink_runtime": {
+    "management_mode": "managed",
+    "ref": "v3.0.8",
+    "router_service_status": "active",
+    "desired_config_hash": "9c4d...",
+    "applied_config_hash": "9c4d...",
+    "config_hash_match": true
+  },
+  "connectivity_runtime": {
+    "backend": "none",
+    "ref": "v2.1.0",
+    "profile_hash": null,
+    "config_hash_match": null
+  }
 }
 ```
 
@@ -296,6 +310,8 @@ Notes:
 - `commits_ahead` / `commits_behind` remain `0` when no tracking branch exists
 - the drone route now uses the shared Git manager contract, so drone and GCS
   git-status semantics stay aligned
+- managed sidecar hash fields are drift markers for Fleet Ops; they do not
+  expose profile contents, Wi-Fi secrets, token values, or SSH key paths
 
 ---
 

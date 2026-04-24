@@ -99,6 +99,9 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     dashboard_service_status=raw_mavlink_runtime.get("dashboard_service_status", "unknown"),
                     dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
                     dashboard_url=access.get("dashboard_url"),
+                    desired_config_hash=raw_mavlink_runtime.get("desired_config_hash"),
+                    applied_config_hash=raw_mavlink_runtime.get("applied_config_hash"),
+                    config_hash_match=raw_mavlink_runtime.get("config_hash_match"),
                 )
 
             connectivity_runtime = None
@@ -113,10 +116,14 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     mode=raw_connectivity_runtime.get("mode", "unknown"),
                     import_mode=raw_connectivity_runtime.get("import_mode", "unknown"),
                     profile_present=bool(raw_connectivity_runtime.get("profile_present", False)),
+                    profile_hash=raw_connectivity_runtime.get("profile_hash"),
                     dashboard_listen=raw_connectivity_runtime.get("dashboard_listen", ""),
                     service_status=raw_connectivity_runtime.get("service_status", "unknown"),
                     dashboard_access_mode=str(access.get("dashboard_access_mode") or "unknown"),
                     dashboard_url=access.get("dashboard_url"),
+                    desired_config_hash=raw_connectivity_runtime.get("desired_config_hash"),
+                    applied_config_hash=raw_connectivity_runtime.get("applied_config_hash"),
+                    config_hash_match=raw_connectivity_runtime.get("config_hash_match"),
                 )
 
             git_sync_runtime = None

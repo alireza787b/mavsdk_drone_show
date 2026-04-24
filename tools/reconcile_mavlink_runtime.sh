@@ -236,8 +236,12 @@ apply_runtime() {
 }
 
 show_status() {
-    local mode
+    local mode desired_hash applied_hash=""
     mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}" || echo unknown)"
+    desired_hash="$(mavlink_hash_input)"
+    if [[ -f "${STATE_FILE}" ]]; then
+        applied_hash="$(tr -d '\r\n' < "${STATE_FILE}")"
+    fi
 
     echo "mode=${mode}"
     echo "repo_url=$(resolve_repo_url)"
@@ -245,6 +249,13 @@ show_status() {
     echo "install_dir=$(resolve_install_dir)"
     echo "dashboard_listen=$(resolve_dashboard_listen)"
     echo "skip_dashboard=$(resolve_skip_dashboard)"
+    echo "desired_config_hash=${desired_hash}"
+    echo "applied_config_hash=${applied_hash:-unknown}"
+    if [[ -n "${applied_hash}" && "${applied_hash}" == "${desired_hash}" ]]; then
+        echo "config_hash_match=true"
+    else
+        echo "config_hash_match=false"
+    fi
 
     if runtime_present; then
         echo "runtime_present=true"

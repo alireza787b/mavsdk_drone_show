@@ -271,6 +271,9 @@ class DroneManagedMavlinkRuntimeResponse(BaseModel):
     dashboard_enabled: bool
     dashboard_listen: str
     dashboard_service_status: str
+    desired_config_hash: Optional[str] = None
+    applied_config_hash: Optional[str] = None
+    config_hash_match: Optional[bool] = None
 
 
 class DroneManagedConnectivityRuntimeResponse(BaseModel):
@@ -285,8 +288,12 @@ class DroneManagedConnectivityRuntimeResponse(BaseModel):
     import_mode: str
     profile_path: str
     profile_present: bool
+    profile_hash: Optional[str] = None
     dashboard_listen: str
     service_status: str
+    desired_config_hash: Optional[str] = None
+    applied_config_hash: Optional[str] = None
+    config_hash_match: Optional[bool] = None
 
 
 class DroneGitSyncRuntimeResponse(BaseModel):

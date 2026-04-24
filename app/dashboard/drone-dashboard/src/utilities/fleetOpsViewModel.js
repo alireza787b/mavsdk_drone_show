@@ -45,6 +45,23 @@ function compactCommit(commit) {
   return commit ? String(commit).slice(0, 8) : 'unknown';
 }
 
+export function compactHash(hash) {
+  const value = String(hash || '').trim();
+  if (!value || value === 'unknown') {
+    return 'unknown';
+  }
+  return value.slice(0, 12);
+}
+
+function formatHashMatch(runtime) {
+  if (!runtime || runtime.config_hash_match === null || runtime.config_hash_match === undefined) {
+    return 'hash unknown';
+  }
+  return runtime.config_hash_match
+    ? `hash ${compactHash(runtime.applied_config_hash || runtime.desired_config_hash)}`
+    : `hash drift ${compactHash(runtime.applied_config_hash)} -> ${compactHash(runtime.desired_config_hash)}`;
+}
+
 function classifyTone(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (HEALTHY_VALUES.has(normalized)) {
@@ -141,13 +158,14 @@ export function classifyMavlinkRuntime(runtime, runtimeMode = 'unknown') {
 
   const routerStatus = runtime.router_service_status || 'unknown';
   const dashboardStatus = runtime.dashboard_service_status || 'unknown';
-  const healthy = routerStatus === 'active' && (!runtime.dashboard_enabled || dashboardStatus === 'active');
+  const hashDrift = runtime.config_hash_match === false;
+  const healthy = routerStatus === 'active' && (!runtime.dashboard_enabled || dashboardStatus === 'active') && !hashDrift;
 
   return {
-    state: healthy ? 'healthy' : routerStatus,
-    label: healthy ? 'Healthy' : routerStatus.replace(/^./, (value) => value.toUpperCase()),
-    tone: healthy ? 'good' : classifyTone(routerStatus),
-    detail: `Ref ${runtime.ref || 'unknown'}; router ${routerStatus}; dashboard ${runtime.dashboard_access_mode || 'unknown'}.`,
+    state: healthy ? 'healthy' : hashDrift ? 'drifted' : routerStatus,
+    label: healthy ? 'Healthy' : hashDrift ? 'Drift' : routerStatus.replace(/^./, (value) => value.toUpperCase()),
+    tone: healthy ? 'good' : hashDrift ? 'warning' : classifyTone(routerStatus),
+    detail: `Ref ${runtime.ref || 'unknown'}; router ${routerStatus}; dashboard ${runtime.dashboard_access_mode || 'unknown'}; ${formatHashMatch(runtime)}.`,
   };
 }
 
@@ -182,13 +200,14 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
   }
 
   const serviceStatus = runtime.service_status || 'unknown';
-  const healthy = serviceStatus === 'active' && runtime.profile_present !== false;
+  const hashDrift = runtime.config_hash_match === false;
+  const healthy = serviceStatus === 'active' && runtime.profile_present !== false && !hashDrift;
 
   return {
-    state: healthy ? 'healthy' : serviceStatus,
-    label: healthy ? 'Healthy' : serviceStatus.replace(/^./, (value) => value.toUpperCase()),
-    tone: healthy ? 'good' : classifyTone(serviceStatus),
-    detail: `Backend ${runtime.backend || 'unknown'}; mode ${runtime.mode || 'unknown'}; profile ${runtime.profile_present ? 'present' : 'missing'}.`,
+    state: healthy ? 'healthy' : hashDrift ? 'drifted' : serviceStatus,
+    label: healthy ? 'Healthy' : hashDrift ? 'Drift' : serviceStatus.replace(/^./, (value) => value.toUpperCase()),
+    tone: healthy ? 'good' : hashDrift ? 'warning' : classifyTone(serviceStatus),
+    detail: `Backend ${runtime.backend || 'unknown'}; mode ${runtime.mode || 'unknown'}; profile ${runtime.profile_present ? compactHash(runtime.profile_hash) : 'missing'}; ${formatHashMatch(runtime)}.`,
   };
 }
 
