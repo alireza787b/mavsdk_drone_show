@@ -70,6 +70,7 @@ ENVIRONMENT="${ENVIRONMENT:-production}"
 LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
 LOG_FILE="$RESOLVED_HOME/logs/drone_git_sync.log"
 LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
+GCS_ENV_FILE="${MDS_GCS_ENV_FILE:-/etc/mds/gcs.env}"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
 SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
@@ -201,7 +202,7 @@ load_runtime_env_files() {
     local env_file=""
     local loaded_files=()
 
-    for env_file in "$LOCAL_ENV_FILE" "$USER_ENV_FILE"; do
+    for env_file in "$GCS_ENV_FILE" "$LOCAL_ENV_FILE" "$USER_ENV_FILE"; do
         if [[ -f "$env_file" ]]; then
             log_debug "ENV" "Loading environment overrides from $env_file"
             set -a
@@ -1433,6 +1434,7 @@ OPTIONS:
 ENVIRONMENT VARIABLES:
     MDS_REPO_URL           Repository URL override (preferred single source of truth)
     MDS_BRANCH             Branch override (preferred single source of truth)
+    MDS_GCS_ENV_FILE       Alternate /etc/mds/gcs.env path for testing
     MDS_LOCAL_ENV_FILE     Alternate /etc/mds/local.env path for testing
     MDS_USER_ENV_FILE      Alternate user env path for testing
     DRONE_BRANCH           Legacy branch override (fallback)

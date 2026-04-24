@@ -254,7 +254,7 @@ sudo ./tools/mds_node_init.sh \
 What matters after install:
 - `/etc/mds/local.env` stores the chosen `MDS_REPO_URL` and `MDS_BRANCH`
 - `/etc/mds/node_identity.json` keeps the machine-readable node identity separate from fleet enrollment state
-- boot-time `git_sync_mds.service` sources `/etc/mds/local.env`
+- boot-time `git_sync_mds.service` sources `/etc/mds/gcs.env` on the GCS host and `/etc/mds/local.env` on real nodes
 - operator-triggered `UPDATE_CODE` now also loads `/etc/mds/local.env`, so boot sync and runtime sync use the same repo/branch
 - repo-local `core.sshCommand` is pinned when SSH is used, so pre-existing host SSH config does not silently override the intended deploy key
 
