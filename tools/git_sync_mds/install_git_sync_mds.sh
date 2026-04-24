@@ -20,6 +20,7 @@ fi
 MDS_USER="${1:-${MDS_USER:-droneshow}}"
 MDS_HOME="${MDS_HOME:-$(eval echo "~${MDS_USER}")}"
 MDS_INSTALL_DIR="${MDS_INSTALL_DIR:-${MDS_HOME}/mavsdk_drone_show}"
+MDS_SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
 
 echo "MDS User: ${MDS_USER}"
 echo "MDS Home: ${MDS_HOME}"
@@ -27,7 +28,7 @@ echo "MDS Install Dir: ${MDS_INSTALL_DIR}"
 
 # Define paths
 GIT_SYNC_SCRIPT="${MDS_INSTALL_DIR}/tools/update_repo_ssh.sh"
-SERVICE_FILE="/etc/systemd/system/git_sync_mds.service"
+SERVICE_FILE="${MDS_SYSTEMD_DIR}/git_sync_mds.service"
 SOURCE_TEMPLATE="${MDS_INSTALL_DIR}/tools/git_sync_mds/git_sync_mds.service"
 
 # Step 1: Check if the Git sync script exists
@@ -46,6 +47,7 @@ fi
 
 # Step 3: Install service file with user/home substitution
 echo "Installing service file with user=${MDS_USER}, home=${MDS_HOME}..."
+mkdir -p "$MDS_SYSTEMD_DIR"
 sed -e "s|__MDS_USER__|${MDS_USER}|g" \
     -e "s|__MDS_HOME__|${MDS_HOME}|g" \
     -e "s|__MDS_INSTALL_DIR__|${MDS_INSTALL_DIR}|g" \
@@ -59,9 +61,9 @@ systemctl daemon-reload
 echo "Enabling Git Sync service to run on boot..."
 systemctl enable git_sync_mds.service
 
-# Start the Git Sync service immediately
-echo "Starting Git Sync service..."
-systemctl start git_sync_mds.service
+# Restart the Git Sync service immediately so reruns refresh the live sync state
+echo "Restarting Git Sync service..."
+systemctl restart git_sync_mds.service
 
 # Check the status of the service
 echo "Checking the status of the Git Sync service..."

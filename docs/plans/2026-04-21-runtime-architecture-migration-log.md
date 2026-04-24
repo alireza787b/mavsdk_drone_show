@@ -1787,3 +1787,32 @@ Residual drift after this slice:
   new bootstrap path is what the running customer host carries
 - board-side live convergence remains blocked on NetBird reachability, not on
   this GCS bootstrap logic
+
+## Slice 35
+
+Goal:
+
+- make `install_git_sync_mds.sh` behave correctly on reruns and remove one more
+  hardcoded path that made the installer harder to validate safely
+
+Implemented:
+
+- changed `tools/git_sync_mds/install_git_sync_mds.sh` to `restart` the
+  oneshot service instead of `start`, so reruns refresh live sync state instead
+  of silently no-oping on an already-active unit
+- added `MDS_SYSTEMD_DIR` support to the installer with default
+  `/etc/systemd/system`
+- created regression coverage proving the installer uses `restart` and does not
+  fall back to `start`
+
+Verification:
+
+- `bash -n tools/git_sync_mds/install_git_sync_mds.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "install_git_sync_service_restarts_active_oneshot_unit"`
+
+Residual drift after this slice:
+
+- live boards are still externally offline on NetBird, so board-side runtime
+  convergence cannot proceed yet
+- the next productive non-blocked work returns to GCS/runtime admin and fleet
+  sidecar control slices
