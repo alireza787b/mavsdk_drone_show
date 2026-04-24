@@ -1136,6 +1136,29 @@ def test_git_sync_runtime_state_persists_post_sync_summary():
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_runtime_state_defaults_to_user_home_state_dir():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/home/logs" "$tmpdir/repo/.git"
+        HOME="$tmpdir/home"
+        REPO_DIR="$tmpdir/repo"
+        BRANCH_NAME="main-candidate"
+        source "{GIT_SYNC_SCRIPT}"
+        persist_git_sync_state "success" "ok"
+        test -f "$tmpdir/home/.local/state/mds/git-sync/last_result.env"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_git_sync_service_template_omits_no_new_privileges():
+    service_text = (REPO_ROOT / "tools" / "git_sync_mds" / "git_sync_mds.service").read_text(encoding="utf-8")
+
+    assert "NoNewPrivileges=yes" not in service_text
+
+
 def test_python_env_prefers_node_requirements_when_present():
     result = run_bash(
         f"""

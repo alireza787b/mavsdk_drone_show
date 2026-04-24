@@ -58,6 +58,7 @@ coordinator.service ────────────────────
 - Checks and updates pip requirements if changed
 - Schedules a delayed coordinator restart only when the synced change affects
   the live runtime
+- Persists node-local sync state under `~/.local/state/mds/git-sync/`
 
 **Script:** `tools/update_repo_ssh.sh`
 
@@ -103,7 +104,9 @@ sudo ./configure_mavlink_router.sh --install-dashboard \
 - Runs as droneshow user
 - Depends on git_sync_mds (soft dependency with Wants=)
 - Has restart limits (5 restarts per 10 minutes)
-- Security hardened (reduced capabilities, PrivateTmp, NoNewPrivileges)
+- Security hardened (PrivateTmp only). `NoNewPrivileges` is intentionally not
+  set because the service performs controlled `sudo`-backed system reconcile
+  actions after sync.
 - Resource limits (512MB memory, 65536 file descriptors)
 
 ## Configuration Management
@@ -296,7 +299,8 @@ Use `./tools/recovery.sh` for diagnostics and recovery:
 The services are configured with security best practices:
 
 - **coordinator.service:** Reduced capabilities (no CAP_SYS_BOOT, CAP_SYS_TIME), PrivateTmp, NoNewPrivileges
-- **git_sync_mds.service:** Runs as droneshow user, no elevated privileges
+- **git_sync_mds.service:** Runs as droneshow user and uses controlled `sudo`
+  for system reconcile steps after sync
 - **led_indicator.service:** Minimal capabilities (CAP_SYS_RAWIO for GPIO only)
 - **smart-wifi-manager.service:** Optional external connectivity runtime; review its own docs before enabling on a production node
 

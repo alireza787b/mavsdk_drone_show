@@ -175,7 +175,8 @@ def resolve_dashboard_access(ip: str | None, listen: str | None) -> dict[str, st
 
 
 def read_git_sync_runtime_summary() -> dict[str, Any]:
-    state_path = Path(os.environ.get("MDS_GIT_SYNC_STATE_FILE", "/var/lib/mds/git-sync/last_result.env"))
+    default_state_path = Path.home() / ".local/state/mds/git-sync/last_result.env"
+    state_path = Path(os.environ.get("MDS_GIT_SYNC_STATE_FILE", str(default_state_path)))
     if not state_path.is_file():
         return {
             "status": "unknown",
