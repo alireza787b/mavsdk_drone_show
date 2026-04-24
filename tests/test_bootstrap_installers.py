@@ -1951,6 +1951,48 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_install_git_sync_service_restarts_active_oneshot_unit():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        install_dir="$tmpdir/mds"
+        bin_dir="$tmpdir/bin"
+        systemd_dir="$tmpdir/systemd"
+        mkdir -p "$install_dir/tools/git_sync_mds" "$install_dir/tools" "$bin_dir" "$systemd_dir"
+        cp "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'git_sync_mds.service'}" "$install_dir/tools/git_sync_mds/git_sync_mds.service"
+        printf '#!/bin/bash\\nexit 0\\n' > "$install_dir/tools/update_repo_ssh.sh"
+        chmod +x "$install_dir/tools/update_repo_ssh.sh"
+
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "daemon-reload") exit 0 ;;
+  "enable git_sync_mds.service") exit 0 ;;
+  "restart git_sync_mds.service") exit 0 ;;
+  "status git_sync_mds.service --no-pager") exit 0 ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/systemctl"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        MDS_HOME="/root" \
+        MDS_INSTALL_DIR="$install_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'install_git_sync_mds.sh'}" root
+
+        grep -q '^daemon-reload$' "$tmpdir/systemctl.log"
+        grep -q '^enable git_sync_mds.service$' "$tmpdir/systemctl.log"
+        grep -q '^restart git_sync_mds.service$' "$tmpdir/systemctl.log"
+        ! grep -q '^start git_sync_mds.service$' "$tmpdir/systemctl.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
     result = run_bash(
         f"""
