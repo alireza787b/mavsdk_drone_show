@@ -857,6 +857,9 @@ check_service_updates() {
                     fi
                 else
                     log_warn "$component" "Failed to update $service service file (sudo may not be available)"
+                    SERVICE_RELOAD_STATUS="warning"
+                    SERVICE_RELOAD_MESSAGE="One or more systemd unit updates could not be applied; rerun the node installer or update controlled sudoers."
+                    record_deferred_unit_action "${service}.service:manual_unit_update_required"
                     rm -f "$temp_file" "$previous_file"
                 fi
             else

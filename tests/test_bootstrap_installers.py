@@ -1128,6 +1128,56 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_service_update_permission_failure_is_reported_as_deferred_action():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools/git_sync_mds" "$repo_dir/tools/led_indicator" "$systemd_dir" "$bin_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+        cp "{REPO_ROOT / 'tools' / 'git_sync_mds' / 'git_sync_mds.service'}" "$repo_dir/tools/git_sync_mds/git_sync_mds.service"
+        cp "{REPO_ROOT / 'tools' / 'led_indicator' / 'led_indicator.service'}" "$repo_dir/tools/led_indicator/led_indicator.service"
+
+        cat > "$systemd_dir/git_sync_mds.service" <<'EOF'
+[Service]
+ExecStart=/old/path/update_repo_ssh.sh
+EOF
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "mv" ]]; then
+  exit 1
+fi
+exec "$@"
+EOF
+        cat > "$bin_dir/systemd-analyze" <<'EOF'
+#!/bin/bash
+[[ "$1" == "verify" ]] || exit 1
+[[ "$2" == *.service ]] || exit 1
+exit 0
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemd-analyze"
+
+        PATH="$bin_dir:$PATH" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_service_updates; [[ "$SERVICE_RELOAD_STATUS" == "warning" ]]; [[ "$SERVICE_RELOAD_MESSAGE" == *"could not be applied"* ]]; printf "%s\\n" "${{DEFERRED_UNIT_ACTIONS[@]}}" | grep -qx "git_sync_mds.service:manual_unit_update_required"'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_git_sync_service_unit_updates_do_not_restart_running_sync():
     result = run_bash(
         f"""
