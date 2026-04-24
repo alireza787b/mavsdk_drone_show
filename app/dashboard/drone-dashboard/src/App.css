@@ -217,6 +217,10 @@ h1, h2, h3, h4, h5, h6 {
   z-index: calc(var(--z-modal) + 2);
 }
 
+.mobile-shell-controls.is-open {
+  left: min(calc(82vw + 0.65rem), calc(320px + 0.65rem));
+}
+
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
