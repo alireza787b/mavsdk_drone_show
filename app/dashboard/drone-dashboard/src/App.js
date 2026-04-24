@@ -121,14 +121,16 @@ const App = () => {
             >
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
-                  <div className={`mobile-shell-controls ${mobileSidebarOpen ? 'is-open' : ''}`}>
-                    <button
-                      className={`mobile-sidebar-toggle ${mobileSidebarOpen ? 'is-open' : ''}`}
-                      onClick={() => setMobileSidebarOpen((current) => !current)}
-                      aria-label={mobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-                    >
-                      {mobileSidebarOpen ? <FaTimes /> : <FaBars />}
-                    </button>
+                  <>
+                    <div className={`mobile-shell-controls ${mobileSidebarOpen ? 'is-open' : ''}`}>
+                      <button
+                        className={`mobile-sidebar-toggle ${mobileSidebarOpen ? 'is-open' : ''}`}
+                        onClick={() => setMobileSidebarOpen((current) => !current)}
+                        aria-label={mobileSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                      >
+                        {mobileSidebarOpen ? <FaTimes /> : <FaBars />}
+                      </button>
+                    </div>
                     {mobileSidebarOpen && (
                       <button
                         className="sidebar-backdrop"
@@ -137,7 +139,7 @@ const App = () => {
                         onClick={() => setMobileSidebarOpen(false)}
                       />
                     )}
-                  </div>
+                  </>
                 )}
                 <SidebarMenu
                   collapsed={sidebarCollapsed}

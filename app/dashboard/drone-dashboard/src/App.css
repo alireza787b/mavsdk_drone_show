@@ -187,7 +187,7 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-primary);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(12px);
-  z-index: calc(var(--z-modal) + 2);
+  z-index: calc(var(--z-tooltip) + 22);
   cursor: pointer;
   transition: var(--transition-all);
 }
@@ -214,7 +214,7 @@ h1, h2, h3, h4, h5, h6 {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
-  z-index: calc(var(--z-modal) + 2);
+  z-index: calc(var(--z-tooltip) + 22);
 }
 
 .mobile-shell-controls.is-open {
@@ -226,7 +226,7 @@ h1, h2, h3, h4, h5, h6 {
   inset: 0;
   border: none;
   background: color-mix(in srgb, var(--color-overlay) 78%, transparent);
-  z-index: var(--z-modal-backdrop);
+  z-index: calc(var(--z-tooltip) + 10);
   cursor: pointer;
   touch-action: none;
 }
