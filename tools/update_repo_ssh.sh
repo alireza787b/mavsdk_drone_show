@@ -560,7 +560,7 @@ path_requires_coordinator_restart() {
         deployment/connectivity/smart-wifi-manager/profile.json|deployment/defaults.env)
             return 1
             ;;
-        tools/install_gcs.sh|tools/mds_gcs_init.sh|tools/mds_gcs_init_lib/*|tools/install_companion.sh|tools/install_mds_node.sh)
+        tools/install_gcs.sh|tools/mds_gcs_init.sh|tools/mds_gcs_init_lib/*|tools/mds_init_lib/*|tools/install_companion.sh|tools/install_mds_node.sh)
             return 1
             ;;
         tools/build_custom_image.sh|tools/package_sitl_image.sh|tools/release_sitl_image.sh|tools/docker_sitl_image_lib.sh|tools/sitl_*|tools/run_sitl_*|tools/mds_git_access_check.sh)
