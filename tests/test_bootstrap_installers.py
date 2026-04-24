@@ -555,6 +555,52 @@ PY
     assert result.returncode == 0, result.stderr
 
 
+def test_dashboard_start_tmux_launch_waits_for_panes_before_sending_commands():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app" "$tmpdir/gcs-server" "$tmpdir/app/dashboard/drone-dashboard/build"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        tmux() {{
+            printf '%s\\n' "$*" >> "$tmpdir/tmux.log"
+        }}
+        sleep() {{
+            printf 'sleep %s\\n' "$1" >> "$tmpdir/tmux.log"
+        }}
+        prepare_react_runtime() {{ :; }}
+        sync_tmux_session_environment() {{ :; }}
+        show_tmux_instructions() {{ :; }}
+        get_gcs_server_command() {{ echo "echo gcs"; }}
+        get_react_command() {{ echo "echo react"; }}
+        SESSION_NAME="MDS-GCS"
+        DEPLOYMENT_MODE="production"
+        RUN_GCS_SERVER="true"
+        RUN_GUI_APP="true"
+        COMBINED_VIEW="true"
+        start_services_in_tmux
+        grep -q 'new-session -d -s MDS-GCS' "$tmpdir/tmux.log"
+        grep -q 'sleep 0.2' "$tmpdir/tmux.log"
+        grep -q 'split-window -t MDS-GCS:Services -h' "$tmpdir/tmux.log"
+        grep -q "send-keys -t MDS-GCS:Services.0 .*Starting GCS server" "$tmpdir/tmux.log"
+        grep -q "send-keys -t MDS-GCS:Services.1 .*Starting React app" "$tmpdir/tmux.log"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_dashboard_start_build_check_detects_newer_source_than_marker():
     start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
 

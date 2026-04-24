@@ -1970,3 +1970,27 @@ Verification:
 - focused SITL control frontend tests
 - live Hetzner validation should prove that leftover local SITL containers can
   now be removed after a `REAL` mode switch without falling back to shell
+
+## Slice 40
+
+Goal:
+
+- harden the canonical tmux launcher against intermittent empty-session starts
+  observed during live Hetzner validation
+
+Implemented:
+
+- added `tmux_wait_for_pane_ready()` in `app/linux_dashboard_start.sh`
+- now pause briefly after:
+  - `tmux new-session`
+  - `tmux split-window`
+  - `tmux new-window`
+- added launcher regression coverage proving the combined-pane startup path:
+  - waits for pane readiness
+  - still sends both backend and frontend launch commands
+
+Verification:
+
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "dashboard_start"`
+- live Hetzner validation should no longer strand an empty `MDS-GCS` session
+  with no backend/frontend processes after a restart
