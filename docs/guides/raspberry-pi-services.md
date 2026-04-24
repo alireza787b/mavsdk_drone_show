@@ -195,7 +195,7 @@ MDS_GCS_IP=192.168.1.100
 
 # Keep mavlink-anywhere managed, but pin this node to a specific release
 MDS_MAVLINK_MANAGEMENT_MODE=managed
-MDS_MAVLINK_ANYWHERE_REF=v3.0.5
+MDS_MAVLINK_ANYWHERE_REF=v3.0.7
 
 # Enable debug logging
 MDS_LOG_LEVEL=DEBUG

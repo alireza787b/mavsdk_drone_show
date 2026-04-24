@@ -109,7 +109,7 @@ should come from:
 Current managed defaults include:
 
 - `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed`
-- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.5`
+- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.7`
 - `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/mavlink-anywhere`
 
 #### Prerequisites
@@ -134,7 +134,7 @@ sudo raspi-config
 cd ~
 git clone https://github.com/alireza787b/mavlink-anywhere.git
 cd mavlink-anywhere
-git checkout v3.0.5
+git checkout v3.0.7
 chmod +x install_mavlink_router.sh
 sudo ./install_mavlink_router.sh
 ```
