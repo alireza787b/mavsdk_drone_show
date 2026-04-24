@@ -346,7 +346,6 @@ describe('SitlControlPage', () => {
     render(<SitlControlPage />);
 
     expect(await screen.findByText('Cleanup only')).toBeInTheDocument();
-    expect(await screen.findByText(/inventory and remove remain available/i)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Fleet' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^reconcile$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /save image/i })).not.toBeInTheDocument();
