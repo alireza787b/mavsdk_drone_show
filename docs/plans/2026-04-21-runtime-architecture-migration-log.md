@@ -2108,6 +2108,8 @@ Implemented:
 
 - moved mobile shell controls above the modal layer so the close control remains
   reliably reachable
+- when the drawer is open, moved the close control outside the drawer edge so it
+  cannot cover scrolled navigation rows
 - moved the backdrop to the modal-backdrop layer and the sidebar drawer to the
   modal layer, eliminating ambiguous stacking with page content
 - made the mobile drawer itself the scroll container with momentum scrolling,
@@ -2116,6 +2118,8 @@ Implemented:
   the drawer instead of needing to hit only the nav list
 - made the light-mode mobile drawer background fully opaque to avoid the drawer
   looking disabled or washed out by the dim page backdrop
+- disabled mobile drawer backdrop filtering so page blur cannot visually bleed
+  into the drawer surface
 
 Verification:
 

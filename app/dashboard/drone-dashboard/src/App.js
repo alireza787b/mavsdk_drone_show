@@ -121,7 +121,7 @@ const App = () => {
             >
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
-                  <div className="mobile-shell-controls">
+                  <div className={`mobile-shell-controls ${mobileSidebarOpen ? 'is-open' : ''}`}>
                     <button
                       className={`mobile-sidebar-toggle ${mobileSidebarOpen ? 'is-open' : ''}`}
                       onClick={() => setMobileSidebarOpen((current) => !current)}

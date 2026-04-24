@@ -585,6 +585,8 @@
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
+    backdrop-filter: none;
+    background-color: var(--color-bg-primary);
     background:
       linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.08) 0%, transparent 18%),
       linear-gradient(180deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 55%, var(--color-bg-tertiary) 100%);
@@ -614,6 +616,7 @@
   }
 
   .modern-sidebar-wrapper.mobile.light {
+    background-color: #fff;
     background:
       linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.05) 0%, rgba(255, 255, 255, 1) 18%, rgba(248, 251, 253, 1) 100%);
   }
