@@ -1140,6 +1140,42 @@ get_react_command() {
     fi
 }
 
+TMUX_RUNTIME_ENV_VARS=(
+    MDS_MODE
+    MDS_REPO_URL
+    MDS_BRANCH
+    MDS_INSTALL_DIR
+    MDS_GIT_AUTO_PUSH
+    MDS_GIT_AUTH_TOKEN_FILE
+    MDS_GIT_AUTH_TOKEN
+    MDS_GIT_AUTH_USERNAME
+    MDS_GIT_SSH_KEY_FILE
+    MDS_DOCKER_IMAGE
+    MDS_SITL_GIT_SYNC
+    MDS_SITL_REQUIREMENTS_SYNC
+    MDS_SITL_USE_HOST_STARTUP_SCRIPT
+    MDS_GCS_SYSTEM_CONFIG
+    MDS_SKIP_GCS_SYSTEM_CONFIG
+    GCS_ENV
+    GCS_PORT
+    GCS_BACKEND
+    NODE_ENV
+    REACT_APP_ENV
+)
+
+sync_tmux_session_environment() {
+    local session="$1"
+    local var_name=""
+
+    for var_name in "${TMUX_RUNTIME_ENV_VARS[@]}"; do
+        if [[ -n "${!var_name+x}" ]]; then
+            tmux set-environment -t "$session" "$var_name" "${!var_name}"
+        else
+            tmux set-environment -t "$session" -u "$var_name" 2>/dev/null || true
+        fi
+    done
+}
+
 prepare_react_runtime() {
     if [[ "$RUN_GUI_APP" != "true" ]]; then
         return 0
@@ -1169,6 +1205,7 @@ start_services_in_tmux() {
     log_info "Creating tmux session: $session (mode: $DEPLOYMENT_MODE)"
     tmux new-session -d -s "$session"
     tmux set-option -g mouse on
+    sync_tmux_session_environment "$session"
     
     local gcs_cmd=""
     local react_cmd=""
