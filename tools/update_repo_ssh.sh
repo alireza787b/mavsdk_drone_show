@@ -75,6 +75,7 @@ LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
 SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
 RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-10}"
+RESTART_COORDINATOR_ON_REPO_UPDATE="${MDS_RESTART_COORDINATOR_ON_REPO_UPDATE:-true}"
 GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-${RESOLVED_HOME}/.local/state/mds/git-sync}"
 GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
 GIT_SYNC_SELF_REEXEC_COUNT="${MDS_GIT_SYNC_REEXEC_COUNT:-0}"
@@ -597,6 +598,25 @@ check_runtime_process_updates() {
 
     mark_coordinator_restart_needed "runtime files changed"
     log_info "$component" "Coordinator restart required due to runtime file changes: ${relevant_paths[*]}"
+}
+
+check_repo_update_restart_policy() {
+    local old_head="${1:-}"
+    local new_head="${2:-}"
+    local component="RUNTIME-RESTART"
+
+    if [[ "${RESTART_COORDINATOR_ON_REPO_UPDATE}" != "true" ]]; then
+        log_debug "$component" "Repo-update coordinator restart policy disabled"
+        return 0
+    fi
+
+    if [[ -z "$old_head" || -z "$new_head" || "$old_head" == "$new_head" ]]; then
+        log_debug "$component" "No repository revision change for coordinator restart policy"
+        return 0
+    fi
+
+    mark_coordinator_restart_needed "repository revision changed"
+    log_info "$component" "Coordinator restart required because repository revision changed from ${old_head:0:8} to ${new_head:0:8}"
 }
 
 sync_logic_changed_between_heads() {
@@ -1614,6 +1634,7 @@ main() {
     current_head=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "")
     maybe_reexec_updated_sync_script "$previous_head" "$current_head"
     check_runtime_process_updates "$previous_head" "$current_head"
+    check_repo_update_restart_policy "$previous_head" "$current_head"
     if ! preflight_validate_post_sync_runtime_changes "$previous_head" "$current_head"; then
         set_led_status "GIT_FAILED_CONTINUING"
         if rollback_repository_to_previous_head "$previous_head" "POST-SYNC-ROLLBACK"; then

@@ -1322,6 +1322,38 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_repo_revision_change_marks_coordinator_restart_by_default():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir" "$home_dir/logs"
+        git -C "$repo_dir" init -q
+        git -C "$repo_dir" config user.email test@example.com
+        git -C "$repo_dir" config user.name Test
+        printf "one\\n" > "$repo_dir/runtime.txt"
+        git -C "$repo_dir" add runtime.txt
+        git -C "$repo_dir" commit -q -m initial
+        old_head="$(git -C "$repo_dir" rev-parse HEAD)"
+        printf "two\\n" > "$repo_dir/runtime.txt"
+        git -C "$repo_dir" add runtime.txt
+        git -C "$repo_dir" commit -q -m update
+        new_head="$(git -C "$repo_dir" rev-parse HEAD)"
+
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        OLD_HEAD="$old_head" \
+        NEW_HEAD="$new_head" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_repo_update_restart_policy "$OLD_HEAD" "$NEW_HEAD"; [[ "$COORDINATOR_RESTART_NEEDED" == "true" ]]; printf "%s\\n" "${{COORDINATOR_RESTART_REASONS[@]}}" | grep -qx "repository revision changed"'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_git_sync_runtime_state_persists_post_sync_summary():
     result = run_bash(
         f"""
