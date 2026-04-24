@@ -3,6 +3,15 @@
 The dashboard now includes a dedicated `System -> SITL Control` page for
 temporary local SITL hosts.
 
+When the GCS is running in `REAL` mode, the page stays available in a
+cleanup-only posture:
+
+- local SITL inventory still loads
+- instance log tails still work
+- remove actions stay available so leftover local containers can be cleaned up
+- create / reconcile / restart / image-save actions stay blocked until the GCS
+  returns to `SITL` mode
+
 Use it when you want to:
 
 - inspect local SITL Docker images prepared for MDS
@@ -65,6 +74,15 @@ It does not do in V1:
 9. Use `Restart` or `Remove` only on the selected instance.
 10. Use `Batch` only when you intentionally want the current filtered visible
     scope restarted or removed together.
+
+If the GCS is already back in `REAL` mode but the host still has leftover local
+SITL containers:
+
+1. Open `System -> SITL Control`.
+2. Confirm the page shows `Cleanup only`.
+3. Select the stale container(s).
+4. Use `Remove` or `Batch -> Remove visible`.
+5. Leave `REAL` mode active; do not switch back to `SITL` just to perform local cleanup.
 
 For ad hoc fleet growth tests, use `Add next` or `Custom`:
 
@@ -172,6 +190,8 @@ Use `--mode shell` only for explicit cold-start or legacy-host workflows.
 - `Add next` and `Custom` create a single new container without pruning the
   existing fleet.
 - `Batch` applies restart or remove to the current filtered visible list.
+- In `REAL` mode, SITL Control becomes cleanup-only and only `Remove` actions
+  stay available.
 - Reconcile is the preferred way to converge the whole local fleet.
 - Container log tails first use Docker logs, then fall back to the container's
   file-backed SITL runtime logs such as `startup_sitl.log` when Docker output

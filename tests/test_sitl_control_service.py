@@ -131,11 +131,11 @@ class _FakeContainer:
         return None
 
 
-def _make_service(tmp_path: Path, containers=None, images=None) -> SitlControlService:
+def _make_service(tmp_path: Path, containers=None, images=None, *, sim_mode: bool = True) -> SitlControlService:
     socket_path = tmp_path / "docker.sock"
     socket_path.write_text("", encoding="utf-8")
     fake_client = _FakeClient(containers or [], images or [])
-    params = SimpleNamespace(sim_mode=True)
+    params = SimpleNamespace(sim_mode=sim_mode)
     return SitlControlService(
         params,
         docker_socket_path=str(socket_path),
@@ -161,6 +161,8 @@ def test_build_policy_and_host_summary_report_live_environment(tmp_path, monkeyp
     assert policy.sim_mode is True
     assert policy.read_only is False
     assert policy.features.lifecycle_mutations is True
+    assert policy.features.cleanup_removals is True
+    assert policy.features.image_release is True
     assert policy.docker.daemon_reachable is True
     assert policy.defaults.default_use_host_startup_script is True
     assert policy.defaults.default_startup_script_source == "host_override"
@@ -168,6 +170,18 @@ def test_build_policy_and_host_summary_report_live_environment(tmp_path, monkeyp
     assert host.host.disk_path == str(tmp_path)
     assert host.host.cpu_count_logical >= 0
     assert host.host.portainer_available is False
+
+
+def test_build_policy_exposes_cleanup_only_capability_when_runtime_is_real(tmp_path):
+    service = _make_service(tmp_path, sim_mode=False)
+
+    policy = service.build_policy()
+
+    assert policy.sim_mode is False
+    assert policy.read_only is False
+    assert policy.features.lifecycle_mutations is False
+    assert policy.features.cleanup_removals is True
+    assert policy.features.image_release is False
 
 
 def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
@@ -377,6 +391,71 @@ def test_remove_instance_operation_completes_immediately_with_test_runner(tmp_pa
     assert result is not None
     assert result.status == "succeeded"
     assert drone.remove_calls == 1
+
+
+def test_remove_instance_operation_is_allowed_when_runtime_is_real(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone = _FakeContainer(name="drone-1", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"})
+    service = _ImmediateOperationService(
+        params=SimpleNamespace(sim_mode=False),
+        docker_socket_path=str(tmp_path / "docker.sock"),
+        client_factory=lambda: _FakeClient([drone], [image]),
+        repo_root=str(tmp_path),
+    )
+    Path(service.docker_socket_path).write_text("", encoding="utf-8")
+
+    operation = service.remove_instance("drone-1")
+
+    result = service.get_operation(operation.operation_id)
+    assert result is not None
+    assert result.status == "succeeded"
+    assert operation.operation_type == "remove_instance"
+    assert drone.remove_calls == 1
+
+
+def test_batch_remove_operation_is_allowed_when_runtime_is_real(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone1 = _FakeContainer(name="drone-1", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"})
+    drone2 = _FakeContainer(name="drone-2", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"})
+    service = _ImmediateOperationService(
+        params=SimpleNamespace(sim_mode=False),
+        docker_socket_path=str(tmp_path / "docker.sock"),
+        client_factory=lambda: _FakeClient([drone1, drone2], [image]),
+        repo_root=str(tmp_path),
+    )
+    Path(service.docker_socket_path).write_text("", encoding="utf-8")
+
+    operation = service.instance_action(
+        SitlControlInstanceActionRequest(action="remove", instance_names=["drone-1", "drone-2"])
+    )
+
+    result = service.get_operation(operation.operation_id)
+    assert result is not None
+    assert result.status == "succeeded"
+    assert result.summary == "Removed 2 instance(s)"
+    assert drone1.remove_calls == 1
+    assert drone2.remove_calls == 1
+
+
+def test_restart_instance_is_rejected_when_runtime_is_real(tmp_path):
+    image = _FakeImage(
+        "sha256:official",
+        ["mavsdk-drone-show-sitl:latest"],
+        labels={"mds.sitl.image.repo": "mavsdk-drone-show-sitl"},
+    )
+    drone = _FakeContainer(name="drone-1", image=image, env={"MDS_BASE_DIR": "/root/mavsdk_drone_show"})
+    service = _make_service(tmp_path, containers=[drone], images=[image], sim_mode=False)
+
+    with pytest.raises(RuntimeError, match="only available when GCS is running in simulation mode"):
+        service.restart_instance("drone-1")
 
 
 def test_create_instance_operation_uses_next_available_id_and_ip(tmp_path):

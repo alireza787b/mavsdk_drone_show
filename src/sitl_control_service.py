@@ -113,15 +113,17 @@ class SitlControlService:
     def build_policy(self) -> SitlControlPolicyResponse:
         docker_state = self._get_docker_state()
         use_host_startup_script, startup_script_source = _resolve_host_startup_script_mode()
+        sim_mode_enabled = bool(getattr(self.params, "sim_mode", False))
         return SitlControlPolicyResponse(
-            sim_mode=bool(getattr(self.params, "sim_mode", False)),
+            sim_mode=sim_mode_enabled,
             read_only=False,
             docs_path="docs/guides/sitl-validation-platform.md",
             features=SitlControlFeatureFlags(
-                lifecycle_mutations=True,
+                lifecycle_mutations=sim_mode_enabled,
+                cleanup_removals=True,
                 operations=True,
                 bulk_actions=True,
-                image_release=True,
+                image_release=sim_mode_enabled,
                 browser_terminal=False,
             ),
             defaults=SitlControlPolicyDefaults(
@@ -370,7 +372,7 @@ class SitlControlService:
         return operation
 
     def instance_action(self, request: SitlControlInstanceActionRequest) -> SitlControlOperationResponse:
-        self._ensure_mutation_allowed()
+        self._ensure_mutation_allowed(allow_cleanup_when_runtime_disabled=request.action == "remove")
         action_label = "Restarting" if request.action == "restart" else "Removing"
         operation = self._create_operation(
             operation_type=f"{request.action}_instances",
@@ -403,7 +405,7 @@ class SitlControlService:
         return operation
 
     def remove_instance(self, instance_name: str) -> SitlControlOperationResponse:
-        self._ensure_mutation_allowed()
+        self._ensure_mutation_allowed(allow_cleanup_when_runtime_disabled=True)
         operation = self._create_operation(
             operation_type="remove_instance",
             summary=f"Removing {instance_name}",
@@ -639,9 +641,11 @@ class SitlControlService:
             return match.group(1)
         return None
 
-    def _ensure_mutation_allowed(self) -> None:
-        if not bool(getattr(self.params, "sim_mode", False)):
-            raise RuntimeError("SITL lifecycle control is only available when GCS is running in simulation mode")
+    def _ensure_mutation_allowed(self, *, allow_cleanup_when_runtime_disabled: bool = False) -> None:
+        if not bool(getattr(self.params, "sim_mode", False)) and not allow_cleanup_when_runtime_disabled:
+            raise RuntimeError(
+                "SITL reconcile/create/restart/image workflows are only available when GCS is running in simulation mode"
+            )
 
         docker_state = self._get_docker_state()
         if not docker_state.daemon_reachable:

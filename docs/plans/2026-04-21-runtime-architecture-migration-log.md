@@ -1936,3 +1936,37 @@ Residual drift after this slice:
 
 - private repo still needs the same launcher fix promoted and then validated on
   live Hetzner with a real SITL->REAL apply flow
+
+## Slice 39
+
+Goal:
+
+- make leftover local SITL cleanup still possible after the GCS has already
+  switched into `REAL` mode, without reopening the full SITL lifecycle surface
+
+Implemented:
+
+- updated `src/sitl_control_service.py` so:
+  - reconcile/create/restart/image-release remain simulation-only mutations
+  - single-instance remove and batch remove stay allowed even when
+    `Params.sim_mode` is false
+- updated the SITL Control policy model so the dashboard can distinguish:
+  - full SITL lifecycle mode
+  - cleanup-only mode
+- updated `SitlControlPage` so `REAL` mode now keeps:
+  - host summary
+  - operations
+  - local instance inventory
+  - log tails
+  - remove actions
+  while hiding full lifecycle controls such as reconcile, create, restart, and
+  image save
+- updated Runtime Admin/operator docs to point operators at cleanup-only SITL
+  Control after a `REAL` mode switch
+
+Verification:
+
+- focused SITL control backend tests
+- focused SITL control frontend tests
+- live Hetzner validation should prove that leftover local SITL containers can
+  now be removed after a `REAL` mode switch without falling back to shell
