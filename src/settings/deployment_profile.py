@@ -116,7 +116,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS",
         "https://github.com/alireza787b/mavlink-anywhere.git",
     )
-    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.7")
+    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.8")
     mavlink_anywhere_install_dir = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR", "/opt/mavlink-anywhere")
     mavlink_anywhere_dashboard_listen = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN", "127.0.0.1:9070")
     mavlink_anywhere_skip_dashboard = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD", "false").strip().lower() in {

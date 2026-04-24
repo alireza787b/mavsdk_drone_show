@@ -114,7 +114,7 @@ MAVLINK_INPUT_TYPE="uart"
 MAVLINK_INPUT_PORT="14550"
 MAVLINK_MANAGEMENT_MODE="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}"
 MAVLINK_ANYWHERE_REPO_URL="${MDS_MAVLINK_ANYWHERE_REPO_URL:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG:-alireza787b/mavlink-anywhere}.git}}"
-MAVLINK_ANYWHERE_REF="${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.7}}"
+MAVLINK_ANYWHERE_REF="${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.8}}"
 MAVLINK_ANYWHERE_INSTALL_DIR="${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}"
 MAVLINK_ANYWHERE_DASHBOARD_LISTEN="${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}"
 MAVLINK_ANYWHERE_SKIP_DASHBOARD="${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}"
@@ -277,7 +277,7 @@ EXAMPLES:
     sudo ./mds_node_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
 
     # Pin managed mavlink-anywhere to a specific release tag
-    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --mavlink-ref v3.0.7
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --mavlink-ref v3.0.8
 
     # Headless UDP-input mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-input udp --mavlink-input-port 14550 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550"

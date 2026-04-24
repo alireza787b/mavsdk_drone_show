@@ -1589,8 +1589,8 @@ class TestGitStatusEndpoints:
             'mavlink_runtime': {
                 'status_source': 'script',
                 'management_mode': 'managed',
-                'ref': 'v3.0.7',
-                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.7',
+                'ref': 'v3.0.8',
+                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.8',
                 'install_dir_present': True,
                 'runtime_present': True,
                 'runtime_head': 'abc1234',
