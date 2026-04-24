@@ -115,7 +115,8 @@ HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
 STARTUP_SCRIPT_IMAGE="${HWID_CONTAINER_DIR}/multiple_sitl/startup_sitl.sh"
 STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}"
-USE_HOST_STARTUP_SCRIPT="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-false}"
+USE_HOST_STARTUP_SCRIPT="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-}"
+USE_HOST_STARTUP_SCRIPT_SOURCE="unset"
 DOCKER_RESTART_POLICY="${MDS_SITL_DOCKER_RESTART_POLICY:-unless-stopped}"
 VERBOSE=false
 DOCKER_ENV_ARGS=()
@@ -161,6 +162,26 @@ collect_mds_env_args() {
 
     prepare_git_auth_secret_args
     prepare_git_ssh_secret_args
+    DOCKER_ENV_ARGS+=(-e "MDS_SITL_USE_HOST_STARTUP_SCRIPT=${USE_HOST_STARTUP_SCRIPT}")
+}
+
+resolve_host_startup_script_mode() {
+    local requested="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-}"
+    local effective_git_sync="${MDS_SITL_GIT_SYNC:-true}"
+
+    if [[ -n "$requested" ]]; then
+        USE_HOST_STARTUP_SCRIPT="$requested"
+        USE_HOST_STARTUP_SCRIPT_SOURCE="env:MDS_SITL_USE_HOST_STARTUP_SCRIPT"
+        return 0
+    fi
+
+    if [[ "$effective_git_sync" == "true" ]]; then
+        USE_HOST_STARTUP_SCRIPT="true"
+        USE_HOST_STARTUP_SCRIPT_SOURCE="auto:mutable_git_sync"
+    else
+        USE_HOST_STARTUP_SCRIPT="false"
+        USE_HOST_STARTUP_SCRIPT_SOURCE="auto:pinned_image"
+    fi
 }
 
 prepare_git_auth_secret_args() {
@@ -222,6 +243,7 @@ print_launcher_configuration() {
     else
         echo "  Startup Script : image-baked (${STARTUP_SCRIPT_IMAGE})"
     fi
+    echo "  Startup Source : ${USE_HOST_STARTUP_SCRIPT_SOURCE}"
     echo "  Container Repo : /root/mavsdk_drone_show"
     echo "  Runtime Root   : ${HOST_RUNTIME_ROOT}"
     echo "  Shared Traj    : ${SHARE_HOST_SWARM_TRAJECTORY}"
@@ -663,6 +685,7 @@ main() {
 
     # Validate inputs
     validate_input "$num_instances"
+    resolve_host_startup_script_mode
     validate_launcher_configuration
 
     collect_mds_env_args

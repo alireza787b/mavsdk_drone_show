@@ -1855,3 +1855,41 @@ Residual drift after this slice:
 - live Hetzner still needs one more launcher rollout to verify the corrected
   build-marker logic on the running private GCS
 - board-side live convergence remains externally blocked on NetBird reachability
+
+## Slice 37
+
+Goal:
+
+- remove a real mutable-SITL bootstrap drift where the host repo injects
+  canonical `MDS_HW_ID` but older baked images can still boot through a stale
+  `startup_sitl.sh`
+
+Implemented:
+
+- changed `multiple_sitl/create_dockers.sh` so startup-script source now tracks
+  rollout mode:
+  - mutable latest-on-boot (`MDS_SITL_GIT_SYNC=true`) defaults to the
+    host-mounted current `startup_sitl.sh`
+  - pinned-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked
+    script
+- made the launcher forward the resolved
+  `MDS_SITL_USE_HOST_STARTUP_SCRIPT` value into each container explicitly so
+  runtime inventory can report the active bootstrap source
+- extended SITL policy / instance inventory with startup-script source
+  reporting
+- updated SITL docs and env reference to explain the new auto behavior and the
+  remaining explicit override path
+
+Verification:
+
+- `bash -n multiple_sitl/create_dockers.sh`
+- `python3 -m pytest --no-cov tests/test_sitl_control_service.py -k "startup_script or build_policy"`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "canonical_mds_hw_id"`
+- live Hetzner reconcile after rollout should show SITL containers booting from
+  the host-mounted current startup path instead of stale baked bootstrap logic
+
+Residual drift after this slice:
+
+- live Hetzner still needs the new private commit fast-forwarded and a fresh
+  SITL reconcile to replace containers created under the old baked bootstrap
+  path

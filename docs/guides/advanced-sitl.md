@@ -75,7 +75,8 @@ export MDS_SITL_WAIT_FOR_READY=true
 export MDS_SITL_READY_TIMEOUT_SECONDS=60
 export MDS_SITL_READY_POLL_INTERVAL_SECONDS=2
 export MDS_SITL_DOCKER_RESTART_POLICY="unless-stopped"
-export MDS_SITL_USE_HOST_STARTUP_SCRIPT=false
+# Leave MDS_SITL_USE_HOST_STARTUP_SCRIPT unset for the rollout-aware default:
+# mutable git-sync -> host override, pinned image -> image-baked script.
 export MDS_SITL_SHARE_SWARM_TRAJECTORY=true
 export MDS_SITL_KEEP_ARM_TOOLCHAIN=false
 
@@ -109,7 +110,7 @@ Notes:
 - The image now keeps the real PX4 git checkout and submodule metadata intact. Image prep also writes PX4 provenance files into the repo root so you can audit what PX4 revision was baked into a release.
 - Release image prep removes the PX4 ARM firmware toolchain by default because normal SITL runtime does not need it. If your custom image intentionally needs that toolchain, export `MDS_SITL_KEEP_ARM_TOOLCHAIN=true` before rebuilding.
 - `create_dockers.sh` now waits for PX4, `mavlink-routerd`, and `coordinator.py` to be alive before it reports success. `startup_sitl.sh` runs as the container main process, and startup-wrapper logs are written to `logs/startup_sitl.log` inside each container.
-- `create_dockers.sh` now uses the image-baked `startup_sitl.sh` by default so a validated image behaves consistently across hosts. Set `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true` only for an explicit host-side debug override.
+- `create_dockers.sh` now chooses the startup script source based on rollout mode. Mutable latest-on-boot runs (`MDS_SITL_GIT_SYNC=true`) default to the host-mounted current `startup_sitl.sh` so the bootstrap path matches the live repo under test. Pinned validated-image runs (`MDS_SITL_GIT_SYNC=false`) stay on the image-baked script for reproducibility. Override that explicitly with `MDS_SITL_USE_HOST_STARTUP_SCRIPT=true|false` only when you intentionally want the non-default behavior.
 - `MDS_SITL_SHARE_SWARM_TRAJECTORY=true` now bind-mounts the host `shapes_sitl/swarm_trajectory/` workspace into each container through a dedicated runtime path. That keeps local Swarm Trajectory processing and same-host SITL execution consistent without making the container repo dirty.
 - This shared workspace is intentionally SITL-only. Real drones and remote repos still rely on the normal git commit / push / sync workflow for mission-artifact propagation.
 - Docker SITL containers now use Docker restart policy `unless-stopped` by default. Override it with `MDS_SITL_DOCKER_RESTART_POLICY` only if you intentionally want different lifecycle behavior.

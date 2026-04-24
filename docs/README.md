@@ -145,7 +145,7 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_SITL_READY_TIMEOUT_SECONDS` | Readiness timeout per launch batch | `60` |
 | `MDS_SITL_READY_POLL_INTERVAL_SECONDS` | Readiness polling interval | `2` |
 | `MDS_SITL_DOCKER_RESTART_POLICY` | Docker restart policy for SITL containers | `unless-stopped` |
-| `MDS_SITL_USE_HOST_STARTUP_SCRIPT` | Use a host-mounted `startup_sitl.sh` override instead of the image-baked script | `false` |
+| `MDS_SITL_USE_HOST_STARTUP_SCRIPT` | Override SITL bootstrap source (`true` = host-mounted current repo script, `false` = image-baked script). If unset, mutable `MDS_SITL_GIT_SYNC=true` now defaults to host override while pinned `false` stays image-baked. | `auto` |
 | `MDS_SITL_KEEP_ARM_TOOLCHAIN` | Keep the PX4 ARM firmware toolchain in release images | `false` |
 | `MDS_MAVSDK_VERSION` | Runtime or image-build MAVSDK server version override | unset |
 | `MDS_MAVSDK_URL` | Runtime or image-build MAVSDK server URL override | unset |

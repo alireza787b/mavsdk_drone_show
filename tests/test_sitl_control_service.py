@@ -5,7 +5,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.sitl_control_models import SitlControlImageReleaseRequest, SitlControlInstanceActionRequest
+from src.sitl_control_models import (
+    SitlControlCreateInstanceRequest,
+    SitlControlImageReleaseRequest,
+    SitlControlInstanceActionRequest,
+    SitlControlReconcileRequest,
+)
 from src.sitl_control_service import SitlControlService
 
 
@@ -145,7 +150,9 @@ class _ImmediateOperationService(SitlControlService):
         target(*args)
 
 
-def test_build_policy_and_host_summary_report_live_environment(tmp_path):
+def test_build_policy_and_host_summary_report_live_environment(tmp_path, monkeypatch):
+    monkeypatch.delenv("MDS_SITL_GIT_SYNC", raising=False)
+    monkeypatch.delenv("MDS_SITL_USE_HOST_STARTUP_SCRIPT", raising=False)
     service = _make_service(tmp_path)
 
     policy = service.build_policy()
@@ -155,6 +162,8 @@ def test_build_policy_and_host_summary_report_live_environment(tmp_path):
     assert policy.read_only is False
     assert policy.features.lifecycle_mutations is True
     assert policy.docker.daemon_reachable is True
+    assert policy.defaults.default_use_host_startup_script is True
+    assert policy.defaults.default_startup_script_source == "host_override"
     assert host.host.docker.server_version == "28.0.0"
     assert host.host.disk_path == str(tmp_path)
     assert host.host.cpu_count_logical >= 0
@@ -184,6 +193,7 @@ def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
             "MDS_REPO_URL": "https://github.com/alireza787b/mavsdk_drone_show.git",
             "MDS_SITL_GIT_SYNC": "true",
             "MDS_SITL_REQUIREMENTS_SYNC": "false",
+            "MDS_SITL_USE_HOST_STARTUP_SCRIPT": "true",
         },
         logs="2026-04-13T01:00:00Z boot ok\n2026-04-13T01:00:02Z ready",
     )
@@ -205,7 +215,53 @@ def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
     assert instances.instances[0].pos_id_hint == 2
     assert instances.instances[0].git_sync_enabled is True
     assert instances.instances[0].requirements_sync_enabled is False
+    assert instances.instances[0].startup_script_source == "host_override"
     assert instances.instances[0].ip_addresses["drone-network"] == "172.18.0.2"
+
+
+def test_build_policy_uses_baked_startup_script_when_git_sync_is_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_SITL_GIT_SYNC", "false")
+    monkeypatch.delenv("MDS_SITL_USE_HOST_STARTUP_SCRIPT", raising=False)
+    service = _make_service(tmp_path)
+
+    policy = service.build_policy()
+
+    assert policy.defaults.default_git_sync is False
+    assert policy.defaults.default_use_host_startup_script is False
+    assert policy.defaults.default_startup_script_source == "image_baked"
+
+
+def test_build_reconcile_env_defaults_host_startup_script_when_git_sync_enabled(tmp_path, monkeypatch):
+    monkeypatch.delenv("MDS_SITL_USE_HOST_STARTUP_SCRIPT", raising=False)
+    service = _make_service(tmp_path)
+
+    env = service._build_reconcile_env(
+        SitlControlReconcileRequest(
+            target_count=4,
+            start_id=1,
+            start_ip=2,
+            git_sync_enabled=True,
+            requirements_sync_enabled=True,
+        )
+    )
+
+    assert env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] == "true"
+
+
+def test_build_create_env_keeps_explicit_baked_startup_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("MDS_SITL_USE_HOST_STARTUP_SCRIPT", "false")
+    service = _make_service(tmp_path)
+
+    env = service._build_create_instance_env(
+        SitlControlCreateInstanceRequest(
+            instance_id=5,
+            ip_last_octet=6,
+            git_sync_enabled=True,
+            requirements_sync_enabled=True,
+        )
+    )
+
+    assert env["MDS_SITL_USE_HOST_STARTUP_SCRIPT"] == "false"
 
 
 def test_build_host_summary_detects_running_portainer_panel(tmp_path):

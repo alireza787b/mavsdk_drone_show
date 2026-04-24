@@ -2161,6 +2161,9 @@ def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
     startup_text = (REPO_ROOT / "multiple_sitl" / "startup_sitl.sh").read_text(encoding="utf-8")
 
     assert '-e "MDS_HW_ID=${drone_id}"' in create_text
+    assert "resolve_host_startup_script_mode()" in create_text
+    assert 'DOCKER_ENV_ARGS+=(-e "MDS_SITL_USE_HOST_STARTUP_SCRIPT=${USE_HOST_STARTUP_SCRIPT}")' in create_text
+    assert 'USE_HOST_STARTUP_SCRIPT_SOURCE="auto:mutable_git_sync"' in create_text
     assert "resolve_runtime_hwid()" in startup_text
     assert "MDS_HW_ID is required for SITL container startup." in startup_text
     assert "wait_for_hwid()" not in startup_text
