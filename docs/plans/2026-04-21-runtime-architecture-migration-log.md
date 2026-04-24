@@ -2170,8 +2170,19 @@ Implemented:
   - no broad fix-all action
   - no local secret path exposure
 - documented the Fleet Ops boundary in `docs/guides/fleet-ops.md`
+- corrected the Fleet Ops toolbar accessible region label so the parent
+  control group does not collide with the explicit filter select label
 
 Verification:
 
-- pending focused frontend tests on Hetzner after private sync:
+- passed focused frontend tests on Hetzner:
   `npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/utilities/fleetOpsViewModel.test.js src/components/SidebarMenu.test.js --watch=false`
+- passed production dashboard build on Hetzner:
+  `npm --prefix /opt/mds/app/dashboard/drone-dashboard run build`
+- verified deployed `/fleet-ops` returns HTTP 200 from the private runtime
+- triggered canonical git sync and verified both real nodes converged to the
+  GCS private candidate commit:
+  - target commit `54c7cd7762949827451ef21e92889c9ff5411cf3`
+  - `synced_count=2`
+  - `needs_sync_count=0`
+  - `online_count=2`
