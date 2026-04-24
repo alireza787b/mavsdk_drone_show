@@ -48,10 +48,11 @@ describe('SidebarMenu', () => {
 
     expect(screen.getByLabelText(/real runtime, configured sitl, restart required/i)).toBeInTheDocument();
     expect(screen.getByText('demo/customer-mds')).toBeInTheDocument();
-    expect(screen.getByText('Running REAL')).toBeInTheDocument();
-    expect(screen.getByText('Configured SITL')).toBeInTheDocument();
-    expect(screen.getByText('Restart pending')).toBeInTheDocument();
+    expect(screen.queryByText('Running REAL')).not.toBeInTheDocument();
+    expect(screen.queryByText('Configured SITL')).not.toBeInTheDocument();
+    expect(screen.queryByText('Restart pending')).not.toBeInTheDocument();
     expect(screen.getByText('Apply')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open runtime admin to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 
   it('keeps the runtime badge visible in collapsed mode', () => {

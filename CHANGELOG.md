@@ -56,6 +56,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   refuses updates touching launcher, frontend, tooling, or dependency paths.
 
 ### Changed
+- Mobile runtime chrome is now sidebar-owned: the standalone mobile runtime
+  pill was removed from the page shell, the hamburger overlay no longer blurs
+  the dashboard, and the sidebar keeps a compact clickable `REAL`/`SITL`
+  runtime badge that opens Runtime Admin.
 - SITL mutable latest-on-boot launches now default to the host-mounted current
   `startup_sitl.sh`, while pinned-image launches stay on the image-baked
   bootstrap path.

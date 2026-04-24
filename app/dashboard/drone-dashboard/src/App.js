@@ -11,7 +11,7 @@
  */
 
 import React, { useEffect, useState, Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { FaBars, FaTimes } from 'react-icons/fa';
 
 // Import theme system
@@ -23,7 +23,6 @@ import { MapProvider } from './contexts/MapContext';
 import './styles/DesignTokens.css';
 
 import SidebarMenu from './components/SidebarMenu';
-import RuntimeModeBadge from './components/RuntimeModeBadge';
 import SyncWarningBanner from './components/SyncWarningBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import useGcsRuntimeStatus from './hooks/useGcsRuntimeStatus';
@@ -130,21 +129,6 @@ const App = () => {
                     >
                       {mobileSidebarOpen ? <FaTimes /> : <FaBars />}
                     </button>
-                    <Link
-                      className="mobile-runtime-link"
-                      to="/runtime-admin"
-                      aria-label="Open Runtime Admin"
-                      title={runtimeStatus.restartRequired
-                        ? `Running ${runtimeStatus.modeLabel}. Configured ${runtimeStatus.configuredModeLabel}. Restart pending; open Runtime Admin.`
-                        : `Running ${runtimeStatus.modeLabel}. Open Runtime Admin.`}
-                    >
-                      <RuntimeModeBadge
-                        mode={runtimeStatus.mode}
-                        configuredMode={runtimeStatus.configuredMode}
-                        restartRequired={runtimeStatus.restartRequired}
-                        className="mobile-runtime-badge"
-                      />
-                    </Link>
                     {mobileSidebarOpen && (
                       <button
                         className="sidebar-backdrop"

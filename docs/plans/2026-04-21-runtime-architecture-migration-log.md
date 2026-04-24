@@ -2033,3 +2033,27 @@ Verification:
 - live `POST /api/v1/system/sitl/reconcile` to 4 instances
 - live `POST /api/v1/system/sitl/instances/actions` batch remove in `REAL`
   cleanup-only mode
+
+## Slice 42
+
+Goal:
+
+- simplify mobile runtime chrome so operators see one authoritative runtime
+  indicator in the sidebar, not a second floating badge over the page shell
+
+Implemented:
+
+- removed the standalone mobile Runtime Admin link from the top mobile shell
+- kept the sidebar runtime badge visible and clickable in expanded and collapsed
+  sidebar states
+- removed the verbose expanded-sidebar runtime summary text while preserving the
+  Runtime Admin tooltip and the `Apply` attention marker when restart is pending
+- changed the mobile sidebar backdrop from a blur overlay to a plain dim overlay
+  so the page does not visually smear when the hamburger is opened
+- updated focused frontend tests to lock the non-duplicated mobile runtime entry
+  and the compact sidebar runtime badge behavior
+
+Verification:
+
+- pending focused frontend tests on Hetzner:
+  `npm test -- --runTestsByPath src/App.test.js src/components/SidebarMenu.test.js --watch=false`
