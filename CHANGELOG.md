@@ -56,6 +56,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   refuses updates touching launcher, frontend, tooling, or dependency paths.
 
 ### Changed
+- Mobile sidebar layering and scrolling were hardened: the drawer now sits above
+  the backdrop at modal z-index, owns mobile touch scrolling, and uses an opaque
+  mobile light background so it does not appear disabled or faded.
 - Runtime Admin is now explicitly GCS-host scoped: git access hides raw secret
   paths, GCS-local sidecar dashboard links were removed from the primary
   layout, and sidecar/tool state is summarized as host capability context while
