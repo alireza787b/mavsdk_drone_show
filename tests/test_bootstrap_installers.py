@@ -2166,6 +2166,7 @@ def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
     assert 'USE_HOST_STARTUP_SCRIPT_SOURCE="auto:mutable_git_sync"' in create_text
     assert "resolve_runtime_hwid()" in startup_text
     assert "MDS_HW_ID is required for SITL container startup." in startup_text
+    assert "HWID_DIR" not in startup_text
     assert "wait_for_hwid()" not in startup_text
     assert "cp '$RUNTIME_FILES_CONTAINER'/*.hwID" not in create_text
 

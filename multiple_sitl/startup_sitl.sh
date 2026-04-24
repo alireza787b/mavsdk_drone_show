@@ -570,7 +570,6 @@ log_startup_configuration() {
     log_message "  Git Remote: $GIT_REMOTE"
     log_message "  Git Branch: $GIT_BRANCH"
     log_message "  Base Directory: $BASE_DIR"
-    log_message "  HWID Directory: $HWID_DIR"
     log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
     log_message "  Requested Legacy Sim Mode: $requested_mode_note"
     log_message "  PX4 Gazebo Target: $PX4_GZ_TARGET"

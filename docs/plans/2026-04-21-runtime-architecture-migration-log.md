@@ -1877,6 +1877,9 @@ Implemented:
   runtime inventory can report the active bootstrap source
 - extended SITL policy / instance inventory with startup-script source
   reporting
+- removed the last dangling `HWID_DIR` shell reference from
+  `startup_sitl.sh`, which would otherwise crash the host-mounted bootstrap
+  path under `set -u`
 - updated SITL docs and env reference to explain the new auto behavior and the
   remaining explicit override path
 
