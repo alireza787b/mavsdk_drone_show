@@ -220,8 +220,6 @@ def create_git_router(deps: Any) -> APIRouter:
 
             drones_config = deps.load_config()
             target_drones, skipped_offline = deps._select_sync_target_drones(drones_config, sync_request.pos_ids)
-            if sync_request.pos_ids:
-                command_data["pos_ids"] = sync_request.pos_ids
 
             if not target_drones:
                 return SyncReposResponse(

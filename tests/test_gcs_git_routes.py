@@ -60,6 +60,23 @@ def test_git_router_uses_live_verify_dependency_after_router_creation():
     replacement_verify.assert_awaited_once()
 
 
+def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post("/api/v1/git/sync-operations", json={"pos_ids": [1]})
+
+    assert response.status_code == 200
+    deps.send_commands_to_selected.assert_called_once()
+    _, command_data, target_hw_ids = deps.send_commands_to_selected.call_args.args
+    assert target_hw_ids == ["1"]
+    assert command_data["mission_type"] == 103
+    assert command_data["update_branch"] == "main-candidate"
+    assert "pos_ids" not in command_data
+
+
 def test_git_router_get_gcs_status_uses_live_dependency_after_router_creation():
     deps = _make_deps()
     app = FastAPI()
