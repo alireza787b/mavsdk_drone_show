@@ -451,7 +451,9 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "MDS_SITL_GIT_SYNC" in start_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in start_text
     assert "sync_tmux_session_environment() {" in start_text
+    assert "build_tmux_runtime_env_prefix() {" in start_text
     assert 'tmux set-environment -t "$session" "$var_name" "${!var_name}"' in start_text
+    assert '${tmux_env_prefix}clear && echo ' in start_text
 
 
 def test_dashboard_start_build_check_skips_rebuild_when_marker_is_newer_than_sources():
@@ -538,10 +540,15 @@ PY
         GCS_ENV="production"
         unset MDS_GIT_AUTH_TOKEN_FILE
         sync_tmux_session_environment "$SESSION_NAME"
+        tmux_prefix="$(build_tmux_runtime_env_prefix)"
         grep -q 'set-environment -t MDS-GCS MDS_MODE real' "$tmpdir/tmux.log"
         grep -q 'set-environment -t MDS-GCS MDS_REPO_URL git@github.com:demo/private.git' "$tmpdir/tmux.log"
         grep -q 'set-environment -t MDS-GCS GCS_ENV production' "$tmpdir/tmux.log"
         grep -q 'set-environment -t MDS-GCS -u MDS_GIT_AUTH_TOKEN_FILE' "$tmpdir/tmux.log"
+        grep -q 'export MDS_MODE=real;' <<<"$tmux_prefix"
+        grep -q 'export MDS_REPO_URL=git@github.com:demo/private.git;' <<<"$tmux_prefix"
+        grep -q 'export GCS_ENV=production;' <<<"$tmux_prefix"
+        grep -q 'unset MDS_GIT_AUTH_TOKEN_FILE;' <<<"$tmux_prefix"
         """
     )
 

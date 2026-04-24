@@ -1176,6 +1176,23 @@ sync_tmux_session_environment() {
     done
 }
 
+build_tmux_runtime_env_prefix() {
+    local var_name=""
+    local quoted_value=""
+    local snippet=""
+
+    for var_name in "${TMUX_RUNTIME_ENV_VARS[@]}"; do
+        if [[ -n "${!var_name+x}" ]]; then
+            printf -v quoted_value "%q" "${!var_name}"
+            snippet+="export ${var_name}=${quoted_value}; "
+        else
+            snippet+="unset ${var_name}; "
+        fi
+    done
+
+    printf '%s' "$snippet"
+}
+
 prepare_react_runtime() {
     if [[ "$RUN_GUI_APP" != "true" ]]; then
         return 0
@@ -1209,6 +1226,7 @@ start_services_in_tmux() {
     
     local gcs_cmd=""
     local react_cmd=""
+    local tmux_env_prefix=""
 
     prepare_react_runtime
 
@@ -1219,13 +1237,15 @@ start_services_in_tmux() {
     if [[ "$RUN_GUI_APP" == "true" ]]; then
         react_cmd=$(get_react_command)
     fi
+
+    tmux_env_prefix="$(build_tmux_runtime_env_prefix)"
     
     if [[ "$COMBINED_VIEW" == "true" ]]; then
         tmux rename-window -t "$session:0" "Services"
         local pane_index=0
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-            tmux send-keys -t "$session:Services.$pane_index" "clear && echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
+            tmux send-keys -t "$session:Services.$pane_index" "${tmux_env_prefix}clear && echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
             pane_index=$((pane_index + 1))
         fi
         
@@ -1233,7 +1253,7 @@ start_services_in_tmux() {
             if [[ $pane_index -gt 0 ]]; then
                 tmux split-window -t "$session:Services" -h
             fi
-            tmux send-keys -t "$session:Services.$pane_index" "clear && echo 'Starting React app in $DEPLOYMENT_MODE mode...' && $react_cmd" C-m
+            tmux send-keys -t "$session:Services.$pane_index" "${tmux_env_prefix}clear && echo 'Starting React app in $DEPLOYMENT_MODE mode...' && $react_cmd" C-m
         fi
         
         if [[ $pane_index -gt 0 ]]; then
@@ -1245,7 +1265,7 @@ start_services_in_tmux() {
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
             tmux rename-window -t "$session:0" "GCS-Server"
-            tmux send-keys -t "$session:GCS-Server" "clear && echo 'Starting GCS server ($GCS_BACKEND)...' && $gcs_cmd" C-m
+            tmux send-keys -t "$session:GCS-Server" "${tmux_env_prefix}clear && echo 'Starting GCS server ($GCS_BACKEND)...' && $gcs_cmd" C-m
             window_index=$((window_index + 1))
         fi
         
@@ -1255,7 +1275,7 @@ start_services_in_tmux() {
             else
                 tmux new-window -t "$session" -n "React-App"
             fi
-            tmux send-keys -t "$session:React-App" "clear && echo 'Starting React app...' && $react_cmd" C-m
+            tmux send-keys -t "$session:React-App" "${tmux_env_prefix}clear && echo 'Starting React app...' && $react_cmd" C-m
         fi
     fi
     
