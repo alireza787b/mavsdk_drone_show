@@ -450,6 +450,8 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "MDS_DOCKER_IMAGE" in start_text
     assert "MDS_SITL_GIT_SYNC" in start_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in start_text
+    assert "sync_tmux_session_environment() {" in start_text
+    assert 'tmux set-environment -t "$session" "$var_name" "${!var_name}"' in start_text
 
 
 def test_dashboard_start_build_check_skips_rebuild_when_marker_is_newer_than_sources():
@@ -503,6 +505,43 @@ PY
             echo "unexpected rebuild"
             exit 1
         fi
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_dashboard_start_syncs_runtime_env_into_tmux_session():
+    start_script = REPO_ROOT / "app" / "linux_dashboard_start.sh"
+
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app" "$tmpdir/gcs-server" "$tmpdir/app/dashboard/drone-dashboard"
+        python3 - <<'PY' "$tmpdir" "{start_script}"
+from pathlib import Path
+import sys
+
+tmpdir = Path(sys.argv[1])
+start_script = Path(sys.argv[2])
+script_text = start_script.read_text(encoding="utf-8")
+prefix = script_text.split("# MAIN EXECUTION", 1)[0]
+(tmpdir / "app" / "linux_dashboard_start.sh").write_text(prefix, encoding="utf-8")
+PY
+        source "$tmpdir/app/linux_dashboard_start.sh"
+        tmux() {{
+            printf '%s\\n' "$*" >> "$tmpdir/tmux.log"
+        }}
+        SESSION_NAME="MDS-GCS"
+        MDS_MODE="real"
+        MDS_REPO_URL="git@github.com:demo/private.git"
+        GCS_ENV="production"
+        unset MDS_GIT_AUTH_TOKEN_FILE
+        sync_tmux_session_environment "$SESSION_NAME"
+        grep -q 'set-environment -t MDS-GCS MDS_MODE real' "$tmpdir/tmux.log"
+        grep -q 'set-environment -t MDS-GCS MDS_REPO_URL git@github.com:demo/private.git' "$tmpdir/tmux.log"
+        grep -q 'set-environment -t MDS-GCS GCS_ENV production' "$tmpdir/tmux.log"
+        grep -q 'set-environment -t MDS-GCS -u MDS_GIT_AUTH_TOKEN_FILE' "$tmpdir/tmux.log"
         """
     )
 

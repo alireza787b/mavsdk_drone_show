@@ -1896,3 +1896,39 @@ Residual drift after this slice:
 - live Hetzner still needs the new private commit fast-forwarded and a fresh
   SITL reconcile to replace containers created under the old baked bootstrap
   path
+
+## Slice 38
+
+Goal:
+
+- make Runtime Admin mode/apply restarts actually deterministic under tmux by
+  preventing stale tmux-server environment state from re-injecting an old
+  `MDS_MODE`
+
+Implemented:
+
+- updated `app/linux_dashboard_start.sh` to define an explicit tmux runtime env
+  allowlist covering:
+  - `MDS_MODE`
+  - repo/auth/runtime sync env
+  - GCS launcher env
+  - frontend mode env
+- added `sync_tmux_session_environment()` and call it immediately after each
+  new tmux session is created, before the backend/frontend commands are sent
+- added regression coverage proving the launcher now:
+  - pushes current `MDS_MODE` into the tmux session
+  - pushes other active runtime env values
+  - explicitly unsets absent secrets such as `MDS_GIT_AUTH_TOKEN_FILE` instead
+    of letting old tmux-server values leak through
+
+Verification:
+
+- `bash -n app/linux_dashboard_start.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "dashboard_start"`
+- live Hetzner restart/apply validation should now show runtime mode switching
+  correctly even when the tmux server has been running for a long time
+
+Residual drift after this slice:
+
+- private repo still needs the same launcher fix promoted and then validated on
+  live Hetzner with a real SITL->REAL apply flow

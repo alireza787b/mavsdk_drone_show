@@ -58,6 +58,11 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ### Changed
 - SITL mutable latest-on-boot launches now default to the host-mounted current
   `startup_sitl.sh`, while pinned-image launches stay on the image-baked
+  bootstrap path.
+- GCS launcher restarts now push the current runtime env allowlist into each
+  fresh tmux session before starting backend/frontend processes, preventing
+  stale tmux server state from pinning the runtime mode back to old `MDS_MODE`
+  values after an operator-triggered restart.
   script, and SITL policy/inventory now surface that startup-script source so
   operators can see which bootstrap path is active.
 - SITL startup no longer carries the retired `HWID_DIR` shell reference, so

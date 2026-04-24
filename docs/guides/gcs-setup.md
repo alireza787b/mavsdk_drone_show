@@ -555,6 +555,9 @@ When switching between SITL and real mode:
 
 - save the desired mode first
 - apply the restart so the backend comes back up cleanly in the new mode
+- the launcher now injects the current runtime env into the fresh tmux session
+  before starting the backend, so long-lived tmux server state no longer keeps
+  an old `MDS_MODE`
 - stop old SITL containers if you are leaving SITL; the backend now fences
   mode-mismatched heartbeats at intake, but explicit cleanup is still the right
   operational practice
