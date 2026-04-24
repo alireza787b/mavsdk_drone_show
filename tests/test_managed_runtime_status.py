@@ -1,6 +1,20 @@
 from src.managed_runtime_status import read_git_sync_runtime_summary, resolve_dashboard_access
 
 
+def test_read_git_sync_runtime_summary_defaults_to_home_state_path(monkeypatch, tmp_path):
+    home_dir = tmp_path / "home"
+    state_file = home_dir / ".local" / "state" / "mds" / "git-sync" / "last_result.env"
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text("status=success\nmessage=ok\ntimestamp_ms=1770000000000\n", encoding="utf-8")
+    monkeypatch.delenv("MDS_GIT_SYNC_STATE_FILE", raising=False)
+    monkeypatch.setenv("HOME", str(home_dir))
+
+    result = read_git_sync_runtime_summary()
+
+    assert result["status"] == "success"
+    assert result["summary"] == "ok"
+
+
 def test_resolve_dashboard_access_for_wildcard_listener_uses_node_ip():
     result = resolve_dashboard_access("10.0.0.21", "0.0.0.0:9070")
 
