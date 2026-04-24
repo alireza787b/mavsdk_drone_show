@@ -76,6 +76,9 @@ USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
 SYSTEMD_DIR="${MDS_SYSTEMD_DIR:-/etc/systemd/system}"
 RUNTIME_RESTART_DELAY_SECONDS="${RUNTIME_RESTART_DELAY_SECONDS:-10}"
 RESTART_COORDINATOR_ON_REPO_UPDATE="${MDS_RESTART_COORDINATOR_ON_REPO_UPDATE:-true}"
+COORDINATOR_RESTART_FALLBACK_ENABLED="${MDS_COORDINATOR_RESTART_FALLBACK_ENABLED:-true}"
+COORDINATOR_RESTART_FALLBACK_SIGNAL="${MDS_COORDINATOR_RESTART_FALLBACK_SIGNAL:-KILL}"
+KILL_CMD="${MDS_KILL_CMD:-kill}"
 GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-${RESOLVED_HOME}/.local/state/mds/git-sync}"
 GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
 GIT_SYNC_SELF_REEXEC_COUNT="${MDS_GIT_SYNC_REEXEC_COUNT:-0}"
@@ -619,6 +622,31 @@ check_repo_update_restart_policy() {
     log_info "$component" "Coordinator restart required because repository revision changed from ${old_head:0:8} to ${new_head:0:8}"
 }
 
+restart_service_main_pid_fallback() {
+    local service_name="$1"
+    local systemctl_cmd="$2"
+    local component="RUNTIME-RESTART"
+    local main_pid=""
+
+    if [[ "${COORDINATOR_RESTART_FALLBACK_ENABLED}" != "true" ]]; then
+        return 1
+    fi
+
+    main_pid=$("$systemctl_cmd" show --property MainPID --value "$service_name" 2>/dev/null || true)
+    if [[ -z "$main_pid" || "$main_pid" == "0" || ! "$main_pid" =~ ^[0-9]+$ ]]; then
+        logger -t "$SCRIPT_NAME" -p user.warn "$component: cannot resolve MainPID for ${service_name}; fallback restart unavailable"
+        return 1
+    fi
+
+    if "$KILL_CMD" "-${COORDINATOR_RESTART_FALLBACK_SIGNAL}" "$main_pid" >/dev/null 2>&1; then
+        logger -t "$SCRIPT_NAME" -p user.info "$component: sent ${COORDINATOR_RESTART_FALLBACK_SIGNAL} to ${service_name} MainPID ${main_pid}; systemd restart policy should recover it"
+        return 0
+    fi
+
+    logger -t "$SCRIPT_NAME" -p user.warn "$component: failed to signal ${service_name} MainPID ${main_pid}"
+    return 1
+}
+
 sync_logic_changed_between_heads() {
     local old_head="${1:-}"
     local new_head="${2:-}"
@@ -694,6 +722,8 @@ schedule_systemd_restart() {
             logger -t "$SCRIPT_NAME" -p user.info "$component: ${action} ${restart_target} completed"
         elif [[ "$fallback_target" != "$restart_target" ]] && sudo -n "$systemctl_cmd" "$action" "$fallback_target" >/dev/null 2>&1; then
             logger -t "$SCRIPT_NAME" -p user.info "$component: ${action} ${fallback_target} completed"
+        elif [[ "$service_name" == "coordinator.service" ]] && restart_service_main_pid_fallback "$service_name" "$systemctl_cmd"; then
+            :
         else
             logger -t "$SCRIPT_NAME" -p user.warn "$component: sudo ${action} ${service_name} failed after scheduled restart"
         fi
