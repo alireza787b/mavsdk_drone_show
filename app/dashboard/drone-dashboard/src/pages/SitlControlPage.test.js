@@ -51,6 +51,7 @@ describe('SitlControlPage', () => {
       },
       features: {
         lifecycle_mutations: true,
+        cleanup_removals: true,
         bulk_actions: true,
         image_release: true,
       },
@@ -317,5 +318,48 @@ describe('SitlControlPage', () => {
         instance_names: ['drone-2'],
       });
     });
+  });
+
+  test('cleanup-only mode keeps local removal available while hiding full SITL lifecycle sections', async () => {
+    getSitlControlPolicy.mockResolvedValueOnce({
+      sim_mode: false,
+      read_only: false,
+      defaults: {
+        default_image: 'mavsdk-drone-show-sitl:latest',
+        default_network_name: 'drone-network',
+        default_git_sync: true,
+        default_requirements_sync: true,
+      },
+      features: {
+        lifecycle_mutations: false,
+        cleanup_removals: true,
+        bulk_actions: true,
+        image_release: false,
+      },
+      docker: {
+        daemon_reachable: true,
+        server_version: '28.0.0',
+        socket_path: '/var/run/docker.sock',
+      },
+    });
+
+    render(<SitlControlPage />);
+
+    expect(await screen.findByText('Cleanup only')).toBeInTheDocument();
+    expect(await screen.findByText(/REAL runtime is active on this GCS/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Fleet' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^reconcile$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save image/i })).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: /drone-1/i }));
+
+    const restartButton = await screen.findByRole('button', { name: /^restart$/i });
+    const removeButton = await screen.findByRole('button', { name: /^remove$/i });
+    expect(restartButton).toBeDisabled();
+    expect(removeButton).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /batch/i }));
+    expect(screen.queryByRole('button', { name: /restart visible/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /remove visible/i })).toBeInTheDocument();
   });
 });

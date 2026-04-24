@@ -722,7 +722,12 @@ function SitlControlPage() {
   const dockerState = policy?.docker || host?.docker || null;
   const simModeEnabled = Boolean(policy?.sim_mode);
   const preferredNetworkName = policy?.defaults?.default_network_name || 'drone-network';
-  const mutationsEnabled = Boolean(policy?.features?.lifecycle_mutations);
+  const lifecycleMutationsEnabled = Boolean(policy?.features?.lifecycle_mutations);
+  const cleanupRemovalsEnabled = Boolean(policy?.features?.cleanup_removals);
+  const cleanupOnlyMode = !simModeEnabled && cleanupRemovalsEnabled;
+  const sitlControlUiEnabled = simModeEnabled || cleanupOnlyMode;
+  const instanceRestartEnabled = simModeEnabled && lifecycleMutationsEnabled;
+  const instanceRemoveEnabled = cleanupRemovalsEnabled;
   const imageCatalog = useMemo(() => buildImageCatalog(images), [images]);
   const hostResourceState = useMemo(() => evaluateHostResources(host), [host]);
   const portainerUrl = useMemo(() => buildPortainerUrl(host), [host]);
@@ -1266,8 +1271,10 @@ function SitlControlPage() {
             type="button"
             className="sitl-action-button"
             onClick={() => handleRestartInstance(instance)}
-            disabled={submitting || Boolean(pendingAction)}
-            title="Restart only this container and keep the rest of the fleet visible"
+            disabled={submitting || Boolean(pendingAction) || !instanceRestartEnabled}
+            title={instanceRestartEnabled
+              ? 'Restart only this container and keep the rest of the fleet visible'
+              : 'Restart is only available while the GCS is running in SITL mode'}
           >
             <FaSyncAlt />
             <span>{pendingAction === 'restart' ? 'Restarting…' : 'Restart'}</span>
@@ -1276,8 +1283,10 @@ function SitlControlPage() {
             type="button"
             className="sitl-action-button sitl-action-button--danger"
             onClick={() => handleRemoveInstance(instance)}
-            disabled={submitting || Boolean(pendingAction)}
-            title="Remove only this container from the local SITL fleet"
+            disabled={submitting || Boolean(pendingAction) || !instanceRemoveEnabled}
+            title={instanceRemoveEnabled
+              ? 'Remove only this container from the local SITL fleet'
+              : 'Remove is not available on this runtime'}
           >
             <FaStop />
             <span>{pendingAction === 'remove' ? 'Removing…' : 'Remove'}</span>
@@ -1386,9 +1395,15 @@ function SitlControlPage() {
             <SummaryCard
               icon={FaInfoCircle}
               label="Mode"
-              value={simModeEnabled ? 'SITL runtime' : 'Disabled on this GCS'}
-              detail={mutationsEnabled ? 'Inventory + lifecycle controls active' : 'Read-only'}
-              tone={simModeEnabled ? 'good' : 'warning'}
+              value={simModeEnabled ? 'SITL runtime' : cleanupOnlyMode ? 'Cleanup only' : 'Disabled on this GCS'}
+              detail={
+                simModeEnabled
+                  ? 'Inventory + lifecycle controls active'
+                  : cleanupOnlyMode
+                    ? 'REAL runtime; local SITL inventory + remove stay available'
+                    : 'Read-only'
+              }
+              tone={simModeEnabled ? 'good' : cleanupOnlyMode ? 'warning' : 'warning'}
             />
             <SummaryCard
               icon={FaCube}
@@ -1404,14 +1419,14 @@ function SitlControlPage() {
             />
           </div>
 
-          {!simModeEnabled ? (
+          {!sitlControlUiEnabled ? (
             <EmptyState
               title="SITL control is disabled on this runtime"
               detail="This page is intended for GCS instances running in simulation mode."
             />
           ) : null}
 
-          {simModeEnabled ? (
+          {sitlControlUiEnabled ? (
             <>
               <div className="sitl-host-health">
                 <div className="sitl-collapsible sitl-collapsible--tight">
@@ -1472,11 +1487,18 @@ function SitlControlPage() {
                 </div>
               </div>
 
-              <section className="sitl-section">
-                <SectionHeader
-                  title="Fleet"
-                  detail=""
-                />
+              {cleanupOnlyMode ? (
+                <div className="sitl-inline-note-banner" aria-live="polite">
+                  REAL runtime is active on this GCS. Local SITL create, reconcile, restart, and image-save flows stay blocked, but inventory and remove remain available so you can clean up leftover containers safely.
+                </div>
+              ) : null}
+
+              {simModeEnabled ? (
+                <section className="sitl-section">
+                  <SectionHeader
+                    title="Fleet"
+                    detail=""
+                  />
                 <form className="sitl-reconcile-card" onSubmit={handleReconcileSubmit}>
                   <div className="sitl-form-grid">
                     <label className="sitl-field">
@@ -1717,7 +1739,8 @@ function SitlControlPage() {
                     </div>
                   </div>
                 </form>
-              </section>
+                </section>
+              ) : null}
 
               <section className="sitl-section">
                 <div className="sitl-collapsible">
@@ -1825,21 +1848,22 @@ function SitlControlPage() {
                 </div>
               </section>
 
-              <section className="sitl-section">
-                <div className="sitl-collapsible">
-                  <button
-                    type="button"
-                    className="sitl-collapsible__toggle"
-                    onClick={() => setImagesExpanded((current) => !current)}
-                    aria-expanded={imagesExpanded}
-                  >
-                    <span>Images</span>
-                    <span className="sitl-inline-facts">
-                      <span className="sitl-badge sitl-badge--muted">{images.length}</span>
-                    </span>
-                  </button>
-                  {imagesExpanded ? (
-                    <>
+              {simModeEnabled ? (
+                <section className="sitl-section">
+                  <div className="sitl-collapsible">
+                    <button
+                      type="button"
+                      className="sitl-collapsible__toggle"
+                      onClick={() => setImagesExpanded((current) => !current)}
+                      aria-expanded={imagesExpanded}
+                    >
+                      <span>Images</span>
+                      <span className="sitl-inline-facts">
+                        <span className="sitl-badge sitl-badge--muted">{images.length}</span>
+                      </span>
+                    </button>
+                    {imagesExpanded ? (
+                      <>
                       <div className="sitl-section-toolbar">
                         <div className="sitl-inline-facts">
                           <span className="sitl-badge sitl-badge--muted">source {imageReleaseForm.baseImageRef || '—'}</span>
@@ -2046,10 +2070,11 @@ function SitlControlPage() {
                           ))}
                         </div>
                       )}
-                    </>
-                  ) : null}
-                </div>
-              </section>
+                      </>
+                    ) : null}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="sitl-section">
                 <SectionHeader
@@ -2086,22 +2111,26 @@ function SitlControlPage() {
                       </span>
                     </div>
                     <div className="sitl-inline-actions">
-                      <button
-                        type="button"
-                        className="sitl-action-button"
-                        onClick={() => handleBatchInstanceAction('restart')}
-                        disabled={submitting || visibleInstanceNames.length === 0}
-                        title="Restart every container in the filtered list"
-                      >
-                        <FaSyncAlt />
-                        <span>Restart visible</span>
-                      </button>
+                      {instanceRestartEnabled ? (
+                        <button
+                          type="button"
+                          className="sitl-action-button"
+                          onClick={() => handleBatchInstanceAction('restart')}
+                          disabled={submitting || visibleInstanceNames.length === 0}
+                          title="Restart every container in the filtered list"
+                        >
+                          <FaSyncAlt />
+                          <span>Restart visible</span>
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="sitl-action-button sitl-action-button--danger"
                         onClick={() => handleBatchInstanceAction('remove')}
-                        disabled={submitting || visibleInstanceNames.length === 0}
-                        title="Remove every container in the filtered list"
+                        disabled={submitting || visibleInstanceNames.length === 0 || !instanceRemoveEnabled}
+                        title={instanceRemoveEnabled
+                          ? 'Remove every container in the filtered list'
+                          : 'Remove is not available on this runtime'}
                       >
                         <FaStop />
                         <span>Remove visible</span>
@@ -2112,8 +2141,10 @@ function SitlControlPage() {
 
                 {instances.length === 0 ? (
                   <EmptyState
-                    title="No SITL containers detected"
-                    detail="Use Fleet Reconcile above to create a fresh local SITL fleet from the selected image."
+                    title={cleanupOnlyMode ? 'No local SITL leftovers detected' : 'No SITL containers detected'}
+                    detail={cleanupOnlyMode
+                      ? 'This REAL-mode host has no local SITL containers left to remove.'
+                      : 'Use Fleet Reconcile above to create a fresh local SITL fleet from the selected image.'}
                   />
                 ) : (
                   <div className="sitl-compact-list sitl-compact-list--instances">

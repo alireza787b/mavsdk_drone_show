@@ -27,6 +27,7 @@ class SitlControlFeatureFlags(BaseModel):
     instance_inventory: bool = True
     instance_logs: bool = True
     lifecycle_mutations: bool = True
+    cleanup_removals: bool = False
     operations: bool = True
     bulk_actions: bool = True
     image_release: bool = True

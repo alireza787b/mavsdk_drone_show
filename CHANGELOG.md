@@ -69,6 +69,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - SITL startup no longer carries the retired `HWID_DIR` shell reference, so
   host-mounted bootstrap scripts no longer crash under `set -u` during early
   container startup.
+- SITL Control now stays available in `REAL` mode as a cleanup-only surface:
+  local SITL inventory, logs, operations, and remove remain available for
+  leftover containers, while create/reconcile/restart/image-save actions stay
+  blocked until the GCS returns to `SITL` mode.
 - Runtime Admin update-readiness is now actionable rather than advisory only:
   safe runtime/config/docs-only updates can be scheduled directly from the GCS
   host, while higher-risk repo mutations are explicitly redirected to the

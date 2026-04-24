@@ -105,8 +105,13 @@ Stable operational alias for quick liveness probes.
 
 #### SITL Control
 
-When GCS is running in simulation mode, the SITL Control subsystem exposes
-typed lifecycle routes for local Docker-backed SITL management.
+The SITL Control subsystem exposes typed routes for local Docker-backed SITL
+management.
+
+- In `SITL` mode it allows the full local lifecycle surface.
+- In `REAL` mode it drops to cleanup-only: inventory, logs, operations, and
+  remove remain available so leftover local SITL containers can be cleaned up
+  without switching the GCS back to simulation.
 
 Current routes:
 

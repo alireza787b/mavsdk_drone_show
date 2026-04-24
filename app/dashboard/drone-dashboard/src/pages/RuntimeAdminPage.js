@@ -824,7 +824,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
           <ul className="runtime-admin-page__notes">
             <li>Mode changes are host-local GCS mutations. Save them first, then apply through the canonical launcher restart.</li>
             <li>Mode-tagged heartbeats are fenced at intake so stale SITL or REAL nodes do not contaminate the other runtime after restart.</li>
-            <li>Local SITL containers are not stopped automatically when switching the GCS into REAL mode; reconcile them explicitly through SITL Control.</li>
+            <li>Local SITL containers are not stopped automatically when switching the GCS into REAL mode; remove them explicitly through SITL Control, which stays available in cleanup-only mode.</li>
             <li>Fleet defaults shown here are git-tracked intent for future bootstraps; node-local overrides still live in each host runtime env.</li>
           </ul>
         </article>
