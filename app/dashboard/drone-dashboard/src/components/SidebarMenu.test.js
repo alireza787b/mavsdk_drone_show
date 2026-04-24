@@ -7,24 +7,34 @@ jest.mock('../hooks/useTheme', () => ({
   useTheme: jest.fn(() => ({ isDark: false })),
 }));
 
+jest.mock('../hooks/useGcsGitInfo', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({})),
+}));
+
 jest.mock('./ThemeToggle', () => jest.fn(() => <div>Theme toggle</div>));
 jest.mock('./CurrentTime', () => jest.fn(() => <span>12:00</span>));
 jest.mock('./GitInfo', () => jest.fn(() => <div>Git info</div>));
-jest.mock('../hooks/useGcsGitInfo', () => ({
-  __esModule: true,
-  default: jest.fn(() => ({
-    repo: 'demo/customer-mds',
-    runtimeLabel: 'main-candidate · abcdef1',
-  })),
-}));
 
 const SidebarMenu = require('./SidebarMenu').default;
+
+const baseGitInfo = {
+  repo: 'demo/customer-mds',
+  runtimeLabel: 'main-candidate · abcdef1',
+};
+
+const baseTheme = {
+  isDark: false,
+};
+
 describe('SidebarMenu', () => {
   it('shows the runtime badge in expanded mode', () => {
     render(
       <MemoryRouter>
         <SidebarMenu
           collapsed={false}
+          gitInfoOverride={baseGitInfo}
+          themeOverride={baseTheme}
           runtimeStatus={{
             mode: 'real',
             modeLabel: 'REAL',
@@ -49,6 +59,8 @@ describe('SidebarMenu', () => {
       <MemoryRouter>
         <SidebarMenu
           collapsed
+          gitInfoOverride={baseGitInfo}
+          themeOverride={baseTheme}
           runtimeStatus={{
             mode: 'real',
             modeLabel: 'REAL',

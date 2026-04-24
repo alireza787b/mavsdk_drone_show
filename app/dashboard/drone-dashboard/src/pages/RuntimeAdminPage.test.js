@@ -8,100 +8,12 @@ const mockApplyRuntimeUpdateResponse = jest.fn();
 
 jest.mock('../hooks/useGcsGitInfo', () => ({
   __esModule: true,
-  default: jest.fn(() => ({
-    repo: 'demo/customer-mds',
-    branch: 'customer-demo',
-    commit: 'abcdef12',
-  })),
+  default: jest.fn(() => ({})),
 }));
 
 jest.mock('../hooks/useGcsRuntimeStatus', () => ({
   __esModule: true,
-  default: jest.fn(() => ({
-    error: null,
-    loading: false,
-    mode: 'real',
-    modeLabel: 'REAL',
-    configuredMode: 'real',
-    configuredModeLabel: 'REAL',
-    modeSource: 'env:MDS_MODE',
-    repoAccessMode: 'https_token_file',
-    gitAutoPush: false,
-    configuredGitAutoPush: false,
-    restartRequired: false,
-    sitlInstanceCount: 0,
-    installDir: '/opt/demo-gcs',
-    gcsConfigPath: '/etc/mds/gcs.env',
-    raw: {
-      git_auth_token_file: '/root/.mds_git_read_token',
-      git_auth_token_file_readable: true,
-      git_ssh_key_file: null,
-      git_ssh_key_file_readable: false,
-    },
-    gitAuthHealth: {
-      status: 'healthy',
-      summary: 'HTTPS token-file access is configured and readable.',
-      issues: [],
-    },
-    repoSyncStatus: {
-      branch: 'customer-demo',
-      commit: 'abcdef12',
-      remote_url: 'https://github.com/demo/customer-mds.git',
-      tracking_branch: 'origin/customer-demo',
-      status: 'clean',
-      commits_ahead: 0,
-      commits_behind: 2,
-      update_readiness: 'ready_to_fast_forward',
-      update_summary: 'Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.',
-      fast_forward_update_available: true,
-    },
-    fleetDefaults: {
-      profile_id: 'customer-alpha',
-      profile_source: 'file:/tmp/deployment.env',
-      connectivity_backend: 'smart-wifi-manager',
-      smart_wifi_manager_repo_url_https: 'https://github.com/demo/smart-wifi-manager.git',
-      smart_wifi_manager_ref: 'v1.2.3',
-      smart_wifi_manager_mode: 'manage',
-      smart_wifi_manager_import_mode: 'merge',
-      smart_wifi_manager_install_dir: '/opt/demo-smartwifi',
-      smart_wifi_manager_dashboard_listen: '0.0.0.0:9080',
-      smart_wifi_manager_profile_path: 'deployment/connectivity/demo/profile.json',
-      mavlink_management_mode: 'managed',
-      mavlink_anywhere_repo_url_https: 'https://github.com/demo/mavlink-anywhere.git',
-      mavlink_anywhere_ref: 'v9.9.9',
-      mavlink_anywhere_install_dir: '/opt/demo-mavlink',
-      mavlink_anywhere_dashboard_listen: '0.0.0.0:9070',
-      mavlink_anywhere_skip_dashboard: false,
-    },
-    mavlinkRuntime: {
-      management_mode: 'managed',
-      ref: 'v9.9.9',
-      repo_web_url: 'https://github.com/demo/mavlink-anywhere/tree/v9.9.9',
-      install_dir: '/opt/demo-mavlink',
-      runtime_present: true,
-      router_binary_present: true,
-      router_service_status: 'active',
-      dashboard_listen: '0.0.0.0:9070',
-      dashboard_service_status: 'active',
-    },
-    connectivityRuntime: {
-      backend: 'smart-wifi-manager',
-      mode: 'manage',
-      ref: 'v1.2.3',
-      repo_web_url: 'https://github.com/demo/smart-wifi-manager/tree/v1.2.3',
-      install_dir: '/opt/demo-smartwifi',
-      profile_path: '/tmp/demo-profile.json',
-      profile_present: true,
-      dashboard_listen: '0.0.0.0:9080',
-      service_status: 'active',
-    },
-    docs: {
-      mds_init_setup: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mds-init-setup.md',
-      fleet_sync_and_secrets: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/fleet-sync-and-secrets.md',
-      mavlink_routing_setup: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mavlink-routing-setup.md',
-      git_sync_feature: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/features/git-sync.md',
-    },
-  })),
+  default: jest.fn(() => ({})),
 }));
 
 jest.mock('../services/gcsApiService', () => ({
@@ -111,7 +23,98 @@ jest.mock('../services/gcsApiService', () => ({
 }));
 
 const RuntimeAdminPage = require('./RuntimeAdminPage').default;
-const useGcsRuntimeStatus = require('../hooks/useGcsRuntimeStatus').default;
+
+const baseGitInfo = {
+  repo: 'demo/customer-mds',
+  branch: 'customer-demo',
+  commit: 'abcdef12',
+};
+
+const baseRuntimeStatus = {
+  error: null,
+  loading: false,
+  mode: 'real',
+  modeLabel: 'REAL',
+  configuredMode: 'real',
+  configuredModeLabel: 'REAL',
+  modeSource: 'env:MDS_MODE',
+  repoAccessMode: 'https_token_file',
+  gitAutoPush: false,
+  configuredGitAutoPush: false,
+  restartRequired: false,
+  sitlInstanceCount: 0,
+  installDir: '/opt/demo-gcs',
+  gcsConfigPath: '/etc/mds/gcs.env',
+  raw: {
+    git_auth_token_file: '/root/.mds_git_read_token',
+    git_auth_token_file_readable: true,
+    git_ssh_key_file: null,
+    git_ssh_key_file_readable: false,
+  },
+  gitAuthHealth: {
+    status: 'healthy',
+    summary: 'HTTPS token-file access is configured and readable.',
+    issues: [],
+  },
+  repoSyncStatus: {
+    branch: 'customer-demo',
+    commit: 'abcdef12',
+    remote_url: 'https://github.com/demo/customer-mds.git',
+    tracking_branch: 'origin/customer-demo',
+    status: 'clean',
+    commits_ahead: 0,
+    commits_behind: 2,
+    update_readiness: 'ready_to_fast_forward',
+    update_summary: 'Tracking branch is ahead by 2 commit(s); a controlled fast-forward update is available.',
+    fast_forward_update_available: true,
+  },
+  fleetDefaults: {
+    profile_id: 'customer-alpha',
+    profile_source: 'file:/tmp/deployment.env',
+    connectivity_backend: 'smart-wifi-manager',
+    smart_wifi_manager_repo_url_https: 'https://github.com/demo/smart-wifi-manager.git',
+    smart_wifi_manager_ref: 'v1.2.3',
+    smart_wifi_manager_mode: 'manage',
+    smart_wifi_manager_import_mode: 'merge',
+    smart_wifi_manager_install_dir: '/opt/demo-smartwifi',
+    smart_wifi_manager_dashboard_listen: '0.0.0.0:9080',
+    smart_wifi_manager_profile_path: 'deployment/connectivity/demo/profile.json',
+    mavlink_management_mode: 'managed',
+    mavlink_anywhere_repo_url_https: 'https://github.com/demo/mavlink-anywhere.git',
+    mavlink_anywhere_ref: 'v9.9.9',
+    mavlink_anywhere_install_dir: '/opt/demo-mavlink',
+    mavlink_anywhere_dashboard_listen: '0.0.0.0:9070',
+    mavlink_anywhere_skip_dashboard: false,
+  },
+  mavlinkRuntime: {
+    management_mode: 'managed',
+    ref: 'v9.9.9',
+    repo_web_url: 'https://github.com/demo/mavlink-anywhere/tree/v9.9.9',
+    install_dir: '/opt/demo-mavlink',
+    runtime_present: true,
+    router_binary_present: true,
+    router_service_status: 'active',
+    dashboard_listen: '0.0.0.0:9070',
+    dashboard_service_status: 'active',
+  },
+  connectivityRuntime: {
+    backend: 'smart-wifi-manager',
+    mode: 'manage',
+    ref: 'v1.2.3',
+    repo_web_url: 'https://github.com/demo/smart-wifi-manager/tree/v1.2.3',
+    install_dir: '/opt/demo-smartwifi',
+    profile_path: '/tmp/demo-profile.json',
+    profile_present: true,
+    dashboard_listen: '0.0.0.0:9080',
+    service_status: 'active',
+  },
+  docs: {
+    mds_init_setup: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mds-init-setup.md',
+    fleet_sync_and_secrets: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/fleet-sync-and-secrets.md',
+    mavlink_routing_setup: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/guides/mavlink-routing-setup.md',
+    git_sync_feature: 'https://github.com/demo/customer-mds/blob/customer-demo/docs/features/git-sync.md',
+  },
+};
 
 describe('RuntimeAdminPage', () => {
   beforeEach(() => {
@@ -121,14 +124,14 @@ describe('RuntimeAdminPage', () => {
   test('renders live runtime posture and doc links', () => {
     render(
       <MemoryRouter>
-        <RuntimeAdminPage />
+        <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
 
     expect(screen.getByRole('heading', { name: /runtime admin/i })).toBeInTheDocument();
-    expect(screen.getByText('REAL')).toBeInTheDocument();
+    expect(screen.getByText(/config real/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-gcs')).toBeInTheDocument();
-    expect(screen.getByText('smart-wifi-manager')).toBeInTheDocument();
+    expect(screen.getAllByText('smart-wifi-manager')).toHaveLength(2);
     expect(screen.getByText(/https token-file access is configured and readable/i)).toBeInTheDocument();
     expect(screen.getByText(/tracking branch is ahead by 2 commit\(s\)/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-mavlink')).toBeInTheDocument();
@@ -180,7 +183,7 @@ describe('RuntimeAdminPage', () => {
 
     render(
       <MemoryRouter>
-        <RuntimeAdminPage />
+        <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
 
@@ -195,7 +198,9 @@ describe('RuntimeAdminPage', () => {
       });
     });
 
-    expect(screen.getByText(/restart the gcs runtime to apply them/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /apply persisted runtime settings with restart/i })).toBeEnabled();
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /apply persisted runtime settings with restart/i }));
 
@@ -203,7 +208,9 @@ describe('RuntimeAdminPage', () => {
       expect(mockApplyGcsConfigResponse).toHaveBeenCalledTimes(1);
     });
 
-    expect(screen.getByText(/gcs restart scheduled/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/gcs restart scheduled/i)).toBeInTheDocument();
+    });
   });
 
   test('runs constrained runtime update when the checkout is fast-forwardable', async () => {
@@ -226,7 +233,7 @@ describe('RuntimeAdminPage', () => {
 
     render(
       <MemoryRouter>
-        <RuntimeAdminPage />
+        <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
 
@@ -236,23 +243,26 @@ describe('RuntimeAdminPage', () => {
       expect(mockApplyRuntimeUpdateResponse).toHaveBeenCalledTimes(1);
     });
 
-    expect(screen.getByText(/controlled gcs update scheduled/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/controlled gcs update scheduled/i)).toBeInTheDocument();
+    });
   });
 
   test('warns when switching toward REAL while local SITL containers still exist', () => {
-    useGcsRuntimeStatus.mockReturnValueOnce({
-      ...useGcsRuntimeStatus(),
-      mode: 'sitl',
-      modeLabel: 'SITL',
-      configuredMode: 'real',
-      configuredModeLabel: 'REAL',
-      restartRequired: true,
-      sitlInstanceCount: 2,
-    });
-
     render(
       <MemoryRouter>
-        <RuntimeAdminPage />
+        <RuntimeAdminPage
+          runtimeOverride={{
+            ...baseRuntimeStatus,
+            mode: 'sitl',
+            modeLabel: 'SITL',
+            configuredMode: 'real',
+            configuredModeLabel: 'REAL',
+            restartRequired: true,
+            sitlInstanceCount: 2,
+          }}
+          gitInfoOverride={baseGitInfo}
+        />
       </MemoryRouter>
     );
 
@@ -261,14 +271,15 @@ describe('RuntimeAdminPage', () => {
   });
 
   test('disables constrained update when a restart is already pending', () => {
-    useGcsRuntimeStatus.mockReturnValueOnce({
-      ...useGcsRuntimeStatus(),
-      restartRequired: true,
-    });
-
     render(
       <MemoryRouter>
-        <RuntimeAdminPage />
+        <RuntimeAdminPage
+          runtimeOverride={{
+            ...baseRuntimeStatus,
+            restartRequired: true,
+          }}
+          gitInfoOverride={baseGitInfo}
+        />
       </MemoryRouter>
     );
 

@@ -39,14 +39,18 @@ const SidebarMenu = ({
   mobileOpen = false,
   onNavigate,
   onToggle,
+  gitInfoOverride = null,
+  themeOverride = null,
   runtimeStatus = {
     mode: 'unknown',
     modeLabel: 'UNKNOWN',
     restartRequired: false,
   },
 }) => {
-  const { isDark = false } = useTheme() || {};
-  const gitInfo = useGcsGitInfo() || {};
+  const themeState = useTheme() || {};
+  const gitInfoState = useGcsGitInfo() || {};
+  const { isDark = false } = themeOverride || themeState;
+  const gitInfo = gitInfoOverride || gitInfoState;
   // Use props if provided, otherwise fall back to local state for backwards compatibility
   const [localCollapsed, setLocalCollapsed] = useState(window.innerWidth < 768);
   const [activeTooltip, setActiveTooltip] = useState(null);
