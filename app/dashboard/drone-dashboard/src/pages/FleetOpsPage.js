@@ -300,7 +300,7 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
         />
       </section>
 
-      <section className="fleet-ops-toolbar" aria-label="Fleet operations filters">
+      <section className="fleet-ops-toolbar" aria-label="Fleet operations controls">
         <label>
           <span><FaSearch /> Search</span>
           <input
