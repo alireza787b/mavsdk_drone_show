@@ -1915,11 +1915,15 @@ Implemented:
   - frontend mode env
 - added `sync_tmux_session_environment()` and call it immediately after each
   new tmux session is created, before the backend/frontend commands are sent
+- added `build_tmux_runtime_env_prefix()` so the first pane shell also receives
+  the current exported values inline, instead of relying on tmux server or pane
+  inheritance semantics
 - added regression coverage proving the launcher now:
   - pushes current `MDS_MODE` into the tmux session
   - pushes other active runtime env values
   - explicitly unsets absent secrets such as `MDS_GIT_AUTH_TOKEN_FILE` instead
     of letting old tmux-server values leak through
+  - emits an inline pane-command prefix with the same runtime env contract
 
 Verification:
 
