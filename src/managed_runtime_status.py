@@ -7,13 +7,13 @@ import hashlib
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 
 from src.settings.deployment_profile import load_deployment_profile
 
 
-def normalize_github_repo_web_url(repo_url: str | None, ref: str | None) -> str | None:
+def normalize_github_repo_web_url(repo_url: Optional[str], ref: Optional[str]) -> Optional[str]:
     normalized = str(repo_url or "").strip()
     if normalized.startswith("git@github.com:"):
         normalized = normalized.replace("git@github.com:", "https://github.com/", 1)
@@ -28,14 +28,14 @@ def normalize_github_repo_web_url(repo_url: str | None, ref: str | None) -> str 
     return normalized
 
 
-def as_bool(value: str | None, *, default: bool = False) -> bool:
+def as_bool(value: Optional[str], *, default: bool = False) -> bool:
     if value is None:
         return default
     return str(value).strip().lower() in {"1", "true", "yes", "on", "present", "active"}
 
 
-def parse_status_output(stdout: str) -> dict[str, str]:
-    data: dict[str, str] = {}
+def parse_status_output(stdout: str) -> Dict[str, str]:
+    data: Dict[str, str] = {}
     for raw_line in str(stdout or "").splitlines():
         line = raw_line.strip()
         if not line or "=" not in line:
@@ -45,7 +45,7 @@ def parse_status_output(stdout: str) -> dict[str, str]:
     return data
 
 
-def read_reconcile_status(repo_root: Path, script_relative_path: str, *, timeout: int = 5) -> dict[str, str]:
+def read_reconcile_status(repo_root: Path, script_relative_path: str, *, timeout: int = 5) -> Dict[str, str]:
     script_path = repo_root / script_relative_path
     if not script_path.is_file():
         return {"status_source": "missing_script"}
@@ -71,7 +71,7 @@ def read_reconcile_status(repo_root: Path, script_relative_path: str, *, timeout
     return data
 
 
-def file_sha256(path: str | Path | None) -> str | None:
+def file_sha256(path: Optional[Union[str, Path]]) -> Optional[str]:
     if not path:
         return None
     candidate = Path(path)
@@ -87,7 +87,7 @@ def file_sha256(path: str | Path | None) -> str | None:
     return digest.hexdigest()
 
 
-def optional_bool(value: str | None) -> bool | None:
+def optional_bool(value: Optional[str]) -> Optional[bool]:
     if value is None:
         return None
     normalized = str(value).strip().lower()
@@ -98,7 +98,7 @@ def optional_bool(value: str | None) -> bool | None:
     return None
 
 
-def build_mavlink_runtime_summary(repo_root: Path) -> dict[str, Any]:
+def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
     deployment_profile = load_deployment_profile()
     status = read_reconcile_status(repo_root, "tools/reconcile_mavlink_runtime.sh")
     repo_url = status.get("repo_url") or deployment_profile.mavlink_anywhere_repo_url_https
@@ -137,7 +137,7 @@ def build_mavlink_runtime_summary(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def build_connectivity_runtime_summary(repo_root: Path) -> dict[str, Any]:
+def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
     deployment_profile = load_deployment_profile()
     status = read_reconcile_status(repo_root, "tools/reconcile_connectivity.sh")
     repo_url = status.get("repo_url") or deployment_profile.smart_wifi_manager_repo_url_https
@@ -171,14 +171,14 @@ def build_connectivity_runtime_summary(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def resolve_dashboard_access(ip: str | None, listen: str | None) -> dict[str, str | None]:
+def resolve_dashboard_access(ip: Optional[str], listen: Optional[str]) -> Dict[str, Optional[str]]:
     raw_listen = str(listen or "").strip()
     if not raw_listen:
         return {"dashboard_access_mode": "unknown", "dashboard_url": None}
 
     scheme = "http"
     host = ""
-    port: int | None = None
+    port: Optional[int] = None
 
     if "://" in raw_listen:
         parsed = urlparse(raw_listen)
@@ -209,7 +209,7 @@ def resolve_dashboard_access(ip: str | None, listen: str | None) -> dict[str, st
     return {"dashboard_access_mode": "direct", "dashboard_url": f"{scheme}://{host}:{port}"}
 
 
-def read_git_sync_runtime_summary() -> dict[str, Any]:
+def read_git_sync_runtime_summary() -> Dict[str, Any]:
     default_state_path = Path.home() / ".local/state/mds/git-sync/last_result.env"
     state_path = Path(os.environ.get("MDS_GIT_SYNC_STATE_FILE", str(default_state_path)))
     if not state_path.is_file():
@@ -259,7 +259,7 @@ def read_git_sync_runtime_summary() -> dict[str, Any]:
     requirements_status = str(data.get("requirements_update_status") or "unknown").strip() or "unknown"
     coordinator_restart_scheduled = as_bool(data.get("coordinator_restart_scheduled"), default=False)
 
-    summary_parts: list[str] = []
+    summary_parts: List[str] = []
     if message:
         summary_parts.append(message)
     if updated_units:

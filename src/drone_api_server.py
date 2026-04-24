@@ -33,7 +33,7 @@ import time
 import subprocess
 import socket
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Set, Tuple
 
 # FastAPI imports
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -454,7 +454,7 @@ class DroneAPIServer:
         """Setter for injecting the DroneCommunicator dependency after initialization."""
         self.drone_communicator = drone_communicator
 
-    def _resolve_live_probe_connection(self) -> tuple[int, str]:
+    def _resolve_live_probe_connection(self) -> Tuple[int, str]:
         """Mirror the runtime MAVSDK wiring used by mission/action execution."""
         grpc_port = getattr(
             self.params,
@@ -1326,7 +1326,7 @@ class DroneAPIServer:
         @self.app.post(DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE)
         async def create_onboard_ulog_download(
             log_id: int,
-            request: OnboardUlogDownloadRequest | None = None,
+            request: Optional[OnboardUlogDownloadRequest] = None,
         ):
             """Create a short-lived staged onboard ULog download job."""
             self._assert_ulog_download_allowed()
@@ -1720,7 +1720,7 @@ class DroneAPIServer:
         return {'valid': True, 'message': 'State preconditions met'}
 
     @staticmethod
-    def _allowed_override_missions() -> set[int]:
+    def _allowed_override_missions() -> Set[int]:
         """Commands that are allowed to replace a queued or executing mission."""
         return {
             Mission.NONE.value,
@@ -1768,7 +1768,7 @@ class DroneAPIServer:
 
         return None
 
-    async def _cancel_active_or_pending_command(self, *, had_active_command: bool) -> tuple[int, str]:
+    async def _cancel_active_or_pending_command(self, *, had_active_command: bool) -> Tuple[int, str]:
         """Clear the current mission state and report a successful cancel command."""
         message = (
             "Cancel command accepted; active mission cleared."
