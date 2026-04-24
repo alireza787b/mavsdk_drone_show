@@ -145,9 +145,11 @@ function resolveLocalDashboardUrl(listen) {
   return `${protocol}//${hostname}:${port}/`;
 }
 
-function RuntimeAdminPage() {
-  const runtime = useGcsRuntimeStatus() || {};
-  const gitInfo = useGcsGitInfo() || {};
+function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
+  const runtimeState = useGcsRuntimeStatus() || {};
+  const gitInfoState = useGcsGitInfo() || {};
+  const runtime = runtimeOverride || runtimeState;
+  const gitInfo = gitInfoOverride || gitInfoState;
 
   const runtimeTone = runtime.mode === 'real' ? 'real' : runtime.mode === 'sitl' ? 'sitl' : 'neutral';
   const authHealthTone = formatAuthHealthTone(runtime.gitAuthHealth?.status);
