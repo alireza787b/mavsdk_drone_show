@@ -59,14 +59,6 @@ const SidebarMenu = ({
   const handleToggle = onToggle || setLocalCollapsed;
   const runningModeLabel = runtimeStatus.modeLabel || 'UNKNOWN';
   const configuredModeLabel = runtimeStatus.configuredModeLabel || runningModeLabel;
-  const runtimeAligned = !runtimeStatus.restartRequired
-    && String(runtimeStatus.mode || '').trim().toLowerCase() === String(runtimeStatus.configuredMode || '').trim().toLowerCase();
-  const runtimeSummaryText = runtimeStatus.restartRequired
-    ? `Configured ${configuredModeLabel}`
-    : runtimeAligned
-      ? 'Host config aligned'
-      : `Configured ${configuredModeLabel}`;
-  const runtimeSummaryStateLabel = runtimeStatus.restartRequired ? 'Restart pending' : 'Aligned';
   const runtimeAdminTitle = runtimeStatus.restartRequired
     ? `Running ${runningModeLabel}. Configured ${configuredModeLabel}. Restart pending; open Runtime Admin.`
     : `Running ${runningModeLabel}. Open Runtime Admin.`;
@@ -144,14 +136,8 @@ const SidebarMenu = ({
               <div className="brand-text">
                 <h3>MDS Control</h3>
                 <span className="version">{VERSION_DISPLAY}</span>
-                <RuntimeModeBadge
-                  mode={runtimeStatus.mode}
-                  configuredMode={runtimeStatus.configuredMode}
-                  restartRequired={runtimeStatus.restartRequired}
-                  className="sidebar-runtime-badge"
-                />
                 <Link
-                  className={`sidebar-runtime-summary ${runtimeStatus.restartRequired ? 'is-warning' : 'is-aligned'}`}
+                  className="sidebar-runtime-link"
                   to="/runtime-admin"
                   onClick={() => {
                     if (mobile && onNavigate) {
@@ -161,13 +147,13 @@ const SidebarMenu = ({
                   title={runtimeAdminTitle}
                   aria-label="Open Runtime Admin to review runtime mode"
                 >
-                  <div className="sidebar-runtime-summary__top">
-                    <span className="sidebar-runtime-summary__label">Running {runningModeLabel}</span>
-                    <span className={`sidebar-runtime-summary__state ${runtimeStatus.restartRequired ? 'is-warning' : 'is-good'}`}>
-                      {runtimeSummaryStateLabel}
-                    </span>
-                  </div>
-                  <div className="sidebar-runtime-summary__detail">{runtimeSummaryText}</div>
+                  <RuntimeModeBadge
+                    mode={runtimeStatus.mode}
+                    configuredMode={runtimeStatus.configuredMode}
+                    restartRequired={runtimeStatus.restartRequired}
+                    compact
+                    className="sidebar-runtime-badge"
+                  />
                 </Link>
                 <span className="version-meta version-meta--repo">{gitInfo.repo}</span>
                 <span className="version-meta">{gitInfo.runtimeLabel}</span>

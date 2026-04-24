@@ -217,24 +217,11 @@ h1, h2, h3, h4, h5, h6 {
   z-index: calc(var(--z-fixed) + 2);
 }
 
-.mobile-runtime-badge {
-  background: color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow-lg);
-}
-
-.mobile-runtime-link {
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
-}
-
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
   border: none;
-  background: var(--color-overlay);
-  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--color-overlay) 78%, transparent);
   z-index: calc(var(--z-fixed) - 1);
   cursor: pointer;
 }
