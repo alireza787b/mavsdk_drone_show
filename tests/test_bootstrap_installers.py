@@ -2150,6 +2150,7 @@ def test_services_lib_core_service_order_excludes_embedded_wifi_manager():
     assert '"wifi-manager.service"' not in services_text
     assert '/bin/systemctl restart smart-wifi-manager' in services_text
     assert '/tools/reconcile_connectivity.sh' in services_text
+    assert '/tools/reconcile_mavlink_runtime.sh' in services_text
 
 
 def test_configure_gcs_env_persists_private_https_token_file():
