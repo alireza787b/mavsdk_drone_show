@@ -678,6 +678,7 @@ schedule_systemd_restart() {
     local systemctl_cmd="${MDS_SYSTEMCTL_CMD:-/bin/systemctl}"
     local service_alias="${service_name%.service}"
     local restart_target="$service_alias"
+    local fallback_target="$service_name"
 
     if [[ ! -x "$systemctl_cmd" ]]; then
         systemctl_cmd="$(command -v systemctl 2>/dev/null || true)"
@@ -687,15 +688,16 @@ schedule_systemd_restart() {
         return 1
     fi
 
-    if ! sudo -n -l "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
-        restart_target="$service_name"
-        if ! sudo -n -l "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
-            log_warn "$component" "sudo is not authorized to ${action} ${service_name}; manual restart required"
-            return 1
+    (
+        sleep "$delay_seconds"
+        if sudo -n "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
+            logger -t "$SCRIPT_NAME" -p user.info "$component: ${action} ${restart_target} completed"
+        elif [[ "$fallback_target" != "$restart_target" ]] && sudo -n "$systemctl_cmd" "$action" "$fallback_target" >/dev/null 2>&1; then
+            logger -t "$SCRIPT_NAME" -p user.info "$component: ${action} ${fallback_target} completed"
+        else
+            logger -t "$SCRIPT_NAME" -p user.warn "$component: sudo ${action} ${service_name} failed after scheduled restart"
         fi
-    fi
-
-    ( sleep "$delay_seconds"; sudo -n "$systemctl_cmd" "$action" "$restart_target" ) >/dev/null 2>&1 &
+    ) &
     log_info "$component" "Scheduled '${action}' for ${restart_target} in ${delay_seconds}s via sudo ${systemctl_cmd}"
     return 0
 }
