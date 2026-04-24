@@ -78,6 +78,9 @@ function classifyTone(value) {
 
 function classifyRuntimeStepTone(value) {
   const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized || normalized === 'unknown') {
+    return 'muted';
+  }
   if (['not_required', 'unchanged', 'skipped', 'disabled', 'none', 'no_restart_required'].includes(normalized)) {
     return 'good';
   }
@@ -161,7 +164,7 @@ export function classifyGitSyncRuntime(gitSyncRuntime) {
     };
   }
 
-  const statusTone = classifyTone(gitSyncRuntime.status);
+  const statusTone = classifyRuntimeStepTone(gitSyncRuntime.status);
   const serviceReloadTone = classifyRuntimeStepTone(gitSyncRuntime.service_reload_status);
   const mavlinkTone = classifyRuntimeStepTone(gitSyncRuntime.mavlink_runtime_reconcile_status);
   const connectivityTone = classifyRuntimeStepTone(gitSyncRuntime.connectivity_reconcile_status);

@@ -136,6 +136,18 @@ describe('fleetOpsViewModel', () => {
     });
   });
 
+  test('does not treat unknown-only git sync runtime state as attention', () => {
+    expect(classifyGitSyncRuntime({
+      status: 'unknown',
+      summary: 'No node-local git sync runtime state has been recorded yet.',
+      mavlink_runtime_reconcile_status: 'unknown',
+      connectivity_reconcile_status: 'unknown',
+    })).toMatchObject({
+      state: 'unknown',
+      tone: 'muted',
+    });
+  });
+
   test('compacts sidecar hashes for fleet display', () => {
     expect(compactHash('abcdef1234567890')).toBe('abcdef123456');
     expect(compactHash('')).toBe('unknown');
