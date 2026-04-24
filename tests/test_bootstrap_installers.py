@@ -1020,6 +1020,8 @@ exec "$@"
 EOF
         cat > "$bin_dir/systemd-analyze" <<'EOF'
 #!/bin/bash
+[[ "$1" == "verify" ]] || exit 1
+[[ "$2" == *.service ]] || exit 1
 exit 0
 EOF
         cat > "$bin_dir/systemctl" <<'EOF'
@@ -1078,6 +1080,8 @@ exec "$@"
 EOF
         cat > "$bin_dir/systemd-analyze" <<'EOF'
 #!/bin/bash
+[[ "$1" == "verify" ]] || exit 1
+[[ "$2" == *.service ]] || exit 1
 exit 0
 EOF
         cat > "$bin_dir/systemctl" <<'EOF'
@@ -1146,6 +1150,8 @@ exec "$@"
 EOF
         cat > "$bin_dir/systemd-analyze" <<'EOF'
 #!/bin/bash
+[[ "$1" == "verify" ]] || exit 1
+[[ "$2" == *.service ]] || exit 1
 exit 0
 EOF
         cat > "$bin_dir/systemctl" <<'EOF'
