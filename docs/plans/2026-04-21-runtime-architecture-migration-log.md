@@ -2137,3 +2137,41 @@ Verification:
   drawer `z-index=1090`, backdrop `z-index=1080`, control layer
   `z-index=1092`, backdrop parent `app-container app-mobile`, drawer
   scroll moved from `0` to `240`, and the drawer hit-test returned `nav-item`
+
+## Slice 45
+
+Goal:
+
+- add the missing Fleet Ops surface referenced by Runtime Admin so per-node
+  sync, auth, MAVLink sidecar, and connectivity sidecar posture are no longer
+  mixed into GCS-host administration
+
+Implemented:
+
+- added a new read-only Fleet Ops route and sidebar entry:
+  - `/fleet-ops`
+- added a Fleet Ops view model that merges existing:
+  - `GET /api/v1/git/status`
+  - `GET /api/v1/fleet/heartbeats`
+- added summary counters for:
+  - online nodes
+  - commit sync against GCS
+  - git auth health
+  - MAVLink sidecar health
+  - connectivity not-applicable/healthy state
+- added operator tabs for:
+  - Overview
+  - Access
+  - Sidecars
+  - Sync
+- kept the first slice status-only:
+  - no credential editing
+  - no sidecar mutation
+  - no broad fix-all action
+  - no local secret path exposure
+- documented the Fleet Ops boundary in `docs/guides/fleet-ops.md`
+
+Verification:
+
+- pending focused frontend tests on Hetzner after private sync:
+  `npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/utilities/fleetOpsViewModel.test.js src/components/SidebarMenu.test.js --watch=false`
