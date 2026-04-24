@@ -1193,6 +1193,11 @@ build_tmux_runtime_env_prefix() {
     printf '%s' "$snippet"
 }
 
+tmux_wait_for_pane_ready() {
+    local delay="${TMUX_PANE_READY_DELAY_SECONDS:-0.2}"
+    sleep "$delay"
+}
+
 prepare_react_runtime() {
     if [[ "$RUN_GUI_APP" != "true" ]]; then
         return 0
@@ -1221,6 +1226,7 @@ start_services_in_tmux() {
     
     log_info "Creating tmux session: $session (mode: $DEPLOYMENT_MODE)"
     tmux new-session -d -s "$session"
+    tmux_wait_for_pane_ready
     tmux set-option -g mouse on
     sync_tmux_session_environment "$session"
     
@@ -1252,6 +1258,7 @@ start_services_in_tmux() {
         if [[ "$RUN_GUI_APP" == "true" ]]; then
             if [[ $pane_index -gt 0 ]]; then
                 tmux split-window -t "$session:Services" -h
+                tmux_wait_for_pane_ready
             fi
             tmux send-keys -t "$session:Services.$pane_index" "${tmux_env_prefix}clear && echo 'Starting React app in $DEPLOYMENT_MODE mode...' && $react_cmd" C-m
         fi
@@ -1274,6 +1281,7 @@ start_services_in_tmux() {
                 tmux rename-window -t "$session:0" "React-App"
             else
                 tmux new-window -t "$session" -n "React-App"
+                tmux_wait_for_pane_ready
             fi
             tmux send-keys -t "$session:React-App" "${tmux_env_prefix}clear && echo 'Starting React app...' && $react_cmd" C-m
         fi

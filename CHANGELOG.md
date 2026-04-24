@@ -73,6 +73,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   local SITL inventory, logs, operations, and remove remain available for
   leftover containers, while create/reconcile/restart/image-save actions stay
   blocked until the GCS returns to `SITL` mode.
+- GCS tmux startup now waits briefly for fresh panes/windows before sending the
+  backend/frontend launch commands, reducing intermittent empty-session
+  launches under live host load.
 - Runtime Admin update-readiness is now actionable rather than advisory only:
   safe runtime/config/docs-only updates can be scheduled directly from the GCS
   host, while higher-risk repo mutations are explicitly redirected to the
