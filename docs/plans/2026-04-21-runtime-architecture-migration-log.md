@@ -1994,3 +1994,42 @@ Verification:
 - `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "dashboard_start"`
 - live Hetzner validation should no longer strand an empty `MDS-GCS` session
   with no backend/frontend processes after a restart
+
+## Slice 41
+
+Goal:
+
+- close the last mixed-mode runtime proof on live infrastructure by verifying
+  that the private GCS can roundtrip `REAL -> SITL -> REAL` without leaking
+  heartbeats across modes and without leaving manual SITL cleanup as a shell-only
+  recovery path
+
+Implemented:
+
+- validated the live private Hetzner GCS in `REAL` mode with:
+  - exactly 2 real hardware heartbeats
+  - both nodes synced to the same private `main-candidate` commit as GCS
+  - zero SITL containers
+- switched the live GCS to `SITL`, reconciled 4 local containers, and verified:
+  - 4 SITL heartbeats only
+  - zero real-board leakage into the SITL view
+  - current private host-mounted startup/bootstrap path in the reconciled
+    containers
+- switched the same live GCS back to `REAL` while the 4 SITL containers still
+  existed and verified:
+  - the `REAL` runtime only surfaced the 2 hardware boards
+  - leftover SITL instances remained visible only through cleanup-only SITL
+    Control inventory
+- removed the 4 SITL containers through the cleanup-only API path in `REAL`
+  mode and verified:
+  - `sitl_instance_count = 0`
+  - exactly 2 real hardware heartbeats remain visible
+  - node git/auth status remains healthy and `2/2` nodes stay synced
+
+Verification:
+
+- live Hetzner `runtime-status`, `fleet/heartbeats`, `sitl/instances`, and
+  `git/status` polling across both mode switches
+- live `POST /api/v1/system/sitl/reconcile` to 4 instances
+- live `POST /api/v1/system/sitl/instances/actions` batch remove in `REAL`
+  cleanup-only mode
