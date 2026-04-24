@@ -107,6 +107,10 @@ real companion nodes use `/etc/mds/local.env` as their canonical runtime
 authority. If a host deliberately has both files, `/etc/mds/local.env`
 overrides `/etc/mds/gcs.env`.
 
+GCS bootstrap now also installs/reconciles `git_sync_mds.service` after
+writing `/etc/mds/gcs.env`, so the service inherits the same precedence model
+on a fresh host instead of depending on a later manual install step.
+
 `MDS_REPO_URL` in `/etc/mds/gcs.env` and `/etc/mds/local.env` is the canonical
 runtime repo authority for that host. The checkout remote (`git remote get-url
 origin`) is derived state and must be reconciled to match the configured

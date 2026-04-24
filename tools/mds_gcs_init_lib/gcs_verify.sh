@@ -254,6 +254,50 @@ verify_firewall() {
     return 0
 }
 
+verify_git_sync_service() {
+    log_step "Verifying git_sync_mds.service..."
+
+    if [[ "${SKIP_SERVICES:-false}" == "true" ]]; then
+        echo -e "    git_sync_mds.service: ${DIM}Skipped by request${NC}"
+        return 0
+    fi
+
+    if is_dry_run; then
+        echo -e "  ${DIM}[DRY-RUN] Would verify git_sync_mds.service${NC}"
+        return 0
+    fi
+
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo -e "    git_sync_mds.service: ${YELLOW}systemctl unavailable${NC}"
+        return 0
+    fi
+
+    local enabled_state="disabled"
+    local active_state="inactive"
+
+    if systemctl is-enabled --quiet git_sync_mds.service >/dev/null 2>&1; then
+        enabled_state="enabled"
+    fi
+
+    active_state="$(systemctl is-active git_sync_mds.service 2>/dev/null || echo inactive)"
+
+    echo -e "    Enabled: ${GREEN}${enabled_state}${NC}"
+    echo -e "    Active:  ${GREEN}${active_state}${NC}"
+
+    if [[ "$enabled_state" != "enabled" ]]; then
+        log_warn "git_sync_mds.service is not enabled"
+        return 1
+    fi
+
+    if [[ "$active_state" != "active" ]]; then
+        log_warn "git_sync_mds.service is not active"
+        return 1
+    fi
+
+    log_success "git_sync_mds.service verified"
+    return 0
+}
+
 # =============================================================================
 # SUMMARY AND NEXT STEPS
 # =============================================================================
@@ -351,7 +395,7 @@ print_next_steps() {
 # =============================================================================
 
 run_verify_phase() {
-    print_phase_header "9" "Verification" "9"
+    print_phase_header "10" "Verification" "10"
 
     print_section "Component Verification"
 
@@ -362,6 +406,7 @@ run_verify_phase() {
     verify_nodejs_env || ((errors++))
     verify_backend || ((errors++))
     verify_firewall || ((errors++))
+    verify_git_sync_service || ((errors++))
 
     print_section "Summary"
 

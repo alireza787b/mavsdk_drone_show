@@ -51,6 +51,7 @@ readonly -a GCS_PHASES=(
     "python_env"
     "nodejs_env"
     "env_config"
+    "services"
     "verify"
 )
 

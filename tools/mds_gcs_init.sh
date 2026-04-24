@@ -75,6 +75,7 @@ SKIP_FIREWALL="false"
 SKIP_PYTHON_ENV="false"
 SKIP_NODEJS_ENV="false"
 SKIP_ENV_CONFIG="false"
+SKIP_SERVICES="false"
 
 # Control options
 NON_INTERACTIVE="false"
@@ -87,7 +88,7 @@ DEBUG="false"
 # Export all for libraries
 export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE GCS_INSTALL_DIR
 export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
-export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG
+export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG SKIP_SERVICES
 export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 
 enable_non_interactive_without_tty() {
@@ -138,6 +139,7 @@ SKIP FLAGS:
     --skip-python-env   Skip Python venv setup
     --skip-nodejs-env   Skip dashboard npm dependency install
     --skip-env-config   Skip .env configuration
+    --skip-services     Skip GCS system service reconciliation
 
 CONTROL OPTIONS:
     -y, --yes           Non-interactive mode (accept defaults)
@@ -182,7 +184,8 @@ PHASES:
     6. python_env   - venv + requirements.txt
     7. nodejs_env   - npm ci for dashboard
     8. env_config   - .env file configuration
-    9. verify       - Final verification
+    9. services     - git_sync_mds.service reconciliation
+    10. verify      - Final verification
 
 For more information, see: docs/guides/gcs-setup.md
 EOF
@@ -200,7 +203,7 @@ parse_arguments() {
         --long repo-url:,branch:,https,git-auth-token-file:,git-ssh-key-file: \
         --long install-dir: \
         --long skip-prereqs,skip-python,skip-nodejs,skip-repo,skip-firewall \
-        --long skip-python-env,skip-nodejs-env,skip-env-config \
+        --long skip-python-env,skip-nodejs-env,skip-env-config,skip-services \
         --long yes,dry-run,resume,force,verbose,debug,help \
         -n 'mds_gcs_init.sh' -- "$@") || {
             echo "Error parsing arguments. Use --help for usage." >&2
@@ -286,6 +289,10 @@ parse_arguments() {
                 SKIP_ENV_CONFIG="true"
                 shift
                 ;;
+            --skip-services)
+                SKIP_SERVICES="true"
+                shift
+                ;;
 
             # Control options
             -y|--yes)
@@ -336,7 +343,7 @@ parse_arguments() {
     # Export updated values
     export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE GCS_INSTALL_DIR
     export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
-    export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG
+    export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG SKIP_SERVICES
     export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
 }
 
@@ -388,6 +395,9 @@ run_phase() {
             ;;
         env_config)
             run_env_config_phase || result=$?
+            ;;
+        services)
+            run_services_phase || result=$?
             ;;
         verify)
             run_verify_phase || result=$?

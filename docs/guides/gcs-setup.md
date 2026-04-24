@@ -296,6 +296,9 @@ what belongs in repo files such as `deployment/defaults.env`, `config.json`,
 `git_sync_mds.service` on the GCS host also reads `/etc/mds/gcs.env`, so repo,
 branch, install-dir, and auth changes written by `mds_gcs_init.sh` are reused
 by later boot-time/runtime sync without requiring a second hidden env file.
+Fresh GCS bootstrap now reconciles that service as an explicit `services`
+phase after `env_config`, so a new host does not need a separate manual
+post-install repair to make self-update functional.
 
 ---
 
