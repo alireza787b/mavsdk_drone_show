@@ -2096,3 +2096,28 @@ Verification:
 
 - pending focused frontend tests on Hetzner:
   `npm test -- --runTestsByPath src/pages/RuntimeAdminPage.test.js --watch=false`
+
+## Slice 44
+
+Goal:
+
+- fix the mobile sidebar regression where the hamburger drawer could look faded
+  and feel non-scrollable after the chrome cleanup
+
+Implemented:
+
+- moved mobile shell controls above the modal layer so the close control remains
+  reliably reachable
+- moved the backdrop to the modal-backdrop layer and the sidebar drawer to the
+  modal layer, eliminating ambiguous stacking with page content
+- made the mobile drawer itself the scroll container with momentum scrolling,
+  overscroll containment, and vertical touch handling
+- kept mobile nav content non-nested-scroll so operators can drag anywhere on
+  the drawer instead of needing to hit only the nav list
+- made the light-mode mobile drawer background fully opaque to avoid the drawer
+  looking disabled or washed out by the dim page backdrop
+
+Verification:
+
+- pending focused frontend tests and mobile screenshot on Hetzner after sync:
+  `npm test -- --runTestsByPath src/App.test.js src/components/SidebarMenu.test.js --watch=false`
