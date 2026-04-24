@@ -1753,3 +1753,37 @@ Residual drift after this slice:
   path derivation actually lands on the running host
 - board-side live reconciliation remains blocked on NetBird reachability, not
   on this runtime-path logic
+
+## Slice 34
+
+Goal:
+
+- make fresh GCS bootstrap install/reconcile `git_sync_mds.service`
+  automatically so `/etc/mds/gcs.env` becomes usable self-update authority
+  without a manual follow-up repair
+
+Implemented:
+
+- added `tools/mds_gcs_init_lib/gcs_services.sh`
+- inserted `services` into `GCS_PHASES` between `env_config` and `verify`
+- added `--skip-services` to `tools/mds_gcs_init.sh`
+- wired the new phase to run `tools/git_sync_mds/install_git_sync_mds.sh`
+  against the configured install dir with an explicit runtime user/home
+- extended GCS verify output to report `git_sync_mds.service` enabled/active
+  state
+- updated GCS/runtime-config docs to state that service reconcile is part of
+  canonical bootstrap
+
+Verification:
+
+- `bash -n tools/mds_gcs_init.sh`
+- `bash -n tools/mds_gcs_init_lib/gcs_services.sh`
+- `bash -n tools/mds_gcs_init_lib/gcs_verify.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "gcs_common_phase_list_includes_services_before_verify or gcs_init_help_mentions_services_phase_and_skip_flag or run_gcs_services_phase_installs_git_sync_service_with_runtime_paths or verify_gcs_git_sync_service_reports_enabled_and_active"`
+
+Residual drift after this slice:
+
+- live Hetzner GCS still needs one final `main-candidate` fast-forward so the
+  new bootstrap path is what the running customer host carries
+- board-side live convergence remains blocked on NetBird reachability, not on
+  this GCS bootstrap logic

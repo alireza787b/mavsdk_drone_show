@@ -1857,6 +1857,100 @@ def test_configure_gcs_env_persists_private_ssh_key_file():
     assert result.returncode == 0, result.stderr
 
 
+def test_gcs_common_phase_list_includes_services_before_verify():
+    common_text = (REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_common.sh").read_text(encoding="utf-8")
+
+    services_index = common_text.index('"services"')
+    verify_index = common_text.index('"verify"')
+
+    assert services_index < verify_index
+
+
+def test_gcs_init_help_mentions_services_phase_and_skip_flag():
+    result = run_bash(
+        f"""
+        bash "{REPO_ROOT / 'tools' / 'mds_gcs_init.sh'}" --help > /tmp/gcs_init_help.txt
+        grep -q -- "--skip-services" /tmp/gcs_init_help.txt
+        grep -q "services     - git_sync_mds.service reconciliation" /tmp/gcs_init_help.txt
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_run_gcs_services_phase_installs_git_sync_service_with_runtime_paths():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        install_dir="$tmpdir/mds"
+        mkdir -p "$install_dir/tools/git_sync_mds"
+        cat > "$install_dir/tools/git_sync_mds/install_git_sync_mds.sh" <<'EOF'
+#!/bin/bash
+printf 'user=%s\\n' "$1" > "$TMPDIR/install.out"
+printf 'MDS_USER=%s\\n' "${{MDS_USER}}" >> "$TMPDIR/install.out"
+printf 'MDS_HOME=%s\\n' "${{MDS_HOME}}" >> "$TMPDIR/install.out"
+printf 'MDS_INSTALL_DIR=%s\\n' "${{MDS_INSTALL_DIR}}" >> "$TMPDIR/install.out"
+EOF
+        chmod +x "$install_dir/tools/git_sync_mds/install_git_sync_mds.sh"
+        export TMPDIR="$tmpdir"
+        GCS_INSTALL_DIR="$install_dir"
+        MDS_GCS_RUNTIME_USER="root"
+        MDS_GCS_RUNTIME_HOME="/root"
+        SKIP_SERVICES="false"
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        log_error() {{ echo "$1" >&2; }}
+        is_dry_run() {{ return 1; }}
+        print_phase_header() {{ :; }}
+        print_section() {{ :; }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_services.sh'}"
+        run_services_phase
+        grep -q '^user=root$' "$tmpdir/install.out"
+        grep -q '^MDS_USER=root$' "$tmpdir/install.out"
+        grep -q '^MDS_HOME=/root$' "$tmpdir/install.out"
+        grep -q "^MDS_INSTALL_DIR=$install_dir$" "$tmpdir/install.out"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_verify_gcs_git_sync_service_reports_enabled_and_active():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        bin_dir="$tmpdir/bin"
+        mkdir -p "$bin_dir"
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+case "$*" in
+  "is-enabled --quiet git_sync_mds.service") exit 0 ;;
+  "is-active git_sync_mds.service") printf 'active\\n'; exit 0 ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/systemctl"
+        PATH="$bin_dir:$PATH"
+        SKIP_SERVICES="false"
+        log_step() {{ :; }}
+        log_warn() {{ :; }}
+        log_success() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_verify.sh'}"
+        verify_git_sync_service > "$tmpdir/verify.out"
+        grep -q '^    Enabled: ' "$tmpdir/verify.out"
+        grep -q '^    Active:  ' "$tmpdir/verify.out"
+        grep -q 'enabled' "$tmpdir/verify.out"
+        grep -q 'active' "$tmpdir/verify.out"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
     result = run_bash(
         f"""
