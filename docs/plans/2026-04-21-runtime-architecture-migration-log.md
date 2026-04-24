@@ -2055,5 +2055,14 @@ Implemented:
 
 Verification:
 
-- pending focused frontend tests on Hetzner:
+- focused frontend tests on Hetzner passed:
   `npm test -- --runTestsByPath src/App.test.js src/components/SidebarMenu.test.js --watch=false`
+- rebuilt the live private frontend bundle on Hetzner and verified:
+  - runtime status remains `REAL`
+  - `restart_required=false`
+  - 2 real hardware nodes online
+  - 0 local SITL containers
+- captured a mobile sidebar screenshot proving:
+  - the backdrop exists
+  - the floating mobile runtime link is gone
+  - the sidebar-owned compact runtime link remains visible as `REAL`
