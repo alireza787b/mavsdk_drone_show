@@ -56,6 +56,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   refuses updates touching launcher, frontend, tooling, or dependency paths.
 
 ### Changed
+- Runtime Admin is now explicitly GCS-host scoped: git access hides raw secret
+  paths, GCS-local sidecar dashboard links were removed from the primary
+  layout, and sidecar/tool state is summarized as host capability context while
+  per-drone compliance is reserved for Fleet Ops.
 - Mobile runtime chrome is now sidebar-owned: the standalone mobile runtime
   pill was removed from the page shell, the hamburger overlay no longer blurs
   the dashboard, and the sidebar keeps a compact clickable `REAL`/`SITL`

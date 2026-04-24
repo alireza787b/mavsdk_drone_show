@@ -313,6 +313,36 @@
   gap: 0.85rem;
 }
 
+.runtime-admin-page__capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.runtime-admin-page__capability {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.95rem;
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+}
+
+.runtime-admin-page__capability-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.runtime-admin-page__capability p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
 .runtime-admin-page__link-row {
   display: flex;
   flex-wrap: wrap;
