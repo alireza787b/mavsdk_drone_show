@@ -60,6 +60,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   `startup_sitl.sh`, while pinned-image launches stay on the image-baked
   script, and SITL policy/inventory now surface that startup-script source so
   operators can see which bootstrap path is active.
+- SITL startup no longer carries the retired `HWID_DIR` shell reference, so
+  host-mounted bootstrap scripts no longer crash under `set -u` during early
+  container startup.
 - Runtime Admin update-readiness is now actionable rather than advisory only:
   safe runtime/config/docs-only updates can be scheduled directly from the GCS
   host, while higher-risk repo mutations are explicitly redirected to the
