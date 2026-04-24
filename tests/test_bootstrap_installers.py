@@ -1159,6 +1159,13 @@ def test_git_sync_service_template_omits_no_new_privileges():
     assert "NoNewPrivileges=yes" not in service_text
 
 
+def test_git_sync_service_template_sources_gcs_env_before_local_env():
+    service_text = (REPO_ROOT / "tools" / "git_sync_mds" / "git_sync_mds.service").read_text(encoding="utf-8")
+
+    assert "EnvironmentFile=-/etc/mds/gcs.env" in service_text
+    assert service_text.index("EnvironmentFile=-/etc/mds/gcs.env") < service_text.index("EnvironmentFile=-/etc/mds/local.env")
+
+
 def test_git_sync_service_template_validation_uses_service_suffix():
     result = run_bash(
         f"""
@@ -1186,6 +1193,45 @@ EOF
         MDS_HOME="$home_dir" \
         MDS_INSTALL_DIR="$repo_dir" \
         bash -lc 'source "{GIT_SYNC_SCRIPT}"; validate_post_sync_service_template "tools/git_sync_mds/git_sync_mds.service"'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_git_sync_runtime_env_prefers_local_over_gcs_and_user_env():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        config_dir="$tmpdir/config"
+        user_env_dir="$tmpdir/home/.config/mds"
+        mkdir -p "$repo_dir/.git" "$config_dir" "$user_env_dir" "$tmpdir/home/logs"
+
+        cat > "$config_dir/gcs.env" <<'EOF'
+MDS_REPO_URL=git@github.com:example-org/gcs.git
+MDS_BRANCH=ops
+MDS_INSTALL_DIR=/srv/gcs
+EOF
+
+        cat > "$config_dir/local.env" <<'EOF'
+MDS_REPO_URL=git@github.com:example-org/node.git
+MDS_BRANCH=field
+EOF
+
+        cat > "$user_env_dir/env" <<'EOF'
+MDS_BRANCH=user
+MDS_GIT_AUTO_PUSH=false
+EOF
+
+        HOME="$tmpdir/home" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_GCS_ENV_FILE="$config_dir/gcs.env" \
+        MDS_LOCAL_ENV_FILE="$config_dir/local.env" \
+        MDS_USER_ENV_FILE="$user_env_dir/env" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; load_runtime_env_files; [[ "$MDS_REPO_URL" == "git@github.com:example-org/node.git" ]]; [[ "$MDS_BRANCH" == "user" ]]; [[ "$MDS_INSTALL_DIR" == "/srv/gcs" ]]; [[ "$MDS_GIT_AUTO_PUSH" == "false" ]]'
         """
     )
 

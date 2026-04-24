@@ -293,6 +293,10 @@ for what belongs in `/etc/mds/gcs.env`, what belongs in `/etc/mds/local.env`,
 what belongs in repo files such as `deployment/defaults.env`, `config.json`,
 `swarm.json`, and what still remains runtime policy in `src/params.py`.
 
+`git_sync_mds.service` on the GCS host also reads `/etc/mds/gcs.env`, so repo,
+branch, install-dir, and auth changes written by `mds_gcs_init.sh` are reused
+by later boot-time/runtime sync without requiring a second hidden env file.
+
 ---
 
 ## Firewall Ports

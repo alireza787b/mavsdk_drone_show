@@ -18,6 +18,7 @@ TimeoutStartSec=600
 
 # Source repo configuration (prefer MDS_REPO_URL / MDS_BRANCH; keep legacy fallbacks compatible)
 # These files are optional (-) — service works with defaults if they don't exist
+EnvironmentFile=-/etc/mds/gcs.env
 EnvironmentFile=-/etc/mds/local.env
 EnvironmentFile=-__MDS_HOME__/.config/mds/env
 

@@ -96,6 +96,17 @@ also apply:
 backend. Those exported values take precedence over repo fallback defaults in
 `deployment/defaults.env` and `src/params.py`.
 
+`git_sync_mds.service` now follows the same host-aware precedence:
+
+1. `/etc/mds/gcs.env`
+2. `/etc/mds/local.env`
+3. `$HOME/.config/mds/env`
+
+That ordering lets the GCS host follow `/etc/mds/gcs.env` while still letting
+real companion nodes use `/etc/mds/local.env` as their canonical runtime
+authority. If a host deliberately has both files, `/etc/mds/local.env`
+overrides `/etc/mds/gcs.env`.
+
 `MDS_REPO_URL` in `/etc/mds/gcs.env` and `/etc/mds/local.env` is the canonical
 runtime repo authority for that host. The checkout remote (`git remote get-url
 origin`) is derived state and must be reconciled to match the configured

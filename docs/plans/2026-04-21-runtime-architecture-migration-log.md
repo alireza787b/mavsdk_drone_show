@@ -1683,3 +1683,38 @@ Residual drift after this slice:
   git-sync unit update path actually lands on the running systems
 - after that live apply, the remaining work returns to the planned runtime
   admin and fleet sidecar control slices rather than bootstrap repair
+
+## Slice 32
+
+Goal:
+
+- remove the remaining config-authority split where `git_sync_mds.service`
+  still behaved like a node-only runtime path even on the GCS host
+
+Implemented:
+
+- added `/etc/mds/gcs.env` as a first-class git-sync runtime env source
+- updated `git_sync_mds.service` to load:
+  - `/etc/mds/gcs.env`
+  - `/etc/mds/local.env`
+  - `$HOME/.config/mds/env`
+- updated `update_repo_ssh.sh` to preload those env files in the same order,
+  so GCS and node invocations follow one host-aware precedence model
+- added regression coverage for:
+  - service template env ordering
+  - runtime env precedence (`gcs.env -> local.env -> user env`)
+- corrected GCS/custom-repo docs so they no longer imply boot-time git sync is
+  driven only by node-style `local.env`
+
+Verification:
+
+- `bash -n tools/update_repo_ssh.sh`
+- `python3 -m pytest --no-cov tests/test_bootstrap_installers.py -k "git_sync_service_template or git_sync_runtime_env_prefers_local_over_gcs_and_user_env or post_sync_runtime_restart or git_sync_runtime_state_persists_post_sync_summary"`
+- `git diff --check`
+
+Residual drift after this slice:
+
+- live GCS still needs one reconciliation pass from the repaired code path so
+  its boot-time git sync stops depending on stale host-local env leftovers
+- board-side live reconciliation remains blocked on NetBird reachability, not
+  on the code path anymore
