@@ -291,6 +291,7 @@ def _extract_enum_values(section_html: str) -> list[dict[str, Any]]:
 def _clean_html_text(raw_value: Any) -> str:
     value = re.sub(r"<[^>]+>", " ", str(raw_value or ""))
     value = unescape(value)
+    value = _strip_invisible_text(value)
     value = value.replace("#", " ")
     return re.sub(r"\s+", " ", value).strip()
 
@@ -424,8 +425,18 @@ def _normalize_name(raw_value: Any) -> str:
 def _clean_text(raw_value: Any) -> str | None:
     if raw_value is None:
         return None
-    value = str(raw_value).strip()
+    value = _strip_invisible_text(str(raw_value)).strip()
     return value or None
+
+
+def _strip_invisible_text(value: str) -> str:
+    return (
+        value
+        .replace("\u200b", "")
+        .replace("\u200c", "")
+        .replace("\u200d", "")
+        .replace("\ufeff", "")
+    )
 
 
 def _coerce_int(raw_value: Any) -> int | None:
