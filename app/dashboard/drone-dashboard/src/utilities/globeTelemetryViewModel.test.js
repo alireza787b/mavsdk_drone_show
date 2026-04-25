@@ -17,6 +17,7 @@ describe('globeTelemetryViewModel', () => {
           velocity_north: 1,
           velocity_east: 2,
           velocity_down: 2,
+          distance_to_home_m: 12.5,
         },
       },
       [{ hw_id: '2', pos_id: '7', marker_color: '#ffaa00' }]
@@ -29,6 +30,7 @@ describe('globeTelemetryViewModel', () => {
       position: [35.1, 51.2, 103.5],
       marker_color: '#ffaa00',
       battery_voltage: 16.44,
+      distance_to_home_m: 12.5,
     });
     expect(result[0].speed_mps).toBe(3);
   });

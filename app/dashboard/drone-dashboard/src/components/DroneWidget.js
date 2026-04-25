@@ -2,8 +2,10 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import {
   FaCheckCircle,
+  FaBroadcastTower,
   FaCog,
   FaExclamationTriangle,
+  FaHome,
   FaInfoCircle,
   FaProjectDiagram,
   FaRegCircle,
@@ -140,6 +142,13 @@ const DroneWidget = ({
     return `${alt.toFixed(1)}m`;
   };
 
+  const getDistanceToHomeDisplay = (distance) => {
+    const numeric = Number(distance);
+    if (!Number.isFinite(numeric)) return 'N/A';
+    if (numeric >= 1000) return `${(numeric / 1000).toFixed(2)}km`;
+    return `${numeric.toFixed(1)}m`;
+  };
+
   // Position ID validation
   const posIdRaw = drone[FIELD_NAMES.POS_ID];
   const posId = posIdRaw === undefined || posIdRaw === null ? 'N/A' : String(posIdRaw);
@@ -180,6 +189,7 @@ const DroneWidget = ({
   const gpsQuality = getGpsQualityStatus(drone[FIELD_NAMES.HDOP], drone[FIELD_NAMES.VDOP]);
   const telemetryPresentationClass = telemetryTrusted ? '' : 'stale';
   const telemetryUnavailableText = telemetryAvailable ? 'Last known' : 'Unavailable';
+  const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
 
   // Get drone IP (use snake_case standard)
   const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
@@ -192,9 +202,16 @@ const DroneWidget = ({
         missionReady ? 'mission-ready' : ''
       } ${missionExecuting ? 'mission-executing' : ''} ${
         isExpanded ? 'expanded' : ''
-      } ${scopeClass} command-scope-${commandScopeState}`}
+      } ${scopeClass} command-scope-${commandScopeState} runtime-${runtimeStatus.indicatorClass}`}
       data-command-scope={commandScopeState}
+      data-runtime-state={runtimeStatus.indicatorClass}
     >
+      {showLinkOverlay && (
+        <div className="drone-widget__link-overlay" aria-hidden="true" title={runtimeStatus.tooltip}>
+          <FaBroadcastTower />
+          <span>{runtimeStatus.label}</span>
+        </div>
+      )}
       {/* Header */}
       <h3 onClick={(e) => {
         e.stopPropagation();
@@ -381,23 +398,26 @@ const DroneWidget = ({
 
         {/* GPS Status */}
         <div className="data-item">
-          <span className="data-label">GPS Fix</span>
-          <div className="gps-status">
-            <span className={`gps-fix-indicator ${telemetryTrusted ? getGpsFixClass(gpsFixType) : 'no-fix'}`}></span>
-            <span className={`data-value ${telemetryPresentationClass}`}>
-              {telemetryTrusted ? getGpsFixName(gpsFixType) : telemetryUnavailableText}
-            </span>
+          <span className="data-label">GPS</span>
+          <div className="data-value-stack">
+            <div className="gps-status">
+              <span className={`gps-fix-indicator ${telemetryTrusted ? getGpsFixClass(gpsFixType) : 'no-fix'}`}></span>
+              <span className={`data-value ${telemetryPresentationClass}`}>
+                {telemetryTrusted ? getGpsFixName(gpsFixType) : telemetryUnavailableText}
+              </span>
+            </div>
+            <span className="data-subvalue">{telemetryTrusted ? `${satellitesVisible} sats · DOP ${gpsQuality.text}` : 'Waiting for telemetry'}</span>
           </div>
         </div>
 
-        {/* GPS Quality */}
+        {/* Home Distance */}
         <div className="data-item">
-          <span className="data-label">GPS Quality</span>
-          <div className="data-value-stack">
-            <span className={`data-value ${telemetryTrusted ? gpsQuality.class : telemetryPresentationClass}`}>
-              {telemetryTrusted ? gpsQuality.text : telemetryUnavailableText}
+          <span className="data-label">Home</span>
+          <div className="data-value-inline">
+            <FaHome className="data-item__icon" aria-hidden="true" />
+            <span className={`data-value ${telemetryTrusted ? '' : telemetryPresentationClass}`}>
+              {telemetryTrusted ? getDistanceToHomeDisplay(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]) : telemetryUnavailableText}
             </span>
-            <span className="data-subvalue">{telemetryTrusted ? `${satellitesVisible} sats` : 'Waiting for telemetry'}</span>
           </div>
         </div>
       </div>

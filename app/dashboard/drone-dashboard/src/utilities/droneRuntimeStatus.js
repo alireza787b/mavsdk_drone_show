@@ -3,6 +3,7 @@ import { DRONE_RUNTIME_CLOCK_PROP } from '../constants/fieldMappings';
 // Keep link-state conservative without flickering on slower VPSes or brief polling gaps.
 const LIVE_TELEMETRY_THRESHOLD_MS = 10_000;
 const HEARTBEAT_GRACE_THRESHOLD_MS = 35_000;
+const OFFLINE_CONFIRMED_THRESHOLD_MS = 60_000;
 const CLIENT_CLOCK_SKEW_TOLERANCE_MS = 30_000;
 const MS_PER_SECOND = 1_000;
 const UNIX_MS_THRESHOLD = 1_000_000_000_000;
@@ -79,7 +80,11 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
   const clockOffsetNote = Math.abs(calibratedClockOffsetMs) > CLIENT_CLOCK_SKEW_TOLERANCE_MS
     ? formatClockOffset(calibratedClockOffsetMs)
     : null;
-  const telemetryTimestamp = normalizeTimestampMs(drone?.update_time ?? drone?.timestamp);
+  const telemetryTimestamp = normalizeTimestampMs(
+    drone?.telemetry_available === false
+      ? drone?.update_time
+      : (drone?.update_time ?? drone?.timestamp)
+  );
   const heartbeatTimestamp = normalizeTimestampMs(drone?.heartbeat_last_seen);
   const telemetryAgeSec = toAgeSeconds(referenceNowMs, telemetryTimestamp);
   const heartbeatAgeSec = toAgeSeconds(referenceNowMs, heartbeatTimestamp);
@@ -112,11 +117,19 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
   }
 
   if (telemetryTimestamp !== null || heartbeatTimestamp !== null) {
+    const newestTimestamp = Math.max(telemetryTimestamp ?? 0, heartbeatTimestamp ?? 0);
+    const linkAgeMs = newestTimestamp > 0 ? referenceNowMs - newestTimestamp : null;
+    const recentlyLost = linkAgeMs !== null && linkAgeMs <= OFFLINE_CONFIRMED_THRESHOLD_MS;
     return {
       level: 'offline',
-      indicatorClass: 'offline',
-      label: 'Link lost',
-      tooltip: ['No recent telemetry or heartbeat.', formatAge(telemetryAgeSec, 'Telemetry'), formatAge(heartbeatAgeSec, 'Heartbeat'), clockOffsetNote].filter(Boolean).join(' | '),
+      indicatorClass: recentlyLost ? 'lost' : 'offline',
+      label: recentlyLost ? 'Link lost' : 'Offline',
+      tooltip: [
+        recentlyLost ? 'Recent link loss.' : 'No recent telemetry or heartbeat.',
+        formatAge(telemetryAgeSec, 'Telemetry'),
+        formatAge(heartbeatAgeSec, 'Heartbeat'),
+        clockOffsetNote,
+      ].filter(Boolean).join(' | '),
       telemetryAgeSec,
       heartbeatAgeSec,
     };
@@ -124,8 +137,8 @@ export function getDroneRuntimeStatus(drone, nowMs = Date.now()) {
 
   return {
     level: 'unknown',
-    indicatorClass: 'unknown',
-    label: 'Waiting for link',
+    indicatorClass: 'never-seen',
+    label: 'Never seen',
     tooltip: 'No telemetry or heartbeat received yet.',
     telemetryAgeSec: null,
     heartbeatAgeSec: null,

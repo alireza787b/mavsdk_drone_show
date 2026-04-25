@@ -35,11 +35,11 @@ describe('droneRuntimeStatus', () => {
     expect(status.label).toBe('Link lost');
   });
 
-  test('reports waiting for link when no timing data exists yet', () => {
+  test('reports never seen when no timing data exists yet', () => {
     const status = getDroneRuntimeStatus({}, 1_700_000_000_000);
 
     expect(status.level).toBe('unknown');
-    expect(status.label).toBe('Waiting for link');
+    expect(status.label).toBe('Never seen');
   });
 
   test('uses the runtime clock hint when the client clock is badly skewed', () => {
@@ -117,5 +117,18 @@ describe('droneRuntimeStatus', () => {
 
     expect(status.level).toBe('degraded');
     expect(status.label).toBe('Heartbeat only');
+  });
+
+  test('does not treat failed telemetry poll timestamp as live telemetry', () => {
+    const nowMs = 1_700_000_000_000;
+    const status = getDroneRuntimeStatus({
+      timestamp: nowMs,
+      update_time: null,
+      telemetry_available: false,
+      heartbeat_last_seen: null,
+    }, nowMs);
+
+    expect(status.level).toBe('unknown');
+    expect(status.label).toBe('Never seen');
   });
 });

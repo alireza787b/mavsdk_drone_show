@@ -432,6 +432,7 @@ class DroneTelemetry(BaseModel):
     is_ready_to_arm: bool = Field(..., description="Compatibility readiness boolean")
     home_position_set: bool = Field(False, description="Whether PX4 home position has been established")
     home_position_source: Optional[str] = Field(None, description="Source of the cached home position record (px4 or fallback_position)")
+    distance_to_home_m: Optional[float] = Field(None, description="Horizontal distance from current position to cached home position (m)")
 
     readiness_status: str = Field("unknown", description="Operator-facing readiness state")
     readiness_summary: str = Field("Readiness unavailable", description="High-level readiness summary")

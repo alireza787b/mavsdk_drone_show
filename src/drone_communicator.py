@@ -6,7 +6,8 @@ import select
 import time
 import re
 import json
-from typing import Dict, Any, List
+import math
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from functions.data_utils import safe_float, safe_get, safe_int
@@ -96,6 +97,37 @@ class DroneCommunicator:
         if update_time_seconds > 0:
             return int(update_time_seconds * 1000)
         return 0
+
+    @staticmethod
+    def _distance_to_home_m(position: Any, home_position: Any) -> Optional[float]:
+        """Return horizontal great-circle distance to cached home, or None when unavailable."""
+        if not isinstance(position, dict) or not isinstance(home_position, dict):
+            return None
+
+        try:
+            lat = float(position.get("lat"))
+            lon = float(position.get("long", position.get("lon", position.get("lng"))))
+            home_lat = float(home_position.get("lat"))
+            home_lon = float(home_position.get("long", home_position.get("lon", home_position.get("lng"))))
+        except (TypeError, ValueError):
+            return None
+
+        if not all(math.isfinite(value) for value in [lat, lon, home_lat, home_lon]):
+            return None
+
+        if abs(lat) < 0.000001 and abs(lon) < 0.000001:
+            return None
+
+        earth_radius_m = 6_371_000.0
+        lat_1 = math.radians(lat)
+        lat_2 = math.radians(home_lat)
+        delta_lat = math.radians(home_lat - lat)
+        delta_lon = math.radians(home_lon - lon)
+        haversine = (
+            math.sin(delta_lat / 2) ** 2
+            + math.cos(lat_1) * math.cos(lat_2) * (math.sin(delta_lon / 2) ** 2)
+        )
+        return 2 * earth_radius_m * math.atan2(math.sqrt(haversine), math.sqrt(max(0.0, 1 - haversine)))
 
     def _build_swarm_state(self, live_swarm: Dict[str, Any], emitted_at_ms: int) -> Dict[str, Any]:
         local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
@@ -521,6 +553,10 @@ class DroneCommunicator:
             "is_ready_to_arm": bool(self.drone_config.is_ready_to_arm),  # Pre-arm checks status
             "home_position_set": bool(getattr(self.drone_config, 'px4_home_position_set', False)),
             "home_position_source": str(getattr(self.drone_config, 'home_position_source', 'unknown')),
+            "distance_to_home_m": self._distance_to_home_m(
+                getattr(self.drone_config, "position", None),
+                getattr(self.drone_config, "home_position", None),
+            ),
             "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),
             "readiness_summary": str(getattr(self.drone_config, 'readiness_summary', 'Readiness unavailable')),
             "readiness_checks": list(getattr(self.drone_config, 'readiness_checks', []) or []),

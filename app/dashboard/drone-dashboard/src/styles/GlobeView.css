@@ -456,6 +456,17 @@
     transform: translateY(-1px);
 }
 
+.globe-tactical-strip__chip.runtime-offline,
+.globe-tactical-strip__chip.runtime-never-seen {
+    filter: grayscale(0.7);
+    opacity: 0.5;
+}
+
+.globe-tactical-strip__chip.runtime-lost,
+.globe-tactical-strip__chip.runtime-never-seen {
+    border-style: dashed;
+}
+
 /* === Map View Container === */
 .globe-map-container {
     position: relative;
@@ -540,6 +551,17 @@
 .globe-drone-marker:focus-visible {
     box-shadow: 0 0 0 6px color-mix(in srgb, var(--mds-drone-marker-color) 30%, transparent), var(--shadow-lg);
     transform: scale(1.16);
+}
+
+.globe-drone-marker.runtime-offline,
+.globe-drone-marker.runtime-never-seen {
+    filter: grayscale(0.7);
+    opacity: 0.44;
+}
+
+.globe-drone-marker.runtime-lost,
+.globe-drone-marker.runtime-never-seen {
+    border-style: dashed;
 }
 
 .globe-map-drone-card-popover {

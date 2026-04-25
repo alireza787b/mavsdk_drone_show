@@ -7,8 +7,8 @@ import {
   FaClock,
   FaCompass,
   FaCrosshairs,
+  FaHome,
   FaProjectDiagram,
-  FaRoute,
   FaSatellite,
   FaSlidersH,
 } from 'react-icons/fa';
@@ -66,7 +66,7 @@ TacticalMetric.propTypes = {
   title: PropTypes.string,
 };
 
-const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) => {
+const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const hwId = String(drone?.[FIELD_NAMES.HW_ID] ?? drone?.hw_id ?? '');
   const posId = drone?.[FIELD_NAMES.POS_ID] ?? drone?.pos_id;
   const identity = formatCompactDroneIdentity(posId, hwId, `H${hwId || '?'}`);
@@ -74,7 +74,9 @@ const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) =>
   const missionDisplay = getMissionDisplayContext(drone?.mission, drone?.last_mission);
   const flightMode = getFlightModeTitle(drone?.flight_mode);
   const gpsFix = GPS_FIX_LABELS[Number(drone?.gps_fix_type)] || 'GPS n/a';
-  const speed = Number.isFinite(Number(drone?.speed_mps)) ? `${formatNumber(drone.speed_mps)} m/s` : 'speed n/a';
+  const distanceToHome = Number.isFinite(Number(drone?.distance_to_home_m))
+    ? `${formatNumber(drone.distance_to_home_m)} m`
+    : 'Home n/a';
   const armed = drone?.is_armed === true ? 'Armed' : drone?.is_armed === false ? 'Disarmed' : 'Arm n/a';
   const lastSeen = formatLastUpdate(drone?.last_update);
   const followLabel = Number(drone?.follow_mode) === 0 ? 'Leader' : `H${drone.follow_mode}`;
@@ -108,9 +110,9 @@ const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) =>
 
       <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
         <TacticalMetric icon={FaCompass} label="Altitude" value={`${formatNumber(drone?.altitude)} m`} />
+        <TacticalMetric icon={FaHome} label="Distance home" value={distanceToHome} title="Horizontal distance to cached home position" />
         <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
         <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />
-        <TacticalMetric icon={FaRoute} label="Speed" value={speed} />
       </div>
 
       <div className="tactical-drone-card__badges" aria-label="Drone operational state">
@@ -119,15 +121,6 @@ const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) =>
         <span title="Current mission">{missionDisplay.currentMissionName || 'No mission'}</span>
         <span title="Follow role">{followLabel}</span>
       </div>
-
-      <dl className="tactical-drone-card__details">
-        {localPosition && (
-          <div>
-            <dt>XYZ</dt>
-            <dd>{formatNumber(localPosition[0], 2)}, {formatNumber(localPosition[1], 2)}, {formatNumber(localPosition[2], 2)} m</dd>
-          </div>
-        )}
-      </dl>
 
       <div className="tactical-drone-card__actions" aria-label="Drone quick links">
         <Link to={`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`} title="Open this drone in Mission Config">
@@ -168,10 +161,10 @@ TacticalDroneCard.propTypes = {
     satellites_visible: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     mission: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     last_mission: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    distance_to_home_m: PropTypes.number,
     speed_mps: PropTypes.number,
     last_update: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }).isRequired,
-  localPosition: PropTypes.arrayOf(PropTypes.number),
   onClose: PropTypes.func,
   className: PropTypes.string,
 };

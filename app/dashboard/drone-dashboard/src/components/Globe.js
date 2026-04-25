@@ -103,6 +103,7 @@ const DroneScreenAnchorProjector = ({ drones, onScreenAnchors }) => {
         label: drone.identityLabel,
         markerColor: resolveMarkerColor(drone.marker_color),
         noMapFix: drone.noMapFix,
+        runtimeClass: drone.runtime_indicator_class || drone.runtimeStatus?.indicatorClass || 'unknown',
         x: Math.round((projected.x * 0.5 + 0.5) * size.width),
         y: Math.round((-projected.y * 0.5 + 0.5) * size.height),
         visible: projected.z >= -1 && projected.z <= 1,
@@ -124,6 +125,8 @@ DroneScreenAnchorProjector.propTypes = {
     identityLabel: PropTypes.string,
     marker_color: PropTypes.string,
     noMapFix: PropTypes.bool,
+    runtime_indicator_class: PropTypes.string,
+    runtimeStatus: PropTypes.object,
     position: PropTypes.arrayOf(PropTypes.number),
   })).isRequired,
   onScreenAnchors: PropTypes.func.isRequired,
@@ -157,6 +160,7 @@ const Drone = ({
   hw_id,
   marker_color,
   noMapFix,
+  runtime_indicator_class,
   selected,
   onSelect,
 }) => {
@@ -168,6 +172,7 @@ const Drone = ({
   const hoverColor = new Color('#FF9800');
   const active = selected || isHovered;
   const markerRadius = noMapFix ? 0.54 : 0.64;
+  const linkDimmed = ['offline', 'never-seen'].includes(runtime_indicator_class);
 
   useEffect(() => {
     targetPositionRef.current.set(...position);
@@ -202,8 +207,8 @@ const Drone = ({
         emissiveIntensity={active ? 0.9 : 0.58}
         metalness={0.5}
         roughness={noMapFix ? 0.68 : 0.3}
-        transparent={noMapFix}
-        opacity={noMapFix ? 0.72 : 1}
+        transparent={noMapFix || linkDimmed}
+        opacity={linkDimmed ? 0.38 : noMapFix ? 0.72 : 1}
       />
       <mesh>
         <sphereGeometry args={[1.45, 16, 16]} />
@@ -224,6 +229,7 @@ Drone.propTypes = {
   hw_id: PropTypes.string.isRequired,
   marker_color: PropTypes.string,
   noMapFix: PropTypes.bool,
+  runtime_indicator_class: PropTypes.string,
   selected: PropTypes.bool,
   onSelect: PropTypes.func.isRequired,
 };
@@ -484,6 +490,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
               className={[
                 'globe-drone-screen-hit',
                 anchor.noMapFix ? 'no-map-fix' : '',
+                anchor.runtimeClass ? `runtime-${anchor.runtimeClass}` : '',
                 String(selectedDroneId || '') === anchor.id ? 'selected' : '',
               ].filter(Boolean).join(' ')}
               style={{
@@ -495,9 +502,12 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
                 event.stopPropagation();
                 onSelectDrone(anchor.id);
               }}
+              onMouseDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              onTouchStart={(event) => event.stopPropagation()}
               title={`${anchor.label}${anchor.noMapFix ? ' · no GPS fix' : ''}`}
             >
-              {anchor.label}
+              <span>{anchor.label}</span>
             </button>
           )
         ))}
@@ -511,6 +521,9 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
             selectedCardPlacement.placeAbove ? 'is-above' : '',
           ].filter(Boolean).join(' ')}
           style={selectedCardPlacement.style}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
         >
           <TacticalDroneCard
             drone={{
@@ -518,7 +531,6 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
               position: selectedDrone.position,
               geoPosition: selectedDrone.geoPosition,
             }}
-            localPosition={selectedDrone.position}
             onClose={() => onSelectDrone(null)}
           />
         </div>

@@ -95,6 +95,7 @@ http://drone-ip:7070/openapi.json
   "position_lat": 47.397742,
   "position_long": 8.545594,
   "position_alt": 488.5,
+  "distance_to_home_m": 18.4,
   "velocity_north": 0.0,
   "velocity_east": 0.0,
   "velocity_down": 0.0,
@@ -108,6 +109,7 @@ http://drone-ip:7070/openapi.json
   "system_status": 4,
   "is_armed": false,
   "is_ready_to_arm": true,
+  "home_position_set": true,
   "readiness_status": "ready",
   "readiness_summary": "Ready to fly",
   "readiness_checks": [
@@ -138,6 +140,7 @@ Readiness fields:
 - `is_ready_to_arm` remains the simple compatibility boolean.
 - `readiness_status` and `readiness_summary` are the operator-facing verdict.
 - `preflight_blockers`, `preflight_warnings`, and `status_messages` surface live PX4 preflight feedback and recent `STATUSTEXT` messages.
+- `distance_to_home_m` is the horizontal great-circle distance from current LLA to cached home position. It is `null` until current position and home position are both available.
 
 ---
 

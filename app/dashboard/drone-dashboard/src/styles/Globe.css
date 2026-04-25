@@ -85,31 +85,40 @@
 
 .globe-drone-screen-hit {
     align-items: center;
-    background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, var(--color-bg-secondary));
-    border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 70%, white);
+    background: transparent;
+    border: 0;
     border-radius: 999px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
     color: var(--color-text-primary);
     cursor: pointer;
     display: inline-flex;
-    font-size: 10px;
-    font-weight: 900;
+    height: 52px;
     justify-content: center;
-    min-height: 26px;
-    min-width: 42px;
     opacity: 0.82;
-    padding: 4px 8px;
+    padding: 0;
     pointer-events: auto;
     position: absolute;
-    transform: translate(-50%, calc(-100% - 10px));
+    transform: translate(-50%, -50%);
     transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
-    white-space: nowrap;
+    width: 52px;
+}
+
+.globe-drone-screen-hit::before {
+    background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 54%, white);
+    border-radius: 999px;
+    content: '';
+    height: 36px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
 }
 
 .globe-drone-screen-hit::after {
     background: var(--mds-globe-marker-color, var(--color-primary));
     border-radius: 999px;
-    bottom: -9px;
+    bottom: 7px;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, transparent);
     content: '';
     height: 5px;
@@ -119,16 +128,46 @@
     width: 5px;
 }
 
+.globe-drone-screen-hit span {
+    background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, var(--color-bg-secondary));
+    border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 70%, white);
+    border-radius: 999px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    font-size: 10px;
+    font-weight: 900;
+    min-height: 24px;
+    min-width: 42px;
+    padding: 4px 8px;
+    position: absolute;
+    transform: translateY(calc(-100% - 8px));
+    white-space: nowrap;
+}
+
 .globe-drone-screen-hit.no-map-fix {
-    border-style: dashed;
     opacity: 0.74;
+}
+
+.globe-drone-screen-hit.no-map-fix::before,
+.globe-drone-screen-hit.no-map-fix span {
+    border-style: dashed;
+}
+
+.globe-drone-screen-hit.runtime-offline,
+.globe-drone-screen-hit.runtime-never-seen {
+    opacity: 0.42;
+    filter: grayscale(0.7);
+}
+
+.globe-drone-screen-hit.runtime-lost::before,
+.globe-drone-screen-hit.runtime-lost span {
+    border-color: var(--color-warning);
 }
 
 .globe-drone-screen-hit.selected,
 .globe-drone-screen-hit:focus-visible,
 .globe-drone-screen-hit:hover {
     opacity: 1;
-    transform: translate(-50%, calc(-100% - 12px)) scale(1.04);
+    transform: translate(-50%, -50%) scale(1.04);
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 18%, transparent), 0 12px 26px rgba(0, 0, 0, 0.28);
 }
 
@@ -149,8 +188,13 @@
     }
 
     .globe-drone-screen-hit {
+        height: 48px;
+        width: 48px;
+    }
+
+    .globe-drone-screen-hit span {
         font-size: 9px;
-        min-height: 24px;
+        min-height: 22px;
         min-width: 36px;
         padding: 3px 7px;
     }

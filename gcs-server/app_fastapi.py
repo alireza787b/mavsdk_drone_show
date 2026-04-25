@@ -645,6 +645,7 @@ def _build_background_unavailable_record(
         "is_armed": bool(existing.get("is_armed", False)),
         "is_ready_to_arm": False,
         "home_position_set": bool(existing.get("home_position_set", False)),
+        "distance_to_home_m": existing.get("distance_to_home_m"),
         "readiness_status": "unknown",
         "readiness_summary": error_message,
         "readiness_checks": existing.get("readiness_checks", []),

@@ -433,6 +433,7 @@ Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
       "position_lat": 35.123456,
       "position_long": -120.654321,
       "position_alt": 488.5,
+      "distance_to_home_m": 18.4,
       "velocity_north": 0.0,
       "velocity_east": 0.0,
       "velocity_down": 0.0,
@@ -456,7 +457,7 @@ Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
 
 The older GCS HTTP telemetry aliases were retired on 2026-04-03. Use the canonical route above.
 
-`readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for "Ready to Fly" and live PX4 preflight feedback.
+`readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for "Ready to Fly" and live PX4 preflight feedback. `distance_to_home_m` is a nullable horizontal distance from the drone's current position to cached home position; dashboards should show `n/a` until both endpoints are known.
 
 ---
 

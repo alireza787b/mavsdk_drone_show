@@ -234,7 +234,11 @@ const GlobeView = () => {
             <button
               key={droneId}
               type="button"
-              className={`globe-tactical-strip__chip ${selected ? 'selected' : ''}`}
+              className={[
+                'globe-tactical-strip__chip',
+                selected ? 'selected' : '',
+                drone.runtime_indicator_class ? `runtime-${drone.runtime_indicator_class}` : '',
+              ].filter(Boolean).join(' ')}
               style={{ '--mds-drone-marker-color': drone.marker_color || '#00d4ff' }}
               onClick={() => setSelectedDroneId(selected ? null : droneId)}
               title={`Select ${formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`)} on the active view`}

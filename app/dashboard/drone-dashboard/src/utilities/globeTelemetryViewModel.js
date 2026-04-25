@@ -1,6 +1,7 @@
 import { FIELD_NAMES, normalizeDroneData } from '../constants/fieldMappings';
 import { getDroneShowStateName } from '../constants/droneStates';
 import { normalizeDroneConfigData } from './missionIdentityUtils';
+import { getDroneRuntimeStatus } from './droneRuntimeStatus';
 
 const LOW_LATENCY_INTERVAL_MS = 1000;
 const MEDIUM_FLEET_INTERVAL_MS = 1500;
@@ -48,7 +49,7 @@ export function calculateGlobeTelemetryIntervalMs(droneCount = 0, options = {}) 
   return LOW_LATENCY_INTERVAL_MS;
 }
 
-export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload = []) {
+export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload = [], nowMs = Date.now()) {
   const configRows = normalizeDroneConfigData(configPayload);
   const configMap = new Map(configRows.map((row) => [String(row.hw_id), row]));
 
@@ -65,6 +66,7 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
       const speed = hasVelocity
         ? Math.sqrt((velocityNorth ** 2) + (velocityEast ** 2) + (velocityDown ** 2))
         : null;
+      const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
 
       return {
         ...drone,
@@ -81,6 +83,7 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         altitude: toFiniteNumber(drone[FIELD_NAMES.POSITION_ALT], 0),
         marker_color: config.marker_color || config.markerColor || drone.marker_color || '',
         battery_voltage: toFiniteNumber(drone[FIELD_NAMES.BATTERY_VOLTAGE]),
+        distance_to_home_m: toFiniteNumber(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]),
         flight_mode: drone[FIELD_NAMES.FLIGHT_MODE] ?? null,
         base_mode: drone[FIELD_NAMES.BASE_MODE] ?? null,
         system_status: drone[FIELD_NAMES.SYSTEM_STATUS] ?? null,
@@ -91,6 +94,10 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         last_mission: drone[FIELD_NAMES.LAST_MISSION] ?? null,
         speed_mps: speed,
         last_update: drone[FIELD_NAMES.UPDATE_TIME] ?? drone[FIELD_NAMES.TIMESTAMP] ?? drone[FIELD_NAMES.HEARTBEAT_LAST_SEEN] ?? null,
+        runtimeStatus,
+        runtime_level: runtimeStatus.level,
+        runtime_indicator_class: runtimeStatus.indicatorClass,
+        runtime_label: runtimeStatus.label,
       };
     })
     .sort((left, right) => String(left.pos_id).localeCompare(String(right.pos_id), undefined, { numeric: true }));

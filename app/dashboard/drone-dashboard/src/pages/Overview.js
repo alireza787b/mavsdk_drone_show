@@ -39,7 +39,7 @@ const Overview = ({ setSelectedDrone }) => {
   const [configByHwId, setConfigByHwId] = useState({});
   const [expandedDrone, setExpandedDrone] = useState(null);
   const [droneQuery, setDroneQuery] = useState('');
-  const [cardFilter, setCardFilter] = useState('all');
+  const [cardFilter, setCardFilter] = useState('active');
   const [clusterScope, setClusterScope] = useState('all');
   const [commandTargetMode, setCommandTargetMode] = useState('all');
   const [commandSelectedDrones, setCommandSelectedDrones] = useState([]);
@@ -248,6 +248,10 @@ const Overview = ({ setSelectedDrone }) => {
       const readiness = getDroneReadinessModel(drone, runtimeStatus);
 
       switch (cardFilter) {
+        case 'active':
+          return runtimeStatus.level === 'online'
+            || runtimeStatus.level === 'degraded'
+            || runtimeStatus.indicatorClass === 'lost';
         case 'attention':
           return runtimeStatus.level !== 'online' || !readiness.isReady;
         case 'ready':
@@ -527,11 +531,12 @@ const Overview = ({ setSelectedDrone }) => {
         </label>
         <div className="overview-fleet-toolbar__filters" role="tablist" aria-label="Fleet card filters">
           {[
-            ['all', 'All'],
+            ['active', 'Active'],
             ['attention', 'Attention'],
             ['ready', 'Ready'],
             ['online', 'Online'],
             ['armed', 'Armed'],
+            ['all', 'All'],
           ].map(([value, label]) => (
             <button
               key={value}

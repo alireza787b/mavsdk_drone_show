@@ -44,13 +44,18 @@ const resolveMarkerColor = (candidate) => {
   return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
 };
 
-const createDroneIcon = (identityLabel, markerColor, selected = false) =>
+const createDroneIcon = (identityLabel, markerColor, selected = false, runtimeClass = '') => {
+  const dimmed = runtimeClass === 'offline' || runtimeClass === 'never-seen';
+  const borderStyle = runtimeClass === 'lost' || runtimeClass === 'never-seen' ? 'dashed' : 'solid';
+  return (
   L.divIcon({
-    html: `<div style="min-width:${selected ? 32 : 24}px;height:${selected ? 32 : 24}px;padding:0 7px;background:${resolveMarkerColor(markerColor)};border-radius:999px;border:${selected ? 3 : 2}px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#000;box-shadow:0 0 0 ${selected ? 5 : 0}px rgba(255,255,255,0.20),0 10px 22px rgba(0,0,0,0.35)">${identityLabel}</div>`,
+    html: `<div style="min-width:${selected ? 32 : 24}px;height:${selected ? 32 : 24}px;padding:0 7px;background:${resolveMarkerColor(markerColor)};border-radius:999px;border:${selected ? 3 : 2}px ${borderStyle} #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#000;opacity:${dimmed ? 0.42 : 1};filter:${dimmed ? 'grayscale(0.7)' : 'none'};box-shadow:0 0 0 ${selected ? 5 : 0}px rgba(255,255,255,0.20),0 10px 22px rgba(0,0,0,0.35)">${identityLabel}</div>`,
     className: '',
     iconSize: selected ? [58, 32] : [48, 24],
     iconAnchor: selected ? [29, 16] : [24, 12],
-  });
+  })
+  );
+};
 
 const LeafletInvalidateSize = () => {
   const map = useMap();
@@ -84,7 +89,7 @@ const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
     <LeafletMarker
       ref={markerRef}
       position={[drone.position[0], drone.position[1]]}
-      icon={createDroneIcon(identityLabel, drone.marker_color, selected)}
+      icon={createDroneIcon(identityLabel, drone.marker_color, selected, drone.runtime_indicator_class)}
       title={identityLabel}
       eventHandlers={{
         click: () => onSelect(droneId),
@@ -239,11 +244,15 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
                 <div className="globe-map-marker-wrapper">
                   <button
                     type="button"
-                    className={`globe-drone-marker ${selected ? 'selected' : ''}`}
+                    className={[
+                      'globe-drone-marker',
+                      selected ? 'selected' : '',
+                      drone.runtime_indicator_class ? `runtime-${drone.runtime_indicator_class}` : '',
+                    ].filter(Boolean).join(' ')}
                     style={{ '--mds-drone-marker-color': resolveMarkerColor(drone.marker_color) }}
                     onClick={(event) => {
                       event.stopPropagation();
-                      onSelectDrone(selected ? null : droneId);
+                      onSelectDrone(droneId);
                     }}
                     title={`Open ${identityLabel} tactical card`}
                   >

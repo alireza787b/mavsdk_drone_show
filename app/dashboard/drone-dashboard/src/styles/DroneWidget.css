@@ -82,6 +82,43 @@
     opacity: 0.9;
 }
 
+.drone-widget.runtime-offline,
+.drone-widget.runtime-never-seen {
+    filter: grayscale(0.75) saturate(0.45);
+    opacity: 0.58;
+}
+
+.drone-widget.runtime-lost {
+    --widget-left-accent: var(--color-warning);
+    border-color: var(--color-warning-border);
+}
+
+.drone-widget__link-overlay {
+    align-items: center;
+    background:
+        radial-gradient(circle at center, rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.72), rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.38));
+    border: 1px solid rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.34);
+    border-radius: var(--border-radius-lg);
+    color: var(--color-text-secondary);
+    display: flex;
+    flex-direction: column;
+    font-size: 0.72rem;
+    font-weight: var(--font-weight-bold);
+    gap: 6px;
+    inset: 44px 14px auto 14px;
+    justify-content: center;
+    min-height: 72px;
+    pointer-events: none;
+    position: absolute;
+    text-transform: uppercase;
+    z-index: 2;
+}
+
+.drone-widget__link-overlay svg {
+    color: var(--color-text-muted);
+    font-size: 1.35rem;
+}
+
 .drone-widget.disarmed {
     --widget-top-accent: var(--color-text-tertiary);
 }
@@ -277,9 +314,20 @@
     box-shadow: 0 0 0 2px var(--color-danger-light);
 }
 
+.status-indicator.lost {
+    background: var(--color-warning);
+    box-shadow: 0 0 0 2px var(--color-warning-light), 0 0 8px var(--color-warning-light);
+}
+
 .status-indicator.unknown {
     background: var(--color-text-tertiary);
     box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.2);
+}
+
+.status-indicator.never-seen {
+    background: transparent;
+    border-color: var(--color-text-tertiary);
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.16);
 }
 
 @keyframes pulse-success {
@@ -447,6 +495,11 @@
     gap: 6px;
     min-width: 0;
     flex-wrap: wrap;
+}
+
+.data-item__icon {
+    color: var(--color-primary);
+    font-size: 0.82rem;
 }
 
 .data-subvalue {

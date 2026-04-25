@@ -17,6 +17,7 @@ describe('TacticalDroneCard', () => {
             altitude: 112.3,
             marker_color: '#33cc88',
             battery_voltage: 16.25,
+            distance_to_home_m: 18.4,
             flight_mode: 262147,
             is_armed: true,
             gps_fix_type: 3,
@@ -32,6 +33,8 @@ describe('TacticalDroneCard', () => {
     expect(screen.getByRole('region', { name: /P4\|H1 tactical summary/i })).toBeInTheDocument();
     expect(screen.getAllByText('Smart Swarm')).toHaveLength(2);
     expect(screen.getByText('16.25 V')).toBeInTheDocument();
+    expect(screen.getByText('18.4 m')).toBeInTheDocument();
+    expect(screen.queryByText('XYZ')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Config/i })).toHaveAttribute('href', '/mission-config?drone=1&edit=1');
     expect(screen.getByRole('link', { name: /Swarm/i })).toHaveAttribute('href', '/swarm-design?drone=1');
   });
