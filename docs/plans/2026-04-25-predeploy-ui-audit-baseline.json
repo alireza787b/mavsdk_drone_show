@@ -1,6 +1,6 @@
 {
   "critical_count": 0,
-  "debt_count": 1265,
+  "debt_count": 1263,
   "groups": {
     "dependency_mismatch": [],
     "duplicate_primitives": [],
@@ -3328,13 +3328,6 @@
         "detail": "rgba(0, 0, 0, 0.6)",
         "file": "app/dashboard/drone-dashboard/src/styles/OriginModal.css",
         "line": 12,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 0.2)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Overview.css",
-        "line": 454,
         "severity": "debt"
       },
       {
@@ -8220,13 +8213,6 @@
       },
       {
         "code": "hardcoded-z-index",
-        "detail": "z-index: 10",
-        "file": "app/dashboard/drone-dashboard/src/styles/Overview.css",
-        "line": 520,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
         "detail": "z-index: 2",
         "file": "app/dashboard/drone-dashboard/src/styles/Px4ParametersPage.css",
         "line": 738,
@@ -8870,8 +8856,8 @@
     "route_docs": []
   },
   "summary": {
-    "hardcoded-color": 1150,
-    "hardcoded-z-index": 43,
+    "hardcoded-color": 1149,
+    "hardcoded-z-index": 42,
     "mixed-icon-stack": 1,
     "native-title": 71
   }

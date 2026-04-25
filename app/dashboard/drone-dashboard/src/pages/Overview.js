@@ -6,6 +6,7 @@ import CommandSender from '../components/CommandSender';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
+import { EmptyState, MetricStrip, OperatorNotice } from '../components/ui';
 import useFetch from '../hooks/useFetch';
 import {
   DRONE_RUNTIME_CLOCK_PROP,
@@ -451,7 +452,7 @@ const Overview = ({ setSelectedDrone }) => {
           <p className="overview-eyebrow">Operations dashboard</p>
           <h1>Fleet Command Overview</h1>
           <p className="overview-description">
-            Live status, command scope, and launch readiness for the active fleet.
+            Live fleet status, dispatch scope, and launch readiness.
           </p>
         </div>
         <div
@@ -463,24 +464,16 @@ const Overview = ({ setSelectedDrone }) => {
           aria-expanded={fleetPanelExpanded}
           aria-label={fleetPanelExpanded ? 'Hide fleet details' : 'Show fleet details'}
         >
-          <div className="overview-summary-strip" role="list" aria-label="Fleet overview">
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Fleet</span>
-              <strong>{fleetSummary.total}</strong>
-            </article>
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Online</span>
-              <strong>{fleetSummary.online}</strong>
-            </article>
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Ready</span>
-              <strong>{fleetSummary.ready}</strong>
-            </article>
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Armed</span>
-              <strong>{fleetSummary.armed}</strong>
-            </article>
-          </div>
+          <MetricStrip
+            className="overview-summary-strip"
+            label="Fleet overview"
+            items={[
+              { key: 'fleet', label: 'Fleet', value: fleetSummary.total },
+              { key: 'online', label: 'Online', value: fleetSummary.online, tone: fleetSummary.online > 0 ? 'success' : 'warning' },
+              { key: 'ready', label: 'Ready', value: fleetSummary.ready, tone: fleetSummary.ready === fleetSummary.total && fleetSummary.total > 0 ? 'success' : 'neutral' },
+              { key: 'armed', label: 'Armed', value: fleetSummary.armed, tone: fleetSummary.armed > 0 ? 'warning' : 'neutral' },
+            ]}
+          />
           <div className={`overview-summary-toggle ${fleetPanelExpanded ? 'is-open' : ''}`} aria-hidden="true">
             <span>{fleetPanelExpanded ? 'Details' : 'Summary'}</span>
             <FaChevronDown className="overview-summary-toggle-icon" />
@@ -541,7 +534,7 @@ const Overview = ({ setSelectedDrone }) => {
           <button
             type="button"
             className="connected-drones-scope"
-            title="Jump to command dispatch scope controls"
+            aria-label="Jump to command dispatch scope controls"
             onClick={focusCommandDispatch}
             aria-controls="command-dispatch"
           >
@@ -552,9 +545,9 @@ const Overview = ({ setSelectedDrone }) => {
             className="connected-drones-action"
             onClick={applyVisibleCardsToCommandScope}
             disabled={visibleCommandScopeIds.length === 0 || visibleScopeMatchesSelection}
-            title={visibleScopeMatchesSelection
+            aria-label={visibleScopeMatchesSelection
               ? 'The currently visible commandable fleet already matches the manual dispatch scope.'
-              : 'Copy currently visible online/degraded fleet cards into the manual dispatch scope.'}
+              : 'Copy currently visible online or delayed fleet cards into the manual dispatch scope.'}
           >
             {visibleScopeMatchesSelection ? 'Visible in dispatch' : 'Use visible'}
           </button>
@@ -602,21 +595,31 @@ const Overview = ({ setSelectedDrone }) => {
         )}
       </div>
 
-      {notification && <div className="notification">{notification}</div>}
-      {error && <div className="error-message">{error}</div>}
+      {notification && (
+        <OperatorNotice tone="warning" title="Telemetry incomplete" className="overview-notice">
+          {notification}
+        </OperatorNotice>
+      )}
+      {error && (
+        <OperatorNotice tone="danger" title="Backend telemetry unavailable" className="overview-notice">
+          {error}
+        </OperatorNotice>
+      )}
 
       <div className="drone-list">
         {drones.length === 0 && !error && (
-          <div className="overview-empty-state">
-            <strong>No valid drone data is available.</strong>
-            <span>When telemetry resumes, aircraft cards will populate here automatically.</span>
-          </div>
+          <EmptyState
+            className="overview-empty-state"
+            title="No valid drone data"
+            detail="When telemetry resumes, aircraft cards will populate here automatically."
+          />
         )}
         {drones.length > 0 && filteredDrones.length === 0 && !error && (
-          <div className="overview-empty-state">
-            <strong>No drones match the current filters.</strong>
-            <span>Search supports free text and scoped queries like pos 1-5 or hw 2,4.</span>
-          </div>
+          <EmptyState
+            className="overview-empty-state"
+            title="No drones match filters"
+            detail="Search supports free text and scoped queries like pos 1-5 or hw 2,4."
+          />
         )}
         {filteredDrones.map((drone) => (
           <div
