@@ -1720,6 +1720,59 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_reconcile_connectivity_updates_existing_runtime_with_safe_directory():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        install_dir="$tmpdir/swm"
+        mkdir -p "$repo_dir/deployment/connectivity/smart-wifi-manager" "$repo_dir/tools" "$install_dir/.git"
+        cp "{RECONCILE_CONNECTIVITY_SCRIPT}" "$repo_dir/tools/reconcile_connectivity.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment/defaults.env" <<'EOF'
+MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git
+MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
+EOF
+        cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
+{{"mode":"manage","profiles":[]}}
+EOF
+        cat > "$install_dir/install.sh" <<'EOF'
+#!/bin/bash
+:
+EOF
+        chmod +x "$install_dir/install.sh"
+        cat > "$install_dir/configure_smart_wifi_manager.sh" <<'EOF'
+#!/bin/bash
+:
+EOF
+        chmod +x "$install_dir/configure_smart_wifi_manager.sh"
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<EOF
+MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
+MDS_SMART_WIFI_MANAGER_INSTALL_DIR=$install_dir
+EOF
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 1
+EOF
+        chmod +x "$fakebin/systemctl"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
+        grep -q -- "-c safe.directory=$install_dir -C $install_dir fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_connectivity_persistence_keeps_repo_ref_in_defaults_layer_unless_explicit():
     result = run_bash(
         f"""
@@ -1847,6 +1900,62 @@ EOF
         grep -q -- 'clone --depth 1 --branch v9.9.9 https://github.com/demo/mavlink-anywhere.git' "$tmpdir/git_args.txt"
         grep -q '^v9.9.9$' "$tmpdir/dashboard_version.txt"
         grep -q '^0.0.0.0:9070$' "$tmpdir/dashboard_listen.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_reconcile_mavlink_runtime_updates_existing_runtime_with_safe_directory():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        install_dir="$tmpdir/ma"
+        mkdir -p "$repo_dir/tools" "$install_dir/.git" "$install_dir/lib"
+        cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment.defaults" <<EOF
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
+MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
+MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=$install_dir
+MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=0.0.0.0:9070
+MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false
+EOF
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<'EOF'
+MDS_MAVLINK_MANAGEMENT_MODE=managed
+EOF
+        cat > "$install_dir/lib/dashboard.sh" <<'EOF'
+#!/bin/bash
+install_dashboard_binary() {{ :; }}
+setup_dashboard_service() {{ :; }}
+EOF
+        chmod +x "$install_dir/lib/dashboard.sh"
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/systemctl"
+        cat > "$fakebin/mavlink-routerd" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/mavlink-routerd"
+        mkdir -p "$tmpdir/etc/mavlink-router"
+        : > "$tmpdir/etc/mavlink-router/main.conf"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_DEPLOYMENT_PROFILE_FILE="$repo_dir/deployment.defaults" MDS_LOCAL_ENV_FILE="$config_dir/local.env" MAVLINK_ROUTER_CONFIG="$tmpdir/etc/mavlink-router/main.conf" MDS_MAVLINK_STATE_DIR="$tmpdir/state" bash "$repo_dir/tools/reconcile_mavlink_runtime.sh" apply --force
+        grep -q -- "-c safe.directory=$install_dir -C $install_dir fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
         """
     )
 

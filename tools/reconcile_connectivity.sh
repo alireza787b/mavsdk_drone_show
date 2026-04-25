@@ -100,6 +100,11 @@ resolve_smart_wifi_ref() {
     printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.0}}"
 }
 
+smart_wifi_git() {
+    local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
+    git -c "safe.directory=${install_dir}" -C "${install_dir}" "$@"
+}
+
 smart_wifi_hash_input() {
     local profile_path="$1"
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
@@ -133,9 +138,9 @@ ensure_smart_wifi_manager_runtime() {
 
     if [[ -d "${install_dir}/.git" ]]; then
         log INFO "Syncing Smart Wi-Fi Manager runtime (${repo_ref})"
-        git -C "${install_dir}" remote set-url origin "${repo_url}" >/dev/null 2>&1
-        git -C "${install_dir}" fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1
-        git -C "${install_dir}" checkout -f FETCH_HEAD >/dev/null 2>&1
+        smart_wifi_git remote set-url origin "${repo_url}" >/dev/null 2>&1
+        smart_wifi_git fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1
+        smart_wifi_git checkout -f FETCH_HEAD >/dev/null 2>&1
     else
         if [[ -e "${install_dir}" && ! -d "${install_dir}/.git" ]]; then
             log WARN "Replacing non-git Smart Wi-Fi Manager install at ${install_dir}"
