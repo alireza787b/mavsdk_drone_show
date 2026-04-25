@@ -109,9 +109,20 @@
 }
 
 .qs-page-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 16px;
     font-weight: 600;
     color: var(--color-text-primary);
+}
+
+.qs-page-title svg {
+    color: var(--color-primary);
+}
+
+.qs-page-docs {
+    flex: 0 0 auto;
 }
 
 /* === Main Layout === */
@@ -1138,6 +1149,10 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--color-text-primary);
+}
+
+.qs-page-state {
+    flex: 0 0 auto;
 }
 
 .qs-recovery-header {

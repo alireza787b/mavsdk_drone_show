@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'react-toastify';
+import { FaFlag, FaSearchLocation } from 'react-icons/fa';
 import * as sarApi from '../services/sarApiService';
 import {
   getFleetConfigResponse,
@@ -50,6 +51,7 @@ import {
 } from '../utilities/quickScoutProfiles';
 import { buildQuickScoutPlanningSignature } from '../utilities/quickScoutPlanningSignature';
 import { buildQuickScoutLaunchReadiness } from '../utilities/quickScoutLaunchReadiness';
+import { ActionIconButton, DocsLink, StatusBadge } from '../components/ui/OperatorPrimitives';
 import {
   buildCorridorGeoJSON,
   buildCorridorPathGeoJSON,
@@ -95,6 +97,21 @@ const DEFAULT_CORRIDOR_WIDTH_M = 90;
 
 const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
 const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
+
+const getMissionStateTone = (state) => {
+  switch (state) {
+    case 'executing':
+      return 'success';
+    case 'paused':
+      return 'warning';
+    case 'aborted':
+      return 'danger';
+    case 'completed':
+      return 'info';
+    default:
+      return 'muted';
+  }
+};
 
 const hasFiniteCoordinate = (value) => Number.isFinite(Number(value));
 
@@ -963,19 +980,23 @@ const QuickScoutPage = () => {
       {/* Top Bar */}
       <div className="qs-top-bar">
         <div className="qs-top-bar-left">
-          <span className="qs-page-title">QuickScout SAR</span>
+          <span className="qs-page-title">
+            <FaSearchLocation aria-hidden="true" />
+            <span>QuickScout</span>
+          </span>
           <PlanMonitorToggle mode={mode} onModeChange={setMode} />
+          <DocsLink route="/quickscout" compact className="qs-page-docs" />
           <MapProviderToggle />
           {missionId && (
             <div className="qs-page-chip">
               <span className="qs-page-chip-label">Mission</span>
-              <span className="qs-page-chip-value" title={currentMissionDisplayName}>
+              <span className="qs-page-chip-value" aria-label={currentMissionDisplayName}>
                 {currentMissionDisplayName}
               </span>
               {currentMissionState && (
-                <span className={`qs-state-badge ${currentMissionState}`}>
+                <StatusBadge tone={getMissionStateTone(currentMissionState)} className="qs-page-state">
                   {currentMissionState}
-                </span>
+                </StatusBadge>
               )}
             </div>
           )}
@@ -984,13 +1005,16 @@ const QuickScoutPage = () => {
           </div>
         </div>
         {mode === 'monitor' && missionId && (
-          <button
-            className={`qs-btn ${markingFinding ? 'qs-btn-warning' : 'qs-btn-primary'}`}
+          <ActionIconButton
+            icon={<FaFlag />}
+            label={markingFinding ? 'Cancel finding mark mode' : 'Mark finding on map'}
             onClick={() => setMarkingFinding(!markingFinding)}
-            style={{ fontSize: 12, padding: '4px 12px' }}
+            tone={markingFinding ? 'warning' : 'info'}
+            size="sm"
+            active={markingFinding}
           >
-            {markingFinding ? 'Cancel Mark' : 'Mark Finding'}
-          </button>
+            {markingFinding ? 'Cancel' : 'Finding'}
+          </ActionIconButton>
         )}
       </div>
 

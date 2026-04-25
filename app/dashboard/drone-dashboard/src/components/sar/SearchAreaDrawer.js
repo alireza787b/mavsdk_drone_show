@@ -308,7 +308,7 @@ export const MapboxDrawActionBar = ({
           <button
             className="ldc-action-btn ldc-action-btn--undo"
             onClick={onTrash}
-            title="Remove selected point (Delete / Backspace)"
+            aria-label="Remove selected point with Delete or Backspace"
           >
             {isLineMode ? 'Remove Point' : 'Remove Vertex'}
           </button>
