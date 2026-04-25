@@ -134,7 +134,7 @@
 
 @media (max-width: 700px) {
     .globe-selected-card-popover {
-        width: min(300px, calc(100% - 24px));
+        width: min(280px, calc(100% - 24px));
         z-index: 2200;
     }
 
@@ -143,7 +143,7 @@
     }
 
     .globe-selected-card-popover .tactical-drone-card {
-        max-height: min(30vh, 240px);
+        max-height: min(28vh, 220px);
         overflow-y: auto;
         width: 100%;
     }

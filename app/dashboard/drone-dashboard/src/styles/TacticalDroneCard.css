@@ -216,7 +216,7 @@
     border-radius: 14px;
     box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
     padding: 8px;
-    width: min(300px, calc(100vw - 24px));
+    width: min(280px, calc(100vw - 24px));
   }
 
   .tactical-drone-card__header {
