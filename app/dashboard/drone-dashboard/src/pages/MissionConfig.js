@@ -29,7 +29,6 @@ import {
   validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
 import {
-  DRONE_SEARCH_HELP_TEXT,
   DRONE_SEARCH_PLACEHOLDER,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
@@ -60,6 +59,11 @@ import {
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
 import { CircularProgress } from '@mui/material';
+import { FaClipboardList } from 'react-icons/fa';
+import {
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
 
 // Icons
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -753,6 +757,13 @@ const MissionConfig = () => {
     ? `${missionAttentionCount} active review item${missionAttentionCount === 1 ? '' : 's'}`
     : 'Assignment wall is clear for save review';
   const missionSearchSummary = `${filteredConfigData.length}/${sortedConfigData.length} assignment card${sortedConfigData.length === 1 ? '' : 's'} visible`;
+  const originStatusLabel = originStatus === 'ready'
+    ? 'Origin ready'
+    : originStatus === 'checking'
+      ? 'Origin checking'
+      : originStatus === 'unavailable'
+        ? 'Origin check failed'
+        : 'Origin needed';
 
   const scrollNodeIntoView = (node, block = 'center') => {
     if (!node) {
@@ -863,15 +874,31 @@ const MissionConfig = () => {
   // Render
   // -----------------------------------------------------
   return (
-    <div className="mission-config-container">
-      <header className="mission-config-page-header">
-        <div className="mission-config-page-header__content">
-          <h2 className="mission-config-title">Mission Configuration</h2>
-          <p className="mission-config-subtitle">
-            Assignment wall for slot ownership, identity, and launch readiness.
-          </p>
+    <PageShell
+      className="mission-config-container"
+      eyebrow="Configuration"
+      title="Mission Config"
+      subtitle="Assignment wall for slot ownership, identity, and launch readiness."
+      icon={<FaClipboardList />}
+      docsRoute="/mission-config"
+      docsOptions={{
+        repoUrl: gcsGitStatus?.remote_url || '',
+        branch: gcsGitStatus?.branch || '',
+      }}
+      status={(
+        <div className="mission-config-page-status">
+          <StatusBadge tone={missionAttentionCount > 0 ? 'warning' : 'success'}>
+            {missionAttentionCount} review
+          </StatusBadge>
+          <StatusBadge tone="muted">
+            {filteredConfigData.length}/{sortedConfigData.length} visible
+          </StatusBadge>
+          <StatusBadge tone={originStatus === 'ready' ? 'success' : originStatus === 'checking' ? 'muted' : 'warning'}>
+            {originStatusLabel}
+          </StatusBadge>
         </div>
-      </header>
+      )}
+    >
 
       <section className="mission-config-workspace-shell" aria-label="Assignment workspace">
         <div className="mission-config-primary-bar">
@@ -921,7 +948,6 @@ const MissionConfig = () => {
                 onChange={(event) => setMissionConfigSearch(event.target.value)}
                 placeholder={DRONE_SEARCH_PLACEHOLDER}
                 aria-label="Search assignments by position, hardware ID, or callsign"
-                title={DRONE_SEARCH_HELP_TEXT}
               />
             </label>
             <div className="mission-config-ops-toolbar__summary">
@@ -1387,7 +1413,7 @@ const MissionConfig = () => {
         onConfirm={handleConfirmSave}
         onCancel={handleCancelSave}
       />
-    </div>
+    </PageShell>
   );
 };
 

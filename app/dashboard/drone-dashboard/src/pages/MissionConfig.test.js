@@ -123,6 +123,11 @@ describe('MissionConfig origin review surface', () => {
 
     renderMissionConfig();
 
+    expect(screen.getByRole('heading', { level: 1, name: /mission config/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /mission config guide/i })).toHaveAttribute(
+      'href',
+      'docs/guides/config-json-format.md'
+    );
     expect(screen.queryByText(/origin needed/i)).not.toBeInTheDocument();
     expect(screen.getByText('Checking')).toBeInTheDocument();
   });
