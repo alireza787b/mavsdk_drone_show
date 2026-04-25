@@ -11,7 +11,7 @@ import {
   FaSkull,
 } from 'react-icons/fa';
 
-import ConfirmationModal from './ConfirmationModal';
+import { ConfirmDialog } from './ui';
 import InfoHint from './InfoHint';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
 import { buildActionCommand } from '../services/droneApiService';
@@ -338,8 +338,8 @@ const DroneCriticalCommands = ({
         })}
       </div>
 
-      <ConfirmationModal
-        isOpen={modalOpen}
+      <ConfirmDialog
+        open={modalOpen}
         title={pendingAction?.tone === 'danger' ? 'Confirm Critical Action' : 'Confirm Action'}
         message={
           pendingAction
@@ -348,7 +348,7 @@ const DroneCriticalCommands = ({
         }
         confirmLabel={pendingAction?.label || 'Confirm'}
         cancelLabel="Cancel"
-        isDanger={pendingAction?.tone === 'danger'}
+        tone={pendingAction?.tone === 'danger' ? 'danger' : 'neutral'}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />

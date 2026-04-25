@@ -1,45 +1,9 @@
 {
   "critical_count": 0,
-  "debt_count": 1323,
+  "debt_count": 1287,
   "groups": {
     "dependency_mismatch": [],
-    "duplicate_primitives": [
-      {
-        "code": "duplicate-primitive",
-        "detail": "Candidate for migration into shared operator primitive layer.",
-        "file": "app/dashboard/drone-dashboard/src/components/ConfirmationDialog.js",
-        "line": 1,
-        "severity": "debt"
-      },
-      {
-        "code": "duplicate-primitive",
-        "detail": "Candidate for migration into shared operator primitive layer.",
-        "file": "app/dashboard/drone-dashboard/src/components/ConfirmationModal.js",
-        "line": 1,
-        "severity": "debt"
-      },
-      {
-        "code": "duplicate-primitive",
-        "detail": "Candidate for migration into shared operator primitive layer.",
-        "file": "app/dashboard/drone-dashboard/src/components/Modal.js",
-        "line": 1,
-        "severity": "debt"
-      },
-      {
-        "code": "duplicate-primitive",
-        "detail": "Candidate for migration into shared operator primitive layer.",
-        "file": "app/dashboard/drone-dashboard/src/components/Notification.js",
-        "line": 1,
-        "severity": "debt"
-      },
-      {
-        "code": "duplicate-primitive",
-        "detail": "Candidate for migration into shared operator primitive layer.",
-        "file": "app/dashboard/drone-dashboard/src/components/MissionNotification.js",
-        "line": 1,
-        "severity": "debt"
-      }
-    ],
+    "duplicate_primitives": [],
     "hardcoded_colors": [
       {
         "code": "hardcoded-color",
@@ -1807,90 +1771,6 @@
       },
       {
         "code": "hardcoded-color",
-        "detail": "rgba(0, 0, 0, 0.5)",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 12,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ffffff",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 24,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#d1d5db",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 25,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(0, 0, 0, 0.15)",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 28,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#1f2937",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 37,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#374151",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 42,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#10b981",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 65,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ffffff",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 67,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#059669",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 71,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ef4444",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 76,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ffffff",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 78,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#dc2626",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 82,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
         "detail": "rgba(255, 255, 255, 0.2)",
         "file": "app/dashboard/drone-dashboard/src/styles/ControlButtons.css",
         "line": 87,
@@ -3483,97 +3363,6 @@
         "detail": "#1976d2",
         "file": "app/dashboard/drone-dashboard/src/styles/MissionLayout.css",
         "line": 89,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(0, 0, 0, 0.9)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 7,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(0, 0, 0, 0.3)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 26,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 0.2)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 34,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 0.4)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 50,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 0.2)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 66,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 0.4)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 82,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ffffff",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 6,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#000000",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 7,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(0, 0, 0, 0.1)",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 10,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#28a745",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 17,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#dc3545",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 21,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#aaa",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 32,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#000",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 36,
         "severity": "debt"
       },
       {
@@ -8424,20 +8213,6 @@
       },
       {
         "code": "hardcoded-z-index",
-        "detail": "z-index: 1000",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 13,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
-        "detail": "z-index: 1001",
-        "file": "app/dashboard/drone-dashboard/src/styles/ConfirmationDialog.css",
-        "line": 29,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
         "detail": "z-index: 2",
         "file": "app/dashboard/drone-dashboard/src/styles/DroneConfigCard.css",
         "line": 34,
@@ -8581,34 +8356,6 @@
         "detail": "z-index: 1000",
         "file": "app/dashboard/drone-dashboard/src/styles/MissionConfig.css",
         "line": 1095,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
-        "detail": "z-index: 1000",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 11,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
-        "detail": "z-index: 10",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 45,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
-        "detail": "z-index: 10",
-        "file": "app/dashboard/drone-dashboard/src/styles/Modal.css",
-        "line": 77,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
-        "detail": "z-index: 3000",
-        "file": "app/dashboard/drone-dashboard/src/styles/Notification.css",
-        "line": 11,
         "severity": "debt"
       },
       {
@@ -8769,7 +8516,7 @@
     "icon_stack": [
       {
         "code": "mixed-icon-stack",
-        "detail": "@fortawesome/free-solid-svg-icons:5 files, @fortawesome/react-fontawesome:11 files, @mui/icons-material:1 files, react-icons:17 files",
+        "detail": "@fortawesome/free-solid-svg-icons:4 files, @fortawesome/react-fontawesome:10 files, @mui/icons-material:1 files, react-icons:17 files",
         "file": "app/dashboard/drone-dashboard/package.json",
         "line": 1,
         "severity": "debt"
@@ -9277,9 +9024,8 @@
     "route_docs": []
   },
   "summary": {
-    "duplicate-primitive": 5,
-    "hardcoded-color": 1196,
-    "hardcoded-z-index": 50,
+    "hardcoded-color": 1171,
+    "hardcoded-z-index": 44,
     "mixed-icon-stack": 1,
     "native-title": 71
   }

@@ -8,7 +8,7 @@ import {
   FaSpinner,
   FaTrashAlt,
 } from 'react-icons/fa';
-import ConfirmationDialog from '../ConfirmationDialog';
+import { ConfirmDialog } from '../ui';
 import {
   buildDroneUlogDownloadURL,
   createDroneUlogDownloadJob,
@@ -346,9 +346,13 @@ const OnboardUlogDialog = ({
         </div>
       </div>
 
-      <ConfirmationDialog
-        isOpen={confirmErase}
+      <ConfirmDialog
+        open={confirmErase}
+        title="Erase onboard logs?"
         message={`Erase all onboard PX4 ULogs for ${scopeLabel}? This cannot be undone from the dashboard.`}
+        confirmLabel="Erase logs"
+        cancelLabel="Cancel"
+        tone="danger"
         onConfirm={handleEraseAll}
         onCancel={() => setConfirmErase(false)}
       />

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
-import ConfirmationModal from '../components/ConfirmationModal';
+import { ConfirmDialog } from '../components/ui';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
@@ -1297,13 +1297,13 @@ const SwarmTrajectory = () => {
         </div>
       ) : null}
 
-      <ConfirmationModal
-        isOpen={Boolean(confirmDialog)}
+      <ConfirmDialog
+        open={Boolean(confirmDialog)}
         title={confirmDialog?.title || 'Confirm'}
         message={confirmDialog?.message || ''}
         confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
         cancelLabel={confirmDialog?.cancelLabel || 'Cancel'}
-        isDanger={Boolean(confirmDialog?.isDanger)}
+        tone={confirmDialog?.isDanger ? 'danger' : 'neutral'}
         onConfirm={handleConfirmDialog}
         onCancel={closeConfirmDialog}
       />

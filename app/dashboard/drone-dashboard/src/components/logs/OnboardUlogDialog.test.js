@@ -16,17 +16,6 @@ jest.mock('../../services/logService', () => ({
   getDroneUlogPolicy: jest.fn(),
 }));
 
-jest.mock('../ConfirmationDialog', () => ({
-  __esModule: true,
-  default: ({ isOpen, message, onConfirm, onCancel }) => (isOpen ? (
-    <div>
-      <div>{message}</div>
-      <button type="button" onClick={onConfirm}>Confirm</button>
-      <button type="button" onClick={onCancel}>Cancel</button>
-    </div>
-  ) : null),
-}));
-
 const OnboardUlogDialog = require('./OnboardUlogDialog').default;
 
 describe('OnboardUlogDialog', () => {
