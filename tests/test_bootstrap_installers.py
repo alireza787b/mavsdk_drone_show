@@ -2232,6 +2232,58 @@ def test_configure_gcs_env_persists_private_ssh_key_file():
     assert result.returncode == 0, result.stderr
 
 
+def test_configure_gcs_env_rewrites_stale_ports():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        GCS_CONFIG_FILE="$tmpdir/gcs.env"
+        cat > "$GCS_CONFIG_FILE" <<'EOF'
+GCS_PORT=5000
+GCS_BACKEND=fastapi
+MDS_MODE=real
+MDS_REPO_URL=git@github.com:example-org/private-mds.git
+MDS_BRANCH=customer-demo
+MDS_GIT_AUTO_PUSH=true
+MDS_GIT_AUTH_TOKEN_FILE=
+MDS_GIT_SSH_KEY_FILE=/root/.ssh/customer_gcs_write_key
+MDS_INSTALL_DIR=/opt/mds
+DASHBOARD_PORT=3030
+VENV_PATH=/opt/mds/venv
+EOF
+        GCS_INSTALL_DIR="/opt/mds"
+        GCS_DEFAULT_REPO_SSH="git@github.com:example-org/private-mds.git"
+        GCS_DEFAULT_BRANCH="customer-demo"
+        MDS_GIT_SSH_KEY_FILE="/root/.ssh/customer_gcs_write_key"
+        MDS_DEFAULT_GCS_API_PORT=5030
+        MDS_DEFAULT_DASHBOARD_PORT=3030
+        NON_INTERACTIVE=true
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        backup_file() {{ :; }}
+        confirm() {{ return 1; }}
+        is_dry_run() {{ return 1; }}
+        gcs_state_get_value() {{
+            case "$1" in
+                repo_url) echo "git@github.com:example-org/private-mds.git" ;;
+                repo_branch) echo "customer-demo" ;;
+                access_method) echo "ssh" ;;
+                *) echo "$2" ;;
+            esac
+        }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
+        configure_gcs_env
+        grep -q '^GCS_PORT=5030$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_GCS_API_PORT=5030$' "$GCS_CONFIG_FILE"
+        grep -q '^DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_gcs_common_phase_list_includes_services_before_verify():
     common_text = (REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_common.sh").read_text(encoding="utf-8")
 
