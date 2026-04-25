@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import struct
 import time
 import uuid
@@ -380,6 +381,17 @@ class Px4ParamService:
         if float_meta is not None:
             metadata_sources.append(Px4ParamMetadataSource.COMPONENT_INFORMATION)
         metadata_sources.append(Px4ParamMetadataSource.PX4_DOCS)
+        short_description = self._pick_metadata_value(
+            self._catalog_attr(catalog_entry, "short_description"),
+            getattr(float_meta, "short_description", None),
+        )
+        long_description = self._dedupe_long_description(
+            short_description,
+            self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "long_description"),
+                getattr(float_meta, "long_description", None),
+            ),
+        )
 
         return Px4ParamRow(
             component_id=component_id,
@@ -387,14 +399,8 @@ class Px4ParamService:
             value_type=value_type,
             value=value,
             docs_url=self._build_docs_url(name),
-            short_description=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "short_description"),
-                getattr(float_meta, "short_description", None),
-            ),
-            long_description=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "long_description"),
-                getattr(float_meta, "long_description", None),
-            ),
+            short_description=short_description,
+            long_description=long_description,
             unit=self._pick_metadata_value(
                 self._catalog_attr(catalog_entry, "unit"),
                 getattr(float_meta, "unit", None),
@@ -475,6 +481,29 @@ class Px4ParamService:
         if entry is None:
             return None
         return getattr(entry, attribute, None)
+
+    @staticmethod
+    def _dedupe_long_description(short_description: Any, long_description: Any) -> str | None:
+        long_text = str(long_description or "").strip()
+        short_text = str(short_description or "").strip()
+        if not long_text:
+            return None
+        if not short_text:
+            return long_text
+
+        compact_short = re.sub(r"\s+", " ", short_text).strip()
+        compact_long = re.sub(r"\s+", " ", long_text).strip()
+        if compact_long == compact_short:
+            return None
+        if not compact_long.startswith(compact_short):
+            return long_text
+
+        tokens = [re.escape(token) for token in compact_short.split(" ") if token]
+        if not tokens:
+            return long_text
+        prefix_pattern = r"^\s*" + r"\s+".join(tokens) + r"\s*"
+        remainder = re.sub(prefix_pattern, "", long_text, count=1).strip()
+        return remainder or None
 
     @staticmethod
     def _pick_metadata_value(*values: Any) -> Any:

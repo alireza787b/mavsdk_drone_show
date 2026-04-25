@@ -172,6 +172,7 @@ async def test_build_snapshot_labels_docs_cache_metadata(monkeypatch):
                 name="MAV_SYS_ID",
                 source=Px4ParamMetadataSource.PX4_DOCS_CACHE,
                 short_description="System ID from docs",
+                long_description="System ID from docs\n\nExtended system identifier guidance.",
                 default_value=1,
                 group="MAVLink",
             )
@@ -182,6 +183,7 @@ async def test_build_snapshot_labels_docs_cache_metadata(monkeypatch):
 
     mav_sys_id = next(row for row in snapshot.rows if row.name == "MAV_SYS_ID")
     assert mav_sys_id.short_description == "System ID from docs"
+    assert mav_sys_id.long_description == "Extended system identifier guidance."
     assert "px4_docs_cache" in mav_sys_id.metadata_sources
 
 
