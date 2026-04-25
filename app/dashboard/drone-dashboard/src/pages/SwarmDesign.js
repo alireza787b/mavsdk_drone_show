@@ -20,6 +20,14 @@ import SwarmPlots from '../components/SwarmPlots';
 import SwarmRuntimeControls from '../components/SwarmRuntimeControls';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
+import {
+  ActionIconButton,
+  EmptyState,
+  MetricStrip,
+  OperatorNotice,
+  PageShell,
+  StatusBadge,
+} from '../components/ui/OperatorPrimitives';
 import useNormalizedTelemetry from '../hooks/useNormalizedTelemetry';
 import '../styles/SwarmDesign.css';
 import {
@@ -74,7 +82,7 @@ function SwarmDesign() {
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
-  const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000);
+  const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000) || {};
 
   const viewModel = useMemo(
     () => buildSwarmViewModel(workingAssignments, configData),
@@ -152,10 +160,10 @@ function SwarmDesign() {
           return;
         }
 
-        const normalizedConfig = configResponse.data
+        const normalizedConfig = (Array.isArray(configResponse?.data) ? configResponse.data : [])
           .map((entry) => normalizeConfigDrone(entry))
           .filter(Boolean);
-        const normalizedSwarm = unwrapSwarmConfigPayload(swarmResponse.data)
+        const normalizedSwarm = (unwrapSwarmConfigPayload(swarmResponse?.data) || [])
           .map((entry) => normalizeSwarmAssignment(entry))
           .filter(Boolean);
         const { assignments } = buildWorkingSwarmAssignments(normalizedConfig, normalizedSwarm);
@@ -272,10 +280,10 @@ function SwarmDesign() {
       getFleetConfigResponse(),
     ]);
 
-    const normalizedConfig = configResponse.data
+    const normalizedConfig = (Array.isArray(configResponse?.data) ? configResponse.data : [])
       .map((entry) => normalizeConfigDrone(entry))
       .filter(Boolean);
-    const normalizedSwarm = unwrapSwarmConfigPayload(swarmResponse.data)
+    const normalizedSwarm = (unwrapSwarmConfigPayload(swarmResponse?.data) || [])
       .map((entry) => normalizeSwarmAssignment(entry))
       .filter(Boolean);
     const { assignments } = buildWorkingSwarmAssignments(normalizedConfig, normalizedSwarm);
@@ -493,7 +501,7 @@ function SwarmDesign() {
     saveSwarmData(withCommit);
   };
 
-  const summaryCards = [
+  const summaryItems = [
     {
       icon: <FaLayerGroup />,
       label: 'Drones',
@@ -525,101 +533,112 @@ function SwarmDesign() {
       tone: viewModel.summary.attentionCount > 0 ? 'danger' : 'success',
     },
   ];
+  const pageStatusTone = hasBlockingIssues || hasIncompleteInputs
+    ? 'danger'
+    : hasStagedChanges || hasPendingSync
+      ? 'warning'
+      : 'success';
+  const pageStatusLabel = hasBlockingIssues || hasIncompleteInputs
+    ? 'Blocked'
+    : hasStagedChanges || hasPendingSync
+      ? 'Staged'
+      : 'Clean';
 
   return (
-    <div className="swarm-design-page">
-      <header className="swarm-design-hero">
-        <div className="swarm-design-hero__copy">
-          <span className="swarm-design-hero__eyebrow">Smart Swarm Control Surface</span>
-          <h1>Operational Swarm Design</h1>
-          <p>
-            Review live follow ownership cluster by cluster, then commit only when the hardware graph is clean.
-          </p>
-        </div>
-
-        <div className="swarm-design-hero__actions">
-          <button
-            type="button"
-            className="swarm-action-button update"
+    <PageShell
+      className="swarm-design-page"
+      eyebrow="Smart swarm"
+      title="Operational Swarm Design"
+      subtitle="Audit follow ownership and commit only when the hardware graph is clean."
+      icon={<FaProjectDiagram />}
+      docsRoute="/swarm-design"
+      status={<StatusBadge tone={pageStatusTone}>{pageStatusLabel}</StatusBadge>}
+      actions={(
+        <div className="swarm-design-actions">
+          <ActionIconButton
+            icon={<FaSyncAlt />}
+            label="Update Smart Swarm assignments"
             onClick={() => confirmAndSave(false)}
+            tone="info"
             disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
           >
-            <FaSyncAlt />
-            Update Swarm
-          </button>
-          <button
-            type="button"
-            className="swarm-action-button commit"
+            Update
+          </ActionIconButton>
+          <ActionIconButton
+            icon={<FaCloudUploadAlt />}
+            label="Commit Smart Swarm assignment changes"
             onClick={() => confirmAndSave(true)}
+            tone="success"
             disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
           >
-            <FaCloudUploadAlt />
-            Commit Changes
-          </button>
+            Commit
+          </ActionIconButton>
           <label className="swarm-action-button import">
             <FaUpload />
             Import JSON / CSV
             <input type="file" accept=".json,.csv" onChange={handleImport} />
           </label>
-          <button type="button" className="swarm-action-button secondary" onClick={handleJsonExport} disabled={workingAssignments.length === 0}>
-            <FaDownload />
-            Export JSON
-          </button>
-          <button type="button" className="swarm-action-button secondary" onClick={handleCsvExport} disabled={workingAssignments.length === 0}>
-            <FaDownload />
-            Export CSV
-          </button>
-          <button type="button" className="swarm-action-button ghost" onClick={handleRevert} disabled={!hasStagedChanges}>
-            <FaUndo />
-            Revert Local
-          </button>
+          <ActionIconButton
+            icon={<FaDownload />}
+            label="Export Smart Swarm assignments as JSON"
+            onClick={handleJsonExport}
+            disabled={workingAssignments.length === 0}
+          >
+            JSON
+          </ActionIconButton>
+          <ActionIconButton
+            icon={<FaDownload />}
+            label="Export Smart Swarm assignments as CSV"
+            onClick={handleCsvExport}
+            disabled={workingAssignments.length === 0}
+          >
+            CSV
+          </ActionIconButton>
+          <ActionIconButton
+            icon={<FaUndo />}
+            label="Revert local Smart Swarm edits"
+            onClick={handleRevert}
+            disabled={!hasStagedChanges}
+            tone="warning"
+          >
+            Revert
+          </ActionIconButton>
         </div>
-      </header>
+      )}
+    >
 
       <IdentityDoctrineStrip surface="swarm-design" />
 
-      <section className="swarm-summary-grid">
-        {summaryCards.map((card) => (
-          <div key={card.label} className={`swarm-summary-card ${card.tone}`}>
-            <span className="swarm-summary-card__icon">{card.icon}</span>
-            <span className="swarm-summary-card__value">{card.value}</span>
-            <span className="swarm-summary-card__label">{card.label}</span>
-          </div>
-        ))}
-      </section>
+      <MetricStrip label="Smart Swarm topology summary" items={summaryItems} />
 
       <section className="swarm-status-strip">
-        <div className="swarm-status-card identity">
-          <strong>Identity model</strong>
+        <OperatorNotice tone="info" title="Identity model" className="swarm-status-card identity">
           <span>Slot reassignments change show-slot assignment, not follow-chain targeting.</span>
-        </div>
+        </OperatorNotice>
 
         {hasPendingSync && (
-          <div className="swarm-status-card sync">
-            <strong>Fleet sync pending</strong>
+          <OperatorNotice tone="warning" title="Fleet sync pending" className="swarm-status-card sync">
             <span>
               {syncChanges.addedIds.length > 0 && `Add default assignments for drones ${syncChanges.addedIds.join(', ')}. `}
               {syncChanges.removedIds.length > 0 && `Prune legacy assignments for drones ${syncChanges.removedIds.join(', ')}.`}
             </span>
-          </div>
+          </OperatorNotice>
         )}
 
         {viewModel.summary.roleSwapCount > 0 && (
-          <div className="swarm-status-card note">
-            <strong>Slot reassignments active</strong>
+          <OperatorNotice tone="info" title="Slot reassignments active" className="swarm-status-card note">
             <span>{viewModel.summary.roleSwapCount} drone{viewModel.summary.roleSwapCount === 1 ? '' : 's'} are flying a different show slot than their hardware ID.</span>
-          </div>
+          </OperatorNotice>
         )}
 
         {(hasBlockingIssues || hasIncompleteInputs) && (
-          <div className="swarm-status-card attention">
-            <strong>Save blocked</strong>
+          <OperatorNotice tone="danger" title="Save blocked" className="swarm-status-card attention">
             <span>
               {hasBlockingIssues ? 'Resolve self-follow, missing leader, or cycle issues.' : ''}
               {hasBlockingIssues && hasIncompleteInputs ? ' ' : ''}
               {hasIncompleteInputs ? 'Complete partial offset values before update or commit.' : ''}
             </span>
-          </div>
+          </OperatorNotice>
         )}
       </section>
 
@@ -670,10 +689,11 @@ function SwarmDesign() {
 
           <div className="swarm-cluster-stack">
             {filteredClusters.length === 0 && (
-              <div className="swarm-empty-state">
-                <strong>No matching drones</strong>
-                <span>Try a different term or a scoped query like pos 1-5, hw 2,4, or a callsign. {DRONE_SEARCH_HELP_TEXT}</span>
-              </div>
+              <EmptyState
+                title="No matching drones"
+                detail={`Try a different term or a scoped query like pos 1-5, hw 2,4, or a callsign. ${DRONE_SEARCH_HELP_TEXT}`}
+                className="swarm-empty-state"
+              />
             )}
 
             {filteredClusters.map((cluster) => (
@@ -800,10 +820,11 @@ function SwarmDesign() {
                   )}
                 </>
               ) : (
-                <div className="swarm-empty-state compact">
-                  <strong>No drone selected</strong>
-                  <span>Select a graph node or assignment card to inspect its details.</span>
-                </div>
+                <EmptyState
+                  title="No drone selected"
+                  detail="Select a graph node or assignment card to inspect its details."
+                  className="swarm-empty-state compact"
+                />
               )}
             </div>
           </div>
@@ -829,7 +850,7 @@ function SwarmDesign() {
           onSelectedClusterChange={setSelectedClusterId}
         />
       </section>
-    </div>
+    </PageShell>
   );
 }
 
