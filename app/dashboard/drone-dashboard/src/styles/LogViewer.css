@@ -13,6 +13,46 @@
   overflow: hidden;
 }
 
+.log-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-lg);
+  background: var(--operator-card-background);
+  box-shadow: var(--operator-card-shadow);
+}
+
+.log-viewer-header__copy {
+  min-width: 0;
+}
+
+.log-viewer-header__copy span {
+  display: block;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.log-viewer-header__copy h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-tight);
+}
+
+.log-viewer-header__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .log-viewer-main {
   display: flex;
   flex: 1;
