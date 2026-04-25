@@ -2499,6 +2499,42 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_dashboard_launcher_rewrites_stale_react_env_ports():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        REACT_APP_DIR="$tmpdir/dashboard"
+        ENV_FILE_PATH="$REACT_APP_DIR/.env"
+        mkdir -p "$REACT_APP_DIR"
+        cat > "$ENV_FILE_PATH" <<'EOF'
+REACT_APP_GCS_PORT=5000
+REACT_APP_DRONE_PORT=7070
+PORT=3030
+GENERATE_SOURCEMAP=true
+SKIP_PREFLIGHT_CHECK=false
+REACT_APP_SERVER_URL=http://example.invalid
+EOF
+        DEV_GCS_PORT=5030
+        DEV_REACT_PORT=3030
+        MDS_DEFAULT_DRONE_API_PORT=7070
+        OVERWRITE_IP=""
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        log_warn() {{ :; }}
+        eval "$(awk '/^handle_env_file\\(\\)/,/^check_build_needed\\(\\)/ {{ if ($0 !~ /^check_build_needed\\(\\)/) print }}' "{REPO_ROOT / 'app' / 'linux_dashboard_start.sh'}")"
+        handle_env_file
+        grep -q '^REACT_APP_GCS_PORT=5030$' "$ENV_FILE_PATH"
+        grep -q '^REACT_APP_DRONE_PORT=7070$' "$ENV_FILE_PATH"
+        grep -q '^PORT=3030$' "$ENV_FILE_PATH"
+        grep -q '^GENERATE_SOURCEMAP=false$' "$ENV_FILE_PATH"
+        grep -q '^SKIP_PREFLIGHT_CHECK=true$' "$ENV_FILE_PATH"
+        grep -q '^REACT_APP_SERVER_URL=http://example.invalid$' "$ENV_FILE_PATH"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_gcs_common_phase_list_includes_services_before_verify():
     common_text = (REPO_ROOT / "tools" / "mds_gcs_init_lib" / "gcs_common.sh").read_text(encoding="utf-8")
 

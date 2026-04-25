@@ -831,6 +831,24 @@ handle_env_file() {
     log_info "Checking .env configuration..."
 
     local env_example="$REACT_APP_DIR/.env.example"
+    local env_changed=false
+
+    set_dashboard_env_value() {
+        local key="$1"
+        local value="$2"
+        local current=""
+
+        current="$(grep -m1 "^${key}=" "$ENV_FILE_PATH" 2>/dev/null | cut -d= -f2- || true)"
+        if grep -q "^${key}=" "$ENV_FILE_PATH" 2>/dev/null; then
+            if [[ "$current" != "$value" ]]; then
+                sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE_PATH"
+                env_changed=true
+            fi
+        else
+            printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE_PATH"
+            env_changed=true
+        fi
+    }
 
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file found."
@@ -883,6 +901,19 @@ EOF
             fi
             log_success "Server IP override applied: $OVERWRITE_IP"
         fi
+    fi
+
+    # These values are controlled by the launcher/deployment profile. Keep them
+    # synchronized on existing hosts so stale .env files cannot point a rebuilt
+    # dashboard at the wrong backend port.
+    set_dashboard_env_value "REACT_APP_GCS_PORT" "$DEV_GCS_PORT"
+    set_dashboard_env_value "REACT_APP_DRONE_PORT" "${MDS_DEFAULT_DRONE_API_PORT:-7070}"
+    set_dashboard_env_value "PORT" "$DEV_REACT_PORT"
+    set_dashboard_env_value "GENERATE_SOURCEMAP" "false"
+    set_dashboard_env_value "SKIP_PREFLIGHT_CHECK" "true"
+
+    if [[ "$env_changed" == "true" ]]; then
+        log_success "Dashboard .env runtime keys synchronized."
     fi
 }
 
