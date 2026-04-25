@@ -76,6 +76,27 @@
     top: 72px !important;
 }
 
+@media (max-width: 700px) {
+    .globe-selected-card-popover {
+        bottom: max(14px, env(safe-area-inset-bottom));
+        left: 12px !important;
+        position: fixed;
+        right: 12px;
+        top: auto !important;
+        z-index: 2200;
+    }
+
+    .globe-selected-card-popover::before {
+        display: none;
+    }
+
+    .globe-selected-card-popover .tactical-drone-card {
+        max-height: min(48vh, 430px);
+        overflow-y: auto;
+        width: 100%;
+    }
+}
+
 .drone-tooltip {
     background: var(--color-bg-overlay);
     color: var(--color-text-primary);
