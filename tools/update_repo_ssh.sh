@@ -937,11 +937,16 @@ status_value() {
     awk -F= -v target="${key}" '$1 == target {print substr($0, index($0, "=") + 1); exit}' <<< "${status_text}"
 }
 
+runtime_status_output() {
+    local reconcile_script="$1"
+    sudo "${reconcile_script}" status 2>/dev/null || "${reconcile_script}" status 2>/dev/null || true
+}
+
 connectivity_runtime_currently_healthy() {
     local reconcile_script="$1"
     local status_text backend config_match service_status
 
-    status_text="$(sudo "${reconcile_script}" status 2>/dev/null || true)"
+    status_text="$(runtime_status_output "${reconcile_script}")"
     backend="$(status_value "${status_text}" "backend")"
 
     case "${backend}" in
@@ -963,7 +968,7 @@ mavlink_runtime_currently_healthy() {
     local reconcile_script="$1"
     local status_text mode config_match runtime_present router_binary router_service dashboard_service skip_dashboard
 
-    status_text="$(sudo "${reconcile_script}" status 2>/dev/null || true)"
+    status_text="$(runtime_status_output "${reconcile_script}")"
     mode="$(status_value "${status_text}" "mode")"
     config_match="$(status_value "${status_text}" "config_hash_match")"
     runtime_present="$(status_value "${status_text}" "runtime_present")"

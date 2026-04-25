@@ -2063,6 +2063,37 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_status_health_falls_back_to_unprivileged_status():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        reconcile="$tmpdir/reconcile_mavlink_runtime.sh"
+        cat > "$reconcile" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "status" ]]; then
+    cat <<'EOS'
+mode=managed
+config_hash_match=true
+runtime_present=true
+router_binary=present
+router_service=active
+dashboard_service=active
+skip_dashboard=false
+EOS
+fi
+EOF
+        chmod +x "$reconcile"
+        source "{GIT_SYNC_SCRIPT}"
+        sudo() {{
+            return 1
+        }}
+        mavlink_runtime_currently_healthy "$reconcile"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_git_sync_rejects_unhealthy_mavlink_runtime_after_reconcile_warning():
     result = run_bash(
         f"""
