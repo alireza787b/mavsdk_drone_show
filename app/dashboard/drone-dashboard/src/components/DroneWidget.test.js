@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import DroneWidget from './DroneWidget';
+import { CommandActivityProvider } from '../contexts/CommandActivityContext';
 
 jest.mock('react-tooltip', () => ({
   Tooltip: () => null,
@@ -16,6 +17,7 @@ const baseDrone = {
   is_armed: false,
   base_mode: 0,
   flight_mode: 0,
+  state: 0,
   system_status: 4,
   battery_voltage: 16.0,
   gps_fix_type: 3,
@@ -23,15 +25,17 @@ const baseDrone = {
 };
 
 const renderWidget = (props = {}) => render(
-  <MemoryRouter>
-    <DroneWidget
-      drone={baseDrone}
-      toggleDroneDetails={jest.fn()}
-      setSelectedDrone={jest.fn()}
-      isExpanded={false}
-      {...props}
-    />
-  </MemoryRouter>,
+  <CommandActivityProvider>
+    <MemoryRouter>
+      <DroneWidget
+        drone={baseDrone}
+        toggleDroneDetails={jest.fn()}
+        setSelectedDrone={jest.fn()}
+        isExpanded={false}
+        {...props}
+      />
+    </MemoryRouter>
+  </CommandActivityProvider>,
 );
 
 describe('DroneWidget command scope state', () => {
