@@ -1,12 +1,14 @@
 // src/components/GlobeMapView.js
 // 2D map view for drone visualization — dual-provider (Mapbox + Leaflet fallback)
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { FaCrosshairs, FaSatelliteDish } from 'react-icons/fa';
 import { useMapContext } from '../contexts/MapContext';
 import LeafletMapBase from './map/LeafletMapBase';
 import MapFallbackBanner from './map/MapFallbackBanner';
 import MapProviderToggle from './map/MapProviderToggle';
+import TacticalDroneCard from './TacticalDroneCard';
 import { MAP_PROVIDERS } from '../config/mapConfig';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { Marker as LeafletMarker, Popup, useMap } from 'react-leaflet';
@@ -15,7 +17,7 @@ import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/GlobeView.css';
 
 // Conditional Mapbox imports
-let MapboxMap, MapboxMarker;
+let MapboxMap, MapboxMarker, MapboxNavigationControl, MapboxFullscreenControl, MapboxScaleControl;
 let mapboxAvailable = false;
 let mapboxToken = '';
 
@@ -23,6 +25,9 @@ try {
   const rgl = require('react-map-gl');
   MapboxMap = rgl.Map || rgl.default;
   MapboxMarker = rgl.Marker;
+  MapboxNavigationControl = rgl.NavigationControl;
+  MapboxFullscreenControl = rgl.FullscreenControl;
+  MapboxScaleControl = rgl.ScaleControl;
   require('mapbox-gl/dist/mapbox-gl.css');
   mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN || '';
   mapboxAvailable = !!mapboxToken;
@@ -39,12 +44,12 @@ const resolveMarkerColor = (candidate) => {
   return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
 };
 
-const createDroneIcon = (identityLabel, markerColor) =>
+const createDroneIcon = (identityLabel, markerColor, selected = false) =>
   L.divIcon({
-    html: `<div style="min-width:24px;height:24px;padding:0 6px;background:${resolveMarkerColor(markerColor)};border-radius:999px;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${identityLabel}</div>`,
+    html: `<div style="min-width:${selected ? 32 : 24}px;height:${selected ? 32 : 24}px;padding:0 7px;background:${resolveMarkerColor(markerColor)};border-radius:999px;border:${selected ? 3 : 2}px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#000;box-shadow:0 0 0 ${selected ? 5 : 0}px rgba(255,255,255,0.20),0 10px 22px rgba(0,0,0,0.35)">${identityLabel}</div>`,
     className: '',
-    iconSize: [48, 24],
-    iconAnchor: [24, 12],
+    iconSize: selected ? [58, 32] : [48, 24],
+    iconAnchor: selected ? [29, 16] : [24, 12],
   });
 
 const LeafletInvalidateSize = () => {
@@ -64,7 +69,44 @@ const LeafletInvalidateSize = () => {
   return null;
 };
 
-const GlobeMapView = ({ drones }) => {
+const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
+  const markerRef = useRef(null);
+  const droneId = String(drone[FIELD_NAMES.HW_ID]);
+  const identityLabel = formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`);
+
+  useEffect(() => {
+    if (selected) {
+      markerRef.current?.openPopup?.();
+    }
+  }, [selected]);
+
+  return (
+    <LeafletMarker
+      ref={markerRef}
+      position={[drone.position[0], drone.position[1]]}
+      icon={createDroneIcon(identityLabel, drone.marker_color, selected)}
+      title={identityLabel}
+      eventHandlers={{
+        click: () => onSelect(droneId),
+        popupclose: () => {
+          if (selected) onSelect(null);
+        },
+      }}
+    >
+      <Popup className="tactical-drone-leaflet-popup" minWidth={260} maxWidth={330}>
+        <TacticalDroneCard drone={drone} onClose={() => onSelect(null)} />
+      </Popup>
+    </LeafletMarker>
+  );
+};
+
+LeafletDroneMarker.propTypes = {
+  drone: PropTypes.object.isRequired,
+  selected: PropTypes.bool.isRequired,
+  onSelect: PropTypes.func.isRequired,
+};
+
+const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === MAP_PROVIDERS.LEAFLET || !ctxMapboxAvailable || !mapboxAvailable;
   const mapboxRef = useRef(null);
@@ -77,6 +119,32 @@ const GlobeMapView = ({ drones }) => {
     const avgLng = valid.reduce((sum, d) => sum + d.position[1], 0) / valid.length;
     return { center: { lat: avgLat, lng: avgLng }, validDrones: valid };
   }, [drones]);
+
+  const fitMapboxToFleet = useCallback(() => {
+    if (useLeaflet || !mapboxRef.current || validDrones.length === 0) {
+      return;
+    }
+
+    const map = mapboxRef.current?.getMap?.() || mapboxRef.current;
+    if (validDrones.length === 1) {
+      map.flyTo?.({
+        center: [validDrones[0].position[1], validDrones[0].position[0]],
+        zoom: 17,
+        duration: 600,
+      });
+      return;
+    }
+
+    const lats = validDrones.map((drone) => drone.position[0]);
+    const lngs = validDrones.map((drone) => drone.position[1]);
+    map.fitBounds?.(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: 72, maxZoom: 17, duration: 600 }
+    );
+  }, [useLeaflet, validDrones]);
 
   useEffect(() => {
     if (useLeaflet || !mapboxRef.current) {
@@ -96,10 +164,35 @@ const GlobeMapView = ({ drones }) => {
     };
   }, [useLeaflet, center.lat, center.lng, validDrones.length]);
 
+  useEffect(() => {
+    if (!useLeaflet) {
+      const timeoutId = window.setTimeout(fitMapboxToFleet, 250);
+      return () => window.clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [fitMapboxToFleet, useLeaflet]);
+
   return (
     <div className="globe-map-container">
       {useLeaflet && <MapFallbackBanner />}
-      <MapProviderToggle />
+      <div className="globe-map-ops-bar">
+        <div className="globe-map-ops-bar__badge" title="Live telemetry map">
+          <FaSatelliteDish aria-hidden="true" />
+          <span>{validDrones.length}</span>
+        </div>
+        <MapProviderToggle />
+        {!useLeaflet && (
+          <button
+            type="button"
+            className="globe-map-ops-bar__button"
+            onClick={fitMapboxToFleet}
+            title="Fit map to live fleet"
+          >
+            <FaCrosshairs aria-hidden="true" />
+            <span>Fit</span>
+          </button>
+        )}
+      </div>
 
       {!useLeaflet && mapboxAvailable ? (
         <MapboxMap
@@ -112,51 +205,64 @@ const GlobeMapView = ({ drones }) => {
           mapboxAccessToken={mapboxToken}
           mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
           style={{ width: '100%', height: '100%' }}
+          cooperativeGestures={true}
         >
-          {validDrones.map(drone => (
-            <MapboxMarker
-              key={drone[FIELD_NAMES.HW_ID]}
-              latitude={drone.position[0]}
-              longitude={drone.position[1]}
-              anchor="center"
-            >
-              <div
-                className="globe-drone-marker"
-                style={{ '--mds-drone-marker-color': resolveMarkerColor(drone.marker_color) }}
+          {MapboxNavigationControl && <MapboxNavigationControl position="bottom-right" visualizePitch />}
+          {MapboxFullscreenControl && <MapboxFullscreenControl position="bottom-right" />}
+          {MapboxScaleControl && <MapboxScaleControl position="bottom-left" />}
+          {validDrones.map(drone => {
+            const droneId = String(drone[FIELD_NAMES.HW_ID]);
+            const selected = String(selectedDroneId || '') === droneId;
+            const identityLabel = formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`);
+            return (
+              <MapboxMarker
+                key={droneId}
+                latitude={drone.position[0]}
+                longitude={drone.position[1]}
+                anchor="center"
               >
-                {formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`)}
-              </div>
-            </MapboxMarker>
-          ))}
+                <div className="globe-map-marker-wrapper">
+                  <button
+                    type="button"
+                    className={`globe-drone-marker ${selected ? 'selected' : ''}`}
+                    style={{ '--mds-drone-marker-color': resolveMarkerColor(drone.marker_color) }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectDrone(selected ? null : droneId);
+                    }}
+                    title={`Open ${identityLabel} tactical card`}
+                  >
+                    {identityLabel}
+                  </button>
+                  {selected && (
+                    <div
+                      className="globe-map-drone-card-popover"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <TacticalDroneCard drone={drone} onClose={() => onSelectDrone(null)} />
+                    </div>
+                  )}
+                </div>
+              </MapboxMarker>
+            );
+          })}
         </MapboxMap>
       ) : (
         <LeafletMapBase
           center={[center.lat || 0, center.lng || 0]}
           zoom={validDrones.length > 0 ? 15 : 3}
           defaultLayer="esriSatellite"
-          showLayerControl={false}
+          showLayerControl={true}
           style={{ width: '100%', height: '100%' }}
         >
           <LeafletInvalidateSize />
           {validDrones.map(drone => (
-            <LeafletMarker
+            <LeafletDroneMarker
               key={drone[FIELD_NAMES.HW_ID]}
-              position={[drone.position[0], drone.position[1]]}
-              icon={createDroneIcon(
-                formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`),
-                drone.marker_color
-              )}
-            >
-              <Popup>
-                <div>
-                  <strong>{formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`)}</strong>
-                  <br />
-                  State: {drone.stateLabel || 'Unknown'}
-                  <br />
-                  Alt: {drone.altitude?.toFixed(1)}m
-                </div>
-              </Popup>
-            </LeafletMarker>
+              drone={drone}
+              selected={String(selectedDroneId || '') === String(drone[FIELD_NAMES.HW_ID])}
+              onSelect={onSelectDrone}
+            />
           ))}
         </LeafletMapBase>
       )}
@@ -174,6 +280,13 @@ GlobeMapView.propTypes = {
     altitude: PropTypes.number,
     marker_color: PropTypes.string,
   })).isRequired,
+  selectedDroneId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  onSelectDrone: PropTypes.func,
+};
+
+GlobeMapView.defaultProps = {
+  selectedDroneId: null,
+  onSelectDrone: () => {},
 };
 
 export default GlobeMapView;

@@ -83,7 +83,9 @@ function GlobeControlBox({
   isToolboxOpen,
   showGrid, 
   setShowGrid, 
-  handleGetTerrainClick 
+  handleGetTerrainClick,
+  selectedDroneId = null,
+  onSelectDrone = () => {},
 }) {
   const groupedDrones = React.useMemo(() => buildDroneClusterGroups(drones), [drones]);
 
@@ -143,7 +145,10 @@ function GlobeControlBox({
               <div className="drone-toggle-group__title">{group.label}</div>
             )}
             {group.drones.map((drone) => (
-              <div key={drone.id} className="drone-toggle">
+              <div
+                key={drone.id}
+                className={`drone-toggle ${String(selectedDroneId || '') === String(drone.id) ? 'selected' : ''}`}
+              >
                 <label>
                   <input
                     type="checkbox"
@@ -152,6 +157,14 @@ function GlobeControlBox({
                   />
                   <span>{drone.label}</span>
                 </label>
+                <button
+                  type="button"
+                  className="drone-toggle__select"
+                  onClick={() => onSelectDrone(String(selectedDroneId || '') === String(drone.id) ? null : drone.id)}
+                  title={`Open ${drone.label} tactical card`}
+                >
+                  Inspect
+                </button>
               </div>
             ))}
           </div>

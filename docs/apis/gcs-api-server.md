@@ -1736,11 +1736,14 @@ section plus [`tests/test_gcs_api_websocket.py`](../../tests/test_gcs_api_websoc
 are the source of truth.
 
 ### `WS /ws/telemetry`
-Real-time telemetry streaming (1 Hz).
+Real-time telemetry streaming. The default cadence is 1 Hz.
+
+Optional query:
+- `interval_ms`: requested stream interval in milliseconds. The server bounds this between 500 ms and 6000 ms so tactical map clients can reduce bandwidth on constrained links without opening a new API surface.
 
 **Connection:**
 ```javascript
-const ws = new WebSocket('ws://localhost:5030/ws/telemetry');
+const ws = new WebSocket('ws://localhost:5030/ws/telemetry?interval_ms=1000');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);

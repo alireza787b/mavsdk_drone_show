@@ -110,6 +110,18 @@ def test_telemetry_websocket_streams_typed_message():
     assert payload["data"]["1"]["position_lat"] == 35.0
 
 
+def test_telemetry_websocket_accepts_bounded_interval_query():
+    app = FastAPI()
+    app.include_router(create_core_router(_make_core_deps()))
+
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/telemetry?interval_ms=2500") as websocket:
+            payload = websocket.receive_json()
+
+    assert payload["type"] == "telemetry"
+    assert "1" in payload["data"]
+
+
 def test_heartbeat_websocket_streams_normalized_heartbeat_list():
     app = FastAPI()
     app.include_router(create_core_router(_make_core_deps()))

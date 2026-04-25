@@ -127,7 +127,19 @@
 }
 
 .drone-toggle {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr auto;
     margin-bottom: 6px;
+    padding: 4px 6px;
+}
+
+.drone-toggle.selected {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-color: var(--color-primary-border);
 }
 
 .drone-toggle label {
@@ -135,6 +147,24 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    color: var(--color-text-primary);
+}
+
+.drone-toggle__select {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 8px;
+    text-transform: uppercase;
+}
+
+.drone-toggle__select:hover,
+.drone-toggle__select:focus-visible {
+    border-color: var(--color-primary-border);
     color: var(--color-text-primary);
 }
 

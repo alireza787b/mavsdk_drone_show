@@ -3,14 +3,15 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
 import { OrbitControls, Html, Stars } from '@react-three/drei';
 import { Color, Vector3 } from 'three';
+import { FaCompressAlt, FaCrosshairs, FaSlidersH } from 'react-icons/fa';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
+import TacticalDroneCard from './TacticalDroneCard';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
-import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
@@ -27,41 +28,21 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-const DroneTooltip = ({ hw_id, pos_id, stateLabel, follow_mode, altitude, opacity, localPosition }) => (
-  <div
-    className="drone-tooltip"
-    style={{
-      opacity: opacity,
-      transition: 'opacity 0.3s',
-    }}
-  >
-    <ul className="tooltip-list">
-      <li><strong>ID:</strong> {formatCompactDroneIdentity(pos_id, hw_id, `H${hw_id}`)}</li>
-      <li><strong>State:</strong> {stateLabel || 'Unknown'}</li>
-      <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
-      <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
-      <li><strong>Local Position:</strong> [{localPosition[0].toFixed(2)}, {localPosition[1].toFixed(2)}, {localPosition[2].toFixed(2)}]</li>
-    </ul>
-  </div>
-);
-
-const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, marker_color }) => {
+const Drone = ({
+  position,
+  hw_id,
+  marker_color,
+  selected,
+  onSelect,
+  ...drone
+}) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [opacity, setOpacity] = useState(0);
   const meshRef = useRef(null);
   const targetPositionRef = useRef(new Vector3(...position));
   const hasInitialPositionRef = useRef(false);
   const normalColor = new Color(resolveMarkerColor(marker_color));
   const hoverColor = new Color('#FF9800');
-
-  useEffect(() => {
-    if (isHovered) {
-      setOpacity(1);
-    } else {
-      const timeout = setTimeout(() => setOpacity(0), 150);
-      return () => clearTimeout(timeout);
-    }
-  }, [isHovered, position, hw_id]);
+  const active = selected || isHovered;
 
   useEffect(() => {
     targetPositionRef.current.set(...position);
@@ -83,31 +64,41 @@ const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, mar
     <mesh
       ref={meshRef}
       onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
-      onPointerOut={(e) => setIsHovered(false)}
+      onPointerOut={() => setIsHovered(false)}
       onPointerDown={(e) => {
         e.stopPropagation();
-        setIsHovered((current) => !current);
+        onSelect(selected ? null : String(hw_id));
       }}
     >
-      <sphereGeometry args={[0.5, 16, 16]} />
+      <sphereGeometry args={[0.64, 24, 24]} />
       <meshStandardMaterial
-        color={isHovered ? hoverColor : normalColor}
-        emissive={isHovered ? hoverColor : normalColor}
-        emissiveIntensity={0.6}
+        color={active ? hoverColor : normalColor}
+        emissive={active ? hoverColor : normalColor}
+        emissiveIntensity={active ? 0.9 : 0.58}
         metalness={0.5}
         roughness={0.3}
       />
-      <Html>
-        <DroneTooltip
-          hw_id={hw_id}
-          pos_id={pos_id}
-          stateLabel={stateLabel}
-          follow_mode={follow_mode}
-          altitude={altitude}
-          opacity={opacity}
-          localPosition={position}
-        />
-      </Html>
+      {active && (
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.86, 0.035, 10, 36]} />
+          <meshStandardMaterial color={hoverColor} emissive={hoverColor} emissiveIntensity={0.9} />
+        </mesh>
+      )}
+      {active && (
+        <Html
+          className="globe-drone-card-anchor"
+          distanceFactor={16}
+          transform={false}
+          center={false}
+          position={[0.8, 0.8, 0.8]}
+        >
+          <TacticalDroneCard
+            drone={{ ...drone, hw_id, marker_color, position, geoPosition: drone.geoPosition }}
+            localPosition={position}
+            onClose={() => onSelect(null)}
+          />
+        </Html>
+      )}
     </mesh>
   );
 };
@@ -115,11 +106,9 @@ const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, mar
 Drone.propTypes = {
   position: PropTypes.arrayOf(PropTypes.number).isRequired,
   hw_id: PropTypes.string.isRequired,
-  pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  stateLabel: PropTypes.string,
-  follow_mode: PropTypes.number.isRequired,
-  altitude: PropTypes.number.isRequired,
   marker_color: PropTypes.string,
+  selected: PropTypes.bool,
+  onSelect: PropTypes.func.isRequired,
 };
 
 const MemoizedDrone = React.memo(Drone);
@@ -170,7 +159,7 @@ CustomOrbitControls.propTypes = {
   controlsRef: PropTypes.object.isRequired,
 };
 
-export default function Globe({ drones }) {
+export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showGround, setShowGround] = useState(false);
@@ -298,6 +287,7 @@ export default function Globe({ drones }) {
 
   const convertedDrones = drones.map(drone => ({
     ...drone,
+    geoPosition: drone.position,
     position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
   }));
 
@@ -310,14 +300,21 @@ export default function Globe({ drones }) {
 
   return (
     <div id="scene-container" className="scene-container">
-      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
+      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }} onPointerMissed={() => onSelectDrone(null)}>
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
         <axesHelper args={[50]} />
         {showGround && <Environment groundLevel={groundLevel} />}
         {convertedDrones.map(drone => (
-          droneVisibility[drone[FIELD_NAMES.HW_ID]] && <MemoizedDrone key={drone[FIELD_NAMES.HW_ID]} {...drone} />
+          droneVisibility[drone[FIELD_NAMES.HW_ID]] && (
+            <MemoizedDrone
+              key={drone[FIELD_NAMES.HW_ID]}
+              {...drone}
+              selected={String(selectedDroneId || '') === String(drone[FIELD_NAMES.HW_ID])}
+              onSelect={onSelectDrone}
+            />
+          )
         ))}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
@@ -332,21 +329,21 @@ export default function Globe({ drones }) {
           onClick={toggleFullscreen}
           title="Toggle Fullscreen"
         >
-          ⛶
+          <FaCompressAlt aria-hidden="true" />
         </div>
         <div
           className="focus-button"
           onClick={focusOnDrones}
           title="Focus on Drones"
         >
-          🎯
+          <FaCrosshairs aria-hidden="true" />
         </div>
         <div
           className="toolbox-button"
           onClick={() => setIsToolboxOpen(!isToolboxOpen)}
           title="Toggle Control Panel"
         >
-          🛠️
+          <FaSlidersH aria-hidden="true" />
         </div>
       </div>
       <GlobeControlBox
@@ -361,6 +358,8 @@ export default function Globe({ drones }) {
         showGrid={showGrid}
         setShowGrid={setShowGrid}
         handleGetTerrainClick={handleGetTerrainClick}
+        selectedDroneId={selectedDroneId}
+        onSelectDrone={onSelectDrone}
       />
     </div>
   );
@@ -377,4 +376,11 @@ Globe.propTypes = {
     altitude: PropTypes.number,
     marker_color: PropTypes.string,
   })).isRequired,
+  selectedDroneId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  onSelectDrone: PropTypes.func,
+};
+
+Globe.defaultProps = {
+  selectedDroneId: null,
+  onSelectDrone: () => {},
 };

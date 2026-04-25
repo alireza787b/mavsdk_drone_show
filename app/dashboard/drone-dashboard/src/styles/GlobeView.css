@@ -385,6 +385,77 @@
     background: var(--color-bg-tertiary);
 }
 
+/* === Tactical fleet strip === */
+.globe-tactical-strip {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: auto 1fr;
+    margin: 0 auto var(--spacing-lg);
+    max-width: min(1100px, 100%);
+    width: 100%;
+}
+
+.globe-tactical-strip__status {
+    align-items: center;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border-primary);
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    display: inline-flex;
+    font-size: 11px;
+    font-weight: 800;
+    gap: 6px;
+    min-height: 34px;
+    padding: 0 12px;
+    white-space: nowrap;
+}
+
+.globe-tactical-strip__dot {
+    background: var(--color-warning);
+    border-radius: 999px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 22%, transparent);
+    height: 8px;
+    width: 8px;
+}
+
+.globe-tactical-strip__dot.ws {
+    background: var(--color-success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 22%, transparent);
+}
+
+.globe-tactical-strip__drones {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    padding: 2px;
+}
+
+.globe-tactical-strip__chip {
+    --mds-drone-marker-color: var(--color-primary);
+    background: color-mix(in srgb, var(--mds-drone-marker-color) 14%, var(--color-bg-secondary));
+    border: 1px solid color-mix(in srgb, var(--mds-drone-marker-color) 48%, var(--color-border-primary));
+    border-radius: 999px;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 900;
+    min-height: 32px;
+    padding: 0 11px;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.globe-tactical-strip__chip.selected,
+.globe-tactical-strip__chip:hover,
+.globe-tactical-strip__chip:focus-visible {
+    background: var(--mds-drone-marker-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mds-drone-marker-color) 24%, transparent);
+    color: #041016;
+    transform: translateY(-1px);
+}
+
 /* === Map View Container === */
 .globe-map-container {
     position: relative;
@@ -394,15 +465,61 @@
     min-height: 420px;
 }
 
+.globe-map-ops-bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    left: 12px;
+    pointer-events: none;
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    z-index: 10;
+}
+
+.globe-map-ops-bar > * {
+    pointer-events: auto;
+}
+
+.globe-map-ops-bar__badge,
+.globe-map-ops-bar__button {
+    align-items: center;
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+    color: #f8fafc;
+    display: inline-flex;
+    font-size: 12px;
+    font-weight: 800;
+    gap: 7px;
+    min-height: 32px;
+    padding: 0 10px;
+    backdrop-filter: blur(10px);
+}
+
+.globe-map-ops-bar__button {
+    cursor: pointer;
+}
+
+.globe-map-ops-bar__button:hover,
+.globe-map-ops-bar__button:focus-visible {
+    border-color: var(--color-primary-border);
+}
+
 .globe-map-container .mds-map-container {
     width: 100%;
     height: 100%;
 }
 
 /* === Drone Marker (Map View) === */
+.globe-map-marker-wrapper {
+    position: relative;
+}
+
 .globe-drone-marker {
-    width: 24px;
-    height: 24px;
+    min-width: 28px;
+    height: 28px;
     background: var(--mds-drone-marker-color, var(--color-primary));
     border-radius: 50%;
     border: 2px solid white;
@@ -410,7 +527,65 @@
     align-items: center;
     justify-content: center;
     font-size: 9px;
-    font-weight: 700;
+    font-weight: 900;
     color: #000;
     box-shadow: var(--shadow-md);
+    cursor: pointer;
+    padding: 0 7px;
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.globe-drone-marker.selected,
+.globe-drone-marker:hover,
+.globe-drone-marker:focus-visible {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--mds-drone-marker-color) 30%, transparent), var(--shadow-lg);
+    transform: scale(1.16);
+}
+
+.globe-map-drone-card-popover {
+    left: 34px;
+    position: absolute;
+    top: -16px;
+    z-index: 20;
+}
+
+.tactical-drone-leaflet-popup .leaflet-popup-content-wrapper {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.tactical-drone-leaflet-popup .leaflet-popup-content {
+    margin: 0;
+}
+
+.tactical-drone-leaflet-popup .leaflet-popup-tip {
+    background: var(--color-bg-secondary);
+}
+
+@media (max-width: 768px) {
+    .globe-tactical-strip {
+        grid-template-columns: 1fr;
+    }
+
+    .globe-map-ops-bar {
+        align-items: flex-start;
+        flex-direction: column;
+        right: auto;
+    }
+
+    .globe-map-drone-card-popover {
+        left: 50%;
+        position: fixed;
+        top: auto;
+        bottom: 18px;
+        transform: translateX(-50%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .globe-tactical-strip__chip,
+    .globe-drone-marker {
+        transition: none;
+    }
 }

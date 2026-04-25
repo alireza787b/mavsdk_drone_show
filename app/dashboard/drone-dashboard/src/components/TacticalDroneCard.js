@@ -1,0 +1,190 @@
+import React from 'react';
+import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
+import {
+  FaBatteryHalf,
+  FaBullseye,
+  FaClock,
+  FaCompass,
+  FaCrosshairs,
+  FaProjectDiagram,
+  FaRoute,
+  FaSatellite,
+  FaSlidersH,
+} from 'react-icons/fa';
+import { FIELD_NAMES } from '../constants/fieldMappings';
+import { getFlightModeTitle } from '../utilities/flightModeUtils';
+import { getMissionDisplayContext } from '../utilities/missionUtils';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import '../styles/TacticalDroneCard.css';
+
+const GPS_FIX_LABELS = {
+  0: 'No GPS',
+  1: 'No fix',
+  2: '2D',
+  3: '3D',
+  4: 'DGPS',
+  5: 'RTK float',
+  6: 'RTK fixed',
+};
+
+const formatNumber = (value, digits = 1, fallback = 'n/a') => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(digits) : fallback;
+};
+
+const formatCoordinate = (value) => formatNumber(value, 6, 'n/a');
+
+const formatLastUpdate = (value) => {
+  if (!value) {
+    return 'n/a';
+  }
+  const timestamp = Number(value);
+  const date = Number.isFinite(timestamp)
+    ? new Date(timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000)
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+
+const resolveMarkerColor = (candidate) => {
+  const normalized = String(candidate || '').trim();
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized) ? normalized : '#00d4ff';
+};
+
+const TacticalMetric = ({ icon: Icon, label, value, title }) => (
+  <div className="tactical-drone-card__metric" title={title || label}>
+    <Icon aria-hidden="true" />
+    <span>{value}</span>
+  </div>
+);
+
+TacticalMetric.propTypes = {
+  icon: PropTypes.elementType.isRequired,
+  label: PropTypes.string.isRequired,
+  value: PropTypes.node.isRequired,
+  title: PropTypes.string,
+};
+
+const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) => {
+  const hwId = String(drone?.[FIELD_NAMES.HW_ID] ?? drone?.hw_id ?? '');
+  const posId = drone?.[FIELD_NAMES.POS_ID] ?? drone?.pos_id;
+  const identity = formatCompactDroneIdentity(posId, hwId, `H${hwId || '?'}`);
+  const markerColor = resolveMarkerColor(drone?.marker_color);
+  const geoPosition = drone?.geoPosition || drone?.position || [];
+  const missionDisplay = getMissionDisplayContext(drone?.mission, drone?.last_mission);
+  const flightMode = getFlightModeTitle(drone?.flight_mode);
+  const gpsFix = GPS_FIX_LABELS[Number(drone?.gps_fix_type)] || 'GPS n/a';
+  const speed = Number.isFinite(Number(drone?.speed_mps)) ? `${formatNumber(drone.speed_mps)} m/s` : 'speed n/a';
+  const armed = drone?.is_armed === true ? 'Armed' : drone?.is_armed === false ? 'Disarmed' : 'Arm n/a';
+
+  return (
+    <section
+      className={`tactical-drone-card ${className}`.trim()}
+      style={{ '--mds-tactical-drone-color': markerColor }}
+      aria-label={`${identity} tactical summary`}
+    >
+      <div className="tactical-drone-card__header">
+        <div>
+          <p className="tactical-drone-card__eyebrow">Live aircraft</p>
+          <h3>{identity}</h3>
+        </div>
+        <span className="tactical-drone-card__state">{drone?.stateLabel || 'Unknown'}</span>
+        {onClose && (
+          <button
+            type="button"
+            className="tactical-drone-card__close"
+            onClick={onClose}
+            aria-label={`Close ${identity} summary`}
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
+        <TacticalMetric icon={FaCompass} label="Altitude" value={`${formatNumber(drone?.altitude)} m`} />
+        <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
+        <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />
+        <TacticalMetric icon={FaRoute} label="Speed" value={speed} />
+      </div>
+
+      <dl className="tactical-drone-card__details">
+        <div>
+          <dt>Mode</dt>
+          <dd>{flightMode || 'n/a'} · {armed}</dd>
+        </div>
+        <div>
+          <dt>Mission</dt>
+          <dd>{missionDisplay.currentMissionName || 'No mission'}</dd>
+        </div>
+        <div>
+          <dt>Follow</dt>
+          <dd>{Number(drone?.follow_mode) === 0 ? 'Leader' : `H${drone.follow_mode}`}</dd>
+        </div>
+        <div>
+          <dt>LLA</dt>
+          <dd>{formatCoordinate(geoPosition[0])}, {formatCoordinate(geoPosition[1])}, {formatNumber(geoPosition[2])} m</dd>
+        </div>
+        {localPosition && (
+          <div>
+            <dt>Local</dt>
+            <dd>{formatNumber(localPosition[0], 2)}, {formatNumber(localPosition[1], 2)}, {formatNumber(localPosition[2], 2)} m</dd>
+          </div>
+        )}
+        <div>
+          <dt>Seen</dt>
+          <dd><FaClock aria-hidden="true" /> {formatLastUpdate(drone?.last_update)}</dd>
+        </div>
+      </dl>
+
+      <div className="tactical-drone-card__actions" aria-label="Drone quick links">
+        <Link to={`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`} title="Open this drone in Mission Config">
+          <FaSlidersH aria-hidden="true" />
+          <span>Config</span>
+        </Link>
+        <Link to={`/swarm-design?drone=${encodeURIComponent(hwId)}`} title="Open this drone in Swarm Design">
+          <FaProjectDiagram aria-hidden="true" />
+          <span>Swarm</span>
+        </Link>
+        <Link to={`/px4-parameters?drone=${encodeURIComponent(hwId)}`} title="Inspect PX4 parameters for this drone">
+          <FaBullseye aria-hidden="true" />
+          <span>PX4</span>
+        </Link>
+        <Link to={`/?drone=${encodeURIComponent(hwId)}`} title="Return to dashboard overview">
+          <FaCrosshairs aria-hidden="true" />
+          <span>Ops</span>
+        </Link>
+      </div>
+    </section>
+  );
+};
+
+TacticalDroneCard.propTypes = {
+  drone: PropTypes.shape({
+    hw_id: PropTypes.string,
+    pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    position: PropTypes.arrayOf(PropTypes.number),
+    geoPosition: PropTypes.arrayOf(PropTypes.number),
+    stateLabel: PropTypes.string,
+    follow_mode: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    altitude: PropTypes.number,
+    marker_color: PropTypes.string,
+    battery_voltage: PropTypes.number,
+    flight_mode: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    is_armed: PropTypes.bool,
+    gps_fix_type: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    satellites_visible: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    mission: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    last_mission: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    speed_mps: PropTypes.number,
+    last_update: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  }).isRequired,
+  localPosition: PropTypes.arrayOf(PropTypes.number),
+  onClose: PropTypes.func,
+  className: PropTypes.string,
+};
+
+export default TacticalDroneCard;

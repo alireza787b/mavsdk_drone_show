@@ -178,6 +178,11 @@ def create_core_router(deps: Any) -> APIRouter:
     async def websocket_telemetry(websocket: WebSocket):
         await websocket.accept()
         deps.log_system_event("Telemetry WebSocket client connected", "INFO", "websocket")
+        try:
+            requested_interval_ms = int(websocket.query_params.get("interval_ms", "1000"))
+        except (TypeError, ValueError):
+            requested_interval_ms = 1000
+        stream_interval_sec = max(0.5, min(requested_interval_ms / 1000.0, 6.0))
 
         try:
             while True:
@@ -187,7 +192,7 @@ def create_core_router(deps: Any) -> APIRouter:
                     data=deps.telemetry_data_all_drones,
                 )
                 await websocket.send_json(message.model_dump())
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(stream_interval_sec)
         except WebSocketDisconnect:
             deps.log_system_event("Telemetry WebSocket client disconnected", "INFO", "websocket")
         except Exception as exc:
