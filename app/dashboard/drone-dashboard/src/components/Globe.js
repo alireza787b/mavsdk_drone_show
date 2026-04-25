@@ -39,8 +39,8 @@ const buildNoFixPosition = (index, total) => {
   const spread = 3.2;
   return [
     (col - ((columns - 1) / 2)) * spread,
-    1.35,
-    -6 - (row * spread),
+    4.6,
+    -2.4 - (row * spread),
   ];
 };
 

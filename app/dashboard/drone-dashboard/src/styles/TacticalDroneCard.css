@@ -210,32 +210,53 @@
 
 @media (max-width: 640px) {
   .tactical-drone-card {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--mds-tactical-drone-color) 14%, transparent), transparent 42%),
+      color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
     border-radius: 14px;
-    padding: 10px;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+    padding: 8px;
     width: min(300px, calc(100vw - 24px));
   }
 
+  .tactical-drone-card__header {
+    gap: 6px;
+  }
+
+  .tactical-drone-card__eyebrow {
+    font-size: 9px;
+    margin-bottom: 1px;
+  }
+
   .tactical-drone-card h3 {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .tactical-drone-card__state,
   .tactical-drone-card__close {
-    transform: scale(0.92);
+    transform: scale(0.86);
     transform-origin: top right;
   }
 
   .tactical-drone-card__metrics {
+    gap: 4px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 7px 0 6px;
   }
 
   .tactical-drone-card__metric {
+    border-radius: 999px;
+    gap: 3px;
     justify-content: center;
-    padding: 5px;
+    padding: 4px;
+  }
+
+  .tactical-drone-card__metric svg {
+    font-size: 12px;
   }
 
   .tactical-drone-card__metric span {
-    font-size: 10px;
+    font-size: 9px;
   }
 
   .tactical-drone-card__details div {
@@ -249,15 +270,17 @@
 
   .tactical-drone-card__badges span {
     font-size: 9px;
-    padding: 4px 6px;
+    padding: 3px 5px;
   }
 
   .tactical-drone-card__actions {
     gap: 5px;
+    margin-top: 6px;
+    padding-top: 6px;
   }
 
   .tactical-drone-card__actions a {
-    min-height: 36px;
+    min-height: 30px;
   }
 
   .tactical-drone-card__actions span {

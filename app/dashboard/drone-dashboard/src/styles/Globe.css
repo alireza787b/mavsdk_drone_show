@@ -147,7 +147,7 @@
     }
 
     .globe-selected-card-popover .tactical-drone-card {
-        max-height: min(34vh, 320px);
+        max-height: min(28vh, 260px);
         overflow-y: auto;
         width: 100%;
     }
