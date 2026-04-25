@@ -14,6 +14,7 @@ import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
+import MissionConfigAlertStack from '../components/missionConfig/MissionConfigAlertStack';
 import PendingEnrollmentPanel from '../components/missionConfig/PendingEnrollmentPanel';
 
 // Hooks
@@ -69,7 +70,6 @@ import {
 // Icons
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faExclamationTriangle,
   faExchangeAlt,
   faPlus,
   faSave,
@@ -995,98 +995,18 @@ const MissionConfig = () => {
         </section>
       </section>
 
-      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || pendingEnrollmentDrones.length > 0 || (originStatus !== 'ready' && originStatus !== 'checking')) && (
-        <div className="mission-config-alert-stack">
-          {pendingEnrollmentDrones.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
-              onClick={reviewPendingEnrollmentCandidates}
-            >
-              <FontAwesomeIcon icon={faPlus} />
-              <div>
-                <strong>{pendingEnrollmentDrones.length} detected, not enrolled</strong>
-                <span>
-                  {pendingEnrollmentDrones.slice(0, 3).map((candidate) => formatDroneLabel(candidate.hw_id)).join(' • ')}
-                  {pendingEnrollmentDrones.length > 3 ? ` • +${pendingEnrollmentDrones.length - 3} more` : ''}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">Review</span>
-            </button>
-          )}
-          {duplicateHwIds.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
-              onClick={reviewDuplicateHardwareIds}
-            >
-              <FontAwesomeIcon icon={faExclamationTriangle} />
-              <div>
-                <strong>{duplicateHwIds.length} duplicate hardware ID{duplicateHwIds.length === 1 ? '' : 's'}</strong>
-                <span>
-                  {duplicateHwIds.map((duplicate) => formatDroneLabel(duplicate.hw_id)).join(', ')}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">Review</span>
-            </button>
-          )}
-          {duplicatePosIds.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
-              onClick={reviewDuplicateSlots}
-            >
-              <FontAwesomeIcon icon={faExclamationTriangle} />
-              <div>
-                <strong>{duplicatePosIds.length} slot collision{duplicatePosIds.length === 1 ? '' : 's'}</strong>
-                <span>
-                  {duplicatePosIds.map((duplicate) => (
-                    `${formatShowSlotLabel(duplicate.pos_id)} → ${duplicate.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}`
-                  )).join(' • ')}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">Review</span>
-            </button>
-          )}
-          {roleSwaps.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
-              onClick={reviewRoleSwapAssignments}
-            >
-              <FontAwesomeIcon icon={faExchangeAlt} />
-              <div>
-                <strong>{roleSwaps.length} slot reassignment{roleSwaps.length === 1 ? '' : 's'} active</strong>
-                <span>
-                  {roleSwaps.slice(0, 3).map((drone) => (
-                    `${formatDroneLabel(drone.hw_id)} → ${formatShowSlotLabel(drone.pos_id)}`
-                  )).join(' • ')}
-                  {roleSwaps.length > 0 ? ' • Smart Swarm follow-links stay on hardware IDs.' : ''}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">{roleSwaps.length > 3 ? 'View all' : 'Review'}</span>
-            </button>
-          )}
-          {(originStatus === 'needed' || originStatus === 'unavailable') && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--warning mission-config-alert--actionable"
-              onClick={reviewOriginWorkflow}
-            >
-              <FontAwesomeIcon icon={faExclamationTriangle} />
-              <div>
-                <strong>{originStatus === 'unavailable' ? 'Origin check failed' : 'Origin needed'}</strong>
-                <span>
-                  {originStatus === 'unavailable'
-                    ? 'The page could not confirm the current origin. Open the origin tools to review or set it again.'
-                    : 'Set the origin before using deviation-based launch review.'}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">{originStatus === 'unavailable' ? 'Review' : 'Set origin'}</span>
-            </button>
-          )}
-        </div>
-      )}
+      <MissionConfigAlertStack
+        pendingEnrollmentDrones={pendingEnrollmentDrones}
+        duplicateHwIds={duplicateHwIds}
+        duplicatePosIds={duplicatePosIds}
+        roleSwaps={roleSwaps}
+        originStatus={originStatus}
+        onReviewPendingEnrollment={reviewPendingEnrollmentCandidates}
+        onReviewDuplicateHardwareIds={reviewDuplicateHardwareIds}
+        onReviewDuplicateSlots={reviewDuplicateSlots}
+        onReviewRoleSwaps={reviewRoleSwapAssignments}
+        onReviewOrigin={reviewOriginWorkflow}
+      />
 
       <PendingEnrollmentPanel
         candidates={pendingEnrollmentDrones}
