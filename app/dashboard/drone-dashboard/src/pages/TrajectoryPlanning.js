@@ -55,6 +55,7 @@ import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
 import { Marker as LMarker, Polyline as LPolyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { DocsLink, OperatorNotice, StatusBadge } from '../components/ui/OperatorPrimitives';
 
 // Import styles
 import '../styles/TrajectoryPlanning.css';
@@ -119,6 +120,12 @@ const createWaypointIcon = (index, color) =>
     iconSize: [40, 40],
     iconAnchor: [20, 20],
   });
+
+const normalizeNoticeTone = (tone = 'info') => {
+  if (tone === 'error') return 'danger';
+  if (['info', 'success', 'warning', 'danger', 'neutral'].includes(tone)) return tone;
+  return 'info';
+};
 
 const TrajectoryPlanning = () => {
   const navigate = useNavigate();
@@ -1205,25 +1212,49 @@ const TrajectoryPlanning = () => {
     </div>
   ) : null;
 
-  const plannerNoticeBanner = plannerNotice ? (
-    <div className={`trajectory-planner-notice ${plannerNotice.tone || 'info'}`}>
-      <div className="trajectory-planner-notice__copy">{plannerNotice.text}</div>
-      <div className="trajectory-planner-notice__actions">
-        {plannerNotice.actionLabel && plannerNotice.actionHandler && (
-          <button
-            type="button"
-            className="trajectory-planner-notice__action"
-            onClick={plannerNotice.actionHandler}
-          >
-            {plannerNotice.actionLabel}
-          </button>
-        )}
-        <button type="button" onClick={clearOperationNotice}>
-          {plannerNotice.dismissLabel || 'Dismiss'}
+  const plannerNoticeActions = plannerNotice ? (
+    <div className="trajectory-planner-notice__actions">
+      {plannerNotice.actionLabel && plannerNotice.actionHandler && (
+        <button
+          type="button"
+          className="operator-button operator-button--primary trajectory-planner-notice__action"
+          onClick={plannerNotice.actionHandler}
+        >
+          {plannerNotice.actionLabel}
         </button>
-      </div>
+      )}
+      <button type="button" className="operator-button operator-button--ghost" onClick={clearOperationNotice}>
+        {plannerNotice.dismissLabel || 'Dismiss'}
+      </button>
     </div>
   ) : null;
+
+  const plannerNoticeBanner = plannerNotice ? (
+    <OperatorNotice
+      tone={normalizeNoticeTone(plannerNotice.tone)}
+      title="Planner update"
+      className={`trajectory-planner-notice trajectory-planner-notice--${normalizeNoticeTone(plannerNotice.tone)}`}
+      action={plannerNoticeActions}
+    >
+      {plannerNotice.text}
+    </OperatorNotice>
+  ) : null;
+
+  const plannerStatusTone = normalizeNoticeTone(plannerMissionReadiness.posture.tone || 'neutral');
+  const plannerHeader = (
+    <div className="trajectory-header">
+      <div className="header-left">
+        <div className="trajectory-header__identity">
+          <h1>Trajectory Planning</h1>
+          <StatusBadge tone={plannerStatusTone}>{`Planner: ${plannerMissionReadiness.posture.label}`}</StatusBadge>
+          <DocsLink route="/trajectory-planning" compact />
+        </div>
+        <SearchBar onLocationSelect={handleLocationSelect} />
+        <MapProviderToggle />
+      </div>
+      <TrajectoryStats stats={trajectoryStats} />
+    </div>
+  );
 
   const swarmTransferDialog = (
     <SwarmTrajectoryTransferDialog
@@ -1305,14 +1336,7 @@ const TrajectoryPlanning = () => {
           hidden
           onChange={handleImportFileChange}
         />
-        <div className="trajectory-header">
-          <div className="header-left">
-            <h1>Trajectory Planning</h1>
-            <SearchBar onLocationSelect={handleLocationSelect} />
-            <MapProviderToggle />
-          </div>
-          <TrajectoryStats stats={trajectoryStats} />
-        </div>
+        {plannerHeader}
 
         <div className="trajectory-container">
           <div className="trajectory-main">
@@ -1444,14 +1468,7 @@ const TrajectoryPlanning = () => {
         hidden
         onChange={handleImportFileChange}
       />
-      <div className="trajectory-header">
-        <div className="header-left">
-          <h1>Trajectory Planning</h1>
-          <SearchBar onLocationSelect={handleLocationSelect} />
-          <MapProviderToggle />
-        </div>
-        <TrajectoryStats stats={trajectoryStats} />
-      </div>
+      {plannerHeader}
 
       <div className="trajectory-container">
         <div className="trajectory-main">
@@ -1599,7 +1616,7 @@ const TrajectoryPlanning = () => {
                     </div>
                     
                     {!waypoint.speedFeasible && (
-                      <div className="speed-warning-badge" title="Speed warning - check timing">
+                      <div className="speed-warning-badge" role="img" aria-label="Speed warning - check timing">
                         ⚠
                       </div>
                     )}
