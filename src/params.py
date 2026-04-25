@@ -45,6 +45,15 @@ def _safe_int(value: str, default: int) -> int:
         return default
 
 
+def _safe_float(value: str, default: float) -> float:
+    """Safely convert string to float with fallback to default."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        logger.warning(f"Invalid float value '{value}', using default {default}")
+        return default
+
+
 def _env_flag(name: str, default: bool) -> bool:
     """Read a boolean feature flag from environment or local.env."""
     value = os.environ.get(name)
@@ -311,6 +320,11 @@ class Params:
     PX4_PARAMETER_MAVLINK_SNAPSHOT_TIMEOUT_SEC = 45.0
     PX4_PARAMETER_MAVLINK_IDLE_TIMEOUT_SEC = 1.5
     PX4_PARAMETER_METADATA_CATALOG_PATHS = os.environ.get("MDS_PX4_PARAMETER_METADATA_CATALOG_PATHS", "")
+    PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED = _env_flag("MDS_PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED", True)
+    PX4_PARAMETER_METADATA_CACHE_DIR = os.environ.get("MDS_PX4_PARAMETER_METADATA_CACHE_DIR", "~/.cache/mds/px4-param-docs")
+    PX4_PARAMETER_METADATA_CACHE_TTL_DAYS = _safe_float(os.environ.get("MDS_PX4_PARAMETER_METADATA_CACHE_TTL_DAYS", "14"), 14.0)
+    PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC = _safe_float(os.environ.get("MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC", "2.5"), 2.5)
+    PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES = _safe_int(os.environ.get("MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES", "4"), 4)
     PX4_PARAMETER_PROFILE_DIR = os.environ.get("MDS_PX4_PARAMETER_PROFILE_DIR", "resources/px4_param_profiles")
     COMMON_PARAMS_FILE = os.environ.get("MDS_COMMON_PARAMS_FILE", "resources/common_params.csv")
     TAKEOFF_PREFLIGHT_TIMEOUT_SEC = 30  # MAVSDK GPS/home readiness wait before takeoff

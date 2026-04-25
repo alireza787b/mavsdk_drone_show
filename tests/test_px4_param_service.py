@@ -7,11 +7,13 @@ from mavsdk.component_information import FloatParam as ComponentFloatParam
 from mavsdk.param import AllParams, CustomParam, FloatParam, IntParam
 
 from src.px4_param_models import (
+    Px4ParamMetadataSource,
     Px4ParamPatchApplyRequest,
     Px4ParamPatchSource,
     Px4ParamSetRequest,
     Px4ParamValueType,
 )
+from src.px4_params.catalog import Px4ParamCatalogEntry
 from src.px4_params.service import Px4ParamService
 
 
@@ -92,6 +94,7 @@ def _build_service():
         PX4_PARAMETER_MAVLINK_SNAPSHOT_TIMEOUT_SEC=45.0,
         PX4_PARAMETER_MAVLINK_IDLE_TIMEOUT_SEC=1.5,
         PX4_PARAMETER_METADATA_CATALOG_PATHS="",
+        PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED=False,
         local_mavlink2rest_port=14569,
     )
     return Px4ParamService(params, hw_id="7")
@@ -156,6 +159,30 @@ async def test_build_snapshot_uses_catalog_metadata_for_non_float_rows(tmp_path)
     assert mav_sys_id.reboot_required is True
     assert mav_sys_id.group == "MAVLink"
     assert "px4_build_catalog" in mav_sys_id.metadata_sources
+
+
+async def test_build_snapshot_labels_docs_cache_metadata(monkeypatch):
+    service = _build_service()
+    drone = _build_drone()
+
+    monkeypatch.setattr(
+        "src.px4_params.service.load_px4_param_catalog_index",
+        lambda _params: {
+            "MAV_SYS_ID": Px4ParamCatalogEntry(
+                name="MAV_SYS_ID",
+                source=Px4ParamMetadataSource.PX4_DOCS_CACHE,
+                short_description="System ID from docs",
+                default_value=1,
+                group="MAVLink",
+            )
+        },
+    )
+
+    snapshot = await service.build_snapshot(drone)
+
+    mav_sys_id = next(row for row in snapshot.rows if row.name == "MAV_SYS_ID")
+    assert mav_sys_id.short_description == "System ID from docs"
+    assert "px4_docs_cache" in mav_sys_id.metadata_sources
 
 
 async def test_build_snapshot_falls_back_to_mavlink_listing_when_bulk_rpc_is_unavailable():

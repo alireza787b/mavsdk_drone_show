@@ -48,7 +48,10 @@ class Px4ParamService:
             ),
             metadata=Px4ParamPolicyMetadata(
                 runtime_values="mavsdk_param_or_mavlink_param_protocol",
-                float_metadata="px4_catalog_then_mavsdk_component_information_with_raw_value_fallback",
+                float_metadata=(
+                    "px4_catalog_then_mavsdk_component_information_then_official_docs_cache_"
+                    "with_raw_value_fallback"
+                ),
                 docs_links="px4_parameter_reference_anchor",
                 reboot_required="px4_catalog_when_available",
             ),
@@ -60,7 +63,7 @@ class Px4ParamService:
 
     async def build_snapshot(self, drone: Any, *, component_id: int = 1) -> Px4ParamSnapshotResponse:
         float_metadata = await self._load_float_metadata(drone)
-        catalog_metadata = self._load_catalog_metadata()
+        catalog_metadata = await self._load_catalog_metadata_async()
         rows = await self._build_snapshot_rows(
             drone,
             component_id=component_id,
@@ -156,13 +159,14 @@ class Px4ParamService:
         normalized_name = self._normalize_name(name)
         value, value_type = await self._read_param_auto(drone, normalized_name)
         float_metadata = await self._load_float_metadata(drone) if value_type == Px4ParamValueType.FLOAT else {}
+        catalog_metadata = await self._load_catalog_metadata_async()
         row = self._compose_row(
             component_id=component_id,
             name=normalized_name,
             value_type=value_type,
             value=value,
             float_meta=float_metadata.get(normalized_name),
-            catalog_entry=self._load_catalog_metadata().get(normalized_name),
+            catalog_entry=catalog_metadata.get(normalized_name),
         )
         return Px4ParamValueResponse(row=row, timestamp=int(time.time() * 1000))
 
@@ -357,6 +361,9 @@ class Px4ParamService:
     def _load_catalog_metadata(self) -> Dict[str, Px4ParamCatalogEntry]:
         return load_px4_param_catalog_index(self.params)
 
+    async def _load_catalog_metadata_async(self) -> Dict[str, Px4ParamCatalogEntry]:
+        return await asyncio.to_thread(self._load_catalog_metadata)
+
     def _compose_row(
         self,
         *,
@@ -369,7 +376,7 @@ class Px4ParamService:
     ) -> Px4ParamRow:
         metadata_sources = [Px4ParamMetadataSource.VEHICLE]
         if catalog_entry is not None:
-            metadata_sources.append(Px4ParamMetadataSource.PX4_BUILD_CATALOG)
+            metadata_sources.append(catalog_entry.source)
         if float_meta is not None:
             metadata_sources.append(Px4ParamMetadataSource.COMPONENT_INFORMATION)
         metadata_sources.append(Px4ParamMetadataSource.PX4_DOCS)
@@ -447,7 +454,8 @@ class Px4ParamService:
             metadata_quality = "raw_values_only"
             warning = (
                 "PX4 parameter values are available, but metadata labels, groups, defaults, and docs require "
-                "component metadata or a matching PX4 parameter catalog."
+                "vehicle component metadata, a matching PX4 parameter catalog, or the optional official PX4 "
+                "docs reference cache."
             )
 
         if total_rows == 0:

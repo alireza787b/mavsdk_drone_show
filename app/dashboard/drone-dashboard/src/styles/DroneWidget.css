@@ -65,7 +65,21 @@
 
 .drone-widget.command-scope-active {
     border-color: var(--color-primary-border);
-    --widget-scope-ring: 0 0 0 1px rgba(var(--color-primary-rgb), 0.14);
+    --widget-scope-ring:
+        0 0 0 1px rgba(var(--color-primary-rgb), 0.22),
+        0 14px 28px rgba(var(--color-primary-rgb), 0.08);
+}
+
+.drone-widget.command-scope-out {
+    border-color: rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.34);
+    border-style: dashed;
+    filter: saturate(0.72);
+    opacity: 0.72;
+    --widget-scope-ring: inset 0 0 0 1px rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.12);
+}
+
+.drone-widget.command-scope-out:hover {
+    opacity: 0.9;
 }
 
 .drone-widget.disarmed {
@@ -220,6 +234,12 @@
     color: var(--color-primary);
     border-color: var(--color-primary-border);
     background: rgba(var(--color-primary-rgb), 0.12);
+}
+
+.drone-widget.command-scope-out .drone-header__action--scope {
+    border-style: dashed;
+    background: rgba(var(--color-surface-raised-rgb, 15, 23, 42), 0.42);
+    color: var(--color-text-tertiary);
 }
 
 .drone-header__action-label {

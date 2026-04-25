@@ -46,6 +46,7 @@ const DroneWidget = ({
     ? promotedField.displayValue
     : '';
   const hwId = String(drone[FIELD_NAMES.HW_ID] || drone.hw_ID || '');
+  const scopeClass = commandScopeState === 'out' ? 'command-scope-out' : 'command-scope-active';
   const scopeToggleTitle = (() => {
     switch (commandScopeState) {
       case 'all':
@@ -191,7 +192,8 @@ const DroneWidget = ({
         missionReady ? 'mission-ready' : ''
       } ${missionExecuting ? 'mission-executing' : ''} ${
         isExpanded ? 'expanded' : ''
-      } ${commandScopeState === 'selected' || commandScopeState === 'cluster' ? 'command-scope-active' : ''}`}
+      } ${scopeClass} command-scope-${commandScopeState}`}
+      data-command-scope={commandScopeState}
     >
       {/* Header */}
       <h3 onClick={(e) => {
