@@ -221,7 +221,7 @@ const GlobeView = () => {
 
   const renderDroneStrip = () => (
     <div className="globe-tactical-strip" aria-label="Live drone selection strip">
-      <div className="globe-tactical-strip__status" title="Telemetry stream mode and adaptive update interval">
+      <div className="globe-tactical-strip__status" aria-label="Telemetry stream mode and adaptive update interval">
         <span className={`globe-tactical-strip__dot ${streamTransport}`} />
         <strong>{streamTransport === 'ws' ? 'WS' : 'HTTP'}</strong>
         <span>{(telemetryIntervalMs / 1000).toFixed(1)}s</span>
@@ -241,7 +241,7 @@ const GlobeView = () => {
               ].filter(Boolean).join(' ')}
               style={{ '--mds-drone-marker-color': drone.marker_color || '#00d4ff' }}
               onClick={() => setSelectedDroneId(selected ? null : droneId)}
-              title={`Select ${formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`)} on the active view`}
+              aria-label={`Select ${formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`)} on the active view`}
             >
               {formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`)}
             </button>

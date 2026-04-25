@@ -1,6 +1,6 @@
 {
   "critical_count": 0,
-  "debt_count": 1260,
+  "debt_count": 1257,
   "groups": {
     "dependency_mismatch": [],
     "duplicate_primitives": [],
@@ -359,14 +359,14 @@
         "code": "hardcoded-color",
         "detail": "#2196F3",
         "file": "app/dashboard/drone-dashboard/src/components/Globe.js",
-        "line": 18,
+        "line": 19,
         "severity": "debt"
       },
       {
         "code": "hardcoded-color",
         "detail": "#FF9800",
         "file": "app/dashboard/drone-dashboard/src/components/Globe.js",
-        "line": 172,
+        "line": 173,
         "severity": "debt"
       },
       {
@@ -2662,28 +2662,28 @@
         "code": "hardcoded-color",
         "detail": "rgba(255, 255, 255, 0.2)",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 43,
+        "line": 44,
         "severity": "debt"
       },
       {
         "code": "hardcoded-color",
         "detail": "rgba(0, 0, 0, 0.22)",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 135,
+        "line": 136,
         "severity": "debt"
       },
       {
         "code": "hardcoded-color",
         "detail": "rgba(0, 0, 0, 0.28)",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 171,
+        "line": 172,
         "severity": "debt"
       },
       {
         "code": "hardcoded-color",
         "detail": "rgba(0, 0, 0, 0.3)",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 214,
+        "line": 215,
         "severity": "debt"
       },
       {
@@ -8103,28 +8103,28 @@
         "code": "hardcoded-z-index",
         "detail": "z-index: 1100",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 48,
+        "line": 49,
         "severity": "debt"
       },
       {
         "code": "hardcoded-z-index",
         "detail": "z-index: 1080",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 83,
+        "line": 84,
         "severity": "debt"
       },
       {
         "code": "hardcoded-z-index",
         "detail": "z-index: 2200",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 177,
+        "line": 178,
         "severity": "debt"
       },
       {
         "code": "hardcoded-z-index",
         "detail": "z-index: 1000",
         "file": "app/dashboard/drone-dashboard/src/styles/Globe.css",
-        "line": 268,
+        "line": 269,
         "severity": "debt"
       },
       {
@@ -8421,20 +8421,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/GlobeMapView.js",
-        "line": 213,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/GlobeMapView.js",
-        "line": 236,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/MissionDetails.js",
         "line": 726,
         "severity": "debt"
@@ -8722,13 +8708,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/GlobeView.js",
-        "line": 224,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js",
         "line": 1461,
         "severity": "debt"
@@ -8838,6 +8817,6 @@
     "hardcoded-color": 1147,
     "hardcoded-z-index": 41,
     "mixed-icon-stack": 1,
-    "native-title": 71
+    "native-title": 68
   }
 }

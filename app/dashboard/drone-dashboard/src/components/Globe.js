@@ -13,6 +13,7 @@ import useElevation from '../useElevation';
 import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { findNearestScreenAnchor, getEventClientPoint } from '../utilities/globeScreenInteractions';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
@@ -416,10 +417,6 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   };
 
   const handleSceneBackgroundPointerDown = useCallback((event) => {
-    if (!selectedDroneId) {
-      return;
-    }
-
     const target = event.target;
     if (
       target?.closest?.(
@@ -429,8 +426,23 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       return;
     }
 
+    const point = getEventClientPoint(event);
+    const nearestAnchor = findNearestScreenAnchor(
+      screenAnchors,
+      point,
+      event.currentTarget?.getBoundingClientRect?.(),
+    );
+    if (nearestAnchor?.id) {
+      onSelectDrone(nearestAnchor.id);
+      return;
+    }
+
+    if (!selectedDroneId) {
+      return;
+    }
+
     onSelectDrone(null);
-  }, [onSelectDrone, selectedDroneId]);
+  }, [onSelectDrone, screenAnchors, selectedDroneId]);
 
   if (isLoading || !referencePoint) {
     return <LoadingSpinner />;
@@ -528,7 +540,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
               onMouseDown={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
               onTouchStart={(event) => event.stopPropagation()}
-              title={`${anchor.label}${anchor.noMapFix ? ' · no GPS fix' : ''}`}
+              aria-label={`${anchor.label}${anchor.noMapFix ? ' no GPS fix' : ''}`}
             >
               <span>{anchor.label}</span>
             </button>
@@ -562,27 +574,30 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       {/* Render Compass outside the Canvas */}
       
       <div className="button-container">
-        <div
+        <button
+          type="button"
           className="fullscreen-button"
           onClick={toggleFullscreen}
-          title="Toggle Fullscreen"
+          aria-label="Toggle fullscreen"
         >
           <FaCompressAlt aria-hidden="true" />
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className="focus-button"
           onClick={focusOnDrones}
-          title="Focus on Drones"
+          aria-label="Focus camera on drones"
         >
           <FaCrosshairs aria-hidden="true" />
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className="toolbox-button"
           onClick={() => setIsToolboxOpen(!isToolboxOpen)}
-          title="Toggle Control Panel"
+          aria-label="Toggle 3D view filters"
         >
           <FaSlidersH aria-hidden="true" />
-        </div>
+        </button>
       </div>
       <GlobeControlBox
         drones={drones}

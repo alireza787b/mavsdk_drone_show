@@ -33,6 +33,7 @@
     justify-content: center;
     border-radius: 50%;
     cursor: pointer;
+    padding: 0;
     transition: transform 0.2s ease, background-color 0.3s ease;
 }
 

@@ -90,7 +90,6 @@ const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
       ref={markerRef}
       position={[drone.position[0], drone.position[1]]}
       icon={createDroneIcon(identityLabel, drone.marker_color, selected, drone.runtime_indicator_class)}
-      title={identityLabel}
       eventHandlers={{
         click: () => onSelect(droneId),
         popupclose: () => {
@@ -210,7 +209,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
     >
       {useLeaflet && <MapFallbackBanner />}
       <div className="globe-map-ops-bar">
-        <div className="globe-map-ops-bar__badge" title="Live telemetry map">
+        <div className="globe-map-ops-bar__badge" aria-label="Live telemetry map">
           <FaSatelliteDish aria-hidden="true" />
           <span>{validDrones.length}</span>
         </div>
@@ -220,7 +219,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
             type="button"
             className="globe-map-ops-bar__button"
             onClick={fitMapboxToFleet}
-            title="Fit map to live fleet"
+            aria-label="Fit map to live fleet"
           >
             <FaCrosshairs aria-hidden="true" />
             <span>Fit</span>
@@ -233,7 +232,10 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="globe-map-selected-fallback__note" title="This drone is selected but does not currently have a non-zero GPS coordinate for the map.">
+          <div
+            className="globe-map-selected-fallback__note"
+            aria-label="This drone is selected but does not currently have a non-zero GPS coordinate for the map."
+          >
             No map fix
           </div>
           <TacticalDroneCard drone={selectedDrone} onClose={() => onSelectDrone(null)} />
@@ -280,7 +282,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
                       event.stopPropagation();
                       onSelectDrone(droneId);
                     }}
-                    title={`Open ${identityLabel} tactical card`}
+                    aria-label={`Open ${identityLabel} tactical card`}
                   >
                     {identityLabel}
                   </button>

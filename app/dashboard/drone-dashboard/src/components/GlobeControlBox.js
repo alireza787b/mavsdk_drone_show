@@ -161,7 +161,7 @@ function GlobeControlBox({
                   type="button"
                   className="drone-toggle__select"
                   onClick={() => onSelectDrone(String(selectedDroneId || '') === String(drone.id) ? null : drone.id)}
-                  title={`Open ${drone.label} tactical card`}
+                  aria-label={`Open ${drone.label} tactical card`}
                 >
                   Inspect
                 </button>
