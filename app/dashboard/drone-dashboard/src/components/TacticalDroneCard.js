@@ -33,8 +33,6 @@ const formatNumber = (value, digits = 1, fallback = 'n/a') => {
   return Number.isFinite(numeric) ? numeric.toFixed(digits) : fallback;
 };
 
-const formatCoordinate = (value) => formatNumber(value, 6, 'n/a');
-
 const formatLastUpdate = (value) => {
   if (!value) {
     return 'n/a';
@@ -73,12 +71,13 @@ const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) =>
   const posId = drone?.[FIELD_NAMES.POS_ID] ?? drone?.pos_id;
   const identity = formatCompactDroneIdentity(posId, hwId, `H${hwId || '?'}`);
   const markerColor = resolveMarkerColor(drone?.marker_color);
-  const geoPosition = drone?.geoPosition || drone?.position || [];
   const missionDisplay = getMissionDisplayContext(drone?.mission, drone?.last_mission);
   const flightMode = getFlightModeTitle(drone?.flight_mode);
   const gpsFix = GPS_FIX_LABELS[Number(drone?.gps_fix_type)] || 'GPS n/a';
   const speed = Number.isFinite(Number(drone?.speed_mps)) ? `${formatNumber(drone.speed_mps)} m/s` : 'speed n/a';
   const armed = drone?.is_armed === true ? 'Armed' : drone?.is_armed === false ? 'Disarmed' : 'Arm n/a';
+  const lastSeen = formatLastUpdate(drone?.last_update);
+  const followLabel = Number(drone?.follow_mode) === 0 ? 'Leader' : `H${drone.follow_mode}`;
 
   return (
     <section
@@ -88,7 +87,10 @@ const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) =>
     >
       <div className="tactical-drone-card__header">
         <div>
-          <p className="tactical-drone-card__eyebrow">Live aircraft</p>
+          <p className="tactical-drone-card__eyebrow">
+            Live aircraft
+            <span title="Last telemetry update"><FaClock aria-hidden="true" /> {lastSeen}</span>
+          </p>
           <h3>{identity}</h3>
         </div>
         <span className="tactical-drone-card__state">{drone?.stateLabel || 'Unknown'}</span>
@@ -111,33 +113,20 @@ const TacticalDroneCard = ({ drone, localPosition, onClose, className = '' }) =>
         <TacticalMetric icon={FaRoute} label="Speed" value={speed} />
       </div>
 
+      <div className="tactical-drone-card__badges" aria-label="Drone operational state">
+        <span title="PX4 flight mode">{flightMode || 'Mode n/a'}</span>
+        <span title="Arm state">{armed}</span>
+        <span title="Current mission">{missionDisplay.currentMissionName || 'No mission'}</span>
+        <span title="Follow role">{followLabel}</span>
+      </div>
+
       <dl className="tactical-drone-card__details">
-        <div>
-          <dt>Mode</dt>
-          <dd>{flightMode || 'n/a'} · {armed}</dd>
-        </div>
-        <div>
-          <dt>Mission</dt>
-          <dd>{missionDisplay.currentMissionName || 'No mission'}</dd>
-        </div>
-        <div>
-          <dt>Follow</dt>
-          <dd>{Number(drone?.follow_mode) === 0 ? 'Leader' : `H${drone.follow_mode}`}</dd>
-        </div>
-        <div>
-          <dt>LLA</dt>
-          <dd>{formatCoordinate(geoPosition[0])}, {formatCoordinate(geoPosition[1])}, {formatNumber(geoPosition[2])} m</dd>
-        </div>
         {localPosition && (
           <div>
-            <dt>Local</dt>
+            <dt>XYZ</dt>
             <dd>{formatNumber(localPosition[0], 2)}, {formatNumber(localPosition[1], 2)}, {formatNumber(localPosition[2], 2)} m</dd>
           </div>
         )}
-        <div>
-          <dt>Seen</dt>
-          <dd><FaClock aria-hidden="true" /> {formatLastUpdate(drone?.last_update)}</dd>
-        </div>
       </dl>
 
       <div className="tactical-drone-card__actions" aria-label="Drone quick links">

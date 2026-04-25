@@ -12,6 +12,7 @@ import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
+import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
@@ -23,6 +24,24 @@ const SELECTED_CARD_GAP_PX = 18;
 const resolveMarkerColor = (candidate) => {
   const normalized = String(candidate || '').trim();
   return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
+};
+
+const hasUsableGeoPosition = (position = []) => {
+  const lat = Number(position[0]);
+  const lon = Number(position[1]);
+  return Number.isFinite(lat) && Number.isFinite(lon) && (Math.abs(lat) > 0.000001 || Math.abs(lon) > 0.000001);
+};
+
+const buildNoFixPosition = (index, total) => {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(total, 1))));
+  const row = Math.floor(index / columns);
+  const col = index % columns;
+  const spread = 3.2;
+  return [
+    (col - ((columns - 1) / 2)) * spread,
+    1.35,
+    -6 - (row * spread),
+  ];
 };
 
 const LoadingSpinner = () => (
@@ -72,6 +91,44 @@ SelectedDroneScreenAnchor.propTypes = {
   onScreenPosition: PropTypes.func.isRequired,
 };
 
+const DroneScreenAnchorProjector = ({ drones, onScreenAnchors }) => {
+  const { camera, size } = useThree();
+  const lastPayloadRef = useRef('');
+
+  useFrame(() => {
+    const anchors = drones.map((drone) => {
+      const projected = new Vector3(...drone.position).project(camera);
+      return {
+        id: String(drone[FIELD_NAMES.HW_ID]),
+        label: drone.identityLabel,
+        markerColor: resolveMarkerColor(drone.marker_color),
+        noMapFix: drone.noMapFix,
+        x: Math.round((projected.x * 0.5 + 0.5) * size.width),
+        y: Math.round((-projected.y * 0.5 + 0.5) * size.height),
+        visible: projected.z >= -1 && projected.z <= 1,
+      };
+    });
+    const payload = JSON.stringify(anchors);
+    if (payload !== lastPayloadRef.current) {
+      lastPayloadRef.current = payload;
+      onScreenAnchors(anchors);
+    }
+  });
+
+  return null;
+};
+
+DroneScreenAnchorProjector.propTypes = {
+  drones: PropTypes.arrayOf(PropTypes.shape({
+    hw_id: PropTypes.string,
+    identityLabel: PropTypes.string,
+    marker_color: PropTypes.string,
+    noMapFix: PropTypes.bool,
+    position: PropTypes.arrayOf(PropTypes.number),
+  })).isRequired,
+  onScreenAnchors: PropTypes.func.isRequired,
+};
+
 const resolveSelectedCardPlacement = (screenPosition) => {
   const x = screenPosition?.x ?? 24;
   const y = screenPosition?.y ?? 24;
@@ -99,6 +156,7 @@ const Drone = ({
   position,
   hw_id,
   marker_color,
+  noMapFix,
   selected,
   onSelect,
 }) => {
@@ -109,6 +167,7 @@ const Drone = ({
   const normalColor = new Color(resolveMarkerColor(marker_color));
   const hoverColor = new Color('#FF9800');
   const active = selected || isHovered;
+  const markerRadius = noMapFix ? 0.54 : 0.64;
 
   useEffect(() => {
     targetPositionRef.current.set(...position);
@@ -133,20 +192,26 @@ const Drone = ({
       onPointerOut={() => setIsHovered(false)}
       onPointerDown={(e) => {
         e.stopPropagation();
-        onSelect(selected ? null : String(hw_id));
+        onSelect(String(hw_id));
       }}
     >
-      <sphereGeometry args={[0.64, 24, 24]} />
+      <sphereGeometry args={[markerRadius, 24, 24]} />
       <meshStandardMaterial
         color={active ? hoverColor : normalColor}
         emissive={active ? hoverColor : normalColor}
         emissiveIntensity={active ? 0.9 : 0.58}
         metalness={0.5}
-        roughness={0.3}
+        roughness={noMapFix ? 0.68 : 0.3}
+        transparent={noMapFix}
+        opacity={noMapFix ? 0.72 : 1}
       />
+      <mesh>
+        <sphereGeometry args={[1.45, 16, 16]} />
+        <meshBasicMaterial transparent opacity={0.01} depthWrite={false} />
+      </mesh>
       {active && (
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.86, 0.035, 10, 36]} />
+          <torusGeometry args={[noMapFix ? 0.76 : 0.86, 0.035, 10, 36]} />
           <meshStandardMaterial color={hoverColor} emissive={hoverColor} emissiveIntensity={0.9} />
         </mesh>
       )}
@@ -158,6 +223,7 @@ Drone.propTypes = {
   position: PropTypes.arrayOf(PropTypes.number).isRequired,
   hw_id: PropTypes.string.isRequired,
   marker_color: PropTypes.string,
+  noMapFix: PropTypes.bool,
   selected: PropTypes.bool,
   onSelect: PropTypes.func.isRequired,
 };
@@ -218,6 +284,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [selectedScreenPosition, setSelectedScreenPosition] = useState(null);
+  const [screenAnchors, setScreenAnchors] = useState([]);
   const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
@@ -252,9 +319,11 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     setIsLoading(true);
 
     const setReferencePointAsync = async () => {
-      const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
-      const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
-      const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
+      const positionedDrones = drones.filter((drone) => hasUsableGeoPosition(drone.position));
+      const referenceDrones = positionedDrones.length > 0 ? positionedDrones : drones;
+      const avgLat = referenceDrones.reduce((sum, drone) => sum + drone.position[0], 0) / referenceDrones.length;
+      const avgLon = referenceDrones.reduce((sum, drone) => sum + drone.position[1], 0) / referenceDrones.length;
+      const avgAlt = referenceDrones.reduce((sum, drone) => sum + drone.position[2], 0) / referenceDrones.length;
 
       const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
       const localReference = [avgLat, avgLon, elevation ?? avgAlt];
@@ -291,7 +360,14 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
 
   useEffect(() => {
     if (drones?.length && referencePoint) {
-      const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
+      const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+      const convertedPositions = drones.map((drone) => {
+        if (!hasUsableGeoPosition(drone.position)) {
+          const noFixIndex = noFixDrones.findIndex((candidate) => String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID]));
+          return buildNoFixPosition(noFixIndex, noFixDrones.length);
+        }
+        return llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint);
+      });
 
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
@@ -337,11 +413,24 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     return <LoadingSpinner />;
   }
 
-  const convertedDrones = drones.map(drone => ({
-    ...drone,
-    geoPosition: drone.position,
-    position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
-  }));
+  const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+  const convertedDrones = drones.map((drone) => {
+    const noMapFix = !hasUsableGeoPosition(drone.position);
+    const noFixIndex = noMapFix
+      ? noFixDrones.findIndex((candidate) => String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID]))
+      : -1;
+    const displayPosition = noMapFix
+      ? buildNoFixPosition(noFixIndex, noFixDrones.length)
+      : llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint);
+    const hwId = String(drone[FIELD_NAMES.HW_ID]);
+    return {
+      ...drone,
+      geoPosition: drone.position,
+      identityLabel: formatCompactDroneIdentity(drone[FIELD_NAMES.POS_ID], hwId, `H${hwId}`),
+      noMapFix,
+      position: displayPosition,
+    };
+  });
   const selectedDrone = convertedDrones.find(
     (drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')
   ) || null;
@@ -378,10 +467,41 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
             onScreenPosition={setSelectedScreenPosition}
           />
         )}
+        <DroneScreenAnchorProjector
+          drones={convertedDrones.filter((drone) => droneVisibility[drone[FIELD_NAMES.HW_ID]])}
+          onScreenAnchors={setScreenAnchors}
+        />
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
 
       </Canvas>
+      <div className="globe-drone-screen-targets" aria-label="3D drone touch targets">
+        {screenAnchors.map((anchor) => (
+          anchor.visible && (
+            <button
+              key={anchor.id}
+              type="button"
+              className={[
+                'globe-drone-screen-hit',
+                anchor.noMapFix ? 'no-map-fix' : '',
+                String(selectedDroneId || '') === anchor.id ? 'selected' : '',
+              ].filter(Boolean).join(' ')}
+              style={{
+                '--mds-globe-marker-color': anchor.markerColor,
+                left: `${anchor.x}px`,
+                top: `${anchor.y}px`,
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectDrone(anchor.id);
+              }}
+              title={`${anchor.label}${anchor.noMapFix ? ' · no GPS fix' : ''}`}
+            >
+              {anchor.label}
+            </button>
+          )
+        ))}
+      </div>
       {selectedDrone && (
         <div
           className={[

@@ -76,6 +76,62 @@
     top: 72px !important;
 }
 
+.globe-drone-screen-targets {
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: 1080;
+}
+
+.globe-drone-screen-hit {
+    align-items: center;
+    background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, var(--color-bg-secondary));
+    border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 70%, white);
+    border-radius: 999px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    color: var(--color-text-primary);
+    cursor: pointer;
+    display: inline-flex;
+    font-size: 10px;
+    font-weight: 900;
+    justify-content: center;
+    min-height: 26px;
+    min-width: 42px;
+    opacity: 0.82;
+    padding: 4px 8px;
+    pointer-events: auto;
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 10px));
+    transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+    white-space: nowrap;
+}
+
+.globe-drone-screen-hit::after {
+    background: var(--mds-globe-marker-color, var(--color-primary));
+    border-radius: 999px;
+    bottom: -9px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, transparent);
+    content: '';
+    height: 5px;
+    left: 50%;
+    position: absolute;
+    transform: translateX(-50%);
+    width: 5px;
+}
+
+.globe-drone-screen-hit.no-map-fix {
+    border-style: dashed;
+    opacity: 0.74;
+}
+
+.globe-drone-screen-hit.selected,
+.globe-drone-screen-hit:focus-visible,
+.globe-drone-screen-hit:hover {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 12px)) scale(1.04);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 18%, transparent), 0 12px 26px rgba(0, 0, 0, 0.28);
+}
+
 @media (max-width: 700px) {
     .globe-selected-card-popover {
         bottom: max(14px, env(safe-area-inset-bottom));
@@ -91,9 +147,16 @@
     }
 
     .globe-selected-card-popover .tactical-drone-card {
-        max-height: min(48vh, 430px);
+        max-height: min(34vh, 320px);
         overflow-y: auto;
         width: 100%;
+    }
+
+    .globe-drone-screen-hit {
+        font-size: 9px;
+        min-height: 24px;
+        min-width: 36px;
+        padding: 3px 7px;
     }
 }
 
