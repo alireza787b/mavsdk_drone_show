@@ -29,6 +29,10 @@ describe('operator UI primitives', () => {
     expect(screen.getByRole('heading', { name: 'Fleet Ops' })).toBeInTheDocument();
     expect(screen.getByText('Node posture')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
+      'aria-label',
+      'Fleet ops guide'
+    );
+    expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
       'href',
       'https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md'
     );

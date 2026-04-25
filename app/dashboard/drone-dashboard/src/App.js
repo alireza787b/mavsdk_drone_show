@@ -23,6 +23,7 @@ import { MapProvider } from './contexts/MapContext';
 import './styles/DesignTokens.css';
 
 import SidebarMenu from './components/SidebarMenu';
+import RouteDocsShortcut from './components/RouteDocsShortcut';
 import SyncWarningBanner from './components/SyncWarningBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import useGcsRuntimeStatus from './hooks/useGcsRuntimeStatus';
@@ -173,6 +174,7 @@ const App = () => {
                   runtimeStatus={runtimeStatus}
                 />
                 <div className={contentClassName}>
+                  <RouteDocsShortcut />
                   <SyncWarningBanner />
                   <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>

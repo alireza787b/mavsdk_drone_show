@@ -59,6 +59,10 @@ describe('App', () => {
   test('renders default route (Overview)', async () => {
     render(<App />);
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /dashboard guide/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/docs/guides/dashboard-operator.md')
+    );
   });
 
   test('uses overlay navigation on mobile viewports', async () => {

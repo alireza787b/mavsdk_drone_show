@@ -168,15 +168,18 @@ export function DocsLink({
     return null;
   }
 
+  const resolvedLabel = label || resolvedDoc.label || 'Guide';
+
   return (
     <a
       className={['operator-docs-link', compact ? 'operator-docs-link--compact' : '', className].filter(Boolean).join(' ')}
       href={href}
+      aria-label={resolvedLabel}
       target={href.startsWith('http') ? '_blank' : undefined}
       rel={href.startsWith('http') ? 'noreferrer' : undefined}
     >
       <FaBookOpen aria-hidden="true" />
-      <span>{label || resolvedDoc.label || 'Guide'}</span>
+      <span>{resolvedLabel}</span>
     </a>
   );
 }
@@ -392,4 +395,3 @@ ConfirmDialog.propTypes = {
   onConfirm: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
 };
-
