@@ -428,7 +428,7 @@ validate_post_sync_python_file() {
         return 0
     fi
 
-    if "$python_cmd" -m py_compile "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
+    if "$python_cmd" -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
         return 0
     fi
 

@@ -2073,6 +2073,26 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_post_sync_python_validation_does_not_write_bytecode():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/src" "$tmpdir/home/logs"
+        cat > "$repo_dir/src/runtime_check.py" <<'EOF'
+value = 1
+EOF
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        validate_post_sync_python_file "src/runtime_check.py"
+        [[ ! -d "$repo_dir/src/__pycache__" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_post_sync_validation_rejects_invalid_rendered_service_template():
     result = run_bash(
         f"""
