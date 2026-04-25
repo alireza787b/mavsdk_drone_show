@@ -27,23 +27,32 @@ const baseTheme = {
   isDark: false,
 };
 
+const renderSidebar = (ui) => render(
+  <MemoryRouter
+    future={{
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    }}
+  >
+    {ui}
+  </MemoryRouter>
+);
+
 describe('SidebarMenu', () => {
   it('shows the runtime badge in expanded mode', () => {
-    render(
-      <MemoryRouter>
-        <SidebarMenu
-          collapsed={false}
-          gitInfoOverride={baseGitInfo}
-          themeOverride={baseTheme}
-          runtimeStatus={{
-            mode: 'real',
-            modeLabel: 'REAL',
-            configuredMode: 'sitl',
-            configuredModeLabel: 'SITL',
-            restartRequired: true,
-          }}
-        />
-      </MemoryRouter>
+    renderSidebar(
+      <SidebarMenu
+        collapsed={false}
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+        runtimeStatus={{
+          mode: 'real',
+          modeLabel: 'REAL',
+          configuredMode: 'sitl',
+          configuredModeLabel: 'SITL',
+          restartRequired: true,
+        }}
+      />
     );
 
     expect(screen.getByLabelText(/real runtime, configured sitl, restart required/i)).toBeInTheDocument();
@@ -57,24 +66,24 @@ describe('SidebarMenu', () => {
   });
 
   it('keeps the runtime badge visible in collapsed mode', () => {
-    render(
-      <MemoryRouter>
-        <SidebarMenu
-          collapsed
-          gitInfoOverride={baseGitInfo}
-          themeOverride={baseTheme}
-          runtimeStatus={{
-            mode: 'real',
-            modeLabel: 'REAL',
-            configuredMode: 'sitl',
-            configuredModeLabel: 'SITL',
-            restartRequired: true,
-          }}
-        />
-      </MemoryRouter>
+    renderSidebar(
+      <SidebarMenu
+        collapsed
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+        runtimeStatus={{
+          mode: 'real',
+          modeLabel: 'REAL',
+          configuredMode: 'sitl',
+          configuredModeLabel: 'SITL',
+          restartRequired: true,
+        }}
+      />
     );
 
     expect(screen.getByLabelText(/real runtime, configured sitl, restart required/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
+    expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
+    expect(screen.getByRole('button', { name: /show git status hint/i })).not.toHaveAttribute('title');
   });
 });

@@ -34,6 +34,13 @@ import RuntimeModeBadge from './RuntimeModeBadge';
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import { VERSION_DISPLAY } from '../version';
 
+const getInitialCollapsed = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.innerWidth < 768;
+};
+
 const SidebarMenu = ({
   collapsed,
   mobile = false,
@@ -52,8 +59,7 @@ const SidebarMenu = ({
   const gitInfoState = useGcsGitInfo() || {};
   const { isDark = false } = themeOverride || themeState;
   const gitInfo = gitInfoOverride || gitInfoState;
-  // Use props if provided, otherwise fall back to local state for backwards compatibility
-  const [localCollapsed, setLocalCollapsed] = useState(window.innerWidth < 768);
+  const [localCollapsed, setLocalCollapsed] = useState(getInitialCollapsed);
   const [activeTooltip, setActiveTooltip] = useState(null);
 
   const isCollapsed = mobile ? false : (collapsed !== undefined ? collapsed : localCollapsed);
@@ -146,8 +152,7 @@ const SidebarMenu = ({
                       onNavigate();
                     }
                   }}
-                  title={runtimeAdminTitle}
-                  aria-label="Open GCS Runtime to review runtime mode"
+                  aria-label={`Open GCS Runtime to review runtime mode. ${runtimeAdminTitle}`}
                 >
                   <RuntimeModeBadge
                     mode={runtimeStatus.mode}
@@ -175,8 +180,7 @@ const SidebarMenu = ({
                   onNavigate();
                 }
               }}
-              title={runtimeAdminTitle}
-              aria-label="Open GCS Runtime to review runtime mode"
+              aria-label={`Open GCS Runtime to review runtime mode. ${runtimeAdminTitle}`}
             >
               <RuntimeModeBadge
                 mode={runtimeStatus.mode}
@@ -212,9 +216,10 @@ const SidebarMenu = ({
                     }
                   }}
                   onMouseEnter={() => handleTooltip(item.label)}
+                  aria-label={isCollapsed ? item.label : undefined}
                   data-tooltip={item.label}
                 >
-                  <IconComponent className="nav-icon" />
+                  <IconComponent className="nav-icon" aria-hidden="true" />
                   {!isCollapsed && <span className="nav-label">{item.label}</span>}
                   {!isCollapsed && item.attention ? (
                     <span className={`nav-indicator nav-indicator--${item.attentionTone || 'neutral'}`}>{item.attention}</span>
@@ -250,16 +255,17 @@ const SidebarMenu = ({
           {!isCollapsed ? (
             <GitInfo collapsed={false} />
           ) : (
-            <div
+            <button
+              type="button"
               className="git-info-icon"
-              title="Git Status"
+              aria-label="Show git status hint"
               onMouseEnter={() => handleTooltip('Git Status')}
             >
-              <FaCodeBranch />
+              <FaCodeBranch aria-hidden="true" />
               {activeTooltip === 'Git Status' && (
-                <div className="nav-tooltip">Git Status</div>
+                <span className="nav-tooltip">Git Status</span>
               )}
-            </div>
+            </button>
           )}
         </div>
 
@@ -271,16 +277,17 @@ const SidebarMenu = ({
               <CurrentTime />
             </div>
           ) : (
-            <div
+            <button
+              type="button"
               className="time-icon-collapsed"
-              title="Current Time"
+              aria-label="Show current time hint"
               onMouseEnter={() => handleTooltip('Time')}
             >
-              <FaClock />
+              <FaClock aria-hidden="true" />
               {activeTooltip === 'Time' && (
-                <div className="nav-tooltip"><CurrentTime /></div>
+                <span className="nav-tooltip"><CurrentTime /></span>
               )}
-            </div>
+            </button>
           )}
         </div>
 
@@ -290,11 +297,21 @@ const SidebarMenu = ({
             <div className="social-expanded">
               <span className="copyright">© {new Date().getFullYear()} MDS by Alireza787b</span>
               <div className="social-icons">
-                <a href="https://github.com/alireza787b/mavsdk_drone_show" target="_blank" rel="noopener noreferrer">
-                  <FaGithub />
+                <a
+                  href="https://github.com/alireza787b/mavsdk_drone_show"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open MDS GitHub repository"
+                >
+                  <FaGithub aria-hidden="true" />
                 </a>
-                <a href="https://linkedin.com/in/alireza787b" target="_blank" rel="noopener noreferrer">
-                  <FaLinkedin />
+                <a
+                  href="https://linkedin.com/in/alireza787b"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open LinkedIn profile"
+                >
+                  <FaLinkedin aria-hidden="true" />
                 </a>
               </div>
             </div>
@@ -304,12 +321,12 @@ const SidebarMenu = ({
                 href="https://github.com/alireza787b/mavsdk_drone_show"
                 target="_blank"
                 rel="noopener noreferrer"
-                title="GitHub Repository"
+                aria-label="Open MDS GitHub repository"
                 onMouseEnter={() => handleTooltip('GitHub')}
               >
-                <FaGithub />
+                <FaGithub aria-hidden="true" />
                 {activeTooltip === 'GitHub' && (
-                  <div className="nav-tooltip">GitHub</div>
+                  <span className="nav-tooltip">GitHub</span>
                 )}
               </a>
             </div>

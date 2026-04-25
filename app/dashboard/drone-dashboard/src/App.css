@@ -1,52 +1,3 @@
-.App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 4rem; 
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
-.drone-item:hover {
-  cursor: pointer; 
-}
-
-.drone-item li {
-  font-weight: bold;
-  margin-top: 5rem;
-  list-style: none;
-}
-
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 /* Global Body Styles - Theme Aware */
 html {
   max-width: 100%;
@@ -76,7 +27,7 @@ html[data-theme="light"] body,
 html.theme-light body {
   background:
     radial-gradient(circle at top, rgba(var(--color-primary-rgb), 0.08), transparent 30%),
-    linear-gradient(180deg, #ffffff 0%, #ffffff 24%, #f8fbff 72%, #f1f6fb 100%);
+    linear-gradient(180deg, var(--color-bg-primary) 0%, var(--color-bg-primary) 24%, var(--color-bg-secondary) 72%, var(--color-bg-tertiary) 100%);
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -144,11 +95,11 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Dynamic sidebar spacing - responsive to sidebar state */
 .content.sidebar-expanded {
-  margin-left: 280px; /* Space for expanded sidebar */
+  margin-left: var(--sidebar-width-expanded);
 }
 
 .content.sidebar-collapsed {
-  margin-left: 72px; /* Space for collapsed sidebar */
+  margin-left: var(--sidebar-width-collapsed);
 }
 
 .page-loading {
@@ -387,20 +338,6 @@ h1, h2, h3, h4, h5, h6 {
   z-index: calc(var(--z-tooltip) + 10);
   cursor: pointer;
   touch-action: none;
-}
-
-
-
-/* Menu items */
-.menu-item {
-  display: flex;
-  align-items: center;
-  padding: 10px 15px;
-}
-
-/* Text contrast */  
-.text {
-  color: var(--color-text-primary);
 }
 
 /* Toast Notification Enhancements - Add to App.css */

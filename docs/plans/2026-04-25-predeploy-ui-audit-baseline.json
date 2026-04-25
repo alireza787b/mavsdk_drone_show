@@ -1,52 +1,10 @@
 {
   "critical_count": 0,
-  "debt_count": 1287,
+  "debt_count": 1265,
   "groups": {
     "dependency_mismatch": [],
     "duplicate_primitives": [],
     "hardcoded_colors": [
-      {
-        "code": "hardcoded-color",
-        "detail": "#282c34",
-        "file": "app/dashboard/drone-dashboard/src/App.css",
-        "line": 17,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#61dafb",
-        "file": "app/dashboard/drone-dashboard/src/App.css",
-        "line": 28,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ffffff",
-        "file": "app/dashboard/drone-dashboard/src/App.css",
-        "line": 79,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#ffffff",
-        "file": "app/dashboard/drone-dashboard/src/App.css",
-        "line": 79,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#f8fbff",
-        "file": "app/dashboard/drone-dashboard/src/App.css",
-        "line": 79,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#f1f6fb",
-        "file": "app/dashboard/drone-dashboard/src/App.css",
-        "line": 79,
-        "severity": "debt"
-      },
       {
         "code": "hardcoded-color",
         "detail": "#1a1a1a",
@@ -3766,62 +3724,6 @@
       },
       {
         "code": "hardcoded-color",
-        "detail": "rgba(18, 124, 93, 0.14)",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 20,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(18, 124, 93, 0.35)",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 21,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#0e7d5d",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 22,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(176, 138, 43, 0.12)",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 32,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(176, 138, 43, 0.28)",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 33,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#8a6d1d",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 34,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(193, 83, 35, 0.2)",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 44,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#c15323",
-        "file": "app/dashboard/drone-dashboard/src/styles/RuntimeModeBadge.css",
-        "line": 53,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
         "detail": "rgba(0, 0, 0, 0.6)",
         "file": "app/dashboard/drone-dashboard/src/styles/SaveReviewDialog.css",
         "line": 10,
@@ -4158,58 +4060,9 @@
       },
       {
         "code": "hardcoded-color",
-        "detail": "#fff",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 621,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 1)",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 623,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(248, 251, 253, 1)",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 623,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "#fff",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 624,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(255, 255, 255, 0.99)",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 674,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(248, 251, 253, 0.99)",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 674,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
         "detail": "rgba(20, 32, 48, 0.08)",
         "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
         "line": 675,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-color",
-        "detail": "rgba(248, 251, 253, 0.96)",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 688,
         "severity": "debt"
       },
       {
@@ -8472,13 +8325,6 @@
       },
       {
         "code": "hardcoded-z-index",
-        "detail": "z-index: 1000",
-        "file": "app/dashboard/drone-dashboard/src/styles/SidebarMenu.css",
-        "line": 375,
-        "severity": "debt"
-      },
-      {
-        "code": "hardcoded-z-index",
         "detail": "z-index: 80",
         "file": "app/dashboard/drone-dashboard/src/styles/SitlControlPage.css",
         "line": 733,
@@ -9024,8 +8870,8 @@
     "route_docs": []
   },
   "summary": {
-    "hardcoded-color": 1171,
-    "hardcoded-z-index": 44,
+    "hardcoded-color": 1150,
+    "hardcoded-z-index": 43,
     "mixed-icon-stack": 1,
     "native-title": 71
   }

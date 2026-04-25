@@ -175,6 +175,8 @@
     --panel-width-sm: 250px;
     --panel-width-base: 300px;
     --panel-width-lg: 400px;
+    --sidebar-width-expanded: 296px;
+    --sidebar-width-collapsed: 72px;
     --operator-page-max-width: 1680px;
     --operator-card-padding: var(--spacing-base);
     --operator-card-gap: var(--spacing-md);
