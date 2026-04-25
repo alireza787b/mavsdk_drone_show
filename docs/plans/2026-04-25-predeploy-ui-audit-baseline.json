@@ -1,6 +1,6 @@
 {
   "critical_count": 0,
-  "debt_count": 1582,
+  "debt_count": 1373,
   "groups": {
     "dependency_mismatch": [],
     "duplicate_primitives": [
@@ -9119,7 +9119,7 @@
     "icon_stack": [
       {
         "code": "mixed-icon-stack",
-        "detail": "@fortawesome/free-solid-svg-icons:5 files, @fortawesome/react-fontawesome:11 files, @mui/icons-material:1 files, react-icons:16 files",
+        "detail": "@fortawesome/free-solid-svg-icons:5 files, @fortawesome/react-fontawesome:11 files, @mui/icons-material:1 files, react-icons:17 files",
         "file": "app/dashboard/drone-dashboard/package.json",
         "line": 1,
         "severity": "debt"
@@ -9143,55 +9143,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ClusterScopeBar.js",
-        "line": 32,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/CommandPreflightSummary.js",
-        "line": 228,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/CommandSender.js",
-        "line": 867,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/CommandSender.js",
-        "line": 875,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ConfirmationModal.js",
-        "line": 22,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
-        "line": 57,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
-        "line": 76,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
         "line": 92,
         "severity": "debt"
@@ -9207,126 +9158,7 @@
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
-        "line": 110,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
-        "line": 127,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
-        "line": 138,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
         "line": 146,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ControlButtons.js",
-        "line": 155,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneActions.js",
-        "line": 209,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 126,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 135,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 144,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 154,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 170,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 180,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 190,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 199,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 357,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 367,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 393,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 405,
         "severity": "debt"
       },
       {
@@ -9339,181 +9171,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 435,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 590,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 596,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 627,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 657,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 666,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 675,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1084,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1182,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1196,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1219,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1283,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1307,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1324,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1339,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1353,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneConfigCard.js",
-        "line": 1361,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneCriticalCommands.js",
-        "line": 298,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneCriticalCommands.js",
-        "line": 309,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneCriticalCommands.js",
-        "line": 327,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneCriticalCommands.js",
-        "line": 343,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneDetail.js",
-        "line": 419,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneGitStatus.js",
-        "line": 78,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneGitStatus.js",
-        "line": 139,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneGitStatus.js",
-        "line": 141,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/DroneGitStatus.js",
         "line": 145,
         "severity": "debt"
@@ -9521,29 +9178,8 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneGitStatus.js",
-        "line": 151,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneGitStatus.js",
-        "line": 166,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
         "line": 210,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
-        "line": 226,
         "severity": "debt"
       },
       {
@@ -9564,49 +9200,7 @@
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
-        "line": 252,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
-        "line": 262,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
-        "line": 272,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
-        "line": 361,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/DroneWidget.js",
         "line": 366,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ExpandedDronePortal.js",
-        "line": 134,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ExpandedDronePortal.js",
-        "line": 180,
         "severity": "debt"
       },
       {
@@ -9614,48 +9208,6 @@
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/GitInfo.js",
         "line": 11,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/Globe.js",
-        "line": 531,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/Globe.js",
-        "line": 568,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/Globe.js",
-        "line": 575,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/Globe.js",
-        "line": 582,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/GlobeControlBox.js",
-        "line": 164,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/GlobeMapView.js",
-        "line": 93,
         "severity": "debt"
       },
       {
@@ -9669,35 +9221,7 @@
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/GlobeMapView.js",
-        "line": 223,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/GlobeMapView.js",
         "line": 236,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/GlobeMapView.js",
-        "line": 283,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/InfoHint.js",
-        "line": 50,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/MissionCard.js",
-        "line": 8,
         "severity": "debt"
       },
       {
@@ -9738,118 +9262,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/MissionReadinessCard.js",
-        "line": 223,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/MissionReadinessCard.js",
-        "line": 316,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/MissionReadinessCard.js",
-        "line": 369,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/RuntimeModeBadge.js",
-        "line": 38,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/RuntimeModeBadge.js",
-        "line": 52,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SaveReviewDialog.js",
-        "line": 236,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SidebarMenu.js",
-        "line": 149,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SidebarMenu.js",
-        "line": 178,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SidebarMenu.js",
-        "line": 255,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SidebarMenu.js",
-        "line": 276,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SidebarMenu.js",
-        "line": 307,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SwarmPlots.js",
-        "line": 170,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SwarmPlots.js",
-        "line": 206,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SwarmPlots.js",
-        "line": 242,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SwarmPlots.js",
-        "line": 278,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/SyncWarningBanner.js",
-        "line": 76,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
         "line": 56,
         "severity": "debt"
@@ -9859,13 +9271,6 @@
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
         "line": 94,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
-        "line": 113,
         "severity": "debt"
       },
       {
@@ -9899,125 +9304,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
-        "line": 126,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
-        "line": 130,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
-        "line": 134,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/TacticalDroneCard.js",
-        "line": 138,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ThemeToggle.js",
-        "line": 71,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ThemeToggle.js",
-        "line": 95,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ThemeToggle.js",
-        "line": 112,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ThemeToggle.js",
-        "line": 135,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ThemeToggle.js",
-        "line": 158,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/ThemeToggle.js",
-        "line": 178,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/VisualizationSection.js",
-        "line": 560,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/VisualizationSection.js",
-        "line": 581,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/VisualizationSection.js",
-        "line": 602,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/VisualizationSection.js",
-        "line": 623,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/VisualizationSection.js",
-        "line": 658,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/VisualizationSection.js",
-        "line": 706,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/logs/LogActiveFilters.js",
-        "line": 23,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/logs/LogSessionSelector.js",
         "line": 18,
         "severity": "debt"
@@ -10027,20 +9313,6 @@
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/logs/LogTable.js",
         "line": 55,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/logs/LogViewerToolbar.js",
-        "line": 49,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/logs/LogViewerToolbar.js",
-        "line": 57,
         "severity": "debt"
       },
       {
@@ -10081,20 +9353,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/map/LeafletDrawControl.js",
-        "line": 281,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/map/MapFallbackBanner.js",
-        "line": 38,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/map/MapFallbackBanner.js",
         "line": 42,
         "severity": "debt"
@@ -10102,176 +9360,8 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/sar/MissionActionBar.js",
-        "line": 46,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/sar/MissionActionBar.js",
-        "line": 54,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/sar/MissionActionBar.js",
-        "line": 66,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/sar/MissionRecoveryPanel.js",
         "line": 84,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/sar/SearchAreaDrawer.js",
-        "line": 311,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/SearchBar.js",
-        "line": 296,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/SearchBar.js",
-        "line": 307,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/SwarmTrajectoryTransferDialog.js",
-        "line": 147,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/SwarmTrajectoryWorkspaceSummary.js",
-        "line": 13,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryLibraryDialog.js",
-        "line": 137,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryPolicyNotes.js",
-        "line": 6,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 66,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 78,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 88,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 99,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 109,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 118,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 128,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 138,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 148,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 161,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 173,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 184,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 195,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 220,
         "severity": "debt"
       },
       {
@@ -10286,69 +9376,6 @@
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
         "line": 237,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/TrajectoryToolbar.js",
-        "line": 253,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 483,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 556,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 568,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 657,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 669,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 768,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 784,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointModal.js",
-        "line": 898,
         "severity": "debt"
       },
       {
@@ -10417,160 +9444,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 710,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 733,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 768,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 783,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 796,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 827,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 836,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 858,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 876,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 913,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 925,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 946,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 966,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 1015,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 1033,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 1054,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/components/trajectory/WaypointPanel.js",
-        "line": 1085,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetEnrollmentPage.js",
-        "line": 758,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetEnrollmentPage.js",
-        "line": 803,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetEnrollmentPage.js",
-        "line": 851,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetEnrollmentPage.js",
-        "line": 895,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetEnrollmentPage.js",
-        "line": 910,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/FleetOpsPage.js",
         "line": 40,
         "severity": "debt"
@@ -10587,20 +9460,6 @@
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/FleetOpsPage.js",
         "line": 91,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetOpsPage.js",
-        "line": 216,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/FleetOpsPage.js",
-        "line": 226,
         "severity": "debt"
       },
       {
@@ -10662,48 +9521,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/GlobeView.js",
-        "line": 244,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/MissionConfig.js",
-        "line": 924,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/Overview.js",
-        "line": 544,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/Overview.js",
-        "line": 555,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js",
-        "line": 267,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js",
-        "line": 277,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/Px4ParametersPage.js",
         "line": 1461,
         "severity": "debt"
@@ -10725,62 +9542,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 365,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 375,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 391,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 401,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 416,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 427,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/RuntimeAdminPage.js",
-        "line": 520,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1237,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
         "line": 1258,
         "severity": "debt"
@@ -10797,90 +9558,6 @@
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
         "line": 1264,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1275,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1287,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1361,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1369,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1424,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1499,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1524,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1537,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1641,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1650,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1661,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1702,
         "severity": "debt"
       },
       {
@@ -10922,70 +9599,7 @@
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1764,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1781,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 1876,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 2054,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
         "line": 2066,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 2081,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 2120,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 2131,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 2144,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SitlControlPage.js",
-        "line": 2164,
         "severity": "debt"
       },
       {
@@ -11005,83 +9619,6 @@
       {
         "code": "native-title",
         "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 609,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 835,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1053,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1134,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1137,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1140,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1155,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1179,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1182,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/SwarmTrajectory.js",
-        "line": 1302,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
-        "file": "app/dashboard/drone-dashboard/src/pages/TrajectoryPlanning.js",
-        "line": 501,
-        "severity": "debt"
-      },
-      {
-        "code": "native-title",
-        "detail": "Prefer InfoHint/tooltip primitive for persistent operator help; native title is acceptable only for simple labels.",
         "file": "app/dashboard/drone-dashboard/src/pages/TrajectoryPlanning.js",
         "line": 1602,
         "severity": "debt"
@@ -11094,6 +9631,6 @@
     "hardcoded-color": 1246,
     "hardcoded-z-index": 50,
     "mixed-icon-stack": 1,
-    "native-title": 280
+    "native-title": 71
   }
 }

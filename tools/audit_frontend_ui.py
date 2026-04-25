@@ -30,7 +30,7 @@ TOKEN_FILES = {
 
 COLOR_LITERAL_RE = re.compile(r"(#[0-9a-fA-F]{3,8}\b|rgba?\([^)]+\))")
 Z_INDEX_LITERAL_RE = re.compile(r"z-index\s*:\s*(?!var\()[0-9]+", re.IGNORECASE)
-TITLE_ATTR_RE = re.compile(r"\btitle\s*=")
+NATIVE_TITLE_ATTR_RE = re.compile(r"<[a-z][^>\n]*\btitle\s*=")
 ROUTE_RE = re.compile(r"<Route\s+path=\"([^\"]+)\"")
 DOC_ENTRY_RE = re.compile(
     r"path:\s*'(?P<path>[^']+)'.*?label:\s*'(?P<label>[^']+)'.*?docPath:\s*'(?P<docPath>[^']+)'",
@@ -115,8 +115,10 @@ def audit_title_attributes() -> list[Finding]:
     for path in iter_source_files():
         if path.suffix not in {".js", ".jsx", ".tsx", ".ts"}:
             continue
+        if path.name.endswith(".test.js") or path.name.endswith(".test.jsx"):
+            continue
         text = read_text(path)
-        for match in TITLE_ATTR_RE.finditer(text):
+        for match in NATIVE_TITLE_ATTR_RE.finditer(text):
             findings.append(
                 Finding(
                     code="native-title",
