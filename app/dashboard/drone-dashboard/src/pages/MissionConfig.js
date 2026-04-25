@@ -12,10 +12,9 @@ import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
-import ClusterScopeBar from '../components/ClusterScopeBar';
-import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import MissionConfigAlertStack from '../components/missionConfig/MissionConfigAlertStack';
 import PendingEnrollmentPanel from '../components/missionConfig/PendingEnrollmentPanel';
+import MissionConfigToolbar from '../components/missionConfig/MissionConfigToolbar';
 
 // Hooks
 import useFetch from '../hooks/useFetch';
@@ -60,7 +59,6 @@ import {
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
-import { CircularProgress } from '@mui/material';
 import { FaClipboardList } from 'react-icons/fa';
 import {
   PageShell,
@@ -71,8 +69,6 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faExchangeAlt,
-  faPlus,
-  faSave,
 } from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
@@ -901,99 +897,24 @@ const MissionConfig = () => {
       )}
     >
 
-      <section className="mission-config-workspace-shell" aria-label="Assignment workspace">
-        <div className="mission-config-primary-bar">
-          <div className="mission-config-primary-bar__copy">
-            <span className="mission-config-primary-bar__kicker">Assignment wall</span>
-            <strong>{missionWorkspaceHeadline}</strong>
-          </div>
-          <div className="mission-config-primary-bar__actions">
-            <button
-              type="button"
-              className="mission-config-primary-button mission-config-primary-button--save"
-              onClick={handleSaveChangesToServerWrapper}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <CircularProgress size={18} color="inherit" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <FontAwesomeIcon icon={faSave} />
-                  Save & Commit
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              className="mission-config-primary-button mission-config-primary-button--add"
-              onClick={addNewDrone}
-            >
-              <FontAwesomeIcon icon={faPlus} />
-              Add Drone
-            </button>
-          </div>
-        </div>
-
-        <IdentityDoctrineStrip surface="mission-config" />
-
-        <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
-          <div className="mission-config-ops-toolbar__main">
-            <label className="mission-config-search">
-              <span>Search</span>
-              <input
-                type="search"
-                value={missionConfigSearch}
-                onChange={(event) => setMissionConfigSearch(event.target.value)}
-                placeholder={DRONE_SEARCH_PLACEHOLDER}
-                aria-label="Search assignments by position, hardware ID, or callsign"
-              />
-            </label>
-            <div className="mission-config-ops-toolbar__summary">
-              <p className="mission-config-ops-note">{missionSearchSummary}</p>
-              <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
-                {missionWorkspaceStats.map((stat) => (
-                  <button
-                    key={stat.label}
-                    type="button"
-                    className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
-                    onClick={stat.label === 'Origin' ? reviewOriginWorkflow : undefined}
-                    disabled={stat.label !== 'Origin'}
-                  >
-                    <span className="mission-config-ops-stat__label">{stat.label}</span>
-                    <strong className="mission-config-ops-stat__value">{stat.value}</strong>
-                    {stat.actionLabel ? (
-                      <span className="mission-config-ops-stat__action">{stat.actionLabel}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mission-config-filter-rails">
-            {assignmentFilterOptions.length > 1 && (
-              <ClusterScopeBar
-                label="Issue focus"
-                options={assignmentFilterOptions}
-                selectedId={assignmentFilter}
-                onSelect={setAssignmentFilter}
-              />
-            )}
-
-            {clusterScopeOptions.length > 1 && (
-              <ClusterScopeBar
-                label="Cluster scope"
-                options={clusterScopeOptions}
-                selectedId={clusterScope}
-                onSelect={setClusterScope}
-              />
-            )}
-          </div>
-        </section>
-      </section>
+      <MissionConfigToolbar
+        headline={missionWorkspaceHeadline}
+        loading={loading}
+        onSave={handleSaveChangesToServerWrapper}
+        onAddDrone={addNewDrone}
+        searchValue={missionConfigSearch}
+        onSearchChange={setMissionConfigSearch}
+        searchPlaceholder={DRONE_SEARCH_PLACEHOLDER}
+        searchSummary={missionSearchSummary}
+        stats={missionWorkspaceStats}
+        onReviewOrigin={reviewOriginWorkflow}
+        assignmentFilterOptions={assignmentFilterOptions}
+        assignmentFilter={assignmentFilter}
+        onAssignmentFilterChange={setAssignmentFilter}
+        clusterScopeOptions={clusterScopeOptions}
+        clusterScope={clusterScope}
+        onClusterScopeChange={setClusterScope}
+      />
 
       <MissionConfigAlertStack
         pendingEnrollmentDrones={pendingEnrollmentDrones}
