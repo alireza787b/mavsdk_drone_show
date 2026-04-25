@@ -850,8 +850,12 @@ handle_env_file() {
         fi
 
         if grep -q "^# ${key}=" "$ENV_FILE_PATH" 2>/dev/null; then
-            sed -i "s|^# ${key}=.*|# ${key}=${value}|" "$ENV_FILE_PATH"
-            env_changed=true
+            local current_comment=""
+            current_comment="$(grep -m1 "^# ${key}=" "$ENV_FILE_PATH" 2>/dev/null | cut -d= -f2- || true)"
+            if [[ "$current_comment" != "$value" ]]; then
+                sed -i "s|^# ${key}=.*|# ${key}=${value}|" "$ENV_FILE_PATH"
+                env_changed=true
+            fi
         fi
     }
 
