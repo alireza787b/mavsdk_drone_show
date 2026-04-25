@@ -202,7 +202,12 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
   }, [onSelectDrone, selectedDroneId]);
 
   return (
-    <div className="globe-map-container" onPointerDown={handleMapBackgroundPointerDown}>
+    <div
+      className="globe-map-container"
+      onPointerDown={handleMapBackgroundPointerDown}
+      onPointerDownCapture={handleMapBackgroundPointerDown}
+      onTouchStartCapture={handleMapBackgroundPointerDown}
+    >
       {useLeaflet && <MapFallbackBanner />}
       <div className="globe-map-ops-bar">
         <div className="globe-map-ops-bar__badge" title="Live telemetry map">

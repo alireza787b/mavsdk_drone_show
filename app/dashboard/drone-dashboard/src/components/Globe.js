@@ -471,6 +471,8 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       id="scene-container"
       className="scene-container"
       onPointerDown={handleSceneBackgroundPointerDown}
+      onPointerDownCapture={handleSceneBackgroundPointerDown}
+      onTouchStartCapture={handleSceneBackgroundPointerDown}
     >
       <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
         <ambientLight intensity={0.3} />
