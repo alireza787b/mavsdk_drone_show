@@ -289,7 +289,7 @@
 }
 
 /* Header Section */
-.header {
+.swarm-trajectory__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -368,15 +368,12 @@
   font-weight: var(--font-weight-normal);
 }
 
-.mode-badge {
-  background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-  color: var(--color-text-primary);
-  padding: var(--spacing-xs) var(--spacing-base);
-  border-radius: var(--border-radius-full);
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
-  letter-spacing: 0.5px;
-  box-shadow: var(--shadow-base);
+.swarm-trajectory__header-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .workflow-guide--compact {
@@ -719,71 +716,13 @@
   text-decoration: underline;
 }
 
-.swarm-status-banner {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--spacing-base);
+.swarm-trajectory__notice {
   margin-top: var(--spacing-base);
-  padding: var(--spacing-base);
-  border-radius: var(--border-radius-base);
-  border: 1px solid;
-  align-items: flex-start;
-}
-
-.swarm-status-banner > div {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.swarm-status-banner strong,
-.swarm-status-banner span {
-  color: inherit;
-}
-
-.swarm-status-banner span {
-  line-height: var(--line-height-normal);
-}
-
-.swarm-status-banner--error {
-  background: var(--color-danger-light);
-  border-color: var(--color-danger-border);
-  color: var(--color-danger);
-}
-
-.swarm-status-banner--success {
-  background: var(--color-success-light);
-  border-color: var(--color-success-border);
-  color: var(--color-success-dark);
-}
-
-.swarm-status-banner--warning {
-  background: var(--color-warning-light);
-  border-color: var(--color-warning-border);
-  color: var(--color-warning-dark);
-}
-
-.swarm-status-banner--info,
-.swarm-status-banner--neutral {
-  background: var(--color-info-light);
-  border-color: var(--color-info-border);
-  color: var(--color-info-dark);
 }
 
 .swarm-status-banner__details {
   margin: 0;
   padding-left: var(--spacing-lg);
-}
-
-.swarm-status-banner__dismiss {
-  border: 1px solid currentColor;
-  background: transparent;
-  color: inherit;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  cursor: pointer;
-  font-family: var(--font-family-primary);
-  font-size: var(--font-size-sm);
 }
 
 .status-insights {
@@ -830,33 +769,8 @@
   border-color: var(--color-info-border);
 }
 
-.status-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-base);
-  align-items: center;
-}
-
-.metric {
-  text-align: center;
-  padding: var(--spacing-base);
-  background: var(--color-bg-tertiary);
-  border-radius: var(--border-radius-base);
-  border: 1px solid var(--color-border-primary);
-}
-
-.metric-value {
-  display: block;
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-primary);
-  margin-bottom: var(--spacing-xs);
-}
-
-.metric-label {
-  font-size: var(--font-size-base);
-  color: var(--color-text-secondary);
-  font-weight: var(--font-weight-medium);
+.swarm-trajectory__metric-strip {
+  margin-top: var(--spacing-base);
 }
 
 /* Workflow Steps */
@@ -2099,11 +2013,15 @@
     padding: var(--spacing-base);
   }
 
-  .header {
+  .swarm-trajectory__header {
     flex-direction: column;
     gap: var(--spacing-base);
     align-items: stretch;
     text-align: left;
+  }
+
+  .swarm-trajectory__header-tools {
+    justify-content: flex-start;
   }
 
   .status-card {
@@ -2121,19 +2039,6 @@
     font-size: var(--font-size-sm);
   }
 
-  .status-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--spacing-sm);
-  }
-
-  .swarm-status-banner {
-    flex-direction: column;
-  }
-
-  .swarm-status-banner__dismiss {
-    align-self: flex-start;
-  }
-
   .swarm-workspace-status {
     flex-direction: column;
   }
@@ -2146,14 +2051,6 @@
   .status-insights,
   .process-summary {
     grid-template-columns: 1fr;
-  }
-
-  .metric {
-    padding: var(--spacing-sm);
-  }
-
-  .metric-value {
-    font-size: var(--font-size-xl);
   }
 
   .leaders-grid {
