@@ -14,6 +14,7 @@ import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
+import PendingEnrollmentPanel from '../components/missionConfig/PendingEnrollmentPanel';
 
 // Hooks
 import useFetch from '../hooks/useFetch';
@@ -1087,73 +1088,12 @@ const MissionConfig = () => {
         </div>
       )}
 
-      {pendingEnrollmentDrones.length > 0 && (
-        <section
-          ref={pendingEnrollmentPanelRef}
-          className="mission-config-pending-panel"
-          aria-label="Detected nodes pending enrollment"
-        >
-          <div className="mission-config-pending-panel__header">
-            <div>
-              <h3>Detected, not enrolled</h3>
-              <p>
-                These nodes are reaching GCS by heartbeat only. They are available for replacement
-                workflows, but they are not written into fleet config automatically.
-              </p>
-            </div>
-            <div className="mission-config-pending-panel__header-actions">
-              <span className="mission-config-pending-panel__count">
-                {pendingEnrollmentDrones.length} candidate{pendingEnrollmentDrones.length === 1 ? '' : 's'}
-              </span>
-              <button
-                type="button"
-                className="mission-config-primary-button mission-config-primary-button--add"
-                onClick={() => openFleetEnrollment()}
-              >
-                Review enrollment queue
-              </button>
-            </div>
-          </div>
-          <div className="mission-config-pending-grid">
-            {pendingEnrollmentDrones.map((candidate) => (
-              <article key={candidate.hw_id} className="mission-config-pending-card">
-                <div className="mission-config-pending-card__identity">
-                  <strong>{formatDroneLabel(candidate.hw_id)}</strong>
-                  <span>
-                    {candidate.pos_id
-                      ? `${formatShowSlotLabel(candidate.pos_id)} reported`
-                      : candidate.detected_pos_id
-                        ? `${formatShowSlotLabel(candidate.detected_pos_id)} detected`
-                        : 'No slot hint reported'}
-                  </span>
-                </div>
-                <div className="mission-config-pending-card__meta">
-                  <span>{candidate.ip ? `IP ${candidate.ip}` : 'IP pending'}</span>
-                  <span>{candidate.mavlink_port ? `Port ${candidate.mavlink_port}` : 'Port pending'}</span>
-                  <span className={`mission-config-pending-status mission-config-pending-status--${candidate.heartbeatTone}`}>
-                    {candidate.heartbeatStatus}
-                    {candidate.heartbeatAgeSec !== null ? ` · ${candidate.heartbeatAgeSec}s` : ''}
-                  </span>
-                </div>
-                <p className="mission-config-pending-card__note">
-                  {candidate.registration_state === 'conflict'
-                    ? `Conflict: ${candidate.conflict_reasons.join(', ')}. Review before changing fleet config.`
-                    : 'Use “Replace drone” on a failed slot to map this standby node into service, or review it explicitly before adding a new fleet entry.'}
-                </p>
-                <div className="mission-config-pending-card__actions">
-                  <button
-                    type="button"
-                    className="mission-config-primary-button mission-config-primary-button--add"
-                    onClick={() => openFleetEnrollment({ candidateId: candidate.candidate_id })}
-                  >
-                    Review candidate
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+      <PendingEnrollmentPanel
+        candidates={pendingEnrollmentDrones}
+        panelRef={pendingEnrollmentPanelRef}
+        onOpenQueue={() => openFleetEnrollment()}
+        onReviewCandidate={(candidateId) => openFleetEnrollment({ candidateId })}
+      />
 
       {/* Origin Modal */}
       {showOriginModal && (
