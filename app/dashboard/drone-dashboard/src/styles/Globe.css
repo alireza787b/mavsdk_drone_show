@@ -118,13 +118,13 @@
 .globe-drone-screen-hit::after {
     background: var(--mds-globe-marker-color, var(--color-primary));
     border-radius: 999px;
-    bottom: 7px;
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, transparent);
     content: '';
     height: 5px;
     left: 50%;
     position: absolute;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     width: 5px;
 }
 
