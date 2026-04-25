@@ -60,6 +60,16 @@
     box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 70%, transparent);
 }
 
+.globe-selected-card-popover.is-left::before {
+    left: auto;
+    right: -16px;
+}
+
+.globe-selected-card-popover.is-above::before {
+    bottom: 24px;
+    top: auto;
+}
+
 .globe-selected-card-popover.is-offscreen {
     right: 16px;
     left: auto !important;

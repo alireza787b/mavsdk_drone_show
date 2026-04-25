@@ -16,6 +16,9 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const SELECTED_CARD_WIDTH_PX = 340;
+const SELECTED_CARD_HEIGHT_PX = 330;
+const SELECTED_CARD_GAP_PX = 18;
 
 const resolveMarkerColor = (candidate) => {
   const normalized = String(candidate || '').trim();
@@ -43,6 +46,8 @@ const SelectedDroneScreenAnchor = ({ drone, onScreenPosition }) => {
     const next = {
       x: (projected.x * 0.5 + 0.5) * size.width,
       y: (-projected.y * 0.5 + 0.5) * size.height,
+      width: size.width,
+      height: size.height,
       visible,
     };
     const previous = lastPositionRef.current;
@@ -65,6 +70,30 @@ SelectedDroneScreenAnchor.propTypes = {
     position: PropTypes.arrayOf(PropTypes.number),
   }),
   onScreenPosition: PropTypes.func.isRequired,
+};
+
+const resolveSelectedCardPlacement = (screenPosition) => {
+  const x = screenPosition?.x ?? 24;
+  const y = screenPosition?.y ?? 24;
+  const width = screenPosition?.width ?? 0;
+  const height = screenPosition?.height ?? 0;
+  const placeLeft = width > 0 && x > width - SELECTED_CARD_WIDTH_PX - 48;
+  const placeAbove = height > 0 && y > height * 0.58;
+  const rawLeft = Math.round(
+    placeLeft ? x - SELECTED_CARD_WIDTH_PX - SELECTED_CARD_GAP_PX : x + SELECTED_CARD_GAP_PX
+  );
+  const rawTop = Math.round(
+    placeAbove ? y - SELECTED_CARD_HEIGHT_PX - SELECTED_CARD_GAP_PX : y - 16
+  );
+
+  return {
+    placeLeft,
+    placeAbove,
+    style: {
+      left: `min(max(${rawLeft}px, 12px), calc(100% - ${SELECTED_CARD_WIDTH_PX}px))`,
+      top: `min(max(${rawTop}px, 12px), calc(100% - ${SELECTED_CARD_HEIGHT_PX}px))`,
+    },
+  };
 };
 const Drone = ({
   position,
@@ -316,6 +345,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const selectedDrone = convertedDrones.find(
     (drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')
   ) || null;
+  const selectedCardPlacement = resolveSelectedCardPlacement(selectedScreenPosition);
 
   const toggleDroneVisibility = (droneId) => {
     setDroneVisibility(prevState => ({
@@ -354,11 +384,13 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       </Canvas>
       {selectedDrone && (
         <div
-          className={`globe-selected-card-popover ${selectedScreenPosition?.visible === false ? 'is-offscreen' : ''}`}
-          style={{
-            left: `min(max(${Math.round((selectedScreenPosition?.x ?? 24) + 24)}px, 12px), calc(100% - 340px))`,
-            top: `min(max(${Math.round((selectedScreenPosition?.y ?? 24) - 16)}px, 12px), calc(100% - 330px))`,
-          }}
+          className={[
+            'globe-selected-card-popover',
+            selectedScreenPosition?.visible === false ? 'is-offscreen' : '',
+            selectedCardPlacement.placeLeft ? 'is-left' : '',
+            selectedCardPlacement.placeAbove ? 'is-above' : '',
+          ].filter(Boolean).join(' ')}
+          style={selectedCardPlacement.style}
         >
           <TacticalDroneCard
             drone={{
