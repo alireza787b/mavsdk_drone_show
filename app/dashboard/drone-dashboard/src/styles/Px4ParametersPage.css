@@ -97,6 +97,23 @@
   color: var(--color-text-primary);
 }
 
+.px4-metadata-details {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.px4-metadata-details summary {
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.px4-metadata-details span {
+  display: block;
+  margin-top: var(--spacing-xs);
+}
+
 .px4-inline-notice__spinner {
   width: 12px;
   height: 12px;

@@ -264,7 +264,6 @@ const CompactParameterRow = ({
           {row.reboot_required ? (
             <span
               className="px4-compact-signal px4-compact-signal--warning"
-              title="Restart required"
               role="img"
               aria-label="Restart required"
             >
@@ -274,7 +273,6 @@ const CompactParameterRow = ({
           {row.docs_url ? (
             <span
               className="px4-compact-signal"
-              title="PX4 Docs available"
               role="img"
               aria-label="PX4 Docs available"
             >
@@ -831,6 +829,9 @@ const Px4ParametersPage = () => {
     ? String(snapshotResponse.snapshot.metadata_quality).replace(/_/g, ' ')
     : 'unknown';
   const metadataWarning = snapshotResponse?.snapshot?.metadata_warning || '';
+  const metadataWarningSummary = metadataWarning
+    ? 'Live values are available; labels, defaults, ranges, or docs may be incomplete.'
+    : '';
   const modifiedRowCount = useMemo(
     () => (snapshotResponse?.rows || []).filter((row) => row.default_value !== null
       && row.default_value !== undefined
@@ -1458,7 +1459,9 @@ const Px4ParametersPage = () => {
               </div>
               <div>
                 <span>Metadata</span>
-                <strong title={metadataWarning || 'PX4 metadata source quality'}>{metadataQualityLabel}</strong>
+                <strong aria-label={metadataWarning || 'PX4 metadata source quality'}>
+                  {metadataQualityLabel}
+                </strong>
               </div>
               <div>
                 <span>Default delta</span>
@@ -1497,7 +1500,11 @@ const Px4ParametersPage = () => {
             {metadataWarning ? (
               <div className="px4-inline-notice px4-inline-notice--warning">
                 <strong>PX4 metadata limited</strong>
-                <span>{metadataWarning}</span>
+                <span>{metadataWarningSummary}</span>
+                <details className="px4-metadata-details">
+                  <summary>Why?</summary>
+                  <span>{metadataWarning}</span>
+                </details>
               </div>
             ) : null}
             {rebootBlockedReason && !rebootingPx4 ? (
@@ -1928,7 +1935,9 @@ const Px4ParametersPage = () => {
                 </div>
                 <div>
                   <span>Metadata</span>
-                  <strong title={metadataWarning || 'PX4 metadata source quality'}>{metadataQualityLabel}</strong>
+                  <strong aria-label={metadataWarning || 'PX4 metadata source quality'}>
+                    {metadataQualityLabel}
+                  </strong>
                 </div>
               </div>
               <div className="px4-param-inspector__actions">
