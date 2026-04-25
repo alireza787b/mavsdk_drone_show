@@ -295,7 +295,7 @@ sudo ufw status verbose
 sudo ./tools/mds_node_init.sh --resume
 
 # Or manually open ports
-sudo ufw allow 5000/tcp    # Flask backend
+sudo ufw allow 5030/tcp    # GCS API backend
 sudo ufw allow 14540/udp   # MAVLink
 sudo ufw allow 14550/udp   # MAVLink
 ```

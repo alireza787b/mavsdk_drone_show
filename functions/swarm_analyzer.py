@@ -34,7 +34,7 @@ def _validate_follow_chains(swarm_df):
 
 def get_backend_url():
     """Get backend URL, defaulting to localhost"""
-    return os.getenv('BACKEND_URL', 'http://localhost:5000')
+    return os.getenv('BACKEND_URL', 'http://localhost:5030')
 
 def fetch_swarm_data():
     """Load swarm data locally, falling back to the backend API if needed."""

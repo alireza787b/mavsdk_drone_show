@@ -34,7 +34,7 @@ DESCRIPTION:
 
 OPTIONS:
     --gcs-api-url URL       Explicit GCS API base URL
-                            Example: http://100.96.32.75:5000
+                            Example: http://100.96.32.75:5030
     --identity-file PATH    Override node identity file
                             Default: /etc/mds/node_identity.json
     --local-env PATH        Override local.env path for URL discovery
@@ -49,10 +49,10 @@ URL RESOLUTION ORDER:
     1. --gcs-api-url
     2. MDS_GCS_API_BASE_URL environment variable
     3. MDS_GCS_API_BASE_URL from local.env
-    4. MDS_GCS_IP / GCS_IP with default port 5000
+    4. MDS_GCS_IP / GCS_IP with default port ${MDS_DEFAULT_GCS_API_PORT:-5030}
 
 EXAMPLES:
-    sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5000
+    sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
     sudo ./tools/mds_node_announce.sh --dry-run --report-json -
     sudo ./tools/mds_node_announce.sh --local-env /etc/mds/local.env
 EOF

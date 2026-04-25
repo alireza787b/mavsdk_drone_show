@@ -128,7 +128,7 @@ describe('RuntimeAdminPage', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: /runtime admin/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /gcs runtime/i })).toBeInTheDocument();
     expect(screen.getByText(/config real/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-gcs')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /host capabilities/i })).toBeInTheDocument();
@@ -140,7 +140,7 @@ describe('RuntimeAdminPage', () => {
     expect(screen.queryByText('/root/.mds_git_read_token')).not.toBeInTheDocument();
     expect(screen.queryByText('/opt/demo-mavlink')).not.toBeInTheDocument();
     expect(screen.queryByText('/tmp/demo-profile.json')).not.toBeInTheDocument();
-    expect(screen.getByText(/use fleet ops for per-node mavlink, smart wi-fi, git auth, and profile compliance/i)).toBeInTheDocument();
+    expect(screen.getByText(/use fleet ops for drone mavlink, smart wi-fi, git auth, profile drift, and sync actions/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /run controlled gcs update/i })).toBeEnabled();
     expect(screen.getByRole('link', { name: /bootstrap guide/i })).toHaveAttribute(
       'href',

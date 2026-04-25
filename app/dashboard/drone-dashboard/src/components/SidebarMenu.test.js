@@ -53,7 +53,7 @@ describe('SidebarMenu', () => {
     expect(screen.queryByText('Restart pending')).not.toBeInTheDocument();
     expect(screen.getByText('Apply')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
-    expect(screen.getByRole('link', { name: /open runtime admin to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
+    expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 
   it('keeps the runtime badge visible in collapsed mode', () => {
@@ -75,6 +75,6 @@ describe('SidebarMenu', () => {
     );
 
     expect(screen.getByLabelText(/real runtime, configured sitl, restart required/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /open runtime admin to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
+    expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 });

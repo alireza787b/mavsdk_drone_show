@@ -8,6 +8,7 @@ Reference: docs/guides/logging-system.md
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Optional
 
 import httpx
@@ -26,8 +27,15 @@ from src.drone_api_routes import (
 
 logger = get_logger("log_proxy")
 
-# Drone API port (same as Params.drone_api_port but avoids circular import)
-_DRONE_API_PORT = 7070
+def _drone_api_port() -> int:
+    raw_value = os.getenv("MDS_DRONE_API_PORT", os.getenv("MDS_DEFAULT_DRONE_API_PORT", "7070"))
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError):
+        logger.warning("Invalid MDS_DRONE_API_PORT=%r; using 7070", raw_value)
+        return 7070
+
+
 _TIMEOUT = 5.0  # seconds
 _ULOG_TIMEOUT = 30.0  # seconds
 
@@ -63,7 +71,7 @@ def resolve_drone_ip(drone_id: int) -> Optional[str]:
 
 
 def _build_drone_url(drone_ip: str, path: str) -> str:
-    return f"http://{drone_ip}:{_DRONE_API_PORT}{path}"
+    return f"http://{drone_ip}:{_drone_api_port()}{path}"
 
 
 def _extract_error_detail(response: httpx.Response) -> str:
@@ -108,7 +116,7 @@ async def fetch_drone_sessions(drone_ip: str) -> Optional[dict]:
     """Fetch session list from a drone. Returns None if unreachable."""
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            resp = await client.get(f"http://{drone_ip}:{_DRONE_API_PORT}/api/logs/sessions")
+            resp = await client.get(_build_drone_url(drone_ip, "/api/logs/sessions"))
             resp.raise_for_status()
             return resp.json()
     except Exception as e:
@@ -140,7 +148,7 @@ async def fetch_drone_session_content(
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.get(
-                f"http://{drone_ip}:{_DRONE_API_PORT}/api/logs/sessions/{session_id}",
+                _build_drone_url(drone_ip, f"/api/logs/sessions/{session_id}"),
                 params=params,
             )
             resp.raise_for_status()
@@ -241,7 +249,7 @@ def stream_drone_logs(
         with httpx.Client(timeout=None) as client:
             with client.stream(
                 "GET",
-                f"http://{drone_ip}:{_DRONE_API_PORT}/api/logs/stream",
+                _build_drone_url(drone_ip, "/api/logs/stream"),
                 params=params,
             ) as resp:
                 resp.raise_for_status()

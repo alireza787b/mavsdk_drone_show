@@ -205,7 +205,7 @@ def test_identity_setup_local_env_persists_node_git_auth_file_paths():
         MDS_LOCAL_ENV="$MDS_CONFIG_DIR/local.env"
         GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
         GIT_SSH_KEY_FILE="/home/droneshow/.ssh/customer_read_key"
-        setup_local_env 2 "100.82.207.49" "https://github.com/Catch-A-Drone/mavsdk_drone_show.git" "main-candidate" "http://100.82.207.49:5000"
+        setup_local_env 2 "100.82.207.49" "https://github.com/Catch-A-Drone/mavsdk_drone_show.git" "main-candidate" "http://100.82.207.49:5030"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/customer_read_key$' "$MDS_LOCAL_ENV"
         """
@@ -1636,7 +1636,7 @@ def test_setup_local_env_writes_clean_override_lines():
         log_success() {{ :; }}
         is_dry_run() {{ return 1; }}
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
-        setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5000
+        setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5030
         grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_CONNECTIVITY_BACKEND=none$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_MANAGEMENT_MODE=managed$' "$MDS_LOCAL_ENV"
@@ -1644,7 +1644,7 @@ def test_setup_local_env_writes_clean_override_lines():
         grep -q '^MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=127.0.0.1:9070$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GCS_IP=100.64.20.10$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5000$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5030$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"

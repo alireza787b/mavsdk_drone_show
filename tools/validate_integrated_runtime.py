@@ -276,7 +276,7 @@ def wait_followers_remain_in_swarm(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate integrated mixed-mode runtime behavior against a live GCS/SITL stack.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT, help="Runtime repo root used for short-profile trajectory staging")
     parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to validate")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to validate")

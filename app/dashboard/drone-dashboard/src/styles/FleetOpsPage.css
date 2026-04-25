@@ -109,6 +109,16 @@
   color: var(--color-text-secondary);
 }
 
+.fleet-ops-pill--link {
+  gap: 0.35rem;
+  text-decoration: none;
+}
+
+.fleet-ops-pill--link:hover {
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+}
+
 .fleet-ops-banner,
 .fleet-ops-empty {
   display: flex;
@@ -124,6 +134,18 @@
 .fleet-ops-banner--warning {
   border-color: rgba(180, 125, 24, 0.35);
   background: rgba(180, 125, 24, 0.08);
+  color: var(--color-text-primary);
+}
+
+.fleet-ops-banner--success {
+  border-color: rgba(63, 134, 61, 0.35);
+  background: rgba(63, 134, 61, 0.08);
+  color: var(--color-text-primary);
+}
+
+.fleet-ops-banner--danger {
+  border-color: rgba(164, 48, 70, 0.35);
+  background: rgba(164, 48, 70, 0.08);
   color: var(--color-text-primary);
 }
 
@@ -178,6 +200,85 @@
   border: 1px solid var(--color-border-secondary);
   border-radius: var(--border-radius-xl);
   background: var(--color-surface-raised);
+}
+
+.fleet-ops-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-xl);
+  background: var(--color-surface-raised);
+}
+
+.fleet-ops-actions__summary,
+.fleet-ops-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.fleet-ops-actions__summary {
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fleet-ops-actions__profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 999px;
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+}
+
+.fleet-ops-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.fleet-ops-actions__buttons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.fleet-ops-actions__buttons button.is-primary {
+  border-color: rgba(var(--color-primary-rgb), 0.35);
+  background: rgba(var(--color-primary-rgb), 0.12);
+  color: var(--color-primary);
+}
+
+.fleet-ops-actions__buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .fleet-ops-toolbar label {
@@ -253,10 +354,39 @@
   border-color: rgba(180, 125, 24, 0.38);
 }
 
+.fleet-ops-node-card.is-selected {
+  border-color: rgba(var(--color-primary-rgb), 0.5);
+  box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.18), var(--shadow-md);
+}
+
 .fleet-ops-node-card__header {
   display: flex;
   justify-content: space-between;
   gap: 0.8rem;
+}
+
+.fleet-ops-node-card__identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.fleet-ops-node-card__selector {
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-secondary);
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fleet-ops-node-card__selector[aria-pressed="true"] {
+  border-color: rgba(var(--color-primary-rgb), 0.5);
+  background: rgba(var(--color-primary-rgb), 0.14);
+  color: var(--color-primary);
 }
 
 .fleet-ops-node-card h2 {
@@ -386,12 +516,22 @@
     flex-direction: column;
   }
 
-  .fleet-ops-toolbar {
+  .fleet-ops-toolbar,
+  .fleet-ops-actions {
     grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .fleet-ops-tabs {
     justify-content: flex-start;
+  }
+
+  .fleet-ops-actions {
+    flex-direction: column;
+  }
+
+  .fleet-ops-actions__buttons button {
+    flex: 1;
   }
 }
 

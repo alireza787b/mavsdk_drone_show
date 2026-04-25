@@ -76,7 +76,7 @@ def test_fetch_swarm_data_falls_back_to_canonical_swarm_config_api():
             result = fetch_swarm_data()
 
     assert result == api_swarm
-    mock_get.assert_called_once_with('http://localhost:5000/api/v1/config/swarm', timeout=10)
+    mock_get.assert_called_once_with('http://localhost:5030/api/v1/config/swarm', timeout=10)
 
 
 def test_clear_individual_drone_rejects_cluster_leader():

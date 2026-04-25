@@ -45,12 +45,12 @@ set -euo pipefail  # Strict error handling
 # ===========================================
 DEFAULT_MODE="development"
 PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
-PROD_WSGI_BIND="0.0.0.0:5000"
+PROD_WSGI_BIND="0.0.0.0:5030"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 DEV_BACKEND_RELOAD="${MDS_GCS_BACKEND_RELOAD:-false}"
 DEV_REACT_PORT=3030
-DEV_GCS_PORT=5000  # GCS Server port for development
+DEV_GCS_PORT=5030  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
 REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
 NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
@@ -93,6 +93,8 @@ if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
     # shellcheck disable=SC1090
     source "$DEPLOYMENT_PROFILE_LOADER"
     DEV_GCS_PORT="${MDS_DEFAULT_GCS_API_PORT:-$DEV_GCS_PORT}"
+    DEV_REACT_PORT="${MDS_DEFAULT_DASHBOARD_PORT:-$DEV_REACT_PORT}"
+    PROD_WSGI_BIND="0.0.0.0:${DEV_GCS_PORT}"
 fi
 
 # All paths are relative to PROJECT_ROOT (the repository root)
@@ -155,8 +157,17 @@ load_gcs_system_config() {
         # Apply config values (respect CLI overrides)
         [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
         [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
-        [[ -n "${GCS_PORT:-}" ]] && DEV_GCS_PORT="$GCS_PORT"
-        [[ -n "${DASHBOARD_PORT:-}" ]] && DEV_REACT_PORT="$DASHBOARD_PORT"
+        if [[ -n "${MDS_GCS_API_PORT:-}" ]]; then
+            DEV_GCS_PORT="$MDS_GCS_API_PORT"
+        elif [[ -n "${GCS_PORT:-}" ]]; then
+            DEV_GCS_PORT="$GCS_PORT"
+        fi
+        if [[ -n "${MDS_DASHBOARD_PORT:-}" ]]; then
+            DEV_REACT_PORT="$MDS_DASHBOARD_PORT"
+        elif [[ -n "${DASHBOARD_PORT:-}" ]]; then
+            DEV_REACT_PORT="$DASHBOARD_PORT"
+        fi
+        PROD_WSGI_BIND="0.0.0.0:${DEV_GCS_PORT}"
 
         if [[ -n "${GCS_BACKEND:-}" && "${GCS_BACKEND}" != "fastapi" ]]; then
             log_warn "Legacy GCS_BACKEND=${GCS_BACKEND} detected in ${GCS_SYSTEM_CONFIG}. Using fastapi."
@@ -852,9 +863,9 @@ handle_env_file() {
 # Uncomment only if you need to override (e.g., different host):
 # REACT_APP_SERVER_URL=http://192.168.1.100
 
-REACT_APP_GCS_PORT=5000
-REACT_APP_DRONE_PORT=7070
-PORT=3030
+REACT_APP_GCS_PORT=${DEV_GCS_PORT}
+REACT_APP_DRONE_PORT=${MDS_DEFAULT_DRONE_API_PORT:-7070}
+PORT=${DEV_REACT_PORT}
 GENERATE_SOURCEMAP=false
 SKIP_PREFLIGHT_CHECK=true
 EOF
@@ -1056,6 +1067,8 @@ setup_production_environment() {
         # Environment configuration
         export GCS_ENV=production
         export GCS_PORT="$DEV_GCS_PORT"
+        export MDS_GCS_API_PORT="$DEV_GCS_PORT"
+        export MDS_DASHBOARD_PORT="$DEV_REACT_PORT"
         export GCS_BACKEND="$GCS_BACKEND"
 
         # Node/React environment
@@ -1068,6 +1081,8 @@ setup_production_environment() {
         # Environment configuration
         export GCS_ENV=development
         export GCS_PORT="$DEV_GCS_PORT"
+        export MDS_GCS_API_PORT="$DEV_GCS_PORT"
+        export MDS_DASHBOARD_PORT="$DEV_REACT_PORT"
         export GCS_BACKEND="$GCS_BACKEND"
 
         # Node/React environment

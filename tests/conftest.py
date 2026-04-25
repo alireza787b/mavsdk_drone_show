@@ -194,7 +194,7 @@ def mock_params():
     params.acceptable_deviation = 3.0
     params.sim_mode = True
     params.GCS_IP = "172.18.0.1"
-    params.gcs_api_port = 5000
+    params.gcs_api_port = 5030
     params.config_file_name = "config_sitl.json"
     params.swarm_file_name = "swarm_sitl.json"
     # serial_mavlink and sitl_port REMOVED - MAVLink routing is now external

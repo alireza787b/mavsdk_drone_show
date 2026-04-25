@@ -194,7 +194,10 @@ class Params:
 
 
     # API Server Configuration
-    drone_api_port = 7070                   # Port for the drone's API server
+    drone_api_port = _safe_int(
+        os.environ.get('MDS_DRONE_API_PORT', str(_deployment_profile.drone_api_port)),
+        _deployment_profile.drone_api_port,
+    )
     polling_interval = 1                    # Polling interval in seconds (legacy, used by standalone git_status.py)
     telem_poll_interval = 1                 # GCS telemetry polling interval in seconds
     git_poll_interval = 10                  # GCS git status polling interval in seconds

@@ -576,7 +576,7 @@ const handleManualRefresh = () => {
     return;
   }
 
-  const backendURL = getBackendURL(process.env.REACT_APP_FLASK_PORT || '5000');
+  const backendURL = getBackendURL(process.env.REACT_APP_GCS_PORT || '5030');
   axios.get(`${backendURL}/api/v1/origin/deviations`)
     .then((response) => setDeviationData(response.data))
     .catch((error) => {
@@ -1588,7 +1588,7 @@ print(f"10000 conversions: {(end-start)*1000:.2f}ms")
 **P-2: API Response Time**
 ```bash
 # Measure /api/v1/origin/deviations latency
-time curl http://localhost:5000/api/v1/origin/deviations
+time curl http://localhost:5030/api/v1/origin/deviations
 
 # Expected: < 500ms for 10 drones
 ```

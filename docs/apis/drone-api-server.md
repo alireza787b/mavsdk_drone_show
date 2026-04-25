@@ -46,11 +46,13 @@ Use [api-modernization-blueprint.md](./api-modernization-blueprint.md) as the pl
 | Parameter | Value | Description |
 |-----------|-------|-------------|
 | Host | `0.0.0.0` | Listen on all interfaces |
-| Port | `7070` | Configurable via `Params.drone_api_port` |
+| Port | `7070` | Default from `MDS_DEFAULT_DRONE_API_PORT`; override per node with `MDS_DRONE_API_PORT` |
 | Environment | `development` / `production` | Set via `Params.env_mode` |
 | Auto-reload | `False` | Disabled for embedded systems |
 
 ### Accessing the Server
+
+The examples below use the default `7070`; replace it with the configured `MDS_DRONE_API_PORT` when a node overrides the port.
 
 **From same network:**
 ```
@@ -685,7 +687,7 @@ Visit `http://drone-ip:7070/docs` in browser:
 
 ### What Stayed the Same
 
-- ✅ Port number (7070)
+- ✅ Default port number (`7070`, configurable through `MDS_DRONE_API_PORT`)
 - ✅ WebSocket route (`/ws/drone-state`)
 - ✅ CORS configuration
 - ✅ Core request/response payload shapes preserved while routes were canonicalized
@@ -738,7 +740,7 @@ FastAPI can handle 1,000+ concurrent WebSocket connections per drone. For GCS mo
 **Solutions:**
 - Verify server is running: `ps aux | grep drone_api_server`
 - Check firewall: `sudo ufw status`
-- Verify port: `netstat -tulpn | grep 7070`
+- Verify port: `netstat -tulpn | grep "${MDS_DRONE_API_PORT:-7070}"`
 
 #### 2. WebSocket Connection Drops
 

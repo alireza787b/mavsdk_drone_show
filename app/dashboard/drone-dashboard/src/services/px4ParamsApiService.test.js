@@ -8,7 +8,7 @@ jest.mock('./gcsApiService', () => ({
       px4ParamsPatchJobs: '/api/v1/px4-params/patch-jobs',
     };
     const resolved = routeMap[routeOrPath] || routeOrPath;
-    return `http://gcs.test:5000${resolved}`;
+    return `http://gcs.test:5030${resolved}`;
   }),
   GCS_ROUTE_KEYS: {
       px4ParamsBase: 'px4ParamsBase',
@@ -38,7 +38,7 @@ describe('px4ParamsApiService', () => {
   });
 
   it('builds urls from the shared px4 params base route', () => {
-    expect(service.buildPx4ParamsUrl('/snapshots/snap-1')).toBe('http://gcs.test:5000/api/v1/px4-params/snapshots/snap-1');
+    expect(service.buildPx4ParamsUrl('/snapshots/snap-1')).toBe('http://gcs.test:5030/api/v1/px4-params/snapshots/snap-1');
   });
 
   it('loads the px4 params policy from the canonical route', async () => {
@@ -46,7 +46,7 @@ describe('px4ParamsApiService', () => {
 
     await service.getPx4ParamPolicy();
 
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/v1/px4-params/policy');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/v1/px4-params/policy');
   });
 
   it('loads repo-backed profile resources from canonical routes', async () => {
@@ -55,8 +55,8 @@ describe('px4ParamsApiService', () => {
     await service.listPx4ParamProfiles();
     await service.getPx4ParamProfile('fleet/guard');
 
-    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5000/api/v1/px4-params/profiles');
-    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5000/api/v1/px4-params/profiles/fleet%2Fguard');
+    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/profiles');
+    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/profiles/fleet%2Fguard');
   });
 
   it('refreshes snapshots for explicit hw ids', async () => {
@@ -65,7 +65,7 @@ describe('px4ParamsApiService', () => {
     await service.refreshPx4ParamSnapshots({ hwIds: ['1', '3'], componentId: 1 });
 
     expect(axios.post).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/v1/px4-params/snapshots',
+      'http://gcs.test:5030/api/v1/px4-params/snapshots',
       { hw_ids: ['1', '3'], component_id: 1 }
     );
   });
@@ -77,9 +77,9 @@ describe('px4ParamsApiService', () => {
     await service.getPx4ParamSnapshotRows('snap/1');
     await service.getPx4ParamPatchJob('job/1');
 
-    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5000/api/v1/px4-params/snapshots/snap%2F1');
-    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5000/api/v1/px4-params/snapshots/snap%2F1/rows');
-    expect(axios.get).toHaveBeenNthCalledWith(3, 'http://gcs.test:5000/api/v1/px4-params/patch-jobs/job%2F1');
+    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/snapshots/snap%2F1');
+    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/snapshots/snap%2F1/rows');
+    expect(axios.get).toHaveBeenNthCalledWith(3, 'http://gcs.test:5030/api/v1/px4-params/patch-jobs/job%2F1');
   });
 
   it('creates patch jobs with canonical snake_case payloads', async () => {
@@ -100,7 +100,7 @@ describe('px4ParamsApiService', () => {
     });
 
     expect(axios.post).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/v1/px4-params/patch-jobs',
+      'http://gcs.test:5030/api/v1/px4-params/patch-jobs',
       {
         hw_ids: ['7'],
         source: 'manual',
@@ -135,11 +135,11 @@ describe('px4ParamsApiService', () => {
       includeUnchanged: true,
     });
 
-    expect(axios.post).toHaveBeenNthCalledWith(1, 'http://gcs.test:5000/api/v1/px4-params/imports/qgc', { content: '# QGC' });
-    expect(axios.post).toHaveBeenNthCalledWith(2, 'http://gcs.test:5000/api/v1/px4-params/imports/mds', { content: '{"entries":[]}' });
+    expect(axios.post).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/imports/qgc', { content: '# QGC' });
+    expect(axios.post).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/imports/mds', { content: '{"entries":[]}' });
     expect(axios.post).toHaveBeenNthCalledWith(
       3,
-      'http://gcs.test:5000/api/v1/px4-params/diff',
+      'http://gcs.test:5030/api/v1/px4-params/diff',
       {
         snapshot_id: 'snap-1',
         desired_entries: [

@@ -49,7 +49,7 @@ register_component("my_api", "gcs", "REST API endpoints")
 init_server_logging()
 logger = get_logger("my_api")
 
-logger.info("Server started on port 5000")
+logger.info("Server started on port 5030")
 ```
 
 ### Module that doesn't own initialization

@@ -955,7 +955,7 @@ def run_failure_cleanup(args: argparse.Namespace, artifact_dir: Path) -> dict[st
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the reusable multi-mode SITL validation suite.")
     bundled_plan_names = sorted(bundled_plan_catalog())
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument(
         "--repo-root",
         type=Path,

@@ -1,15 +1,23 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import FleetOpsPage from './FleetOpsPage';
 import useFetch from '../hooks/useFetch';
-import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
+import { GCS_ROUTE_KEYS, syncReposResponse } from '../services/gcsApiService';
 
 jest.mock('../hooks/useFetch');
+jest.mock('../services/gcsApiService', () => {
+  const actual = jest.requireActual('../services/gcsApiService');
+  return {
+    ...actual,
+    syncReposResponse: jest.fn(),
+  };
+});
 
 const gitPayload = {
   gcs_status: {
     branch: 'main-candidate',
     commit: 'abcdef1234567890',
+    remote_url: 'git@github.com:demo/customer-mds.git',
   },
   git_status: {
     1: {
@@ -89,9 +97,10 @@ const gitPayload = {
 };
 
 const heartbeatPayload = {
+  timestamp: 1777049000000,
   heartbeats: [
-    { pos_id: 1, hw_id: '1', ip: '100.82.72.33', online: true, runtime_mode: 'real' },
-    { pos_id: 2, hw_id: '2', ip: '100.82.47.7', online: false, runtime_mode: 'real' },
+    { pos_id: 1, hw_id: '1', ip: '100.82.72.33', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 },
+    { pos_id: 2, hw_id: '2', ip: '100.82.47.7', online: false, runtime_mode: 'real', last_heartbeat: 1777048800000 },
   ],
 };
 
@@ -121,12 +130,16 @@ describe('FleetOpsPage', () => {
     render(<FleetOpsPage />);
 
     expect(screen.getByRole('heading', { name: /fleet ops/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /guide/i })).toHaveAttribute(
+      'href',
+      'https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md',
+    );
     expect(screen.getAllByText('1/2').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('1 MAVLink')).toBeInTheDocument();
     expect(screen.getByText(/0 connectivity healthy/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 1/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-    expect(screen.getByText(/node-level sync, access, and sidecar posture/i)).toBeInTheDocument();
+    expect(screen.getByText(/node actions, access posture, and sidecar compliance/i)).toBeInTheDocument();
   });
 
   test('shows access details without exposing secret paths or values', () => {
@@ -148,7 +161,7 @@ describe('FleetOpsPage', () => {
 
     expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
     const attentionCard = screen.getByRole('heading', { name: /hw 2/i }).closest('article');
-    expect(within(attentionCard).getByText('Offline')).toBeInTheDocument();
+    expect(within(attentionCard).getAllByText('Offline').length).toBeGreaterThan(0);
     expect(within(attentionCard).getAllByText('Drift').length).toBeGreaterThan(0);
   });
 
@@ -184,7 +197,7 @@ describe('FleetOpsPage', () => {
       },
     };
     const driftHeartbeatPayload = clonePayload(heartbeatPayload);
-    driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '100.82.47.9', online: true, runtime_mode: 'real' });
+    driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '100.82.47.9', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 });
 
     render(<FleetOpsPage gitStatusOverride={driftGitPayload} heartbeatOverride={driftHeartbeatPayload} />);
 
@@ -201,9 +214,30 @@ describe('FleetOpsPage', () => {
     fireEvent.click(screen.getByRole('tab', { name: /sidecars/i }));
 
     expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only; hash abcdef123456/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/no direct dashboard/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/local-only/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing; hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
+  });
+
+  test('sync action targets selected nodes and reports result', async () => {
+    syncReposResponse.mockResolvedValue({
+      data: {
+        success: true,
+        message: 'Sync verified: 1 of 1 drones now match GCS',
+        synced_drones: [2],
+        failed_drones: [],
+      },
+    });
+
+    render(<FleetOpsPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sync \+ reconcile/i }));
+
+    await waitFor(() => {
+      expect(syncReposResponse).toHaveBeenCalledWith({ pos_ids: [2] });
+    });
+    expect(await screen.findByText(/sync verified: 1 of 1 drones now match gcs/i)).toBeInTheDocument();
   });
 });

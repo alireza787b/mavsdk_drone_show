@@ -61,8 +61,8 @@ const SidebarMenu = ({
   const runningModeLabel = runtimeStatus.modeLabel || 'UNKNOWN';
   const configuredModeLabel = runtimeStatus.configuredModeLabel || runningModeLabel;
   const runtimeAdminTitle = runtimeStatus.restartRequired
-    ? `Running ${runningModeLabel}. Configured ${configuredModeLabel}. Restart pending; open Runtime Admin.`
-    : `Running ${runningModeLabel}. Open Runtime Admin.`;
+    ? `Running ${runningModeLabel}. Configured ${configuredModeLabel}. Restart pending; open GCS Runtime.`
+    : `Running ${runningModeLabel}. Open GCS Runtime.`;
 
   const menuSections = [
     {
@@ -98,7 +98,7 @@ const SidebarMenu = ({
         {
           to: '/runtime-admin',
           icon: FaServer,
-          label: 'Runtime Admin',
+          label: 'GCS Runtime',
           attention: runtimeStatus.restartRequired ? 'Apply' : '',
           attentionTone: runtimeStatus.restartRequired ? 'warning' : 'neutral',
         },
@@ -147,7 +147,7 @@ const SidebarMenu = ({
                     }
                   }}
                   title={runtimeAdminTitle}
-                  aria-label="Open Runtime Admin to review runtime mode"
+                  aria-label="Open GCS Runtime to review runtime mode"
                 >
                   <RuntimeModeBadge
                     mode={runtimeStatus.mode}
@@ -176,7 +176,7 @@ const SidebarMenu = ({
                 }
               }}
               title={runtimeAdminTitle}
-              aria-label="Open Runtime Admin to review runtime mode"
+              aria-label="Open GCS Runtime to review runtime mode"
             >
               <RuntimeModeBadge
                 mode={runtimeStatus.mode}

@@ -25,6 +25,8 @@ class DeploymentProfile:
     real_gcs_ip: str
     sitl_gcs_ip: str
     gcs_api_port: int
+    dashboard_port: int
+    drone_api_port: int
     connectivity_backend: str
     smart_wifi_manager_repo_url_https: str
     smart_wifi_manager_ref: str
@@ -70,6 +72,14 @@ def _parse_env_profile(path: Path) -> dict[str, str]:
     return data
 
 
+def _parse_int(data: dict[str, str], key: str, default: int, path: Path) -> int:
+    try:
+        return int(data.get(key, str(default)))
+    except ValueError:
+        logger.warning("Invalid %s=%r in %s; using %s", key, data.get(key), path, default)
+        return default
+
+
 def _build_profile(path: Path) -> DeploymentProfile:
     data: dict[str, str] = {}
     source = "default"
@@ -87,22 +97,16 @@ def _build_profile(path: Path) -> DeploymentProfile:
     real_gcs_ip = data.get("MDS_DEFAULT_REAL_GCS_IP", "100.96.32.75")
     sitl_gcs_ip = data.get("MDS_DEFAULT_SITL_GCS_IP", "172.18.0.1")
 
-    try:
-        gcs_api_port = int(data.get("MDS_DEFAULT_GCS_API_PORT", "5000"))
-    except ValueError:
-        logger.warning(
-            "Invalid MDS_DEFAULT_GCS_API_PORT=%r in %s; using 5000",
-            data.get("MDS_DEFAULT_GCS_API_PORT"),
-            path,
-        )
-        gcs_api_port = 5000
+    gcs_api_port = _parse_int(data, "MDS_DEFAULT_GCS_API_PORT", 5030, path)
+    dashboard_port = _parse_int(data, "MDS_DEFAULT_DASHBOARD_PORT", 3030, path)
+    drone_api_port = _parse_int(data, "MDS_DEFAULT_DRONE_API_PORT", 7070, path)
 
     connectivity_backend = data.get("MDS_DEFAULT_CONNECTIVITY_BACKEND", "none")
     smart_wifi_manager_repo_url_https = data.get(
         "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS",
         "https://github.com/alireza787b/smart-wifi-manager.git",
     )
-    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "main")
+    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.0")
     smart_wifi_manager_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "observe")
     smart_wifi_manager_import_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE", "replace")
     smart_wifi_manager_install_dir = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR", "/opt/smart-wifi-manager")
@@ -135,6 +139,8 @@ def _build_profile(path: Path) -> DeploymentProfile:
         real_gcs_ip=real_gcs_ip,
         sitl_gcs_ip=sitl_gcs_ip,
         gcs_api_port=gcs_api_port,
+        dashboard_port=dashboard_port,
+        drone_api_port=drone_api_port,
         connectivity_backend=connectivity_backend,
         smart_wifi_manager_repo_url_https=smart_wifi_manager_repo_url_https,
         smart_wifi_manager_ref=smart_wifi_manager_ref,

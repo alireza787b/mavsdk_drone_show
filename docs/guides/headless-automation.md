@@ -366,7 +366,7 @@ Set these before running the script:
 export MDS_REPO_URL="https://github.com/myorg/customer-mds.git"
 export MDS_BRANCH="production"
 export MDS_GCS_IP="192.168.1.100"
-export MDS_GCS_API_BASE_URL="http://192.168.1.100:5000"
+export MDS_GCS_API_BASE_URL="http://192.168.1.100:5030"
 
 sudo -E ./tools/mds_node_init.sh -d 1 --https --report-json /var/lib/mds/bootstrap-report.json -y
 ```

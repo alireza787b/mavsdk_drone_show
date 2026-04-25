@@ -1001,7 +1001,7 @@ if __name__ == "__main__":
     import uvicorn
 
     # Read environment configuration
-    port = int(os.getenv('GCS_PORT', Params.gcs_api_port))
+    port = int(os.getenv('MDS_GCS_API_PORT', os.getenv('GCS_PORT', Params.gcs_api_port)))
     env_mode = os.getenv('GCS_ENV', 'development')
     is_dev = env_mode == 'development'
 

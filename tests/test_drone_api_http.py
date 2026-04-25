@@ -529,7 +529,7 @@ class TestCommands:
 
         await api_server._report_pending_command_superseded("cmd-123", 10)
 
-        assert captured['url'] == "http://172.18.0.1:5000/api/v1/command-reports/execution-result"
+        assert captured['url'] == "http://172.18.0.1:5030/api/v1/command-reports/execution-result"
         assert captured['json']['command_id'] == "cmd-123"
         assert captured['json']['success'] is False
         assert captured['timeout'] == 5
@@ -553,7 +553,7 @@ class TestCommands:
 
         origin = api_server._get_origin_from_gcs()
 
-        assert captured['url'] == "http://172.18.0.1:5000/api/v1/origin/bootstrap"
+        assert captured['url'] == "http://172.18.0.1:5030/api/v1/origin/bootstrap"
         assert captured['timeout'] == 5
         assert origin == {'lat': 35.0, 'lon': 51.0}
 

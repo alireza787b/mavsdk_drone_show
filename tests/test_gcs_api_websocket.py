@@ -57,11 +57,11 @@ def _make_core_deps():
                 "pos_id": 1,
                 "ip": "10.0.0.1",
                 "timestamp": now_ms,
-                "network_info": {"latency_ms": 12},
+                "network_info": {"wifi": {"ssid": "mds", "signal_strength_percent": 88}},
             }
         },
         get_network_info_from_heartbeats=lambda: {
-            "1": {"reachable": True, "latency_ms": 12}
+            "1": {"pos_id": 1, "ip": "10.0.0.1", "reachable": True, "last_check": now_ms}
         },
         load_config=lambda: [{"hw_id": "1", "ip": "10.0.0.1"}],
         log_system_event=lambda *args, **kwargs: None,
@@ -124,7 +124,8 @@ def test_heartbeat_websocket_streams_normalized_heartbeat_list():
     assert len(payload["data"]) == 1
     assert payload["data"][0]["hw_id"] == "1"
     assert payload["data"][0]["online"] is True
-    assert payload["data"][0]["latency_ms"] == 12
+    assert payload["data"][0]["presence_state"] == "live"
+    assert payload["data"][0]["heartbeat_age_sec"] >= 0
 
 
 def test_git_status_websocket_streams_snapshot_shape():

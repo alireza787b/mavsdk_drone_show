@@ -1,8 +1,8 @@
 # GCS API Server Documentation
 
 **Version:** 5.0 (FastAPI)
-**Port:** 5000 (default)
-**Base URL:** `http://localhost:5000`
+**Port:** 5030 (default, configurable with `MDS_GCS_API_PORT`)
+**Base URL:** `http://localhost:5030`
 **Documentation:** `/docs` (Swagger UI) | `/redoc` (ReDoc)
 
 ---
@@ -62,10 +62,10 @@ If you only want the backend service without the React dashboard:
 cd gcs-server
 
 # Development backend only
-./start_gcs_server.sh development fastapi 5000
+./start_gcs_server.sh development fastapi 5030
 
 # Production backend only
-./start_gcs_server.sh production fastapi 5000
+./start_gcs_server.sh production fastapi 5030
 ```
 
 Notes:
@@ -76,8 +76,8 @@ Notes:
 ### Interactive API Documentation
 
 Visit `/docs` for Swagger UI or `/redoc` for ReDoc documentation:
-- **Swagger UI:** http://localhost:5000/docs
-- **ReDoc:** http://localhost:5000/redoc
+- **Swagger UI:** http://localhost:5030/docs
+- **ReDoc:** http://localhost:5030/redoc
 
 ---
 
@@ -413,7 +413,7 @@ Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
 {
   "telemetry": {
     "1": {
-      "pos_id": 0,
+      "pos_id": 1,
       "hw_id": "1",
       "state": 0,
       "mission": 0,
@@ -527,7 +527,7 @@ Get network connectivity status for all drones.
       "pos_id": 0,
       "ip": "192.168.1.101",
       "reachable": true,
-      "latency_ms": 12.5
+      "last_check": 1700000000000
     }
   },
   "total_drones": 10,
@@ -1491,7 +1491,7 @@ Get the GCS runtime configuration resource.
   "mode_source": "env:MDS_MODE",
   "configured_mode": "real",
   "configured_sim_mode": false,
-  "gcs_port": 5000,
+  "gcs_port": 5030,
   "git_auto_push": true,
   "configured_git_auto_push": true,
   "acceptable_deviation": 2.0,
@@ -1582,7 +1582,7 @@ route returns `status: "no_restart_required"` and does not schedule a relaunch.
 #### `GET /api/v1/system/runtime-status`
 Get the resolved runtime/admin posture for the active GCS process.
 
-This is the operator-facing status surface consumed by Runtime Admin. It
+This is the operator-facing status surface consumed by GCS Runtime. It
 combines:
 
 - running process mode and uptime
@@ -1614,6 +1614,83 @@ Example response excerpt:
   },
   "connectivity_runtime": {
     "service_status": "active"
+  }
+}
+```
+
+#### `GET /api/v1/fleet/sidecars/connectivity/profile`
+Return the secret-safe status of the repo-owned Smart Wi-Fi fleet profile.
+
+The response never includes SSIDs, passwords, token values, or raw profile
+content. Operators get only path, validity, network count, and hash posture.
+
+**Response:**
+```json
+{
+  "profile_present": true,
+  "dashboard_managed": true,
+  "profile_path": "deployment/connectivity/smart-wifi-manager/profile.json",
+  "profile_hash": "2a4db9d21f2c...",
+  "profile_valid": true,
+  "mode": "manage",
+  "network_count": 2,
+  "updated_count": 0,
+  "message": "Smart Wi-Fi fleet profile status loaded.",
+  "git_result": null
+}
+```
+
+#### `PUT /api/v1/fleet/sidecars/connectivity/profile`
+Replace the repo-owned Smart Wi-Fi fleet profile. The file is written to
+`deployment/connectivity/smart-wifi-manager/profile.json` or the path configured
+by `MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH` when that path remains inside
+the repository.
+
+Use this endpoint only for private fleet repositories when profiles include
+customer SSIDs/passwords. Public demo deployments should use example profiles or
+host-local profile sources instead of committing real Wi-Fi credentials.
+
+After import, use Fleet Ops **Sync + reconcile** to dispatch the normal node
+sync path. Real nodes with `MDS_CONNECTIVITY_BACKEND=smart-wifi-manager` pull the
+profile and apply it through Smart Wi-Fi Manager. SITL nodes and nodes with
+connectivity backend `none` report the profile as not applicable.
+
+**Request:**
+```json
+{
+  "profile": {
+    "mode": "manage",
+    "profiles": [
+      {
+        "id": "field-primary",
+        "ssid": "field-network",
+        "password": "stored-but-not-echoed",
+        "priority": 100
+      }
+    ]
+  },
+  "commit": true
+}
+```
+
+`commit` is optional. When omitted, the GCS follows its configured
+`GIT_AUTO_PUSH` policy.
+
+**Response:**
+```json
+{
+  "profile_present": true,
+  "dashboard_managed": true,
+  "profile_path": "deployment/connectivity/smart-wifi-manager/profile.json",
+  "profile_hash": "2a4db9d21f2c...",
+  "profile_valid": true,
+  "mode": "manage",
+  "network_count": 1,
+  "updated_count": 1,
+  "message": "Smart Wi-Fi fleet profile saved. Run Sync + reconcile to apply it to selected or eligible drones.",
+  "git_result": {
+    "success": true,
+    "pushed": true
   }
 }
 ```
@@ -1663,7 +1740,7 @@ Real-time telemetry streaming (1 Hz).
 
 **Connection:**
 ```javascript
-const ws = new WebSocket('ws://localhost:5000/ws/telemetry');
+const ws = new WebSocket('ws://localhost:5030/ws/telemetry');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -1699,7 +1776,7 @@ Canonical HTTP snapshot reads for the same domain remain available at `GET /api/
 
 **Connection:**
 ```javascript
-const ws = new WebSocket('ws://localhost:5000/ws/git-status');
+const ws = new WebSocket('ws://localhost:5030/ws/git-status');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -1745,7 +1822,7 @@ Real-time heartbeat monitoring (0.5 Hz).
 
 **Connection:**
 ```javascript
-const ws = new WebSocket('ws://localhost:5000/ws/heartbeats');
+const ws = new WebSocket('ws://localhost:5030/ws/heartbeats');
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
@@ -1821,7 +1898,7 @@ The FastAPI implementation replaced the earlier Flask server, but the public con
 
 ### Migration Steps
 1. Install dependencies: `pip install fastapi uvicorn pydantic python-multipart`
-2. Start FastAPI server: `uvicorn app_fastapi:app --port 5000`
+2. Start FastAPI server: `uvicorn app_fastapi:app --port 5030`
 3. Use the canonical `/api/v1/...` contract for new integrations
 4. Check [api-modernization-blueprint.md](./api-modernization-blueprint.md) before assuming an older route is still supported
 

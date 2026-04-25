@@ -120,7 +120,7 @@ async def test_run_mission_bootstraps_canonical_mavsdk_server_and_stops_it(monke
         mission_id="mission-1",
         hw_id="1",
         return_behavior="hold_position",
-        gcs_url="http://127.0.0.1:5000",
+        gcs_url="http://127.0.0.1:5030",
     )
     fake_server = MagicMock()
     fake_led = MagicMock()
@@ -177,7 +177,7 @@ async def test_run_mission_fails_fast_when_connection_confirmation_times_out(mon
         mission_id="mission-2",
         hw_id="1",
         return_behavior="hold_position",
-        gcs_url="http://127.0.0.1:5000",
+        gcs_url="http://127.0.0.1:5030",
     )
     fake_server = MagicMock()
     fake_led = MagicMock()
@@ -243,7 +243,7 @@ async def test_monitor_active_mission_finishes_without_progress_callbacks(monkey
 
     result = await qsm._monitor_active_mission(
         fake_drone,
-        gcs_url="http://127.0.0.1:5000",
+        gcs_url="http://127.0.0.1:5030",
         mission_id="mission-3",
         hw_id="1",
         total_waypoints=4,

@@ -301,7 +301,7 @@ sudo ./tools/mds_node_init.sh -d 1 --dry-run
 If the node is provisioned but the GCS was unavailable during bootstrap:
 
 ```bash
-sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5000
+sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
 ```
 
 ## Post-Installation

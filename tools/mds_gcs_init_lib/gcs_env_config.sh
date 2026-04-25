@@ -145,7 +145,8 @@ configure_gcs_env() {
     repo_url=$(gcs_state_get_value "repo_url" "$GCS_DEFAULT_REPO_SSH")
     local repo_branch
     repo_branch=$(gcs_state_get_value "repo_branch" "$GCS_DEFAULT_BRANCH")
-    local gcs_api_port="${MDS_DEFAULT_GCS_API_PORT:-5000}"
+    local gcs_api_port="${MDS_DEFAULT_GCS_API_PORT:-5030}"
+    local dashboard_port="${MDS_DEFAULT_DASHBOARD_PORT:-3030}"
     local git_auth_token_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
     local git_ssh_key_file="${MDS_GIT_SSH_KEY_FILE:-}"
     local access_method
@@ -213,6 +214,7 @@ configure_gcs_env() {
 
 # GCS Server Settings
 GCS_PORT=${gcs_api_port}
+MDS_GCS_API_PORT=${gcs_api_port}
 GCS_BACKEND=fastapi
 MDS_MODE=real
 
@@ -225,7 +227,8 @@ MDS_GIT_SSH_KEY_FILE=${git_ssh_key_file}
 MDS_INSTALL_DIR=${install_dir}
 
 # Dashboard Settings
-DASHBOARD_PORT=3030
+DASHBOARD_PORT=${dashboard_port}
+MDS_DASHBOARD_PORT=${dashboard_port}
 
 # Virtual Environment
 VENV_PATH=${install_dir}/venv
@@ -267,7 +270,7 @@ handle_deprecated_items() {
         local server_url
         server_url=$(grep "^REACT_APP_SERVER_URL=" "$env_file" | cut -d'=' -f2-)
 
-        if [[ -n "$server_url" ]] && [[ "$server_url" != "http://localhost:5000" ]]; then
+        if [[ -n "$server_url" ]] && [[ "$server_url" != "http://localhost:5030" ]]; then
             deprecated_found=true
             log_warn "REACT_APP_SERVER_URL is deprecated (found: $server_url)"
             echo -e "  ${DIM}The dashboard now auto-detects the backend URL.${NC}"

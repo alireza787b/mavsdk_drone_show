@@ -199,8 +199,9 @@ class ApiClient:
             raise RuntimeError(format_http_error(exc)) from exc
 
     def get_drone_json(self, drone_ip: str, path: str, *, timeout: float = 20.0) -> dict:
+        drone_api_port = int(getattr(Params, "drone_api_port", 7070))
         try:
-            with urllib.request.urlopen(f"http://{drone_ip}:7070{path}", timeout=timeout) as response:
+            with urllib.request.urlopen(f"http://{drone_ip}:{drone_api_port}{path}", timeout=timeout) as response:
                 return json.load(response)
         except urllib.error.HTTPError as exc:
             raise RuntimeError(format_http_error(exc)) from exc
@@ -232,10 +233,11 @@ class ApiClient:
 
     def probe_live_armability(self, drone_ip: str, *, require_global_position: bool = True) -> dict:
         timeout = calculate_live_armability_request_timeout(params=Params)
+        drone_api_port = int(getattr(Params, "drone_api_port", 7070))
         query = urllib.parse.urlencode(
             {"require_global_position": str(bool(require_global_position)).lower()}
         )
-        path = f"http://{drone_ip}:7070{DRONE_LIVE_ARMABILITY_ROUTE}?{query}"
+        path = f"http://{drone_ip}:{drone_api_port}{DRONE_LIVE_ARMABILITY_ROUTE}?{query}"
         try:
             with urllib.request.urlopen(path, timeout=timeout) as response:
                 return json.load(response)
@@ -601,7 +603,7 @@ def wait_local_position_offset_at_least(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate standalone action/control commands against a live GCS/SITL stack.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to validate")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to validate")
     parser.add_argument("--takeoff-min-gain", type=float, default=4.0, help="Minimum altitude gain required after TAKEOFF")

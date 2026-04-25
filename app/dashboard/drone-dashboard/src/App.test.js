@@ -75,7 +75,7 @@ describe('App', () => {
     expect(backdrop).toBeInTheDocument();
     expect(backdrop.closest('.mobile-shell-controls')).toBeNull();
     expect(screen.getByLabelText('Close navigation menu').closest('.mobile-shell-controls')).toHaveClass('is-open');
-    expect(screen.queryByLabelText('Open Runtime Admin')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Open GCS Runtime')).not.toBeInTheDocument();
     expect(sidebar).toHaveAttribute('data-open', 'true');
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });

@@ -649,7 +649,7 @@ def cleanup_land(client: ApiClient, ids: list[int], *, label: str, timeout: int 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate Drone Show runtime behavior against a live GCS API.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="Base URL of the GCS API")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="Base URL of the GCS API")
     parser.add_argument(
         "--drone-ids",
         nargs="+",

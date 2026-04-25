@@ -20,7 +20,7 @@ import {
 
 jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
-  buildLogsUrl: jest.fn((suffix = '') => `http://gcs.test:5000/api/logs${suffix}`),
+  buildLogsUrl: jest.fn((suffix = '') => `http://gcs.test:5030/api/logs${suffix}`),
   getFleetConfigResponse: jest.fn(),
   getFleetHeartbeatsResponse: jest.fn(),
 }));
@@ -28,7 +28,7 @@ jest.mock('./gcsApiService', () => ({
 describe('logService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    buildLogsUrl.mockImplementation((suffix = '') => `http://gcs.test:5000/api/logs${suffix}`);
+    buildLogsUrl.mockImplementation((suffix = '') => `http://gcs.test:5030/api/logs${suffix}`);
   });
 
   describe('buildStreamURL', () => {
@@ -79,14 +79,14 @@ describe('logService', () => {
     await getDroneSessions('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/sessions');
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/sessions');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/sessions');
   });
 
   test('builds onboard ULog browser download URL', () => {
     const url = buildDroneUlogDownloadURL('leader/1', 'job:7');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/downloads/job%3A7/content');
-    expect(url).toBe('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/downloads/job%3A7/content');
+    expect(url).toBe('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/downloads/job%3A7/content');
   });
 
   test('requests drone onboard ULog policy through the GCS log proxy', async () => {
@@ -95,7 +95,7 @@ describe('logService', () => {
     const result = await getDroneUlogPolicy('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/policy');
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/policy');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/policy');
     expect(result.policy.supported).toBe(true);
   });
 
@@ -105,7 +105,7 @@ describe('logService', () => {
     const result = await getDroneUlogFiles('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/files');
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/files');
+    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/files');
     expect(result.files).toEqual([]);
   });
 
@@ -128,7 +128,7 @@ describe('logService', () => {
     const result = await eraseAllDroneUlogs('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/erase-all');
-    expect(axios.post).toHaveBeenCalledWith('http://gcs.test:5000/api/logs/drone/leader%2F1/ulog/erase-all');
+    expect(axios.post).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/erase-all');
     expect(result.status).toBe('accepted');
   });
 });

@@ -28,8 +28,8 @@ from sar.coverage_planner import SHAPELY_AVAILABLE
 pytestmark = pytest.mark.skipif(not SHAPELY_AVAILABLE, reason="shapely not installed")
 
 MOCK_CONFIG = [
-    {'pos_id': 0, 'hw_id': '1', 'ip': '127.0.0.1', 'connection_str': 'udp://:14540'},
-    {'pos_id': 1, 'hw_id': '2', 'ip': '127.0.0.1', 'connection_str': 'udp://:14541'},
+    {'pos_id': 0, 'hw_id': '1', 'ip': '127.0.0.1', 'mavlink_port': 14540},
+    {'pos_id': 1, 'hw_id': '2', 'ip': '127.0.0.1', 'mavlink_port': 14541},
 ]
 
 MOCK_TELEMETRY = {

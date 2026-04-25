@@ -417,7 +417,7 @@ def heartbeat_data(
         'ip': ip,
         'last_heartbeat': timestamp,
         'online': online,
-        'latency_ms': 15.5 if online else None
+        'heartbeat_age_sec': 0.0 if online else 30.0
     }
 
 

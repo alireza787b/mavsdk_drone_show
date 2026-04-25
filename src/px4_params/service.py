@@ -48,7 +48,7 @@ class Px4ParamService:
             ),
             metadata=Px4ParamPolicyMetadata(
                 runtime_values="mavsdk_param_or_mavlink_param_protocol",
-                float_metadata="px4_catalog_then_mavsdk_component_information",
+                float_metadata="px4_catalog_then_mavsdk_component_information_with_raw_value_fallback",
                 docs_links="px4_parameter_reference_anchor",
                 reboot_required="px4_catalog_when_available",
             ),
@@ -71,6 +71,11 @@ class Px4ParamService:
 
         now_ms = int(time.time() * 1000)
         stale_after_ms = int(self._safe_float("PX4_PARAMETER_SNAPSHOT_MAX_AGE_SEC", 60.0) * 1000)
+        metadata_status = self._build_metadata_status(
+            rows,
+            catalog_metadata=catalog_metadata,
+            float_metadata=float_metadata,
+        )
         snapshot = Px4ParamSnapshotSummary(
             snapshot_id=f"px4-{self.hw_id}-{uuid.uuid4().hex[:12]}",
             hw_id=self.hw_id,
@@ -79,6 +84,7 @@ class Px4ParamService:
             total_params=len(rows),
             created_at=now_ms,
             stale_after_ms=stale_after_ms,
+            **metadata_status,
         )
         return Px4ParamSnapshotResponse(snapshot=snapshot, rows=rows)
 
@@ -409,6 +415,52 @@ class Px4ParamService:
             enum_values=list(self._catalog_attr(catalog_entry, "enum_values") or []),
             metadata_sources=metadata_sources,
         )
+
+    def _build_metadata_status(
+        self,
+        rows: Iterable[Px4ParamRow],
+        *,
+        catalog_metadata: Dict[str, Px4ParamCatalogEntry],
+        float_metadata: Dict[str, Any],
+    ) -> dict[str, Any]:
+        source_values: set[Px4ParamMetadataSource] = set()
+        rich_rows = 0
+        total_rows = 0
+        for row in rows:
+            total_rows += 1
+            source_values.update(row.metadata_sources)
+            if row.short_description or row.group or row.default_value is not None or row.min_value is not None or row.max_value is not None:
+                rich_rows += 1
+
+        catalog_available = bool(catalog_metadata)
+        component_information_available = bool(float_metadata)
+        if rich_rows > 0 and catalog_available:
+            metadata_quality = "rich"
+            warning = None
+        elif rich_rows > 0 and component_information_available:
+            metadata_quality = "component_information"
+            warning = "PX4 component metadata is available, but catalog-level groups/defaults may be incomplete."
+        elif catalog_available:
+            metadata_quality = "catalog"
+            warning = None
+        else:
+            metadata_quality = "raw_values_only"
+            warning = (
+                "PX4 parameter values are available, but metadata labels, groups, defaults, and docs require "
+                "component metadata or a matching PX4 parameter catalog."
+            )
+
+        if total_rows == 0:
+            metadata_quality = "unavailable"
+            warning = "No PX4 parameters were returned by MAVSDK or the MAVLink parameter fallback."
+
+        return {
+            "metadata_quality": metadata_quality,
+            "metadata_sources": sorted(source_values, key=lambda item: item.value),
+            "metadata_warning": warning,
+            "metadata_catalog_available": catalog_available,
+            "component_information_available": component_information_available,
+        }
 
     @staticmethod
     def _catalog_attr(entry: Px4ParamCatalogEntry | None, attribute: str) -> Any:

@@ -867,7 +867,7 @@ def validate_findings_and_handoff(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate QuickScout against a live GCS/SITL runtime.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to observe")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to observe")
     parser.add_argument("--launch-drone-count", type=int, default=1, help="How many selected drones to include in the QuickScout launch package")

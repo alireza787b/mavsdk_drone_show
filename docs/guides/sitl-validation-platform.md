@@ -77,7 +77,7 @@ For AI agents, scripts, and future MCP tools, use the headless client:
 
 ```bash
 python3 tools/sitl_control_client.py reconcile \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3 \
   --mode auto
@@ -111,7 +111,7 @@ Run one by name:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name operator_regression \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -147,7 +147,7 @@ validator tools and the live runtime share one repo checkout:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -158,7 +158,7 @@ Run only the configuration/origin gate:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template config_only \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -173,7 +173,7 @@ export MDS_SITL_GIT_SYNC=false
 export MDS_SITL_REQUIREMENTS_SYNC=false
 python3 tools/run_sitl_validation_suite.py \
   --template operator_regression \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -184,7 +184,7 @@ Run only the mission-family validators:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template mission_regression \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -195,7 +195,7 @@ Run only the standalone action/control drill:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template actions_only \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -206,7 +206,7 @@ Run the dedicated QuickScout runtime gate:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template quickscout_only \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -217,7 +217,7 @@ Run the validated mixed-mode operator drill directly:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name integrated_mixed_mode \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -228,7 +228,7 @@ Run the broader advanced promotion-style regression:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name advanced_operator_regression \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -239,7 +239,7 @@ Run the checked-in QuickScout runtime plan directly:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name quickscout_runtime \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -250,7 +250,7 @@ Run the validated multi-drone QuickScout runtime plan directly:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name quickscout_multi_runtime \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -261,7 +261,7 @@ live GCS/SITL runtime uses a different repo path, pass both roots explicitly:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root /root/mavsdk_drone_show_validator_sync \
   --repo-root /root/mavsdk_drone_show_main_candidate_runtime_live \
   --drone-ids 1 2 3
@@ -272,7 +272,7 @@ at the reachable remote API instead of hardcoding localhost:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
-  --base-url http://GCS_HOST_OR_IP:5000 \
+  --base-url http://GCS_HOST_OR_IP:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -329,7 +329,7 @@ Run it:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root /tmp/mavsdk_drone_show_resume \
   --repo-root ~/mavsdk_drone_show \
   --plan-file /tmp/mds-sitl-plan.json

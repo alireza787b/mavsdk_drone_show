@@ -69,13 +69,13 @@ def mock_config():
             'pos_id': 1,
             'hw_id': '1',
             'ip': '192.168.1.101',
-            'connection_str': 'udp://:14540'
+            'mavlink_port': 14540
         },
         {
             'pos_id': 2,
             'hw_id': '2',
             'ip': '192.168.1.102',
-            'connection_str': 'udp://:14541'
+            'mavlink_port': 14541
         }
     ]
 
@@ -451,6 +451,67 @@ class TestConfigurationEndpoints:
         assert response.status_code == 422
         assert response.json()['error'] == "Validation error"
         assert response.json()['detail'][0]['type'] == "list_type"
+
+    def test_connectivity_profile_status_is_secret_safe(self, test_client):
+        """Fleet Ops can inspect Smart Wi-Fi profile posture without exposing profile contents."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('app_fastapi.BASE_DIR', tmpdir):
+                response = test_client.get("/api/v1/fleet/sidecars/connectivity/profile")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["profile_present"] is False
+        assert data["dashboard_managed"] is True
+        assert data["profile_path"] == "deployment/connectivity/smart-wifi-manager/profile.json"
+        assert "profile" in data["message"].lower()
+        assert "password" not in json.dumps(data).lower()
+
+    def test_connectivity_profile_import_writes_repo_owned_profile_without_echoing_secrets(self, test_client):
+        """Fleet Ops can replace the repo-owned Smart Wi-Fi profile for later sync/reconcile rollout."""
+        profile = {
+            "mode": "manage",
+            "profiles": [
+                {
+                    "id": "primary",
+                    "ssid": "field-net",
+                    "password": "super-secret",
+                    "priority": 100,
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('app_fastapi.BASE_DIR', tmpdir):
+                response = test_client.request(
+                    "PUT",
+                    "/api/v1/fleet/sidecars/connectivity/profile",
+                    json={"profile": profile, "commit": False},
+                )
+                target = Path(tmpdir) / "deployment/connectivity/smart-wifi-manager/profile.json"
+                saved = json.loads(target.read_text(encoding="utf-8"))
+
+        assert response.status_code == 200
+        data = response.json()
+        assert saved == profile
+        assert data["profile_present"] is True
+        assert data["profile_valid"] is True
+        assert data["mode"] == "manage"
+        assert data["network_count"] == 1
+        assert data["updated_count"] == 1
+        assert data["profile_hash"]
+        assert "super-secret" not in json.dumps(data)
+
+    def test_connectivity_profile_import_rejects_invalid_profiles(self, test_client):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch('app_fastapi.BASE_DIR', tmpdir):
+                response = test_client.request(
+                    "PUT",
+                    "/api/v1/fleet/sidecars/connectivity/profile",
+                    json={"profile": {"profiles": [{"id": "missing-ssid"}]}, "commit": False},
+                )
+
+        assert response.status_code == 422
+        assert "ssid" in response.json()["detail"]
 
 
 # ============================================================================

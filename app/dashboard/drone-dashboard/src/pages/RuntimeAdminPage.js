@@ -283,9 +283,9 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       <header className="runtime-admin-page__hero">
         <div>
           <span className="runtime-admin-page__eyebrow">System</span>
-          <h1>Runtime Admin</h1>
+          <h1>GCS Runtime</h1>
           <p>
-            Live runtime posture, host-local config authority, and restart-safe apply controls for SITL/REAL switching.
+            Host-local mode, update, and restart controls. Drone-side access and sidecars live in Fleet Ops.
           </p>
         </div>
         <div className="runtime-admin-page__hero-pills">
@@ -350,7 +350,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaRedoAlt />
             <div>
               <h2>Runtime Controls</h2>
-              <p>Persist host-local mode and git auto-push, then relaunch the GCS cleanly through the canonical launcher.</p>
+              <p>Persist host mode and relaunch through the canonical GCS launcher.</p>
             </div>
           </div>
 
@@ -462,7 +462,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaServer />
             <div>
               <h2>GCS Runtime</h2>
-              <p>Canonical mode and local host runtime inputs.</p>
+              <p>Canonical mode and host runtime inputs.</p>
             </div>
           </div>
           <dl className="runtime-admin-page__facts">
@@ -571,7 +571,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaSatelliteDish />
             <div>
               <h2>Host Capabilities</h2>
-              <p>GCS-local capability summary. Drone-side git auth, MAVLink, and Smart Wi-Fi compliance belong in Fleet Ops.</p>
+              <p>Local host capability summary. Node compliance belongs in Fleet Ops.</p>
             </div>
           </div>
           <div className="runtime-admin-page__capability-grid">
@@ -590,16 +590,16 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <div className="runtime-admin-page__capability">
               <span className="runtime-admin-page__capability-label">MAVLink Policy</span>
               <StatusPill>{runtime.fleetDefaults?.mavlink_management_mode || 'Unknown'}</StatusPill>
-              <p>Desired node ref: {runtime.fleetDefaults?.mavlink_anywhere_ref || 'unknown'}. {mavlinkHostSummary}.</p>
+              <p>Fleet default ref {runtime.fleetDefaults?.mavlink_anywhere_ref || 'unknown'}; local host {mavlinkHostSummary}.</p>
             </div>
             <div className="runtime-admin-page__capability">
               <span className="runtime-admin-page__capability-label">Connectivity Policy</span>
               <StatusPill>{runtime.fleetDefaults?.connectivity_backend || 'Unknown'}</StatusPill>
-              <p>Desired node ref: {runtime.fleetDefaults?.smart_wifi_manager_ref || 'unknown'}; mode {runtime.fleetDefaults?.smart_wifi_manager_mode || 'unknown'}. {connectivityHostSummary}.</p>
+              <p>Fleet default ref {runtime.fleetDefaults?.smart_wifi_manager_ref || 'unknown'}; local host {connectivityHostSummary}.</p>
             </div>
           </div>
           <p className="runtime-admin-page__empty">
-            This page does not manage drone-side sidecar dashboards. Use Fleet Ops for per-node MAVLink, Smart Wi-Fi, git auth, and profile compliance.
+            Use Fleet Ops for drone MAVLink, Smart Wi-Fi, git auth, profile drift, and sync actions.
           </p>
         </article>
 
@@ -644,7 +644,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <li>Mode changes are host-local GCS mutations. Save them first, then apply through the canonical launcher restart.</li>
             <li>Mode-tagged heartbeats are fenced at intake so stale SITL or REAL nodes do not contaminate the other runtime after restart.</li>
             <li>Local SITL containers are not stopped automatically when switching the GCS into REAL mode; remove them explicitly through SITL Control, which stays available in cleanup-only mode.</li>
-            <li>Fleet defaults shown here are git-tracked intent for future bootstraps; node-local overrides still live in each host runtime env.</li>
+            <li>Fleet defaults shown here are read-only host context. Use Fleet Ops for node actions and profile drift.</li>
           </ul>
         </article>
       </section>

@@ -426,7 +426,7 @@ def resolve_selected_ids(args: argparse.Namespace) -> list[int]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate Mission Config, swarm config, and origin runtime workflows.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument("--repo-root", type=Path, default=REPO_ROOT, help="Runtime repo root used to preserve exact origin-file state")
     parser.add_argument("--json-output", type=Path, default=None, help="Optional JSON report output path")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=[1, 2, 3], help="Selected hardware IDs to validate")

@@ -272,12 +272,12 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     policy_parser = subparsers.add_parser("policy", help="Fetch the SITL Control policy envelope.")
-    policy_parser.add_argument("--base-url", default="http://127.0.0.1:5000")
+    policy_parser.add_argument("--base-url", default="http://127.0.0.1:5030")
     policy_parser.add_argument("--timeout-sec", type=float, default=5.0)
     policy_parser.add_argument("--json-output", type=Path, default=None)
 
     reconcile_parser = subparsers.add_parser("reconcile", help="Reset/reconcile a contiguous SITL fleet.")
-    reconcile_parser.add_argument("--base-url", default="http://127.0.0.1:5000")
+    reconcile_parser.add_argument("--base-url", default="http://127.0.0.1:5030")
     reconcile_parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
     reconcile_parser.add_argument("--drone-ids", nargs="+", type=int, required=True)
     reconcile_parser.add_argument("--mode", choices=("auto", "api", "shell"), default="auto")

@@ -13,7 +13,7 @@ def _make_deps():
         MDS_VERSION="5.2",
         Params=SimpleNamespace(
             sim_mode=False,
-            gcs_api_port=5000,
+            gcs_api_port=5030,
             GIT_AUTO_PUSH=True,
             acceptable_deviation=2.0,
             GIT_REPO_URL="https://github.com/demo/customer-mds.git",

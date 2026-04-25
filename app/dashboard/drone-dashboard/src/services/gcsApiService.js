@@ -31,6 +31,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   px4ParamsPatchJobs: 'px4ParamsPatchJobs',
   gitStatus: 'gitStatus',
   syncRepos: 'syncRepos',
+  connectivityProfile: 'connectivityProfile',
   origin: 'origin',
   setOrigin: 'setOrigin',
   globalOrigin: 'globalOrigin',
@@ -98,6 +99,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.px4ParamsPatchJobs]: '/api/v1/px4-params/patch-jobs',
   [GCS_ROUTE_KEYS.gitStatus]: '/api/v1/git/status',
   [GCS_ROUTE_KEYS.syncRepos]: '/api/v1/git/sync-operations',
+  [GCS_ROUTE_KEYS.connectivityProfile]: '/api/v1/fleet/sidecars/connectivity/profile',
   [GCS_ROUTE_KEYS.origin]: '/api/v1/origin',
   [GCS_ROUTE_KEYS.setOrigin]: '/api/v1/origin',
   [GCS_ROUTE_KEYS.globalOrigin]: '/api/v1/navigation/global-origin',
@@ -169,6 +171,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/commands/statistics': GCS_ROUTE_KEYS.commandStatistics,
   '/api/v1/git/status': GCS_ROUTE_KEYS.gitStatus,
   '/api/v1/git/sync-operations': GCS_ROUTE_KEYS.syncRepos,
+  '/api/v1/fleet/sidecars/connectivity/profile': GCS_ROUTE_KEYS.connectivityProfile,
   '/api/v1/origin': GCS_ROUTE_KEYS.origin,
   '/api/v1/navigation/global-origin': GCS_ROUTE_KEYS.globalOrigin,
   '/api/v1/origin/elevation': GCS_ROUTE_KEYS.elevation,
@@ -453,6 +456,14 @@ export async function getPrecisionMovePolicyResponse(config = {}) {
 
 export async function syncReposResponse(payload = {}, config = {}) {
   return postGcsResource(GCS_ROUTE_KEYS.syncRepos, payload, config);
+}
+
+export async function getConnectivityProfileResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.connectivityProfile, config);
+}
+
+export async function updateConnectivityProfileResponse(payload = {}, config = {}) {
+  return putGcsResource(GCS_ROUTE_KEYS.connectivityProfile, payload, config);
 }
 
 export async function getOriginResponse(config = {}) {

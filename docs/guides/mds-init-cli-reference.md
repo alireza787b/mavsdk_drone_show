@@ -319,7 +319,7 @@ API URL or `MDS_GCS_IP` is available. You can also re-run that discovery step
 later without repeating the whole bootstrap:
 
 ```bash
-sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5000
+sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
 sudo ./tools/mds_node_announce.sh --dry-run --report-json -
 ```
 
@@ -328,7 +328,7 @@ URL resolution order:
 1. `--gcs-api-url`
 2. `MDS_GCS_API_BASE_URL`
 3. `MDS_GCS_API_BASE_URL` from `/etc/mds/local.env`
-4. `MDS_GCS_IP` / `--gcs-ip` with default port `5000`
+4. `MDS_GCS_IP` / `--gcs-ip` with default port `5030`
 | `/var/lib/mds/init_state.json` | Installation state |
 | `/var/log/mds/mds_init.log` | Installation log |
 | `/home/droneshow/mavsdk_drone_show/` | MDS installation directory |

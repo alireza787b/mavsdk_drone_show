@@ -21,6 +21,9 @@ handled separately from normal desired state, see
 | Real swarm topology | `swarm.json` | GCS-side repo file |
 | Repo-owned deployment defaults | `deployment/defaults.env` | Git-tracked repo/branch/GCS-address fallback layer |
 | Runtime mode | `MDS_MODE=real|sitl` | Canonical mode selector for both GCS and nodes |
+| GCS API port | `MDS_GCS_API_PORT` | Defaults to `5030` from `deployment/defaults.env` |
+| Dashboard port | `MDS_DASHBOARD_PORT` / `DASHBOARD_PORT` | Defaults to `3030` |
+| Drone API port | `MDS_DRONE_API_PORT` | Defaults to `7070` |
 | SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
 | SITL swarm topology | `swarm_sitl.json` | Selected when `MDS_MODE=sitl` |
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |
@@ -47,7 +50,7 @@ are not already set. That means the effective order is:
 1. explicit `--gcs-api-url`
 2. `MDS_GCS_API_BASE_URL` in process env
 3. `MDS_GCS_API_BASE_URL` in `/etc/mds/local.env`
-4. `MDS_GCS_IP` plus the default API port (`5000`)
+4. `MDS_GCS_IP` plus the default API port (`5030`)
 
 ### Node heartbeat runtime identity
 
@@ -61,7 +64,7 @@ intentional:
 
 - safer than inferring mode from IPs, ports, or container naming
 - cheap enough to send on every heartbeat
-- operator-visible in heartbeat status and Runtime Admin diagnostics
+- operator-visible in heartbeat status and GCS Runtime diagnostics
 
 Compatibility note:
 
@@ -149,6 +152,7 @@ Do not expect Fleet Enrollment to rewrite swarm topology automatically.
 5. commit repo-wide repo/branch/network default changes in `deployment/defaults.env`
 6. if you intentionally want repo-driven Wi-Fi rollout, commit
    `deployment/connectivity/smart-wifi-manager/profile.json` in a private fleet repo
+   or import that profile from Fleet Ops and then run **Sync + reconcile**
 7. keep private read credentials in local secret files; do not put them in git
 
 ### SITL

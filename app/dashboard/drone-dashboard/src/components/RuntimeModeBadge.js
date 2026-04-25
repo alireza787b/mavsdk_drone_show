@@ -36,7 +36,7 @@ export default function RuntimeModeBadge({
       : 'UNKNOWN';
   const configMatches = normalizedConfiguredMode === normalizedMode && normalizedConfiguredMode !== 'unknown';
   const title = restartRequired
-    ? `${label} runtime. Persisted host config is ${configuredLabel}; apply restart in Runtime Admin.`
+    ? `${label} runtime. Persisted host config is ${configuredLabel}; apply restart in GCS Runtime.`
     : configMatches
       ? `${label} runtime. Persisted host config matches the running process.`
       : `${label} runtime.`;

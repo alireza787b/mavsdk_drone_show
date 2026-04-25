@@ -827,6 +827,10 @@ const Px4ParametersPage = () => {
     writeBlockedReason,
     snapshotSummary: snapshotResponse?.snapshot,
   });
+  const metadataQualityLabel = snapshotResponse?.snapshot?.metadata_quality
+    ? String(snapshotResponse.snapshot.metadata_quality).replace(/_/g, ' ')
+    : 'unknown';
+  const metadataWarning = snapshotResponse?.snapshot?.metadata_warning || '';
   const modifiedRowCount = useMemo(
     () => (snapshotResponse?.rows || []).filter((row) => row.default_value !== null
       && row.default_value !== undefined
@@ -1453,6 +1457,10 @@ const Px4ParametersPage = () => {
                 <strong>{snapshotStatusLabel}</strong>
               </div>
               <div>
+                <span>Metadata</span>
+                <strong title={metadataWarning || 'PX4 metadata source quality'}>{metadataQualityLabel}</strong>
+              </div>
+              <div>
                 <span>Default delta</span>
                 <strong>{modifiedRowCount}</strong>
               </div>
@@ -1486,6 +1494,12 @@ const Px4ParametersPage = () => {
               />
             </div>
             <StatusNotice notice={singleNotice} />
+            {metadataWarning ? (
+              <div className="px4-inline-notice px4-inline-notice--warning">
+                <strong>PX4 metadata limited</strong>
+                <span>{metadataWarning}</span>
+              </div>
+            ) : null}
             {rebootBlockedReason && !rebootingPx4 ? (
               <div className="px4-inline-notice">
                 <strong>Reboot safety</strong>
@@ -1911,6 +1925,10 @@ const Px4ParametersPage = () => {
                 <div>
                   <span>Status</span>
                   <strong>{snapshotStatusLabel}</strong>
+                </div>
+                <div>
+                  <span>Metadata</span>
+                  <strong title={metadataWarning || 'PX4 metadata source quality'}>{metadataQualityLabel}</strong>
                 </div>
               </div>
               <div className="px4-param-inspector__actions">
