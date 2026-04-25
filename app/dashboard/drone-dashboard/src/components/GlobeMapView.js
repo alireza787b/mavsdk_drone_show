@@ -119,6 +119,13 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
     const avgLng = valid.reduce((sum, d) => sum + d.position[1], 0) / valid.length;
     return { center: { lat: avgLat, lng: avgLng }, validDrones: valid };
   }, [drones]);
+  const selectedDrone = useMemo(
+    () => drones.find((drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')) || null,
+    [drones, selectedDroneId]
+  );
+  const selectedDroneHasMapFix = selectedDrone
+    ? validDrones.some((drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDrone[FIELD_NAMES.HW_ID]))
+    : false;
 
   const fitMapboxToFleet = useCallback(() => {
     if (useLeaflet || !mapboxRef.current || validDrones.length === 0) {
@@ -193,6 +200,14 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
           </button>
         )}
       </div>
+      {selectedDrone && !selectedDroneHasMapFix && (
+        <div className="globe-map-selected-fallback">
+          <div className="globe-map-selected-fallback__note" title="This drone is selected but does not currently have a non-zero GPS coordinate for the map.">
+            No map fix
+          </div>
+          <TacticalDroneCard drone={selectedDrone} onClose={() => onSelectDrone(null)} />
+        </div>
+      )}
 
       {!useLeaflet && mapboxAvailable ? (
         <MapboxMap

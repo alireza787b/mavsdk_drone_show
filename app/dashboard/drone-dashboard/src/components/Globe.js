@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
-import { OrbitControls, Html, Stars } from '@react-three/drei';
+import { OrbitControls, Stars } from '@react-three/drei';
 import { Color, Vector3 } from 'three';
 import { FaCompressAlt, FaCrosshairs, FaSlidersH } from 'react-icons/fa';
 import { getElevation, llaToLocal } from '../utilities/utilities';
@@ -28,13 +28,50 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
+
+const SelectedDroneScreenAnchor = ({ drone, onScreenPosition }) => {
+  const { camera, size } = useThree();
+  const lastPositionRef = useRef(null);
+
+  useFrame(() => {
+    if (!drone?.position) {
+      return;
+    }
+
+    const projected = new Vector3(...drone.position).project(camera);
+    const visible = projected.z >= -1 && projected.z <= 1;
+    const next = {
+      x: (projected.x * 0.5 + 0.5) * size.width,
+      y: (-projected.y * 0.5 + 0.5) * size.height,
+      visible,
+    };
+    const previous = lastPositionRef.current;
+    if (
+      !previous
+      || Math.abs(previous.x - next.x) > 2
+      || Math.abs(previous.y - next.y) > 2
+      || previous.visible !== next.visible
+    ) {
+      lastPositionRef.current = next;
+      onScreenPosition(next);
+    }
+  });
+
+  return null;
+};
+
+SelectedDroneScreenAnchor.propTypes = {
+  drone: PropTypes.shape({
+    position: PropTypes.arrayOf(PropTypes.number),
+  }),
+  onScreenPosition: PropTypes.func.isRequired,
+};
 const Drone = ({
   position,
   hw_id,
   marker_color,
   selected,
   onSelect,
-  ...drone
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const meshRef = useRef(null);
@@ -83,21 +120,6 @@ const Drone = ({
           <torusGeometry args={[0.86, 0.035, 10, 36]} />
           <meshStandardMaterial color={hoverColor} emissive={hoverColor} emissiveIntensity={0.9} />
         </mesh>
-      )}
-      {active && (
-        <Html
-          className="globe-drone-card-anchor"
-          distanceFactor={16}
-          transform={false}
-          center={false}
-          position={[0.8, 0.8, 0.8]}
-        >
-          <TacticalDroneCard
-            drone={{ ...drone, hw_id, marker_color, position, geoPosition: drone.geoPosition }}
-            localPosition={position}
-            onClose={() => onSelect(null)}
-          />
-        </Html>
       )}
     </mesh>
   );
@@ -166,6 +188,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
+  const [selectedScreenPosition, setSelectedScreenPosition] = useState(null);
   const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
@@ -290,6 +313,9 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     geoPosition: drone.position,
     position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
   }));
+  const selectedDrone = convertedDrones.find(
+    (drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')
+  ) || null;
 
   const toggleDroneVisibility = (droneId) => {
     setDroneVisibility(prevState => ({
@@ -300,7 +326,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
 
   return (
     <div id="scene-container" className="scene-container">
-      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }} onPointerMissed={() => onSelectDrone(null)}>
+      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
@@ -316,10 +342,35 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
             />
           )
         ))}
+        {selectedDrone && (
+          <SelectedDroneScreenAnchor
+            drone={selectedDrone}
+            onScreenPosition={setSelectedScreenPosition}
+          />
+        )}
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
 
       </Canvas>
+      {selectedDrone && (
+        <div
+          className={`globe-selected-card-popover ${selectedScreenPosition?.visible === false ? 'is-offscreen' : ''}`}
+          style={{
+            left: `min(max(${Math.round((selectedScreenPosition?.x ?? 24) + 24)}px, 12px), calc(100% - 340px))`,
+            top: `min(max(${Math.round((selectedScreenPosition?.y ?? 24) - 16)}px, 12px), calc(100% - 330px))`,
+          }}
+        >
+          <TacticalDroneCard
+            drone={{
+              ...selectedDrone,
+              position: selectedDrone.position,
+              geoPosition: selectedDrone.geoPosition,
+            }}
+            localPosition={selectedDrone.position}
+            onClose={() => onSelectDrone(null)}
+          />
+        </div>
+      )}
 
       {/* Render Compass outside the Canvas */}
       

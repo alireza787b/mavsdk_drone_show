@@ -43,12 +43,27 @@
     background-color: rgba(255, 255, 255, 0.2);
 }
 
-.globe-drone-card-anchor {
+.globe-selected-card-popover {
+    position: absolute;
+    z-index: 1100;
     pointer-events: auto;
 }
 
-.globe-drone-card-anchor .tactical-drone-card {
-    transform: translate(8px, -12px);
+.globe-selected-card-popover::before {
+    content: '';
+    position: absolute;
+    left: -16px;
+    top: 24px;
+    width: 16px;
+    height: 1px;
+    background: var(--color-primary);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+
+.globe-selected-card-popover.is-offscreen {
+    right: 16px;
+    left: auto !important;
+    top: 72px !important;
 }
 
 .drone-tooltip {
