@@ -553,7 +553,7 @@
     bottom: 16px;
     left: 16px;
     position: absolute;
-    z-index: 11;
+    z-index: 1002;
 }
 
 .globe-map-selected-fallback__note {
