@@ -184,8 +184,25 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
     return undefined;
   }, [fitMapboxToFleet, useLeaflet]);
 
+  const handleMapBackgroundPointerDown = useCallback((event) => {
+    if (!selectedDroneId) {
+      return;
+    }
+
+    const target = event.target;
+    if (
+      target?.closest?.(
+        '.globe-map-drone-card-popover, .globe-map-selected-fallback, .globe-drone-marker, .leaflet-marker-icon, .leaflet-popup, .globe-map-ops-bar, .mapboxgl-ctrl, .leaflet-control'
+      )
+    ) {
+      return;
+    }
+
+    onSelectDrone(null);
+  }, [onSelectDrone, selectedDroneId]);
+
   return (
-    <div className="globe-map-container">
+    <div className="globe-map-container" onPointerDown={handleMapBackgroundPointerDown}>
       {useLeaflet && <MapFallbackBanner />}
       <div className="globe-map-ops-bar">
         <div className="globe-map-ops-bar__badge" title="Live telemetry map">
@@ -206,7 +223,11 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
         )}
       </div>
       {selectedDrone && !selectedDroneHasMapFix && (
-        <div className="globe-map-selected-fallback">
+        <div
+          className="globe-map-selected-fallback"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="globe-map-selected-fallback__note" title="This drone is selected but does not currently have a non-zero GPS coordinate for the map.">
             No map fix
           </div>
@@ -261,6 +282,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
                   {selected && (
                     <div
                       className="globe-map-drone-card-popover"
+                      onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => event.stopPropagation()}
                     >
                       <TacticalDroneCard drone={drone} onClose={() => onSelectDrone(null)} />

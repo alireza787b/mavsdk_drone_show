@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
 import { OrbitControls, Stars } from '@react-three/drei';
@@ -415,6 +415,23 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     }
   };
 
+  const handleSceneBackgroundPointerDown = useCallback((event) => {
+    if (!selectedDroneId) {
+      return;
+    }
+
+    const target = event.target;
+    if (
+      target?.closest?.(
+        '.globe-selected-card-popover, .globe-drone-screen-hit, .button-container, .globe-control-box'
+      )
+    ) {
+      return;
+    }
+
+    onSelectDrone(null);
+  }, [onSelectDrone, selectedDroneId]);
+
   if (isLoading || !referencePoint) {
     return <LoadingSpinner />;
   }
@@ -450,7 +467,11 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   };
 
   return (
-    <div id="scene-container" className="scene-container">
+    <div
+      id="scene-container"
+      className="scene-container"
+      onPointerDown={handleSceneBackgroundPointerDown}
+    >
       <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />

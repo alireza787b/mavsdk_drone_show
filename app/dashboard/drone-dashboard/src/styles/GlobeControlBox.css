@@ -13,7 +13,9 @@
     box-shadow: var(--shadow-lg);
     transition: transform 0.3s ease, opacity 0.3s ease;
     opacity: 0;
+    pointer-events: none;
     transform: translateY(-20px);
+    visibility: hidden;
     max-width: 320px;
     width: 100%;
     z-index: 900;
@@ -21,12 +23,16 @@
 
 .globe-control-box.show {
     opacity: 1;
+    pointer-events: auto;
     transform: translateY(0);
+    visibility: visible;
 }
 
 .globe-control-box.hide {
     opacity: 0;
+    pointer-events: none;
     transform: translateY(-20px);
+    visibility: hidden;
 }
 
 .globe-control-box__header {

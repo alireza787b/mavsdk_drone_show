@@ -41,7 +41,7 @@ const Overview = ({ setSelectedDrone }) => {
   const [droneQuery, setDroneQuery] = useState('');
   const [cardFilter, setCardFilter] = useState('active');
   const [clusterScope, setClusterScope] = useState('all');
-  const [commandTargetMode, setCommandTargetMode] = useState('all');
+  const [commandTargetMode, setCommandTargetMode] = useState('selected');
   const [commandSelectedDrones, setCommandSelectedDrones] = useState([]);
   const [commandClusterScope, setCommandClusterScope] = useState('');
   const [fleetPanelExpanded, setFleetPanelExpanded] = useState(false);
@@ -50,6 +50,8 @@ const Overview = ({ setSelectedDrone }) => {
   const [notification, setNotification] = useState(null);
   const droneRefs = useRef({});
   const commandDispatchRef = useRef(null);
+  const commandScopeAutoTracksVisibleRef = useRef(true);
+  const lastAutoCommandScopeSignatureRef = useRef('');
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
   useEffect(() => {
@@ -265,12 +267,16 @@ const Overview = ({ setSelectedDrone }) => {
       }
     });
   }, [cardFilter, droneQuery, drones, visibleClusterHwIds]);
-  const filteredDroneIds = React.useMemo(
-    () => filteredDrones
+  const visibleCommandScopeIds = React.useMemo(() => {
+    const nowMs = Date.now();
+    return filteredDrones
+      .filter((drone) => {
+        const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
+        return runtimeStatus.level === 'online' || runtimeStatus.level === 'degraded';
+      })
       .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
-      .filter(Boolean),
-    [filteredDrones],
-  );
+      .filter(Boolean);
+  }, [filteredDrones]);
   const commandClusterTargetIds = React.useMemo(() => {
     if (!swarmViewModel || !commandClusterScope) {
       return [];
@@ -300,15 +306,18 @@ const Overview = ({ setSelectedDrone }) => {
     [commandScopeIds],
   );
   const visibleScopeMatchesSelection = React.useMemo(() => {
-    if (commandTargetMode !== 'selected' || filteredDroneIds.length !== commandSelectedDrones.length) {
+    if (commandTargetMode !== 'selected' || visibleCommandScopeIds.length !== commandSelectedDrones.length) {
       return false;
     }
 
     const selectedSet = new Set(commandSelectedDrones.map((value) => String(value)));
-    return filteredDroneIds.every((value) => selectedSet.has(String(value)));
-  }, [commandSelectedDrones, commandTargetMode, filteredDroneIds]);
+    return visibleCommandScopeIds.every((value) => selectedSet.has(String(value)));
+  }, [commandSelectedDrones, commandTargetMode, visibleCommandScopeIds]);
   const commandScopeSummary = React.useMemo(() => {
     if (commandTargetMode === 'selected') {
+      if (visibleScopeMatchesSelection) {
+        return `Dispatch · ${commandSelectedDrones.length} visible`;
+      }
       return `Dispatch · ${commandSelectedDrones.length} selected`;
     }
 
@@ -322,15 +331,48 @@ const Overview = ({ setSelectedDrone }) => {
     }
 
     return `Dispatch · All ${drones.length}`;
-  }, [clusterScopeOptions, commandClusterScope, commandSelectedDrones.length, commandTargetMode, drones.length]);
-  const applyVisibleCardsToCommandScope = React.useCallback(() => {
-    if (filteredDroneIds.length === 0) {
+  }, [clusterScopeOptions, commandClusterScope, commandSelectedDrones.length, commandTargetMode, drones.length, visibleScopeMatchesSelection]);
+  React.useEffect(() => {
+    const nextSignature = visibleCommandScopeIds.join('\u001f');
+    const selectedSignature = commandSelectedDrones.map((value) => String(value)).join('\u001f');
+    const canAutoTrack = commandScopeAutoTracksVisibleRef.current
+      || (commandTargetMode === 'selected' && selectedSignature === lastAutoCommandScopeSignatureRef.current);
+
+    if (!canAutoTrack) {
       return;
     }
 
+    commandScopeAutoTracksVisibleRef.current = true;
+    lastAutoCommandScopeSignatureRef.current = nextSignature;
+
+    if (commandTargetMode !== 'selected') {
+      setCommandTargetMode('selected');
+    }
+
+    if (selectedSignature !== nextSignature) {
+      setCommandSelectedDrones(visibleCommandScopeIds);
+    }
+  }, [commandSelectedDrones, commandTargetMode, visibleCommandScopeIds]);
+  const handleCommandTargetModeChange = React.useCallback((nextMode) => {
+    commandScopeAutoTracksVisibleRef.current = false;
+    setCommandTargetMode(nextMode);
+  }, []);
+  const handleCommandSelectedDronesChange = React.useCallback((nextValue) => {
+    commandScopeAutoTracksVisibleRef.current = false;
+    setCommandSelectedDrones((previousValue) => (
+      typeof nextValue === 'function' ? nextValue(previousValue) : nextValue
+    ));
+  }, []);
+  const applyVisibleCardsToCommandScope = React.useCallback(() => {
+    if (visibleCommandScopeIds.length === 0) {
+      return;
+    }
+
+    commandScopeAutoTracksVisibleRef.current = true;
     setCommandTargetMode('selected');
-    setCommandSelectedDrones(filteredDroneIds);
-  }, [filteredDroneIds]);
+    setCommandSelectedDrones(visibleCommandScopeIds);
+    lastAutoCommandScopeSignatureRef.current = visibleCommandScopeIds.join('\u001f');
+  }, [visibleCommandScopeIds]);
   const focusCommandDispatch = React.useCallback(() => {
     commandDispatchRef.current?.scrollIntoView({
       behavior: 'smooth',
@@ -343,6 +385,7 @@ const Overview = ({ setSelectedDrone }) => {
       return;
     }
 
+    commandScopeAutoTracksVisibleRef.current = false;
     const allDroneIds = drones
       .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
       .filter(Boolean);
@@ -478,9 +521,9 @@ const Overview = ({ setSelectedDrone }) => {
           drones={drones}
           swarmData={swarmAssignments}
           targetMode={commandTargetMode}
-          onTargetModeChange={setCommandTargetMode}
+          onTargetModeChange={handleCommandTargetModeChange}
           selectedDrones={commandSelectedDrones}
-          onSelectedDronesChange={setCommandSelectedDrones}
+          onSelectedDronesChange={handleCommandSelectedDronesChange}
           selectedClusterScope={commandClusterScope}
           onSelectedClusterScopeChange={setCommandClusterScope}
         />
@@ -508,10 +551,10 @@ const Overview = ({ setSelectedDrone }) => {
             type="button"
             className="connected-drones-action"
             onClick={applyVisibleCardsToCommandScope}
-            disabled={filteredDroneIds.length === 0 || visibleScopeMatchesSelection}
+            disabled={visibleCommandScopeIds.length === 0 || visibleScopeMatchesSelection}
             title={visibleScopeMatchesSelection
-              ? 'The currently visible fleet already matches the manual dispatch scope.'
-              : 'Copy the currently visible fleet cards into the manual dispatch scope.'}
+              ? 'The currently visible commandable fleet already matches the manual dispatch scope.'
+              : 'Copy currently visible online/degraded fleet cards into the manual dispatch scope.'}
           >
             {visibleScopeMatchesSelection ? 'Visible in dispatch' : 'Use visible'}
           </button>
