@@ -29,6 +29,16 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [5.3] - 2026-04-25
+
+### Added
 - Node git auth visibility on fleet surfaces:
   drone git-status payloads now expose repo access posture plus node-local git
   auth health summary/issues without leaking secret file paths, and the GCS git
