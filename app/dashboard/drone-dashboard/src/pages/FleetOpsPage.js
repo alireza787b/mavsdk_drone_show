@@ -1,13 +1,14 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FaBroadcastTower,
-  FaBookOpen,
+  FaCheck,
   FaCodeBranch,
   FaExclamationTriangle,
   FaFilter,
   FaKey,
   FaLink,
   FaNetworkWired,
+  FaPlus,
   FaSatelliteDish,
   FaSearch,
   FaShieldAlt,
@@ -15,6 +16,15 @@ import {
   FaUpload,
   FaWifi,
 } from 'react-icons/fa';
+import {
+  ActionIconButton,
+  EmptyState,
+  MetricStrip,
+  OperatorCard,
+  OperatorNotice,
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS, syncReposResponse, updateConnectivityProfileResponse } from '../services/gcsApiService';
 import { buildFleetOpsViewModel, compactHash } from '../utilities/fleetOpsViewModel';
@@ -35,27 +45,11 @@ const FILTERS = [
   { key: 'drift', label: 'Drift' },
 ];
 
-function StatusPill({ tone = 'muted', children, title }) {
-  return (
-    <span className={`fleet-ops-pill fleet-ops-pill--${tone}`} title={title}>
-      {children}
-    </span>
-  );
-}
-
-function SummaryCard({ icon: Icon, label, value, detail, tone = 'neutral' }) {
-  return (
-    <article className={`fleet-ops-summary-card fleet-ops-summary-card--${tone}`}>
-      <span className="fleet-ops-summary-card__icon" aria-hidden="true">
-        <Icon />
-      </span>
-      <div>
-        <span>{label}</span>
-        <strong>{value}</strong>
-        <small>{detail}</small>
-      </div>
-    </article>
-  );
+function toPrimitiveTone(tone) {
+  if (tone === 'good') {
+    return 'success';
+  }
+  return ['info', 'success', 'warning', 'danger', 'muted', 'neutral'].includes(tone) ? tone : 'neutral';
 }
 
 function StatusMetric({ icon: Icon, label, status, detail }) {
@@ -65,7 +59,7 @@ function StatusMetric({ icon: Icon, label, status, detail }) {
       <div>
         <span>{label}</span>
         <strong>{status.label}</strong>
-        <small title={detail || status.detail}>{detail || status.detail}</small>
+        <small aria-label={detail || status.detail}>{detail || status.detail}</small>
       </div>
     </div>
   );
@@ -88,7 +82,9 @@ function DashboardLinks({ runtime }) {
           <FaLink /> Dashboard
         </a>
       ) : (
-        <span title="Dashboard is disabled, local-only, or not reported. Use node SSH or a future GCS proxy for local-only dashboards.">Local-only</span>
+        <span aria-label="Dashboard is disabled, local-only, or not reported. Use node SSH or a future GCS proxy for local-only dashboards.">
+          Local-only
+        </span>
       )}
     </div>
   );
@@ -205,34 +201,36 @@ function NodeDetails({ row, activeTab }) {
 
 function NodeCard({ row, activeTab, selected, onToggleSelected }) {
   return (
-    <article className={`fleet-ops-node-card ${row.needsAttention ? 'is-attention' : 'is-clear'} ${selected ? 'is-selected' : ''}`}>
+    <OperatorCard
+      className={`fleet-ops-node-card ${row.needsAttention ? 'is-attention' : 'is-clear'}`}
+      selected={selected}
+      tone={row.needsAttention ? 'warning' : 'neutral'}
+    >
       <header className="fleet-ops-node-card__header">
-        <button
-          type="button"
+        <ActionIconButton
+          icon={selected ? <FaCheck /> : <FaPlus />}
+          label={`${selected ? 'Deselect' : 'Select'} drone ${row.posId}`}
+          size="sm"
           className="fleet-ops-node-card__selector"
           onClick={() => onToggleSelected(row.key)}
-          aria-pressed={selected}
-          aria-label={`${selected ? 'Deselect' : 'Select'} drone ${row.posId}`}
-          title={`${selected ? 'Deselect' : 'Select'} this node for Fleet Ops actions`}
-        >
-          {selected ? 'x' : '+'}
-        </button>
+          active={selected}
+        />
         <div className="fleet-ops-node-card__identity">
           <span className="fleet-ops-node-card__eyebrow">Drone {row.posId}</span>
           <h2>HW {row.hwId}</h2>
           <p>{row.ip}</p>
         </div>
         <div className="fleet-ops-node-card__pills">
-          <StatusPill tone={row.presence.tone} title={row.presence.detail}>
+          <StatusBadge tone={toPrimitiveTone(row.presence.tone)} className="fleet-ops-pill" aria-label={row.presence.detail}>
             {row.presence.label}
-          </StatusPill>
-          <StatusPill tone={row.runtimeMode === 'real' ? 'real' : row.runtimeMode === 'sitl' ? 'sitl' : 'muted'}>
+          </StatusBadge>
+          <StatusBadge tone={row.runtimeMode === 'real' ? 'success' : row.runtimeMode === 'sitl' ? 'info' : 'muted'} className={`fleet-ops-pill fleet-ops-pill--${row.runtimeMode === 'real' ? 'real' : row.runtimeMode === 'sitl' ? 'sitl' : 'muted'}`}>
             {row.runtimeModeLabel}
-          </StatusPill>
+          </StatusBadge>
         </div>
       </header>
       <NodeDetails row={row} activeTab={activeTab} />
-    </article>
+    </OperatorCard>
   );
 }
 
@@ -390,74 +388,80 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
     ? `Wi-Fi ${compactHash(connectivityProfile.profile_hash)}`
     : 'Wi-Fi profile unset';
   const connectivityProfileTitle = connectivityProfile?.message || 'Repo-owned Smart Wi-Fi fleet profile status.';
+  const summaryItems = [
+    {
+      key: 'online',
+      icon: <FaBroadcastTower />,
+      label: 'Online',
+      value: `${viewModel.summary.online}/${viewModel.summary.total}`,
+      detail: 'Heartbeat-active nodes',
+      tone: viewModel.summary.online === viewModel.summary.total ? 'success' : 'warning',
+    },
+    {
+      key: 'synced',
+      icon: <FaSyncAlt />,
+      label: 'Synced',
+      value: `${viewModel.summary.synced}/${viewModel.summary.total}`,
+      detail: 'Node commit matches GCS',
+      tone: viewModel.summary.synced === viewModel.summary.total ? 'success' : 'warning',
+    },
+    {
+      key: 'auth',
+      icon: <FaKey />,
+      label: 'Auth',
+      value: `${viewModel.summary.authHealthy}/${viewModel.summary.total}`,
+      detail: 'Healthy read posture',
+      tone: viewModel.summary.authHealthy === viewModel.summary.total ? 'success' : 'warning',
+    },
+    {
+      key: 'sidecars',
+      icon: <FaNetworkWired />,
+      label: 'Sidecars',
+      value: `${viewModel.summary.mavlinkHealthy} MAVLink`,
+      detail: `${viewModel.summary.connectivityHealthy} connectivity · ${viewModel.summary.sidecarAttention + viewModel.summary.nodeSyncRuntimeAttention} attention`,
+      tone: viewModel.summary.sidecarAttention || viewModel.summary.nodeSyncRuntimeAttention ? 'warning' : 'success',
+    },
+  ];
 
   return (
-    <main className="fleet-ops-page">
-      <section className="fleet-ops-hero">
-        <div>
-          <span className="fleet-ops-eyebrow">Fleet Maintenance</span>
-          <h1>Fleet Ops</h1>
-          <p>
-            Node actions, access posture, and sidecar compliance. GCS Runtime stays host-only.
-          </p>
-        </div>
-        <div className="fleet-ops-hero__pills">
-          {viewModel.docs?.fleetOps ? (
-            <a className="fleet-ops-pill fleet-ops-pill--link" href={viewModel.docs.fleetOps} target="_blank" rel="noreferrer" title="Open Fleet Ops guide">
-              <FaBookOpen /> Guide
-            </a>
-          ) : null}
-          <StatusPill tone="muted">GCS {viewModel.gcsStatus?.branch || 'unknown'}</StatusPill>
-          <StatusPill tone={viewModel.summary.needsAttention ? 'warning' : 'good'}>
+    <PageShell
+      className="fleet-ops-page"
+      eyebrow="Fleet Maintenance"
+      title="Fleet Ops"
+      subtitle="Node sync, access posture, and sidecar compliance. GCS Runtime stays host-only."
+      icon={<FaNetworkWired />}
+      docsRoute="/fleet-ops"
+      docsOptions={{
+        repoUrl: viewModel.gcsStatus?.remote_url || '',
+        branch: viewModel.gcsStatus?.branch || '',
+      }}
+      status={(
+        <div className="fleet-ops-page__status-pills">
+          <StatusBadge tone="muted">GCS {viewModel.gcsStatus?.branch || 'unknown'}</StatusBadge>
+          <StatusBadge tone={viewModel.summary.needsAttention ? 'warning' : 'success'}>
             {viewModel.summary.needsAttention} attention
-          </StatusPill>
+          </StatusBadge>
         </div>
-      </section>
+      )}
+    >
 
       {error ? (
-        <div className="fleet-ops-banner fleet-ops-banner--warning">
-          <FaExclamationTriangle />
-          <span>Fleet Ops could not refresh one or more live feeds. Showing the last available data where possible.</span>
-        </div>
+        <OperatorNotice tone="warning" title="Live feed degraded" icon={<FaExclamationTriangle />}>
+          Showing the last available fleet data where possible.
+        </OperatorNotice>
       ) : null}
 
       {actionState.message ? (
-        <div className={`fleet-ops-banner fleet-ops-banner--${actionState.tone}`}>
-          {actionState.tone === 'danger' ? <FaExclamationTriangle /> : <FaShieldAlt />}
-          <span>{actionState.message}</span>
-        </div>
+        <OperatorNotice
+          tone={toPrimitiveTone(actionState.tone)}
+          title={actionState.tone === 'danger' ? 'Action failed' : 'Fleet action'}
+          icon={actionState.tone === 'danger' ? <FaExclamationTriangle /> : <FaShieldAlt />}
+        >
+          {actionState.message}
+        </OperatorNotice>
       ) : null}
 
-      <section className="fleet-ops-summary-grid" aria-label="Fleet operations summary">
-        <SummaryCard
-          icon={FaBroadcastTower}
-          label="Online"
-          value={`${viewModel.summary.online}/${viewModel.summary.total}`}
-          detail="Heartbeat-active nodes"
-          tone={viewModel.summary.online === viewModel.summary.total ? 'good' : 'warning'}
-        />
-        <SummaryCard
-          icon={FaSyncAlt}
-          label="Synced"
-          value={`${viewModel.summary.synced}/${viewModel.summary.total}`}
-          detail="Node commit matches GCS"
-          tone={viewModel.summary.synced === viewModel.summary.total ? 'good' : 'warning'}
-        />
-        <SummaryCard
-          icon={FaKey}
-          label="Auth"
-          value={`${viewModel.summary.authHealthy}/${viewModel.summary.total}`}
-          detail="Healthy read posture"
-          tone={viewModel.summary.authHealthy === viewModel.summary.total ? 'good' : 'warning'}
-        />
-        <SummaryCard
-          icon={FaNetworkWired}
-          label="Sidecars"
-          value={`${viewModel.summary.mavlinkHealthy} MAVLink`}
-          detail={`${viewModel.summary.connectivityHealthy} connectivity healthy · ${viewModel.summary.sidecarAttention} sidecar · ${viewModel.summary.nodeSyncRuntimeAttention} sync attention`}
-          tone={viewModel.summary.sidecarAttention || viewModel.summary.nodeSyncRuntimeAttention ? 'warning' : 'good'}
-        />
-      </section>
+      <MetricStrip items={summaryItems} label="Fleet operations summary" className="fleet-ops-summary-grid" />
 
       <section className="fleet-ops-toolbar" aria-label="Fleet operations controls">
         <label>
@@ -474,13 +478,12 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
             {FILTERS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
           </select>
         </label>
-        <div className="fleet-ops-tabs" role="tablist" aria-label="Fleet Ops sections">
+        <div className="fleet-ops-tabs" aria-label="Fleet Ops sections">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
-              role="tab"
-              aria-selected={activeTab === tab.key}
+              aria-pressed={activeTab === tab.key}
               className={activeTab === tab.key ? 'is-active' : ''}
               onClick={() => setActiveTab(tab.key)}
             >
@@ -493,10 +496,10 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
       <section className="fleet-ops-actions" aria-label="Fleet Ops actions">
         <div className="fleet-ops-actions__summary">
           <FaShieldAlt aria-hidden="true" />
-          <span title="Actions target selected nodes first. With no selection, sync targets all eligible online nodes.">
+          <span aria-label="Actions target selected nodes first. With no selection, sync targets all eligible online nodes.">
             {selectedRows.length ? `${selectedRows.length} selected` : 'No selection'}
           </span>
-          <span className="fleet-ops-actions__profile" title={connectivityProfileTitle}>
+          <span className="fleet-ops-actions__profile" aria-label={connectivityProfileTitle}>
             <FaWifi aria-hidden="true" /> {connectivityProfileLabel}
           </span>
         </div>
@@ -509,27 +512,32 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
             onChange={handleConnectivityProfileImport}
             aria-label="Import Smart Wi-Fi fleet profile"
           />
-          <button type="button" onClick={openConnectivityProfileImport} disabled={actionState.running} title="Import the repo-owned Smart Wi-Fi profile. Use only private fleet repos for profiles with passwords. Sync + reconcile applies it to managed real drones.">
-            <FaUpload /> Wi-Fi profile
-          </button>
-          <button type="button" onClick={selectVisible} disabled={!visibleRows.length || actionState.running} title="Select all nodes in the current filter">
+          <ActionIconButton
+            icon={<FaUpload />}
+            label="Import Smart Wi-Fi fleet profile"
+            onClick={openConnectivityProfileImport}
+            disabled={actionState.running}
+          >
+            Wi-Fi profile
+          </ActionIconButton>
+          <button type="button" onClick={selectVisible} disabled={!visibleRows.length || actionState.running} aria-label="Select all visible nodes">
             Select view
           </button>
-          <button type="button" onClick={clearSelection} disabled={!selectedRows.length || actionState.running} title="Clear node selection">
+          <button type="button" onClick={clearSelection} disabled={!selectedRows.length || actionState.running} aria-label="Clear node selection">
             Clear
           </button>
-          <button type="button" className="is-primary" onClick={runGitSync} disabled={actionState.running} title="Dispatch UPDATE_CODE. Node sync also reconciles managed MAVLink and connectivity sidecars.">
+          <button type="button" className="is-primary" onClick={runGitSync} disabled={actionState.running}>
             <FaSyncAlt /> {actionState.running ? 'Running' : 'Sync + reconcile'}
           </button>
         </div>
       </section>
 
       {loading ? (
-        <section className="fleet-ops-empty">Loading fleet operations status...</section>
+        <EmptyState icon={<FaNetworkWired />} title="Loading Fleet Ops" detail="Refreshing node sync, access, and sidecar posture." />
       ) : null}
 
       {!loading && visibleRows.length === 0 ? (
-        <section className="fleet-ops-empty">No fleet nodes match the current filter.</section>
+        <EmptyState icon={<FaFilter />} title="No matching nodes" detail="Change the filter or search text to widen the fleet view." />
       ) : (
         <section className="fleet-ops-node-grid" aria-label="Fleet node operations">
           {visibleRows.map((row) => (
@@ -543,6 +551,6 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
           ))}
         </section>
       )}
-    </main>
+    </PageShell>
   );
 }

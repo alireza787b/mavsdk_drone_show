@@ -12,20 +12,13 @@
     linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg-canvas) 100%);
 }
 
-.fleet-ops-hero {
+.fleet-ops-page__status-pills {
   display: flex;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: clamp(1rem, 2vw, 1.5rem);
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-xl);
-  background:
-    linear-gradient(135deg, rgba(18, 124, 93, 0.12), transparent 38%),
-    linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg-primary));
-  box-shadow: var(--shadow-lg);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
-.fleet-ops-eyebrow,
 .fleet-ops-node-card__eyebrow {
   display: inline-block;
   font-size: 0.72rem;
@@ -35,20 +28,6 @@
   color: var(--color-text-secondary);
 }
 
-.fleet-ops-hero h1 {
-  margin: 0.25rem 0 0;
-  font-family: var(--font-family-display);
-  font-size: clamp(1.8rem, 4vw, 2.7rem);
-}
-
-.fleet-ops-hero p {
-  margin: 0.65rem 0 0;
-  max-width: 62rem;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.fleet-ops-hero__pills,
 .fleet-ops-node-card__pills,
 .fleet-ops-node-card__links {
   display: flex;
@@ -74,14 +53,12 @@
 }
 
 .fleet-ops-pill--good,
-.fleet-ops-summary-card--good .fleet-ops-summary-card__icon,
 .fleet-ops-metric--good svg {
   border-color: rgba(63, 134, 61, 0.35);
   color: var(--color-success);
 }
 
 .fleet-ops-pill--warning,
-.fleet-ops-summary-card--warning .fleet-ops-summary-card__icon,
 .fleet-ops-metric--warning svg {
   border-color: rgba(180, 125, 24, 0.35);
   color: var(--color-warning);
@@ -96,7 +73,7 @@
 .fleet-ops-pill--real {
   background: rgba(18, 124, 93, 0.12);
   border-color: rgba(18, 124, 93, 0.35);
-  color: #0e7d5d;
+  color: var(--color-success);
 }
 
 .fleet-ops-pill--sitl {
@@ -109,86 +86,10 @@
   color: var(--color-text-secondary);
 }
 
-.fleet-ops-pill--link {
-  gap: 0.35rem;
-  text-decoration: none;
-}
-
-.fleet-ops-pill--link:hover {
-  border-color: var(--color-primary-border);
-  color: var(--color-primary);
-}
-
-.fleet-ops-banner,
-.fleet-ops-empty {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.9rem 1rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid var(--color-border-primary);
-  background: var(--color-surface-raised);
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-banner--warning {
-  border-color: rgba(180, 125, 24, 0.35);
-  background: rgba(180, 125, 24, 0.08);
-  color: var(--color-text-primary);
-}
-
-.fleet-ops-banner--success {
-  border-color: rgba(63, 134, 61, 0.35);
-  background: rgba(63, 134, 61, 0.08);
-  color: var(--color-text-primary);
-}
-
-.fleet-ops-banner--danger {
-  border-color: rgba(164, 48, 70, 0.35);
-  background: rgba(164, 48, 70, 0.08);
-  color: var(--color-text-primary);
-}
-
 .fleet-ops-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 0.85rem;
-}
-
-.fleet-ops-summary-card {
-  display: flex;
-  gap: 0.85rem;
-  align-items: center;
-  padding: 1rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-xl);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-sm);
-}
-
-.fleet-ops-summary-card__icon {
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid var(--color-border-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-surface-inset);
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.fleet-ops-summary-card span,
-.fleet-ops-summary-card small {
-  color: var(--color-text-secondary);
-}
-
-.fleet-ops-summary-card strong {
-  display: block;
-  margin: 0.1rem 0;
-  font-size: 1.45rem;
-  color: var(--color-text-primary);
 }
 
 .fleet-ops-toolbar {
@@ -511,7 +412,6 @@
 }
 
 @media (max-width: 1080px) {
-  .fleet-ops-hero,
   .fleet-ops-node-card__header {
     flex-direction: column;
   }

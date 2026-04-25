@@ -130,22 +130,22 @@ describe('FleetOpsPage', () => {
     render(<FleetOpsPage />);
 
     expect(screen.getByRole('heading', { name: /fleet ops/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /guide/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
       'href',
       'https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md',
     );
     expect(screen.getAllByText('1/2').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('1 MAVLink')).toBeInTheDocument();
-    expect(screen.getByText(/0 connectivity healthy/i)).toBeInTheDocument();
+    expect(screen.getByText(/0 connectivity/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 1/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-    expect(screen.getByText(/node actions, access posture, and sidecar compliance/i)).toBeInTheDocument();
+    expect(screen.getByText(/node sync, access posture, and sidecar compliance/i)).toBeInTheDocument();
   });
 
   test('shows access details without exposing secret paths or values', () => {
     render(<FleetOpsPage />);
 
-    fireEvent.click(screen.getByRole('tab', { name: /access/i }));
+    fireEvent.click(screen.getByRole('button', { name: /access/i }));
 
     expect(screen.getByText('HTTPS token')).toBeInTheDocument();
     expect(screen.getByText('SSH key')).toBeInTheDocument();
@@ -211,7 +211,7 @@ describe('FleetOpsPage', () => {
   test('shows sidecar detail and treats local-only dashboards as diagnostics, not primary controls', () => {
     render(<FleetOpsPage />);
 
-    fireEvent.click(screen.getByRole('tab', { name: /sidecars/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));
 
     expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByText(/local-only/i).length).toBeGreaterThan(0);

@@ -8,9 +8,12 @@ import '../../styles/OperatorPrimitives.css';
 const TONES = ['neutral', 'info', 'success', 'warning', 'danger', 'muted'];
 const SIZES = ['sm', 'md', 'lg'];
 
-export function StatusBadge({ tone = 'neutral', icon = null, children, className = '' }) {
+export function StatusBadge({ tone = 'neutral', icon = null, children, className = '', ...props }) {
   return (
-    <span className={['operator-status-badge', `operator-status-badge--${tone}`, className].filter(Boolean).join(' ')}>
+    <span
+      {...props}
+      className={['operator-status-badge', `operator-status-badge--${tone}`, className].filter(Boolean).join(' ')}
+    >
       {icon ? <span className="operator-status-badge__icon" aria-hidden="true">{icon}</span> : null}
       <span className="operator-status-badge__label">{children}</span>
     </span>
