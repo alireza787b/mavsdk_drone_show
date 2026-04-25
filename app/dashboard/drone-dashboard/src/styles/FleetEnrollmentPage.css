@@ -2,37 +2,12 @@
 
 .fleet-enrollment-page {
   min-height: 100vh;
-  padding: var(--spacing-lg);
   display: grid;
   gap: var(--spacing-base);
   color: var(--color-text-primary);
   background:
     radial-gradient(circle at top right, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
     linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg-canvas) 100%);
-}
-
-.fleet-enrollment-page__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--spacing-lg);
-}
-
-.fleet-enrollment-page__copy {
-  display: grid;
-  gap: 0.35rem;
-  max-width: 52rem;
-}
-
-.fleet-enrollment-page__copy h1 {
-  margin: 0;
-  font-size: var(--font-size-3xl);
-}
-
-.fleet-enrollment-page__copy p {
-  margin: 0;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
 }
 
 .fleet-enrollment-page__kicker {
@@ -43,10 +18,26 @@
   text-transform: uppercase;
 }
 
-.fleet-enrollment-page__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
+.fleet-enrollment-link-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--button-height-base);
+  padding: 0 var(--spacing-base);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-full);
+  background: var(--operator-control-background);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.fleet-enrollment-link-action:hover,
+.fleet-enrollment-link-action:focus-visible {
+  border-color: var(--color-primary-border);
+  background: var(--operator-control-background-hover);
+  color: var(--color-primary);
 }
 
 .fleet-enrollment-button {
@@ -81,73 +72,15 @@
   background: var(--color-surface-raised);
 }
 
-.fleet-enrollment-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--spacing-base);
-}
-
-.fleet-enrollment-summary-card,
 .fleet-enrollment-panel,
 .fleet-enrollment-list,
 .fleet-enrollment-inspector,
 .fleet-enrollment-toolbar,
-.fleet-enrollment-banner,
 .fleet-enrollment-notice {
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-md);
   background: var(--color-surface-raised);
   box-shadow: var(--shadow-sm);
-}
-
-.fleet-enrollment-summary-card {
-  padding: var(--spacing-base);
-  display: grid;
-  gap: 0.35rem;
-}
-
-.fleet-enrollment-summary-card span,
-.fleet-enrollment-summary-card small {
-  color: var(--color-text-secondary);
-}
-
-.fleet-enrollment-summary-card strong {
-  font-size: clamp(1.4rem, 3vw, 2rem);
-}
-
-.fleet-enrollment-banner,
-.fleet-enrollment-notice {
-  display: flex;
-  gap: var(--spacing-sm);
-  align-items: flex-start;
-  padding: var(--spacing-base);
-}
-
-.fleet-enrollment-banner svg,
-.fleet-enrollment-notice svg {
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-}
-
-.fleet-enrollment-banner div,
-.fleet-enrollment-notice {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.fleet-enrollment-notice--warning {
-  border-color: rgba(245, 158, 11, 0.4);
-  background: rgba(245, 158, 11, 0.08);
-}
-
-.fleet-enrollment-notice--success {
-  border-color: rgba(34, 197, 94, 0.4);
-  background: rgba(34, 197, 94, 0.08);
-}
-
-.fleet-enrollment-notice--danger {
-  border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.08);
 }
 
 .fleet-enrollment-toolbar {
@@ -261,42 +194,6 @@
   display: flex;
   gap: 0.5rem;
   align-items: flex-start;
-}
-
-.fleet-enrollment-state-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.35rem 0.6rem;
-  border-radius: 999px;
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
-}
-
-.fleet-enrollment-state-pill--warning {
-  background: rgba(245, 158, 11, 0.16);
-  color: #b45309;
-}
-
-.fleet-enrollment-state-pill--good {
-  background: rgba(34, 197, 94, 0.14);
-  color: #15803d;
-}
-
-.fleet-enrollment-state-pill--danger {
-  background: rgba(239, 68, 68, 0.12);
-  color: #b91c1c;
-}
-
-.fleet-enrollment-state-pill--muted {
-  background: rgba(148, 163, 184, 0.16);
-  color: var(--color-text-secondary);
-}
-
-.fleet-enrollment-state-pill--info {
-  background: rgba(var(--color-primary-rgb), 0.12);
-  color: var(--color-primary);
 }
 
 .fleet-enrollment-inspector {
@@ -455,7 +352,7 @@
 .fleet-enrollment-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: var(--z-modal);
   background: rgba(15, 23, 42, 0.5);
   display: grid;
   place-items: center;
@@ -529,11 +426,6 @@
 }
 
 @media (max-width: 720px) {
-  .fleet-enrollment-page {
-    padding: var(--spacing-base);
-  }
-
-  .fleet-enrollment-page__header,
   .fleet-enrollment-inspector__identity,
   .fleet-enrollment-dialog__header,
   .fleet-enrollment-dialog__actions,

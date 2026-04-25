@@ -29,6 +29,15 @@ import {
   normalizeDroneConfigData,
 } from '../utilities/missionIdentityUtils';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
+import {
+  ActionIconButton,
+  EmptyState,
+  MetricStrip,
+  OperatorCard,
+  OperatorNotice,
+  PageShell,
+  StatusBadge,
+} from '../components/ui/OperatorPrimitives';
 import '../styles/FleetEnrollmentPage.css';
 
 const ACTIVE_STATE_SET = new Set(['pending_operator_review', 'conflict']);
@@ -57,7 +66,7 @@ function formatCandidateStateTone(state) {
     case 'conflict':
       return 'warning';
     case 'accepted':
-      return 'good';
+      return 'success';
     case 'rejected':
       return 'danger';
     case 'ignored':
@@ -153,23 +162,25 @@ function EnrollmentNotice({ notice }) {
   }
 
   return (
-    <div className={`fleet-enrollment-notice fleet-enrollment-notice--${notice.tone || 'info'}`}>
-      <strong>{notice.title}</strong>
+    <OperatorNotice
+      tone={notice.tone || 'info'}
+      title={notice.title}
+      action={notice.postSync?.required ? <Link to="/fleet-ops">Fleet Ops</Link> : null}
+      className="fleet-enrollment-notice"
+    >
       {notice.detail ? <span>{notice.detail}</span> : null}
       {notice.postSync?.required ? (
-        <span>
-          Next step: open <Link to="/git-status">Git Status</Link> and sync the affected node before flight use.
-        </span>
+        <span>Next step: open Fleet Ops and sync the affected node before flight use.</span>
       ) : null}
-    </div>
+    </OperatorNotice>
   );
 }
 
 function CandidateStatePill({ state }) {
   return (
-    <span className={`fleet-enrollment-state-pill fleet-enrollment-state-pill--${formatCandidateStateTone(state)}`}>
+    <StatusBadge tone={formatCandidateStateTone(state)} className="fleet-enrollment-state-pill">
       {formatCandidateStateLabel(state)}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -478,63 +489,80 @@ function FleetEnrollmentPage() {
   const canRecoverExisting = Boolean(selectedCandidate && matchingConfiguredDrone);
   const canReplaceExisting = Boolean(selectedCandidate && configData.length > 0 && !matchingConfiguredDrone);
 
+  const pageStatusTone = candidateCounts.conflict > 0
+    ? 'warning'
+    : candidateCounts.active > 0
+      ? 'info'
+      : 'success';
+
   return (
-    <div className="fleet-enrollment-page">
-      <header className="fleet-enrollment-page__header">
-        <div className="fleet-enrollment-page__copy">
-          <span className="fleet-enrollment-page__kicker">Node Enrollment</span>
-          <h1>Fleet Enrollment</h1>
-          <p>
-            Review newly discovered nodes, accept them into the fleet, replace a failed slot with a spare,
-            or recover the same hardware ID after a companion-computer rebuild.
-          </p>
-        </div>
-        <div className="fleet-enrollment-page__actions">
-          <button
-            type="button"
-            className="fleet-enrollment-button fleet-enrollment-button--ghost"
+    <PageShell
+      className="fleet-enrollment-page"
+      eyebrow="Node enrollment"
+      title="Fleet Enrollment"
+      subtitle="Review discovered nodes, repair identity conflicts, and commit approved fleet changes."
+      icon={<FaSatelliteDish />}
+      docsRoute="/fleet-enrollment"
+      status={<StatusBadge tone={pageStatusTone}>{candidateCounts.active} active</StatusBadge>}
+      actions={(
+        <>
+          <ActionIconButton
+            icon={<FaSyncAlt />}
+            label="Refresh enrollment queue"
             onClick={() => setRefreshTick((value) => value + 1)}
           >
-            <FaSyncAlt />
             Refresh
-          </button>
-          <Link className="fleet-enrollment-button fleet-enrollment-button--ghost" to="/mission-config">
+          </ActionIconButton>
+          <Link className="fleet-enrollment-link-action" to="/mission-config">
             Mission Config
           </Link>
-        </div>
-      </header>
+        </>
+      )}
+    >
 
       <IdentityDoctrineStrip surface="fleet-enrollment" />
 
-      <div className="fleet-enrollment-summary-grid">
-        <article className="fleet-enrollment-summary-card">
-          <span>Active review queue</span>
-          <strong>{candidateCounts.active}</strong>
-          <small>Pending or conflict candidates waiting on an operator decision.</small>
-        </article>
-        <article className="fleet-enrollment-summary-card">
-          <span>Conflict candidates</span>
-          <strong>{candidateCounts.conflict}</strong>
-          <small>Conflicts usually mean duplicate hardware ID, duplicate IP, or incomplete identity.</small>
-        </article>
-        <article className="fleet-enrollment-summary-card">
-          <span>Accepted history</span>
-          <strong>{candidateCounts.accepted}</strong>
-          <small>Recovered, replaced, or newly accepted nodes already resolved by GCS.</small>
-        </article>
-      </div>
+      <MetricStrip
+        label="Enrollment queue summary"
+        items={[
+          {
+            key: 'active',
+            label: 'Active',
+            value: candidateCounts.active,
+            detail: 'needs review',
+            icon: <FaSatelliteDish />,
+            tone: candidateCounts.active > 0 ? 'info' : 'muted',
+          },
+          {
+            key: 'conflicts',
+            label: 'Conflicts',
+            value: candidateCounts.conflict,
+            detail: 'identity/IP',
+            icon: <FaExclamationTriangle />,
+            tone: candidateCounts.conflict > 0 ? 'warning' : 'muted',
+          },
+          {
+            key: 'accepted',
+            label: 'Accepted',
+            value: candidateCounts.accepted,
+            detail: 'resolved history',
+            icon: <FaCheckCircle />,
+            tone: candidateCounts.accepted > 0 ? 'success' : 'muted',
+          },
+        ]}
+      />
 
       {requestedReplaceTarget && replacementTargetDrone ? (
-        <div className="fleet-enrollment-banner">
-          <FaArrowRight />
-          <div>
-            <strong>Replacement workflow armed for {formatDroneLabel(replacementTargetDrone.hw_id)}</strong>
-            <span>
-              Select a pending spare candidate, then use <strong>Replace existing slot</strong> to preserve
-              {` ${formatShowSlotLabel(replacementTargetDrone.pos_id)}`}.
-            </span>
-          </div>
-        </div>
+        <OperatorNotice
+          tone="info"
+          title={`Replacement workflow armed for ${formatDroneLabel(replacementTargetDrone.hw_id)}`}
+          icon={<FaArrowRight />}
+        >
+          <span>
+            Select a pending spare candidate, then use <strong>Replace existing slot</strong> to preserve
+            {` ${formatShowSlotLabel(replacementTargetDrone.pos_id)}`}.
+          </span>
+        </OperatorNotice>
       ) : null}
 
       <EnrollmentNotice notice={mutationNotice} />
@@ -566,15 +594,15 @@ function FleetEnrollmentPage() {
       <div className="fleet-enrollment-layout">
         <section className="fleet-enrollment-list" aria-label="Fleet candidates">
           {candidateLoading ? (
-            <div className="fleet-enrollment-empty-state">Loading fleet candidates…</div>
+            <EmptyState title="Loading candidates" detail="Refreshing discovered node state." />
           ) : candidateError ? (
-            <div className="fleet-enrollment-empty-state fleet-enrollment-empty-state--danger">
-              Fleet candidate state could not be loaded.
-            </div>
+            <EmptyState
+              title="Candidate state unavailable"
+              detail="Fleet candidate state could not be loaded."
+              className="fleet-enrollment-empty-state--danger"
+            />
           ) : filteredCandidates.length === 0 ? (
-            <div className="fleet-enrollment-empty-state">
-              No candidates match the current filters.
-            </div>
+            <EmptyState title="No matching candidates" detail="Clear filters or wait for a node heartbeat." />
           ) : (
             filteredCandidates.map((candidate) => {
               const isSelected = candidate.candidate_id === selectedCandidateId;
@@ -585,10 +613,14 @@ function FleetEnrollmentPage() {
                   : 'No slot hint';
 
               return (
-                <button
+                <OperatorCard
+                  as="button"
                   key={candidate.candidate_id}
                   type="button"
                   className={`fleet-enrollment-candidate-card ${isSelected ? 'active' : ''}`}
+                  compact
+                  selected={isSelected}
+                  tone={candidate.registration_state === 'conflict' ? 'warning' : 'neutral'}
                   onClick={() => {
                     setSelectedCandidateId(candidate.candidate_id);
                     const nextParams = new URLSearchParams(searchParams);
@@ -614,7 +646,7 @@ function FleetEnrollmentPage() {
                       <span>{candidate.conflict_reasons.map(formatConflictReason).join(' · ')}</span>
                     </div>
                   ) : null}
-                </button>
+                </OperatorCard>
               );
             })
           )}
@@ -748,7 +780,10 @@ function FleetEnrollmentPage() {
               </section>
             </>
           ) : (
-            <div className="fleet-enrollment-empty-state">Select a candidate to review its identity, conflicts, and actions.</div>
+            <EmptyState
+              title="No candidate selected"
+              detail="Select a candidate to review identity, conflicts, and actions."
+            />
           )}
         </aside>
       </div>
@@ -920,7 +955,7 @@ function FleetEnrollmentPage() {
           <textarea rows="3" value={dialogState.reason ?? ''} onChange={(event) => updateDialogState('reason', event.target.value)} />
         </label>
       </ActionDialog>
-    </div>
+    </PageShell>
   );
 }
 
