@@ -8,43 +8,7 @@
   color: var(--color-text-primary);
 }
 
-.runtime-admin-page__hero {
-  display: flex;
-  justify-content: space-between;
-  gap: 1.5rem;
-  padding: 1.5rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-xl);
-  background:
-    linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.12), transparent 40%),
-    linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg-primary));
-  box-shadow: var(--shadow-lg);
-}
-
-.runtime-admin-page__eyebrow {
-  display: inline-block;
-  margin-bottom: 0.5rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.runtime-admin-page__hero h1 {
-  margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.4rem);
-  font-family: var(--font-family-display);
-}
-
-.runtime-admin-page__hero p {
-  margin: 0.75rem 0 0;
-  max-width: 60rem;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.runtime-admin-page__hero-pills {
+.runtime-admin-page__status-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
@@ -69,7 +33,7 @@
 .runtime-admin-page__pill--real {
   background: rgba(18, 124, 93, 0.14);
   border-color: rgba(18, 124, 93, 0.35);
-  color: #0e7d5d;
+  color: var(--color-success);
 }
 
 .runtime-admin-page__pill--sitl {
@@ -93,36 +57,7 @@
 .runtime-admin-page__pill--danger {
   background: rgba(164, 48, 70, 0.12);
   border-color: rgba(164, 48, 70, 0.28);
-  color: var(--color-danger, #a43046);
-}
-
-.runtime-admin-page__banner {
-  padding: 0.9rem 1rem;
-  border-radius: var(--border-radius-lg);
-  border: 1px solid rgba(180, 125, 24, 0.3);
-  background: rgba(180, 125, 24, 0.08);
-  color: var(--color-text-primary);
-}
-
-.runtime-admin-page__banner--success {
-  border-color: rgba(63, 134, 61, 0.35);
-  background: rgba(63, 134, 61, 0.08);
-}
-
-.runtime-admin-page__banner--danger {
-  border-color: rgba(164, 48, 70, 0.3);
-  background: rgba(164, 48, 70, 0.08);
-}
-
-.runtime-admin-page__banner-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-weight: 600;
-}
-
-.runtime-admin-page__banner-actions {
-  margin-top: 0.85rem;
+  color: var(--color-danger);
 }
 
 .runtime-admin-page__grid {
@@ -211,7 +146,7 @@
 .runtime-admin-page__segmented-btn.is-real {
   background: rgba(18, 124, 93, 0.12);
   border-color: rgba(18, 124, 93, 0.35);
-  color: #0e7d5d;
+  color: var(--color-success);
 }
 
 .runtime-admin-page__segmented-btn.is-sitl {
@@ -400,11 +335,7 @@
 }
 
 @media (max-width: 1100px) {
-  .runtime-admin-page__hero {
-    flex-direction: column;
-  }
-
-  .runtime-admin-page__hero-pills {
+  .runtime-admin-page__status-pills {
     justify-content: flex-start;
   }
 
@@ -423,7 +354,6 @@
     padding: 1rem;
   }
 
-  .runtime-admin-page__hero,
   .runtime-admin-page__card {
     padding: 1rem;
   }
