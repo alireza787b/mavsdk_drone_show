@@ -135,7 +135,7 @@ const resolveSelectedCardPlacement = (screenPosition) => {
   const width = screenPosition?.width ?? 0;
   const height = screenPosition?.height ?? 0;
   const placeLeft = width > 0 && x > width - SELECTED_CARD_WIDTH_PX - 48;
-  const placeAbove = height > 0 && y > height * 0.58;
+  const placeAbove = height > 0 && y > height * 0.38;
   const rawLeft = Math.round(
     placeLeft ? x - SELECTED_CARD_WIDTH_PX - SELECTED_CARD_GAP_PX : x + SELECTED_CARD_GAP_PX
   );
