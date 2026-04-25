@@ -922,10 +922,67 @@ check_connectivity_updates() {
     if sudo "${reconcile_script}" apply --quiet; then
         CONNECTIVITY_RECONCILE_STATUS="success"
         log_info "$component" "Connectivity backend reconciled"
+    elif connectivity_runtime_currently_healthy "${reconcile_script}"; then
+        CONNECTIVITY_RECONCILE_STATUS="success"
+        log_warn "$component" "Connectivity reconcile returned a warning, but current runtime status matches the desired profile"
     else
         CONNECTIVITY_RECONCILE_STATUS="warning"
         log_warn "$component" "Connectivity reconcile did not complete cleanly"
     fi
+}
+
+status_value() {
+    local status_text="$1"
+    local key="$2"
+    awk -F= -v target="${key}" '$1 == target {print substr($0, index($0, "=") + 1); exit}' <<< "${status_text}"
+}
+
+connectivity_runtime_currently_healthy() {
+    local reconcile_script="$1"
+    local status_text backend config_match service_status
+
+    status_text="$(sudo "${reconcile_script}" status 2>/dev/null || true)"
+    backend="$(status_value "${status_text}" "backend")"
+
+    case "${backend}" in
+        smart-wifi-manager)
+            config_match="$(status_value "${status_text}" "config_hash_match")"
+            service_status="$(status_value "${status_text}" "service_status")"
+            [[ "${config_match}" == "true" ]] && [[ "${service_status}" == "active" || "${service_status}" == "enabled" ]]
+            ;;
+        none|manual|"")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+mavlink_runtime_currently_healthy() {
+    local reconcile_script="$1"
+    local status_text mode config_match runtime_present router_binary router_service dashboard_service skip_dashboard
+
+    status_text="$(sudo "${reconcile_script}" status 2>/dev/null || true)"
+    mode="$(status_value "${status_text}" "mode")"
+    config_match="$(status_value "${status_text}" "config_hash_match")"
+    runtime_present="$(status_value "${status_text}" "runtime_present")"
+    router_binary="$(status_value "${status_text}" "router_binary")"
+    router_service="$(status_value "${status_text}" "router_service")"
+    dashboard_service="$(status_value "${status_text}" "dashboard_service")"
+    skip_dashboard="$(status_value "${status_text}" "skip_dashboard")"
+
+    [[ "${mode}" == "managed" ]] || return 1
+    [[ "${config_match}" == "true" ]] || return 1
+    [[ "${runtime_present}" == "true" ]] || return 1
+    [[ "${router_binary}" == "present" ]] || return 1
+    [[ "${router_service}" == "active" || "${router_service}" == "enabled" ]] || return 1
+
+    if [[ "${skip_dashboard}" == "true" ]]; then
+        return 0
+    fi
+
+    [[ "${dashboard_service}" == "active" || "${dashboard_service}" == "enabled" ]]
 }
 
 check_mavlink_runtime_updates() {
@@ -953,6 +1010,9 @@ check_mavlink_runtime_updates() {
     if sudo "${reconcile_script}" apply --quiet; then
         MAVLINK_RUNTIME_RECONCILE_STATUS="success"
         log_info "$component" "Managed mavlink-anywhere runtime reconciled"
+    elif mavlink_runtime_currently_healthy "${reconcile_script}"; then
+        MAVLINK_RUNTIME_RECONCILE_STATUS="success"
+        log_warn "$component" "Managed mavlink-anywhere reconcile returned a warning, but current runtime status matches the desired profile"
     else
         MAVLINK_RUNTIME_RECONCILE_STATUS="warning"
         log_warn "$component" "Managed mavlink-anywhere reconcile did not complete cleanly"

@@ -2034,6 +2034,61 @@ def test_runtime_git_sync_reconciles_managed_mavlink_runtime():
     assert "check_mavlink_runtime_updates()" in git_sync_text
     assert '/tools/reconcile_mavlink_runtime.sh' in git_sync_text
     assert "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE" in git_sync_text
+    assert "mavlink_runtime_currently_healthy" in git_sync_text
+
+
+def test_git_sync_accepts_healthy_mavlink_runtime_after_reconcile_warning():
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        sudo() {{
+            if [[ "$2" == "status" ]]; then
+                cat <<'EOF'
+mode=managed
+config_hash_match=true
+runtime_present=true
+router_binary=present
+router_service=active
+dashboard_service=active
+skip_dashboard=false
+EOF
+                return 0
+            fi
+            return 1
+        }}
+        mavlink_runtime_currently_healthy /tmp/reconcile_mavlink_runtime.sh
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_git_sync_rejects_unhealthy_mavlink_runtime_after_reconcile_warning():
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        sudo() {{
+            if [[ "$2" == "status" ]]; then
+                cat <<'EOF'
+mode=managed
+config_hash_match=false
+runtime_present=true
+router_binary=present
+router_service=active
+dashboard_service=active
+skip_dashboard=false
+EOF
+                return 0
+            fi
+            return 1
+        }}
+        if mavlink_runtime_currently_healthy /tmp/reconcile_mavlink_runtime.sh; then
+            exit 1
+        fi
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_git_sync_reexecs_updated_sync_script_once_to_apply_new_logic():
