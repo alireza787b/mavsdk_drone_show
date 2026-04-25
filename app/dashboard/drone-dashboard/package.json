@@ -18,6 +18,7 @@
     "@mui/material": "^6.4.1",
     "@mui/x-data-grid": "^7.28.0",
     "@react-three/drei": "^9.80.2",
+    "@react-three/fiber": "^8.18.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^13.5.0",
@@ -58,6 +59,7 @@
     "start": "NODE_OPTIONS=--max-old-space-size=4096 PORT=3030 react-scripts start",
     "build": "GENERATE_SOURCEMAP=false NODE_OPTIONS=--max-old-space-size=4096 react-scripts build",
     "test": "react-scripts test",
+    "audit:ui": "python3 ../../../tools/audit_frontend_ui.py --strict",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
