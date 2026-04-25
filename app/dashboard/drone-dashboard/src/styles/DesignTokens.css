@@ -3,6 +3,7 @@
 
 :root {
     color-scheme: dark;
+    --app-meta-theme-color: #09111c;
 
     /* === CORE BRAND COLORS === */
     --brand-primary: #5fb9ff;
@@ -232,6 +233,7 @@
 [data-theme="light"],
 .theme-light {
     color-scheme: light;
+    --app-meta-theme-color: #f8fbfd;
 
     --color-primary: #0a67bd;
     --color-primary-hover: #0858a1;
@@ -300,6 +302,7 @@
 [data-theme="dark"],
 .theme-dark {
     color-scheme: dark;
+    --app-meta-theme-color: #09111c;
 
     --color-primary: var(--brand-primary);
     --color-primary-hover: var(--brand-primary-hover);
