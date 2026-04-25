@@ -585,7 +585,25 @@
 
 @media (max-width: 768px) {
     .globe-tactical-strip {
+        gap: 7px;
         grid-template-columns: 1fr;
+        margin-bottom: var(--spacing-md);
+    }
+
+    .globe-tactical-strip__status {
+        font-size: 10px;
+        min-height: 30px;
+        padding: 0 10px;
+    }
+
+    .globe-tactical-strip__drones {
+        gap: 6px;
+    }
+
+    .globe-tactical-strip__chip {
+        font-size: 10px;
+        min-height: 28px;
+        padding: 0 9px;
     }
 
     .globe-map-ops-bar {
