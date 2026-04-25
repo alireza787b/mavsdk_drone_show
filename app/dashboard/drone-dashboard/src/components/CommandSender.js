@@ -1,13 +1,13 @@
 // src/components/CommandSender.js
 
 import React, { useMemo, useRef, useState } from 'react';
-import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
 import CommandPreflightSummary from './CommandPreflightSummary';
 import ClusterScopeBar from './ClusterScopeBar';
+import { ConfirmDialog } from './ui';
 import { toast } from 'react-toastify';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRocket, faCog, faChevronDown } from '@fortawesome/free-solid-svg-icons';
@@ -417,6 +417,20 @@ const CommandSender = ({
       </p>
     ));
   };
+
+  const renderConfirmationMessage = () => (
+    <div className="command-confirmation">
+      <p>{confirmationMessage}</p>
+      <p className="command-confirmation-target-note">
+        {currentCommandData?.uiMeta?.targetDescriptor || targetDescriptor}
+      </p>
+      {currentCommandData && (
+        <div className="command-confirmation-details">
+          {renderConfirmationDetails()}
+        </div>
+      )}
+    </div>
+  );
 
   // Handle new command from child components (MissionTrigger/DroneActions)
   const handleSendCommand = (commandData) => {
@@ -860,19 +874,23 @@ const CommandSender = ({
         </section>
       )}
 
-      <div className="command-tabs">
+      <div className="command-tabs" aria-label="Command dispatch type">
         <button
+          type="button"
+          aria-pressed={activeTab === 'missionTrigger'}
+          aria-controls="command-tab-panel"
           className={`command-tab ${activeTab === 'missionTrigger' ? 'active' : ''}`}
           onClick={() => setActiveTab('missionTrigger')}
-          title="Mission Trigger - Schedule and execute complex mission operations"
         >
           <FontAwesomeIcon icon={faRocket} className="command-tab__icon" />
           <span className="command-tab__text">Mission Trigger</span>
         </button>
         <button
+          type="button"
+          aria-pressed={activeTab === 'actions'}
+          aria-controls="command-tab-panel"
           className={`command-tab ${activeTab === 'actions' ? 'active' : ''}`}
           onClick={() => setActiveTab('actions')}
-          title="Actions - Execute immediate flight control and system commands"
         >
           <FontAwesomeIcon icon={faCog} className="command-tab__icon" />
           <span className="command-tab__text">Actions</span>
@@ -880,7 +898,7 @@ const CommandSender = ({
       </div>
 
       {/* Tab Content */}
-      <div className="tab-content">
+      <div className="tab-content" id="command-tab-panel">
         {activeTab === 'missionTrigger' && (
           <MissionTrigger
             missionTypes={DRONE_MISSION_TYPES}
@@ -923,32 +941,16 @@ const CommandSender = ({
         onSubmitHold={handleSubmitPrecisionMoveHold}
       />
 
-      {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
-      {modalOpen && ReactDOM.createPortal(
-        <div className="modal-overlay" onClick={handleCancelSendCommand}>
-          <div className="modal-content" onClick={(event) => event.stopPropagation()}>
-            <h3>Confirm Command</h3>
-            <p>{confirmationMessage}</p>
-            <p className="command-confirmation-target-note">
-              {currentCommandData?.uiMeta?.targetDescriptor || targetDescriptor}
-            </p>
-            {currentCommandData && (
-              <div className="command-confirmation-details">
-                {renderConfirmationDetails()}
-              </div>
-            )}
-            <div className="modal-actions">
-              <button className="confirm-button" onClick={handleConfirmSendCommand}>
-                Yes
-              </button>
-              <button className="cancel-button" onClick={handleCancelSendCommand}>
-                No
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+      <ConfirmDialog
+        open={modalOpen}
+        title="Confirm Command"
+        message={renderConfirmationMessage()}
+        confirmLabel="Yes"
+        cancelLabel="No"
+        busy={loading}
+        onConfirm={handleConfirmSendCommand}
+        onCancel={handleCancelSendCommand}
+      />
 
       {/* Loading Spinner */}
       {loading && (
