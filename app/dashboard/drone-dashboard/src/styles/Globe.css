@@ -134,20 +134,16 @@
 
 @media (max-width: 700px) {
     .globe-selected-card-popover {
-        bottom: max(14px, env(safe-area-inset-bottom));
-        left: 12px !important;
-        position: fixed;
-        right: 12px;
-        top: auto !important;
+        width: min(300px, calc(100% - 24px));
         z-index: 2200;
     }
 
     .globe-selected-card-popover::before {
-        display: none;
+        display: block;
     }
 
     .globe-selected-card-popover .tactical-drone-card {
-        max-height: min(28vh, 260px);
+        max-height: min(30vh, 240px);
         overflow-y: auto;
         width: 100%;
     }

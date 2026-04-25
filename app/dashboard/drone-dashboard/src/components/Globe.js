@@ -17,8 +17,8 @@ import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
 const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-const SELECTED_CARD_WIDTH_PX = 340;
-const SELECTED_CARD_HEIGHT_PX = 330;
+const SELECTED_CARD_WIDTH_PX = 320;
+const SELECTED_CARD_HEIGHT_PX = 260;
 const SELECTED_CARD_GAP_PX = 18;
 
 const resolveMarkerColor = (candidate) => {
