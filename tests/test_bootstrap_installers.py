@@ -2513,6 +2513,7 @@ PORT=3030
 GENERATE_SOURCEMAP=true
 SKIP_PREFLIGHT_CHECK=false
 REACT_APP_SERVER_URL=http://example.invalid
+# REACT_APP_GCS_PORT=5000
 EOF
         DEV_GCS_PORT=5030
         DEV_REACT_PORT=3030
@@ -2529,6 +2530,7 @@ EOF
         grep -q '^GENERATE_SOURCEMAP=false$' "$ENV_FILE_PATH"
         grep -q '^SKIP_PREFLIGHT_CHECK=true$' "$ENV_FILE_PATH"
         grep -q '^REACT_APP_SERVER_URL=http://example.invalid$' "$ENV_FILE_PATH"
+        grep -q '^# REACT_APP_GCS_PORT=5030$' "$ENV_FILE_PATH"
         """
     )
 

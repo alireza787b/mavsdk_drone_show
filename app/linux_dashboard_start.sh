@@ -848,6 +848,11 @@ handle_env_file() {
             printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE_PATH"
             env_changed=true
         fi
+
+        if grep -q "^# ${key}=" "$ENV_FILE_PATH" 2>/dev/null; then
+            sed -i "s|^# ${key}=.*|# ${key}=${value}|" "$ENV_FILE_PATH"
+            env_changed=true
+        fi
     }
 
     if [[ -f "$ENV_FILE_PATH" ]]; then
