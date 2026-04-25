@@ -9,6 +9,70 @@
     min-height: 100vh;
 }
 
+.manage-drone-show__workflow {
+    margin-top: var(--spacing-lg);
+}
+
+.manage-drone-show__workflow-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-base);
+}
+
+.manage-drone-show__workflow-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+}
+
+.manage-drone-show__workflow-step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+        "icon label"
+        "icon detail";
+    align-items: center;
+    gap: 0 var(--spacing-sm);
+    min-height: 58px;
+    border: var(--operator-control-border);
+    border-radius: var(--border-radius-lg);
+    background: var(--operator-control-background);
+    color: var(--color-text-primary);
+    padding: var(--spacing-sm);
+    text-align: left;
+    cursor: pointer;
+}
+
+.manage-drone-show__workflow-step:disabled {
+    cursor: default;
+    opacity: 0.78;
+}
+
+.manage-drone-show__workflow-step.is-active {
+    border-color: var(--color-success-border);
+    background: var(--color-success-light);
+}
+
+.manage-drone-show__workflow-step span {
+    grid-area: icon;
+    color: var(--color-primary);
+}
+
+.manage-drone-show__workflow-step strong {
+    grid-area: label;
+    font-size: var(--font-size-sm);
+}
+
+.manage-drone-show__workflow-step small {
+    grid-area: detail;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.manage-drone-show__section {
+    margin-top: var(--spacing-lg);
+}
+
 /* Workflow Guidance Styling */
 .workflow-guidance {
     background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
@@ -137,13 +201,6 @@
 .file-upload:hover {
     background: var(--color-bg-quaternary);
     border-color: var(--color-primary-border);
-}
-
-/* Override MUI container styling */
-.MuiContainer-root {
-    width: 97% !important;
-    background: var(--color-bg-primary) !important;
-    color: var(--color-text-primary) !important;
 }
 
 /* Modal Overlay and Content */
@@ -508,7 +565,7 @@
 
 /* Upload Button Enhancement */
 .upload-button {
-    background: linear-gradient(135deg, var(--color-success), #059669);
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-hover));
     border: none;
     border-radius: var(--border-radius-base);
     color: var(--color-text-primary);
@@ -539,7 +596,7 @@
 }
 
 .upload-button:hover {
-    background: linear-gradient(135deg, #059669, #047857);
+    background: linear-gradient(135deg, var(--color-success-hover), var(--color-success-dark));
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
 }
@@ -553,7 +610,7 @@
 }
 
 /* Typography overrides for theme consistency */
-.MuiTypography-h4 {
+.manage-drone-show-container .MuiTypography-h4 {
     color: var(--color-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-weight: var(--font-weight-bold) !important;
@@ -565,7 +622,7 @@
     background-clip: text;
 }
 
-.MuiTypography-h6 {
+.manage-drone-show-container .MuiTypography-h6 {
     color: var(--color-text-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-weight: var(--font-weight-semibold) !important;
@@ -573,7 +630,7 @@
     line-height: var(--line-height-tight) !important;
 }
 
-.MuiTypography-body1 {
+.manage-drone-show-container .MuiTypography-body1 {
     color: var(--color-text-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-size: var(--font-size-base) !important;
@@ -581,7 +638,7 @@
     margin-bottom: var(--spacing-sm) !important;
 }
 
-.MuiTypography-body2 {
+.manage-drone-show-container .MuiTypography-body2 {
     color: var(--color-text-secondary) !important;
     font-family: var(--font-family-primary) !important;
     font-size: var(--font-size-sm) !important;
@@ -589,15 +646,15 @@
     font-weight: var(--font-weight-medium) !important;
 }
 
-.MuiTypography-subtitle1,
-.MuiTypography-subtitle2 {
+.manage-drone-show-container .MuiTypography-subtitle1,
+.manage-drone-show-container .MuiTypography-subtitle2 {
     color: var(--color-text-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-weight: var(--font-weight-semibold) !important;
     line-height: var(--line-height-tight) !important;
 }
 
-.MuiPaper-root {
+.manage-drone-show-container .MuiPaper-root {
     background: var(--color-bg-secondary) !important;
     color: var(--color-text-primary) !important;
     border: 1px solid var(--color-border-primary) !important;
@@ -614,6 +671,10 @@
 @media (max-width: 768px) {
     .manage-drone-show-container {
         padding-bottom: var(--spacing-xl);
+    }
+
+    .manage-drone-show__workflow-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .plot-full-width img {
@@ -671,6 +732,10 @@
 @media (max-width: 480px) {
     .modal-overlay {
         padding: var(--spacing-base);
+    }
+
+    .manage-drone-show__workflow-steps {
+        grid-template-columns: 1fr;
     }
 
     .workflow-guidance {

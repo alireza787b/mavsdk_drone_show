@@ -7,7 +7,6 @@ import {
   Chip,
   CircularProgress,
   Divider,
-  Link,
   Paper,
   Stack,
   Typography,
@@ -29,9 +28,9 @@ import {
   GCS_ROUTE_KEYS,
   importCustomShowResponse,
 } from '../services/gcsApiService';
+import { DocsLink, MetricStrip, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
 import '../styles/CustomShowPage.css';
 
-const CUSTOM_SHOW_DOC_URL = 'https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/features/drone-show.md#custom-csv-operational-note';
 const FALLBACK_REQUIRED_COLUMNS = ['t', 'px', 'py', 'pz', 'vx', 'vy', 'vz', 'ax', 'ay', 'az', 'yaw', 'mode'];
 
 function formatDuration(durationSec) {
@@ -115,23 +114,42 @@ const CustomShowPage = () => {
   const customShowBackendError = !showMissingCsvAlert
     ? customShowError?.response?.data?.detail || customShowError?.message || ''
     : '';
+  const statusItems = [
+    {
+      key: 'mode',
+      label: 'Mode',
+      value: 'Custom CSV',
+      detail: 'manual replay',
+      icon: <RuleFolder />,
+      tone: 'warning',
+    },
+    {
+      key: 'active-file',
+      label: 'Active File',
+      value: hasActiveCustomShow ? customShowInfo.filename : 'None',
+      detail: hasActiveCustomShow ? 'server active.csv' : 'upload required',
+      icon: <Description />,
+      tone: hasActiveCustomShow ? 'success' : 'neutral',
+    },
+    {
+      key: 'duration',
+      label: 'Duration',
+      value: hasActiveCustomShow ? formatDuration(customShowInfo.duration_sec) : 'N/A',
+      detail: hasActiveCustomShow ? `${customShowInfo.row_count || 0} samples` : 'no active file',
+      icon: <Insights />,
+      tone: hasActiveCustomShow ? 'info' : 'neutral',
+    },
+  ];
 
   return (
-    <div className="custom-show-page">
-      <div className="custom-show-page__hero">
-        <div>
-          <Typography variant="overline" className="custom-show-page__eyebrow">
-            Advanced Manual Mode
-          </Typography>
-          <Typography variant="h3" className="custom-show-page__title">
-            Custom CSV Drone Show
-          </Typography>
-          <Typography variant="body1" className="custom-show-page__intro">
-            Upload one ready-to-execute protocol CSV as <code>active.csv</code>. MDS validates it, refreshes the preview,
-            and every drone replays that same file in its own local launch frame.
-          </Typography>
-        </div>
-
+    <PageShell
+      className="custom-show-page"
+      eyebrow="Advanced manual mode"
+      title="Custom CSV Drone Show"
+      subtitle="Upload one ready-to-execute protocol CSV as active.csv. MDS validates it, refreshes the preview, and every drone replays that same file in its own local launch frame."
+      docsRoute="/custom-show"
+      status={<StatusBadge tone={hasActiveCustomShow ? 'success' : 'warning'}>{hasActiveCustomShow ? 'Active' : 'No CSV'}</StatusBadge>}
+      actions={(
         <div className="custom-show-page__hero-actions">
           <Button component={RouterLink} to="/drone-show-design" variant="outlined">
             Open Show Design
@@ -140,16 +158,18 @@ const CustomShowPage = () => {
             Review Mission Config
           </Button>
         </div>
-      </div>
+      )}
+    >
+      <MetricStrip items={statusItems} label="Custom CSV status" className="custom-show-page__status-strip" />
 
-      <Alert severity="warning" className="custom-show-page__banner">
+      <OperatorNotice tone="warning" title="Expert-only override" className="custom-show-page__banner">
         Expert-only override: no SkyBrush ZIP processing happens here. This page assumes the protocol CSV is already correct and ready to replay locally on every drone.
-      </Alert>
+      </OperatorNotice>
 
       {customShowBackendError && (
-        <Alert severity="error" className="custom-show-page__banner">
-          Failed to load the active custom CSV metadata: {customShowBackendError}
-        </Alert>
+        <OperatorNotice tone="danger" title="Failed to load active custom CSV metadata" role="alert" className="custom-show-page__banner">
+          {customShowBackendError}
+        </OperatorNotice>
       )}
 
       <div className="custom-show-page__grid">
@@ -215,7 +235,7 @@ const CustomShowPage = () => {
                 <Chip icon={<Route />} label={`${customShowInfo.max_altitude} m max altitude`} variant="outlined" />
               </div>
 
-              <Divider sx={{ my: 2 }} />
+              <Divider className="custom-show-page__divider" />
 
               <Stack spacing={1.25}>
                 <Typography variant="body2" color="text.secondary">
@@ -236,7 +256,7 @@ const CustomShowPage = () => {
           )}
 
           {showMissingCsvAlert && (
-            <Alert severity="warning" sx={{ mt: 2 }}>
+            <Alert severity="warning" className="custom-show-page__inline-alert">
               No active custom CSV is present on the server yet.
             </Alert>
           )}
@@ -265,13 +285,12 @@ const CustomShowPage = () => {
             <Typography variant="body2" color="text.secondary">
               Every drone executes the same path from its own launch frame. Operators remain responsible for spacing, protocol correctness, and real-world safety checks.
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Read the operational note in{' '}
-              <Link href={CUSTOM_SHOW_DOC_URL} target="_blank" rel="noreferrer">
-                the Drone Show documentation
-              </Link>{' '}
-              before using this mode on hardware.
-            </Typography>
+            <div className="custom-show-page__doc-row">
+              <Typography variant="body2" color="text.secondary">
+                Read the operational note before using this mode on hardware.
+              </Typography>
+              <DocsLink route="/custom-show" />
+            </div>
           </Stack>
         </Paper>
 
@@ -303,7 +322,7 @@ const CustomShowPage = () => {
           )}
         </Paper>
       </div>
-    </div>
+    </PageShell>
   );
 };
 
