@@ -2897,3 +2897,30 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/TrajectoryPlanning.test.js src/components/trajectory/WaypointPanel.test.js src/components/trajectory/WaypointModal.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 69
+
+Goal:
+
+- remove emoji/pseudo-glyph status markers from mission configuration save
+  feedback and drone configuration unavailable-state styling
+
+Implemented:
+
+- converted Mission Config save toasts to plain operator text while preserving
+  the reboot instruction and git commit success/failure branches
+- replaced the Drone Config unavailable-state warning pseudo-glyph with a CSS
+  status dot
+- preserved fleet config save, refresh, git result handling, missing-ID
+  warning, and card layout behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused MissionConfig and DroneConfigCard tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/DroneConfigCard.test.js src/pages/MissionConfig.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

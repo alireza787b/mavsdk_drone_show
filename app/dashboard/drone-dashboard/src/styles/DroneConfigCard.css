@@ -1516,9 +1516,12 @@ input:checked + .slider:before {
 }
 
 .data-unavailable::before {
-  content: "⚠";
-  color: var(--color-warning);
-  font-style: normal;
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-warning);
+  flex-shrink: 0;
 }
 
 /* Responsive Design */

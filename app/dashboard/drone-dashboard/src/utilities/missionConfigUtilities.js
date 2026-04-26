@@ -107,9 +107,9 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
         if (gitInfo) {
             if (gitInfo.success) {
                 toast.success(
-                    `✅ Configuration saved and committed to git successfully!
+                    `Configuration saved and committed to git successfully.
 
-⚠️ IMPORTANT: Reboot all drones from the Actions tab to apply changes.`,
+Reboot all drones from the Actions tab to apply changes.`,
                     { autoClose: 8000 }
                 );
             } else {
@@ -120,9 +120,9 @@ export const handleSaveChangesToServer = async(configData, setConfigData, setLoa
             }
         } else {
             toast.success(
-                `✅ ${response.data.message || 'Configuration saved successfully'}
+                `${response.data.message || 'Configuration saved successfully'}
 
-⚠️ IMPORTANT: Reboot all drones from the Actions tab to apply changes.`,
+Reboot all drones from the Actions tab to apply changes.`,
                 { autoClose: 8000 }
             );
         }
