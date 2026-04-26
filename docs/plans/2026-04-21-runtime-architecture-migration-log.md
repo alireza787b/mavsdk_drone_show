@@ -2321,3 +2321,29 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/FleetEnrollmentPage.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 49
+
+Goal:
+
+- clean Mission Config's remaining local UI drift without changing assignment,
+  enrollment, origin, or save semantics
+
+Implemented:
+
+- replaced the assignment-wall empty paragraph with the shared `EmptyState`
+  primitive
+- removed inline styles from the role-swap review dialog
+- added dialog accessibility attributes for the role-swap review surface
+- moved role-swap modal spacing/alignment into `MissionConfig.css`
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/MissionConfig.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

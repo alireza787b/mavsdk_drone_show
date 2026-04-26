@@ -61,6 +61,7 @@ import {
 } from '../services/gcsApiService';
 import { FaClipboardList, FaExchangeAlt } from 'react-icons/fa';
 import {
+  EmptyState,
   PageShell,
   StatusBadge,
 } from '../components/ui';
@@ -951,19 +952,22 @@ const MissionConfig = () => {
           <div
             className="role-swap-modal"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-swap-modal-title"
           >
-            <h3>
-              <FaExchangeAlt style={{ marginRight: '10px' }} />
+            <h3 id="role-swap-modal-title">
+              <FaExchangeAlt className="role-swap-modal__title-icon" />
               All Active Role Swaps ({roleSwapData.length})
             </h3>
-            <p style={{ marginBottom: '16px' }}>
+            <p className="role-swap-modal__intro">
               These drones are assigned to a different show slot than their own:
             </p>
             <table>
               <thead>
                 <tr>
                   <th>Drone</th>
-                  <th style={{ textAlign: 'center' }}>→</th>
+                  <th className="role-swap-modal__arrow">→</th>
                   <th>Show Slot</th>
                 </tr>
               </thead>
@@ -973,7 +977,7 @@ const MissionConfig = () => {
                     <td>
                       <strong>{formatDroneLabel(drone.hw_id)}</strong>
                     </td>
-                    <td style={{ textAlign: 'center' }}>→</td>
+                    <td className="role-swap-modal__arrow">→</td>
                     <td>
                       <strong>{formatShowSlotLabel(drone.pos_id)}</strong>
                     </td>
@@ -981,8 +985,8 @@ const MissionConfig = () => {
                 ))}
               </tbody>
             </table>
-            <div style={{ marginTop: '20px', textAlign: 'right' }}>
-              <button onClick={() => setShowRoleSwapModal(false)}>
+            <div className="role-swap-modal__actions">
+              <button type="button" onClick={() => setShowRoleSwapModal(false)}>
                 Close
               </button>
             </div>
@@ -1039,7 +1043,10 @@ const MissionConfig = () => {
               </div>
             ))
           ) : (
-            <p>No assignment cards match the current search, issue filter, or cluster scope.</p>
+            <EmptyState
+              title="No matching assignments"
+              detail="Clear search, issue focus, or cluster scope to widen the assignment wall."
+            />
           )}
         </div>
 
