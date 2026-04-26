@@ -175,6 +175,11 @@
     transition: var(--transition-all);
 }
 
+.export-section__title {
+    color: var(--color-primary) !important;
+    margin-bottom: var(--spacing-base) !important;
+}
+
 .intro-section ul {
     list-style: disc inside;
     margin-left: var(--spacing-xl);
