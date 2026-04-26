@@ -78,9 +78,7 @@ const FindingMarkerSystem = ({
         >
           <div
             className={`qs-finding-marker ${selectedFindingId === finding.id ? 'selected' : ''}`}
-            style={{
-              background: priorityColors[finding.priority] || priorityColors.medium,
-            }}
+            style={{ '--qs-finding-priority-color': priorityColors[finding.priority] || priorityColors.medium }}
           />
         </Marker>
       ))}

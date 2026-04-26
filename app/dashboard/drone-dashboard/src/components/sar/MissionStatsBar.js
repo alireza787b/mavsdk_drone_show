@@ -41,13 +41,13 @@ const MissionStatsBar = ({ missionStatus }) => {
         <span className="qs-stat-value success">{coverage.toFixed(1)}%</span>
       </div>
       <div className="qs-progress-bar">
-        <div className="qs-progress-fill" style={{ width: `${coverage}%` }} />
+        <div className="qs-progress-fill" style={{ '--qs-progress-percent': `${coverage}%` }} />
       </div>
       <div className="qs-stat">
         <span className="qs-stat-label">Elapsed:</span>
         <span className="qs-stat-value">{formatTime(elapsed)}</span>
       </div>
-      <div className="qs-empty-copy" style={{ marginLeft: 'auto', maxWidth: 420 }}>
+      <div className="qs-empty-copy qs-stats-summary">
         {statusSummary}
         {guidance ? ` ${guidance}` : ''}
       </div>

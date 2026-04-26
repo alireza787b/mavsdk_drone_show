@@ -2641,3 +2641,33 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/logs/LogViewerToolbar.test.js src/components/logs/OnboardUlogDialog.test.js src/hooks/useLogStream.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 60
+
+Goal:
+
+- normalize QuickScout/SAR card and handoff styling hooks while preserving
+  mission planning, monitoring, findings, and handoff behavior
+
+Implemented:
+
+- moved QuickScout coverage progress fills to CSS custom-property driven
+  stylesheet widths
+- moved drone-card status-note spacing, mission-stat summary sizing, and
+  recurring tight title spacing into reusable CSS classes
+- moved handoff panel vertical spacing into existing stack offset classes
+- changed map finding marker priority color from direct inline background to a
+  CSS custom property while preserving priority class styling elsewhere
+- preserved mission recovery/opening, launch review, finding review, monitor
+  summary, handoff export, and QuickScout page behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused QuickScout/SAR tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/sar/DroneStatusCard.test.js src/components/sar/FindingReviewPanel.test.js src/components/sar/MissionStatsBar.test.js src/components/sar/MissionHandoffPanel.test.js src/components/sar/QuickScoutLaunchReview.test.js src/pages/QuickScoutPage.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

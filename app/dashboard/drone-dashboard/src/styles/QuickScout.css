@@ -84,6 +84,7 @@
 
 .qs-progress-fill {
     height: 100%;
+    width: var(--qs-progress-percent, 0%);
     background: var(--color-success);
     border-radius: 3px;
     transition: width 0.5s ease;
@@ -191,6 +192,10 @@
     letter-spacing: 0.5px;
     color: var(--color-text-secondary);
     margin-bottom: 8px;
+}
+
+.qs-config-title--tight {
+    margin-bottom: 4px;
 }
 
 .qs-stack-offset {
@@ -795,6 +800,7 @@
 
 .qs-drone-card-progress-fill {
     height: 100%;
+    width: var(--qs-drone-progress-percent, 0%);
     background: var(--color-success);
     transition: width 0.3s;
 }
@@ -804,6 +810,10 @@
     justify-content: space-between;
     font-size: 11px;
     color: var(--color-text-secondary);
+}
+
+.qs-drone-card-note {
+    margin-top: 6px;
 }
 
 /* === Findings System === */
@@ -856,6 +866,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
+    background: var(--qs-finding-priority-color, var(--color-warning));
     box-shadow: 0 0 0 2px var(--color-surface-raised);
 }
 
@@ -1207,6 +1218,11 @@
     font-size: 12px;
     line-height: 1.5;
     color: var(--color-text-secondary);
+}
+
+.qs-stats-summary {
+    margin-left: auto;
+    max-width: 420px;
 }
 
 .qs-mission-catalog {

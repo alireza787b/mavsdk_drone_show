@@ -101,7 +101,7 @@ const FindingReviewPanel = ({
     <div className="qs-finding-detail">
       <div className="qs-finding-detail__header">
         <div>
-          <div className="qs-config-title" style={{ marginBottom: 4 }}>Finding Review</div>
+          <div className="qs-config-title qs-config-title--tight">Finding Review</div>
           <div className="qs-finding-detail__meta">
             {finding.reported_by_drone ? `Drone ${finding.reported_by_drone}` : 'Operator mark'}
           </div>

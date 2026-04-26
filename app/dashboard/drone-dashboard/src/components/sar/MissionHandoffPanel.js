@@ -38,7 +38,7 @@ const MissionHandoffPanel = ({
             <span className="qs-inline-chip">{handoff.evidence_ref_count} refs</span>
           </div>
 
-          <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+          <div className="qs-launch-review__brief qs-stack-offset-lg">
             <span className="qs-launch-review__brief-label">Operator Brief</span>
             <p>{handoff.brief_text}</p>
           </div>
@@ -61,12 +61,12 @@ const MissionHandoffPanel = ({
               ))}
             </div>
           ) : (
-            <div className="qs-empty-copy" style={{ marginTop: 10 }}>
+            <div className="qs-empty-copy qs-stack-offset-lg">
               No findings are logged for this mission yet.
             </div>
           )}
 
-          <div className="qs-finding-detail__actions" style={{ marginTop: 10 }}>
+          <div className="qs-finding-detail__actions qs-stack-offset-lg">
             <button
               type="button"
               className="qs-btn qs-btn-secondary"
