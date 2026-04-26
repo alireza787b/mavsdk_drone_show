@@ -2411,3 +2411,32 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/SwarmDesign.test.js src/components/SwarmRuntimeControls.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 52
+
+Goal:
+
+- reduce Trajectory Planning map-chrome UI drift without changing waypoint
+  authoring, terrain refresh, library, export, or swarm handoff behavior
+
+Implemented:
+
+- replaced fixed emoji instruction markers with icon components for map-add
+  and drag guidance
+- moved path-risk legend swatch colors from inline styles into CSS classes
+- moved fixed Mapbox/Leaflet map sizing into a shared
+  `trajectory-map-surface` class
+- removed the now-unused trajectory segment color import from the page
+- kept dynamic waypoint marker CSS variable styling because marker color is
+  data/theme-driven
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/TrajectoryPlanning.test.js src/components/trajectory/TrajectoryToolbar.test.js src/components/trajectory/TrajectorySegmentReview.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

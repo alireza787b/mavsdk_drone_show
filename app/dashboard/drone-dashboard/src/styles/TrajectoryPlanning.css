@@ -101,6 +101,18 @@
   display: inline-block;
 }
 
+.trajectory-path-legend__swatch--feasible {
+  background: var(--color-success);
+}
+
+.trajectory-path-legend__swatch--marginal {
+  background: var(--color-warning);
+}
+
+.trajectory-path-legend__swatch--impossible {
+  background: var(--color-danger);
+}
+
 /* =============================================== */
 /* FALLBACK UI ENHANCEMENTS */
 /* =============================================== */
@@ -701,6 +713,11 @@
   position: relative;
   overflow: hidden;
   background: var(--color-bg-primary);
+}
+
+.trajectory-map-surface {
+  width: 100%;
+  height: 100%;
 }
 
 .map-instruction-overlay {

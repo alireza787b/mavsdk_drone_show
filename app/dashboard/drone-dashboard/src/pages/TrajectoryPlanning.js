@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FaHandPaper, FaMapMarkerAlt } from 'react-icons/fa';
 
 // Import existing trajectory components
 import WaypointPanel from '../components/trajectory/WaypointPanel';
@@ -21,7 +22,6 @@ import {
   calculateTrajectoryStats, 
   calculateWaypointSpeeds,
   getRetimedAutoSpeedWaypoints,
-  getTrajectorySegmentColor,
   TIMING_MODES,
   YAW_CONSTANTS
 } from '../utilities/SpeedCalculator';
@@ -1198,22 +1198,19 @@ const TrajectoryPlanning = () => {
     <div className="trajectory-path-legend" aria-label="Trajectory path risk legend">
       <div className="trajectory-path-legend__item">
         <span
-          className="trajectory-path-legend__swatch"
-          style={{ backgroundColor: getTrajectorySegmentColor('feasible') }}
+          className="trajectory-path-legend__swatch trajectory-path-legend__swatch--feasible"
         />
         <span>Nominal leg</span>
       </div>
       <div className="trajectory-path-legend__item">
         <span
-          className="trajectory-path-legend__swatch"
-          style={{ backgroundColor: getTrajectorySegmentColor('marginal') }}
+          className="trajectory-path-legend__swatch trajectory-path-legend__swatch--marginal"
         />
         <span>Review leg</span>
       </div>
       <div className="trajectory-path-legend__item">
         <span
-          className="trajectory-path-legend__swatch"
-          style={{ backgroundColor: getTrajectorySegmentColor('impossible') }}
+          className="trajectory-path-legend__swatch trajectory-path-legend__swatch--impossible"
         />
         <span>Unsafe leg</span>
       </div>
@@ -1381,7 +1378,7 @@ const TrajectoryPlanning = () => {
                 center={[viewState.latitude || 35.7262, viewState.longitude || 51.2721]}
                 zoom={viewState.zoom || 12}
                 defaultLayer="osm"
-                style={{ width: '100%', height: '100%' }}
+                className="trajectory-map-surface"
               >
                 <LeafletResizeBridge
                   mapRef={mapRef}
@@ -1428,7 +1425,7 @@ const TrajectoryPlanning = () => {
               {isAddingWaypoint && !isDragging && (
                 <div className="map-instruction-overlay">
                   <div className="instruction-content">
-                    <span className="instruction-icon">📍</span>
+                    <span className="instruction-icon" aria-hidden="true"><FaMapMarkerAlt /></span>
                     <span className="instruction-text">Click map to place waypoint</span>
                   </div>
                 </div>
@@ -1516,7 +1513,7 @@ const TrajectoryPlanning = () => {
               onMove={evt => setViewState(evt.viewState)}
               onClick={handleMapClick}
               mapboxAccessToken={mapboxToken}
-              style={{ width: '100%', height: '100%' }}
+              className="trajectory-map-surface"
               mapStyle={showTerrain ? "mapbox://styles/mapbox/satellite-streets-v12" : "mapbox://styles/mapbox/streets-v12"}
               terrain={showTerrain ? { source: 'mapbox-dem', exaggeration: 1.5 } : undefined}
               cursor={
@@ -1626,7 +1623,7 @@ const TrajectoryPlanning = () => {
             {isAddingWaypoint && !isDragging && (
               <div className="map-instruction-overlay">
                 <div className="instruction-content">
-                  <span className="instruction-icon">📍</span>
+                  <span className="instruction-icon" aria-hidden="true"><FaMapMarkerAlt /></span>
                   <span className="instruction-text">Click map to place waypoint</span>
                 </div>
               </div>
@@ -1635,7 +1632,7 @@ const TrajectoryPlanning = () => {
             {isDragging && (
               <div className="map-instruction-overlay drag-mode">
                 <div className="instruction-content">
-                  <span className="instruction-icon">✋</span>
+                  <span className="instruction-icon" aria-hidden="true"><FaHandPaper /></span>
                   <span className="instruction-text">Drag updates terrain and timing</span>
                 </div>
               </div>
