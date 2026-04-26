@@ -14,6 +14,7 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 import { Marker as LeafletMarker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/GlobeView.css';
 
 // Conditional Mapbox imports
@@ -36,20 +37,22 @@ try {
 }
 
 // Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
-const DEFAULT_DRONE_MARKER_COLOR = '#00d4ff';
+const DEFAULT_DRONE_MARKER_COLOR = 'dodgerblue';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-const resolveMarkerColor = (candidate) => {
+const resolveMarkerColor = (candidate, fallback = DEFAULT_DRONE_MARKER_COLOR) => {
   const normalized = String(candidate || '').trim();
-  return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : fallback;
 };
 
-const createDroneIcon = (identityLabel, markerColor, selected = false, runtimeClass = '') => {
+const createDroneIcon = (identityLabel, markerColor, selected = false, runtimeClass = '', themeColors = getPlotThemeColors()) => {
   const dimmed = runtimeClass === 'offline' || runtimeClass === 'never-seen';
   const borderStyle = runtimeClass === 'lost' || runtimeClass === 'never-seen' ? 'dashed' : 'solid';
+  const fillColor = resolveMarkerColor(markerColor, themeColors.primary);
+  const ringWidth = selected ? 5 : 0;
   return (
   L.divIcon({
-    html: `<div style="min-width:${selected ? 32 : 24}px;height:${selected ? 32 : 24}px;padding:0 7px;background:${resolveMarkerColor(markerColor)};border-radius:999px;border:${selected ? 3 : 2}px ${borderStyle} #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#000;opacity:${dimmed ? 0.42 : 1};filter:${dimmed ? 'grayscale(0.7)' : 'none'};box-shadow:0 0 0 ${selected ? 5 : 0}px rgba(255,255,255,0.20),0 10px 22px rgba(0,0,0,0.35)">${identityLabel}</div>`,
+    html: `<div style="min-width:${selected ? 32 : 24}px;height:${selected ? 32 : 24}px;padding:0 7px;background:${fillColor};border-radius:999px;border:${selected ? 3 : 2}px ${borderStyle} ${themeColors.paper};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:${themeColors.textInverse};opacity:${dimmed ? 0.42 : 1};filter:${dimmed ? 'grayscale(0.7)' : 'none'};box-shadow:0 0 0 ${ringWidth}px ${themeColors.surface},0 10px 22px ${themeColors.grid}">${identityLabel}</div>`,
     className: '',
     iconSize: selected ? [58, 32] : [48, 24],
     iconAnchor: selected ? [29, 16] : [24, 12],
@@ -78,6 +81,7 @@ const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
   const markerRef = useRef(null);
   const droneId = String(drone[FIELD_NAMES.HW_ID]);
   const identityLabel = formatCompactDroneIdentity(drone.pos_id, drone[FIELD_NAMES.HW_ID], `H${drone[FIELD_NAMES.HW_ID]}`);
+  const themeColors = getPlotThemeColors();
 
   useEffect(() => {
     if (selected) {
@@ -89,7 +93,7 @@ const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
     <LeafletMarker
       ref={markerRef}
       position={[drone.position[0], drone.position[1]]}
-      icon={createDroneIcon(identityLabel, drone.marker_color, selected, drone.runtime_indicator_class)}
+      icon={createDroneIcon(identityLabel, drone.marker_color, selected, drone.runtime_indicator_class, themeColors)}
       eventHandlers={{
         click: () => onSelect(droneId),
         popupclose: () => {
@@ -114,6 +118,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === MAP_PROVIDERS.LEAFLET || !ctxMapboxAvailable || !mapboxAvailable;
   const mapboxRef = useRef(null);
+  const themeColors = getPlotThemeColors();
 
   // Compute center and valid drones from average drone position
   const { center, validDrones } = useMemo(() => {
@@ -277,7 +282,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
                       selected ? 'selected' : '',
                       drone.runtime_indicator_class ? `runtime-${drone.runtime_indicator_class}` : '',
                     ].filter(Boolean).join(' ')}
-                    style={{ '--mds-drone-marker-color': resolveMarkerColor(drone.marker_color) }}
+                    style={{ '--mds-drone-marker-color': resolveMarkerColor(drone.marker_color, themeColors.primary) }}
                     onClick={(event) => {
                       event.stopPropagation();
                       onSelectDrone(droneId);

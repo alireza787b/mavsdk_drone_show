@@ -14,17 +14,18 @@ import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { findNearestScreenAnchor, getEventClientPoint } from '../utilities/globeScreenInteractions';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
-const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
+const DEFAULT_DRONE_MARKER_COLOR = 'dodgerblue';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SELECTED_CARD_WIDTH_PX = 320;
 const SELECTED_CARD_HEIGHT_PX = 260;
 const SELECTED_CARD_GAP_PX = 18;
 
-const resolveMarkerColor = (candidate) => {
+const resolveMarkerColor = (candidate, fallback = DEFAULT_DRONE_MARKER_COLOR) => {
   const normalized = String(candidate || '').trim();
-  return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : fallback;
 };
 
 const hasUsableGeoPosition = (position = []) => {
@@ -95,6 +96,7 @@ SelectedDroneScreenAnchor.propTypes = {
 const DroneScreenAnchorProjector = ({ drones, onScreenAnchors }) => {
   const { camera, size } = useThree();
   const lastPayloadRef = useRef('');
+  const themeColors = getPlotThemeColors();
 
   useFrame(() => {
     const anchors = drones.map((drone) => {
@@ -102,7 +104,7 @@ const DroneScreenAnchorProjector = ({ drones, onScreenAnchors }) => {
       return {
         id: String(drone[FIELD_NAMES.HW_ID]),
         label: drone.identityLabel,
-        markerColor: resolveMarkerColor(drone.marker_color),
+        markerColor: resolveMarkerColor(drone.marker_color, themeColors.primary),
         noMapFix: drone.noMapFix,
         runtimeClass: drone.runtime_indicator_class || drone.runtimeStatus?.indicatorClass || 'unknown',
         x: Math.round((projected.x * 0.5 + 0.5) * size.width),
@@ -169,8 +171,9 @@ const Drone = ({
   const meshRef = useRef(null);
   const targetPositionRef = useRef(new Vector3(...position));
   const hasInitialPositionRef = useRef(false);
-  const normalColor = new Color(resolveMarkerColor(marker_color));
-  const hoverColor = new Color('#FF9800');
+  const themeColors = getPlotThemeColors();
+  const normalColor = new Color(resolveMarkerColor(marker_color, themeColors.primary));
+  const hoverColor = new Color(themeColors.warning);
   const active = selected || isHovered;
   const markerRadius = noMapFix ? 0.54 : 0.64;
   const linkDimmed = ['offline', 'never-seen'].includes(runtime_indicator_class);
