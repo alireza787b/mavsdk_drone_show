@@ -78,8 +78,8 @@ sitl-reconcile: ## Reconcile local SITL to SITL_COUNT containers.
 	curl -sS -X POST "$(GCS_API)/api/v1/system/sitl/reconcile" -H 'Content-Type: application/json' -d '{"target_count":$(SITL_COUNT)}'
 
 .PHONY: sitl-stop
-sitl-stop: ## Reconcile local SITL to zero containers before REAL/hardware operation.
-	$(MAKE) sitl-reconcile SITL_COUNT=0
+sitl-stop: ## Remove all local SITL containers through the supported GCS SITL API.
+	python3 tools/sitl_stop_all.py --gcs-api "$(GCS_API)"
 
 .PHONY: test-python
 test-python: ## Run Python tests. Extra args: make test-python PYTEST_ARGS="tests/test_file.py -q".

@@ -32,6 +32,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Root `Makefile` command index for common GCS startup, bootstrap, fleet sync,
   SITL reconcile, and validation commands, plus an operator guide documenting
   that `make` targets are thin wrappers around canonical scripts/APIs.
+- `tools/sitl_stop_all.py`, a small stdlib-only helper used by `make sitl-stop`
+  to remove local SITL containers through the supported SITL Control API.
 
 ### Changed
 - Active installer, dashboard, docs-link, SITL image, and git-sync defaults now

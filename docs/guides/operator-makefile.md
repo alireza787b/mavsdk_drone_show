@@ -51,6 +51,10 @@ make sitl-stop
 dashboard. It asks eligible drones to run the node-side `UPDATE_CODE` path,
 which pulls the configured repo/branch and reconciles changed runtime services.
 
+`make sitl-stop` removes all local SITL containers through the supported SITL
+Control batch-action API. It intentionally does not use reconcile-to-zero
+because the reconcile endpoint models positive fleet sizes only.
+
 ## Bootstrap And Repair
 
 ```bash
