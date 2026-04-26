@@ -42,6 +42,7 @@ import {
 } from '../utilities/swarmDesignUtils';
 import Px4ParamInspector from '../components/px4/Px4ParamInspector';
 import Px4ParamProfilePanel from '../components/px4/Px4ParamProfilePanel';
+import { DocsLink } from '../components/ui';
 import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
@@ -830,7 +831,7 @@ const Px4ParametersPage = () => {
     : 'unknown';
   const metadataWarning = snapshotResponse?.snapshot?.metadata_warning || '';
   const metadataWarningSummary = metadataWarning
-    ? 'Live values are available; labels, defaults, ranges, or docs may be incomplete.'
+    ? 'Live values available; reference metadata is partial.'
     : '';
   const modifiedRowCount = useMemo(
     () => (snapshotResponse?.rows || []).filter((row) => row.default_value !== null
@@ -1499,10 +1500,13 @@ const Px4ParametersPage = () => {
             <StatusNotice notice={singleNotice} />
             {metadataWarning ? (
               <div className="px4-inline-notice px4-inline-notice--warning">
-                <strong>PX4 metadata limited</strong>
+                <div className="px4-inline-notice__header">
+                  <strong>PX4 metadata limited</strong>
+                  <DocsLink route="/px4-parameters" compact />
+                </div>
                 <span>{metadataWarningSummary}</span>
                 <details className="px4-metadata-details">
-                  <summary>Why?</summary>
+                  <summary>Source requirements</summary>
                   <span>{metadataWarning}</span>
                 </details>
               </div>

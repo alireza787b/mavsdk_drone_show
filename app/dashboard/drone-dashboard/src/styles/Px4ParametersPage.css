@@ -97,6 +97,13 @@
   color: var(--color-text-primary);
 }
 
+.px4-inline-notice__header {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: space-between;
+}
+
 .px4-metadata-details {
   margin-top: 2px;
   color: var(--color-text-secondary);

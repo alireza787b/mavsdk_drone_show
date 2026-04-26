@@ -53,6 +53,42 @@ const formatParameterRange = (row) => {
 
 const normalizeDescriptionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
+const normalizeComparableDescription = (value) => normalizeDescriptionText(value)
+  .replace(/[\s.。:;,!?()[\]{}"'`´\-\u2013\u2014]+$/g, '')
+  .toLocaleLowerCase();
+
+const stripLeadingDuplicateSummary = (summary, detail) => {
+  const normalizedSummary = normalizeComparableDescription(summary);
+  let remaining = normalizeDescriptionText(detail);
+
+  if (!normalizedSummary || !remaining) {
+    return remaining;
+  }
+
+  while (remaining) {
+    const sentenceMatch = remaining.match(/^(.+?[.!?。])(?:\s+|$)/);
+    const firstSentence = sentenceMatch?.[1] || '';
+    if (!firstSentence || normalizeComparableDescription(firstSentence) !== normalizedSummary) {
+      break;
+    }
+    remaining = remaining.slice(sentenceMatch[0].length).trim();
+  }
+
+  const normalizedRemaining = normalizeComparableDescription(remaining);
+  if (!remaining || normalizedRemaining === normalizedSummary) {
+    return '';
+  }
+
+  if (normalizedRemaining.startsWith(normalizedSummary)) {
+    return remaining
+      .slice(summary.length)
+      .replace(/^[\s.。:;,\-–—!?]+/, '')
+      .trim();
+  }
+
+  return remaining;
+};
+
 export const buildParameterDescriptions = (row) => {
   const shortDescription = normalizeDescriptionText(row?.short_description);
   const rawLongDescription = normalizeDescriptionText(row?.long_description);
@@ -81,21 +117,11 @@ export const buildParameterDescriptions = (row) => {
     };
   }
 
-  if (normalizedLong.startsWith(normalizedShort)) {
-    const remainingLongDescription = rawLongDescription
-      .slice(shortDescription.length)
-      .replace(/^[\s.:\-–—]+/, '')
-      .trim();
-
-    return {
-      shortDescription,
-      longDescription: remainingLongDescription,
-    };
-  }
+  const strippedLongDescription = stripLeadingDuplicateSummary(shortDescription, rawLongDescription);
 
   return {
     shortDescription,
-    longDescription: rawLongDescription,
+    longDescription: strippedLongDescription,
   };
 };
 

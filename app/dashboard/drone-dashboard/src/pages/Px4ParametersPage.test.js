@@ -247,6 +247,31 @@ describe('Px4ParametersPage', () => {
     expect(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' })).toBeInTheDocument();
   });
 
+  it('shows concise PX4 metadata guidance with a guide link when metadata is partial', async () => {
+    px4ParamsApi.refreshPx4ParamSnapshots.mockResolvedValue({
+      data: {
+        snapshots: [{
+          ...snapshotPayload,
+          snapshot: {
+            ...snapshotPayload.snapshot,
+            metadata_quality: 'raw_values_only',
+            metadata_warning: 'PX4 parameter values are available, but metadata labels, groups, defaults, and docs require vehicle component metadata, a matching PX4 parameter catalog, or the optional official PX4 docs reference cache.',
+          },
+        }],
+        errors: [],
+      },
+    });
+
+    render(<Px4ParametersPage />);
+
+    expect(await screen.findByText('PX4 metadata limited')).toBeInTheDocument();
+    expect(screen.getByText('Live values available; reference metadata is partial.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /px4 parameters guide/i })).toHaveAttribute(
+      'href',
+      'docs/px4-parameters.md',
+    );
+  });
+
   it('applies a verified single-parameter patch job from the inspector', async () => {
     render(<Px4ParametersPage />);
 

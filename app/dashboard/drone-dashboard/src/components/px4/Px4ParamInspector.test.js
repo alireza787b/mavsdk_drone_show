@@ -41,6 +41,20 @@ describe('Px4ParamInspector', () => {
     expect(screen.getByText(/maximum allowed output rate for controller input data/i)).toBeInTheDocument();
   });
 
+  test('deduplicates repeated PX4 summaries with parenthetical text and note paragraphs', () => {
+    expect(buildParameterDescriptions({
+      short_description: 'Gyro control data maximum publication rate (inner loop rate).',
+      long_description: [
+        'Gyro control data maximum publication rate (inner loop rate).',
+        'The maximum rate the gyro control data will be allowed to publish at.',
+        'Note: sensor data is always read and filtered at the full raw rate.',
+      ].join('\n\n'),
+    })).toEqual({
+      shortDescription: 'Gyro control data maximum publication rate (inner loop rate).',
+      longDescription: 'The maximum rate the gyro control data will be allowed to publish at. Note: sensor data is always read and filtered at the full raw rate.',
+    });
+  });
+
   test('preserves distinct short and long descriptions', () => {
     expect(buildParameterDescriptions({
       short_description: 'Short operator summary.',
