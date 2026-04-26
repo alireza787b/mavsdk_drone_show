@@ -34,6 +34,7 @@ from src.sitl_control_models import (
     SitlControlPolicyResponse,
     SitlControlReconcileRequest,
 )
+from src.settings.deployment_profile import load_deployment_profile
 
 try:
     import psutil
@@ -57,6 +58,16 @@ _CONTAINER_NAME_PATTERN = re.compile(r"^drone-(\d+)$")
 _ACTIVE_OPERATION_STATUSES = {"accepted", "running"}
 _DEFAULT_LOG_LIMIT = 200
 _DEFAULT_HISTORY_LIMIT = 20
+
+
+def _default_sitl_image() -> str:
+    env_image = os.environ.get("MDS_DOCKER_IMAGE") or os.environ.get("MDS_DEFAULT_DOCKER_IMAGE")
+    if env_image:
+        return env_image
+    try:
+        return load_deployment_profile().docker_image
+    except Exception:
+        return "mavsdk-drone-show-sitl:latest"
 
 
 def _now_ms() -> int:
@@ -127,7 +138,7 @@ class SitlControlService:
                 browser_terminal=False,
             ),
             defaults=SitlControlPolicyDefaults(
-                default_image=os.environ.get("MDS_DOCKER_IMAGE", "mavsdk-drone-show-sitl:latest"),
+                default_image=_default_sitl_image(),
                 default_network_name=os.environ.get("MDS_SITL_DOCKER_NETWORK", "drone-network"),
                 default_git_sync=_env_flag(os.environ.get("MDS_SITL_GIT_SYNC"), True),
                 default_requirements_sync=_env_flag(os.environ.get("MDS_SITL_REQUIREMENTS_SYNC"), True),

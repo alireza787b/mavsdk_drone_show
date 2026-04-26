@@ -24,6 +24,7 @@ handled separately from normal desired state, see
 | GCS API port | `MDS_GCS_API_PORT` | Defaults to `5030` from `deployment/defaults.env` |
 | Dashboard port | `MDS_DASHBOARD_PORT` / `DASHBOARD_PORT` | Defaults to `3030` |
 | Drone API port | `MDS_DRONE_API_PORT` | Defaults to `7070` |
+| SITL Docker image | `MDS_DOCKER_IMAGE` or `MDS_DEFAULT_DOCKER_IMAGE` | Host override first; otherwise git-tracked deployment default |
 | SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
 | SITL swarm topology | `swarm_sitl.json` | Selected when `MDS_MODE=sitl` |
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |

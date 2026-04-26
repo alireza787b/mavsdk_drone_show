@@ -42,6 +42,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Active installer, dashboard, docs-link, SITL image, and git-sync defaults now
   use `main` as the canonical deployment branch; feature/client branches remain
   explicit overrides through `MDS_BRANCH`.
+- SITL image selection now has a git-tracked deployment default, so official
+  and private deployments can publish/use different validated images without
+  manual `MDS_DOCKER_IMAGE` overrides.
 - Dashboard drone cards were compacted for mobile/operator use by reducing
   repeated visual weight and keeping telemetry indicators in a denser grid.
 

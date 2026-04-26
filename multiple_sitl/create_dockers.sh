@@ -71,8 +71,8 @@ echo
 # via environment variables while maintaining full backward compatibility.
 #
 # FOR NORMAL USERS (99%):
-#   - No action required - uses default mavsdk-drone-show-sitl:latest image
-#   - Uses: git@github.com:alireza787b/mavsdk_drone_show.git@main-candidate
+#   - No action required - uses the deployment profile default image
+#   - Uses the deployment profile repo and branch, currently main
 #   - Simply run: bash create_dockers.sh <number_of_drones>
 #
 # FOR ADVANCED USERS (Custom Docker Images & Repositories):
@@ -86,7 +86,7 @@ echo
 #   - All containers will use your custom image and repository
 #
 # ENVIRONMENT VARIABLES SUPPORTED:
-#   MDS_DOCKER_IMAGE  - Docker image name to use (default: mavsdk-drone-show-sitl:latest)
+#   MDS_DOCKER_IMAGE  - Docker image name to use (default: deployment profile image)
 #   Any MDS_* runtime variable exported on the host is forwarded into the
 #   container, except the internal MDS_BASE_DIR path which is
 #   fixed by this launcher.
@@ -114,7 +114,7 @@ SHARE_HOST_SWARM_TRAJECTORY="${MDS_SITL_SHARE_SWARM_TRAJECTORY:-true}"
 HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
 STARTUP_SCRIPT_IMAGE="${HWID_CONTAINER_DIR}/multiple_sitl/startup_sitl.sh"
 STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
-TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}"
+TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-${MDS_DEFAULT_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}}"
 USE_HOST_STARTUP_SCRIPT="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-}"
 USE_HOST_STARTUP_SCRIPT_SOURCE="unset"
 DOCKER_RESTART_POLICY="${MDS_SITL_DOCKER_RESTART_POLICY:-unless-stopped}"
@@ -343,7 +343,7 @@ print_scale_guidance() {
 run_git_access_preflight() {
     local effective_git_sync="${MDS_SITL_GIT_SYNC:-true}"
     local repo_url="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
-    local branch="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+    local branch="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 
     if [[ "$effective_git_sync" != "true" ]]; then
         echo "Git Access     : skipped (MDS_SITL_GIT_SYNC=false; using baked image checkout)"

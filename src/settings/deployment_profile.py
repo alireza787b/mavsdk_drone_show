@@ -27,6 +27,7 @@ class DeploymentProfile:
     gcs_api_port: int
     dashboard_port: int
     drone_api_port: int
+    docker_image: str
     connectivity_backend: str
     smart_wifi_manager_repo_url_https: str
     smart_wifi_manager_ref: str
@@ -93,13 +94,14 @@ def _build_profile(path: Path) -> DeploymentProfile:
     repo_slug = data.get("MDS_DEFAULT_REPO_SLUG", "alireza787b/mavsdk_drone_show")
     repo_url_https = data.get("MDS_DEFAULT_REPO_URL_HTTPS", f"https://github.com/{repo_slug}.git")
     repo_url_ssh = data.get("MDS_DEFAULT_REPO_URL_SSH", f"git@github.com:{repo_slug}.git")
-    branch = data.get("MDS_DEFAULT_BRANCH", "main-candidate")
+    branch = data.get("MDS_DEFAULT_BRANCH", "main")
     real_gcs_ip = data.get("MDS_DEFAULT_REAL_GCS_IP", "100.96.32.75")
     sitl_gcs_ip = data.get("MDS_DEFAULT_SITL_GCS_IP", "172.18.0.1")
 
     gcs_api_port = _parse_int(data, "MDS_DEFAULT_GCS_API_PORT", 5030, path)
     dashboard_port = _parse_int(data, "MDS_DEFAULT_DASHBOARD_PORT", 3030, path)
     drone_api_port = _parse_int(data, "MDS_DEFAULT_DRONE_API_PORT", 7070, path)
+    docker_image = data.get("MDS_DEFAULT_DOCKER_IMAGE", "mavsdk-drone-show-sitl:latest")
 
     connectivity_backend = data.get("MDS_DEFAULT_CONNECTIVITY_BACKEND", "none")
     smart_wifi_manager_repo_url_https = data.get(
@@ -141,6 +143,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
         gcs_api_port=gcs_api_port,
         dashboard_port=dashboard_port,
         drone_api_port=drone_api_port,
+        docker_image=docker_image,
         connectivity_backend=connectivity_backend,
         smart_wifi_manager_repo_url_https=smart_wifi_manager_repo_url_https,
         smart_wifi_manager_ref=smart_wifi_manager_ref,

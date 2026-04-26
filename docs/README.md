@@ -143,7 +143,8 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_GIT_AUTH_TOKEN_FILE` | Preferred read-only GitHub HTTPS token file for private SITL/image-prep/GCS read setups | unset |
 | `MDS_GIT_SSH_KEY_FILE` | Optional SSH private key file for private GitHub SSH runtime sync | unset |
 | `MDS_GIT_AUTO_PUSH` | Allow dashboard saves/imports to commit + push on the GCS | `true` in writable setups |
-| `MDS_DOCKER_IMAGE` | Custom Docker image | Official image |
+| `MDS_DEFAULT_DOCKER_IMAGE` | Git-tracked deployment default SITL image from `deployment/defaults.env` | `mavsdk-drone-show-sitl:latest` |
+| `MDS_DOCKER_IMAGE` | Host-local SITL image override | deployment profile image |
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup (`true` = mutable latest-on-boot mode) | `true` |
 | `MDS_SITL_GIT_SYNC_PREFLIGHT` | Validate repo/branch/read credential before creating SITL containers | `true` |
 | `MDS_SITL_REQUIREMENTS_SYNC` | Reinstall Python deps when `requirements.txt` changes | `true` |

@@ -184,6 +184,19 @@ def test_build_policy_exposes_cleanup_only_capability_when_runtime_is_real(tmp_p
     assert policy.features.image_release is False
 
 
+def test_build_policy_uses_deployment_default_image(tmp_path, monkeypatch):
+    profile_file = tmp_path / "deployment.env"
+    profile_file.write_text("MDS_DEFAULT_DOCKER_IMAGE=customer-mds-sitl:latest\n", encoding="utf-8")
+    monkeypatch.setenv("MDS_DEPLOYMENT_PROFILE_FILE", str(profile_file))
+    monkeypatch.delenv("MDS_DOCKER_IMAGE", raising=False)
+    monkeypatch.delenv("MDS_DEFAULT_DOCKER_IMAGE", raising=False)
+    service = _make_service(tmp_path)
+
+    policy = service.build_policy()
+
+    assert policy.defaults.default_image == "customer-mds-sitl:latest"
+
+
 def test_list_images_and_instances_filter_to_mds_sitl_runtime(tmp_path):
     official = _FakeImage(
         "sha256:official",

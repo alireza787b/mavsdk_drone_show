@@ -128,6 +128,7 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
                 "MDS_DEFAULT_GCS_API_PORT=5050",
                 "MDS_DEFAULT_DASHBOARD_PORT=3035",
                 "MDS_DEFAULT_DRONE_API_PORT=7075",
+                "MDS_DEFAULT_DOCKER_IMAGE=customer-mds-sitl:latest",
                 "MDS_DEFAULT_CONNECTIVITY_BACKEND=smart-wifi-manager",
                 "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git",
                 "MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v1.2.3",
@@ -161,6 +162,7 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
     assert profile.gcs_api_port == 5050
     assert profile.dashboard_port == 3035
     assert profile.drone_api_port == 7075
+    assert profile.docker_image == "customer-mds-sitl:latest"
     assert profile.connectivity_backend == "smart-wifi-manager"
     assert profile.smart_wifi_manager_repo_url_https == "https://github.com/demo/smart-wifi-manager.git"
     assert profile.smart_wifi_manager_ref == "v1.2.3"
