@@ -57,36 +57,36 @@
 
 /* Export KML Button */
 .export-kml-btn {
-    background: linear-gradient(135deg, var(--color-success), #2e7d32);
-    color: var(--color-text-primary);
+    background: linear-gradient(135deg, var(--color-success), color-mix(in srgb, var(--color-success) 76%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .export-kml-btn:hover {
-    background: linear-gradient(135deg, #2e7d32, var(--color-success));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 76%, var(--color-bg-primary)), var(--color-success));
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
 }
 
 /* Print Mission Button */
 .print-mission-btn {
-    background: linear-gradient(135deg, var(--color-warning), #f57c00);
-    color: var(--color-text-inverse);
+    background: linear-gradient(135deg, var(--color-warning), color-mix(in srgb, var(--color-warning) 80%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .print-mission-btn:hover {
-    background: linear-gradient(135deg, #f57c00, var(--color-warning));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-warning) 80%, var(--color-bg-primary)), var(--color-warning));
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
 }
 
 /* Set Origin Button */
 .set-origin-btn {
-    background: linear-gradient(135deg, var(--color-info), #1976d2);
-    color: var(--color-text-primary);
+    background: linear-gradient(135deg, var(--color-info), color-mix(in srgb, var(--color-info) 78%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .set-origin-btn:hover {
-    background: linear-gradient(135deg, #1976d2, var(--color-info));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-info) 78%, var(--color-bg-primary)), var(--color-info));
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
 }
