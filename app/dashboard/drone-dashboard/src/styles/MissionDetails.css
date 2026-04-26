@@ -715,14 +715,20 @@
 }
 
 .mission-operator-notes summary::before {
-    content: '▶';
+    content: '';
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
     margin-right: var(--spacing-sm);
     color: var(--color-text-secondary);
+    transform: rotate(-45deg);
     transition: transform var(--transition-base);
 }
 
 .mission-operator-notes[open] summary::before {
-    transform: rotate(90deg);
+    transform: rotate(45deg);
 }
 
 .mission-operator-notes ul {
@@ -783,14 +789,20 @@
 }
 
 .mission-issue-digest summary::before {
-    content: '▶';
+    content: '';
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
     margin-right: var(--spacing-sm);
     color: var(--color-text-secondary);
+    transform: rotate(-45deg);
     transition: transform var(--transition-base);
 }
 
 .mission-issue-digest[open] summary::before {
-    transform: rotate(90deg);
+    transform: rotate(45deg);
 }
 
 .mission-issue-digest ul {
@@ -1249,14 +1261,19 @@
 }
 
 .warning-details-summary::before {
-    content: '▶';
+    content: '';
     display: inline-block;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
     margin-right: var(--spacing-xs);
+    transform: rotate(-45deg);
     transition: transform 0.2s;
 }
 
 .warning-details[open] .warning-details-summary::before {
-    transform: rotate(90deg);
+    transform: rotate(45deg);
 }
 
 .warning-details-content {

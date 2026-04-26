@@ -1406,13 +1406,15 @@
 }
 
 .fallback-features li::before {
-  content: "✓";
+  content: "";
   position: absolute;
   left: 0;
   top: var(--spacing-sm);
-  color: var(--color-success);
-  font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-sm);
+  width: 0.55rem;
+  height: 0.3rem;
+  border-left: 2px solid var(--color-success);
+  border-bottom: 2px solid var(--color-success);
+  transform: rotate(-45deg);
 }
 
 .setup-instructions ol {

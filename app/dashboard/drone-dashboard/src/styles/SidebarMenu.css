@@ -81,19 +81,20 @@
   fill: currentColor;
 }
 
-/* Ensure React Icons are visible */
 .sidebar-toggle > * {
   color: currentColor;
   font-size: 18px;
   line-height: 1;
 }
 
-/* Fallback for missing icons */
 .sidebar-toggle:empty::before {
-  content: "☰";
-  font-size: 18px;
-  line-height: 1;
-  font-weight: bold;
+  content: "";
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 -6px 0 currentColor, 0 6px 0 currentColor;
 }
 
 /* Header Section - Compact & Professional */

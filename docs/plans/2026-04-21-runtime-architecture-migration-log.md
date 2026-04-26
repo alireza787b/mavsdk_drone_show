@@ -2924,3 +2924,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/DroneConfigCard.test.js src/pages/MissionConfig.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 70
+
+Goal:
+
+- replace remaining decorative CSS pseudo-content glyphs in mission details,
+  trajectory fallback, swarm legend, and sidebar fallback controls
+
+Implemented:
+
+- replaced Mission Details disclosure arrows with CSS chevrons
+- replaced warning details disclosure glyphs with CSS chevrons
+- replaced Trajectory Planning fallback checkmarks with CSS check strokes
+- replaced Swarm Design legend flow arrow with a CSS arrow stroke
+- replaced Sidebar fallback hamburger glyph with CSS line strokes
+- preserved details open/closed transitions, legend semantics, mobile sidebar
+  fallback behavior, and fallback feature layout
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused CSS-adjacent UI tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/MissionDetails.test.js src/components/SidebarMenu.test.js src/pages/SwarmDesign.test.js src/pages/TrajectoryPlanning.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

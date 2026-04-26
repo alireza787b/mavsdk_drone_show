@@ -547,13 +547,13 @@
 }
 
 .legend-item.arrow-flow::before {
-  content: '→';
-  width: auto;
-  height: auto;
+  content: '';
+  width: 0.6rem;
+  height: 0.6rem;
   border-radius: 0;
-  color: var(--color-info-text);
-  font-size: 0.95rem;
-  line-height: 1;
+  border-top: 2px solid var(--color-info-text);
+  border-right: 2px solid var(--color-info-text);
+  transform: rotate(45deg);
 }
 
 .swarm-selection-panel {
