@@ -1,8 +1,8 @@
 // src/components/InitialLaunchPlot.js
 import React from 'react';
 import Plot from 'react-plotly.js';
-import { useTheme } from '../hooks/useTheme';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 function InitialLaunchPlot({
   drones,
@@ -10,17 +10,7 @@ function InitialLaunchPlot({
   deviationData,
   forwardHeading = 0, // incoming heading from the parent
 }) {
-  const { isDark } = useTheme();
-
-  // Theme-aware colors
-  const themeColors = {
-    background: isDark ? '#1a1a1a' : '#f8f9fa',
-    paper: isDark ? '#1a1a1a' : '#f8f9fa',
-    text: isDark ? '#e9ecef' : '#343a40',
-    grid: isDark ? '#495057' : '#dee2e6',
-    title: isDark ? '#f8f9fa' : '#212529',
-    axisTitle: isDark ? '#adb5bd' : '#6c757d',
-  };
+  const themeColors = getPlotThemeColors();
 
   // --------------------------------------------------------------
   // Group drones by position (pos_id) for overlap offset
@@ -55,9 +45,9 @@ function InitialLaunchPlot({
   });
 
   // Marker colors (fill) & borders
-  const markerColors = customData.map((d) => (d.isPosMismatch ? 'orange' : 'blue'));
+  const markerColors = customData.map((d) => (d.isPosMismatch ? themeColors.warning : themeColors.primary));
   const markerBorderColors = customData.map((d) =>
-    d.within_acceptable_range ? 'green' : 'red'
+    d.within_acceptable_range ? themeColors.success : themeColors.danger
   );
 
   // --------------------------------------------------------------
@@ -131,9 +121,9 @@ function InitialLaunchPlot({
             },
           },
           textfont: {
-            color: isDark ? '#ffffff' : '#000000',
+            color: themeColors.text,
             size: 10,
-            family: 'Arial',
+            family: themeColors.fontFamily,
           },
           textposition: 'middle center',
           hovertemplate:
@@ -152,7 +142,7 @@ function InitialLaunchPlot({
         title: {
           text: `Initial Launch Positions (Heading = ${forwardHeading}°)`,
           font: {
-            color: themeColors.title,
+            color: themeColors.text,
             size: 16,
           },
         },
@@ -160,7 +150,7 @@ function InitialLaunchPlot({
           title: {
             text: '← West  |  East →',
             font: {
-              color: themeColors.axisTitle,
+              color: themeColors.textMuted,
             },
           },
           showgrid: true,
@@ -174,7 +164,7 @@ function InitialLaunchPlot({
           title: {
             text: '← South | North →',
             font: {
-              color: themeColors.axisTitle,
+              color: themeColors.textMuted,
             },
           },
           showgrid: true,
