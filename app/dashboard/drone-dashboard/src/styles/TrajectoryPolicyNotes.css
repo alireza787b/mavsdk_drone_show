@@ -4,9 +4,9 @@
   gap: 0.75rem;
   padding: 1rem 1.1rem;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: linear-gradient(135deg, rgba(8, 15, 28, 0.9), rgba(18, 33, 57, 0.78));
-  color: #e8f0fb;
+  border: 1px solid var(--color-border-secondary);
+  background: linear-gradient(135deg, var(--color-surface-raised), var(--color-surface-muted));
+  color: var(--color-text-primary);
 }
 
 .trajectory-policy-notes__header {
@@ -21,7 +21,7 @@
 }
 
 .trajectory-policy-notes__header span {
-  color: rgba(226, 232, 240, 0.76);
+  color: var(--color-text-tertiary);
   font-size: 0.82rem;
   line-height: 1.45;
 }
@@ -38,22 +38,22 @@
   gap: 0.35rem;
   padding: 0.8rem 0.9rem;
   border-radius: 12px;
-  background: rgba(15, 23, 42, 0.42);
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: var(--color-surface-inset);
+  border: 1px solid var(--color-border-light);
 }
 
 .trajectory-policy-notes__label {
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #7dd3fc;
+  color: var(--color-info);
   font-weight: 700;
 }
 
 .trajectory-policy-notes__detail {
   font-size: 0.88rem;
   line-height: 1.5;
-  color: #f8fbff;
+  color: var(--color-text-primary);
 }
 
 @media (max-width: 768px) {

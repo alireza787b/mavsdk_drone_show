@@ -18,26 +18,26 @@
   gap: 0.2rem;
   padding: 0.7rem 0.9rem;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.58);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-surface-muted);
+  box-shadow: 0 8px 20px var(--color-border-light);
 }
 
 .trajectory-brief__metric--feasible {
-  border-color: rgba(34, 197, 94, 0.28);
+  border-color: var(--color-success-border);
 }
 
 .trajectory-brief__metric--marginal {
-  border-color: rgba(245, 158, 11, 0.35);
+  border-color: var(--color-warning-border);
 }
 
 .trajectory-brief__metric--impossible {
-  border-color: rgba(239, 68, 68, 0.4);
+  border-color: var(--color-danger-border);
 }
 
 .trajectory-brief__label {
   font-size: 0.7rem;
-  color: rgba(148, 163, 184, 0.92);
+  color: var(--color-text-tertiary);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -45,12 +45,12 @@
 .trajectory-brief__value {
   font-size: 1rem;
   font-weight: 700;
-  color: #f8fafc;
+  color: var(--color-text-primary);
 }
 
 .trajectory-brief__detail {
   font-size: 0.78rem;
-  color: rgba(203, 213, 225, 0.86);
+  color: var(--color-text-secondary);
 }
 
 .trajectory-brief__signals {
@@ -65,20 +65,20 @@
   gap: 0.5rem;
   padding: 0.42rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(30, 41, 59, 0.44);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-surface-muted);
 }
 
 .trajectory-brief__signal-label {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(148, 163, 184, 0.92);
+  color: var(--color-text-tertiary);
 }
 
 .trajectory-brief__signal-value {
   font-size: 0.8rem;
-  color: #e2e8f0;
+  color: var(--color-text-primary);
 }
 
 .trajectory-brief__alerts {
@@ -97,18 +97,18 @@
 }
 
 .trajectory-brief__alert--info {
-  color: #0f172a;
-  background: rgba(56, 189, 248, 0.85);
+  color: var(--color-text-inverse);
+  background: var(--color-info);
 }
 
 .trajectory-brief__alert--warning {
-  color: #111827;
-  background: rgba(245, 158, 11, 0.88);
+  color: var(--color-text-inverse);
+  background: var(--color-warning);
 }
 
 .trajectory-brief__alert--danger {
-  color: #f8fafc;
-  background: rgba(220, 38, 38, 0.88);
+  color: var(--color-text-primary);
+  background: var(--color-danger);
 }
 
 @media (max-width: 1500px) {

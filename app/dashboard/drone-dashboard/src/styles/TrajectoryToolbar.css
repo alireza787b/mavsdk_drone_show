@@ -43,7 +43,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-border-secondary), transparent);
   transition: left 0.5s;
 }
 
@@ -224,18 +224,18 @@
 }
 
 .trajectory-handoff-status--success {
-  border-color: rgba(56, 142, 60, 0.35);
-  background: rgba(56, 142, 60, 0.12);
+  border-color: var(--color-success-border);
+  background: var(--color-success-light);
 }
 
 .trajectory-handoff-status--warning {
-  border-color: rgba(245, 158, 11, 0.35);
-  background: rgba(245, 158, 11, 0.12);
+  border-color: var(--color-warning-border);
+  background: var(--color-warning-light);
 }
 
 .trajectory-handoff-status--danger {
-  border-color: rgba(220, 38, 38, 0.35);
-  background: rgba(220, 38, 38, 0.12);
+  border-color: var(--color-danger-border);
+  background: var(--color-danger-light);
 }
 
 .trajectory-name-label,
