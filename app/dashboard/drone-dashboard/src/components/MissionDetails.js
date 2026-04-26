@@ -723,7 +723,7 @@ const MissionDetails = ({
                                 
                                 {/* GPS Warnings (if any) */}
                                 {warningAnalysis.gpsWarnings > 0 && (
-                                  <div className="deviation-stat gps-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'gps').map(w => `Drone ${w.hw_id}: ${w.message}`).join('\n')}>
+                                  <div className="deviation-stat gps-warning-stat" data-help={warningAnalysis.warningDetails.filter(w => w.type === 'gps').map(w => `Drone ${w.hw_id}: ${w.message}`).join('\n')}>
                                     <span className="deviation-label">GPS Quality:</span>
                                     <span className="deviation-value gps-warning-value">
                                       {warningAnalysis.gpsWarnings} warning{warningAnalysis.gpsWarnings !== 1 ? 's' : ''}
@@ -734,7 +734,7 @@ const MissionDetails = ({
                                 
                                 {/* Placement Warnings (only if deviation is actually bad) */}
                                 {warningAnalysis.placementWarnings > 0 && (
-                                  <div className="deviation-stat placement-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'placement').map(w => `Drone ${w.hw_id}: ${w.message} (${w.deviation.toFixed(2)}m)`).join('\n')}>
+                                  <div className="deviation-stat placement-warning-stat" data-help={warningAnalysis.warningDetails.filter(w => w.type === 'placement').map(w => `Drone ${w.hw_id}: ${w.message} (${w.deviation.toFixed(2)}m)`).join('\n')}>
                                     <span className="deviation-label">Placement:</span>
                                     <span className="deviation-value placement-warning-value">
                                       {warningAnalysis.placementWarnings} drone{warningAnalysis.placementWarnings !== 1 ? 's' : ''} needs adjustment
@@ -744,7 +744,7 @@ const MissionDetails = ({
                                 
                                 {/* Errors */}
                                 {deviationSummary.errors > 0 && (
-                                  <div className="deviation-stat error-stat" title={Object.entries(deviations).filter(([_, d]) => d.status === 'error').map(([hw_id, d]) => `Drone ${hw_id}: ${d.message || 'Error'}`).join('\n')}>
+                                  <div className="deviation-stat error-stat" data-help={Object.entries(deviations).filter(([_, d]) => d.status === 'error').map(([hw_id, d]) => `Drone ${hw_id}: ${d.message || 'Error'}`).join('\n')}>
                                     <span className="deviation-label">Critical:</span>
                                     <span className="deviation-value error-value">
                                       {deviationSummary.errors} error{deviationSummary.errors !== 1 ? 's' : ''} detected

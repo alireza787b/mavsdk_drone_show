@@ -46,7 +46,7 @@ const LogViewerToolbar = ({
           type="button"
           className={mode === MODES.OPS ? 'active' : ''}
           onClick={() => onModeChange(MODES.OPS)}
-          title="Operations mode — WARNING+ only"
+          data-help="Operations mode - WARNING+ only"
         >
           <FaEye size={12} /> <span className="log-button-text">Ops</span>
         </button>
@@ -54,7 +54,7 @@ const LogViewerToolbar = ({
           type="button"
           className={mode === MODES.DEV ? 'active' : ''}
           onClick={() => onModeChange(MODES.DEV)}
-          title="Developer mode — all levels, search, export"
+          data-help="Developer mode - all levels, search, export"
         >
           <FaCode size={12} /> <span className="log-button-text">Dev</span>
         </button>
@@ -124,7 +124,7 @@ const LogViewerToolbar = ({
             aria-label="Filter logs to time"
           />
           {(timeStart || timeEnd) && (
-            <button type="button" onClick={onClearTimeRange} title="Clear time range">
+            <button type="button" onClick={onClearTimeRange} data-help="Clear time range">
               <span className="log-button-text">Reset</span>
             </button>
           )}
@@ -165,7 +165,7 @@ const LogViewerToolbar = ({
 
       {/* Pause/Resume */}
       {!selectedSession && (
-        <button type="button" onClick={onTogglePause} title={paused ? 'Resume' : 'Pause'}>
+        <button type="button" onClick={onTogglePause} data-help={paused ? 'Resume' : 'Pause'}>
           {paused ? <FaPlay size={12} /> : <FaPause size={12} />}
           <span className="log-button-text">{paused ? 'Resume' : 'Pause'}</span>
         </button>
@@ -173,21 +173,21 @@ const LogViewerToolbar = ({
 
       {/* Clear live buffer */}
       {!selectedSession && (
-        <button type="button" onClick={onClear} title="Clear live buffer">
+        <button type="button" onClick={onClear} data-help="Clear live buffer">
           <FaTrash size={12} />
         </button>
       )}
 
       {/* Export (Developer mode only) */}
       {scopeDroneId != null && (
-        <button type="button" onClick={onOnboardUlogOpen} title={`Manage onboard PX4 ULogs for ${liveLabel}`}>
+        <button type="button" onClick={onOnboardUlogOpen} data-help={`Manage onboard PX4 ULogs for ${liveLabel}`}>
           <FaDownload size={12} /> <span className="log-button-text">ULog</span>
         </button>
       )}
 
       {/* Export (Developer mode only) */}
       {mode === MODES.DEV && (
-        <button type="button" onClick={onExportOpen} title="Export sessions">
+        <button type="button" onClick={onExportOpen} data-help="Export sessions">
           <FaDownload size={12} /> <span className="log-button-text">Export</span>
         </button>
       )}

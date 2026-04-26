@@ -15,7 +15,7 @@ const LogSessionSelector = ({ sessions, selectedSession, onSelect, loading, live
       >
         <option value="__live__">{liveLabel}</option>
         {(sessions || []).map(s => (
-          <option key={s.session_id} value={s.session_id} title={s.session_id}>
+          <option key={s.session_id} value={s.session_id} data-session-id={s.session_id}>
             {formatSessionLabel(s)}
           </option>
         ))}
