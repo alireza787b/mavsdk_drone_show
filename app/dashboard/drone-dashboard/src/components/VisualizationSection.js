@@ -40,6 +40,50 @@ import {
   getShowPlotsResponse,
 } from '../services/gcsApiService';
 
+const VIS_TOKENS = {
+  border: 'var(--color-border-primary)',
+  borderSecondary: 'var(--color-border-secondary)',
+  overlay: 'var(--color-bg-overlay)',
+  primary: 'var(--color-primary)',
+  surface: 'var(--color-bg-secondary)',
+  surfaceRaised: 'var(--color-bg-tertiary)',
+  success: 'var(--color-success)',
+  text: 'var(--color-text-primary)',
+  textSecondary: 'var(--color-text-secondary)',
+  warning: 'var(--color-warning)',
+};
+
+const analysisHeadingSx = {
+  color: VIS_TOKENS.primary,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+};
+
+const analysisPanelSx = {
+  bgcolor: VIS_TOKENS.surface,
+  border: `1px solid ${VIS_TOKENS.border}`,
+};
+
+const technicalPanelSx = {
+  p: 3,
+  height: '100%',
+  bgcolor: VIS_TOKENS.surface,
+  border: `1px solid ${VIS_TOKENS.border}`,
+};
+
+const primaryOutlineButtonSx = {
+  borderColor: VIS_TOKENS.primary,
+  color: VIS_TOKENS.primary,
+};
+
+const plotImageStyle = {
+  width: '100%',
+  height: 'auto',
+  borderRadius: '8px',
+  boxShadow: 'var(--shadow-sm)',
+};
+
 const VisualizationSection = ({ uploadCount }) => {
   const [plots, setPlots] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -210,7 +254,7 @@ const VisualizationSection = ({ uploadCount }) => {
         <Divider sx={{ my: 3 }} />
         
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-          <Typography variant="h6" sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6" sx={analysisHeadingSx}>
             <PsychologyIcon />
             Technical Analysis Data
           </Typography>
@@ -218,7 +262,7 @@ const VisualizationSection = ({ uploadCount }) => {
             variant="outlined"
             onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
             endIcon={<ExpandMoreIcon sx={{ transform: showAdvancedMetrics ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />}
-            sx={{ borderColor: '#0056b3', color: '#0056b3' }}
+            sx={primaryOutlineButtonSx}
           >
             {showAdvancedMetrics ? 'Hide Technical Data' : 'Show Technical Data'}
           </Button>
@@ -230,14 +274,14 @@ const VisualizationSection = ({ uploadCount }) => {
             <Button
               variant="outlined"
               onClick={() => setShowPerDroneData(!showPerDroneData)}
-              sx={{ borderColor: '#0056b3', color: '#0056b3', mb: 2 }}
+              sx={{ ...primaryOutlineButtonSx, mb: 2 }}
             >
               {showPerDroneData ? 'Hide Per-Drone Data' : 'Show Per-Drone Data'}
             </Button>
             
             <Collapse in={showPerDroneData}>
-              <Paper sx={{ p: 3, mb: 3, bgcolor: '#f8f9fa', border: '1px solid #e9ecef' }}>
-                <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Paper sx={{ p: 3, mb: 3, ...analysisPanelSx }}>
+                <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
                   <TheatersIcon />
                   Individual Drone Analysis
                 </Typography>
@@ -247,8 +291,8 @@ const VisualizationSection = ({ uploadCount }) => {
                       const velocityData = comprehensiveMetrics?.performance_metrics?.per_drone_velocity?.[droneId];
                       return (
                       <Grid item xs={12} sm={6} md={4} key={droneId}>
-                        <Paper sx={{ p: 2, border: '1px solid #dee2e6' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#0056b3', mb: 1 }}>
+                        <Paper sx={{ p: 2, border: `1px solid ${VIS_TOKENS.borderSecondary}` }}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: VIS_TOKENS.primary, mb: 1 }}>
                             Drone {droneId}
                           </Typography>
                           <List dense>
@@ -319,8 +363,8 @@ const VisualizationSection = ({ uploadCount }) => {
             {/* Safety Analysis */}
             {safety_metrics && (
               <Grid item xs={12} lg={6}>
-                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
-                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Paper sx={technicalPanelSx}>
+                  <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
                     <SecurityIcon />
                     Safety Analysis
                   </Typography>
@@ -360,8 +404,8 @@ const VisualizationSection = ({ uploadCount }) => {
             {/* Performance Analysis */}
             {performance_metrics && (
               <Grid item xs={12} lg={6}>
-                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
-                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Paper sx={technicalPanelSx}>
+                  <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
                     <SpeedIcon />
                     Performance Analysis
                   </Typography>
@@ -403,8 +447,8 @@ const VisualizationSection = ({ uploadCount }) => {
             {/* Enhanced Basic Metrics */}
             {comprehensiveMetrics?.basic_metrics && (
               <Grid item xs={12} lg={6}>
-                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
-                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Paper sx={technicalPanelSx}>
+                  <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
                     <AssessmentIcon />
                     Enhanced Metrics
                   </Typography>
@@ -451,8 +495,8 @@ const VisualizationSection = ({ uploadCount }) => {
             {/* Quality & Recommendations */}
             {quality_metrics && (
               <Grid item xs={12} lg={6}>
-                <Paper sx={{ p: 3, height: '100%', bgcolor: '#fafbfc', border: '1px solid #e9ecef' }}>
-                  <Typography variant="h6" gutterBottom sx={{ color: '#0056b3', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Paper sx={technicalPanelSx}>
+                  <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
                     <AssessmentIcon />
                     Quality Assessment
                   </Typography>
@@ -491,7 +535,7 @@ const VisualizationSection = ({ uploadCount }) => {
 
   return (
     <Box className="visualization-section">
-      <Typography variant="h5" sx={{ color: '#0056b3', mb: 1 }}>
+      <Typography variant="h5" sx={{ color: VIS_TOKENS.primary, mb: 1 }}>
         Drone Show Visualization
       </Typography>
 
@@ -644,10 +688,10 @@ const VisualizationSection = ({ uploadCount }) => {
           <Grid item xs={12} md={6}>
             <Card variant="outlined" sx={{ 
               height: '100%', 
-              bgcolor: '#f8f9fa',
+              bgcolor: VIS_TOKENS.surface,
               borderRadius: 2,
               transition: 'all 0.3s ease',
-              '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' }
+              '&:hover': { boxShadow: 'var(--shadow-md)' }
             }}>
               <CardContent sx={{ textAlign: 'center', py: 3 }}>
                 <SecurityIcon color="success" sx={{ fontSize: 40, mb: 2 }} />
@@ -656,10 +700,10 @@ const VisualizationSection = ({ uploadCount }) => {
                     Min Proximity
                   </Typography>
                   <Tooltip title="Minimum separation distance between any two drones during the entire show. Safe operation requires >2m separation." arrow>
-                    <HelpIcon sx={{ fontSize: 16, color: '#6c757d' }} />
+                    <HelpIcon sx={{ fontSize: 16, color: VIS_TOKENS.textSecondary }} />
                   </Tooltip>
                 </Box>
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#0056b3' }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', color: VIS_TOKENS.primary }}>
                   {typeof comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m === 'number' 
                     ? `${comprehensiveMetrics.safety_metrics.min_inter_drone_distance_m} m` 
                     : 'N/A'}
@@ -676,15 +720,15 @@ const VisualizationSection = ({ uploadCount }) => {
           <Grid item xs={12} md={6}>
             <Card variant="outlined" sx={{ 
               height: '100%', 
-              bgcolor: '#f8f9fa',
+              bgcolor: VIS_TOKENS.surface,
               borderRadius: 2,
               transition: 'all 0.3s ease',
               border: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
-                ? '2px solid #28a745' 
+                ? `2px solid ${VIS_TOKENS.success}`
                 : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
-                ? '2px solid #ffc107'
-                : '2px solid #e9ecef',
-              '&:hover': { boxShadow: '0 8px 25px rgba(0,86,179,0.15)' }
+                ? `2px solid ${VIS_TOKENS.warning}`
+                : `2px solid ${VIS_TOKENS.border}`,
+              '&:hover': { boxShadow: 'var(--shadow-md)' }
             }}>
               <CardContent sx={{ textAlign: 'center', py: 3 }}>
                 <SecurityIcon 
@@ -692,10 +736,10 @@ const VisualizationSection = ({ uploadCount }) => {
                     fontSize: 40, 
                     mb: 2,
                     color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
-                      ? '#28a745' 
+                      ? VIS_TOKENS.success
                       : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
-                      ? '#ffc107'
-                      : '#6c757d'
+                      ? VIS_TOKENS.warning
+                      : VIS_TOKENS.textSecondary
                   }} 
                 />
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 2 }}>
@@ -712,7 +756,7 @@ const VisualizationSection = ({ uploadCount }) => {
                     }
                     arrow
                   >
-                    <HelpIcon sx={{ fontSize: 16, color: '#6c757d' }} />
+                    <HelpIcon sx={{ fontSize: 16, color: VIS_TOKENS.textSecondary }} />
                   </Tooltip>
                 </Box>
                 <Chip 
@@ -735,7 +779,7 @@ const VisualizationSection = ({ uploadCount }) => {
       )}
 
       {loading && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2, bgcolor: VIS_TOKENS.surface, borderRadius: 1 }}>
           <CircularProgress size={20} color="primary" />
           <Typography variant="body2" color="primary" sx={{ fontWeight: 'medium' }}>
             Loading drone show analysis...
@@ -751,7 +795,7 @@ const VisualizationSection = ({ uploadCount }) => {
       {/* Combined Plot - All Drones Together */}
       {plots.some(name => name === 'combined_drone_paths.jpg') && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" sx={{ color: '#0056b3', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6" sx={{ ...analysisHeadingSx, mb: 2 }}>
             <AssessmentIcon />
             All Drones Combined View
           </Typography>
@@ -769,11 +813,8 @@ const VisualizationSection = ({ uploadCount }) => {
                 src={buildShowPlotUrl('combined_drone_paths.jpg')}
                 alt="All Drones Combined Trajectory" 
                 style={{ 
-                  width: '100%', 
+                  ...plotImageStyle,
                   maxWidth: '800px',
-                  height: 'auto',
-                  borderRadius: '8px',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
                 }} 
               />
             </Box>
@@ -787,7 +828,7 @@ const VisualizationSection = ({ uploadCount }) => {
       {/* Individual Drone Plots */}
       {plots.filter(name => name !== 'combined_drone_paths.jpg').length > 0 && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" sx={{ color: '#0056b3', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6" sx={{ ...analysisHeadingSx, mb: 2 }}>
             <TimelineIcon />
             Individual Drone Trajectories
           </Typography>
@@ -803,7 +844,7 @@ const VisualizationSection = ({ uploadCount }) => {
                 const droneId = plot.match(/drone_(\d+)_path/)?.[1] || index + 1;
                 return (
                   <Paper key={`individual-${index}`} sx={{ p: 1 }}>
-                    <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: '#0056b3' }}>
+                    <Typography variant="subtitle2" sx={{ mb: 1, textAlign: 'center', color: VIS_TOKENS.primary }}>
                       Drone {droneId}
                     </Typography>
                     <Box
@@ -819,10 +860,8 @@ const VisualizationSection = ({ uploadCount }) => {
                         src={plotUrl} 
                         alt={`Drone ${droneId} Trajectory`} 
                         style={{ 
-                          width: '100%', 
-                          height: 'auto',
+                          ...plotImageStyle,
                           borderRadius: '6px',
-                          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
                         }}
                       />
                     </Box>
@@ -842,7 +881,7 @@ const VisualizationSection = ({ uploadCount }) => {
           alignItems: 'center',
           justifyContent: 'center',
           p: 2,
-          bgcolor: 'rgba(0, 0, 0, 0.9)',
+          bgcolor: VIS_TOKENS.overlay,
           backdropFilter: 'blur(4px)'
         }}
       >
@@ -866,10 +905,10 @@ const VisualizationSection = ({ uploadCount }) => {
               width: 40,
               height: 40,
               borderRadius: '50%',
-              bgcolor: 'rgba(255, 255, 255, 0.9)',
-              color: '#333',
-              zIndex: 1000,
-              '&:hover': { bgcolor: 'white' }
+              bgcolor: VIS_TOKENS.surface,
+              color: VIS_TOKENS.text,
+              zIndex: 'var(--z-modal)',
+              '&:hover': { bgcolor: VIS_TOKENS.surfaceRaised }
             }}
           >
             ✕
@@ -887,11 +926,11 @@ const VisualizationSection = ({ uploadCount }) => {
                   width: 50,
                   height: 50,
                   borderRadius: '50%',
-                  bgcolor: 'rgba(255, 255, 255, 0.9)',
-                  color: '#333',
+                  bgcolor: VIS_TOKENS.surface,
+                  color: VIS_TOKENS.text,
                   fontSize: '20px',
-                  zIndex: 1000,
-                  '&:hover': { bgcolor: 'white' }
+                  zIndex: 'var(--z-modal)',
+                  '&:hover': { bgcolor: VIS_TOKENS.surfaceRaised }
                 }}
               >
                 ‹
@@ -907,11 +946,11 @@ const VisualizationSection = ({ uploadCount }) => {
                   width: 50,
                   height: 50,
                   borderRadius: '50%',
-                  bgcolor: 'rgba(255, 255, 255, 0.9)',
-                  color: '#333',
+                  bgcolor: VIS_TOKENS.surface,
+                  color: VIS_TOKENS.text,
                   fontSize: '20px',
-                  zIndex: 1000,
-                  '&:hover': { bgcolor: 'white' }
+                  zIndex: 'var(--z-modal)',
+                  '&:hover': { bgcolor: VIS_TOKENS.surfaceRaised }
                 }}
               >
                 ›
@@ -926,10 +965,10 @@ const VisualizationSection = ({ uploadCount }) => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            bgcolor: 'white',
+            bgcolor: VIS_TOKENS.surface,
             borderRadius: 2,
             overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.5)'
+            boxShadow: 'var(--shadow-lg)'
           }}>
             {plots.length > 0 && (
               <>
@@ -946,8 +985,8 @@ const VisualizationSection = ({ uploadCount }) => {
                 />
                 
                 {/* Image Info */}
-                <Box sx={{ p: 2, bgcolor: '#f8f9fa', width: '100%', textAlign: 'center' }}>
-                  <Typography variant="subtitle1" sx={{ color: '#0056b3', fontWeight: 'bold' }}>
+                <Box sx={{ p: 2, bgcolor: VIS_TOKENS.surface, width: '100%', textAlign: 'center' }}>
+                  <Typography variant="subtitle1" sx={{ color: VIS_TOKENS.primary, fontWeight: 'bold' }}>
                     {plots[currentIndex]?.includes('combined') 
                       ? 'All Drones Combined View' 
                       : `Drone ${plots[currentIndex]?.match(/drone_(\d+)_path/)?.[1] || currentIndex + 1} Trajectory`
