@@ -49,6 +49,7 @@ import {
   validateMissionCustomFields,
 } from '../utilities/missionConfigFields';
 import { buildMissionSlotStatusPresentation } from '../utilities/missionSlotStatus';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DroneConfigCard.css';
 
 const SERIAL_PORT_OPTIONS = [
@@ -67,6 +68,40 @@ const BAUDRATE_OPTIONS = [
 ];
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const RGB_COLOR_PATTERN = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i;
+const DEFAULT_MARKER_COLOR_FALLBACK = [95, 185, 255];
+
+const toHexColorPair = (value) => Math.max(0, Math.min(255, Number(value) || 0))
+  .toString(16)
+  .padStart(2, '0');
+
+const buildHexColor = (red, green, blue) => `#${[
+  toHexColorPair(red),
+  toHexColorPair(green),
+  toHexColorPair(blue),
+].join('')}`;
+
+const resolveColorInputValue = (candidate, fallback = DEFAULT_MARKER_COLOR_FALLBACK) => {
+  const normalized = String(candidate || '').trim();
+  const normalizedFallback = Array.isArray(fallback) ? '' : String(fallback || '').trim();
+  const colorCandidate = normalized || normalizedFallback;
+  if (HEX_COLOR_PATTERN.test(colorCandidate)) {
+    return colorCandidate.length === 4
+      ? buildHexColor(
+        parseInt(`${colorCandidate[1]}${colorCandidate[1]}`, 16),
+        parseInt(`${colorCandidate[2]}${colorCandidate[2]}`, 16),
+        parseInt(`${colorCandidate[3]}${colorCandidate[3]}`, 16)
+      )
+      : colorCandidate;
+  }
+
+  const rgbMatch = colorCandidate.match(RGB_COLOR_PATTERN);
+  if (rgbMatch) {
+    return buildHexColor(rgbMatch[1], rgbMatch[2], rgbMatch[3]);
+  }
+
+  return buildHexColor(...DEFAULT_MARKER_COLOR_FALLBACK);
+};
 
 function normalizeRuntimeModeValue(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -865,7 +900,7 @@ const DroneEditForm = memo(function DroneEditForm({
 
     if (field.type === CUSTOM_FIELD_TYPES.COLOR || normalizedKey === 'marker_color') {
       const colorValue = String(field.value || '').trim();
-      const safeColorValue = HEX_COLOR_PATTERN.test(colorValue) ? colorValue : '#00d4ff';
+      const safeColorValue = resolveColorInputValue(colorValue, getPlotThemeColors().primary);
       return (
         <div className="custom-color-field">
           <input
@@ -880,7 +915,7 @@ const DroneEditForm = memo(function DroneEditForm({
             value={field.value}
             onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
             className="form-input"
-            placeholder={fieldTemplate?.placeholder || '#00d4ff'}
+            placeholder={fieldTemplate?.placeholder || 'Theme primary color'}
             spellCheck={false}
             aria-label={`${field.key || 'Marker color'} value`}
           />
