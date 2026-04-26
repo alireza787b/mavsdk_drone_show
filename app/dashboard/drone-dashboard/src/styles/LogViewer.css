@@ -205,6 +205,14 @@
   color: var(--color-text-primary);
 }
 
+.log-health-status.is-online {
+  color: var(--color-success);
+}
+
+.log-health-status.is-offline {
+  color: var(--color-danger);
+}
+
 .log-health-stat.error-count .stat-value {
   color: var(--color-danger);
 }
@@ -533,6 +541,23 @@
   margin-bottom: var(--spacing-md);
 }
 
+.log-export-format-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.log-export-session-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.log-export-session-option {
+  display: block;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
 .log-export-dialog .export-actions {
   display: flex;
   justify-content: flex-end;
@@ -754,6 +779,7 @@
 
 .onboard-ulog-dialog__progress-fill {
   height: 100%;
+  width: var(--ulog-progress-percent, 4%);
   border-radius: inherit;
   background: linear-gradient(90deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, white));
   transition: width 180ms ease;

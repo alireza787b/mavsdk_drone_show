@@ -2612,3 +2612,32 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 59
+
+Goal:
+
+- remove remaining inline presentation from Log Viewer export, health, and
+  onboard ULog transfer controls without changing log stream or export
+  behavior
+
+Implemented:
+
+- moved export dialog format spacing and session-list scroll/row styling into
+  `LogViewer.css`
+- moved GCS online/offline health coloring into status classes
+- changed onboard ULog progress fill from a direct inline width to a CSS
+  custom property consumed by the stylesheet
+- preserved session selection, export format handling, health filtering, and
+  onboard ULog transfer progress behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused log tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/logs/LogViewerToolbar.test.js src/components/logs/OnboardUlogDialog.test.js src/hooks/useLogStream.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

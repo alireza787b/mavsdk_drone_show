@@ -48,16 +48,16 @@ const LogExportDialog = ({ sessions, onClose, droneId = null, scopeLabel = 'GCS'
       <div className="log-export-dialog" onClick={e => e.stopPropagation()}>
         <h3>Export {scopeLabel} Log Sessions</h3>
         <div className="export-options">
-          <label>
+          <label className="log-export-format-control">
             Format:
-            <select value={format} onChange={e => setFormat(e.target.value)} style={{ marginLeft: 8 }}>
+            <select value={format} onChange={e => setFormat(e.target.value)}>
               <option value="jsonl">JSONL (.jsonl)</option>
               <option value="zip">ZIP (.zip)</option>
             </select>
           </label>
-          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          <div className="log-export-session-list">
             {(sessions || []).map(s => (
-              <label key={s.session_id} style={{ display: 'block', padding: '2px 0', cursor: 'pointer' }}>
+              <label key={s.session_id} className="log-export-session-option">
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(s.session_id)}
