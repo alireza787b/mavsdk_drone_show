@@ -1,5 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  FaCheckCircle,
+  FaExclamationTriangle,
+  FaGlobeAmericas,
+  FaHourglassHalf,
+  FaRobot,
+  FaSearchPlus,
+  FaTimes,
+  FaTrashAlt,
+} from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { ConfirmDialog, DocsLink, MetricStrip, OperatorNotice, StatusBadge } from '../components/ui';
@@ -299,9 +309,6 @@ const SwarmTrajectory = () => {
     if (!file) {
       return;
     }
-
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
       const result = await uploadSwarmTrajectory(leaderId, file, file.name);
@@ -854,7 +861,7 @@ const SwarmTrajectory = () => {
                           event.target.value = '';
                         }}
                         id={`file-${leaderId}`}
-                        style={{ display: 'none' }}
+                        className="swarm-trajectory-file-input"
                       />
                       <div className="upload-controls">
                         <label htmlFor={`file-${leaderId}`} className="upload-btn">
@@ -976,7 +983,9 @@ const SwarmTrajectory = () => {
 
               <div className={`success-card ${viewModel.currentOutcome === 'partial' ? 'success-card--warning' : ''}`}>
                 <div className="success-header">
-                  <span className="success-icon">{viewModel.currentOutcome === 'partial' ? '!' : 'OK'}</span>
+                  <span className="success-icon" aria-hidden="true">
+                    {viewModel.currentOutcome === 'partial' ? <FaExclamationTriangle /> : <FaCheckCircle />}
+                  </span>
                   <div>
                     <h4>
                       {viewModel.currentOutcome === 'partial'
@@ -1087,7 +1096,7 @@ const SwarmTrajectory = () => {
                                       >
                                         {downloadingKML ? (
                                           <>
-                                            <span className="btn-icon spinner">⏳</span>
+                                            <span className="btn-icon spinner" aria-hidden="true"><FaHourglassHalf /></span>
                                             <div className="btn-content">
                                               <span className="btn-text">Generating...</span>
                                               <span className="btn-subtitle">Please wait</span>
@@ -1095,7 +1104,7 @@ const SwarmTrajectory = () => {
                                           </>
                                         ) : (
                                           <>
-                                            <span className="btn-icon">🌍</span>
+                                            <span className="btn-icon" aria-hidden="true"><FaGlobeAmericas /></span>
                                             <div className="btn-content">
                                               <span className="btn-text">Cluster KML</span>
                                               <span className="btn-subtitle">Google Earth</span>
@@ -1117,7 +1126,7 @@ const SwarmTrajectory = () => {
                                       }}
                                     />
                                     <div className="zoom-overlay">
-                                      <span className="zoom-icon">🔍</span>
+                                      <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                       <span>Click to enlarge</span>
                                     </div>
                                   </div>
@@ -1158,7 +1167,7 @@ const SwarmTrajectory = () => {
                                         }}
                                       />
                                       <div className="zoom-overlay">
-                                        <span className="zoom-icon">🔍</span>
+                                        <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                       </div>
                                     </div>
 
@@ -1182,11 +1191,12 @@ const SwarmTrajectory = () => {
                                         <div className="header-actions">
                                           <span className="drone-type-badge follower">FOLLOWER</span>
                                           <button
+                                            type="button"
                                             className="delete-drone-btn"
                                             onClick={() => clearIndividualDrone(followerId)}
                                             aria-label={`Delete drone ${followerId} output`}
                                           >
-                                            🗑️
+                                            <FaTrashAlt aria-hidden="true" />
                                           </button>
                                         </div>
                                       </div>
@@ -1203,7 +1213,7 @@ const SwarmTrajectory = () => {
                                           }}
                                         />
                                         <div className="zoom-overlay">
-                                          <span className="zoom-icon">🔍</span>
+                                          <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                         </div>
                                       </div>
 
@@ -1241,7 +1251,7 @@ const SwarmTrajectory = () => {
         </>
       ) : (
         <div className="empty-state">
-          <div className="empty-icon">🤖</div>
+          <div className="empty-icon" aria-hidden="true"><FaRobot /></div>
           <h3>No clusters found</h3>
           <p>
             Configure top leaders in <Link to="/swarm-design" className="guide-link">Swarm Design</Link> before using this workflow.
@@ -1257,8 +1267,8 @@ const SwarmTrajectory = () => {
           <div className="lightbox-container" onClick={(event) => event.stopPropagation()}>
             <div className="lightbox-header">
               <h3>{lightboxImage.title}</h3>
-              <button className="lightbox-close" onClick={closeLightbox}>
-                ✕
+              <button className="lightbox-close" onClick={closeLightbox} aria-label="Close plot preview">
+                <FaTimes aria-hidden="true" />
               </button>
             </div>
             <div className="lightbox-content">
@@ -1287,7 +1297,10 @@ const SwarmTrajectory = () => {
 
             <div className="progress-content">
               <div className="progress-bar-container">
-                <div className="progress-bar-fill" style={{ width: `${commitProgress.progress}%` }}></div>
+                <div
+                  className="progress-bar-fill"
+                  style={{ '--progress-percent': `${commitProgress.progress}%` }}
+                ></div>
               </div>
 
               <div className="progress-step">
@@ -1314,7 +1327,10 @@ const SwarmTrajectory = () => {
 
             <div className="progress-content">
               <div className="progress-bar-container">
-                <div className="progress-bar-fill" style={{ width: `${kmlProgress.progress}%` }}></div>
+                <div
+                  className="progress-bar-fill"
+                  style={{ '--progress-percent': `${kmlProgress.progress}%` }}
+                ></div>
               </div>
 
               <div className="progress-step">

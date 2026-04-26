@@ -2440,3 +2440,35 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/TrajectoryPlanning.test.js src/components/trajectory/TrajectoryToolbar.test.js src/components/trajectory/TrajectorySegmentReview.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 53
+
+Goal:
+
+- reduce Swarm Trajectory presentation drift while preserving leader upload,
+  processing, artifact review, git commit, and clear/download behavior
+
+Implemented:
+
+- replaced emoji-only visual controls with icon components for:
+  - output ready / attention status
+  - KML generation and download
+  - plot zoom affordances
+  - follower output delete action
+  - empty cluster state
+  - lightbox close action
+- moved hidden leader-upload file input styling into CSS
+- removed unused `FormData` construction from leader CSV upload
+- moved progress bar width to a CSS custom property consumed by
+  `.progress-bar-fill`
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/SwarmTrajectory.test.js src/components/trajectory/SwarmTrajectoryWorkspaceSummary.test.js src/components/trajectory/SwarmTrajectoryTransferDialog.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

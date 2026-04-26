@@ -986,6 +986,10 @@
   text-align: center;
 }
 
+.swarm-trajectory-file-input {
+  display: none;
+}
+
 .upload-controls {
   display: flex;
   flex-direction: column;
@@ -1379,6 +1383,7 @@
 }
 
 .progress-bar-fill {
+  width: var(--progress-percent, 0%);
   height: 100%;
   background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
   border-radius: var(--border-radius-base);
