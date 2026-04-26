@@ -3,27 +3,13 @@
 
 import React, { useMemo } from 'react';
 import { Polyline } from 'react-leaflet';
-import { getPlotThemeColors } from '../../utilities/plotThemeColors';
-
-const getCoveragePalette = () => {
-  const themeColors = getPlotThemeColors();
-  return [
-    themeColors.primary,
-    themeColors.success,
-    themeColors.warning,
-    themeColors.danger,
-    themeColors.secondary,
-    themeColors.info,
-    themeColors.accent,
-    themeColors.primaryHover,
-  ];
-};
+import { getDronePaletteColors } from '../../utilities/plotThemeColors';
 
 const LeafletCoveragePreview = ({ plans, missionStatus }) => {
   const segments = useMemo(() => {
     if (!plans || plans.length === 0) return [];
     const result = [];
-    const droneColors = getCoveragePalette();
+    const droneColors = getDronePaletteColors();
 
     plans.forEach((plan, droneIdx) => {
       const color = droneColors[droneIdx % droneColors.length];

@@ -5,6 +5,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { getDronePaletteColors } from '../../utilities/plotThemeColors';
 
 let Source, Layer;
 let mapboxAvailable = false;
@@ -18,15 +19,14 @@ try {
   mapboxAvailable = false;
 }
 
-const DRONE_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#ef4444', '#a855f7', '#06b6d4', '#eab308', '#ec4899'];
-
 const CoveragePreview = ({ plans, missionStatus }) => {
   const geojsonData = useMemo(() => {
     if (!plans || plans.length === 0) return null;
     const features = [];
+    const droneColors = getDronePaletteColors();
 
     plans.forEach((plan, droneIdx) => {
-      const color = DRONE_COLORS[droneIdx % DRONE_COLORS.length];
+      const color = droneColors[droneIdx % droneColors.length];
       const droneState = missionStatus?.drone_states?.[plan.hw_id];
       const completedWpIdx = droneState?.current_waypoint_index || 0;
 

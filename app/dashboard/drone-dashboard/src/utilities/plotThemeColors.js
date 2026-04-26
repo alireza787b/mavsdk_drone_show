@@ -53,3 +53,17 @@ export const getPlotThemeColors = () => ({
   muted: readCssVariable('--color-text-tertiary', 'gray'),
   fontFamily: readCssVariable('--font-family-primary', 'sans-serif'),
 });
+
+export const getDronePaletteColors = () => {
+  const themeColors = getPlotThemeColors();
+  return [
+    themeColors.primary,
+    themeColors.success,
+    themeColors.warning,
+    themeColors.danger,
+    themeColors.secondary,
+    themeColors.info,
+    themeColors.accent,
+    themeColors.primaryHover,
+  ];
+};
