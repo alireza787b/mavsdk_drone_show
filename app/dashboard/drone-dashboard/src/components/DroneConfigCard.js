@@ -962,7 +962,7 @@ const DroneEditForm = memo(function DroneEditForm({
             <p>
               If a different spare airframe is taking over this slot, use Fleet Enrollment → Replace existing slot instead of editing the slot here.
             </p>
-            <p style={{ marginTop: '1rem' }}>Do you want to proceed?</p>
+            <p className="confirmation-dialog__prompt">Do you want to proceed?</p>
             <div className="dialog-buttons">
               <button className="confirm-button" onClick={handleConfirmPosChange}>
                 Yes

@@ -1659,6 +1659,10 @@ input:checked + .slider:before {
   line-height: var(--line-height-normal);
 }
 
+.confirmation-dialog__prompt {
+  margin-top: var(--spacing-base) !important;
+}
+
 .dialog-buttons {
   display: flex;
   gap: var(--spacing-sm);

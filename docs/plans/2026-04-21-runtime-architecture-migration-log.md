@@ -2755,3 +2755,28 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/MissionDetails.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 64
+
+Goal:
+
+- remove inline spacing from the drone configuration slot-change confirmation
+  dialog
+
+Implemented:
+
+- replaced the inline confirmation prompt margin with
+  `.confirmation-dialog__prompt`
+- preserved the show-slot change warning, Fleet Enrollment guidance, confirm
+  action, and cancel action behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused DroneConfigCard tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/DroneConfigCard.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
