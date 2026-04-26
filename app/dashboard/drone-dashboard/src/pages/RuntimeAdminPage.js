@@ -456,7 +456,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                 className="runtime-admin-page__action-btn"
                 onClick={handleApply}
                 disabled={(!effectiveRestartRequired && !hasDraftChanges) || saving || applying}
-                aria-label={hasDraftChanges ? 'Save runtime settings and restart GCS' : 'Apply persisted runtime settings with restart'}
+                aria-label={hasDraftChanges ? 'Apply runtime changes and restart GCS' : 'Apply persisted runtime settings with restart'}
               >
                 <FaRedoAlt />
                 <span>{applying ? 'Scheduling...' : hasDraftChanges ? 'Save + restart' : 'Apply restart'}</span>

@@ -243,7 +243,7 @@ describe('RuntimeAdminPage', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /set runtime mode to sitl/i }));
-    fireEvent.click(screen.getByRole('button', { name: /save runtime settings and restart gcs/i }));
+    fireEvent.click(screen.getByRole('button', { name: /apply runtime changes and restart gcs/i }));
 
     await waitFor(() => {
       expect(mockSaveGcsConfigResponse).toHaveBeenCalledWith({
