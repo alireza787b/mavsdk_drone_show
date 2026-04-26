@@ -17,13 +17,13 @@ import {
   Typography,
 } from '@mui/material';
 import {
-  Assessment,
-  CheckCircle,
-  CloudUpload,
-  Security,
-  Timeline,
-  Visibility,
-} from '@mui/icons-material';
+  MdAssessment,
+  MdCheckCircle,
+  MdCloudUpload,
+  MdSecurity,
+  MdTimeline,
+  MdVisibility,
+} from 'react-icons/md';
 
 import { extractApiErrorMessage } from '../services/apiError';
 import { importShowResponse } from '../services/gcsApiService';
@@ -75,7 +75,15 @@ const ProcessingProgressModal = ({
         }}
       >
         <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CloudUpload color={isFailed ? 'error' : isCompleted ? 'success' : 'primary'} />
+          <MdCloudUpload
+            style={{
+              color: isFailed
+                ? 'var(--color-danger)'
+                : isCompleted
+                  ? 'var(--color-success)'
+                  : 'var(--color-primary)',
+            }}
+          />
           {isCompleted ? 'Drone Show Ready' : isFailed ? 'Import Failed' : 'Processing Drone Show'}
         </Typography>
 
@@ -103,7 +111,7 @@ const ProcessingProgressModal = ({
               <ListItem key={detail.step} sx={{ px: 0, py: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                   {detail.completed ? (
-                    <CheckCircle color="success" sx={{ fontSize: 20 }} />
+                    <MdCheckCircle style={{ color: 'var(--color-success)', fontSize: 20 }} />
                   ) : (
                     <CircularProgress size={16} color="primary" />
                   )}
@@ -345,7 +353,7 @@ const ImportSection = ({ setUploadCount }) => {
         <Box className="import-feature-grid">
           <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <CloudUpload color="primary" />
+              <MdCloudUpload style={{ color: 'var(--color-primary)' }} />
               <Typography variant="subtitle2" fontWeight="bold">Staged Import</Typography>
             </Box>
             <Typography variant="body2" color="textSecondary">
@@ -355,7 +363,7 @@ const ImportSection = ({ setUploadCount }) => {
 
           <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Timeline color="secondary" />
+              <MdTimeline style={{ color: 'var(--brand-secondary)' }} />
               <Typography variant="subtitle2" fontWeight="bold">Trajectory Processing</Typography>
             </Box>
             <Typography variant="body2" color="textSecondary">
@@ -365,7 +373,7 @@ const ImportSection = ({ setUploadCount }) => {
 
           <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Security color="success" />
+              <MdSecurity style={{ color: 'var(--color-success)' }} />
               <Typography variant="subtitle2" fontWeight="bold">Operator Verification</Typography>
             </Box>
             <Typography variant="body2" color="textSecondary">
@@ -375,7 +383,7 @@ const ImportSection = ({ setUploadCount }) => {
 
           <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Visibility color="info" />
+              <MdVisibility style={{ color: 'var(--color-info)' }} />
               <Typography variant="subtitle2" fontWeight="bold">Plot Review</Typography>
             </Box>
             <Typography variant="body2" color="textSecondary">
@@ -410,7 +418,7 @@ const ImportSection = ({ setUploadCount }) => {
             variant="contained"
             onClick={uploadFile}
             disabled={!selectedFile || isUploading}
-            startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
+            startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <MdCloudUpload />}
             className="import-primary-action"
             sx={{ minWidth: 160 }}
           >
@@ -419,7 +427,7 @@ const ImportSection = ({ setUploadCount }) => {
 
           {selectedFile && (
             <Chip
-              icon={<Assessment />}
+              icon={<MdAssessment />}
               label="SkyBrush ZIP selected"
               variant="outlined"
               color="primary"

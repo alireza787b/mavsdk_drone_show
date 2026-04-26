@@ -6,8 +6,7 @@ import MapSelector from './MapSelector';
 import { toast } from 'react-toastify';
 import useComputeOrigin from '../hooks/useComputeOrigin';
 import PropTypes from 'prop-types';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSyncAlt } from '@fortawesome/free-solid-svg-icons';
+import { FaSyncAlt } from 'react-icons/fa';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 
 function extractDroneParameters(drone, telemetryData) {
@@ -368,7 +367,7 @@ const OriginModal = ({
                 onClick={handleRetryCompute}
                 disabled={loading}
               >
-                <FontAwesomeIcon icon={faSyncAlt} />
+                <FaSyncAlt />
                 Retry
               </button>
             )}

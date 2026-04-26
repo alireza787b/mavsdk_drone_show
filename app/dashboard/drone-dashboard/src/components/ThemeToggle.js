@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSun,
-  faMoon,
-  faCircleHalfStroke,
-  faChevronDown,
-  faCheck
-} from '@fortawesome/free-solid-svg-icons';
+  FaAdjust,
+  FaCheck,
+  FaChevronDown,
+  FaMoon,
+  FaSun,
+} from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import { THEMES } from '../contexts/ThemeContext';
 import '../styles/ThemeToggle.css';
@@ -27,24 +26,26 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
     {
       value: THEMES.LIGHT,
       label: 'Light',
-      icon: faSun,
+      icon: FaSun,
       description: 'Light theme'
     },
     {
       value: THEMES.DARK,
       label: 'Dark',
-      icon: faMoon,
+      icon: FaMoon,
       description: 'Dark theme'
     },
     {
       value: THEMES.AUTO,
       label: 'Auto',
-      icon: faCircleHalfStroke,
+      icon: FaAdjust,
       description: 'Follow system preference'
     }
   ];
 
   const currentThemeOption = themeOptions.find(option => option.value === themePreference);
+  const CurrentThemeIcon = currentThemeOption?.icon || FaAdjust;
+  const SimpleThemeIcon = isDark ? FaSun : FaMoon;
   const effectiveThemeLabel = themePreference === THEMES.AUTO
     ? `Auto (${isDark ? 'Dark' : 'Light'})`
     : (currentThemeOption?.label || getThemeLabel());
@@ -71,10 +72,7 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
         title={`Display theme: ${effectiveThemeLabel}. Switch to ${isDark ? 'light' : 'dark'} theme`}
         aria-label={`Display theme: ${effectiveThemeLabel}. Switch to ${isDark ? 'light' : 'dark'} theme`}
       >
-        <FontAwesomeIcon
-          icon={isDark ? faSun : faMoon}
-          className="theme-icon"
-        />
+        <SimpleThemeIcon className="theme-icon" />
       </button>
     );
   }
@@ -86,19 +84,22 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
         role="group"
         aria-label="Display theme selector"
       >
-        {themeOptions.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            className={`theme-segment ${themePreference === option.value ? 'active' : ''}`}
-            onClick={() => handleThemeSelect(option.value)}
-            title={option.description}
-            aria-pressed={themePreference === option.value}
-          >
-            <FontAwesomeIcon icon={option.icon} className="theme-icon" />
-            {showLabel && <span className="theme-label">{option.label}</span>}
-          </button>
-        ))}
+        {themeOptions.map((option) => {
+          const OptionIcon = option.icon;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={`theme-segment ${themePreference === option.value ? 'active' : ''}`}
+              onClick={() => handleThemeSelect(option.value)}
+              title={option.description}
+              aria-pressed={themePreference === option.value}
+            >
+              <OptionIcon className="theme-icon" />
+              {showLabel && <span className="theme-label">{option.label}</span>}
+            </button>
+          );
+        })}
       </div>
     );
   }
@@ -112,10 +113,7 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
         title={`Display theme: ${effectiveThemeLabel}`}
         aria-label={`Display theme: ${effectiveThemeLabel}. Click to cycle themes.`}
       >
-        <FontAwesomeIcon
-          icon={currentThemeOption?.icon || faCircleHalfStroke}
-          className="theme-icon"
-        />
+        <CurrentThemeIcon className="theme-icon" />
         {showLabel && (
           <span className="theme-label">{effectiveThemeLabel}</span>
         )}
@@ -135,35 +133,32 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
           title={`Display theme: ${effectiveThemeLabel}`}
           aria-label={`Display theme: ${effectiveThemeLabel}. Choose light, dark, or automatic theme.`}
         >
-          <FontAwesomeIcon
-            icon={currentThemeOption?.icon || faCircleHalfStroke}
-            className="theme-icon"
-          />
+          <CurrentThemeIcon className="theme-icon" />
           {showLabel && (
             <span className="theme-label">{effectiveThemeLabel}</span>
           )}
-          <FontAwesomeIcon
-            icon={faChevronDown}
-            className={`dropdown-arrow ${isDropdownOpen ? 'open' : ''}`}
-          />
+          <FaChevronDown className={`dropdown-arrow ${isDropdownOpen ? 'open' : ''}`} />
         </button>
 
         {isDropdownOpen && (
           <div className="theme-dropdown-menu">
-            {themeOptions.map((option) => (
-              <button
-                key={option.value}
-                className={`theme-option ${themePreference === option.value ? 'active' : ''}`}
-                onClick={() => handleThemeSelect(option.value)}
-                title={option.description}
-              >
-                <FontAwesomeIcon icon={option.icon} className="option-icon" />
-                <span className="option-label">{option.label}</span>
-                {themePreference === option.value && (
-                  <FontAwesomeIcon icon={faCheck} className="check-icon" />
-                )}
-              </button>
-            ))}
+            {themeOptions.map((option) => {
+              const OptionIcon = option.icon;
+              return (
+                <button
+                  key={option.value}
+                  className={`theme-option ${themePreference === option.value ? 'active' : ''}`}
+                  onClick={() => handleThemeSelect(option.value)}
+                  title={option.description}
+                >
+                  <OptionIcon className="option-icon" />
+                  <span className="option-label">{option.label}</span>
+                  {themePreference === option.value && (
+                    <FaCheck className="check-icon" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -178,10 +173,7 @@ const ThemeToggle = ({ variant = 'button', showLabel = true, className = '' }) =
       title={`Display theme: ${effectiveThemeLabel}`}
       aria-label={`Display theme: ${effectiveThemeLabel}`}
     >
-      <FontAwesomeIcon
-        icon={currentThemeOption?.icon || faCircleHalfStroke}
-        className="theme-icon"
-      />
+      <CurrentThemeIcon className="theme-icon" />
       {showLabel && (
         <span className="theme-label">{effectiveThemeLabel}</span>
       )}

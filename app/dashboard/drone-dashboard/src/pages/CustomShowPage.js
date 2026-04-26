@@ -12,14 +12,14 @@ import {
   Typography,
 } from '@mui/material';
 import {
-  CloudUpload,
-  Description,
-  FlightTakeoff,
-  Insights,
-  Route,
-  RuleFolder,
-  Visibility,
-} from '@mui/icons-material';
+  MdCloudUpload,
+  MdDescription,
+  MdFlightTakeoff,
+  MdInsights,
+  MdRoute,
+  MdRuleFolder,
+  MdVisibility,
+} from 'react-icons/md';
 
 import useFetch from '../hooks/useFetch';
 import { extractApiErrorMessage } from '../services/apiError';
@@ -120,7 +120,7 @@ const CustomShowPage = () => {
       label: 'Mode',
       value: 'Custom CSV',
       detail: 'manual replay',
-      icon: <RuleFolder />,
+      icon: <MdRuleFolder />,
       tone: 'warning',
     },
     {
@@ -128,7 +128,7 @@ const CustomShowPage = () => {
       label: 'Active File',
       value: hasActiveCustomShow ? customShowInfo.filename : 'None',
       detail: hasActiveCustomShow ? 'server active.csv' : 'upload required',
-      icon: <Description />,
+      icon: <MdDescription />,
       tone: hasActiveCustomShow ? 'success' : 'neutral',
     },
     {
@@ -136,7 +136,7 @@ const CustomShowPage = () => {
       label: 'Duration',
       value: hasActiveCustomShow ? formatDuration(customShowInfo.duration_sec) : 'N/A',
       detail: hasActiveCustomShow ? `${customShowInfo.row_count || 0} samples` : 'no active file',
-      icon: <Insights />,
+      icon: <MdInsights />,
       tone: hasActiveCustomShow ? 'info' : 'neutral',
     },
   ];
@@ -175,7 +175,7 @@ const CustomShowPage = () => {
       <div className="custom-show-page__grid">
         <Paper className="custom-show-card custom-show-card--upload" elevation={0}>
           <div className="custom-show-card__header">
-            <CloudUpload color="primary" />
+            <MdCloudUpload style={{ color: 'var(--color-primary)' }} />
             <div>
               <Typography variant="h6">Upload Ready-to-Execute CSV</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -195,7 +195,7 @@ const CustomShowPage = () => {
                 variant="contained"
                 onClick={uploadCustomCsv}
                 disabled={!selectedFile || isUploading}
-                startIcon={isUploading ? <CircularProgress size={18} color="inherit" /> : <CloudUpload />}
+                startIcon={isUploading ? <CircularProgress size={18} color="inherit" /> : <MdCloudUpload />}
               >
                 {isUploading ? 'Validating...' : 'Upload & Activate'}
               </Button>
@@ -217,7 +217,7 @@ const CustomShowPage = () => {
 
         <Paper className="custom-show-card" elevation={0}>
           <div className="custom-show-card__header">
-            <Description color="primary" />
+            <MdDescription style={{ color: 'var(--color-primary)' }} />
             <div>
               <Typography variant="h6">Active Custom CSV</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -229,10 +229,10 @@ const CustomShowPage = () => {
           {hasActiveCustomShow ? (
             <>
               <div className="custom-show-page__chip-row">
-                <Chip icon={<RuleFolder />} label={customShowInfo.filename} color="primary" variant="outlined" />
-                <Chip icon={<Insights />} label={`${customShowInfo.row_count} samples`} variant="outlined" />
-                <Chip icon={<FlightTakeoff />} label={formatDuration(customShowInfo.duration_sec)} variant="outlined" />
-                <Chip icon={<Route />} label={`${customShowInfo.max_altitude} m max altitude`} variant="outlined" />
+                <Chip icon={<MdRuleFolder />} label={customShowInfo.filename} color="primary" variant="outlined" />
+                <Chip icon={<MdInsights />} label={`${customShowInfo.row_count} samples`} variant="outlined" />
+                <Chip icon={<MdFlightTakeoff />} label={formatDuration(customShowInfo.duration_sec)} variant="outlined" />
+                <Chip icon={<MdRoute />} label={`${customShowInfo.max_altitude} m max altitude`} variant="outlined" />
               </div>
 
               <Divider className="custom-show-page__divider" />
@@ -264,7 +264,7 @@ const CustomShowPage = () => {
 
         <Paper className="custom-show-card" elevation={0}>
           <div className="custom-show-card__header">
-            <RuleFolder color="primary" />
+            <MdRuleFolder style={{ color: 'var(--color-primary)' }} />
             <div>
               <Typography variant="h6">Protocol Reminder</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -296,7 +296,7 @@ const CustomShowPage = () => {
 
         <Paper className="custom-show-card custom-show-card--preview" elevation={0}>
           <div className="custom-show-card__header">
-            <Visibility color="primary" />
+            <MdVisibility style={{ color: 'var(--color-primary)' }} />
             <div>
               <Typography variant="h6">Preview</Typography>
               <Typography variant="body2" color="text.secondary">

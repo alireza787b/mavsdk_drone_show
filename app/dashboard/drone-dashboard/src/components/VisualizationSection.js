@@ -21,17 +21,17 @@ import {
   CircularProgress
 } from '@mui/material';
 import {
-  AccessTime as AccessTimeIcon,
-  Theaters as TheatersIcon,
-  Speed as SpeedIcon,
-  Security as SecurityIcon,
-  Timeline as TimelineIcon,
-  Psychology as PsychologyIcon,
-  HelpOutline as HelpIcon,
-  ExpandMore as ExpandMoreIcon,
-  Assessment as AssessmentIcon
-} from '@mui/icons-material';
-import HeightIcon from '@mui/icons-material/Height';
+  MdAccessTime,
+  MdAssessment,
+  MdExpandMore,
+  MdHeight,
+  MdHelpOutline,
+  MdPsychology,
+  MdSecurity,
+  MdSpeed,
+  MdTheaters,
+  MdTimeline,
+} from 'react-icons/md';
 import { extractApiErrorMessage } from '../services/apiError';
 import {
   buildShowPlotUrl,
@@ -82,6 +82,25 @@ const plotImageStyle = {
   height: 'auto',
   borderRadius: '8px',
   boxShadow: 'var(--shadow-sm)',
+};
+
+const largeMetricIconStyle = {
+  fontSize: 48,
+  marginBottom: 16,
+};
+
+const helpIconStyle = {
+  fontSize: 18,
+};
+
+const smallHelpIconStyle = {
+  color: VIS_TOKENS.textSecondary,
+  fontSize: 16,
+};
+
+const safetyIconStyle = {
+  fontSize: 40,
+  marginBottom: 16,
 };
 
 const VisualizationSection = ({ uploadCount }) => {
@@ -255,13 +274,13 @@ const VisualizationSection = ({ uploadCount }) => {
         
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
           <Typography variant="h6" sx={analysisHeadingSx}>
-            <PsychologyIcon />
+            <MdPsychology />
             Technical Analysis Data
           </Typography>
           <Button
             variant="outlined"
             onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
-            endIcon={<ExpandMoreIcon sx={{ transform: showAdvancedMetrics ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />}
+            endIcon={<MdExpandMore style={{ transform: showAdvancedMetrics ? 'rotate(180deg)' : 'none', transition: '0.3s' }} />}
             sx={primaryOutlineButtonSx}
           >
             {showAdvancedMetrics ? 'Hide Technical Data' : 'Show Technical Data'}
@@ -282,7 +301,7 @@ const VisualizationSection = ({ uploadCount }) => {
             <Collapse in={showPerDroneData}>
               <Paper sx={{ p: 3, mb: 3, ...analysisPanelSx }}>
                 <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
-                  <TheatersIcon />
+                  <MdTheaters />
                   Individual Drone Analysis
                 </Typography>
                 {comprehensiveMetrics?.basic_metrics?.per_drone_metrics && (
@@ -365,7 +384,7 @@ const VisualizationSection = ({ uploadCount }) => {
               <Grid item xs={12} lg={6}>
                 <Paper sx={technicalPanelSx}>
                   <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
-                    <SecurityIcon />
+                    <MdSecurity />
                     Safety Analysis
                   </Typography>
                   <List dense>
@@ -406,7 +425,7 @@ const VisualizationSection = ({ uploadCount }) => {
               <Grid item xs={12} lg={6}>
                 <Paper sx={technicalPanelSx}>
                   <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
-                    <SpeedIcon />
+                    <MdSpeed />
                     Performance Analysis
                   </Typography>
                   <List dense>
@@ -449,7 +468,7 @@ const VisualizationSection = ({ uploadCount }) => {
               <Grid item xs={12} lg={6}>
                 <Paper sx={technicalPanelSx}>
                   <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
-                    <AssessmentIcon />
+                    <MdAssessment />
                     Enhanced Metrics
                   </Typography>
                   <List dense>
@@ -497,7 +516,7 @@ const VisualizationSection = ({ uploadCount }) => {
               <Grid item xs={12} lg={6}>
                 <Paper sx={technicalPanelSx}>
                   <Typography variant="h6" gutterBottom sx={analysisHeadingSx}>
-                    <AssessmentIcon />
+                    <MdAssessment />
                     Quality Assessment
                   </Typography>
                   <List dense>
@@ -572,7 +591,7 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <AccessTimeIcon className="metric-icon primary" sx={{ fontSize: 48, mb: 2 }} />
+              <MdAccessTime className="metric-icon primary" style={largeMetricIconStyle} />
               <Typography variant="subtitle1" className="metric-label" gutterBottom>
                 Duration
               </Typography>
@@ -586,7 +605,7 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <TheatersIcon className="metric-icon secondary" sx={{ fontSize: 48, mb: 2 }} />
+              <MdTheaters className="metric-icon secondary" style={largeMetricIconStyle} />
               <Typography variant="subtitle1" className="metric-label" gutterBottom>
                 Drone Count
               </Typography>
@@ -600,10 +619,10 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <HeightIcon className="metric-icon success" sx={{ fontSize: 48, mb: 2 }} />
+              <MdHeight className="metric-icon success" style={largeMetricIconStyle} />
               <Tooltip title="Maximum altitude reached during the entire show">
                 <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Max Altitude <HelpIcon sx={{ fontSize: 18 }} />
+                  Max Altitude <MdHelpOutline style={helpIconStyle} />
                 </Typography>
               </Tooltip>
               <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
@@ -621,10 +640,10 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <HeightIcon className="metric-icon warning" sx={{ fontSize: 48, mb: 2, transform: 'rotate(180deg)' }} />
+              <MdHeight className="metric-icon warning" style={{ ...largeMetricIconStyle, transform: 'rotate(180deg)' }} />
               <Tooltip title="Minimum altitude during flight phase (excluding takeoff/landing within 20m)">
                 <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Min Altitude <HelpIcon sx={{ fontSize: 18 }} />
+                  Min Altitude <MdHelpOutline style={helpIconStyle} />
                 </Typography>
               </Tooltip>
               <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
@@ -642,10 +661,10 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <SpeedIcon className="metric-icon info" sx={{ fontSize: 48, mb: 2 }} />
+              <MdSpeed className="metric-icon info" style={largeMetricIconStyle} />
               <Tooltip title="Maximum velocity reached by any drone during the show">
                 <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Max Speed <HelpIcon sx={{ fontSize: 18 }} />
+                  Max Speed <MdHelpOutline style={helpIconStyle} />
                 </Typography>
               </Tooltip>
               <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
@@ -663,10 +682,10 @@ const VisualizationSection = ({ uploadCount }) => {
         <Grid item xs={12} sm={6} lg={4}>
           <Card variant="outlined" className="metric-card" sx={{ height: '100%', borderRadius: 2, transition: 'all 0.3s ease' }}>
             <CardContent sx={{ textAlign: 'center', py: 3 }}>
-              <TimelineIcon className="metric-icon secondary" sx={{ fontSize: 48, mb: 2 }} />
+              <MdTimeline className="metric-icon secondary" style={largeMetricIconStyle} />
               <Tooltip title="Maximum 3D distance any drone traveled from its launch position during the show">
                 <Typography variant="subtitle1" className="metric-label" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
-                  Max Distance <HelpIcon sx={{ fontSize: 18 }} />
+                  Max Distance <MdHelpOutline style={helpIconStyle} />
                 </Typography>
               </Tooltip>
               <Typography variant="h4" className="metric-value" sx={{ mb: 1 }}>
@@ -694,13 +713,13 @@ const VisualizationSection = ({ uploadCount }) => {
               '&:hover': { boxShadow: 'var(--shadow-md)' }
             }}>
               <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <SecurityIcon color="success" sx={{ fontSize: 40, mb: 2 }} />
+                <MdSecurity style={{ ...safetyIconStyle, color: VIS_TOKENS.success }} />
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center', mb: 2 }}>
                   <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: 600 }}>
                     Min Proximity
                   </Typography>
                   <Tooltip title="Minimum separation distance between any two drones during the entire show. Safe operation requires >2m separation." arrow>
-                    <HelpIcon sx={{ fontSize: 16, color: VIS_TOKENS.textSecondary }} />
+                    <MdHelpOutline style={smallHelpIconStyle} />
                   </Tooltip>
                 </Box>
                 <Typography variant="h4" sx={{ fontWeight: 'bold', color: VIS_TOKENS.primary }}>
@@ -731,16 +750,15 @@ const VisualizationSection = ({ uploadCount }) => {
               '&:hover': { boxShadow: 'var(--shadow-md)' }
             }}>
               <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <SecurityIcon 
-                  sx={{ 
-                    fontSize: 40, 
-                    mb: 2,
-                    color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE' 
+                <MdSecurity
+                  style={{
+                    ...safetyIconStyle,
+                    color: comprehensiveMetrics?.safety_metrics?.safety_status === 'SAFE'
                       ? VIS_TOKENS.success
                       : comprehensiveMetrics?.safety_metrics?.safety_status === 'CAUTION'
                       ? VIS_TOKENS.warning
                       : VIS_TOKENS.textSecondary
-                  }} 
+                  }}
                 />
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 2 }}>
                   <Typography variant="subtitle1" color="textSecondary" sx={{ fontWeight: 600 }}>
@@ -756,7 +774,7 @@ const VisualizationSection = ({ uploadCount }) => {
                     }
                     arrow
                   >
-                    <HelpIcon sx={{ fontSize: 16, color: VIS_TOKENS.textSecondary }} />
+                    <MdHelpOutline style={smallHelpIconStyle} />
                   </Tooltip>
                 </Box>
                 <Chip 
@@ -796,7 +814,7 @@ const VisualizationSection = ({ uploadCount }) => {
       {plots.some(name => name === 'combined_drone_paths.jpg') && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ ...analysisHeadingSx, mb: 2 }}>
-            <AssessmentIcon />
+            <MdAssessment />
             All Drones Combined View
           </Typography>
           <Paper sx={{ p: 1, textAlign: 'center' }}>
@@ -829,7 +847,7 @@ const VisualizationSection = ({ uploadCount }) => {
       {plots.filter(name => name !== 'combined_drone_paths.jpg').length > 0 && (
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ ...analysisHeadingSx, mb: 2 }}>
-            <TimelineIcon />
+            <MdTimeline />
             Individual Drone Trajectories
           </Typography>
           <Box className="plot-grid" sx={{ 

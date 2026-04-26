@@ -59,17 +59,11 @@ import {
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
-import { FaClipboardList } from 'react-icons/fa';
+import { FaClipboardList, FaExchangeAlt } from 'react-icons/fa';
 import {
   PageShell,
   StatusBadge,
 } from '../components/ui';
-
-// Icons
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faExchangeAlt,
-} from '@fortawesome/free-solid-svg-icons';
 
 const MissionConfig = () => {
   const navigate = useNavigate();
@@ -959,7 +953,7 @@ const MissionConfig = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h3>
-              <FontAwesomeIcon icon={faExchangeAlt} style={{ marginRight: '10px' }} />
+              <FaExchangeAlt style={{ marginRight: '10px' }} />
               All Active Role Swaps ({roleSwapData.length})
             </h3>
             <p style={{ marginBottom: '16px' }}>

@@ -1,11 +1,6 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faExchangeAlt,
-  faExclamationTriangle,
-  faPlus,
-} from '@fortawesome/free-solid-svg-icons';
+import { FaExchangeAlt, FaExclamationTriangle, FaPlus } from 'react-icons/fa';
 
 import { formatDroneLabel, formatShowSlotLabel } from '../../utilities/missionIdentityUtils';
 
@@ -41,7 +36,7 @@ export default function MissionConfigAlertStack({
           className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
           onClick={onReviewPendingEnrollment}
         >
-          <FontAwesomeIcon icon={faPlus} />
+          <FaPlus />
           <div>
             <strong>{pendingEnrollmentDrones.length} detected, not enrolled</strong>
             <span>
@@ -59,7 +54,7 @@ export default function MissionConfigAlertStack({
           className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
           onClick={onReviewDuplicateHardwareIds}
         >
-          <FontAwesomeIcon icon={faExclamationTriangle} />
+          <FaExclamationTriangle />
           <div>
             <strong>{duplicateHwIds.length} duplicate hardware ID{duplicateHwIds.length === 1 ? '' : 's'}</strong>
             <span>
@@ -76,7 +71,7 @@ export default function MissionConfigAlertStack({
           className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
           onClick={onReviewDuplicateSlots}
         >
-          <FontAwesomeIcon icon={faExclamationTriangle} />
+          <FaExclamationTriangle />
           <div>
             <strong>{duplicatePosIds.length} slot collision{duplicatePosIds.length === 1 ? '' : 's'}</strong>
             <span>
@@ -95,7 +90,7 @@ export default function MissionConfigAlertStack({
           className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
           onClick={onReviewRoleSwaps}
         >
-          <FontAwesomeIcon icon={faExchangeAlt} />
+          <FaExchangeAlt />
           <div>
             <strong>{roleSwaps.length} slot reassignment{roleSwaps.length === 1 ? '' : 's'} active</strong>
             <span>
@@ -115,7 +110,7 @@ export default function MissionConfigAlertStack({
           className="mission-config-alert mission-config-alert--warning mission-config-alert--actionable"
           onClick={onReviewOrigin}
         >
-          <FontAwesomeIcon icon={faExclamationTriangle} />
+          <FaExclamationTriangle />
           <div>
             <strong>{originStatus === 'unavailable' ? 'Origin check failed' : 'Origin needed'}</strong>
             <span>

@@ -9,8 +9,7 @@ import CommandPreflightSummary from './CommandPreflightSummary';
 import ClusterScopeBar from './ClusterScopeBar';
 import { ConfirmDialog } from './ui';
 import { toast } from 'react-toastify';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faCog, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { FaChevronDown, FaCog, FaRocket } from 'react-icons/fa';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -730,8 +729,7 @@ const CommandSender = ({
                 <span>{recentCommandMonitors.length} stored</span>
               </div>
               <span className="command-monitor-history__toggle" aria-hidden="true">
-                <FontAwesomeIcon
-                  icon={faChevronDown}
+                <FaChevronDown
                   className={`command-monitor-history__toggle-icon ${historyExpanded ? 'is-open' : ''}`}
                 />
               </span>
@@ -794,8 +792,7 @@ const CommandSender = ({
           <h2 className="command-sender-header">Command Control</h2>
         </div>
         <span className="command-sender-header-toggle" aria-hidden="true">
-          <FontAwesomeIcon
-            icon={faChevronDown}
+          <FaChevronDown
             className={`command-sender-header-toggle-icon ${panelExpanded ? 'is-open' : ''}`}
           />
         </span>
@@ -882,7 +879,7 @@ const CommandSender = ({
           className={`command-tab ${activeTab === 'missionTrigger' ? 'active' : ''}`}
           onClick={() => setActiveTab('missionTrigger')}
         >
-          <FontAwesomeIcon icon={faRocket} className="command-tab__icon" />
+          <FaRocket className="command-tab__icon" />
           <span className="command-tab__text">Mission Trigger</span>
         </button>
         <button
@@ -892,7 +889,7 @@ const CommandSender = ({
           className={`command-tab ${activeTab === 'actions' ? 'active' : ''}`}
           onClick={() => setActiveTab('actions')}
         >
-          <FontAwesomeIcon icon={faCog} className="command-tab__icon" />
+          <FaCog className="command-tab__icon" />
           <span className="command-tab__text">Actions</span>
         </button>
       </div>

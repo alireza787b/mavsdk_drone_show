@@ -1,11 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { CircularProgress } from '@mui/material';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faPlus,
-  faSave,
-} from '@fortawesome/free-solid-svg-icons';
+import { FaPlus, FaSave } from 'react-icons/fa';
 
 import ClusterScopeBar from '../ClusterScopeBar';
 import IdentityDoctrineStrip from '../IdentityDoctrineStrip';
@@ -49,7 +45,7 @@ export default function MissionConfigToolbar({
               </>
             ) : (
               <>
-                <FontAwesomeIcon icon={faSave} />
+                <FaSave />
                 Save & Commit
               </>
             )}
@@ -59,7 +55,7 @@ export default function MissionConfigToolbar({
             className="mission-config-primary-button mission-config-primary-button--add"
             onClick={onAddDrone}
           >
-            <FontAwesomeIcon icon={faPlus} />
+            <FaPlus />
             Add Drone
           </button>
         </div>
