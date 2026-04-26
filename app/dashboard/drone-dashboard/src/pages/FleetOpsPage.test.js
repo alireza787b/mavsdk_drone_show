@@ -39,6 +39,7 @@ const gitPayload = {
         dashboard_enabled: true,
         dashboard_service_status: 'active',
         dashboard_access_mode: 'local_only',
+        dashboard_listen: '127.0.0.1:9070',
         dashboard_url: null,
         desired_config_hash: 'abcdef1234567890',
         applied_config_hash: 'abcdef1234567890',
@@ -219,13 +220,18 @@ describe('FleetOpsPage', () => {
     expect(screen.getByRole('heading', { name: /hw 3/i })).toBeInTheDocument();
   });
 
-  test('shows sidecar detail and treats local-only dashboards as diagnostics, not primary controls', () => {
+  test('shows sidecar detail and builds node dashboard links from reported ports', () => {
     renderFleetOps();
+
+    expect(screen.getByRole('link', { name: /open mavlink dashboard/i })).toHaveAttribute(
+      'href',
+      'http://100.82.72.33:9070',
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));
 
     expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only; hash abcdef123456/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/local-only dashboard/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
     expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing; hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();

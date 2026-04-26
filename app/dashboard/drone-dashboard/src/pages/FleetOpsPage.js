@@ -67,13 +67,80 @@ function StatusMetric({ icon: Icon, label, status, detail }) {
   );
 }
 
-function DashboardLinks({ runtime }) {
+function dashboardPortFromRuntime(runtime) {
+  const listen = runtime?.dashboard_listen;
+  if (typeof listen !== 'string' || !listen.trim()) {
+    return null;
+  }
+  const match = listen.trim().match(/:(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  return match[1];
+}
+
+function formatDashboardHost(ip) {
+  const value = String(ip || '').trim();
+  if (!value) {
+    return '';
+  }
+  return value.includes(':') && !value.startsWith('[') ? `[${value}]` : value;
+}
+
+function resolveDashboardHref(runtime, nodeIp) {
+  if (!runtime || runtime.dashboard_enabled === false || runtime.dashboard_access_mode === 'disabled') {
+    return null;
+  }
+  if (runtime.dashboard_url) {
+    return runtime.dashboard_url;
+  }
+  const port = dashboardPortFromRuntime(runtime);
+  const host = formatDashboardHost(nodeIp);
+  if (!port || !host) {
+    return null;
+  }
+  return `http://${host}:${port}`;
+}
+
+function DashboardQuickLinks({ row }) {
+  const links = [
+    {
+      key: 'mavlink',
+      label: 'Open MAVLink dashboard',
+      icon: <FaSatelliteDish aria-hidden="true" />,
+      href: resolveDashboardHref(row.mavlinkRuntime, row.ip),
+    },
+    {
+      key: 'wifi',
+      label: 'Open Smart Wi-Fi dashboard',
+      icon: <FaWifi aria-hidden="true" />,
+      href: resolveDashboardHref(row.connectivityRuntime, row.ip),
+    },
+  ].filter((link) => link.href);
+
+  if (!links.length) {
+    return null;
+  }
+
+  return (
+    <div className="fleet-ops-node-card__quick-links" aria-label={`Drone ${row.posId} sidecar dashboard links`}>
+      {links.map((link) => (
+        <a key={link.key} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
+          {link.icon}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function DashboardLinks({ runtime, nodeIp, label }) {
   if (!runtime) {
     return null;
   }
 
+  const dashboardHref = resolveDashboardHref(runtime, nodeIp);
   const fallbackLabel = runtime.dashboard_access_mode === 'local_only'
-    ? 'Local-only dashboard'
+    ? 'Local-only'
     : runtime.dashboard_enabled === false
       ? 'Dashboard off'
       : 'No dashboard URL';
@@ -85,9 +152,9 @@ function DashboardLinks({ runtime }) {
           <FaCodeBranch /> Repo
         </a>
       ) : null}
-      {runtime.dashboard_url ? (
-        <a href={runtime.dashboard_url} target="_blank" rel="noreferrer">
-          <FaLink /> Dashboard
+      {dashboardHref ? (
+        <a href={dashboardHref} target="_blank" rel="noreferrer" aria-label={`Open ${label} dashboard`}>
+          <FaLink /> Open UI
         </a>
       ) : (
         <span aria-label="Dashboard is disabled, local-only, or not reported. Use node SSH or a future GCS proxy for local-only dashboards.">
@@ -158,13 +225,13 @@ function NodeDetails({ row, activeTab }) {
           <h3>MAVLink</h3>
           <p>{row.mavlink.detail}</p>
           <SidecarHashFacts runtime={row.mavlinkRuntime} />
-          <DashboardLinks runtime={row.mavlinkRuntime} />
+          <DashboardLinks runtime={row.mavlinkRuntime} nodeIp={row.ip} label="MAVLink" />
         </section>
         <section>
           <h3>Connectivity</h3>
           <p>{row.connectivity.detail}</p>
           <SidecarHashFacts runtime={row.connectivityRuntime} profile />
-          <DashboardLinks runtime={row.connectivityRuntime} />
+          <DashboardLinks runtime={row.connectivityRuntime} nodeIp={row.ip} label="Smart Wi-Fi" />
         </section>
       </div>
     );
@@ -236,6 +303,7 @@ function NodeCard({ row, activeTab, selected, onToggleSelected }) {
             {row.runtimeModeLabel}
           </StatusBadge>
         </div>
+        <DashboardQuickLinks row={row} />
       </header>
       <NodeDetails row={row} activeTab={activeTab} />
     </OperatorCard>

@@ -36,6 +36,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   to remove local SITL containers through the supported SITL Control API.
 
 ### Changed
+- Fleet Ops node cards now expose compact per-node sidecar dashboard shortcuts
+  and use a more stable mobile card layout for node identity, status pills, and
+  quick actions.
 - Active installer, dashboard, docs-link, SITL image, and git-sync defaults now
   use `main` as the canonical deployment branch; feature/client branches remain
   explicit overrides through `MDS_BRANCH`.

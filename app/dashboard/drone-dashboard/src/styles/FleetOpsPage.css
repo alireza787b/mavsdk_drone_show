@@ -54,7 +54,8 @@
 }
 
 .fleet-ops-node-card__pills,
-.fleet-ops-node-card__links {
+.fleet-ops-node-card__links,
+.fleet-ops-node-card__quick-links {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
@@ -286,14 +287,45 @@
 }
 
 .fleet-ops-node-card__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 0.7rem;
+  align-items: start;
 }
 
 .fleet-ops-node-card__identity {
   flex: 1;
   min-width: 0;
+}
+
+.fleet-ops-node-card__pills {
+  justify-content: flex-end;
+  max-width: 12rem;
+}
+
+.fleet-ops-node-card__quick-links {
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.fleet-ops-node-card__quick-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 999px;
+  background: var(--color-surface-inset);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.fleet-ops-node-card__quick-links a:hover,
+.fleet-ops-node-card__quick-links a:focus-visible {
+  border-color: var(--color-primary-border);
+  background: var(--operator-control-background-hover);
+  color: var(--color-primary);
 }
 
 .fleet-ops-node-card__selector {
@@ -438,7 +470,18 @@
 
 @media (max-width: 1080px) {
   .fleet-ops-node-card__header {
-    flex-direction: column;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .fleet-ops-node-card__pills {
+    grid-column: 2 / -1;
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .fleet-ops-node-card__quick-links {
+    grid-column: 3;
+    grid-row: 1;
   }
 
   .fleet-ops-toolbar,
@@ -461,6 +504,34 @@
 }
 
 @media (max-width: 640px) {
+  .fleet-ops-page {
+    padding: 0.75rem;
+  }
+
+  .fleet-ops-node-card {
+    padding: 0.85rem;
+  }
+
+  .fleet-ops-node-card__header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fleet-ops-node-card__quick-links,
+  .fleet-ops-node-card__pills {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  .fleet-ops-actions__buttons {
+    width: 100%;
+  }
+
+  .fleet-ops-actions__buttons button {
+    justify-content: center;
+    min-width: min(100%, 10rem);
+  }
+
   .fleet-ops-status-grid,
   .fleet-ops-facts,
   .fleet-ops-sidecar-facts,
