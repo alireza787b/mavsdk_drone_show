@@ -439,10 +439,10 @@ const WaypointModal = ({
 
   const getSpeedStatusStyle = (status) => {
     switch (status) {
-      case 'feasible': return { color: '#28a745', backgroundColor: '#d4edda' };
-      case 'marginal': return { color: '#ffc107', backgroundColor: '#fff3cd' };
-      case 'impossible': return { color: '#dc3545', backgroundColor: '#f8d7da' };
-      default: return { color: '#6c757d', backgroundColor: '#e9ecef' };
+      case 'feasible': return { color: 'var(--color-success)', backgroundColor: 'var(--color-success-light)' };
+      case 'marginal': return { color: 'var(--color-warning)', backgroundColor: 'var(--color-warning-light)' };
+      case 'impossible': return { color: 'var(--color-danger)', backgroundColor: 'var(--color-danger-light)' };
+      default: return { color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-tertiary)' };
     }
   };
 
