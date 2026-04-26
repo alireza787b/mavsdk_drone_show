@@ -2289,3 +2289,35 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/pages/RuntimeAdminPage.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 48
+
+Goal:
+
+- remove Fleet Enrollment's page-local confirmation dialog implementation and
+  align enrollment mutations with the shared operator modal primitive
+
+Implemented:
+
+- routed the existing enrollment action wrapper through shared `ConfirmDialog`
+  while preserving all domain form content for:
+  - accept-as-new
+  - replace slot
+  - recover node
+  - ignore
+  - reject
+- removed stale Fleet Enrollment modal/backdrop/button CSS and kept only the
+  domain-specific dialog body layout
+- preserved busy-state behavior, backdrop/Escape blocking through the shared
+  primitive, and the existing mutation service calls
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/FleetEnrollmentPage.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

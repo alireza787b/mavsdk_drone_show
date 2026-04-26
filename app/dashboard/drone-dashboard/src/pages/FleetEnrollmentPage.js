@@ -31,6 +31,7 @@ import {
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import {
   ActionIconButton,
+  ConfirmDialog,
   EmptyState,
   MetricStrip,
   OperatorCard,
@@ -200,36 +201,21 @@ function ActionDialog({
   }
 
   return (
-    <div className="fleet-enrollment-dialog-backdrop" onClick={busy ? undefined : onClose}>
-      <div
-        className={`fleet-enrollment-dialog fleet-enrollment-dialog--${tone}`}
-        onClick={(event) => event.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <div className="fleet-enrollment-dialog__header">
-          <div>
-            <h2>{title}</h2>
-            {description ? <p>{description}</p> : null}
-          </div>
-          <button type="button" className="fleet-enrollment-dialog__close" onClick={onClose} disabled={busy}>
-            Close
-          </button>
-        </div>
-        <div className="fleet-enrollment-dialog__body">
+    <ConfirmDialog
+      open={isOpen}
+      title={title}
+      message={(
+        <div className="fleet-enrollment-dialog-content">
+          {description ? <p className="fleet-enrollment-dialog-content__description">{description}</p> : null}
           {children}
         </div>
-        <div className="fleet-enrollment-dialog__actions">
-          <button type="button" className="fleet-enrollment-button fleet-enrollment-button--ghost" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button type="button" className="fleet-enrollment-button fleet-enrollment-button--primary" onClick={onSubmit} disabled={busy}>
-            {busy ? 'Working…' : submitLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+      )}
+      busy={busy}
+      onCancel={onClose}
+      onConfirm={onSubmit}
+      confirmLabel={submitLabel}
+      tone={tone === 'danger' ? 'danger' : 'neutral'}
+    />
   );
 }
 
