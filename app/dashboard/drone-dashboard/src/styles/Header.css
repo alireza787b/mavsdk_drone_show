@@ -1,10 +1,12 @@
+@import './DesignTokens.css';
+
 .app-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
-    background-color: #007BFF;
-    color: #fff;
+    background-color: var(--color-primary);
+    color: var(--color-primary-text);
     position: fixed;
     top: 0;
     left: 0;
@@ -14,14 +16,14 @@
 
   .app-header button {
     background: none;
-    border: 1px solid #fff;
+    border: 1px solid var(--color-primary-text);
     padding: 0.5rem 1rem;
-    color: #fff;
+    color: var(--color-primary-text);
     cursor: pointer;
     transition: background-color 0.3s, color 0.3s;
   }
 
   .app-header button:hover {
-    background-color: #fff;
-    color: #007BFF;
+    background-color: var(--color-primary-text);
+    color: var(--color-primary);
   }
