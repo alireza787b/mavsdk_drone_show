@@ -2836,3 +2836,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointPanel.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 67
+
+Goal:
+
+- replace Waypoint Modal emoji labels and dynamic inline speed status styling
+  with accessible icon labels and CSS-backed status classes
+
+Implemented:
+
+- replaced altitude, timing, time, heading, and speed-warning glyph labels with
+  `react-icons` components
+- moved speed feasibility styling from runtime inline style objects into stable
+  `.speed-display--*` classes
+- removed unused speed-indicator pseudo-glyph CSS from the modal stylesheet
+- preserved terrain validation, AGL/MSL entry behavior, timing modes, heading
+  modes, speed validation, and confirmation behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused WaypointModal tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointModal.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
