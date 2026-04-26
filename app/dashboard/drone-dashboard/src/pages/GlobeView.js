@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FaExclamationTriangle, FaGlobeAmericas, FaRedoAlt, FaSatelliteDish } from 'react-icons/fa';
 
 import Globe from '../components/Globe';
 import GlobeMapView from '../components/GlobeMapView';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import ViewModeToggle, { VIEW_MODES } from '../components/map/ViewModeToggle';
+import {
+  ActionIconButton,
+  EmptyState,
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
 import '../styles/GlobeView.css';
 
 import {
@@ -222,11 +229,6 @@ const GlobeView = () => {
 
   const renderDroneStrip = () => (
     <div className="globe-tactical-strip" aria-label="Live drone selection strip">
-      <div className="globe-tactical-strip__status" aria-label="Telemetry stream mode and adaptive update interval">
-        <span className={`globe-tactical-strip__dot ${streamTransport}`} />
-        <strong>{streamTransport === 'ws' ? 'WS' : 'HTTP'}</strong>
-        <span>{(telemetryIntervalMs / 1000).toFixed(1)}s</span>
-      </div>
       <div className="globe-tactical-strip__drones">
         {drones.map((drone) => {
           const droneId = String(drone.hw_id);
@@ -252,60 +254,78 @@ const GlobeView = () => {
     </div>
   );
 
-  if (isLoading) {
-    return (
-      <div className="globe-view-container">
-        <h2>Drone Visualization</h2>
-        <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
+  const renderChrome = (content, { showStrip = drones.length > 0 } = {}) => (
+    <PageShell
+      className="globe-view-container"
+      eyebrow="Live visualization"
+      title="Fleet Map"
+      subtitle="3D scene and tactical map with adaptive telemetry transport."
+      icon={<FaGlobeAmericas />}
+      docsRoute="/globe-view"
+      status={(
+        <StatusBadge tone={streamTransport === 'ws' ? 'success' : 'info'}>
+          {streamTransport === 'ws' ? 'WS' : 'HTTP'} · {(telemetryIntervalMs / 1000).toFixed(1)}s
+        </StatusBadge>
+      )}
+    >
+      <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
+      <div className="globe-view-toolbar">
         <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-        {renderDroneStrip()}
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <div className="loading-message">Loading drones...</div>
-        </div>
+        {showStrip ? renderDroneStrip() : null}
       </div>
+      {content}
+    </PageShell>
+  );
+
+  if (isLoading) {
+    return renderChrome(
+      <EmptyState
+        className="globe-view-state"
+        icon={<span className="globe-view-state__radar"><FaSatelliteDish /></span>}
+        title="Loading telemetry"
+        detail="Connecting to the fleet stream and mission configuration."
+      />,
+      { showStrip: false },
     );
   }
 
   if (error) {
-    return (
-      <div className="globe-view-container">
-        <h2>Drone Visualization</h2>
-        <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
-        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-        <div className="error-message">
-          <p>{error}</p>
-          <button onClick={fetchDrones}>Retry</button>
-        </div>
-      </div>
+    return renderChrome(
+      <EmptyState
+        className="globe-view-state"
+        icon={<FaExclamationTriangle />}
+        title="Telemetry unavailable"
+        detail={error}
+        action={(
+          <ActionIconButton icon={<FaRedoAlt />} label="Retry fleet telemetry load" onClick={fetchDrones}>
+            Retry
+          </ActionIconButton>
+        )}
+      />,
+      { showStrip: false },
     );
   }
 
   if (drones.length === 0) {
-    return (
-      <div className="globe-view-container">
-        <h2>Drone Visualization</h2>
-        <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
-        <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-        <div className="no-data-message">
-          No drone data available.
-        </div>
-      </div>
+    return renderChrome(
+      <EmptyState
+        className="globe-view-state"
+        icon={<FaSatelliteDish />}
+        title="No telemetry targets"
+        detail="No configured or live drones are available for the current runtime."
+      />,
+      { showStrip: false },
     );
   }
 
-  return (
-    <div className="globe-view-container">
-      <h2>Drone Visualization</h2>
-      <IdentityDoctrineStrip surface="globe-view" className="globe-view-doctrine" />
-      <ViewModeToggle viewMode={viewMode} onChange={setViewMode} />
-      {renderDroneStrip()}
+  return renderChrome(
+    <>
       {viewMode === VIEW_MODES.SCENE_3D ? (
         <Globe drones={drones} selectedDroneId={selectedDroneId} onSelectDrone={setSelectedDroneId} />
       ) : (
         <GlobeMapView drones={drones} selectedDroneId={selectedDroneId} onSelectDrone={setSelectedDroneId} />
       )}
-    </div>
+    </>,
   );
 };
 
