@@ -15,7 +15,6 @@ describe('TacticalDroneCard', () => {
             stateLabel: 'Smart Swarm',
             follow_mode: 0,
             altitude: 112.3,
-            marker_color: '#33cc88',
             battery_voltage: 16.25,
             distance_to_home_m: 18.4,
             flight_mode: 262147,

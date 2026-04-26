@@ -16,6 +16,7 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
 import { getMissionDisplayContext } from '../utilities/missionUtils';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/TacticalDroneCard.css';
 
 const GPS_FIX_LABELS = {
@@ -47,13 +48,19 @@ const formatLastUpdate = (value) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 };
 
-const resolveMarkerColor = (candidate) => {
+const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+const resolveMarkerColor = (candidate, fallback = getPlotThemeColors().primary) => {
   const normalized = String(candidate || '').trim();
-  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized) ? normalized : '#00d4ff';
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : fallback;
 };
 
-const TacticalMetric = ({ icon: Icon, label, value, title }) => (
-  <div className="tactical-drone-card__metric" title={title || label}>
+const TacticalMetric = ({ icon: Icon, label, value, help }) => (
+  <div
+    className="tactical-drone-card__metric"
+    aria-label={`${label}: ${typeof value === 'string' || typeof value === 'number' ? value : ''}`.trim()}
+    data-help={help || label}
+  >
     <Icon aria-hidden="true" />
     <span>{value}</span>
   </div>
@@ -63,7 +70,7 @@ TacticalMetric.propTypes = {
   icon: PropTypes.elementType.isRequired,
   label: PropTypes.string.isRequired,
   value: PropTypes.node.isRequired,
-  title: PropTypes.string,
+  help: PropTypes.string,
 };
 
 const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
@@ -91,7 +98,9 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
         <div>
           <p className="tactical-drone-card__eyebrow">
             Live aircraft
-            <span title="Last telemetry update"><FaClock aria-hidden="true" /> {lastSeen}</span>
+            <span aria-label={`Last telemetry update ${lastSeen}`} data-help="Last telemetry update">
+              <FaClock aria-hidden="true" /> {lastSeen}
+            </span>
           </p>
           <h3>{identity}</h3>
         </div>
@@ -110,32 +119,48 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
 
       <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
         <TacticalMetric icon={FaCompass} label="Altitude" value={`${formatNumber(drone?.altitude)} m`} />
-        <TacticalMetric icon={FaHome} label="Distance home" value={distanceToHome} title="Horizontal distance to cached home position" />
+        <TacticalMetric icon={FaHome} label="Distance home" value={distanceToHome} help="Horizontal distance to cached home position" />
         <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
         <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />
       </div>
 
       <div className="tactical-drone-card__badges" aria-label="Drone operational state">
-        <span title="PX4 flight mode">{flightMode || 'Mode n/a'}</span>
-        <span title="Arm state">{armed}</span>
-        <span title="Current mission">{missionDisplay.currentMissionName || 'No mission'}</span>
-        <span title="Follow role">{followLabel}</span>
+        <span aria-label={`PX4 flight mode ${flightMode || 'not available'}`} data-help="PX4 flight mode">{flightMode || 'Mode n/a'}</span>
+        <span aria-label={`Arm state ${armed}`} data-help="Arm state">{armed}</span>
+        <span aria-label={`Current mission ${missionDisplay.currentMissionName || 'No mission'}`} data-help="Current mission">{missionDisplay.currentMissionName || 'No mission'}</span>
+        <span aria-label={`Follow role ${followLabel}`} data-help="Follow role">{followLabel}</span>
       </div>
 
       <div className="tactical-drone-card__actions" aria-label="Drone quick links">
-        <Link to={`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`} title="Open this drone in Mission Config">
+        <Link
+          to={`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`}
+          aria-label="Open this drone in Mission Config"
+          data-help="Open this drone in Mission Config"
+        >
           <FaSlidersH aria-hidden="true" />
           <span>Config</span>
         </Link>
-        <Link to={`/swarm-design?drone=${encodeURIComponent(hwId)}`} title="Open this drone in Swarm Design">
+        <Link
+          to={`/swarm-design?drone=${encodeURIComponent(hwId)}`}
+          aria-label="Open this drone in Swarm Design"
+          data-help="Open this drone in Swarm Design"
+        >
           <FaProjectDiagram aria-hidden="true" />
           <span>Swarm</span>
         </Link>
-        <Link to={`/px4-parameters?drone=${encodeURIComponent(hwId)}`} title="Inspect PX4 parameters for this drone">
+        <Link
+          to={`/px4-parameters?drone=${encodeURIComponent(hwId)}`}
+          aria-label="Inspect PX4 parameters for this drone"
+          data-help="Inspect PX4 parameters for this drone"
+        >
           <FaBullseye aria-hidden="true" />
           <span>PX4</span>
         </Link>
-        <Link to={`/?drone=${encodeURIComponent(hwId)}`} title="Return to dashboard overview">
+        <Link
+          to={`/?drone=${encodeURIComponent(hwId)}`}
+          aria-label="Return to dashboard overview"
+          data-help="Return to dashboard overview"
+        >
           <FaCrosshairs aria-hidden="true" />
           <span>Ops</span>
         </Link>

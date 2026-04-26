@@ -9,12 +9,39 @@
     color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--mds-tactical-drone-color) 54%, var(--color-border-primary));
   border-radius: 16px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  box-shadow: var(--shadow-lg);
   backdrop-filter: blur(14px) saturate(1.1);
   padding: 12px;
   pointer-events: auto;
   position: relative;
   overflow: hidden;
+}
+
+.tactical-drone-card [data-help] {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tactical-drone-card [data-help]:hover::after,
+  .tactical-drone-card [data-help]:focus-visible::after {
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-sm);
+    bottom: calc(100% + 6px);
+    color: var(--color-text-primary);
+    content: attr(data-help);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    left: 50%;
+    max-width: 220px;
+    padding: 5px 7px;
+    pointer-events: none;
+    position: absolute;
+    text-transform: none;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: var(--z-tooltip);
+  }
 }
 
 .tactical-drone-card::before {
@@ -214,7 +241,7 @@
       linear-gradient(135deg, color-mix(in srgb, var(--mds-tactical-drone-color) 14%, transparent), transparent 42%),
       color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
     border-radius: 14px;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+    box-shadow: var(--shadow-md);
     padding: 8px;
     width: min(280px, calc(100vw - 24px));
   }
