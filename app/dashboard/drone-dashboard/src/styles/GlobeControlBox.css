@@ -18,7 +18,7 @@
     visibility: hidden;
     max-width: 320px;
     width: 100%;
-    z-index: var(--z-command-overlay);
+    z-index: var(--z-tooltip);
 }
 
 .globe-control-box.show {

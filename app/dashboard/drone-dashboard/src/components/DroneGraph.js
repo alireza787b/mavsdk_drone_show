@@ -6,13 +6,21 @@ import '../styles/DroneGraph.css';
 
 function buildGraphElements(drones) {
   const nodes = drones.map((drone) => ({
-    data: {
-      id: drone.hw_id,
-      label: formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`),
-      role: drone.role,
-      warningState: drone.hasWarnings ? 'attention' : 'clear',
-      roleSwapState: drone.isRoleSwap ? 'swap' : 'native',
-    },
+    data: (() => {
+      const compactIdentity = formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`);
+      const primaryLabel = String(drone.alias || drone.callsign || '').trim();
+      const label = primaryLabel && primaryLabel !== compactIdentity
+        ? `${primaryLabel}\n${compactIdentity}`
+        : compactIdentity;
+
+      return {
+        id: drone.hw_id,
+        label,
+        role: drone.role,
+        warningState: drone.hasWarnings ? 'attention' : 'clear',
+        roleSwapState: drone.isRoleSwap ? 'swap' : 'native',
+      };
+    })(),
   }));
 
   const edges = drones

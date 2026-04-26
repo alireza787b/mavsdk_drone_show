@@ -1,22 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import {
   FaBatteryHalf,
-  FaBullseye,
   FaClock,
   FaCompass,
   FaCrosshairs,
   FaHome,
-  FaProjectDiagram,
+  FaPlaneDeparture,
   FaSatellite,
-  FaSlidersH,
 } from 'react-icons/fa';
+import { ConfirmDialog } from './ui';
+import PrecisionMoveDialog from './PrecisionMoveDialog';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getFlightModeTitle } from '../utilities/flightModeUtils';
 import { getMissionDisplayContext } from '../utilities/missionUtils';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
+import { buildActionCommand, sendDroneCommand } from '../services/droneApiService';
+import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import '../styles/TacticalDroneCard.css';
 
 const GPS_FIX_LABELS = {
@@ -83,6 +85,9 @@ TacticalMetric.propTypes = {
 };
 
 const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
+  const [pendingAction, setPendingAction] = useState(null);
+  const [precisionMoveOpen, setPrecisionMoveOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const hwId = String(drone?.[FIELD_NAMES.HW_ID] ?? drone?.hw_id ?? '');
   const posId = drone?.[FIELD_NAMES.POS_ID] ?? drone?.pos_id;
   const identity = formatCompactDroneIdentity(posId, hwId, `H${hwId || '?'}`);
@@ -99,6 +104,85 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const armed = drone?.is_armed === true ? 'Armed' : drone?.is_armed === false ? 'Disarmed' : 'Arm n/a';
   const lastSeen = formatLastUpdate(drone?.last_update);
   const followLabel = Number(drone?.follow_mode) === 0 ? 'Leader' : `H${drone.follow_mode}`;
+  const isArmed = drone?.is_armed === true;
+  const actionTargetLabel = displayTitle || identity;
+  const actionTargetDescriptor = hardwareSubtitle || identity;
+
+  const submitActionCommand = async (action) => {
+    if (!hwId || !action) {
+      setPendingAction(null);
+      return;
+    }
+
+    const commandData = buildActionCommand(action.actionType, [hwId], 0);
+    commandData.uiMeta = {
+      operatorLabel: action.label,
+      targetLabel: actionTargetLabel,
+      targetDescriptor: actionTargetDescriptor,
+    };
+
+    try {
+      setSubmitting(true);
+      await sendDroneCommand(commandData);
+      toast.success(`${action.label} sent to ${actionTargetLabel}.`);
+    } catch (error) {
+      console.error(`Failed to send ${action.label} from tactical card`, error);
+      toast.error(`Failed to send ${action.label} to ${actionTargetLabel}.`);
+    } finally {
+      setSubmitting(false);
+      setPendingAction(null);
+    }
+  };
+
+  const submitPrecisionMove = async (commandData, options = {}) => {
+    try {
+      setSubmitting(true);
+      const response = await sendDroneCommand({
+        ...commandData,
+        target_drones: [hwId],
+        uiMeta: {
+          ...(commandData.uiMeta || {}),
+          targetLabel: actionTargetLabel,
+          targetDescriptor: actionTargetDescriptor,
+        },
+      });
+      const didSend = response?.success !== false;
+      if (didSend) {
+        toast.success(`${commandData?.uiMeta?.operatorLabel || 'Precision Move'} sent to ${actionTargetLabel}.`);
+      }
+      if (didSend && options.closeOnSuccess !== false) {
+        setPrecisionMoveOpen(false);
+      }
+      return didSend;
+    } catch (error) {
+      console.error('Failed to submit tactical precision move', error);
+      toast.error(`Failed to send Precision Move to ${actionTargetLabel}.`);
+      return false;
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const quickActions = isArmed
+    ? [
+        {
+          key: 'rtl',
+          actionType: DRONE_ACTION_TYPES.RETURN_RTL,
+          icon: FaHome,
+          label: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.RETURN_RTL],
+          help: 'Return this drone to launch',
+          tone: 'warning',
+        },
+      ]
+    : [
+        {
+          key: 'takeoff',
+          actionType: DRONE_ACTION_TYPES.TAKE_OFF,
+          icon: FaPlaneDeparture,
+          label: DRONE_ACTION_NAMES[DRONE_ACTION_TYPES.TAKE_OFF],
+          help: 'Take off using configured altitude',
+        },
+      ];
 
   return (
     <section
@@ -144,40 +228,65 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
         <span aria-label={`Follow role ${followLabel}`} data-help="Follow role">{followLabel}</span>
       </div>
 
-      <div className="tactical-drone-card__actions" aria-label="Drone quick links">
-        <Link
-          to={`/mission-config?drone=${encodeURIComponent(hwId)}&edit=1`}
-          aria-label="Open this drone in Mission Config"
-          data-help="Open this drone in Mission Config"
-        >
-          <FaSlidersH aria-hidden="true" />
-          <span>Config</span>
-        </Link>
-        <Link
-          to={`/swarm-design?drone=${encodeURIComponent(hwId)}`}
-          aria-label="Open this drone in Swarm Design"
-          data-help="Open this drone in Swarm Design"
-        >
-          <FaProjectDiagram aria-hidden="true" />
-          <span>Swarm</span>
-        </Link>
-        <Link
-          to={`/px4-parameters?drone=${encodeURIComponent(hwId)}`}
-          aria-label="Inspect PX4 parameters for this drone"
-          data-help="Inspect PX4 parameters for this drone"
-        >
-          <FaBullseye aria-hidden="true" />
-          <span>PX4</span>
-        </Link>
-        <Link
-          to={`/?drone=${encodeURIComponent(hwId)}`}
-          aria-label="Return to dashboard overview"
-          data-help="Return to dashboard overview"
-        >
-          <FaCrosshairs aria-hidden="true" />
-          <span>Ops</span>
-        </Link>
+      <div className="tactical-drone-card__actions" aria-label={`${displayTitle} quick controls`}>
+        {quickActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button
+              key={action.key}
+              type="button"
+              className={`tactical-drone-card__action ${action.tone ? `tactical-drone-card__action--${action.tone}` : ''}`}
+              onClick={() => setPendingAction(action)}
+              disabled={submitting || !hwId}
+              aria-label={`${action.label} ${displayTitle}`}
+              title={action.help}
+              data-help={action.help}
+            >
+              <Icon aria-hidden="true" />
+            </button>
+          );
+        })}
+        {isArmed && (
+          <button
+            type="button"
+            className="tactical-drone-card__action"
+            onClick={() => setPrecisionMoveOpen(true)}
+            disabled={submitting || !hwId}
+            aria-label={`Open precision jog for ${displayTitle}`}
+            title="Open precision jog"
+            data-help="Open precision jog"
+          >
+            <FaCrosshairs aria-hidden="true" />
+          </button>
+        )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title="Confirm Drone Action"
+        message={pendingAction ? `${pendingAction.help}. Confirm ${pendingAction.label} for ${actionTargetLabel}?` : ''}
+        confirmLabel={pendingAction?.label || 'Confirm'}
+        busy={submitting}
+        onConfirm={() => submitActionCommand(pendingAction)}
+        onCancel={() => setPendingAction(null)}
+      />
+
+      <PrecisionMoveDialog
+        isOpen={precisionMoveOpen}
+        targetLabel={actionTargetLabel}
+        targetDescriptor={actionTargetDescriptor}
+        targetCount={1}
+        submitting={submitting}
+        scopeLocked
+        onClose={() => {
+          if (!submitting) {
+            setPrecisionMoveOpen(false);
+          }
+        }}
+        onEditTargetScope={() => {}}
+        onSubmit={submitPrecisionMove}
+        onSubmitHold={submitPrecisionMove}
+      />
     </section>
   );
 };

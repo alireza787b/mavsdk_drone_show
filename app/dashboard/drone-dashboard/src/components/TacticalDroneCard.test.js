@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import TacticalDroneCard from './TacticalDroneCard';
 
 describe('TacticalDroneCard', () => {
-  it('renders compact tactical status and operator quick links', () => {
+  it('renders compact tactical status and operator quick controls', () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TacticalDroneCard
@@ -34,8 +34,9 @@ describe('TacticalDroneCard', () => {
     expect(screen.getByText('16.25 V')).toBeInTheDocument();
     expect(screen.getByText('18 m')).toBeInTheDocument();
     expect(screen.queryByText('XYZ')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Config/i })).toHaveAttribute('href', '/mission-config?drone=1&edit=1');
-    expect(screen.getByRole('link', { name: /Swarm/i })).toHaveAttribute('href', '/swarm-design?drone=1');
+    expect(screen.getByRole('button', { name: /Return to Launch P4\|H1/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Open precision jog for P4\|H1/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Config/i })).not.toBeInTheDocument();
   });
 
   it('uses the operator alias as primary identity without hiding hardware identity', () => {

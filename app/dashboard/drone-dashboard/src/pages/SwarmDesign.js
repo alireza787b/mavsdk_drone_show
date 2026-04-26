@@ -602,11 +602,19 @@ function SwarmDesign() {
           secondary={[
             <label
               key="import"
-              className="swarm-action-button import"
+              className="operator-action-icon-button operator-action-icon-button--neutral operator-action-icon-button--md swarm-action-file-button"
               aria-label="Import Smart Swarm assignments from JSON or CSV"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  event.currentTarget.querySelector('input[type="file"]')?.click();
+                }
+              }}
             >
-              <FaUpload aria-hidden="true" />
-              <span>Import</span>
+              <span className="operator-action-icon-button__icon" aria-hidden="true"><FaUpload /></span>
+              <span className="operator-action-icon-button__text">Import</span>
               <input type="file" accept=".json,.csv" onChange={handleImport} />
             </label>,
             <ActionIconButton
@@ -638,6 +646,7 @@ function SwarmDesign() {
               Revert
             </ActionIconButton>,
           ]}
+          overflowLabel="Files"
         />
       )}
     >

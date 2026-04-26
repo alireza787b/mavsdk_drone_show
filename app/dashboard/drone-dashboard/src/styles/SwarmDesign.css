@@ -26,42 +26,34 @@
   justify-content: flex-end;
 }
 
-.swarm-action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  min-height: 46px;
-  padding: 0 var(--spacing-base);
-  border: 1px solid transparent;
-  border-radius: var(--border-radius-base);
-  font-family: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  transition: var(--transition-all);
-  text-decoration: none;
-}
-
-.swarm-action-button input[type="file"] {
+.swarm-action-file-button input[type="file"] {
   display: none;
 }
 
-.swarm-action-button.import {
-  background: var(--color-warning);
-  color: var(--color-text-inverse);
+.swarm-design-actions .operator-page-action-bar__primary,
+.swarm-design-actions .operator-page-action-bar__secondary-inline {
+  align-items: center;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--border-radius-full);
+  gap: 4px;
+  padding: 4px;
 }
 
-.swarm-action-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+.swarm-design-actions .operator-page-action-bar__primary {
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
 }
 
-.swarm-action-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  box-shadow: none;
+.swarm-design-actions .operator-page-action-bar__secondary-inline {
+  background: var(--color-surface-inset);
+}
+
+.swarm-action-file-button {
+  user-select: none;
+}
+
+.swarm-action-file-button:focus-visible {
+  outline: none;
+  box-shadow: var(--operator-focus-ring);
 }
 
 .swarm-status-strip {

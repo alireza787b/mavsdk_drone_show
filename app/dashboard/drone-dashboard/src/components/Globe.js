@@ -21,6 +21,10 @@ const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const SELECTED_CARD_WIDTH_PX = 320;
 const SELECTED_CARD_HEIGHT_PX = 260;
 const SELECTED_CARD_GAP_PX = 18;
+const DEFAULT_CAMERA_POSITION = [12, 10, 12];
+const CAMERA_FIT_PADDING = 6;
+const CAMERA_FIT_SCALE = 1.32;
+const MIN_CAMERA_FIT_DISTANCE = 9;
 
 const resolveMarkerColor = (candidate, fallback = DEFAULT_DRONE_MARKER_COLOR) => {
   const normalized = String(candidate || '').trim();
@@ -43,6 +47,17 @@ const buildNoFixPosition = (index, total) => {
     4.6,
     -2.4 - (row * spread),
   ];
+};
+
+const buildDisplayPosition = (drone, referencePoint, noFixDrones = []) => {
+  if (!hasUsableGeoPosition(drone.position)) {
+    const noFixIndex = noFixDrones.findIndex((candidate) => (
+      String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID])
+    ));
+    return buildNoFixPosition(noFixIndex, noFixDrones.length);
+  }
+
+  return llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint);
 };
 
 const LoadingSpinner = () => (
@@ -298,6 +313,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [groundLevel, setGroundLevel] = useState(0);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const controlsRef = useRef();
+  const didInitialCameraFitRef = useRef(false);
 
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
@@ -370,13 +386,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   useEffect(() => {
     if (drones?.length && referencePoint) {
       const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
-      const convertedPositions = drones.map((drone) => {
-        if (!hasUsableGeoPosition(drone.position)) {
-          const noFixIndex = noFixDrones.findIndex((candidate) => String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID]));
-          return buildNoFixPosition(noFixIndex, noFixDrones.length);
-        }
-        return llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint);
-      });
+      const convertedPositions = drones.map((drone) => buildDisplayPosition(drone, referencePoint, noFixDrones));
 
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
@@ -386,9 +396,10 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     }
   }, [drones, referencePoint]);
 
-  const focusOnDrones = () => {
+  const focusOnDrones = useCallback(() => {
     if (drones?.length && referencePoint) {
-      const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
+      const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+      const convertedPositions = drones.map((drone) => buildDisplayPosition(drone, referencePoint, noFixDrones));
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
       const avgZ = convertedPositions.reduce((sum, pos) => sum + pos[2], 0) / convertedPositions.length;
@@ -410,13 +421,26 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
 
       if (controlsRef.current && controlsRef.current.object) {
         const camera = controlsRef.current.object;
-        const offset = maxDistance * 2 + 10;
-        camera.position.set(center[0] + offset, center[1] + offset, center[2] + offset);
+        const offset = Math.max(MIN_CAMERA_FIT_DISTANCE, (maxDistance * CAMERA_FIT_SCALE) + CAMERA_FIT_PADDING);
+        camera.position.set(center[0] + offset, center[1] + (offset * 0.78), center[2] + offset);
         camera.updateProjectionMatrix();
         controlsRef.current.update();
       }
     }
-  };
+  }, [drones, referencePoint]);
+
+  useEffect(() => {
+    if (didInitialCameraFitRef.current || isLoading || !referencePoint || !drones?.length) {
+      return undefined;
+    }
+
+    didInitialCameraFitRef.current = true;
+    const frameId = window.requestAnimationFrame(() => {
+      focusOnDrones();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [drones?.length, focusOnDrones, isLoading, referencePoint]);
 
   const handleSceneBackgroundPointerDown = useCallback((event) => {
     const target = event.target;
@@ -447,12 +471,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
   const convertedDrones = drones.map((drone) => {
     const noMapFix = !hasUsableGeoPosition(drone.position);
-    const noFixIndex = noMapFix
-      ? noFixDrones.findIndex((candidate) => String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID]))
-      : -1;
-    const displayPosition = noMapFix
-      ? buildNoFixPosition(noFixIndex, noFixDrones.length)
-      : llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint);
+    const displayPosition = buildDisplayPosition(drone, referencePoint, noFixDrones);
     const hwId = String(drone[FIELD_NAMES.HW_ID]);
     return {
       ...drone,
@@ -480,7 +499,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       className="scene-container"
       onPointerDown={handleSceneBackgroundPointerDown}
     >
-      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
+      <Canvas camera={{ position: DEFAULT_CAMERA_POSITION, up: [0, 1, 0] }}>
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
