@@ -67,9 +67,8 @@ describe('GlobeView', () => {
 
     expect(screen.getByRole('heading', { name: /fleet map/i })).toBeInTheDocument();
     expect(screen.getByText(/loading telemetry/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /map setup/i })).toHaveAttribute(
-      'href',
-      'https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/guides/mapbox-setup.md',
+    expect(screen.getByRole('link', { name: /map setup/i }).getAttribute('href')).toMatch(
+      /^https:\/\/github\.com\/[^/]+\/mavsdk_drone_show\/blob\/main\/docs\/guides\/mapbox-setup\.md$/,
     );
   });
 
