@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import {
   MdAddLocationAlt,
+  MdCheckCircle,
   MdClose,
   MdDelete,
   MdExplore,
@@ -114,7 +115,7 @@ const TrajectoryToolbar = ({
         >
           <MdSave className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Save</span>
-          {isDirty && <span className="unsaved-indicator">●</span>}
+          {isDirty && <span className="unsaved-indicator" aria-hidden="true" />}
         </button>
         
         <button 
@@ -235,7 +236,7 @@ const TrajectoryToolbar = ({
                 ? `Working draft auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`
                 : 'Trajectory draft has unsaved library changes'}
             >
-              <span className="status-indicator">●</span>
+              <span className="status-indicator status-indicator--pending" aria-hidden="true" />
               <span className="status-text">
                 {saveStatus.autoSaveTime
                   ? `Draft auto-saved ${formatAutoSaveTime(saveStatus.autoSaveTime)}`
@@ -244,17 +245,17 @@ const TrajectoryToolbar = ({
             </span>
           ) : saveStatus.persistedAt ? (
             <span className="status-saved" data-help={`Saved at ${new Date(saveStatus.persistedAt).toLocaleTimeString()}`}>
-              <span className="status-indicator">✓</span>
+              <MdCheckCircle className="status-indicator" aria-hidden="true" />
               <span className="status-text">Saved</span>
             </span>
           ) : saveStatus.autoSaveTime ? (
             <span className="status-saved" data-help={`Auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`}>
-              <span className="status-indicator">✓</span>
+              <MdCheckCircle className="status-indicator" aria-hidden="true" />
               <span className="status-text">Auto-saved {formatAutoSaveTime(saveStatus.autoSaveTime)}</span>
             </span>
           ) : (
             <span className="status-saved">
-              <span className="status-indicator">✓</span>
+              <MdCheckCircle className="status-indicator" aria-hidden="true" />
               <span className="status-text">Saved</span>
             </span>
           )}

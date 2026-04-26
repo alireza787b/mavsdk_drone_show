@@ -2952,3 +2952,28 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/MissionDetails.test.js src/components/SidebarMenu.test.js src/pages/SwarmDesign.test.js src/pages/TrajectoryPlanning.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 71
+
+Goal:
+
+- replace Trajectory Toolbar save-state glyphs with icon/CSS indicators while
+  preserving the draft/saved status model
+
+Implemented:
+
+- replaced saved checkmarks with `MdCheckCircle`
+- replaced unsaved dot glyphs with CSS status dots
+- kept auto-save timestamps, dirty draft messaging, save button state, and
+  shortcut/help behavior unchanged
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused TrajectoryToolbar tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/TrajectoryToolbar.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

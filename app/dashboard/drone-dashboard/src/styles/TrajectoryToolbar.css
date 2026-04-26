@@ -100,10 +100,12 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* Unsaved indicator */
 .unsaved-indicator {
-  color: var(--color-danger);
-  font-size: var(--font-size-lg);
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-danger);
   animation: pulse 2s infinite;
   margin-left: var(--spacing-xs);
 }
@@ -267,7 +269,16 @@
 }
 
 .status-indicator {
+  display: block;
+  flex-shrink: 0;
   font-size: var(--font-size-sm);
+}
+
+.status-indicator--pending {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: currentColor;
 }
 
 .status-saved .status-indicator {
