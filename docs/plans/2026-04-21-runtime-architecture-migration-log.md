@@ -2253,3 +2253,39 @@ Verification:
     warning
   - the warning is now explicit in `git_sync_runtime` instead of hidden as
     `not_required`
+
+## Slice 47
+
+Goal:
+
+- tighten the Fleet Ops / Runtime Admin product boundary during the predeploy
+  UI audit so operators do not confuse GCS-host controls with drone-node
+  maintenance controls
+
+Implemented:
+
+- added compact scope badges:
+  - Runtime Admin: `GCS host`
+  - Fleet Ops: `Drone nodes`
+- added explicit cross-links:
+  - Runtime Admin -> Fleet Ops
+  - Fleet Ops -> Runtime Admin
+- shortened page subtitles to one operator-oriented sentence
+- changed Fleet Ops no-selection action summary from `No selection` to
+  `All eligible`, matching the actual selected-first/all-eligible sync behavior
+- made sidecar dashboard fallbacks more explicit:
+  - `Local-only dashboard`
+  - `Dashboard off`
+  - `No dashboard URL`
+- updated focused tests for the new route-link context and visible copy
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/pages/RuntimeAdminPage.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

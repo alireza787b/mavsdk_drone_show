@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   FaBroadcastTower,
   FaCheck,
@@ -11,6 +12,7 @@ import {
   FaPlus,
   FaSatelliteDish,
   FaSearch,
+  FaServer,
   FaShieldAlt,
   FaSyncAlt,
   FaUpload,
@@ -70,6 +72,12 @@ function DashboardLinks({ runtime }) {
     return null;
   }
 
+  const fallbackLabel = runtime.dashboard_access_mode === 'local_only'
+    ? 'Local-only dashboard'
+    : runtime.dashboard_enabled === false
+      ? 'Dashboard off'
+      : 'No dashboard URL';
+
   return (
     <div className="fleet-ops-node-card__links">
       {runtime.repo_web_url ? (
@@ -83,7 +91,7 @@ function DashboardLinks({ runtime }) {
         </a>
       ) : (
         <span aria-label="Dashboard is disabled, local-only, or not reported. Use node SSH or a future GCS proxy for local-only dashboards.">
-          Local-only
+          <FaShieldAlt /> {fallbackLabel}
         </span>
       )}
     </div>
@@ -428,15 +436,22 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
       className="fleet-ops-page"
       eyebrow="Fleet Maintenance"
       title="Fleet Ops"
-      subtitle="Node sync, access posture, and sidecar compliance. GCS Runtime stays host-only."
+      subtitle="Drone-node sync, access, and sidecars. GCS host controls stay separate."
       icon={<FaNetworkWired />}
       docsRoute="/fleet-ops"
       docsOptions={{
         repoUrl: viewModel.gcsStatus?.remote_url || '',
         branch: viewModel.gcsStatus?.branch || '',
       }}
+      actions={(
+        <Link className="fleet-ops-page__scope-link" to="/runtime-admin" aria-label="Open GCS Runtime Admin">
+          <FaServer aria-hidden="true" />
+          <span>GCS Runtime</span>
+        </Link>
+      )}
       status={(
         <div className="fleet-ops-page__status-pills">
+          <StatusBadge tone="info">Drone nodes</StatusBadge>
           <StatusBadge tone="muted">GCS {viewModel.gcsStatus?.branch || 'unknown'}</StatusBadge>
           <StatusBadge tone={viewModel.summary.needsAttention ? 'warning' : 'success'}>
             {viewModel.summary.needsAttention} attention
@@ -497,7 +512,7 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
         <div className="fleet-ops-actions__summary">
           <FaShieldAlt aria-hidden="true" />
           <span aria-label="Actions target selected nodes first. With no selection, sync targets all eligible online nodes.">
-            {selectedRows.length ? `${selectedRows.length} selected` : 'No selection'}
+            {selectedRows.length ? `${selectedRows.length} selected` : 'All eligible'}
           </span>
           <span className="fleet-ops-actions__profile" aria-label={connectivityProfileTitle}>
             <FaWifi aria-hidden="true" /> {connectivityProfileLabel}

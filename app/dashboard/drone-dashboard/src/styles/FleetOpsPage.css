@@ -19,6 +19,31 @@
   gap: 0.5rem;
 }
 
+.fleet-ops-page__scope-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: var(--operator-badge-height);
+  padding: 0 var(--operator-badge-padding-x);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 999px;
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.fleet-ops-page__scope-link:hover,
+.fleet-ops-page__scope-link:focus-visible {
+  border-color: var(--color-primary-border);
+  background: var(--operator-control-background-hover);
+  color: var(--color-primary);
+}
+
 .fleet-ops-node-card__eyebrow {
   display: inline-block;
   font-size: 0.72rem;

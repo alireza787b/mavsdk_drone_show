@@ -6,6 +6,7 @@ import {
   FaCodeBranch,
   FaExclamationTriangle,
   FaKey,
+  FaNetworkWired,
   FaRedoAlt,
   FaSatelliteDish,
   FaSave,
@@ -293,15 +294,22 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       className="runtime-admin-page"
       eyebrow="System"
       title="GCS Runtime"
-      subtitle="Host-local mode, update, and restart controls. Fleet-node access and sidecars live in Fleet Ops."
+      subtitle="Host-local mode, update, and restart. Drone-node controls live in Fleet Ops."
       icon={<FaServer />}
       docsRoute="/runtime-admin"
       docsOptions={{
         repoUrl: runtime.repoSyncStatus?.remote_url || '',
         branch: runtime.repoBranch || gitInfo.branch || runtime.repoSyncStatus?.branch || '',
       }}
+      actions={(
+        <Link className="runtime-admin-page__scope-link" to="/fleet-ops" aria-label="Open Fleet Ops">
+          <FaNetworkWired aria-hidden="true" />
+          <span>Fleet Ops</span>
+        </Link>
+      )}
       status={(
         <div className="runtime-admin-page__status-pills">
+          <StatusPill tone="info">GCS host</StatusPill>
           <StatusPill tone={runtimeTone}>{runtime.modeLabel}</StatusPill>
           <StatusPill tone={effectiveConfiguredMode === 'real' ? 'real' : 'sitl'}>
             Config {effectiveConfiguredModeLabel}

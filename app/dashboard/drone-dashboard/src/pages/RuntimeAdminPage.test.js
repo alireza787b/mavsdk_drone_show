@@ -129,6 +129,8 @@ describe('RuntimeAdminPage', () => {
     );
 
     expect(screen.getByRole('heading', { level: 1, name: /gcs runtime/i })).toBeInTheDocument();
+    expect(screen.getByText(/gcs host/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
     expect(screen.getByText(/config real/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-gcs')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /host capabilities/i })).toBeInTheDocument();

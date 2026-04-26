@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import FleetOpsPage from './FleetOpsPage';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS, syncReposResponse } from '../services/gcsApiService';
@@ -120,6 +121,14 @@ function clonePayload(payload) {
   return JSON.parse(JSON.stringify(payload));
 }
 
+function renderFleetOps(props = {}) {
+  return render(
+    <MemoryRouter>
+      <FleetOpsPage {...props} />
+    </MemoryRouter>
+  );
+}
+
 describe('FleetOpsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -127,7 +136,7 @@ describe('FleetOpsPage', () => {
   });
 
   test('renders fleet access and sidecar posture from existing status APIs', () => {
-    render(<FleetOpsPage />);
+    renderFleetOps();
 
     expect(screen.getByRole('heading', { name: /fleet ops/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
@@ -139,11 +148,13 @@ describe('FleetOpsPage', () => {
     expect(screen.getByText(/0 connectivity/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 1/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-    expect(screen.getByText(/node sync, access posture, and sidecar compliance/i)).toBeInTheDocument();
+    expect(screen.getByText(/drone-node sync, access, and sidecars/i)).toBeInTheDocument();
+    expect(screen.getByText(/drone nodes/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open gcs runtime admin/i })).toHaveAttribute('href', '/runtime-admin');
   });
 
   test('shows access details without exposing secret paths or values', () => {
-    render(<FleetOpsPage />);
+    renderFleetOps();
 
     fireEvent.click(screen.getByRole('button', { name: /access/i }));
 
@@ -155,7 +166,7 @@ describe('FleetOpsPage', () => {
   });
 
   test('filters to nodes requiring operator attention', () => {
-    render(<FleetOpsPage />);
+    renderFleetOps();
 
     fireEvent.change(screen.getByLabelText(/filter/i), { target: { value: 'attention' } });
 
@@ -199,7 +210,7 @@ describe('FleetOpsPage', () => {
     const driftHeartbeatPayload = clonePayload(heartbeatPayload);
     driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '100.82.47.9', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 });
 
-    render(<FleetOpsPage gitStatusOverride={driftGitPayload} heartbeatOverride={driftHeartbeatPayload} />);
+    renderFleetOps({ gitStatusOverride: driftGitPayload, heartbeatOverride: driftHeartbeatPayload });
 
     fireEvent.change(screen.getByLabelText(/filter/i), { target: { value: 'drift' } });
 
@@ -209,12 +220,12 @@ describe('FleetOpsPage', () => {
   });
 
   test('shows sidecar detail and treats local-only dashboards as diagnostics, not primary controls', () => {
-    render(<FleetOpsPage />);
+    renderFleetOps();
 
     fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));
 
     expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only; hash abcdef123456/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/local-only/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/local-only dashboard/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing; hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
@@ -230,7 +241,7 @@ describe('FleetOpsPage', () => {
       },
     });
 
-    render(<FleetOpsPage />);
+    renderFleetOps();
 
     fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
     fireEvent.click(screen.getByRole('button', { name: /sync \+ reconcile/i }));
