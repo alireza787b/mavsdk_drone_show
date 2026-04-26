@@ -76,31 +76,17 @@
   margin-top: var(--spacing-lg);
 }
 
+.swarm-runtime-panel__badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  justify-content: flex-end;
+}
+
 .swarm-runtime-scope {
   display: inline-flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
-}
-
-.swarm-runtime-scope__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-sm);
-  min-height: 42px;
-  padding: 0 var(--spacing-base);
-  border-radius: var(--border-radius-full);
-  border: 1px solid var(--color-border-secondary);
-  background: var(--color-bg-primary);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: var(--transition-all);
-  font: inherit;
-}
-
-.swarm-runtime-scope__button.active {
-  background: var(--color-info-light);
-  border-color: var(--color-info-border);
-  color: var(--color-text-primary);
 }
 
 .swarm-runtime-target {
@@ -110,6 +96,11 @@
   border-radius: var(--border-radius-lg);
   background: var(--color-bg-primary);
   border: 1px solid var(--color-border-primary);
+}
+
+.swarm-runtime-target__primary {
+  display: grid;
+  gap: 0.2rem;
 }
 
 .swarm-runtime-target strong {
@@ -125,6 +116,13 @@
 
 .swarm-runtime-target__note.warning {
   color: var(--color-warning-text);
+}
+
+.swarm-runtime-target__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin: var(--spacing-xs) 0;
 }
 
 .swarm-runtime-brief {
@@ -145,13 +143,6 @@
 
 .swarm-runtime-brief__header strong {
   display: block;
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-relaxed);
-}
-
-.swarm-runtime-brief__summary {
-  margin: 6px 0 0;
-  color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-relaxed);
 }
@@ -263,8 +254,7 @@
   font: inherit;
 }
 
-.swarm-runtime-action:hover:not(:disabled),
-.swarm-runtime-scope__button:hover {
+.swarm-runtime-action:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -315,6 +305,24 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   line-height: var(--line-height-relaxed);
+}
+
+.swarm-confirm-summary {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.swarm-confirm-summary p {
+  margin: 0;
+}
+
+.swarm-confirm-summary ul {
+  margin: 0;
+  padding-left: var(--spacing-lg);
+}
+
+.swarm-confirm-summary li {
+  margin: var(--spacing-xs) 0;
 }
 
 .swarm-status-card {

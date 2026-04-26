@@ -22,6 +22,7 @@ import ClusterScopeBar from '../components/ClusterScopeBar';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
 import {
   ActionIconButton,
+  ConfirmDialog,
   EmptyState,
   MetricStrip,
   OperatorNotice,
@@ -81,6 +82,7 @@ function SwarmDesign() {
   const [pendingCardFocusId, setPendingCardFocusId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
   const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000) || {};
 
@@ -441,12 +443,21 @@ function SwarmDesign() {
       return;
     }
 
-    if (!window.confirm('Revert all staged Smart Swarm changes back to the last loaded configuration?')) {
-      return;
-    }
-
-    setWorkingAssignments(baselineAssignments);
-    toast.info('Reverted local Smart Swarm changes.');
+    setConfirmDialog({
+      title: 'Revert staged edits?',
+      confirmLabel: 'Revert',
+      message: (
+        <p>
+          Discard {dirtyIds.length} local Smart Swarm assignment change{dirtyIds.length === 1 ? '' : 's'} and restore
+          the last loaded configuration.
+        </p>
+      ),
+      onConfirm: () => {
+        setConfirmDialog(null);
+        setWorkingAssignments(baselineAssignments);
+        toast.info('Reverted local Smart Swarm changes.');
+      },
+    });
   };
 
   const saveSwarmData = async (withCommit) => {
@@ -492,13 +503,22 @@ function SwarmDesign() {
       `${viewModel.summary.attentionCount} drone${viewModel.summary.attentionCount === 1 ? '' : 's'} flagged for operator attention`,
     ];
 
-    if (!window.confirm(
-      `${withCommit ? 'Commit' : 'Update'} Smart Swarm assignments?\n\n${summaryLines.map((line) => `- ${line}`).join('\n')}`
-    )) {
-      return;
-    }
-
-    saveSwarmData(withCommit);
+    setConfirmDialog({
+      title: `${withCommit ? 'Commit' : 'Update'} Smart Swarm assignments?`,
+      confirmLabel: withCommit ? 'Commit' : 'Update',
+      message: (
+        <div className="swarm-confirm-summary">
+          <p>Apply this assignment set after confirming the topology summary.</p>
+          <ul>
+            {summaryLines.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </div>
+      ),
+      onConfirm: () => {
+        setConfirmDialog(null);
+        saveSwarmData(withCommit);
+      },
+    });
   };
 
   const summaryItems = [
@@ -850,6 +870,16 @@ function SwarmDesign() {
           onSelectedClusterChange={setSelectedClusterId}
         />
       </section>
+
+      <ConfirmDialog
+        open={Boolean(confirmDialog)}
+        title={confirmDialog?.title || 'Confirm Smart Swarm action'}
+        message={confirmDialog?.message || ''}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        busy={saving}
+        onConfirm={() => confirmDialog?.onConfirm?.()}
+        onCancel={() => setConfirmDialog(null)}
+      />
     </PageShell>
   );
 }

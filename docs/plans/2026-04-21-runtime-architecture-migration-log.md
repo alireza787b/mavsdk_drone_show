@@ -2380,3 +2380,34 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/QuickScoutPage.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 51
+
+Goal:
+
+- tighten Smart Swarm Design runtime interactions during the predeploy UI
+  cleanup without changing swarm assignment, graph, CSV, or command semantics
+
+Implemented:
+
+- replaced Smart Swarm page `window.confirm` flows with the shared
+  `ConfirmDialog` primitive for:
+  - assignment update/commit review
+  - staged assignment revert
+- replaced Smart Swarm runtime command browser confirmation with the shared
+  `ConfirmDialog`
+- shortened the runtime panel copy and moved scope posture into compact badges
+- switched runtime scope controls to the shared `ActionIconButton` primitive
+- removed unused runtime-scope button styles and stale summary copy styles
+- updated the runtime controls test to confirm through the shared dialog
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/SwarmDesign.test.js src/components/SwarmRuntimeControls.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

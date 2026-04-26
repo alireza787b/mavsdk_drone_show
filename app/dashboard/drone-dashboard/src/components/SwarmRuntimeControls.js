@@ -10,6 +10,11 @@ import {
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
+import {
+  ActionIconButton,
+  ConfirmDialog,
+  StatusBadge,
+} from './ui/OperatorPrimitives';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { formatDroneLabel } from '../utilities/missionIdentityUtils';
@@ -88,6 +93,7 @@ const SwarmRuntimeControls = ({
 }) => {
   const [scope, setScope] = useState(SWARM_RUNTIME_SCOPE.DRONE);
   const [pendingActionKey, setPendingActionKey] = useState(null);
+  const [confirmActionKey, setConfirmActionKey] = useState(null);
   const { commandLifecycleCallbacks } = useCommandActivity();
 
   const {
@@ -141,8 +147,9 @@ const SwarmRuntimeControls = ({
     SWARM_RUNTIME_ACTIONS.LAND,
     SWARM_RUNTIME_ACTIONS.RTL,
   ];
+  const confirmAction = confirmActionKey ? SWARM_RUNTIME_ACTIONS[confirmActionKey] : null;
 
-  const handleAction = async (actionKey) => {
+  const handleAction = (actionKey) => {
     const action = SWARM_RUNTIME_ACTIONS[actionKey];
     if (!action) {
       return;
@@ -158,19 +165,17 @@ const SwarmRuntimeControls = ({
       return;
     }
 
-    const confirmationText = [
-      `${action.label} will be sent to ${scopeLabel}.`,
-      targetSummary,
-      '',
-      'Single-drone actions remain independent and do not stop Smart Swarm on other drones.',
-      '',
-      'Continue?',
-    ].join('\n');
+    setConfirmActionKey(actionKey);
+  };
 
-    if (!window.confirm(confirmationText)) {
+  const submitConfirmedAction = async () => {
+    const action = confirmAction;
+    const actionKey = confirmActionKey;
+    if (!action || !actionKey) {
       return;
     }
 
+    setConfirmActionKey(null);
     setPendingActionKey(actionKey);
     try {
       const commandData = buildSwarmRuntimeCommand(actionKey, targetIds);
@@ -196,35 +201,56 @@ const SwarmRuntimeControls = ({
         <div>
           <span className="swarm-selection-panel__eyebrow">Runtime Control</span>
           <h2>Smart Swarm Runtime</h2>
-          <p>
-            Use selected-drone scope when mixed missions are active. Switch to selected-cluster scope only when
-            you intentionally want to start or override the current executable cluster as a group.
-          </p>
+          <p>Target selected drone or executable cluster, then send explicit runtime actions.</p>
+        </div>
+        <div className="swarm-runtime-panel__badges">
+          <StatusBadge tone={targetIds.length > 0 ? 'info' : 'warning'}>
+            {targetIds.length} target{targetIds.length === 1 ? '' : 's'}
+          </StatusBadge>
+          {startBlockerReason ? <StatusBadge tone="danger">Blocked</StatusBadge> : <StatusBadge tone="success">Ready</StatusBadge>}
         </div>
       </div>
 
       <div className="swarm-runtime-scope">
-        <button
-          type="button"
-          className={`swarm-runtime-scope__button ${scope === SWARM_RUNTIME_SCOPE.DRONE ? 'active' : ''}`}
+        <ActionIconButton
+          icon={<FaCrosshairs />}
+          label="Use selected drone runtime scope"
           onClick={() => setScope(SWARM_RUNTIME_SCOPE.DRONE)}
+          active={scope === SWARM_RUNTIME_SCOPE.DRONE}
+          tone="info"
         >
-          <FaCrosshairs />
           Selected Drone
-        </button>
-        <button
-          type="button"
-          className={`swarm-runtime-scope__button ${scope === SWARM_RUNTIME_SCOPE.CLUSTER ? 'active' : ''}`}
+        </ActionIconButton>
+        <ActionIconButton
+          icon={<FaProjectDiagram />}
+          label="Use selected cluster runtime scope"
           onClick={() => setScope(SWARM_RUNTIME_SCOPE.CLUSTER)}
+          active={scope === SWARM_RUNTIME_SCOPE.CLUSTER}
+          tone="info"
         >
-          <FaProjectDiagram />
           Selected Cluster
-        </button>
+        </ActionIconButton>
       </div>
 
       <div className="swarm-runtime-target">
-        <strong>{scopeLabel}</strong>
-        <span>{targetSummary}</span>
+        <div className="swarm-runtime-target__primary">
+          <strong>{scopeLabel}</strong>
+          <span>{targetSummary}</span>
+        </div>
+        <div className="swarm-runtime-target__badges" aria-label="Runtime target posture">
+          <StatusBadge tone={scope === SWARM_RUNTIME_SCOPE.CLUSTER ? 'warning' : 'info'}>
+            {scope === SWARM_RUNTIME_SCOPE.CLUSTER ? 'Cluster scope' : 'Drone scope'}
+          </StatusBadge>
+          {(scopedDirtyIds.length > 0 || scopedPendingIds.length > 0) ? (
+            <StatusBadge tone="warning">
+              Saved config required
+            </StatusBadge>
+          ) : (
+            <StatusBadge tone="success">
+              Saved config clean
+            </StatusBadge>
+          )}
+        </div>
         {startBlockerReason ? (
           <div className="swarm-runtime-target__note warning">{startBlockerReason}</div>
         ) : null}
@@ -255,10 +281,7 @@ const SwarmRuntimeControls = ({
           <div className="swarm-runtime-brief__header">
             <div>
               <span className="swarm-selection-panel__eyebrow">Formation Preview</span>
-              <strong>Verify target layout and live readiness before sending runtime commands.</strong>
-              <p className="swarm-runtime-brief__summary">
-                This panel previews the saved follow chain for the current target set and shows a live readiness snapshot when telemetry is available.
-              </p>
+              <strong>Saved layout and live readiness for the active scope.</strong>
             </div>
             <div className="swarm-runtime-brief__actions">
               {reviewDroneId && onReviewSelection && (
@@ -368,6 +391,26 @@ const SwarmRuntimeControls = ({
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction ? `${confirmAction.label} ${scopeLabel}?` : 'Confirm Smart Swarm action'}
+        message={(
+          <div className="swarm-confirm-summary">
+            <p>{targetSummary}</p>
+            <ul>
+              <li>{targetIds.length} target drone{targetIds.length === 1 ? '' : 's'} in this scope</li>
+              <li>Single-drone actions do not stop Smart Swarm on other drones.</li>
+              <li>Cluster actions affect the currently resolved executable cluster.</li>
+            </ul>
+          </div>
+        )}
+        confirmLabel={confirmAction?.label || 'Confirm'}
+        busy={pendingActionKey !== null}
+        tone={confirmActionKey === 'LAND' ? 'danger' : 'neutral'}
+        onConfirm={submitConfirmedAction}
+        onCancel={() => setConfirmActionKey(null)}
+      />
     </section>
   );
 };
