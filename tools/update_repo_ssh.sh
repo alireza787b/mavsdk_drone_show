@@ -53,6 +53,7 @@ DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-${MDS_DEFAULT_REPO_URL_SSH:-git@gith
 DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
 # Recovery strategy: "graceful" or "aggressive"
 RECOVERY_STRATEGY="${RECOVERY_STRATEGY:-graceful}"
@@ -1122,8 +1123,48 @@ git_https_auth_enabled() {
     [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
 }
 
+git_ssh_auth_enabled() {
+    [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" && -r "${MDS_GIT_SSH_KEY_FILE}" ]]
+}
+
+git_ssh_command() {
+    local runtime_home
+    runtime_home="$(git_runtime_home)"
+    printf 'ssh -i %q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%q/.ssh/known_hosts' \
+        "${MDS_GIT_SSH_KEY_FILE}" \
+        "${runtime_home}"
+}
+
 git_runtime_home() {
     printf '%s\n' "${HOME:-/root}"
+}
+
+configure_git_ssh_auth() {
+    local repo_url="${1:-}"
+    local runtime_home
+
+    GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-$GIT_SSH_KEY_FILE}"
+
+    if [[ "$repo_url" != git@* ]]; then
+        return 0
+    fi
+
+    if [[ -z "$GIT_SSH_KEY_FILE" ]]; then
+        log_debug "GIT-SSH" "No MDS_GIT_SSH_KEY_FILE configured; relying on default SSH agent/config."
+        return 0
+    fi
+
+    if [[ ! -r "$GIT_SSH_KEY_FILE" ]]; then
+        log_error_and_exit "GIT-SSH" "Configured MDS_GIT_SSH_KEY_FILE is not readable: $GIT_SSH_KEY_FILE"
+    fi
+
+    runtime_home="$(git_runtime_home)"
+    mkdir -p "${runtime_home}/.ssh"
+    chmod 700 "${runtime_home}/.ssh" 2>/dev/null || true
+    export MDS_GIT_SSH_KEY_FILE="$GIT_SSH_KEY_FILE"
+    export GIT_SSH_COMMAND
+    GIT_SSH_COMMAND="$(git_ssh_command)"
+    log_info "GIT-SSH" "Using configured SSH key for private git access."
 }
 
 git_askpass_path() {
@@ -1176,6 +1217,8 @@ run_git_command() {
             MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
             MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
             git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" "$@"
+    elif [[ "$repo_url" == git@* ]] && git_ssh_auth_enabled; then
+        env GIT_SSH_COMMAND="$(git_ssh_command)" git "$@"
     else
         git "$@"
     fi
@@ -1639,6 +1682,7 @@ main() {
     log_info "CONFIG" "Directory: $REPO_DIR"
     log_info "CONFIG" "Recovery Strategy: $RECOVERY_STRATEGY"
     log_info "CONFIG" "Environment: $ENVIRONMENT"
+    configure_git_ssh_auth "$REPO_URL"
     
     # Acquire exclusive lock
     acquire_lock 60

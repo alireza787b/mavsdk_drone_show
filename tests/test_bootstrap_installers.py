@@ -186,6 +186,38 @@ def test_node_bootstrap_wrapper_help_mentions_private_ssh_key_file():
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_uses_configured_ssh_key_for_private_repo_fetches():
+    result = run_bash(
+        f"""
+        temp_dir="$(mktemp -d)"
+        fake_bin="$temp_dir/bin"
+        mkdir -p "$fake_bin"
+        key_file="$temp_dir/customer_read_key"
+        output_file="$temp_dir/git_env.txt"
+        printf 'test-key\\n' > "$key_file"
+        chmod 600 "$key_file"
+        cat >"$fake_bin/git" <<'EOF'
+#!/bin/sh
+printf '%s\\n' "$GIT_SSH_COMMAND" > "$GIT_SYNC_TEST_OUTPUT"
+exit 0
+EOF
+        chmod +x "$fake_bin/git"
+        export PATH="$fake_bin:$PATH"
+        export HOME="$temp_dir/home"
+        export MDS_GIT_SSH_KEY_FILE="$key_file"
+        export GIT_SYNC_TEST_OUTPUT="$output_file"
+        source "{GIT_SYNC_SCRIPT}"
+        configure_git_ssh_auth "git@github.com:demo/private.git"
+        run_git_command "git@github.com:demo/private.git" fetch --all --prune
+        grep -q -- "-i $key_file" "$output_file"
+        grep -q -- "IdentitiesOnly=yes" "$output_file"
+        grep -q -- "BatchMode=yes" "$output_file"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_identity_setup_local_env_persists_node_git_auth_file_paths():
     identity_lib = REPO_ROOT / "tools" / "mds_init_lib" / "identity.sh"
 
