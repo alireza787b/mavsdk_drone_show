@@ -3,18 +3,7 @@ import { CircleMarker, Popup, useMapEvents } from 'react-leaflet';
 import { toast } from 'react-toastify';
 
 import { createFinding } from '../../services/sarApiService';
-import { getPlotThemeColors } from '../../utilities/plotThemeColors';
-
-const getPriorityColors = () => {
-  const themeColors = getPlotThemeColors();
-  return {
-    critical: themeColors.danger,
-    high: themeColors.warning,
-    medium: themeColors.info,
-    low: themeColors.primary,
-    border: themeColors.text,
-  };
-};
+import { getFindingPriorityColors } from '../../utilities/plotThemeColors';
 
 const buildDefaultFinding = (lat, lng) => ({
   lat,
@@ -57,7 +46,7 @@ const LeafletFindingMarkers = ({
   selectedFindingId,
   onFindingSelect,
 }) => {
-  const priorityColors = getPriorityColors();
+  const priorityColors = getFindingPriorityColors();
 
   return (
     <>

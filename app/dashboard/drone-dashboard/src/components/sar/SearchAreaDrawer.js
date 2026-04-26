@@ -12,6 +12,7 @@
 
 import React, { useCallback, useEffect, useRef } from 'react';
 import { area as turfArea } from '@turf/area';
+import { getPlotThemeColors } from '../../utilities/plotThemeColors';
 
 let MapboxDraw;
 let useControl;
@@ -28,60 +29,67 @@ try {
   console.warn('Mapbox GL Draw not available:', e.message);
 }
 
-const DRAW_STYLES = [
-  {
-    id: 'gl-draw-polygon-fill-active',
-    type: 'fill',
-    filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-    paint: { 'fill-color': '#3b82f6', 'fill-outline-color': '#3b82f6', 'fill-opacity': 0.15 },
-  },
-  {
-    id: 'gl-draw-polygon-fill-static',
-    type: 'fill',
-    filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
-    paint: { 'fill-color': '#3b82f6', 'fill-outline-color': '#3b82f6', 'fill-opacity': 0.15 },
-  },
-  {
-    id: 'gl-draw-polygon-stroke-active',
-    type: 'line',
-    filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#3b82f6', 'line-dasharray': [0.2, 2], 'line-width': 2 },
-  },
-  {
-    id: 'gl-draw-polygon-stroke-static',
-    type: 'line',
-    filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#3b82f6', 'line-width': 2 },
-  },
-  {
-    id: 'gl-draw-line-active',
-    type: 'line',
-    filter: ['all', ['==', '$type', 'LineString'], ['==', 'active', 'true']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#facc15', 'line-dasharray': [0.2, 2], 'line-width': 3 },
-  },
-  {
-    id: 'gl-draw-line-static',
-    type: 'line',
-    filter: ['all', ['==', '$type', 'LineString'], ['==', 'active', 'false']],
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: { 'line-color': '#facc15', 'line-width': 3 },
-  },
-  {
-    id: 'gl-draw-polygon-and-line-vertex-active',
-    type: 'circle',
-    filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
-    paint: { 'circle-radius': 6, 'circle-color': '#3b82f6', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 },
-  },
-  {
-    id: 'gl-draw-polygon-midpoint',
-    type: 'circle',
-    filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']],
-    paint: { 'circle-radius': 4, 'circle-color': '#3b82f6' },
-  },
-];
+const getDrawStyles = () => {
+  const themeColors = getPlotThemeColors();
+  const polygonColor = themeColors.primary;
+  const lineColor = themeColors.warning;
+  const vertexStroke = themeColors.text;
+
+  return [
+    {
+      id: 'gl-draw-polygon-fill-active',
+      type: 'fill',
+      filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+      paint: { 'fill-color': polygonColor, 'fill-outline-color': polygonColor, 'fill-opacity': 0.15 },
+    },
+    {
+      id: 'gl-draw-polygon-fill-static',
+      type: 'fill',
+      filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+      paint: { 'fill-color': polygonColor, 'fill-outline-color': polygonColor, 'fill-opacity': 0.15 },
+    },
+    {
+      id: 'gl-draw-polygon-stroke-active',
+      type: 'line',
+      filter: ['all', ['==', 'active', 'true'], ['==', '$type', 'Polygon']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': polygonColor, 'line-dasharray': [0.2, 2], 'line-width': 2 },
+    },
+    {
+      id: 'gl-draw-polygon-stroke-static',
+      type: 'line',
+      filter: ['all', ['==', 'active', 'false'], ['==', '$type', 'Polygon']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': polygonColor, 'line-width': 2 },
+    },
+    {
+      id: 'gl-draw-line-active',
+      type: 'line',
+      filter: ['all', ['==', '$type', 'LineString'], ['==', 'active', 'true']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': lineColor, 'line-dasharray': [0.2, 2], 'line-width': 3 },
+    },
+    {
+      id: 'gl-draw-line-static',
+      type: 'line',
+      filter: ['all', ['==', '$type', 'LineString'], ['==', 'active', 'false']],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': lineColor, 'line-width': 3 },
+    },
+    {
+      id: 'gl-draw-polygon-and-line-vertex-active',
+      type: 'circle',
+      filter: ['all', ['==', 'meta', 'vertex'], ['==', '$type', 'Point'], ['!=', 'mode', 'static']],
+      paint: { 'circle-radius': 6, 'circle-color': polygonColor, 'circle-stroke-color': vertexStroke, 'circle-stroke-width': 2 },
+    },
+    {
+      id: 'gl-draw-polygon-midpoint',
+      type: 'circle',
+      filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint']],
+      paint: { 'circle-radius': 4, 'circle-color': polygonColor },
+    },
+  ];
+};
 
 const buildPolygonFeature = (points) => {
   if (!Array.isArray(points) || points.length < 3) {
@@ -255,7 +263,7 @@ const DrawControl = ({
         displayControlsDefault: false,
         controls: { polygon: false, line_string: false, trash: false },
         defaultMode: hasInitial ? 'simple_select' : (isLineMode ? 'draw_line_string' : 'draw_polygon'),
-        styles: DRAW_STYLES,
+        styles: getDrawStyles(),
       });
       drawRef.current = draw;
       return draw;

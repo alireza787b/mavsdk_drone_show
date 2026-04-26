@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { toast } from 'react-toastify';
 
 import { createFinding } from '../../services/sarApiService';
+import { getFindingPriorityColors } from '../../utilities/plotThemeColors';
 
 let Marker;
 let Popup;
@@ -15,13 +16,6 @@ try {
 } catch (error) {
   mapboxAvailable = false;
 }
-
-const PRIORITY_COLORS = {
-  critical: '#dc3545',
-  high: '#fd7e14',
-  medium: '#ffc107',
-  low: '#00d4ff',
-};
 
 const buildDefaultFinding = (lat, lng) => ({
   lat,
@@ -67,6 +61,7 @@ const FindingMarkerSystem = ({
   }
 
   const selectedFinding = findings.find((finding) => finding.id === selectedFindingId) || null;
+  const priorityColors = getFindingPriorityColors();
 
   return (
     <>
@@ -84,7 +79,7 @@ const FindingMarkerSystem = ({
           <div
             className={`qs-finding-marker ${selectedFindingId === finding.id ? 'selected' : ''}`}
             style={{
-              background: PRIORITY_COLORS[finding.priority] || PRIORITY_COLORS.medium,
+              background: priorityColors[finding.priority] || priorityColors.medium,
             }}
           />
         </Marker>

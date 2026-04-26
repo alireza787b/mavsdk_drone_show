@@ -67,3 +67,14 @@ export const getDronePaletteColors = () => {
     themeColors.primaryHover,
   ];
 };
+
+export const getFindingPriorityColors = () => {
+  const themeColors = getPlotThemeColors();
+  return {
+    critical: themeColors.danger,
+    high: themeColors.warning,
+    medium: themeColors.info,
+    low: themeColors.primary,
+    border: themeColors.text,
+  };
+};
