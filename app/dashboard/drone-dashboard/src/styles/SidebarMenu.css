@@ -39,7 +39,7 @@
     var(--color-primary),
     var(--brand-secondary),
     var(--color-success));
-  z-index: 10;
+  z-index: var(--z-local-floating);
   opacity: 0.9;
 }
 

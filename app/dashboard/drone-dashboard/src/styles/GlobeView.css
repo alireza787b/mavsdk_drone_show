@@ -486,7 +486,7 @@
     position: absolute;
     right: 12px;
     top: 12px;
-    z-index: 10;
+    z-index: var(--z-map-overlay);
 }
 
 .globe-map-ops-bar > * {
@@ -568,14 +568,14 @@
     left: 34px;
     position: absolute;
     top: -16px;
-    z-index: 20;
+    z-index: var(--z-tooltip);
 }
 
 .globe-map-selected-fallback {
     bottom: 16px;
     left: 16px;
     position: absolute;
-    z-index: 1002;
+    z-index: var(--z-tooltip);
 }
 
 .globe-map-selected-fallback__note {

@@ -18,7 +18,7 @@
 
 .mds-map-overlay {
   position: absolute;
-  z-index: 1000;
+  z-index: var(--z-map-overlay);
   pointer-events: auto;
 }
 
@@ -35,7 +35,7 @@
   align-items: center;
   justify-content: center;
   background: var(--color-bg-overlay, rgba(0, 0, 0, 0.75));
-  z-index: 1001;
+  z-index: var(--z-tooltip);
 }
 
 .mds-map-loading-spinner {

@@ -8,7 +8,6 @@
   width: 100%;
   max-width: min(100%, 500px);
   /* CRITICAL FIX: Create new stacking context for search suggestions */
-  z-index: 1070; /* Fallback for browsers without CSS variables */
   z-index: var(--z-tooltip);
 }
 
@@ -26,7 +25,7 @@
   position: absolute;
   left: 1rem;
   color: var(--color-text-muted);
-  z-index: 1;
+  z-index: var(--z-local-base);
   font-size: 1rem;
 }
 
@@ -125,7 +124,7 @@
   margin-top: 0.5rem;
   font-size: var(--font-size-xs);
   box-shadow: var(--shadow-sm);
-  z-index: 1000;
+  z-index: var(--z-tooltip);
 }
 
 /* FIXED: Enhanced search suggestions with proper z-index hierarchy */
@@ -140,7 +139,6 @@
   max-height: 400px;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
-  z-index: 1170; /* Fallback for browsers without CSS variables */
   z-index: calc(var(--z-tooltip) + 100);
   backdrop-filter: blur(8px);
   isolation: isolate;
@@ -176,7 +174,6 @@
   background: var(--color-primary-light);
   border-left: 4px solid var(--color-primary);
   /* ADDED: Higher z-index for hovered/selected items */
-  z-index: 1171; /* Fallback for browsers without CSS variables */
   z-index: calc(var(--z-tooltip) + 1);
 }
 
@@ -236,7 +233,6 @@
 
   .search-suggestions {
     max-height: min(240px, 50vh);
-    z-index: 1270; /* Fallback for browsers without CSS variables */
     z-index: calc(var(--z-tooltip) + 200);
     min-width: 0;
   }

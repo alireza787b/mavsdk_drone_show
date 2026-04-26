@@ -17,7 +17,7 @@
     right: 15px;
     display: flex;
     gap: 10px;
-    z-index: 1000; /* Ensure buttons stay on top */
+    z-index: var(--z-globe-overlay);
 }
 
 .button-container .fullscreen-button,
@@ -46,7 +46,7 @@
 
 .globe-selected-card-popover {
     position: absolute;
-    z-index: 1100;
+    z-index: var(--z-tooltip);
     pointer-events: auto;
 }
 
@@ -81,7 +81,7 @@
     inset: 0;
     pointer-events: none;
     position: absolute;
-    z-index: 1080;
+    z-index: var(--z-globe-overlay);
 }
 
 .globe-drone-screen-hit {
@@ -175,7 +175,7 @@
 @media (max-width: 700px) {
     .globe-selected-card-popover {
         width: min(280px, calc(100% - 24px));
-        z-index: 2200;
+        z-index: var(--z-command-overlay);
     }
 
     .globe-selected-card-popover::before {
@@ -266,7 +266,7 @@
     left: 20px;
     width: 60px;
     height: 60px;
-    z-index: 1000;
+    z-index: var(--z-globe-overlay);
     pointer-events: none;
   }
 

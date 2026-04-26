@@ -292,7 +292,7 @@
   border: 1px solid var(--color-border-primary);
   background: var(--color-bg-secondary);
   box-shadow: var(--shadow-lg);
-  z-index: 20;
+  z-index: var(--z-popover);
 }
 
 .toolbar-shortcut-popover__header {

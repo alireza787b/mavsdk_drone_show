@@ -156,9 +156,13 @@
     --z-modal: 1050;
     --z-popover: 1060;
     --z-tooltip: 1070;
+    --z-overlay: var(--z-popover);
     --z-map-overlay: var(--z-popover);
     --z-globe-overlay: var(--z-popover);
     --z-command-overlay: var(--z-modal);
+    --z-local-base: 1;
+    --z-local-raised: 2;
+    --z-local-floating: 10;
 
     /* === COMPONENT SPECIFIC === */
     --button-height-sm: 32px;

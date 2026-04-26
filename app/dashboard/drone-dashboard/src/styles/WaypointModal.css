@@ -99,7 +99,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: var(--z-modal-backdrop);
   backdrop-filter: blur(4px);
   animation: backdropFadeIn 0.3s ease;
 }
