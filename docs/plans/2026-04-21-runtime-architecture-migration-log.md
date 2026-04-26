@@ -2472,3 +2472,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/SwarmTrajectory.test.js src/components/trajectory/SwarmTrajectoryWorkspaceSummary.test.js src/components/trajectory/SwarmTrajectoryTransferDialog.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 54
+
+Goal:
+
+- remove stale Manage Drone Show styling left over from older workflow/modal
+  implementations while preserving the active SkyBrush ZIP import surface
+
+Implemented:
+
+- removed unused legacy `workflow-guidance` and advanced-toggle CSS
+- removed unused legacy modal/image navigation CSS from
+  `ManageDroneShow.css`
+- removed responsive, reduced-motion, focus, and high-contrast rules that only
+  targeted those deleted selectors
+- kept active selectors used by `ManageDroneShow`, `ImportSection`,
+  `VisualizationSection`, and `ExportSection`
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
