@@ -48,6 +48,7 @@
 
 .status-icon.online { color: var(--color-success); }
 .status-icon.dirty { color: var(--color-danger); }
+.status-icon.offline { color: var(--color-text-tertiary); }
 
 .git-basic-info {
   display: flex;
@@ -113,7 +114,7 @@
   border-radius: var(--border-radius-sm);
   font-size: var(--font-size-xs);
   white-space: nowrap;
-  z-index: 1000;
+  z-index: var(--z-tooltip);
 }
 
 .details-toggle {
