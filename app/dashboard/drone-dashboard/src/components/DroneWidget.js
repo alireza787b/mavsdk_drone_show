@@ -207,7 +207,7 @@ const DroneWidget = ({
       data-runtime-state={runtimeStatus.indicatorClass}
     >
       {showLinkOverlay && (
-        <div className="drone-widget__link-overlay" aria-hidden="true" title={runtimeStatus.tooltip}>
+        <div className="drone-widget__link-overlay" aria-hidden="true" data-help={runtimeStatus.tooltip}>
           <FaBroadcastTower />
           <span>{runtimeStatus.label}</span>
         </div>
@@ -223,7 +223,7 @@ const DroneWidget = ({
         <div className="drone-header">
           <div
             className="drone-header__status"
-            title={runtimeStatus.tooltip}
+            data-help={runtimeStatus.tooltip}
             data-tooltip-id={runtimeTooltipId}
             data-tooltip-content={runtimeTooltipText}
             aria-label={`${runtimeStatus.label}. ${runtimeStatus.tooltip}`}
@@ -233,10 +233,10 @@ const DroneWidget = ({
           />
           </div>
           <div className="drone-header__titles">
-            <span className="drone-header__title" title={titleLabel}>{titleLabel}</span>
+            <span className="drone-header__title" data-help={titleLabel}>{titleLabel}</span>
             <div className="drone-header__meta">
               {aliasLabel && (
-                <span className="drone-header__alias" title={aliasLabel}>{aliasLabel}</span>
+                <span className="drone-header__alias" data-help={aliasLabel}>{aliasLabel}</span>
               )}
             </div>
           </div>
@@ -249,7 +249,7 @@ const DroneWidget = ({
               event.stopPropagation();
               onToggleCommandScope?.(hwId);
             }}
-            title={scopeToggleTitle}
+            data-help={scopeToggleTitle}
             aria-label={scopeToggleTitle}
           >
             {commandScopeState !== 'out' ? <FaCheckCircle aria-hidden="true" /> : <FaRegCircle aria-hidden="true" />}
@@ -259,7 +259,7 @@ const DroneWidget = ({
             type="button"
             className="drone-header__action"
             onClick={handlePositionConfigClick}
-            title="Open Mission Config for this drone"
+            data-help="Open Mission Config for this drone"
             aria-label="Open Mission Config for this drone"
           >
             <FaCog aria-hidden="true" />
@@ -269,7 +269,7 @@ const DroneWidget = ({
             type="button"
             className="drone-header__action"
             onClick={handleSwarmDesignClick}
-            title="Open Swarm Design for this drone"
+            data-help="Open Swarm Design for this drone"
             aria-label="Open Swarm Design for this drone"
           >
             <FaProjectDiagram aria-hidden="true" />
@@ -358,12 +358,12 @@ const DroneWidget = ({
           <div className="data-value-inline">
             <span
               className={`mission-badge ${missionDisplay.currentMissionStatusClass}`}
-              title={missionDisplay.badgeTooltip}
+              data-help={missionDisplay.badgeTooltip}
             >
               {missionDisplay.currentMissionName}
             </span>
             {hasCurrentMission && (
-              <span className="data-item__meta-chip" title={missionDisplay.badgeTooltip}>
+              <span className="data-item__meta-chip" data-help={missionDisplay.badgeTooltip}>
                 Active
               </span>
             )}
