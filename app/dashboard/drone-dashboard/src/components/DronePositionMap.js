@@ -14,14 +14,8 @@ import LatLon from 'geodesy/latlon-spherical';
 import IdentityDoctrineStrip from './IdentityDoctrineStrip';
 import LeafletMapBase from './map/LeafletMapBase';
 import { normalizeComparableId } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DronePositionMap.css';
-
-const STATUS_COLORS = {
-  ok: '#27ae60',
-  warning: '#f39c12',
-  error: '#e74c3c',
-  no_telemetry: '#94a3b8',
-};
 
 const LaunchMapViewport = ({ points }) => {
   const map = useMap();
@@ -154,6 +148,13 @@ const buildOriginIcon = (zoom) => {
 const LaunchMapMarkerLayer = ({ parsedOriginLat, parsedOriginLon, markers, onDroneClick }) => {
   const map = useMap();
   const [zoom, setZoom] = useState(map.getZoom());
+  const themeColors = getPlotThemeColors();
+  const statusColors = {
+    ok: themeColors.success,
+    warning: themeColors.warning,
+    error: themeColors.danger,
+    no_telemetry: themeColors.muted,
+  };
 
   useMapEvents({
     zoomend: () => {
@@ -179,7 +180,7 @@ const LaunchMapMarkerLayer = ({ parsedOriginLat, parsedOriginLon, markers, onDro
       </Marker>
 
       {markers.map((marker) => {
-        const statusColor = STATUS_COLORS[marker.status] || STATUS_COLORS.no_telemetry;
+        const statusColor = statusColors[marker.status] || statusColors.no_telemetry;
         const eventHandlers = onDroneClick
           ? { click: () => onDroneClick(marker.hwId) }
           : undefined;
@@ -223,7 +224,7 @@ const LaunchMapMarkerLayer = ({ parsedOriginLat, parsedOriginLon, markers, onDro
                   pathOptions={{
                     color: statusColor,
                     weight: zoomTier.liveWeight,
-                    fillColor: '#0f172a',
+                    fillColor: themeColors.surface,
                     fillOpacity: 0.34,
                   }}
                 >
