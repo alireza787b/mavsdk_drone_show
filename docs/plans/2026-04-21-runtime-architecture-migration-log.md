@@ -2808,3 +2808,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/trajectory/TrajectoryToolbar.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 66
+
+Goal:
+
+- replace Waypoint Panel warning/delete/edit glyphs with accessible icon
+  controls while preserving waypoint editing behavior
+
+Implemented:
+
+- replaced speed status glyphs, high-speed summary warning, panel collapse
+  glyph, fly-to waypoint glyph, delete/cancel glyphs, inline edit save/cancel
+  glyphs, and high-speed segment warning glyphs with `react-icons`
+- added accessible labels for fly-to and delete/cancel waypoint actions
+- added stable icon layout rules for edit buttons and high-speed warning rows
+- preserved inline coordinate/timing/heading/altitude editing, keyboard
+  save/cancel, waypoint selection, fly-to, delete, and panel collapse behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused WaypointPanel tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointPanel.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

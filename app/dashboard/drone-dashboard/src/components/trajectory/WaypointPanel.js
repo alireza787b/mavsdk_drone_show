@@ -2,6 +2,15 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import {
+  MdCheck,
+  MdClose,
+  MdDelete,
+  MdExpandMore,
+  MdList,
+  MdLocationOn,
+  MdWarningAmber,
+} from 'react-icons/md';
 import { 
   ALTITUDE_REFERENCE,
   getSpeedStatus, 
@@ -413,11 +422,11 @@ const WaypointPanel = ({
     
     switch (status) {
       case 'feasible':
-        return <span className="speed-indicator speed-feasible" data-help="Optimal speed">✓</span>;
+        return <MdCheck className="speed-indicator speed-feasible" data-help="Optimal speed" aria-hidden="true" />;
       case 'marginal':
-        return <span className="speed-indicator speed-marginal" data-help="High speed - use caution">⚠</span>;
+        return <MdWarningAmber className="speed-indicator speed-marginal" data-help="High speed - use caution" aria-hidden="true" />;
       case 'impossible':
-        return <span className="speed-indicator speed-impossible" data-help="Speed too high for safe operation">⚠</span>;
+        return <MdWarningAmber className="speed-indicator speed-impossible" data-help="Speed too high for safe operation" aria-hidden="true" />;
       default:
         return null;
     }
@@ -593,8 +602,8 @@ const WaypointPanel = ({
               disabled={isApplyingEdit}
             />
             <div className="edit-buttons">
-              <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}>✓</button>
-              <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}>✕</button>
+              <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}><MdCheck aria-hidden="true" /></button>
+              <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}><MdClose aria-hidden="true" /></button>
             </div>
           </div>
         );
@@ -641,8 +650,8 @@ const WaypointPanel = ({
                 )}
               </select>
               <div className="edit-buttons">
-                <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}>✓</button>
-                <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}>✕</button>
+                <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}><MdCheck aria-hidden="true" /></button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}><MdClose aria-hidden="true" /></button>
               </div>
             </div>
           );
@@ -694,8 +703,8 @@ const WaypointPanel = ({
                 }
               />
               <div className="edit-buttons">
-                <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}>✓</button>
-                <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}>✕</button>
+                <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}><MdCheck aria-hidden="true" /></button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}><MdClose aria-hidden="true" /></button>
               </div>
             </div>
           );
@@ -721,7 +730,7 @@ const WaypointPanel = ({
           <h3>Waypoints ({waypoints.length})</h3>
           {waypoints.some((wp) => wp.estimatedSpeed > TRAJECTORY_SPEED_POLICY.MARGINAL_MAX) && (
             <div className="speed-warning-summary">
-              <span className="speed-indicator speed-impossible">⚠</span>
+              <MdWarningAmber className="speed-indicator speed-impossible" aria-hidden="true" />
               {!isCollapsed && <span className="warning-text">High speed detected</span>}
             </div>
           )}
@@ -733,7 +742,7 @@ const WaypointPanel = ({
             data-help={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
             aria-label={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
           >
-            {isCollapsed ? '📋' : '▼'}
+            {isCollapsed ? <MdList aria-hidden="true" /> : <MdExpandMore aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -768,8 +777,9 @@ const WaypointPanel = ({
                   data-help="Fly to waypoint"
                   className="action-btn fly-btn"
                   disabled={editingWaypointId === waypoint.id}
+                  aria-label={`Fly to ${waypoint.name}`}
                 >
-                  📍
+                  <MdLocationOn aria-hidden="true" />
                 </button>
                 <button 
                   onClick={(e) => { 
@@ -782,8 +792,9 @@ const WaypointPanel = ({
                   }}
                   data-help={editingWaypointId === waypoint.id ? "Cancel edit" : "Delete waypoint"}
                   className="action-btn delete-btn"
+                  aria-label={editingWaypointId === waypoint.id ? `Cancel editing ${waypoint.name}` : `Delete ${waypoint.name}`}
                 >
-                  {editingWaypointId === waypoint.id ? '✕' : '🗑️'}
+                  {editingWaypointId === waypoint.id ? <MdClose aria-hidden="true" /> : <MdDelete aria-hidden="true" />}
                 </button>
               </div>
             </div>
@@ -1096,7 +1107,8 @@ const WaypointPanel = ({
             {/* Speed warning for high-speed segments */}
             {index > 0 && waypoint.estimatedSpeed > TRAJECTORY_SPEED_POLICY.MARGINAL_MAX && (
               <div className="waypoint-speed-warning">
-                <small>⚠ High speed segment - verify drone capabilities</small>
+                <MdWarningAmber aria-hidden="true" />
+                <small>High speed segment - verify drone capabilities</small>
               </div>
             )}
 

@@ -128,7 +128,7 @@
 }
 
 .collapse-toggle.collapsed {
-  transform: rotate(-90deg);
+  transform: none;
 }
 
 .speed-warning-summary {
@@ -404,6 +404,7 @@
 .speed-indicator {
   font-size: 0.875rem;
   margin-left: 0.5rem;
+  flex-shrink: 0;
 }
 
 .speed-indicator.speed-feasible {
@@ -559,6 +560,9 @@
 }
 
 .waypoint-speed-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   padding: 0.5rem 0.75rem;
   background-color: var(--color-warning-light);
   border-top: 1px solid var(--color-warning-border);
@@ -657,6 +661,9 @@
 }
 
 .edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 0.25rem 0.5rem;
