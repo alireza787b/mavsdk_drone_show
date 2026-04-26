@@ -2500,3 +2500,29 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 55
+
+Goal:
+
+- tighten Custom CSV Show page copy and remove inline card icon styling while
+  preserving the protocol CSV upload/activation contract
+
+Implemented:
+
+- shortened the page subtitle to a status-first operational summary
+- removed duplicated warning language from the expert-only notice
+- moved card-header icon color/size into `.custom-show-card__icon`
+- replaced inline icon style usage across upload, active CSV, protocol, and
+  preview cards
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

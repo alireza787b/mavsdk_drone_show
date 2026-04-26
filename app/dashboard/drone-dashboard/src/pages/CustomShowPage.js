@@ -146,7 +146,7 @@ const CustomShowPage = () => {
       className="custom-show-page"
       eyebrow="Advanced manual mode"
       title="Custom CSV Drone Show"
-      subtitle="Upload one ready-to-execute protocol CSV as active.csv. MDS validates it, refreshes the preview, and every drone replays that same file in its own local launch frame."
+      subtitle="Activate one protocol CSV as active.csv, validate it, and preview local-frame replay."
       docsRoute="/custom-show"
       status={<StatusBadge tone={hasActiveCustomShow ? 'success' : 'warning'}>{hasActiveCustomShow ? 'Active' : 'No CSV'}</StatusBadge>}
       actions={(
@@ -163,7 +163,7 @@ const CustomShowPage = () => {
       <MetricStrip items={statusItems} label="Custom CSV status" className="custom-show-page__status-strip" />
 
       <OperatorNotice tone="warning" title="Expert-only override" className="custom-show-page__banner">
-        Expert-only override: no SkyBrush ZIP processing happens here. This page assumes the protocol CSV is already correct and ready to replay locally on every drone.
+        No SkyBrush conversion runs here. Use only protocol-ready CSV files that are safe for local-frame replay.
       </OperatorNotice>
 
       {customShowBackendError && (
@@ -175,7 +175,7 @@ const CustomShowPage = () => {
       <div className="custom-show-page__grid">
         <Paper className="custom-show-card custom-show-card--upload" elevation={0}>
           <div className="custom-show-card__header">
-            <MdCloudUpload style={{ color: 'var(--color-primary)' }} />
+            <MdCloudUpload className="custom-show-card__icon" />
             <div>
               <Typography variant="h6">Upload Ready-to-Execute CSV</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -217,7 +217,7 @@ const CustomShowPage = () => {
 
         <Paper className="custom-show-card" elevation={0}>
           <div className="custom-show-card__header">
-            <MdDescription style={{ color: 'var(--color-primary)' }} />
+            <MdDescription className="custom-show-card__icon" />
             <div>
               <Typography variant="h6">Active Custom CSV</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -264,7 +264,7 @@ const CustomShowPage = () => {
 
         <Paper className="custom-show-card" elevation={0}>
           <div className="custom-show-card__header">
-            <MdRuleFolder style={{ color: 'var(--color-primary)' }} />
+            <MdRuleFolder className="custom-show-card__icon" />
             <div>
               <Typography variant="h6">Protocol Reminder</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -296,7 +296,7 @@ const CustomShowPage = () => {
 
         <Paper className="custom-show-card custom-show-card--preview" elevation={0}>
           <div className="custom-show-card__header">
-            <MdVisibility style={{ color: 'var(--color-primary)' }} />
+            <MdVisibility className="custom-show-card__icon" />
             <div>
               <Typography variant="h6">Preview</Typography>
               <Typography variant="body2" color="text.secondary">

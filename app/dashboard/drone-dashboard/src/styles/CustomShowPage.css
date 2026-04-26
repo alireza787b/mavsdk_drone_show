@@ -117,6 +117,12 @@
     margin-bottom: var(--spacing-base);
 }
 
+.custom-show-card__icon {
+    flex: 0 0 auto;
+    color: var(--color-primary);
+    font-size: var(--font-size-xl);
+}
+
 .custom-show-upload-row {
     display: flex;
     flex-wrap: wrap;
