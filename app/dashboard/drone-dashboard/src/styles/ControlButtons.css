@@ -84,14 +84,14 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-primary-text) 20%, transparent), transparent);
     transition: var(--transition-base);
 }
 
 .control-buttons button:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-dark-md);
-    border-color: rgba(255, 255, 255, 0.1);
+    border-color: color-mix(in srgb, var(--color-primary-text) 12%, transparent);
 }
 
 .control-buttons button:hover::before {
@@ -124,12 +124,12 @@
 
 /* Button Variants */
 .control-buttons .save {
-    background: linear-gradient(135deg, var(--color-success), #2e7d32);
-    color: var(--color-text-primary);
+    background: linear-gradient(135deg, var(--color-success), color-mix(in srgb, var(--color-success) 76%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .control-buttons .save:hover {
-    background: linear-gradient(135deg, #2e7d32, var(--color-success));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 76%, var(--color-bg-primary)), var(--color-success));
 }
 
 .control-buttons .add {
@@ -142,35 +142,35 @@
 }
 
 .control-buttons .set-origin {
-    background: linear-gradient(135deg, var(--color-info), #1976d2);
-    color: var(--color-text-primary);
+    background: linear-gradient(135deg, var(--color-info), color-mix(in srgb, var(--color-info) 78%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .control-buttons .set-origin:hover {
-    background: linear-gradient(135deg, #1976d2, var(--color-info));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-info) 78%, var(--color-bg-primary)), var(--color-info));
 }
 
 .control-buttons .file-upload-btn {
-    background: linear-gradient(135deg, var(--color-warning), #f57c00);
-    color: var(--color-text-inverse);
+    background: linear-gradient(135deg, var(--color-warning), color-mix(in srgb, var(--color-warning) 80%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .control-buttons .file-upload-btn:hover {
-    background: linear-gradient(135deg, #f57c00, var(--color-warning));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-warning) 80%, var(--color-bg-primary)), var(--color-warning));
 }
 
 .control-buttons .export-config {
-    background: linear-gradient(135deg, #4caf50, var(--color-success));
-    color: var(--color-text-primary);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 82%, var(--color-bg-primary)), var(--color-success));
+    color: var(--color-primary-text);
 }
 
 .control-buttons .export-config:hover {
-    background: linear-gradient(135deg, var(--color-success), #4caf50);
+    background: linear-gradient(135deg, var(--color-success), color-mix(in srgb, var(--color-success) 82%, var(--color-bg-primary)));
 }
 
 .control-buttons .sync-drones {
     background: linear-gradient(135deg, var(--color-accent-purple), var(--color-accent-purple-hover));
-    color: var(--color-text-primary);
+    color: var(--color-primary-text);
 }
 
 .control-buttons .sync-drones:hover {
@@ -178,12 +178,12 @@
 }
 
 .control-buttons .revert {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
-    color: var(--color-text-primary);
+    background: linear-gradient(135deg, var(--color-danger), color-mix(in srgb, var(--color-danger) 78%, var(--color-bg-primary)));
+    color: var(--color-primary-text);
 }
 
 .control-buttons .revert:hover {
-    background: linear-gradient(135deg, #c62828, var(--color-danger));
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-danger) 78%, var(--color-bg-primary)), var(--color-danger));
 }
 
 /* Responsive Design */

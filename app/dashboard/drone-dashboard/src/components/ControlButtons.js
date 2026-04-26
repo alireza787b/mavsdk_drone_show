@@ -2,18 +2,17 @@
 import React, { useRef } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/ControlButtons.css';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faSave,
-  faPlus,
-  faUpload,
-  faFileExport,
-  faFileCsv,
-  faUndo,
-  faMapMarkerAlt,
-  faSync,
-  faCodeBranch,
-} from '@fortawesome/free-solid-svg-icons';
+  FaCodeBranch,
+  FaFileCsv,
+  FaFileExport,
+  FaMapMarkerAlt,
+  FaPlus,
+  FaSave,
+  FaSync,
+  FaUndo,
+  FaUpload,
+} from 'react-icons/fa';
 import { CircularProgress } from '@mui/material';
 import { useSyncDrones } from '../hooks/useSyncDrones';
 
@@ -54,7 +53,7 @@ const ControlButtons = ({
           <button
             className="save"
             onClick={handleSaveChangesToServer}
-            title="Save configuration and commit to git repository"
+            data-help="Save configuration and commit to git repository"
             disabled={loading}
           >
             {loading ? (
@@ -64,7 +63,7 @@ const ControlButtons = ({
               </>
             ) : (
               <>
-                <FontAwesomeIcon icon={faSave} />
+                <FaSave aria-hidden="true" />
                 Save & Commit to Git
               </>
             )}
@@ -73,7 +72,7 @@ const ControlButtons = ({
           <button
             className="sync-drones"
             onClick={handleSyncDrones}
-            title="Trigger git pull on all drones to sync with GCS"
+            data-help="Trigger git pull on all drones to sync with GCS"
             disabled={syncing}
           >
             {syncing ? (
@@ -83,19 +82,19 @@ const ControlButtons = ({
               </>
             ) : (
               <>
-                <FontAwesomeIcon icon={faCodeBranch} />
+                <FaCodeBranch aria-hidden="true" />
                 Sync Drones
               </>
             )}
           </button>
 
-          <button className="add" onClick={addNewDrone} title="Add a new drone">
-            <FontAwesomeIcon icon={faPlus} />
+          <button className="add" onClick={addNewDrone} data-help="Add a new drone">
+            <FaPlus aria-hidden="true" />
             Add New Drone
           </button>
 
-          <button className="set-origin" onClick={openOriginModal} title="Set Origin Reference">
-            <FontAwesomeIcon icon={faMapMarkerAlt} />
+          <button className="set-origin" onClick={openOriginModal} data-help="Set origin reference">
+            <FaMapMarkerAlt aria-hidden="true" />
             Set Origin
           </button>
         </div>
@@ -107,9 +106,9 @@ const ControlButtons = ({
         <button
           className="file-upload-btn"
           onClick={triggerFileInput}
-          title="Import drone config from JSON or CSV"
+          data-help="Import drone config from JSON or CSV"
         >
-          <FontAwesomeIcon icon={faUpload} />
+          <FaUpload aria-hidden="true" />
           Import
         </button>
         <input
@@ -124,9 +123,9 @@ const ControlButtons = ({
         <button
           className="export-config"
           onClick={exportConfig}
-          title="Export current drone configs to JSON"
+          data-help="Export current drone configs to JSON"
         >
-          <FontAwesomeIcon icon={faFileExport} />
+          <FaFileExport aria-hidden="true" />
           Export JSON
         </button>
 
@@ -135,16 +134,16 @@ const ControlButtons = ({
           <button
             className="export-config"
             onClick={exportConfigCSV}
-            title="Export current drone configs to CSV (legacy)"
+            data-help="Export current drone configs to CSV"
           >
-            <FontAwesomeIcon icon={faFileCsv} />
+            <FaFileCsv aria-hidden="true" />
             Export CSV
           </button>
         )}
 
         {/* Revert */}
-        <button className="revert" onClick={handleRevertChanges} title="Revert all unsaved changes">
-          <FontAwesomeIcon icon={faUndo} />
+        <button className="revert" onClick={handleRevertChanges} data-help="Revert all unsaved changes">
+          <FaUndo aria-hidden="true" />
           Revert
         </button>
 
@@ -152,9 +151,9 @@ const ControlButtons = ({
         <button
           className="reset-default"
           onClick={handleResetToDefault}
-          title="Reset all drones so each one flies its own show slot (Position ID = Hardware ID)"
+          data-help="Reset all drones so each one flies its own show slot (Position ID = Hardware ID)"
         >
-          <FontAwesomeIcon icon={faSync} />
+          <FaSync aria-hidden="true" />
           Reset Slot Assignments
         </button>
       </div>
