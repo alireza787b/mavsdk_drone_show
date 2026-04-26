@@ -28,7 +28,7 @@ const DroneStatusCard = ({ droneState, onClick }) => {
       <div className="qs-drone-card-progress">
         <div
           className="qs-drone-card-progress-fill"
-          style={{ width: `${coverage_percent || 0}%` }}
+          style={{ '--qs-drone-progress-percent': `${coverage_percent || 0}%` }}
         />
       </div>
       <div className="qs-drone-card-stats">
@@ -36,7 +36,7 @@ const DroneStatusCard = ({ droneState, onClick }) => {
         <span>WP {current_waypoint_index || 0}/{total_waypoints || 0}</span>
       </div>
       {status_note ? (
-        <div className="qs-empty-copy" style={{ marginTop: 6 }}>
+        <div className="qs-empty-copy qs-drone-card-note">
           {status_note}
         </div>
       ) : null}

@@ -3,6 +3,7 @@
 
 :root {
     color-scheme: dark;
+    --app-meta-theme-color: #09111c;
 
     /* === CORE BRAND COLORS === */
     --brand-primary: #5fb9ff;
@@ -155,11 +156,21 @@
     --z-modal: 1050;
     --z-popover: 1060;
     --z-tooltip: 1070;
+    --z-overlay: var(--z-popover);
+    --z-map-overlay: var(--z-popover);
+    --z-globe-overlay: var(--z-popover);
+    --z-command-overlay: var(--z-modal);
+    --z-local-base: 1;
+    --z-local-raised: 2;
+    --z-local-floating: 10;
 
     /* === COMPONENT SPECIFIC === */
     --button-height-sm: 32px;
     --button-height-base: 40px;
     --button-height-lg: 48px;
+    --button-icon-size-sm: 32px;
+    --button-icon-size-base: 40px;
+    --button-icon-size-lg: 48px;
 
     --input-height-sm: 32px;
     --input-height-base: 40px;
@@ -168,6 +179,24 @@
     --panel-width-sm: 250px;
     --panel-width-base: 300px;
     --panel-width-lg: 400px;
+    --sidebar-width-expanded: 296px;
+    --sidebar-width-collapsed: 72px;
+    --operator-page-max-width: 1680px;
+    --operator-card-padding: var(--spacing-base);
+    --operator-card-gap: var(--spacing-md);
+    --operator-density-compact: 0.82;
+    --operator-density-comfortable: 1;
+    --operator-focus-ring: 0 0 0 3px var(--color-primary-border);
+    --operator-control-border: 1px solid var(--color-border-primary);
+    --operator-control-background: var(--color-surface-inset);
+    --operator-control-background-hover: var(--color-primary-light);
+    --operator-card-background: var(--color-surface-raised);
+    --operator-card-background-muted: var(--color-surface-muted);
+    --operator-card-border: 1px solid var(--color-border-primary);
+    --operator-card-shadow: var(--shadow-sm);
+    --operator-card-shadow-raised: var(--shadow-md);
+    --operator-badge-height: 1.65rem;
+    --operator-badge-padding-x: 0.58rem;
 
     /* === BREAKPOINTS === */
     --breakpoint-sm: 576px;
@@ -210,6 +239,7 @@
 [data-theme="light"],
 .theme-light {
     color-scheme: light;
+    --app-meta-theme-color: #f8fbfd;
 
     --color-primary: #0a67bd;
     --color-primary-hover: #0858a1;
@@ -278,6 +308,7 @@
 [data-theme="dark"],
 .theme-dark {
     color-scheme: dark;
+    --app-meta-theme-color: #09111c;
 
     --color-primary: var(--brand-primary);
     --color-primary-hover: var(--brand-primary-hover);

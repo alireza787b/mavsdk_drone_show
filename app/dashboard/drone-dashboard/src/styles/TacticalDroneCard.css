@@ -1,0 +1,337 @@
+@import './DesignTokens.css';
+
+.tactical-drone-card {
+  --mds-tactical-drone-color: var(--color-primary);
+  width: min(300px, calc(100vw - 32px));
+  color: var(--color-text-primary);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--mds-tactical-drone-color) 18%, transparent), transparent 44%),
+    color-mix(in srgb, var(--color-bg-secondary) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mds-tactical-drone-color) 54%, var(--color-border-primary));
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(14px) saturate(1.1);
+  padding: 10px;
+  pointer-events: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.tactical-drone-card [data-help] {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tactical-drone-card [data-help]:hover::after,
+  .tactical-drone-card [data-help]:focus-visible::after {
+    background: var(--color-bg-overlay);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: var(--border-radius-sm);
+    bottom: calc(100% + 6px);
+    color: var(--color-text-primary);
+    content: attr(data-help);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    left: 50%;
+    max-width: 220px;
+    padding: 5px 7px;
+    pointer-events: none;
+    position: absolute;
+    text-transform: none;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    z-index: var(--z-tooltip);
+  }
+}
+
+.tactical-drone-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--mds-tactical-drone-color);
+}
+
+.tactical-drone-card__header {
+  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+}
+
+.tactical-drone-card__eyebrow {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  font-size: 10px;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: flex-start;
+  letter-spacing: 0.14em;
+  margin: 0 0 2px;
+  text-transform: uppercase;
+}
+
+.tactical-drone-card__eyebrow span {
+  align-items: center;
+  display: inline-flex;
+  font-size: 9px;
+  gap: 4px;
+  letter-spacing: 0.02em;
+  opacity: 0.78;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.tactical-drone-card h3 {
+  font-size: 17px;
+  line-height: 1;
+  margin: 0;
+}
+
+.tactical-drone-card__subtitle {
+  color: var(--color-text-tertiary);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
+.tactical-drone-card__state {
+  align-self: start;
+  border: 1px solid color-mix(in srgb, var(--mds-tactical-drone-color) 48%, var(--color-border-primary));
+  border-radius: 999px;
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.tactical-drone-card__close {
+  align-items: center;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 18px;
+  height: 26px;
+  justify-content: center;
+  line-height: 1;
+  width: 26px;
+}
+
+.tactical-drone-card__metrics {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 10px 0 8px;
+}
+
+.tactical-drone-card__metric {
+  align-items: center;
+  background: color-mix(in srgb, var(--color-bg-tertiary) 82%, transparent);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 10px;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 7px;
+}
+
+.tactical-drone-card__metric svg {
+  color: var(--mds-tactical-drone-color);
+  flex: 0 0 auto;
+}
+
+.tactical-drone-card__metric span {
+  font-size: 11px;
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-drone-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.tactical-drone-card__badges span {
+  border: 1px solid color-mix(in srgb, var(--mds-tactical-drone-color) 30%, var(--color-border-secondary));
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-drone-card__details {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.tactical-drone-card__details div {
+  align-items: baseline;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 54px 1fr;
+}
+
+.tactical-drone-card__details dt {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tactical-drone-card__details dd {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tactical-drone-card__actions {
+  align-items: center;
+  display: inline-flex;
+  border-top: 1px solid var(--color-border-secondary);
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.tactical-drone-card__action {
+  align-items: center;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 999px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  height: 34px;
+  justify-content: center;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+  width: 34px;
+}
+
+.tactical-drone-card__action:hover,
+.tactical-drone-card__action:focus-visible {
+  background: color-mix(in srgb, var(--mds-tactical-drone-color) 18%, var(--color-bg-tertiary));
+  border-color: var(--mds-tactical-drone-color);
+  transform: translateY(-1px);
+}
+
+.tactical-drone-card__action--warning {
+  color: var(--color-warning);
+}
+
+.tactical-drone-card__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+  transform: none;
+}
+
+@media (max-width: 640px) {
+  .tactical-drone-card {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--mds-tactical-drone-color) 14%, transparent), transparent 42%),
+      color-mix(in srgb, var(--color-bg-secondary) 80%, transparent);
+    border-radius: 14px;
+    box-shadow: var(--shadow-md);
+    padding: 8px;
+    width: min(260px, calc(100vw - 24px));
+  }
+
+  .tactical-drone-card__header {
+    gap: 6px;
+  }
+
+  .tactical-drone-card__eyebrow {
+    font-size: 9px;
+    margin-bottom: 1px;
+  }
+
+  .tactical-drone-card h3 {
+    font-size: 14px;
+  }
+
+  .tactical-drone-card__subtitle {
+    font-size: 9px;
+  }
+
+  .tactical-drone-card__state,
+  .tactical-drone-card__close {
+    transform: scale(0.86);
+    transform-origin: top right;
+  }
+
+  .tactical-drone-card__metrics {
+    gap: 4px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 7px 0 6px;
+  }
+
+  .tactical-drone-card__metric {
+    border-radius: 999px;
+    gap: 3px;
+    justify-content: center;
+    padding: 4px;
+  }
+
+  .tactical-drone-card__metric svg {
+    font-size: 12px;
+  }
+
+  .tactical-drone-card__metric span {
+    font-size: 9px;
+  }
+
+  .tactical-drone-card__details div {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .tactical-drone-card__details dt,
+  .tactical-drone-card__details dd {
+    font-size: 10px;
+  }
+
+  .tactical-drone-card__badges span {
+    font-size: 9px;
+    padding: 3px 5px;
+  }
+
+  .tactical-drone-card__actions {
+    gap: 5px;
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+
+  .tactical-drone-card__action {
+    font-size: 12px;
+    height: 30px;
+    width: 30px;
+  }
+}

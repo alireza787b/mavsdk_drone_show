@@ -53,6 +53,7 @@ DEFAULT_SSH_GIT_URL="${DEFAULT_SSH_GIT_URL:-${MDS_DEFAULT_REPO_URL_SSH:-git@gith
 DEFAULT_HTTPS_GIT_URL="${DEFAULT_HTTPS_GIT_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
+GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
 # Recovery strategy: "graceful" or "aggressive"
 RECOVERY_STRATEGY="${RECOVERY_STRATEGY:-graceful}"
@@ -428,7 +429,7 @@ validate_post_sync_python_file() {
         return 0
     fi
 
-    if "$python_cmd" -m py_compile "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
+    if "$python_cmd" -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' "${REPO_DIR}/${repo_relative_path}" >/dev/null 2>&1; then
         return 0
     fi
 
@@ -791,6 +792,15 @@ check_service_updates() {
     SERVICE_RELOAD_STATUS="not_required"
     SERVICE_RELOAD_MESSAGE=""
 
+    if [[ "${MDS_SKIP_SYSTEMD_RECONCILE:-false}" == "true" ]] \
+        || [[ "${MDS_MODE:-}" == "sitl" ]] \
+        || ! command -v systemctl >/dev/null 2>&1; then
+        SERVICE_RELOAD_STATUS="skipped"
+        SERVICE_RELOAD_MESSAGE="Systemd unit reconcile skipped for this runtime; SITL/non-systemd nodes do not manage MDS units through git sync."
+        log_info "$component" "$SERVICE_RELOAD_MESSAGE"
+        return 0
+    fi
+
     for service in "${services[@]}"; do
         local src_file repo_file
         case $service in
@@ -922,10 +932,72 @@ check_connectivity_updates() {
     if sudo "${reconcile_script}" apply --quiet; then
         CONNECTIVITY_RECONCILE_STATUS="success"
         log_info "$component" "Connectivity backend reconciled"
+    elif connectivity_runtime_currently_healthy "${reconcile_script}"; then
+        CONNECTIVITY_RECONCILE_STATUS="success"
+        log_warn "$component" "Connectivity reconcile returned a warning, but current runtime status matches the desired profile"
     else
         CONNECTIVITY_RECONCILE_STATUS="warning"
         log_warn "$component" "Connectivity reconcile did not complete cleanly"
     fi
+}
+
+status_value() {
+    local status_text="$1"
+    local key="$2"
+    awk -F= -v target="${key}" '$1 == target {print substr($0, index($0, "=") + 1); exit}' <<< "${status_text}"
+}
+
+runtime_status_output() {
+    local reconcile_script="$1"
+    sudo "${reconcile_script}" status 2>/dev/null || "${reconcile_script}" status 2>/dev/null || true
+}
+
+connectivity_runtime_currently_healthy() {
+    local reconcile_script="$1"
+    local status_text backend config_match service_status
+
+    status_text="$(runtime_status_output "${reconcile_script}")"
+    backend="$(status_value "${status_text}" "backend")"
+
+    case "${backend}" in
+        smart-wifi-manager)
+            config_match="$(status_value "${status_text}" "config_hash_match")"
+            service_status="$(status_value "${status_text}" "service_status")"
+            [[ "${config_match}" == "true" ]] && [[ "${service_status}" == "active" || "${service_status}" == "enabled" ]]
+            ;;
+        none|manual|"")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+mavlink_runtime_currently_healthy() {
+    local reconcile_script="$1"
+    local status_text mode config_match runtime_present router_binary router_service dashboard_service skip_dashboard
+
+    status_text="$(runtime_status_output "${reconcile_script}")"
+    mode="$(status_value "${status_text}" "mode")"
+    config_match="$(status_value "${status_text}" "config_hash_match")"
+    runtime_present="$(status_value "${status_text}" "runtime_present")"
+    router_binary="$(status_value "${status_text}" "router_binary")"
+    router_service="$(status_value "${status_text}" "router_service")"
+    dashboard_service="$(status_value "${status_text}" "dashboard_service")"
+    skip_dashboard="$(status_value "${status_text}" "skip_dashboard")"
+
+    [[ "${mode}" == "managed" ]] || return 1
+    [[ "${config_match}" == "true" ]] || return 1
+    [[ "${runtime_present}" == "true" ]] || return 1
+    [[ "${router_binary}" == "present" ]] || return 1
+    [[ "${router_service}" == "active" || "${router_service}" == "enabled" ]] || return 1
+
+    if [[ "${skip_dashboard}" == "true" ]]; then
+        return 0
+    fi
+
+    [[ "${dashboard_service}" == "active" || "${dashboard_service}" == "enabled" ]]
 }
 
 check_mavlink_runtime_updates() {
@@ -953,6 +1025,9 @@ check_mavlink_runtime_updates() {
     if sudo "${reconcile_script}" apply --quiet; then
         MAVLINK_RUNTIME_RECONCILE_STATUS="success"
         log_info "$component" "Managed mavlink-anywhere runtime reconciled"
+    elif mavlink_runtime_currently_healthy "${reconcile_script}"; then
+        MAVLINK_RUNTIME_RECONCILE_STATUS="success"
+        log_warn "$component" "Managed mavlink-anywhere reconcile returned a warning, but current runtime status matches the desired profile"
     else
         MAVLINK_RUNTIME_RECONCILE_STATUS="warning"
         log_warn "$component" "Managed mavlink-anywhere reconcile did not complete cleanly"
@@ -1057,8 +1132,48 @@ git_https_auth_enabled() {
     [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
 }
 
+git_ssh_auth_enabled() {
+    [[ -n "${MDS_GIT_SSH_KEY_FILE:-}" && -r "${MDS_GIT_SSH_KEY_FILE}" ]]
+}
+
+git_ssh_command() {
+    local runtime_home
+    runtime_home="$(git_runtime_home)"
+    printf 'ssh -i %q -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=%q/.ssh/known_hosts' \
+        "${MDS_GIT_SSH_KEY_FILE}" \
+        "${runtime_home}"
+}
+
 git_runtime_home() {
     printf '%s\n' "${HOME:-/root}"
+}
+
+configure_git_ssh_auth() {
+    local repo_url="${1:-}"
+    local runtime_home
+
+    GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-$GIT_SSH_KEY_FILE}"
+
+    if [[ "$repo_url" != git@* ]]; then
+        return 0
+    fi
+
+    if [[ -z "$GIT_SSH_KEY_FILE" ]]; then
+        log_debug "GIT-SSH" "No MDS_GIT_SSH_KEY_FILE configured; relying on default SSH agent/config."
+        return 0
+    fi
+
+    if [[ ! -r "$GIT_SSH_KEY_FILE" ]]; then
+        log_error_and_exit "GIT-SSH" "Configured MDS_GIT_SSH_KEY_FILE is not readable: $GIT_SSH_KEY_FILE"
+    fi
+
+    runtime_home="$(git_runtime_home)"
+    mkdir -p "${runtime_home}/.ssh"
+    chmod 700 "${runtime_home}/.ssh" 2>/dev/null || true
+    export MDS_GIT_SSH_KEY_FILE="$GIT_SSH_KEY_FILE"
+    export GIT_SSH_COMMAND
+    GIT_SSH_COMMAND="$(git_ssh_command)"
+    log_info "GIT-SSH" "Using configured SSH key for private git access."
 }
 
 git_askpass_path() {
@@ -1111,6 +1226,8 @@ run_git_command() {
             MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
             MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
             git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" "$@"
+    elif [[ "$repo_url" == git@* ]] && git_ssh_auth_enabled; then
+        env GIT_SSH_COMMAND="$(git_ssh_command)" git "$@"
     else
         git "$@"
     fi
@@ -1574,6 +1691,7 @@ main() {
     log_info "CONFIG" "Directory: $REPO_DIR"
     log_info "CONFIG" "Recovery Strategy: $RECOVERY_STRATEGY"
     log_info "CONFIG" "Environment: $ENVIRONMENT"
+    configure_git_ssh_auth "$REPO_URL"
     
     # Acquire exclusive lock
     acquire_lock 60

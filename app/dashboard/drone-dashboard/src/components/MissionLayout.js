@@ -3,8 +3,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/MissionLayout.css';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMapMarkerAlt, faDownload, faPrint } from '@fortawesome/free-solid-svg-icons';
+import { FaDownload, FaMapMarkerAlt, FaPrint } from 'react-icons/fa';
 import { generateKML } from '../utilities/missionConfigUtilities';
 import OriginModal from './OriginModal';
 
@@ -63,12 +62,12 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
       <div className="mission-action-bar">
         {/* Export Actions Group (Left) */}
         <div className="export-actions-group">
-          <button className="export-kml-btn" onClick={exportToKML} title="Export drone positions to KML">
-            <FontAwesomeIcon icon={faDownload} />
+          <button className="export-kml-btn" onClick={exportToKML} data-help="Export drone positions to KML">
+            <FaDownload aria-hidden="true" />
             Export to Google Earth (KML)
           </button>
-          <button className="print-mission-btn" onClick={handlePrint} title="Print the mission briefing">
-            <FontAwesomeIcon icon={faPrint} />
+          <button className="print-mission-btn" onClick={handlePrint} data-help="Print the mission briefing">
+            <FaPrint aria-hidden="true" />
             Print Mission Briefing
           </button>
         </div>
@@ -76,7 +75,7 @@ const MissionLayout = ({ configData, origin, openOriginModal }) => {
         {/* Origin Controls Group (Right) */}
         <div className="origin-controls-group">
           <button className="set-origin-btn" onClick={openOriginModal}>
-            <FontAwesomeIcon icon={faMapMarkerAlt} />
+            <FaMapMarkerAlt aria-hidden="true" />
             Set Origin
           </button>
           {hasOriginCoordinates && (

@@ -48,6 +48,7 @@
 
 .status-icon.online { color: var(--color-success); }
 .status-icon.dirty { color: var(--color-danger); }
+.status-icon.offline { color: var(--color-text-tertiary); }
 
 .git-basic-info {
   display: flex;
@@ -73,7 +74,7 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   color: var(--color-text-primary);
-  cursor: pointer;
+  cursor: default;
   padding: var(--spacing-xs);
   border-radius: var(--border-radius-sm);
   transition: var(--transition-base);
@@ -85,7 +86,15 @@
   border: 1px solid var(--color-border-primary);
 }
 
-.commit-hash:hover {
+.commit-hash--copyable {
+  cursor: pointer;
+}
+
+.commit-hash--disabled {
+  opacity: 0.6;
+}
+
+.commit-hash--copyable:hover {
   background: var(--color-bg-quaternary);
   color: var(--color-primary);
 }
@@ -97,7 +106,7 @@
   transition: var(--transition-base);
 }
 
-.commit-hash:hover .copy-icon {
+.commit-hash--copyable:hover .copy-icon {
   opacity: 1;
   color: var(--color-primary);
 }
@@ -113,7 +122,7 @@
   border-radius: var(--border-radius-sm);
   font-size: var(--font-size-xs);
   white-space: nowrap;
-  z-index: 1000;
+  z-index: var(--z-tooltip);
 }
 
 .details-toggle {

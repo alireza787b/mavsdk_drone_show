@@ -81,7 +81,7 @@ describe('PrecisionMoveDialog', () => {
 
     expect(screen.getByText('Live Command Status')).toBeInTheDocument();
     expect(screen.getByText('Default speed')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /aircraft-relative/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /body frame/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /live jog/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByText(/manual values/i));

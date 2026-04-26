@@ -139,7 +139,7 @@ Once connected via NetBird, these ports are used for communication:
 
 | Port | Protocol | Direction | Purpose |
 |------|----------|-----------|---------|
-| 5000 | TCP | GCS←Drone | GCS API Server |
+| 5030 | TCP | GCS←Drone | GCS API Server |
 | 14550 | UDP | GCS←Drone | MAVLink telemetry |
 | 7070 | TCP | GCS←Drone | Drone status API |
 

@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { DataGrid, useGridApiRef } from '@mui/x-data-grid';
 import { FaBug, FaInfoCircle, FaExclamationTriangle, FaTimesCircle, FaSkull } from 'react-icons/fa';
-import { useTheme } from '../../hooks/useTheme';
 import LogRowDetail from './LogRowDetail';
 
 const LEVEL_ICONS = {
@@ -52,7 +51,13 @@ const columns = [
     headerName: 'Component',
     width: 130,
     renderCell: (params) => (
-      <span className="log-component-cell" title={params.value}>{params.value || '-'}</span>
+      <span
+        className="log-component-cell"
+        aria-label={`Component ${params.value || 'not set'}`}
+        data-help={params.value || 'No component'}
+      >
+        {params.value || '-'}
+      </span>
     ),
   },
   {
@@ -80,7 +85,6 @@ const LogTable = ({
   onClearFilters = null,
   canClearFilters = false,
 }) => {
-  const { isDark } = useTheme();
   const [selectedRow, setSelectedRow] = useState(null);
   const gridRef = useGridApiRef();
 
@@ -171,13 +175,13 @@ const LogTable = ({
             sx={{
               border: 'none',
               '& .MuiDataGrid-cell': {
-                color: isDark ? '#ffffff' : '#1a1d21',
+                color: 'var(--color-text-primary)',
               },
               '& .MuiDataGrid-columnHeader': {
-                color: isDark ? '#a2a5b9' : '#4a5568',
+                color: 'var(--color-text-secondary)',
               },
               '& .MuiDataGrid-footerContainer': {
-                color: isDark ? '#a2a5b9' : '#4a5568',
+                color: 'var(--color-text-secondary)',
               },
               '& .MuiDataGrid-virtualScroller': {
                 backgroundColor: 'transparent',

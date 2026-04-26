@@ -59,7 +59,7 @@ const SyncWarningBanner = () => {
   return (
     <div className="sync-warning-banner" role="alert">
       <div className="sync-warning-content">
-        <span className="sync-warning-icon" aria-hidden="true">&#9888;</span>
+        <span className="sync-warning-icon" aria-hidden="true">!</span>
         <span className="sync-warning-text">
           {syncData.needs_sync_count} of {syncData.total_drones} drone{syncData.total_drones !== 1 ? 's' : ''} out of sync with GCS
         </span>
@@ -73,7 +73,6 @@ const SyncWarningBanner = () => {
         <button
           className="sync-warning-dismiss"
           onClick={() => setDismissed(true)}
-          title="Dismiss"
           aria-label="Dismiss sync warning"
         >
           &times;

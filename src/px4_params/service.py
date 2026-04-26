@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import struct
 import time
 import uuid
@@ -48,7 +49,10 @@ class Px4ParamService:
             ),
             metadata=Px4ParamPolicyMetadata(
                 runtime_values="mavsdk_param_or_mavlink_param_protocol",
-                float_metadata="px4_catalog_then_mavsdk_component_information",
+                float_metadata=(
+                    "px4_catalog_then_mavsdk_component_information_then_official_docs_cache_"
+                    "with_raw_value_fallback"
+                ),
                 docs_links="px4_parameter_reference_anchor",
                 reboot_required="px4_catalog_when_available",
             ),
@@ -60,7 +64,7 @@ class Px4ParamService:
 
     async def build_snapshot(self, drone: Any, *, component_id: int = 1) -> Px4ParamSnapshotResponse:
         float_metadata = await self._load_float_metadata(drone)
-        catalog_metadata = self._load_catalog_metadata()
+        catalog_metadata = await self._load_catalog_metadata_async()
         rows = await self._build_snapshot_rows(
             drone,
             component_id=component_id,
@@ -71,6 +75,11 @@ class Px4ParamService:
 
         now_ms = int(time.time() * 1000)
         stale_after_ms = int(self._safe_float("PX4_PARAMETER_SNAPSHOT_MAX_AGE_SEC", 60.0) * 1000)
+        metadata_status = self._build_metadata_status(
+            rows,
+            catalog_metadata=catalog_metadata,
+            float_metadata=float_metadata,
+        )
         snapshot = Px4ParamSnapshotSummary(
             snapshot_id=f"px4-{self.hw_id}-{uuid.uuid4().hex[:12]}",
             hw_id=self.hw_id,
@@ -79,6 +88,7 @@ class Px4ParamService:
             total_params=len(rows),
             created_at=now_ms,
             stale_after_ms=stale_after_ms,
+            **metadata_status,
         )
         return Px4ParamSnapshotResponse(snapshot=snapshot, rows=rows)
 
@@ -150,13 +160,14 @@ class Px4ParamService:
         normalized_name = self._normalize_name(name)
         value, value_type = await self._read_param_auto(drone, normalized_name)
         float_metadata = await self._load_float_metadata(drone) if value_type == Px4ParamValueType.FLOAT else {}
+        catalog_metadata = await self._load_catalog_metadata_async()
         row = self._compose_row(
             component_id=component_id,
             name=normalized_name,
             value_type=value_type,
             value=value,
             float_meta=float_metadata.get(normalized_name),
-            catalog_entry=self._load_catalog_metadata().get(normalized_name),
+            catalog_entry=catalog_metadata.get(normalized_name),
         )
         return Px4ParamValueResponse(row=row, timestamp=int(time.time() * 1000))
 
@@ -351,6 +362,9 @@ class Px4ParamService:
     def _load_catalog_metadata(self) -> Dict[str, Px4ParamCatalogEntry]:
         return load_px4_param_catalog_index(self.params)
 
+    async def _load_catalog_metadata_async(self) -> Dict[str, Px4ParamCatalogEntry]:
+        return await asyncio.to_thread(self._load_catalog_metadata)
+
     def _compose_row(
         self,
         *,
@@ -363,10 +377,21 @@ class Px4ParamService:
     ) -> Px4ParamRow:
         metadata_sources = [Px4ParamMetadataSource.VEHICLE]
         if catalog_entry is not None:
-            metadata_sources.append(Px4ParamMetadataSource.PX4_BUILD_CATALOG)
+            metadata_sources.append(catalog_entry.source)
         if float_meta is not None:
             metadata_sources.append(Px4ParamMetadataSource.COMPONENT_INFORMATION)
         metadata_sources.append(Px4ParamMetadataSource.PX4_DOCS)
+        short_description = self._pick_metadata_value(
+            self._catalog_attr(catalog_entry, "short_description"),
+            getattr(float_meta, "short_description", None),
+        )
+        long_description = self._dedupe_long_description(
+            short_description,
+            self._pick_metadata_value(
+                self._catalog_attr(catalog_entry, "long_description"),
+                getattr(float_meta, "long_description", None),
+            ),
+        )
 
         return Px4ParamRow(
             component_id=component_id,
@@ -374,14 +399,8 @@ class Px4ParamService:
             value_type=value_type,
             value=value,
             docs_url=self._build_docs_url(name),
-            short_description=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "short_description"),
-                getattr(float_meta, "short_description", None),
-            ),
-            long_description=self._pick_metadata_value(
-                self._catalog_attr(catalog_entry, "long_description"),
-                getattr(float_meta, "long_description", None),
-            ),
+            short_description=short_description,
+            long_description=long_description,
             unit=self._pick_metadata_value(
                 self._catalog_attr(catalog_entry, "unit"),
                 getattr(float_meta, "unit", None),
@@ -410,11 +429,81 @@ class Px4ParamService:
             metadata_sources=metadata_sources,
         )
 
+    def _build_metadata_status(
+        self,
+        rows: Iterable[Px4ParamRow],
+        *,
+        catalog_metadata: Dict[str, Px4ParamCatalogEntry],
+        float_metadata: Dict[str, Any],
+    ) -> dict[str, Any]:
+        source_values: set[Px4ParamMetadataSource] = set()
+        rich_rows = 0
+        total_rows = 0
+        for row in rows:
+            total_rows += 1
+            source_values.update(row.metadata_sources)
+            if row.short_description or row.group or row.default_value is not None or row.min_value is not None or row.max_value is not None:
+                rich_rows += 1
+
+        catalog_available = bool(catalog_metadata)
+        component_information_available = bool(float_metadata)
+        if rich_rows > 0 and catalog_available:
+            metadata_quality = "rich"
+            warning = None
+        elif rich_rows > 0 and component_information_available:
+            metadata_quality = "component_information"
+            warning = "PX4 component metadata is available, but catalog-level groups/defaults may be incomplete."
+        elif catalog_available:
+            metadata_quality = "catalog"
+            warning = None
+        else:
+            metadata_quality = "raw_values_only"
+            warning = (
+                "PX4 parameter values are available, but metadata labels, groups, defaults, and docs require "
+                "vehicle component metadata, a matching PX4 parameter catalog, or the optional official PX4 "
+                "docs reference cache."
+            )
+
+        if total_rows == 0:
+            metadata_quality = "unavailable"
+            warning = "No PX4 parameters were returned by MAVSDK or the MAVLink parameter fallback."
+
+        return {
+            "metadata_quality": metadata_quality,
+            "metadata_sources": sorted(source_values, key=lambda item: item.value),
+            "metadata_warning": warning,
+            "metadata_catalog_available": catalog_available,
+            "component_information_available": component_information_available,
+        }
+
     @staticmethod
     def _catalog_attr(entry: Px4ParamCatalogEntry | None, attribute: str) -> Any:
         if entry is None:
             return None
         return getattr(entry, attribute, None)
+
+    @staticmethod
+    def _dedupe_long_description(short_description: Any, long_description: Any) -> str | None:
+        long_text = str(long_description or "").strip()
+        short_text = str(short_description or "").strip()
+        if not long_text:
+            return None
+        if not short_text:
+            return long_text
+
+        compact_short = re.sub(r"\s+", " ", short_text).strip()
+        compact_long = re.sub(r"\s+", " ", long_text).strip()
+        if compact_long == compact_short:
+            return None
+        if not compact_long.startswith(compact_short):
+            return long_text
+
+        tokens = [re.escape(token) for token in compact_short.split(" ") if token]
+        if not tokens:
+            return long_text
+        prefix_pattern = r"^\s*" + r"\s+".join(tokens) + r"\s*"
+        remainder = re.sub(prefix_pattern, "", long_text, count=1).strip()
+        return remainder or None
 
     @staticmethod
     def _pick_metadata_value(*values: Any) -> Any:

@@ -18,7 +18,7 @@ import { buildGcsUrl, GCS_ROUTE_KEYS } from './gcsApiService';
 
 jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
-  buildGcsUrl: jest.fn((path) => `http://gcs.test:5000${path}`),
+  buildGcsUrl: jest.fn((path) => `http://gcs.test:5030${path}`),
   COMMAND_SUBMIT_TIMEOUT_MS: 12000,
   GCS_ROUTES: {
     '/api/v1/system/sitl/instances': '/api/v1/system/sitl/instances',
@@ -39,7 +39,7 @@ jest.mock('./gcsApiService', () => ({
 describe('sitlControlService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    buildGcsUrl.mockImplementation((path) => `http://gcs.test:5000${path}`);
+    buildGcsUrl.mockImplementation((path) => `http://gcs.test:5030${path}`);
   });
 
   test('requests SITL policy through the canonical GCS route', async () => {
@@ -49,7 +49,7 @@ describe('sitlControlService', () => {
 
     expect(buildGcsUrl).toHaveBeenCalledWith(GCS_ROUTE_KEYS.sitlControlPolicy);
     expect(axios.get).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/v1/system/sitl/policy',
+      'http://gcs.test:5030/api/v1/system/sitl/policy',
       { timeout: 10000 },
     );
     expect(result.sim_mode).toBe(true);
@@ -76,7 +76,7 @@ describe('sitlControlService', () => {
 
     expect(buildGcsUrl).toHaveBeenCalledWith('/api/v1/system/sitl/instances/drone%2F1/logs');
     expect(axios.get).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1/logs',
+      'http://gcs.test:5030/api/v1/system/sitl/instances/drone%2F1/logs',
       expect.objectContaining({
         timeout: 10000,
         params: { tail: 80 },
@@ -106,46 +106,46 @@ describe('sitlControlService', () => {
 
     expect(axios.post).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5000/api/v1/system/sitl/reconcile',
+      'http://gcs.test:5030/api/v1/system/sitl/reconcile',
       { target_count: 3 },
       { timeout: 30000 },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5000/api/v1/system/sitl/instances',
+      'http://gcs.test:5030/api/v1/system/sitl/instances',
       { instance_id: 6 },
       { timeout: 30000 },
     );
     expect(axios.get).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5000/api/v1/system/sitl/operations',
+      'http://gcs.test:5030/api/v1/system/sitl/operations',
       expect.objectContaining({ params: { limit: 5 } }),
     );
     expect(axios.get).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5000/api/v1/system/sitl/operations/sitl%2Fop',
+      'http://gcs.test:5030/api/v1/system/sitl/operations/sitl%2Fop',
       { timeout: 12000 },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       3,
-      'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1/restart',
+      'http://gcs.test:5030/api/v1/system/sitl/instances/drone%2F1/restart',
       {},
       { timeout: 30000 },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       4,
-      'http://gcs.test:5000/api/v1/system/sitl/instances/actions',
+      'http://gcs.test:5030/api/v1/system/sitl/instances/actions',
       { action: 'restart', instance_names: ['drone-1'] },
       { timeout: 30000 },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       5,
-      'http://gcs.test:5000/api/v1/system/sitl/images/release',
+      'http://gcs.test:5030/api/v1/system/sitl/images/release',
       { image_repo: 'mavsdk-drone-show-sitl', version_tag: 'release-demo' },
       { timeout: 30000 },
     );
     expect(axios.delete).toHaveBeenCalledWith(
-      'http://gcs.test:5000/api/v1/system/sitl/instances/drone%2F1',
+      'http://gcs.test:5030/api/v1/system/sitl/instances/drone%2F1',
       { timeout: 30000 },
     );
     expect(reconcile.operation_id).toBe('sitl-op-1');

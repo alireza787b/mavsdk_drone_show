@@ -7,7 +7,7 @@
     background-color: var(--color-bg-primary);
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 20px var(--color-overlay);
   }
 
 
@@ -17,7 +17,7 @@
     right: 15px;
     display: flex;
     gap: 10px;
-    z-index: 1000; /* Ensure buttons stay on top */
+    z-index: var(--z-globe-overlay);
 }
 
 .button-container .fullscreen-button,
@@ -27,11 +27,13 @@
     height: 40px;
     background-color: var(--color-bg-tertiary);
     color: var(--color-text-primary);
+    border: 1px solid var(--color-border-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
     cursor: pointer;
+    padding: 0;
     transition: transform 0.2s ease, background-color 0.3s ease;
 }
 
@@ -39,7 +41,164 @@
 .button-container .focus-button:hover,
 .button-container .toolbox-button:hover {
     transform: scale(1.2);
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--color-border-secondary);
+}
+
+.globe-selected-card-popover {
+    position: absolute;
+    z-index: var(--z-tooltip);
+    pointer-events: auto;
+}
+
+.globe-selected-card-popover::before {
+    content: '';
+    position: absolute;
+    left: -16px;
+    top: 24px;
+    width: 16px;
+    height: 1px;
+    background: var(--color-primary);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
+
+.globe-selected-card-popover.is-left::before {
+    left: auto;
+    right: -16px;
+}
+
+.globe-selected-card-popover.is-above::before {
+    bottom: 24px;
+    top: auto;
+}
+
+.globe-selected-card-popover.is-offscreen {
+    right: 16px;
+    left: auto !important;
+    top: 72px !important;
+}
+
+.globe-drone-screen-targets {
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    z-index: var(--z-globe-overlay);
+}
+
+.globe-drone-screen-hit {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    display: inline-flex;
+    height: 52px;
+    justify-content: center;
+    opacity: 0.82;
+    padding: 0;
+    pointer-events: auto;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+    width: 52px;
+}
+
+.globe-drone-screen-hit::before {
+    background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 54%, white);
+    border-radius: 999px;
+    content: '';
+    height: 36px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 36px;
+}
+
+.globe-drone-screen-hit::after {
+    background: var(--mds-globe-marker-color, var(--color-primary));
+    border-radius: 999px;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, transparent);
+    content: '';
+    height: 5px;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 5px;
+}
+
+.globe-drone-screen-hit span {
+    background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, var(--color-bg-secondary));
+    border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 70%, white);
+    border-radius: 999px;
+    box-shadow: 0 8px 20px var(--color-overlay);
+    font-size: 10px;
+    font-weight: 900;
+    min-height: 24px;
+    min-width: 42px;
+    padding: 4px 8px;
+    position: absolute;
+    transform: translateY(calc(-100% - 8px));
+    white-space: nowrap;
+}
+
+.globe-drone-screen-hit.no-map-fix {
+    opacity: 0.74;
+}
+
+.globe-drone-screen-hit.no-map-fix::before,
+.globe-drone-screen-hit.no-map-fix span {
+    border-style: dashed;
+}
+
+.globe-drone-screen-hit.runtime-offline,
+.globe-drone-screen-hit.runtime-never-seen {
+    opacity: 0.42;
+    filter: grayscale(0.7);
+}
+
+.globe-drone-screen-hit.runtime-lost::before,
+.globe-drone-screen-hit.runtime-lost span {
+    border-color: var(--color-warning);
+}
+
+.globe-drone-screen-hit.selected,
+.globe-drone-screen-hit:focus-visible,
+.globe-drone-screen-hit:hover {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.04);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 18%, transparent), 0 12px 26px var(--color-overlay);
+}
+
+@media (max-width: 700px) {
+    .globe-selected-card-popover {
+        width: min(280px, calc(100% - 24px));
+        z-index: var(--z-command-overlay);
+    }
+
+    .globe-selected-card-popover::before {
+        display: block;
+    }
+
+    .globe-selected-card-popover .tactical-drone-card {
+        max-height: min(28vh, 220px);
+        overflow-y: auto;
+        width: 100%;
+    }
+
+    .globe-drone-screen-hit {
+        height: 48px;
+        width: 48px;
+    }
+
+    .globe-drone-screen-hit span {
+        font-size: 9px;
+        min-height: 22px;
+        min-width: 36px;
+        padding: 3px 7px;
+    }
 }
 
 .drone-tooltip {
@@ -53,7 +212,7 @@
     max-width: min(280px, 74vw);
     font-size: 12px;
     line-height: 1.35;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px var(--color-overlay);
 }
 
 .tooltip-list {
@@ -107,7 +266,7 @@
     left: 20px;
     width: 60px;
     height: 60px;
-    z-index: 1000;
+    z-index: var(--z-globe-overlay);
     pointer-events: none;
   }
 

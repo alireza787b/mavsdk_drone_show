@@ -186,6 +186,38 @@ def test_node_bootstrap_wrapper_help_mentions_private_ssh_key_file():
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_uses_configured_ssh_key_for_private_repo_fetches():
+    result = run_bash(
+        f"""
+        temp_dir="$(mktemp -d)"
+        fake_bin="$temp_dir/bin"
+        mkdir -p "$fake_bin"
+        key_file="$temp_dir/customer_read_key"
+        output_file="$temp_dir/git_env.txt"
+        printf 'test-key\\n' > "$key_file"
+        chmod 600 "$key_file"
+        cat >"$fake_bin/git" <<'EOF'
+#!/bin/sh
+printf '%s\\n' "$GIT_SSH_COMMAND" > "$GIT_SYNC_TEST_OUTPUT"
+exit 0
+EOF
+        chmod +x "$fake_bin/git"
+        export PATH="$fake_bin:$PATH"
+        export HOME="$temp_dir/home"
+        export MDS_GIT_SSH_KEY_FILE="$key_file"
+        export GIT_SYNC_TEST_OUTPUT="$output_file"
+        source "{GIT_SYNC_SCRIPT}"
+        configure_git_ssh_auth "git@github.com:demo/private.git"
+        run_git_command "git@github.com:demo/private.git" fetch --all --prune
+        grep -q -- "-i $key_file" "$output_file"
+        grep -q -- "IdentitiesOnly=yes" "$output_file"
+        grep -q -- "BatchMode=yes" "$output_file"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_identity_setup_local_env_persists_node_git_auth_file_paths():
     identity_lib = REPO_ROOT / "tools" / "mds_init_lib" / "identity.sh"
 
@@ -205,7 +237,7 @@ def test_identity_setup_local_env_persists_node_git_auth_file_paths():
         MDS_LOCAL_ENV="$MDS_CONFIG_DIR/local.env"
         GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
         GIT_SSH_KEY_FILE="/home/droneshow/.ssh/customer_read_key"
-        setup_local_env 2 "100.82.207.49" "https://github.com/Catch-A-Drone/mavsdk_drone_show.git" "main-candidate" "http://100.82.207.49:5000"
+        setup_local_env 2 "100.82.207.49" "https://github.com/Catch-A-Drone/mavsdk_drone_show.git" "main-candidate" "http://100.82.207.49:5030"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/customer_read_key$' "$MDS_LOCAL_ENV"
         """
@@ -1056,6 +1088,37 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_service_updates_skip_systemd_reconcile_for_sitl_runtime():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools" "$systemd_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+
+        cat > "$systemd_dir/coordinator.service" <<'EOF'
+[Service]
+ExecStart=/old/path/coordinator.py
+EOF
+
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        MDS_MODE="sitl" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_service_updates; [[ "$SERVICE_RELOAD_STATUS" == "skipped" ]]; grep -q "^ExecStart=/old/path/coordinator.py$" "$MDS_SYSTEMD_DIR/coordinator.service"; [[ "${{#UPDATED_SYSTEMD_UNITS[@]}}" -eq 0 ]]'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_git_sync_service_updates_restore_previous_units_when_daemon_reload_fails():
     result = run_bash(
         f"""
@@ -1636,7 +1699,7 @@ def test_setup_local_env_writes_clean_override_lines():
         log_success() {{ :; }}
         is_dry_run() {{ return 1; }}
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
-        setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5000
+        setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5030
         grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_CONNECTIVITY_BACKEND=none$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_MANAGEMENT_MODE=managed$' "$MDS_LOCAL_ENV"
@@ -1644,7 +1707,7 @@ def test_setup_local_env_writes_clean_override_lines():
         grep -q '^MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=127.0.0.1:9070$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GCS_IP=100.64.20.10$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5000$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5030$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
@@ -1714,6 +1777,59 @@ EOF
         grep -q -- '--dashboard-version v9.9.9' "$tmpdir/install_args.txt"
         grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
         grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_reconcile_connectivity_updates_existing_runtime_with_safe_directory():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        install_dir="$tmpdir/swm"
+        mkdir -p "$repo_dir/deployment/connectivity/smart-wifi-manager" "$repo_dir/tools" "$install_dir/.git"
+        cp "{RECONCILE_CONNECTIVITY_SCRIPT}" "$repo_dir/tools/reconcile_connectivity.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment/defaults.env" <<'EOF'
+MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git
+MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
+EOF
+        cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
+{{"mode":"manage","profiles":[]}}
+EOF
+        cat > "$install_dir/install.sh" <<'EOF'
+#!/bin/bash
+:
+EOF
+        chmod +x "$install_dir/install.sh"
+        cat > "$install_dir/configure_smart_wifi_manager.sh" <<'EOF'
+#!/bin/bash
+:
+EOF
+        chmod +x "$install_dir/configure_smart_wifi_manager.sh"
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<EOF
+MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
+MDS_SMART_WIFI_MANAGER_INSTALL_DIR=$install_dir
+EOF
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 1
+EOF
+        chmod +x "$fakebin/systemctl"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
+        grep -q -- "-c safe.directory=$install_dir -C $install_dir fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
         """
     )
 
@@ -1853,6 +1969,62 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_reconcile_mavlink_runtime_updates_existing_runtime_with_safe_directory():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        install_dir="$tmpdir/ma"
+        mkdir -p "$repo_dir/tools" "$install_dir/.git" "$install_dir/lib"
+        cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment.defaults" <<EOF
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
+MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
+MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=$install_dir
+MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=0.0.0.0:9070
+MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false
+EOF
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<'EOF'
+MDS_MAVLINK_MANAGEMENT_MODE=managed
+EOF
+        cat > "$install_dir/lib/dashboard.sh" <<'EOF'
+#!/bin/bash
+install_dashboard_binary() {{ :; }}
+setup_dashboard_service() {{ :; }}
+EOF
+        chmod +x "$install_dir/lib/dashboard.sh"
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/systemctl"
+        cat > "$fakebin/mavlink-routerd" <<'EOF'
+#!/bin/sh
+exit 0
+EOF
+        chmod +x "$fakebin/mavlink-routerd"
+        mkdir -p "$tmpdir/etc/mavlink-router"
+        : > "$tmpdir/etc/mavlink-router/main.conf"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_DEPLOYMENT_PROFILE_FILE="$repo_dir/deployment.defaults" MDS_LOCAL_ENV_FILE="$config_dir/local.env" MAVLINK_ROUTER_CONFIG="$tmpdir/etc/mavlink-router/main.conf" MDS_MAVLINK_STATE_DIR="$tmpdir/state" bash "$repo_dir/tools/reconcile_mavlink_runtime.sh" apply --force
+        grep -q -- "-c safe.directory=$install_dir -C $install_dir fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_reconcile_mavlink_runtime_warns_but_succeeds_without_router_config():
     result = run_bash(
         f"""
@@ -1925,6 +2097,92 @@ def test_runtime_git_sync_reconciles_managed_mavlink_runtime():
     assert "check_mavlink_runtime_updates()" in git_sync_text
     assert '/tools/reconcile_mavlink_runtime.sh' in git_sync_text
     assert "MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE" in git_sync_text
+    assert "mavlink_runtime_currently_healthy" in git_sync_text
+
+
+def test_git_sync_accepts_healthy_mavlink_runtime_after_reconcile_warning():
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        sudo() {{
+            if [[ "$2" == "status" ]]; then
+                cat <<'EOF'
+mode=managed
+config_hash_match=true
+runtime_present=true
+router_binary=present
+router_service=active
+dashboard_service=active
+skip_dashboard=false
+EOF
+                return 0
+            fi
+            return 1
+        }}
+        mavlink_runtime_currently_healthy /tmp/reconcile_mavlink_runtime.sh
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_git_sync_status_health_falls_back_to_unprivileged_status():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        reconcile="$tmpdir/reconcile_mavlink_runtime.sh"
+        cat > "$reconcile" <<'EOF'
+#!/bin/bash
+if [[ "$1" == "status" ]]; then
+    cat <<'EOS'
+mode=managed
+config_hash_match=true
+runtime_present=true
+router_binary=present
+router_service=active
+dashboard_service=active
+skip_dashboard=false
+EOS
+fi
+EOF
+        chmod +x "$reconcile"
+        source "{GIT_SYNC_SCRIPT}"
+        sudo() {{
+            return 1
+        }}
+        mavlink_runtime_currently_healthy "$reconcile"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_git_sync_rejects_unhealthy_mavlink_runtime_after_reconcile_warning():
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        sudo() {{
+            if [[ "$2" == "status" ]]; then
+                cat <<'EOF'
+mode=managed
+config_hash_match=false
+runtime_present=true
+router_binary=present
+router_service=active
+dashboard_service=active
+skip_dashboard=false
+EOF
+                return 0
+            fi
+            return 1
+        }}
+        if mavlink_runtime_currently_healthy /tmp/reconcile_mavlink_runtime.sh; then
+            exit 1
+        fi
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_git_sync_reexecs_updated_sync_script_once_to_apply_new_logic():
@@ -2067,6 +2325,26 @@ EOF
         REPO_DIR="$repo_dir"
         source "{GIT_SYNC_SCRIPT}"
         ! preflight_validate_post_sync_runtime_changes "$old_head" "$new_head"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_post_sync_python_validation_does_not_write_bytecode():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        mkdir -p "$repo_dir/src" "$tmpdir/home/logs"
+        cat > "$repo_dir/src/runtime_check.py" <<'EOF'
+value = 1
+EOF
+        HOME="$tmpdir/home"
+        REPO_DIR="$repo_dir"
+        source "{GIT_SYNC_SCRIPT}"
+        validate_post_sync_python_file "src/runtime_check.py"
+        [[ ! -d "$repo_dir/src/__pycache__" ]]
         """
     )
 
@@ -2226,6 +2504,96 @@ def test_configure_gcs_env_persists_private_ssh_key_file():
         grep -q '^MDS_BRANCH=customer-demo$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GIT_AUTO_PUSH=true$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GIT_SSH_KEY_FILE=/root/.ssh/customer_gcs_write_key$' "$GCS_CONFIG_FILE"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_configure_gcs_env_rewrites_stale_ports():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        GCS_CONFIG_FILE="$tmpdir/gcs.env"
+        cat > "$GCS_CONFIG_FILE" <<'EOF'
+GCS_PORT=5000
+GCS_BACKEND=fastapi
+MDS_MODE=real
+MDS_REPO_URL=git@github.com:example-org/private-mds.git
+MDS_BRANCH=customer-demo
+MDS_GIT_AUTO_PUSH=true
+MDS_GIT_AUTH_TOKEN_FILE=
+MDS_GIT_SSH_KEY_FILE=/root/.ssh/customer_gcs_write_key
+MDS_INSTALL_DIR=/opt/mds
+DASHBOARD_PORT=3030
+VENV_PATH=/opt/mds/venv
+EOF
+        GCS_INSTALL_DIR="/opt/mds"
+        GCS_DEFAULT_REPO_SSH="git@github.com:example-org/private-mds.git"
+        GCS_DEFAULT_BRANCH="customer-demo"
+        MDS_GIT_SSH_KEY_FILE="/root/.ssh/customer_gcs_write_key"
+        MDS_DEFAULT_GCS_API_PORT=5030
+        MDS_DEFAULT_DASHBOARD_PORT=3030
+        NON_INTERACTIVE=true
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        backup_file() {{ :; }}
+        confirm() {{ return 1; }}
+        is_dry_run() {{ return 1; }}
+        gcs_state_get_value() {{
+            case "$1" in
+                repo_url) echo "git@github.com:example-org/private-mds.git" ;;
+                repo_branch) echo "customer-demo" ;;
+                access_method) echo "ssh" ;;
+                *) echo "$2" ;;
+            esac
+        }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
+        configure_gcs_env
+        grep -q '^GCS_PORT=5030$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_GCS_API_PORT=5030$' "$GCS_CONFIG_FILE"
+        grep -q '^DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_dashboard_launcher_rewrites_stale_react_env_ports():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        REACT_APP_DIR="$tmpdir/dashboard"
+        ENV_FILE_PATH="$REACT_APP_DIR/.env"
+        mkdir -p "$REACT_APP_DIR"
+        cat > "$ENV_FILE_PATH" <<'EOF'
+REACT_APP_GCS_PORT=5000
+REACT_APP_DRONE_PORT=7070
+PORT=3030
+GENERATE_SOURCEMAP=true
+SKIP_PREFLIGHT_CHECK=false
+REACT_APP_SERVER_URL=http://example.invalid
+# REACT_APP_GCS_PORT=5000
+EOF
+        DEV_GCS_PORT=5030
+        DEV_REACT_PORT=3030
+        MDS_DEFAULT_DRONE_API_PORT=7070
+        OVERWRITE_IP=""
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        log_warn() {{ :; }}
+        eval "$(awk '/^handle_env_file\\(\\)/,/^check_build_needed\\(\\)/ {{ if ($0 !~ /^check_build_needed\\(\\)/) print }}' "{REPO_ROOT / 'app' / 'linux_dashboard_start.sh'}")"
+        handle_env_file
+        grep -q '^REACT_APP_GCS_PORT=5030$' "$ENV_FILE_PATH"
+        grep -q '^REACT_APP_DRONE_PORT=7070$' "$ENV_FILE_PATH"
+        grep -q '^PORT=3030$' "$ENV_FILE_PATH"
+        grep -q '^GENERATE_SOURCEMAP=false$' "$ENV_FILE_PATH"
+        grep -q '^SKIP_PREFLIGHT_CHECK=true$' "$ENV_FILE_PATH"
+        grep -q '^REACT_APP_SERVER_URL=http://example.invalid$' "$ENV_FILE_PATH"
+        grep -q '^# REACT_APP_GCS_PORT=5030$' "$ENV_FILE_PATH"
         """
     )
 
@@ -2422,6 +2790,11 @@ def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
     startup_text = (REPO_ROOT / "multiple_sitl" / "startup_sitl.sh").read_text(encoding="utf-8")
 
     assert '-e "MDS_HW_ID=${drone_id}"' in create_text
+    assert '-e "MDS_BASE_DIR=/root/mavsdk_drone_show"' in create_text
+    assert '-e "MDS_INSTALL_DIR=/root/mavsdk_drone_show"' in create_text
+    assert '-e "MDS_REPO_ROOT=/root/mavsdk_drone_show"' in create_text
+    assert '-e "MDS_DEPLOYMENT_PROFILE_FILE=/root/mavsdk_drone_show/deployment/defaults.env"' in create_text
+    assert "MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID" in create_text
     assert "resolve_host_startup_script_mode()" in create_text
     assert 'DOCKER_ENV_ARGS+=(-e "MDS_SITL_USE_HOST_STARTUP_SCRIPT=${USE_HOST_STARTUP_SCRIPT}")' in create_text
     assert 'USE_HOST_STARTUP_SCRIPT_SOURCE="auto:mutable_git_sync"' in create_text

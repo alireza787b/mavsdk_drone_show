@@ -117,7 +117,7 @@ def _persist_env_updates(path: Path, updates: dict[str, Any]) -> list[str]:
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         original_lines = [
             "# MDS GCS Configuration\n",
-            f"# Updated by gcs-server runtime admin on {timestamp}\n\n",
+            f"# Updated by gcs-server GCS Runtime on {timestamp}\n\n",
         ]
 
     changed_keys: list[str] = []

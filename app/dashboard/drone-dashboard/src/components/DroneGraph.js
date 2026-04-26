@@ -1,17 +1,26 @@
 import React, { useEffect, useRef } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DroneGraph.css';
 
 function buildGraphElements(drones) {
   const nodes = drones.map((drone) => ({
-    data: {
-      id: drone.hw_id,
-      label: formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`),
-      role: drone.role,
-      warningState: drone.hasWarnings ? 'attention' : 'clear',
-      roleSwapState: drone.isRoleSwap ? 'swap' : 'native',
-    },
+    data: (() => {
+      const compactIdentity = formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`);
+      const primaryLabel = String(drone.alias || drone.callsign || '').trim();
+      const label = primaryLabel && primaryLabel !== compactIdentity
+        ? `${primaryLabel}\n${compactIdentity}`
+        : compactIdentity;
+
+      return {
+        id: drone.hw_id,
+        label,
+        role: drone.role,
+        warningState: drone.hasWarnings ? 'attention' : 'clear',
+        roleSwapState: drone.isRoleSwap ? 'swap' : 'native',
+      };
+    })(),
   }));
 
   const edges = drones
@@ -48,6 +57,7 @@ function applySelectionClasses(cy, selectedDroneId) {
 
 function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
   const cyRef = useRef(null);
+  const themeColors = getPlotThemeColors();
 
   const graphElements = buildGraphElements(swarmData);
 
@@ -114,9 +124,9 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         'shape': 'ellipse',
         'width': 70,
         'height': 70,
-        'background-color': '#1e90ff',
+        'background-color': themeColors.primary,
         'border-width': 2,
-        'border-color': '#8abfff',
+        'border-color': themeColors.primaryHover,
         'label': 'data(label)',
         'font-size': 11,
         'font-weight': 700,
@@ -124,7 +134,7 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         'text-halign': 'center',
         'text-wrap': 'wrap',
         'text-max-width': 66,
-        'color': '#f7fbff',
+        'color': themeColors.textInverse,
         'transition-property': 'background-color, border-color, border-width, width, height',
         'transition-duration': '150ms',
       },
@@ -135,24 +145,24 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         'shape': 'round-rectangle',
         'width': 84,
         'height': 64,
-        'background-color': '#169b62',
-        'border-color': '#76d3ac',
+        'background-color': themeColors.success,
+        'border-color': themeColors.success,
       },
     },
     {
       selector: 'node[role = "relayLeader"]',
       style: {
         'shape': 'hexagon',
-        'background-color': '#e0a100',
-        'border-color': '#ffe18c',
-        'color': '#1f2128',
+        'background-color': themeColors.warning,
+        'border-color': themeColors.warning,
+        'color': themeColors.text,
       },
     },
     {
       selector: 'node[warningState = "attention"]',
       style: {
         'border-width': 4,
-        'border-color': '#ff866b',
+        'border-color': themeColors.danger,
       },
     },
     {
@@ -166,8 +176,8 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
       style: {
         'curve-style': 'bezier',
         'width': 3,
-        'line-color': '#77849b',
-        'target-arrow-color': '#77849b',
+        'line-color': themeColors.muted,
+        'target-arrow-color': themeColors.muted,
         'target-arrow-shape': 'triangle',
         'arrow-scale': 1.1,
       },
@@ -176,8 +186,8 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
       selector: 'edge[frame = "body"]',
       style: {
         'line-style': 'dashed',
-        'line-color': '#ff9f43',
-        'target-arrow-color': '#ff9f43',
+        'line-color': themeColors.warning,
+        'target-arrow-color': themeColors.warning,
       },
     },
     {
@@ -186,28 +196,28 @@ function DroneGraph({ swarmData, selectedDroneId, onSelectDrone }) {
         'width': 92,
         'height': 92,
         'border-width': 6,
-        'border-color': '#00d4ff',
-        'overlay-color': '#00d4ff',
+        'border-color': themeColors.primary,
+        'overlay-color': themeColors.primary,
         'overlay-opacity': 0.08,
       },
     },
     {
       selector: 'node.is-upstream, edge.is-upstream',
       style: {
-        'background-color': '#5cc7ff',
-        'border-color': '#9de0ff',
-        'line-color': '#5cc7ff',
-        'target-arrow-color': '#5cc7ff',
+        'background-color': themeColors.primary,
+        'border-color': themeColors.primaryHover,
+        'line-color': themeColors.primary,
+        'target-arrow-color': themeColors.primary,
         'opacity': 1,
       },
     },
     {
       selector: 'node.is-downstream, edge.is-downstream',
       style: {
-        'background-color': '#8abfff',
-        'border-color': '#cfe5ff',
-        'line-color': '#8abfff',
-        'target-arrow-color': '#8abfff',
+        'background-color': themeColors.primaryHover,
+        'border-color': themeColors.primaryHover,
+        'line-color': themeColors.primaryHover,
+        'target-arrow-color': themeColors.primaryHover,
         'opacity': 1,
       },
     },

@@ -1,16 +1,15 @@
 // src/components/CommandSender.js
 
 import React, { useMemo, useRef, useState } from 'react';
-import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import MissionTrigger from './MissionTrigger';
 import DroneActions from './DroneActions';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
 import CommandPreflightSummary from './CommandPreflightSummary';
 import ClusterScopeBar from './ClusterScopeBar';
+import { ConfirmDialog } from './ui';
 import { toast } from 'react-toastify';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRocket, faCog, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { FaChevronDown, FaCog, FaRocket } from 'react-icons/fa';
 import {
   DRONE_MISSION_TYPES,
   DRONE_ACTION_TYPES,
@@ -418,6 +417,20 @@ const CommandSender = ({
     ));
   };
 
+  const renderConfirmationMessage = () => (
+    <div className="command-confirmation">
+      <p>{confirmationMessage}</p>
+      <p className="command-confirmation-target-note">
+        {currentCommandData?.uiMeta?.targetDescriptor || targetDescriptor}
+      </p>
+      {currentCommandData && (
+        <div className="command-confirmation-details">
+          {renderConfirmationDetails()}
+        </div>
+      )}
+    </div>
+  );
+
   // Handle new command from child components (MissionTrigger/DroneActions)
   const handleSendCommand = (commandData) => {
     const preparedCommand = prepareCommandForDispatch(commandData);
@@ -716,8 +729,7 @@ const CommandSender = ({
                 <span>{recentCommandMonitors.length} stored</span>
               </div>
               <span className="command-monitor-history__toggle" aria-hidden="true">
-                <FontAwesomeIcon
-                  icon={faChevronDown}
+                <FaChevronDown
                   className={`command-monitor-history__toggle-icon ${historyExpanded ? 'is-open' : ''}`}
                 />
               </span>
@@ -780,8 +792,7 @@ const CommandSender = ({
           <h2 className="command-sender-header">Command Control</h2>
         </div>
         <span className="command-sender-header-toggle" aria-hidden="true">
-          <FontAwesomeIcon
-            icon={faChevronDown}
+          <FaChevronDown
             className={`command-sender-header-toggle-icon ${panelExpanded ? 'is-open' : ''}`}
           />
         </span>
@@ -860,27 +871,31 @@ const CommandSender = ({
         </section>
       )}
 
-      <div className="command-tabs">
+      <div className="command-tabs" aria-label="Command dispatch type">
         <button
+          type="button"
+          aria-pressed={activeTab === 'missionTrigger'}
+          aria-controls="command-tab-panel"
           className={`command-tab ${activeTab === 'missionTrigger' ? 'active' : ''}`}
           onClick={() => setActiveTab('missionTrigger')}
-          title="Mission Trigger - Schedule and execute complex mission operations"
         >
-          <FontAwesomeIcon icon={faRocket} className="command-tab__icon" />
+          <FaRocket className="command-tab__icon" />
           <span className="command-tab__text">Mission Trigger</span>
         </button>
         <button
+          type="button"
+          aria-pressed={activeTab === 'actions'}
+          aria-controls="command-tab-panel"
           className={`command-tab ${activeTab === 'actions' ? 'active' : ''}`}
           onClick={() => setActiveTab('actions')}
-          title="Actions - Execute immediate flight control and system commands"
         >
-          <FontAwesomeIcon icon={faCog} className="command-tab__icon" />
+          <FaCog className="command-tab__icon" />
           <span className="command-tab__text">Actions</span>
         </button>
       </div>
 
       {/* Tab Content */}
-      <div className="tab-content">
+      <div className="tab-content" id="command-tab-panel">
         {activeTab === 'missionTrigger' && (
           <MissionTrigger
             missionTypes={DRONE_MISSION_TYPES}
@@ -923,32 +938,16 @@ const CommandSender = ({
         onSubmitHold={handleSubmitPrecisionMoveHold}
       />
 
-      {/* Confirmation Modal - Rendered via Portal for proper viewport centering */}
-      {modalOpen && ReactDOM.createPortal(
-        <div className="modal-overlay" onClick={handleCancelSendCommand}>
-          <div className="modal-content" onClick={(event) => event.stopPropagation()}>
-            <h3>Confirm Command</h3>
-            <p>{confirmationMessage}</p>
-            <p className="command-confirmation-target-note">
-              {currentCommandData?.uiMeta?.targetDescriptor || targetDescriptor}
-            </p>
-            {currentCommandData && (
-              <div className="command-confirmation-details">
-                {renderConfirmationDetails()}
-              </div>
-            )}
-            <div className="modal-actions">
-              <button className="confirm-button" onClick={handleConfirmSendCommand}>
-                Yes
-              </button>
-              <button className="cancel-button" onClick={handleCancelSendCommand}>
-                No
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+      <ConfirmDialog
+        open={modalOpen}
+        title="Confirm Command"
+        message={renderConfirmationMessage()}
+        confirmLabel="Yes"
+        cancelLabel="No"
+        busy={loading}
+        onConfirm={handleConfirmSendCommand}
+        onCancel={handleCancelSendCommand}
+      />
 
       {/* Loading Spinner */}
       {loading && (

@@ -43,7 +43,7 @@ const MissionRecoveryPanel = ({
     <div className="qs-config-section">
       <div className="qs-recovery-header">
         <div>
-          <div className="qs-config-title" style={{ marginBottom: 4 }}>
+          <div className="qs-config-title qs-config-title--tight">
             Mission Workspace
           </div>
           <div className="qs-recovery-subtitle">
@@ -81,7 +81,7 @@ const MissionRecoveryPanel = ({
               >
                 <div className="qs-mission-card-header">
                   <div className="qs-mission-name-row">
-                    <span className="qs-mission-name" title={mission.mission_id}>
+                    <span className="qs-mission-name" aria-label={mission.mission_id}>
                       {getMissionDisplayName(mission)}
                     </span>
                     <span className={`qs-state-badge ${mission.state}`}>

@@ -18,6 +18,7 @@ class Px4ParamMetadataSource(str, Enum):
     VEHICLE = "vehicle"
     COMPONENT_INFORMATION = "component_information"
     PX4_BUILD_CATALOG = "px4_build_catalog"
+    PX4_DOCS_CACHE = "px4_docs_cache"
     PX4_DOCS = "px4_docs"
     UNKNOWN = "unknown"
 
@@ -177,6 +178,14 @@ class Px4ParamSnapshotSummary(BaseModel):
     total_params: int
     created_at: int
     stale_after_ms: int
+    metadata_quality: str = Field(
+        "raw_values_only",
+        description="Operator-facing metadata quality: rich, catalog, component_information, or raw_values_only",
+    )
+    metadata_sources: List[Px4ParamMetadataSource] = Field(default_factory=list)
+    metadata_warning: Optional[str] = None
+    metadata_catalog_available: bool = False
+    component_information_available: bool = False
 
 
 class Px4ParamSnapshotResponse(BaseModel):

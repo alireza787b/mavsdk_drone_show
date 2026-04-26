@@ -2,14 +2,13 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faCheckCircle,
-  faTimesCircle,
-  faExclamationTriangle,
-  faExchangeAlt,
-  faInfoCircle
-} from '@fortawesome/free-solid-svg-icons';
+  FaCheckCircle,
+  FaExchangeAlt,
+  FaExclamationTriangle,
+  FaInfoCircle,
+  FaTimesCircle,
+} from 'react-icons/fa';
 import '../styles/SaveReviewDialog.css';
 import { formatDroneLabel, formatShowSlotLabel } from '../utilities/missionIdentityUtils';
 
@@ -65,13 +64,13 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         aria-labelledby="save-review-dialog-title"
       >
         <h3 id="save-review-dialog-title">
-          <FontAwesomeIcon icon={faInfoCircle} /> Review Configuration Changes
+          <FaInfoCircle /> Review Configuration Changes
         </h3>
 
         {hasDuplicateHardwareIds && (
           <div className="review-section error-section">
             <h4>
-              <FontAwesomeIcon icon={faTimesCircle} /> Duplicate Hardware IDs
+              <FaTimesCircle /> Duplicate Hardware IDs
             </h4>
             <p className="error-text">
               Cannot save: each physical drone must have one unique Hardware ID.
@@ -90,7 +89,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {hasMissingTrajectories && (
           <div className="review-section error-section">
             <h4>
-              <FontAwesomeIcon icon={faTimesCircle} /> Missing Trajectory Files
+              <FaTimesCircle /> Missing Trajectory Files
             </h4>
             <p className="error-text">
               Cannot save: the following drones have show slots without corresponding trajectory files:
@@ -112,7 +111,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {hasDuplicates && (
           <div className="review-section warning-section">
             <h4>
-              <FontAwesomeIcon icon={faExclamationTriangle} /> Collision Risk: Duplicate Show Slots
+              <FaExclamationTriangle /> Collision Risk: Duplicate Show Slots
             </h4>
             <p className="warning-text">
               Multiple drones are assigned the same show slot. They will fly identical trajectories and collide.
@@ -142,7 +141,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {hasRoleSwaps && (
           <div className="review-section info-section">
             <h4>
-              <FontAwesomeIcon icon={faExchangeAlt} /> Active Role Swaps
+              <FaExchangeAlt /> Active Role Swaps
             </h4>
             <p>The following drones will fly a different show slot than their own:</p>
             <ul className="info-list">
@@ -153,7 +152,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
               ))}
             </ul>
             <p className="info-hint">
-              <FontAwesomeIcon icon={faInfoCircle} />
+              <FaInfoCircle />
               {' '}Use slot edits only for role ownership inside the current fleet. If a different spare airframe is taking over a failed slot, use Fleet Enrollment → Replace existing slot instead. Smart Swarm follow-links remain hardware-based.
             </p>
           </div>
@@ -164,11 +163,11 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
           <div className="review-section changes-section">
             <h4>Show Slot Changes ({changes.pos_id_changes.length})</h4>
             <p className="info-hint">
-              <FontAwesomeIcon icon={faInfoCircle} />
+              <FaInfoCircle />
               {' '}Trajectory positions come from the assigned show slot CSV file (single source of truth)
             </p>
             <p className="info-hint">
-              <FontAwesomeIcon icon={faInfoCircle} />
+              <FaInfoCircle />
               {' '}These changes swap mission slots only. They do not replace fleet hardware and they do not rewrite Smart Swarm follow-links.
             </p>
             <table className="changes-table">
@@ -198,7 +197,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
         {!hasChanges && (
           <div className="review-section info-section">
             <p>
-              <FontAwesomeIcon icon={faInfoCircle} /> No changes detected. Configuration is already up to date.
+              <FaInfoCircle /> No changes detected. Configuration is already up to date.
             </p>
           </div>
         )}
@@ -209,12 +208,12 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
           {' '}{summary.pos_id_changes_count} show slot changes
           {summary.duplicate_hw_ids_count > 0 && (
             <span className="summary-warning">
-              , <FontAwesomeIcon icon={faTimesCircle} /> {summary.duplicate_hw_ids_count} duplicate hardware IDs
+              , <FaTimesCircle /> {summary.duplicate_hw_ids_count} duplicate hardware IDs
             </span>
           )}
           {summary.duplicates_count > 0 && (
             <span className="summary-warning">
-              , <FontAwesomeIcon icon={faExclamationTriangle} /> {summary.duplicates_count} duplicate slots
+              , <FaExclamationTriangle /> {summary.duplicates_count} duplicate slots
             </span>
           )}
         </div>
@@ -226,7 +225,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
             onClick={handleCancel}
             aria-label="Cancel"
           >
-            <FontAwesomeIcon icon={faTimesCircle} /> Cancel
+            <FaTimesCircle /> Cancel
           </button>
           <button
             className={`confirm-button ${!canConfirm ? 'disabled' : ''}`}
@@ -243,7 +242,7 @@ const SaveReviewDialog = ({ isOpen, validationReport, onConfirm, onCancel }) => 
                   : "Save configuration"
             }
           >
-            <FontAwesomeIcon icon={faCheckCircle} />
+            <FaCheckCircle />
             {hasDuplicateHardwareIds || hasMissingTrajectories ? 'Cannot Save' : 'Confirm & Save'}
           </button>
         </div>

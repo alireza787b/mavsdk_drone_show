@@ -51,6 +51,80 @@ const formatParameterRange = (row) => {
   return `≤ ${formatParameterValue(row.max_value, row)}`;
 };
 
+const normalizeDescriptionText = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+const normalizeComparableDescription = (value) => normalizeDescriptionText(value)
+  .replace(/[\s.。:;,!?()[\]{}"'`´\-\u2013\u2014]+$/g, '')
+  .toLocaleLowerCase();
+
+const stripLeadingDuplicateSummary = (summary, detail) => {
+  const normalizedSummary = normalizeComparableDescription(summary);
+  let remaining = normalizeDescriptionText(detail);
+
+  if (!normalizedSummary || !remaining) {
+    return remaining;
+  }
+
+  while (remaining) {
+    const sentenceMatch = remaining.match(/^(.+?[.!?。])(?:\s+|$)/);
+    const firstSentence = sentenceMatch?.[1] || '';
+    if (!firstSentence || normalizeComparableDescription(firstSentence) !== normalizedSummary) {
+      break;
+    }
+    remaining = remaining.slice(sentenceMatch[0].length).trim();
+  }
+
+  const normalizedRemaining = normalizeComparableDescription(remaining);
+  if (!remaining || normalizedRemaining === normalizedSummary) {
+    return '';
+  }
+
+  if (normalizedRemaining.startsWith(normalizedSummary)) {
+    return remaining
+      .slice(summary.length)
+      .replace(/^[\s.。:;,\-–—!?]+/, '')
+      .trim();
+  }
+
+  return remaining;
+};
+
+export const buildParameterDescriptions = (row) => {
+  const shortDescription = normalizeDescriptionText(row?.short_description);
+  const rawLongDescription = normalizeDescriptionText(row?.long_description);
+
+  if (!shortDescription) {
+    return {
+      shortDescription: '',
+      longDescription: rawLongDescription,
+    };
+  }
+
+  if (!rawLongDescription) {
+    return {
+      shortDescription,
+      longDescription: '',
+    };
+  }
+
+  const normalizedShort = shortDescription.toLocaleLowerCase();
+  const normalizedLong = rawLongDescription.toLocaleLowerCase();
+
+  if (normalizedLong === normalizedShort) {
+    return {
+      shortDescription,
+      longDescription: '',
+    };
+  }
+
+  const strippedLongDescription = stripLeadingDuplicateSummary(shortDescription, rawLongDescription);
+
+  return {
+    shortDescription,
+    longDescription: strippedLongDescription,
+  };
+};
+
 const Px4ParamInspector = ({
   row,
   draftValue,
@@ -76,6 +150,7 @@ const Px4ParamInspector = ({
   const inputStep = row.value_type === 'int' ? '1' : 'any';
   const saveDisabled = saving || Boolean(writeBlockedReason);
   const hasDefault = row.default_value !== null && row.default_value !== undefined;
+  const { shortDescription, longDescription } = buildParameterDescriptions(row);
 
   return (
     <aside className="px4-param-inspector">
@@ -97,14 +172,14 @@ const Px4ParamInspector = ({
         ) : null}
       </header>
 
-      {(row.short_description || row.long_description) ? (
+      {(shortDescription || longDescription) ? (
         <section className="px4-param-inspector__section">
           <span className="px4-param-inspector__section-label">Description</span>
-          {row.short_description ? (
-            <p className="px4-param-inspector__summary">{row.short_description}</p>
+          {shortDescription ? (
+            <p className="px4-param-inspector__summary">{shortDescription}</p>
           ) : null}
-          {row.long_description ? (
-            <p className="px4-param-inspector__detail">{row.long_description}</p>
+          {longDescription ? (
+            <p className="px4-param-inspector__detail">{longDescription}</p>
           ) : null}
         </section>
       ) : null}

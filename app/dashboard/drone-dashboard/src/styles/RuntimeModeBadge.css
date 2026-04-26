@@ -17,9 +17,9 @@
 }
 
 .runtime-mode-badge--real {
-  background: rgba(18, 124, 93, 0.14);
-  border-color: rgba(18, 124, 93, 0.35);
-  color: #0e7d5d;
+  background: var(--color-success-light);
+  border-color: var(--color-success-border);
+  color: var(--color-success);
 }
 
 .runtime-mode-badge--sitl {
@@ -29,9 +29,9 @@
 }
 
 .runtime-mode-badge--unknown {
-  background: rgba(176, 138, 43, 0.12);
-  border-color: rgba(176, 138, 43, 0.28);
-  color: #8a6d1d;
+  background: var(--color-warning-light);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning);
 }
 
 .runtime-mode-badge--compact {
@@ -41,7 +41,7 @@
 }
 
 .runtime-mode-badge--restart-required {
-  box-shadow: inset 0 0 0 1px rgba(193, 83, 35, 0.2);
+  box-shadow: inset 0 0 0 1px var(--color-warning-border);
 }
 
 .runtime-mode-badge__label {
@@ -50,5 +50,5 @@
 
 .runtime-mode-badge__warning {
   font-size: 0.72em;
-  color: #c15323;
+  color: var(--color-warning);
 }

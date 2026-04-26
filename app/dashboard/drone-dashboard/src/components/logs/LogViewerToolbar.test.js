@@ -36,8 +36,8 @@ describe('LogViewerToolbar', () => {
 
   test('renders Ops and Dev mode buttons', () => {
     render(<LogViewerToolbar {...defaultProps} />);
-    expect(screen.getByText('Ops')).toBeInTheDocument();
-    expect(screen.getByText('Dev')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /ops/i })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /dev/i })).toHaveAttribute('aria-pressed', 'false');
   });
 
   test('clicking Dev button calls onModeChange', () => {
@@ -74,7 +74,7 @@ describe('LogViewerToolbar', () => {
 
   test('hides live buffer clear button for historical sessions', () => {
     render(<LogViewerToolbar {...defaultProps} selectedSession="s_20260320_072832" />);
-    expect(screen.queryByTitle('Clear live buffer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /clear live log buffer/i })).not.toBeInTheDocument();
   });
 
   test('shows onboard ULog button only when a drone scope is selected', () => {

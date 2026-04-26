@@ -97,6 +97,30 @@
   color: var(--color-text-primary);
 }
 
+.px4-inline-notice__header {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: space-between;
+}
+
+.px4-metadata-details {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.px4-metadata-details summary {
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.px4-metadata-details span {
+  display: block;
+  margin-top: var(--spacing-xs);
+}
+
 .px4-inline-notice__spinner {
   width: 12px;
   height: 12px;
@@ -735,7 +759,7 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 2;
+  z-index: var(--z-local-raised);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -782,12 +806,12 @@
 .px4-inspector-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1600;
+  z-index: var(--z-modal-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--spacing-sm);
-  background: rgba(7, 13, 24, 0.66);
+  background: var(--color-overlay);
   backdrop-filter: blur(6px);
   animation: px4-dialog-fade 140ms ease-out;
 }
@@ -806,7 +830,7 @@
 .px4-inspector-dialog__header {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-local-base);
   display: flex;
   justify-content: space-between;
   align-items: flex-start;

@@ -3,6 +3,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
+  MdCalendarToday,
+  MdExplore,
+  MdPlace,
+  MdTerrain,
+  MdTimer,
+  MdWarningAmber,
+} from 'react-icons/md';
+import {
   ALTITUDE_REFERENCE,
   calculateSpeed, 
   getSpeedStatus, 
@@ -437,15 +445,6 @@ const WaypointModal = ({
     }
   };
 
-  const getSpeedStatusStyle = (status) => {
-    switch (status) {
-      case 'feasible': return { color: '#28a745', backgroundColor: '#d4edda' };
-      case 'marginal': return { color: '#ffc107', backgroundColor: '#fff3cd' };
-      case 'impossible': return { color: '#dc3545', backgroundColor: '#f8d7da' };
-      default: return { color: '#6c757d', backgroundColor: '#e9ecef' };
-    }
-  };
-
   const isUnderground = altitude < groundElevation;
   const aglAltitude = Math.max(0, altitude - groundElevation);
   const needsTerrainReview = terrainResolved && needsTerrainSafetyAdjustment(altitude, groundElevation);
@@ -489,7 +488,10 @@ const WaypointModal = ({
         <div className="waypoint-modal-body">
           <div className="waypoint-location-info">
             <div className="location-item">
-              <label>📍 Coordinates</label>
+              <label className="input-label--with-icon">
+                <MdPlace aria-hidden="true" />
+                <span>Coordinates</span>
+              </label>
               <span>{position?.latitude?.toFixed(6)}, {position?.longitude?.toFixed(6)}</span>
             </div>
             
@@ -549,7 +551,10 @@ const WaypointModal = ({
             )}
 
             <div className="timing-mode-selector">
-              <label className="input-label">🏔️ Altitude Entry</label>
+              <label className="input-label input-label--with-icon">
+                <MdTerrain aria-hidden="true" />
+                <span>Altitude Entry</span>
+              </label>
               <div className="radio-group">
                 <label
                   className="radio-option"
@@ -579,8 +584,9 @@ const WaypointModal = ({
             </div>
 
             <div className="altitude-input-group">
-              <label htmlFor="altitude" className="input-label">
-                {altitudeReference === ALTITUDE_REFERENCE.AGL ? '🏔️ Target Clearance (AGL)' : '🏔️ Altitude (MSL)'}
+              <label htmlFor="altitude" className="input-label input-label--with-icon">
+                <MdTerrain aria-hidden="true" />
+                <span>{altitudeReference === ALTITUDE_REFERENCE.AGL ? 'Target Clearance (AGL)' : 'Altitude (MSL)'}</span>
                 {isLoadingTerrain && <span className="loading-indicator"> ⟳</span>}
               </label>
               <input
@@ -650,7 +656,10 @@ const WaypointModal = ({
           <div className="time-input-group">
             {previousWaypoint && (
               <div className="timing-mode-selector">
-                <label className="input-label">🗓️ Leg Planning</label>
+                <label className="input-label input-label--with-icon">
+                  <MdCalendarToday aria-hidden="true" />
+                  <span>Leg Planning</span>
+                </label>
                 <div className="radio-group">
                   <label
                     className="radio-option"
@@ -702,11 +711,14 @@ const WaypointModal = ({
               </div>
             )}
 
-            <label htmlFor="timeFromStart" className="input-label">
-              {`⏱️ ${getTrajectoryDisplayedTimeFieldLabel({
-                isMissionAnchor: !previousWaypoint,
-                timingMode,
-              })}`}
+            <label htmlFor="timeFromStart" className="input-label input-label--with-icon">
+              <MdTimer aria-hidden="true" />
+              <span>
+                {getTrajectoryDisplayedTimeFieldLabel({
+                  isMissionAnchor: !previousWaypoint,
+                  timingMode,
+                })}
+              </span>
             </label>
             <input
               id="timeFromStart"
@@ -752,11 +764,14 @@ const WaypointModal = ({
 
           <div className="heading-section">
             <div className="heading-input-group">
-              <label htmlFor="heading" className="input-label">
-                {`🧭 ${getTrajectoryDisplayedHeadingFieldLabel({
-                  isMissionAnchor: !previousWaypoint,
-                  headingMode,
-                })}`}
+              <label htmlFor="heading" className="input-label input-label--with-icon">
+                <MdExplore aria-hidden="true" />
+                <span>
+                  {getTrajectoryDisplayedHeadingFieldLabel({
+                    isMissionAnchor: !previousWaypoint,
+                    headingMode,
+                  })}
+                </span>
                 <span className="heading-display">({formatHeading(heading)})</span>
               </label>
               
@@ -837,7 +852,7 @@ const WaypointModal = ({
 
           {previousWaypoint && (
             <div className="speed-section">
-              <div className="speed-display" style={getSpeedStatusStyle(speedStatus)}>
+              <div className={`speed-display speed-display--${speedStatus || 'unknown'}`}>
                 <div className="speed-header">
                   <span className="speed-label">
                     {timingMode === TIMING_MODES.AUTO_SPEED
@@ -849,7 +864,8 @@ const WaypointModal = ({
                 </div>
                 {speedStatus !== 'feasible' && (
                   <div className="speed-warning">
-                    {speedStatus === 'marginal' ? '⚠️ High speed - use caution' : '🚨 Very high speed - review timing'}
+                    <MdWarningAmber aria-hidden="true" />
+                    <span>{speedStatus === 'marginal' ? 'High speed - use caution' : 'Very high speed - review timing'}</span>
                   </div>
                 )}
                 <small className="speed-note">

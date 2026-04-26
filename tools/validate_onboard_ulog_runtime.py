@@ -52,7 +52,7 @@ def log(message: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030")
     parser.add_argument("--drone-ids", nargs="+", type=int)
     parser.add_argument("--drones")
     parser.add_argument("--takeoff-min-gain", type=float, default=4.0)

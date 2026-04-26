@@ -5,7 +5,7 @@ jest.mock('./gcsApiService', () => ({
       fleetCandidates: '/api/v1/fleet/candidates',
     };
     const resolved = routeMap[routeOrPath] || routeOrPath;
-    return `http://gcs.test:5000${resolved}`;
+    return `http://gcs.test:5030${resolved}`;
   }),
   GCS_ROUTE_KEYS: {
     fleetCandidates: 'fleetCandidates',
@@ -27,9 +27,9 @@ describe('fleetEnrollmentApiService', () => {
   });
 
   it('builds canonical candidate urls', () => {
-    expect(service.buildFleetCandidateUrl()).toBe('http://gcs.test:5000/api/v1/fleet/candidates');
-    expect(service.buildFleetCandidateUrl('node/12')).toBe('http://gcs.test:5000/api/v1/fleet/candidates/node%2F12');
-    expect(service.buildFleetCandidateUrl('node/12', '/recover')).toBe('http://gcs.test:5000/api/v1/fleet/candidates/node%2F12/recover');
+    expect(service.buildFleetCandidateUrl()).toBe('http://gcs.test:5030/api/v1/fleet/candidates');
+    expect(service.buildFleetCandidateUrl('node/12')).toBe('http://gcs.test:5030/api/v1/fleet/candidates/node%2F12');
+    expect(service.buildFleetCandidateUrl('node/12', '/recover')).toBe('http://gcs.test:5030/api/v1/fleet/candidates/node%2F12/recover');
   });
 
   it('lists and fetches candidates through the canonical registry routes', async () => {
@@ -40,12 +40,12 @@ describe('fleetEnrollmentApiService', () => {
 
     expect(axios.get).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5000/api/v1/fleet/candidates',
+      'http://gcs.test:5030/api/v1/fleet/candidates',
       { params: { include_inactive: 'true' } },
     );
     expect(axios.get).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5000/api/v1/fleet/candidates/hw-101',
+      'http://gcs.test:5030/api/v1/fleet/candidates/hw-101',
     );
   });
 
@@ -58,19 +58,19 @@ describe('fleetEnrollmentApiService', () => {
 
     expect(axios.post).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5000/api/v1/fleet/candidates/hw-101/accept',
+      'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/accept',
       { pos_id: 12, mavlink_port: 14550 },
       { params: { commit: 'true' } },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5000/api/v1/fleet/candidates/hw-101/replace',
+      'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/replace',
       { target_hw_id: 12 },
       { params: { commit: 'false' } },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       3,
-      'http://gcs.test:5000/api/v1/fleet/candidates/node-12b/recover',
+      'http://gcs.test:5030/api/v1/fleet/candidates/node-12b/recover',
       { mavlink_port: 14620 },
       { params: { commit: 'true' } },
     );
@@ -85,17 +85,17 @@ describe('fleetEnrollmentApiService', () => {
 
     expect(axios.post).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5000/api/v1/fleet/candidates/announce',
+      'http://gcs.test:5030/api/v1/fleet/candidates/announce',
       { hw_id: '101' },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5000/api/v1/fleet/candidates/hw-101/reject',
+      'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/reject',
       { reason: 'duplicate' },
     );
     expect(axios.post).toHaveBeenNthCalledWith(
       3,
-      'http://gcs.test:5000/api/v1/fleet/candidates/hw-101/ignore',
+      'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/ignore',
       { reason: 'bench spare' },
     );
   });

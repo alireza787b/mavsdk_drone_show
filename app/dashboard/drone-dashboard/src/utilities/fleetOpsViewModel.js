@@ -53,6 +53,30 @@ export function compactHash(hash) {
   return value.slice(0, 12);
 }
 
+export function buildGitHubDocsUrl(remoteUrl, branch, docPath) {
+  const normalized = String(remoteUrl || '').trim().replace(/\.git$/, '');
+  const safeBranch = String(branch || 'main').trim() || 'main';
+  const safeDocPath = String(docPath || '').replace(/^\/+/, '');
+  if (!safeDocPath) {
+    return null;
+  }
+
+  let match = normalized.match(/^https:\/\/github\.com\/([^/]+)\/(.+)$/i);
+  if (!match) {
+    match = normalized.match(/^git@github\.com:([^/]+)\/(.+)$/i);
+  }
+  if (!match) {
+    match = normalized.match(/^ssh:\/\/git@github\.com\/([^/]+)\/(.+)$/i);
+  }
+  if (!match) {
+    return null;
+  }
+
+  const owner = match[1];
+  const repo = match[2].replace(/\.git$/, '');
+  return `https://github.com/${owner}/${repo}/blob/${safeBranch}/${safeDocPath}`;
+}
+
 function formatHashMatch(runtime) {
   if (!runtime || runtime.config_hash_match === null || runtime.config_hash_match === undefined) {
     return 'hash unknown';
@@ -85,6 +109,58 @@ function classifyRuntimeStepTone(value) {
     return 'good';
   }
   return classifyTone(value);
+}
+
+export function classifyNodePresence(heartbeat, payloadTimestamp) {
+  if (!heartbeat) {
+    return {
+      state: 'never_seen',
+      label: 'Never seen',
+      tone: 'muted',
+      detail: 'Configured node has not reported a heartbeat in this GCS session.',
+    };
+  }
+
+  const nowMs = Number(payloadTimestamp || Date.now());
+  const lastHeartbeatMs = Number(heartbeat.last_heartbeat || heartbeat.timestamp || 0);
+  const ageSec = lastHeartbeatMs > 0 && Number.isFinite(nowMs)
+    ? Math.max(0, Math.round((nowMs - lastHeartbeatMs) / 1000))
+    : null;
+  const runtimeMode = normalizeRuntimeMode(heartbeat.runtime_mode);
+
+  if (heartbeat.online) {
+    return {
+      state: 'ready',
+      label: 'Live',
+      tone: 'good',
+      detail: ageSec === null ? 'Heartbeat is active.' : `Heartbeat age ${ageSec}s.`,
+    };
+  }
+
+  if (lastHeartbeatMs > 0 && ageSec !== null && ageSec <= 30) {
+    return {
+      state: 'recently_lost',
+      label: 'Recent loss',
+      tone: 'warning',
+      detail: `Last heartbeat ${ageSec}s ago; monitor for recovery or flapping.`,
+    };
+  }
+
+  if (runtimeMode && runtimeMode !== 'unknown') {
+    return {
+      state: 'offline',
+      label: 'Offline',
+      tone: 'danger',
+      detail: ageSec === null ? 'Node heartbeat is stale.' : `Last heartbeat ${ageSec}s ago.`,
+    };
+  }
+
+  return {
+    state: 'unknown',
+    label: 'Unknown',
+    tone: 'warning',
+    detail: 'Heartbeat status is incomplete; verify node runtime and mode declaration.',
+  };
 }
 
 function isAttentionTone(tone) {
@@ -254,9 +330,9 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
   if (backend === 'none') {
     return {
       state: 'not_applicable',
-      label: 'Not used',
+      label: 'Unmanaged',
       tone: 'muted',
-      detail: 'Fleet policy does not require a connectivity sidecar on this node.',
+      detail: 'MDS is not managing Wi-Fi on this node; network telemetry is still reported separately.',
     };
   }
 
@@ -299,10 +375,11 @@ function normalizeHeartbeatMap(heartbeatPayload) {
   return { heartbeats, byKey };
 }
 
-function makeRow(gitKey, gitStatus, heartbeat, gcsStatus) {
+function makeRow(gitKey, gitStatus, heartbeat, gcsStatus, payloadTimestamp) {
   const posId = gitStatus?.pos_id ?? heartbeat?.pos_id ?? gitKey;
   const hwId = gitStatus?.hw_id ?? heartbeat?.hw_id ?? gitKey;
   const runtimeMode = normalizeRuntimeMode(heartbeat?.runtime_mode || gitStatus?.runtime_mode);
+  const presence = classifyNodePresence(heartbeat, payloadTimestamp);
   const sync = classifyGitSync(gitStatus, gcsStatus);
   const auth = classifyGitAuth(gitStatus);
   const nodeSyncRuntime = classifyGitSyncRuntime(gitStatus?.git_sync_runtime);
@@ -318,6 +395,7 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus) {
     online,
     runtimeMode,
     runtimeModeLabel: formatRuntimeMode(runtimeMode),
+    presence,
     branch: gitStatus?.branch || 'unknown',
     commit: gitStatus?.commit || '',
     shortCommit: compactCommit(gitStatus?.commit),
@@ -347,6 +425,9 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
     ? gitPayload.git_status
     : {};
   const gcsStatus = gitPayload?.gcs_status || {};
+  const docs = {
+    fleetOps: buildGitHubDocsUrl(gcsStatus.remote_url, gcsStatus.branch, 'docs/guides/fleet-ops.md'),
+  };
   const { heartbeats, byKey: heartbeatByKey } = normalizeHeartbeatMap(heartbeatPayload);
   const rows = [];
   const seen = new Set();
@@ -355,7 +436,7 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
     const heartbeat = heartbeatByKey.get(String(gitStatus?.hw_id || ''))
       || heartbeatByKey.get(String(gitStatus?.pos_id || ''))
       || heartbeatByKey.get(String(key));
-    const row = makeRow(key, gitStatus, heartbeat, gcsStatus);
+    const row = makeRow(key, gitStatus, heartbeat, gcsStatus, heartbeatPayload?.timestamp);
     rows.push(row);
     seen.add(row.key);
   });
@@ -363,7 +444,7 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
   heartbeats.forEach((heartbeat) => {
     const key = String(heartbeat.hw_id || heartbeat.pos_id || heartbeat.ip || '');
     if (key && !seen.has(key)) {
-      rows.push(makeRow(key, null, heartbeat, gcsStatus));
+      rows.push(makeRow(key, null, heartbeat, gcsStatus, heartbeatPayload?.timestamp));
       seen.add(key);
     }
   });
@@ -395,6 +476,7 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
     rows,
     summary,
     gcsStatus,
+    docs,
     gitPayload,
     heartbeatPayload,
   };

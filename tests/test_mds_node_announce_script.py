@@ -105,7 +105,7 @@ def test_node_announce_dry_run_writes_report_and_derives_payload(tmp_path):
         "--identity-file",
         str(identity_file),
         "--gcs-api-url",
-        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5030",
         "--dry-run",
         "--report-json",
         str(report_file),
@@ -114,7 +114,7 @@ def test_node_announce_dry_run_writes_report_and_derives_payload(tmp_path):
     assert result.returncode == 0, result.stderr
     report = json.loads(report_file.read_text(encoding="utf-8"))
     assert report["status"] == "dry_run"
-    assert report["gcs_api_url"] == "http://127.0.0.1:5000"
+    assert report["gcs_api_url"] == "http://127.0.0.1:5030"
     assert report["endpoint"].endswith("/api/v1/fleet/candidates/announce")
     assert report["payload"]["node_uuid"] == "node-abc"
     assert report["payload"]["hw_id"] == 12

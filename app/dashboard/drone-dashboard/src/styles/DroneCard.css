@@ -5,7 +5,7 @@
   gap: var(--spacing-base);
   padding: var(--spacing-base);
   border-radius: var(--border-radius-lg);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 100%), var(--color-bg-primary);
+  background: linear-gradient(180deg, var(--color-shadow-light), transparent 100%), var(--color-bg-primary);
   border: 1px solid var(--color-border-primary);
   transition: var(--transition-all);
   box-shadow: var(--shadow-sm);
@@ -17,20 +17,20 @@
 }
 
 .swarm-drone-card.is-selected {
-  border-color: rgba(0, 212, 255, 0.5);
-  box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18), var(--shadow-md);
+  border-color: var(--color-primary-border);
+  box-shadow: 0 0 0 1px var(--color-primary-border), var(--shadow-md);
 }
 
 .swarm-drone-card.has-warnings {
-  border-color: rgba(255, 134, 107, 0.4);
+  border-color: var(--color-danger-border);
 }
 
 .swarm-drone-card.is-dirty {
-  border-color: rgba(23, 162, 184, 0.4);
+  border-color: var(--color-info-border);
 }
 
 .swarm-drone-card:focus-within {
-  outline: 2px solid rgba(0, 212, 255, 0.32);
+  outline: 2px solid var(--color-primary-border);
   outline-offset: 2px;
 }
 
@@ -90,9 +90,9 @@
   align-items: center;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--border-radius-full);
-  background: rgba(58, 188, 255, 0.12);
-  border: 1px solid rgba(58, 188, 255, 0.28);
-  color: #83ecff;
+  background: var(--color-info-light);
+  border: 1px solid var(--color-info-border);
+  color: var(--color-info-text);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   max-width: min(220px, 100%);
@@ -130,39 +130,39 @@
 }
 
 .swarm-role-badge.topLeader {
-  background: rgba(22, 155, 98, 0.16);
-  color: #7de0b7;
-  border: 1px solid rgba(22, 155, 98, 0.32);
+  background: var(--color-success-light);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
 }
 
 .swarm-role-badge.relayLeader {
-  background: rgba(224, 161, 0, 0.16);
-  color: #ffd067;
-  border: 1px solid rgba(224, 161, 0, 0.28);
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
 }
 
 .swarm-role-badge.follower {
-  background: rgba(30, 144, 255, 0.16);
-  color: #9fd0ff;
-  border: 1px solid rgba(30, 144, 255, 0.28);
+  background: var(--color-info-light);
+  color: var(--color-info-text);
+  border: 1px solid var(--color-info-border);
 }
 
 .swarm-status-pill.role-swap {
-  background: rgba(245, 158, 11, 0.14);
-  color: #ffd067;
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
 }
 
 .swarm-status-pill.staged {
   background: var(--color-info-light);
-  color: #83ecff;
+  color: var(--color-info-text);
   border: 1px solid var(--color-info-border);
 }
 
 .swarm-status-pill.attention {
-  background: rgba(255, 134, 107, 0.14);
-  color: #ffbea8;
-  border: 1px solid rgba(255, 134, 107, 0.28);
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
+  border: 1px solid var(--color-danger-border);
 }
 
 .swarm-drone-card__expand-indicator {
@@ -188,7 +188,7 @@
   gap: 4px;
   padding: var(--spacing-sm);
   border-radius: var(--border-radius-base);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--color-shadow-light);
   border: 1px solid var(--color-border-primary);
 }
 
@@ -223,20 +223,20 @@
 }
 
 .swarm-drone-card__warning.error {
-  background: rgba(255, 134, 107, 0.12);
-  color: #ffbea8;
+  background: var(--color-danger-light);
+  color: var(--color-danger-text);
 }
 
 .swarm-drone-card__warning.note {
-  background: rgba(245, 158, 11, 0.12);
-  color: #ffd067;
+  background: var(--color-warning-light);
+  color: var(--color-warning-text);
 }
 
 .swarm-drone-card__editor {
   display: grid;
   gap: var(--spacing-base);
   padding-top: var(--spacing-sm);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--color-shadow-light);
 }
 
 .swarm-drone-card__editor-grid,
@@ -286,7 +286,7 @@
 .swarm-drone-card__field select:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.12);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .swarm-drone-card__field input:disabled,

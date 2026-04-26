@@ -42,7 +42,7 @@ describe('WaypointPanel', () => {
     fireEvent.change(screen.getByPlaceholderText('Altitude MSL (m)'), {
       target: { value: '0' },
     });
-    fireEvent.click(screen.getByTitle('Save (Enter)'));
+    fireEvent.click(screen.getByRole('button', { name: /save edit/i }));
 
     expect(screen.getByText(/altitude must stay between 1 m and 10,000 m msl/i)).toBeInTheDocument();
     expect(props.onUpdateWaypoint).not.toHaveBeenCalled();
@@ -72,7 +72,7 @@ describe('WaypointPanel', () => {
     fireEvent.change(screen.getByPlaceholderText(/preferred speed \(m\/s\)/i), {
       target: { value: '4' },
     });
-    fireEvent.click(screen.getByTitle('Save (Enter)'));
+    fireEvent.click(screen.getByRole('button', { name: /save edit/i }));
 
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       timingMode: TIMING_MODES.AUTO_SPEED,
@@ -105,7 +105,7 @@ describe('WaypointPanel', () => {
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: TIMING_MODES.MANUAL_TIME },
     });
-    fireEvent.click(screen.getByTitle('Save (Enter)'));
+    fireEvent.click(screen.getByRole('button', { name: /save edit/i }));
 
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       timingMode: TIMING_MODES.MANUAL_TIME,
@@ -256,7 +256,7 @@ describe('WaypointPanel', () => {
     fireEvent.change(screen.getByRole('combobox'), {
       target: { value: ALTITUDE_REFERENCE.AGL },
     });
-    fireEvent.click(screen.getByTitle('Save (Enter)'));
+    fireEvent.click(screen.getByRole('button', { name: /save edit/i }));
 
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       altitudeReference: ALTITUDE_REFERENCE.AGL,
@@ -287,7 +287,7 @@ describe('WaypointPanel', () => {
     fireEvent.change(screen.getByPlaceholderText(/target clearance agl \(m\)/i), {
       target: { value: '140' },
     });
-    fireEvent.click(screen.getByTitle('Save (Enter)'));
+    fireEvent.click(screen.getByRole('button', { name: /save edit/i }));
 
     expect(props.onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({
       altitudeReference: ALTITUDE_REFERENCE.AGL,
@@ -369,7 +369,7 @@ describe('WaypointPanel', () => {
     fireEvent.change(screen.getByPlaceholderText('Latitude'), {
       target: { value: '35.7300' },
     });
-    fireEvent.click(screen.getByTitle('Save (Enter)'));
+    fireEvent.click(screen.getByRole('button', { name: /save edit/i }));
 
     expect(screen.getByText(/refreshing terrain and clearance at the new coordinates/i)).toBeInTheDocument();
     expect(onUpdateWaypoint).toHaveBeenCalledWith('wp-2', expect.objectContaining({

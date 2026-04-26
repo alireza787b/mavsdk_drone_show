@@ -1,30 +1,31 @@
 /* src/styles/MapCommon.css */
 /* Shared map styles for dual-provider (Mapbox + Leaflet) system */
+@import './DesignTokens.css';
 
 .mds-map-container {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: var(--border-radius-lg, 8px);
+  border-radius: var(--border-radius-lg);
   overflow: hidden;
-  background: var(--color-bg-secondary, #2a2d3a);
+  background: var(--color-bg-secondary);
 }
 
 .mds-map-container .leaflet-container {
   width: 100%;
   height: 100%;
-  background: var(--color-bg-secondary, #2a2d3a);
+  background: var(--color-bg-secondary);
 }
 
 .mds-map-overlay {
   position: absolute;
-  z-index: 1000;
+  z-index: var(--z-map-overlay);
   pointer-events: auto;
 }
 
 .mds-map-attribution {
   font-size: 10px;
-  color: var(--color-text-tertiary, #6c757d);
+  color: var(--color-text-tertiary);
 }
 
 /* Loading state */
@@ -34,15 +35,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg-overlay, rgba(0, 0, 0, 0.75));
-  z-index: 1001;
+  background: var(--color-bg-overlay);
+  z-index: var(--z-tooltip);
 }
 
 .mds-map-loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid var(--color-border-primary, #3a3f4b);
-  border-top-color: var(--brand-primary, #00d4ff);
+  border: 3px solid var(--color-border-primary);
+  border-top-color: var(--brand-primary);
   border-radius: 50%;
   animation: mds-spin 0.8s linear infinite;
 }
@@ -58,11 +59,11 @@
   justify-content: space-between;
   gap: 12px;
   padding: 8px 16px;
-  background: var(--color-warning-light, rgba(255, 193, 7, 0.15));
-  border: 1px solid var(--status-warning, #ffc107);
-  border-radius: var(--border-radius-md, 6px);
+  background: var(--color-warning-light);
+  border: 1px solid var(--status-warning);
+  border-radius: var(--border-radius-md);
   font-size: 13px;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--color-text-primary);
 }
 
 .mds-map-fallback-banner-text {
@@ -83,13 +84,13 @@
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 4px;
-  color: var(--color-text-secondary, #a2a5b9);
+  color: var(--color-text-secondary);
   text-decoration: none;
 }
 
 .mds-map-fallback-banner-actions a:hover,
 .mds-map-fallback-banner-actions button:hover {
-  background: var(--color-bg-tertiary, #3a3f4b);
+  background: var(--color-bg-tertiary);
 }
 
 /* Provider toggle */
@@ -98,11 +99,11 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: var(--color-bg-tertiary, #3a3f4b);
-  border: 1px solid var(--color-border-primary, #3a3f4b);
-  border-radius: var(--border-radius-md, 6px);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-md);
   font-size: 12px;
-  color: var(--color-text-secondary, #a2a5b9);
+  color: var(--color-text-secondary);
 }
 
 .mds-provider-toggle select {
@@ -116,8 +117,8 @@
 }
 
 .mds-provider-toggle select option {
-  background: var(--color-bg-secondary, #2a2d3a);
-  color: var(--color-text-primary, #ffffff);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 .mds-tile-layer-control {
@@ -127,10 +128,10 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-secondary);
   border-radius: 8px;
-  color: var(--color-text-primary, #ffffff);
+  color: var(--color-text-primary);
   backdrop-filter: blur(10px);
 }
 
@@ -139,7 +140,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--color-text-secondary, #cbd5e1);
+  color: var(--color-text-secondary);
 }
 
 .mds-tile-layer-control select {
@@ -153,11 +154,11 @@
 }
 
 .mds-tile-layer-control select option {
-  background: var(--color-bg-secondary, #2a2d3a);
-  color: var(--color-text-primary, #ffffff);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
 }
 
 /* Leaflet-specific overrides to fix white-on-zoom-out */
 .mds-map-container .leaflet-tile-pane {
-  background: var(--color-bg-secondary, #2a2d3a);
+  background: var(--color-bg-secondary);
 }

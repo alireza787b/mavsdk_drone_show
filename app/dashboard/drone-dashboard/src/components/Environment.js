@@ -17,7 +17,7 @@ const Environment = ({ groundLevel }) => {
         <meshStandardMaterial map={grassTexture} attach="material" side={2} />
       </mesh>
       <ambientLight intensity={0.6} />
-      <hemisphereLight skyColor={'#ffffff'} groundColor={'#000000'} intensity={1} />
+      <hemisphereLight skyColor="white" groundColor="black" intensity={1} />
     </>
   );
 };

@@ -85,8 +85,8 @@
 }
 
 .swarm-transfer-alert--warning {
-  border: 1px solid rgba(245, 158, 11, 0.32);
-  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid var(--color-warning-border);
+  background: var(--color-warning-light);
   color: var(--color-text-primary);
 }
 
@@ -192,7 +192,7 @@
 .swarm-transfer-cluster-card.selected {
   border-color: var(--color-primary);
   background: var(--color-primary-light);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 2px var(--color-info-light);
 }
 
 .swarm-transfer-cluster-card__header {

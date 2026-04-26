@@ -84,6 +84,7 @@
 
 .qs-progress-fill {
     height: 100%;
+    width: var(--qs-progress-percent, 0%);
     background: var(--color-success);
     border-radius: 3px;
     transition: width 0.5s ease;
@@ -109,9 +110,20 @@
 }
 
 .qs-page-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font-size: 16px;
     font-weight: 600;
     color: var(--color-text-primary);
+}
+
+.qs-page-title svg {
+    color: var(--color-primary);
+}
+
+.qs-page-docs {
+    flex: 0 0 auto;
 }
 
 /* === Main Layout === */
@@ -180,6 +192,26 @@
     letter-spacing: 0.5px;
     color: var(--color-text-secondary);
     margin-bottom: 8px;
+}
+
+.qs-config-title--tight {
+    margin-bottom: 4px;
+}
+
+.qs-stack-offset {
+    margin-top: 8px;
+}
+
+.qs-stack-offset-lg {
+    margin-top: 10px;
+}
+
+.qs-stack-tight {
+    margin-top: 6px;
+}
+
+.qs-gap-bottom {
+    margin-bottom: 10px;
 }
 
 .qs-config-row {
@@ -256,6 +288,12 @@
     gap: 4px;
 }
 
+.qs-drone-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
 .qs-drone-item {
     display: flex;
     align-items: center;
@@ -327,7 +365,7 @@
 
 .qs-btn-success {
     background: var(--color-success);
-    color: #fff;
+    color: var(--color-text-primary);
 }
 
 .qs-btn-success:hover:not(:disabled) {
@@ -336,7 +374,7 @@
 
 .qs-btn-warning {
     background: var(--color-warning);
-    color: #000;
+    color: var(--color-text-inverse);
 }
 
 .qs-btn-secondary {
@@ -351,7 +389,7 @@
 
 .qs-btn-danger {
     background: var(--color-danger);
-    color: #fff;
+    color: var(--color-text-primary);
 }
 
 .qs-btn-danger:hover:not(:disabled) {
@@ -392,7 +430,7 @@
 
 .qs-profile-card.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
 }
 
 .qs-profile-label {
@@ -452,7 +490,7 @@
 
 .qs-template-card.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
 }
 
 .qs-template-label {
@@ -468,6 +506,23 @@
 
 .qs-config-input-wide {
     width: 132px;
+}
+
+.qs-terrain-checkbox {
+    accent-color: var(--color-primary);
+}
+
+.qs-sidebar-actions {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.qs-launch-summary {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    text-align: center;
 }
 
 .qs-search-center-marker {
@@ -538,17 +593,17 @@
 }
 
 .qs-launch-review__banner--good {
-    border-color: rgba(46, 204, 113, 0.3);
+    border-color: var(--color-success-border);
     background: color-mix(in srgb, var(--color-success) 12%, var(--color-bg-secondary));
 }
 
 .qs-launch-review__banner--warning {
-    border-color: rgba(245, 166, 35, 0.35);
+    border-color: var(--color-warning-border);
     background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-secondary));
 }
 
 .qs-launch-review__banner--danger {
-    border-color: rgba(255, 107, 107, 0.35);
+    border-color: var(--color-danger-border);
     background: color-mix(in srgb, var(--color-danger) 12%, var(--color-bg-secondary));
 }
 
@@ -626,12 +681,12 @@
 .qs-launch-review__issue-group {
     padding: 10px 12px;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 107, 107, 0.28);
+    border: 1px solid var(--color-danger-border);
     background: color-mix(in srgb, var(--color-danger) 10%, var(--color-bg-secondary));
 }
 
 .qs-launch-review__issue-group--warning {
-    border-color: rgba(245, 166, 35, 0.28);
+    border-color: var(--color-warning-border);
     background: color-mix(in srgb, var(--color-warning) 10%, var(--color-bg-secondary));
 }
 
@@ -662,7 +717,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    z-index: 10;
+    z-index: var(--z-map-overlay);
 }
 
 .qs-action-btn {
@@ -687,7 +742,7 @@
 
 .qs-action-btn.resume { border-color: var(--color-success); color: var(--color-success); }
 .qs-action-btn.pause { border-color: var(--color-warning); color: var(--color-warning); }
-.qs-action-btn.end { border-color: #fd7e14; color: #fd7e14; }
+.qs-action-btn.end { border-color: var(--color-warning); color: var(--color-warning); }
 
 /* === Drone Status Card === */
 .qs-drone-card {
@@ -745,6 +800,7 @@
 
 .qs-drone-card-progress-fill {
     height: 100%;
+    width: var(--qs-drone-progress-percent, 0%);
     background: var(--color-success);
     transition: width 0.3s;
 }
@@ -754,6 +810,10 @@
     justify-content: space-between;
     font-size: 11px;
     color: var(--color-text-secondary);
+}
+
+.qs-drone-card-note {
+    margin-top: 6px;
 }
 
 /* === Findings System === */
@@ -806,7 +866,8 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+    background: var(--qs-finding-priority-color, var(--color-warning));
+    box-shadow: 0 0 0 2px var(--color-surface-raised);
 }
 
 .qs-finding-marker.selected {
@@ -814,7 +875,7 @@
 }
 
 .qs-finding-marker.critical { background: var(--color-danger); }
-.qs-finding-marker.high { background: #fd7e14; }
+.qs-finding-marker.high { background: var(--color-warning); }
 .qs-finding-marker.medium { background: var(--color-warning); }
 .qs-finding-marker.low { background: var(--color-primary); }
 
@@ -938,7 +999,7 @@
     justify-content: center;
     font-size: 9px;
     font-weight: 700;
-    color: #000;
+    color: var(--color-text-inverse);
 }
 
 /* === Mapbox Setup Instructions === */
@@ -1040,12 +1101,12 @@
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 1000;
+    z-index: var(--z-map-overlay);
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--color-overlay);
     border-radius: var(--radius-md);
     backdrop-filter: blur(4px);
     max-width: calc(100% - 120px);
@@ -1055,7 +1116,7 @@
 
 .ldc-instruction-text {
     font-size: 12px;
-    color: #fff;
+    color: var(--color-text-primary);
     white-space: nowrap;
 }
 
@@ -1067,7 +1128,7 @@
 .ldc-action-btn {
     padding: 4px 10px;
     font-size: 12px;
-    color: #fff;
+    color: var(--color-text-primary);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -1079,15 +1140,15 @@
 }
 
 .ldc-action-btn--close {
-    background: #28a745;
+    background: var(--color-success);
 }
 
 .ldc-action-btn--reset {
-    background: #dc3545;
+    background: var(--color-danger);
 }
 
 .ldc-action-btn--undo {
-    background: #6c757d;
+    background: var(--color-text-tertiary);
 }
 
 /* === SearchBar Wrapper (QuickScout top bar) === */
@@ -1140,6 +1201,10 @@
     color: var(--color-text-primary);
 }
 
+.qs-page-state {
+    flex: 0 0 auto;
+}
+
 .qs-recovery-header {
     display: flex;
     align-items: flex-start;
@@ -1153,6 +1218,11 @@
     font-size: 12px;
     line-height: 1.5;
     color: var(--color-text-secondary);
+}
+
+.qs-stats-summary {
+    margin-left: auto;
+    max-width: 420px;
 }
 
 .qs-mission-catalog {
@@ -1173,7 +1243,7 @@
 
 .qs-mission-card.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
 }
 
 .qs-mission-card-header {

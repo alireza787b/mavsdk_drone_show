@@ -14,7 +14,7 @@ The canonical tool is:
 
 ```bash
 venv/bin/python3 tools/analyze_smart_swarm_tracking.py \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --drone-ids 1 2 3 4 \
   --leader-id 1 \
   --follower-id 2 \

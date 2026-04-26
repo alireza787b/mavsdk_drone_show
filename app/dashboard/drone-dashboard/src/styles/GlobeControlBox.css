@@ -13,20 +13,26 @@
     box-shadow: var(--shadow-lg);
     transition: transform 0.3s ease, opacity 0.3s ease;
     opacity: 0;
+    pointer-events: none;
     transform: translateY(-20px);
+    visibility: hidden;
     max-width: 320px;
     width: 100%;
-    z-index: 900;
+    z-index: var(--z-tooltip);
 }
 
 .globe-control-box.show {
     opacity: 1;
+    pointer-events: auto;
     transform: translateY(0);
+    visibility: visible;
 }
 
 .globe-control-box.hide {
     opacity: 0;
+    pointer-events: none;
     transform: translateY(-20px);
+    visibility: hidden;
 }
 
 .globe-control-box__header {
@@ -50,6 +56,25 @@
     margin: 0;
     color: var(--color-text-primary);
     font-size: 16px;
+}
+
+.globe-control-box__close {
+    align-items: center;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.globe-control-box__close:hover,
+.globe-control-box__close:focus-visible {
+    border-color: var(--color-primary-border);
+    color: var(--color-text-primary);
 }
 
 .control-section {
@@ -127,7 +152,19 @@
 }
 
 .drone-toggle {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr auto;
     margin-bottom: 6px;
+    padding: 4px 6px;
+}
+
+.drone-toggle.selected {
+    background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    border-color: var(--color-primary-border);
 }
 
 .drone-toggle label {
@@ -135,6 +172,24 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    color: var(--color-text-primary);
+}
+
+.drone-toggle__select {
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 8px;
+    text-transform: uppercase;
+}
+
+.drone-toggle__select:hover,
+.drone-toggle__select:focus-visible {
+    border-color: var(--color-primary-border);
     color: var(--color-text-primary);
 }
 

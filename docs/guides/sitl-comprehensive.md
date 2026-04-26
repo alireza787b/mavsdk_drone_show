@@ -109,7 +109,7 @@ Do **not** look for version numbers in the filename. Release versioning lives in
 ```bash
 cd ~
 # Public Mega download via the official MEGAcmd client; large archives may take several minutes.
-mega-get 'https://mega.nz/file/OW4gmZLT#Kg0LgBjcGBHI25EUQgwG14wL_kLJ4b4uIQybcrMcRDs' .
+mega-get 'https://mega.nz/file/yLZWQQKC#5dTSpKpknVabK88s5rQLJIIxpPrM-7XdIoxYwl4ATBU' .
 # Validate the archive before extracting it.
 7z t mavsdk-drone-show-sitl-image.7z
 # Extraction also takes time on large images.
@@ -239,7 +239,7 @@ Notes:
 - This installer now handles headless SSH sessions cleanly. If no interactive TTY is available, it automatically switches to non-interactive defaults instead of trying to read from `/dev/tty`.
 - After the installer finishes and you launch the dashboard, give the backend a few seconds to come up before treating a first `curl` failure as a problem. The quickest readiness check is:
   ```bash
-  curl http://127.0.0.1:5000/api/v1/system/health
+  curl http://127.0.0.1:5030/api/v1/system/health
   ```
 
 #### Option B: Manual Setup
@@ -272,8 +272,8 @@ npm ci
 bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 ```
 
-- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5000`.
-- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI on port `5000`, but the backend now stays single-process by default so telemetry, heartbeats, command tracking, and other in-memory runtime state remain coherent during live SITL operations.
+- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI with auto-reload on port `5030`.
+- `--sitl` by itself starts the dashboard in **development mode**: React `npm start` on port `3030` plus FastAPI on port `5030`, but the backend now stays single-process by default so telemetry, heartbeats, command tracking, and other in-memory runtime state remain coherent during live SITL operations.
 - Backend auto-reload is now an explicit debug override only. Set `export MDS_GCS_BACKEND_RELOAD=true` only when you are actively editing backend Python code and accept that live operational state may become inconsistent while reload is enabled.
 - Use `bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --prod --sitl` when you want the optimized production-style launch instead.
 - Once the dashboard is up, use `System -> SITL Control` for local Docker-backed SITL inventory, reconcile, restart, and remove operations without dropping to shell.
@@ -293,7 +293,7 @@ bash ~/mavsdk_drone_show/app/linux_dashboard_start.sh --sitl
 
 You should now be able to access the GUI via a browser using your domain, IP, or reverse DNS (if set). E.g., `http://drone.YOUR_DOMAIN.com:3030`
 
-> **Note:** If you can't access the page, make sure your firewall rules allow communication on ports **3030** (dashboard), **5000** (GCS API), and **14550/udp** (MAVLink). See the [GCS Setup Guide](gcs-setup.md#firewall-ports) for the full port list.
+> **Note:** If you can't access the page, make sure your firewall rules allow communication on ports **3030** (dashboard), **5030** (GCS API), and **14550/udp** (MAVLink). See the [GCS Setup Guide](gcs-setup.md#firewall-ports) for the full port list.
 
 ### Mission Configuration and Customization (Optional)
 
@@ -334,7 +334,7 @@ The following section covers the standard flow for launching SITL drone instance
 
     ```bash
     python3 tools/sitl_control_client.py reconcile \
-      --base-url http://127.0.0.1:5000 \
+      --base-url http://127.0.0.1:5030 \
       --repo-root ~/mavsdk_drone_show \
       --drone-ids 1 2
     ```
@@ -492,7 +492,7 @@ Here's what each parameter means:
 sudo ufw allow 14550/udp
 sudo ufw allow 24550/udp
 sudo ufw allow 34550/udp
-sudo ufw allow 5000
+sudo ufw allow 5030
 sudo ufw allow 3030
 ```
 or
@@ -500,8 +500,8 @@ or
 sudo iptables -A INPUT -p udp --dport 14550 -j ACCEPT
 sudo iptables -A INPUT -p udp --dport 24550 -j ACCEPT
 sudo iptables -A INPUT -p udp --dport 34550 -j ACCEPT
-sudo iptables -A INPUT -p udp --dport 5000 -j ACCEPT
-sudo iptables -A INPUT -p tcp --dport 5000 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 5030 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 5030 -j ACCEPT
 sudo iptables -A INPUT -p tcp --dport 3030 -j ACCEPT
 sudo iptables-save | sudo tee /etc/iptables/rules.v4
 ```
@@ -597,7 +597,7 @@ If you want the default operator regression suite, use:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -617,7 +617,7 @@ To run only the configuration/origin gate:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template config_only \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -629,7 +629,7 @@ the configuration gate:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --template mission_regression \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3
@@ -642,7 +642,7 @@ reset target the same runtime tree:
 
 ```bash
 python3 tools/run_sitl_validation_suite.py \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root /root/mavsdk_drone_show_validator_sync \
   --repo-root /root/mavsdk_drone_show_main_candidate_runtime_live \
   --drone-ids 1 2 3
@@ -686,7 +686,7 @@ Run one by name:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name actions_core \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3

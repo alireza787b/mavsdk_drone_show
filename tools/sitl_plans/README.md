@@ -19,7 +19,7 @@ Run a bundled plan by name:
 ```bash
 python3 tools/run_sitl_validation_suite.py \
   --plan-name operator_regression \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --validator-root ~/mavsdk_drone_show \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3

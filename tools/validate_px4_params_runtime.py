@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -107,8 +108,9 @@ class ApiClient:
         return self.request_json("GET", path, timeout=timeout)
 
     def get_drone_json(self, drone_ip: str, path: str, *, timeout: float = 20.0) -> dict[str, Any]:
+        drone_api_port = int(os.getenv("MDS_DRONE_API_PORT", "7070"))
         try:
-            with urllib.request.urlopen(f"http://{drone_ip}:7070{path}", timeout=timeout) as response:
+            with urllib.request.urlopen(f"http://{drone_ip}:{drone_api_port}{path}", timeout=timeout) as response:
                 return json.load(response)
         except urllib.error.HTTPError as exc:
             raise RuntimeError(format_http_error(exc)) from exc
@@ -124,7 +126,7 @@ class ApiClient:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030")
     parser.add_argument("--drone-ids", nargs="+", type=int)
     parser.add_argument("--drones")
     parser.add_argument("--param-name", default=DEFAULT_PARAM_NAME)

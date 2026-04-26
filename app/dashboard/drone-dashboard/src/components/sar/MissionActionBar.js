@@ -43,7 +43,7 @@ const MissionActionBar = ({
       <button
         className="qs-action-btn resume"
         onClick={onReplan}
-        title={controlAvailability?.replan_reason || 'Create a follow-up package from current aircraft state'}
+        aria-label={controlAvailability?.replan_reason || 'Create a follow-up package from current aircraft state'}
         disabled={!replanEnabled}
       >
         <FaMapMarkedAlt />
@@ -51,7 +51,7 @@ const MissionActionBar = ({
       <button
         className="qs-action-btn pause"
         onClick={onPause}
-        title={controlAvailability?.pause_reason || 'Hold mission'}
+        aria-label={controlAvailability?.pause_reason || 'Hold mission'}
         disabled={!pauseEnabled}
       >
         <FaPause />
@@ -63,7 +63,7 @@ const MissionActionBar = ({
             onAbort();
           }
         }}
-        title={returnBehaviorMeta.title}
+        aria-label={returnBehaviorMeta.title}
         disabled={!abortEnabled}
       >
         {returnBehaviorMeta.icon}

@@ -147,13 +147,16 @@ usage() {
 collect_mds_env_args() {
     DOCKER_ENV_ARGS=(
         -e "MDS_BASE_DIR=/root/mavsdk_drone_show"
+        -e "MDS_INSTALL_DIR=/root/mavsdk_drone_show"
+        -e "MDS_REPO_ROOT=/root/mavsdk_drone_show"
+        -e "MDS_DEPLOYMENT_PROFILE_FILE=/root/mavsdk_drone_show/deployment/defaults.env"
     )
     DOCKER_SECRET_ARGS=()
 
     local env_name
     while IFS='=' read -r env_name _; do
         case "$env_name" in
-            MDS_BASE_DIR|MDS_HW_ID|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
+            MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
                 continue
                 ;;
         esac

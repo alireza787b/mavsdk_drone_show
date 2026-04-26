@@ -1,11 +1,12 @@
 // src/pages/Overview.js
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { FaChevronDown } from 'react-icons/fa';
+import { FaBroadcastTower, FaChevronDown } from 'react-icons/fa';
 import CommandSender from '../components/CommandSender';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
+import { EmptyState, MetricStrip, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
 import useFetch from '../hooks/useFetch';
 import {
   DRONE_RUNTIME_CLOCK_PROP,
@@ -39,9 +40,9 @@ const Overview = ({ setSelectedDrone }) => {
   const [configByHwId, setConfigByHwId] = useState({});
   const [expandedDrone, setExpandedDrone] = useState(null);
   const [droneQuery, setDroneQuery] = useState('');
-  const [cardFilter, setCardFilter] = useState('all');
+  const [cardFilter, setCardFilter] = useState('active');
   const [clusterScope, setClusterScope] = useState('all');
-  const [commandTargetMode, setCommandTargetMode] = useState('all');
+  const [commandTargetMode, setCommandTargetMode] = useState('selected');
   const [commandSelectedDrones, setCommandSelectedDrones] = useState([]);
   const [commandClusterScope, setCommandClusterScope] = useState('');
   const [fleetPanelExpanded, setFleetPanelExpanded] = useState(false);
@@ -50,6 +51,8 @@ const Overview = ({ setSelectedDrone }) => {
   const [notification, setNotification] = useState(null);
   const droneRefs = useRef({});
   const commandDispatchRef = useRef(null);
+  const commandScopeAutoTracksVisibleRef = useRef(true);
+  const lastAutoCommandScopeSignatureRef = useRef('');
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 
   useEffect(() => {
@@ -248,6 +251,10 @@ const Overview = ({ setSelectedDrone }) => {
       const readiness = getDroneReadinessModel(drone, runtimeStatus);
 
       switch (cardFilter) {
+        case 'active':
+          return runtimeStatus.level === 'online'
+            || runtimeStatus.level === 'degraded'
+            || runtimeStatus.indicatorClass === 'lost';
         case 'attention':
           return runtimeStatus.level !== 'online' || !readiness.isReady;
         case 'ready':
@@ -261,12 +268,16 @@ const Overview = ({ setSelectedDrone }) => {
       }
     });
   }, [cardFilter, droneQuery, drones, visibleClusterHwIds]);
-  const filteredDroneIds = React.useMemo(
-    () => filteredDrones
+  const visibleCommandScopeIds = React.useMemo(() => {
+    const nowMs = Date.now();
+    return filteredDrones
+      .filter((drone) => {
+        const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
+        return runtimeStatus.level === 'online' || runtimeStatus.level === 'degraded';
+      })
       .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
-      .filter(Boolean),
-    [filteredDrones],
-  );
+      .filter(Boolean);
+  }, [filteredDrones]);
   const commandClusterTargetIds = React.useMemo(() => {
     if (!swarmViewModel || !commandClusterScope) {
       return [];
@@ -296,15 +307,18 @@ const Overview = ({ setSelectedDrone }) => {
     [commandScopeIds],
   );
   const visibleScopeMatchesSelection = React.useMemo(() => {
-    if (commandTargetMode !== 'selected' || filteredDroneIds.length !== commandSelectedDrones.length) {
+    if (commandTargetMode !== 'selected' || visibleCommandScopeIds.length !== commandSelectedDrones.length) {
       return false;
     }
 
     const selectedSet = new Set(commandSelectedDrones.map((value) => String(value)));
-    return filteredDroneIds.every((value) => selectedSet.has(String(value)));
-  }, [commandSelectedDrones, commandTargetMode, filteredDroneIds]);
+    return visibleCommandScopeIds.every((value) => selectedSet.has(String(value)));
+  }, [commandSelectedDrones, commandTargetMode, visibleCommandScopeIds]);
   const commandScopeSummary = React.useMemo(() => {
     if (commandTargetMode === 'selected') {
+      if (visibleScopeMatchesSelection) {
+        return `Dispatch · ${commandSelectedDrones.length} visible`;
+      }
       return `Dispatch · ${commandSelectedDrones.length} selected`;
     }
 
@@ -318,15 +332,48 @@ const Overview = ({ setSelectedDrone }) => {
     }
 
     return `Dispatch · All ${drones.length}`;
-  }, [clusterScopeOptions, commandClusterScope, commandSelectedDrones.length, commandTargetMode, drones.length]);
-  const applyVisibleCardsToCommandScope = React.useCallback(() => {
-    if (filteredDroneIds.length === 0) {
+  }, [clusterScopeOptions, commandClusterScope, commandSelectedDrones.length, commandTargetMode, drones.length, visibleScopeMatchesSelection]);
+  React.useEffect(() => {
+    const nextSignature = visibleCommandScopeIds.join('\u001f');
+    const selectedSignature = commandSelectedDrones.map((value) => String(value)).join('\u001f');
+    const canAutoTrack = commandScopeAutoTracksVisibleRef.current
+      || (commandTargetMode === 'selected' && selectedSignature === lastAutoCommandScopeSignatureRef.current);
+
+    if (!canAutoTrack) {
       return;
     }
 
+    commandScopeAutoTracksVisibleRef.current = true;
+    lastAutoCommandScopeSignatureRef.current = nextSignature;
+
+    if (commandTargetMode !== 'selected') {
+      setCommandTargetMode('selected');
+    }
+
+    if (selectedSignature !== nextSignature) {
+      setCommandSelectedDrones(visibleCommandScopeIds);
+    }
+  }, [commandSelectedDrones, commandTargetMode, visibleCommandScopeIds]);
+  const handleCommandTargetModeChange = React.useCallback((nextMode) => {
+    commandScopeAutoTracksVisibleRef.current = false;
+    setCommandTargetMode(nextMode);
+  }, []);
+  const handleCommandSelectedDronesChange = React.useCallback((nextValue) => {
+    commandScopeAutoTracksVisibleRef.current = false;
+    setCommandSelectedDrones((previousValue) => (
+      typeof nextValue === 'function' ? nextValue(previousValue) : nextValue
+    ));
+  }, []);
+  const applyVisibleCardsToCommandScope = React.useCallback(() => {
+    if (visibleCommandScopeIds.length === 0) {
+      return;
+    }
+
+    commandScopeAutoTracksVisibleRef.current = true;
     setCommandTargetMode('selected');
-    setCommandSelectedDrones(filteredDroneIds);
-  }, [filteredDroneIds]);
+    setCommandSelectedDrones(visibleCommandScopeIds);
+    lastAutoCommandScopeSignatureRef.current = visibleCommandScopeIds.join('\u001f');
+  }, [visibleCommandScopeIds]);
   const focusCommandDispatch = React.useCallback(() => {
     commandDispatchRef.current?.scrollIntoView({
       behavior: 'smooth',
@@ -339,6 +386,7 @@ const Overview = ({ setSelectedDrone }) => {
       return;
     }
 
+    commandScopeAutoTracksVisibleRef.current = false;
     const allDroneIds = drones
       .map((drone) => normalizeComparableId(drone?.[FIELD_NAMES.HW_ID] || drone?.hw_ID))
       .filter(Boolean);
@@ -398,15 +446,20 @@ const Overview = ({ setSelectedDrone }) => {
   };
 
   return (
-    <div className="overview-container">
-      <header className="overview-header">
-        <div className="overview-header__copy">
-          <p className="overview-eyebrow">Operations dashboard</p>
-          <h1>Fleet Command Overview</h1>
-          <p className="overview-description">
-            Live status, command scope, and launch readiness for the active fleet.
-          </p>
-        </div>
+    <PageShell
+      className="overview-container"
+      eyebrow="Operations dashboard"
+      title="Fleet Command"
+      subtitle="Live fleet status, dispatch scope, launch readiness."
+      icon={<FaBroadcastTower />}
+      docsRoute="/mission-control"
+      status={(
+        <StatusBadge tone={fleetSummary.online > 0 ? 'success' : 'warning'}>
+          {fleetSummary.online}/{fleetSummary.total} live
+        </StatusBadge>
+      )}
+    >
+      <section className="overview-header" aria-label="Fleet command summary">
         <div
           className={`overview-summary-panel ${fleetPanelExpanded ? 'is-open' : ''}`}
           role="button"
@@ -416,24 +469,16 @@ const Overview = ({ setSelectedDrone }) => {
           aria-expanded={fleetPanelExpanded}
           aria-label={fleetPanelExpanded ? 'Hide fleet details' : 'Show fleet details'}
         >
-          <div className="overview-summary-strip" role="list" aria-label="Fleet overview">
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Fleet</span>
-              <strong>{fleetSummary.total}</strong>
-            </article>
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Online</span>
-              <strong>{fleetSummary.online}</strong>
-            </article>
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Ready</span>
-              <strong>{fleetSummary.ready}</strong>
-            </article>
-            <article className="overview-summary-pill" role="listitem">
-              <span className="overview-summary-pill__label">Armed</span>
-              <strong>{fleetSummary.armed}</strong>
-            </article>
-          </div>
+          <MetricStrip
+            className="overview-summary-strip"
+            label="Fleet overview"
+            items={[
+              { key: 'fleet', label: 'Fleet', value: fleetSummary.total },
+              { key: 'online', label: 'Online', value: fleetSummary.online, tone: fleetSummary.online > 0 ? 'success' : 'warning' },
+              { key: 'ready', label: 'Ready', value: fleetSummary.ready, tone: fleetSummary.ready === fleetSummary.total && fleetSummary.total > 0 ? 'success' : 'neutral' },
+              { key: 'armed', label: 'Armed', value: fleetSummary.armed, tone: fleetSummary.armed > 0 ? 'warning' : 'neutral' },
+            ]}
+          />
           <div className={`overview-summary-toggle ${fleetPanelExpanded ? 'is-open' : ''}`} aria-hidden="true">
             <span>{fleetPanelExpanded ? 'Details' : 'Summary'}</span>
             <FaChevronDown className="overview-summary-toggle-icon" />
@@ -463,7 +508,7 @@ const Overview = ({ setSelectedDrone }) => {
             </div>
           )}
         </div>
-      </header>
+      </section>
 
       <div
         className="mission-trigger-section"
@@ -474,9 +519,9 @@ const Overview = ({ setSelectedDrone }) => {
           drones={drones}
           swarmData={swarmAssignments}
           targetMode={commandTargetMode}
-          onTargetModeChange={setCommandTargetMode}
+          onTargetModeChange={handleCommandTargetModeChange}
           selectedDrones={commandSelectedDrones}
-          onSelectedDronesChange={setCommandSelectedDrones}
+          onSelectedDronesChange={handleCommandSelectedDronesChange}
           selectedClusterScope={commandClusterScope}
           onSelectedClusterScopeChange={setCommandClusterScope}
         />
@@ -494,7 +539,7 @@ const Overview = ({ setSelectedDrone }) => {
           <button
             type="button"
             className="connected-drones-scope"
-            title="Jump to command dispatch scope controls"
+            aria-label="Jump to command dispatch scope controls"
             onClick={focusCommandDispatch}
             aria-controls="command-dispatch"
           >
@@ -504,10 +549,10 @@ const Overview = ({ setSelectedDrone }) => {
             type="button"
             className="connected-drones-action"
             onClick={applyVisibleCardsToCommandScope}
-            disabled={filteredDroneIds.length === 0 || visibleScopeMatchesSelection}
-            title={visibleScopeMatchesSelection
-              ? 'The currently visible fleet already matches the manual dispatch scope.'
-              : 'Copy the currently visible fleet cards into the manual dispatch scope.'}
+            disabled={visibleCommandScopeIds.length === 0 || visibleScopeMatchesSelection}
+            aria-label={visibleScopeMatchesSelection
+              ? 'The currently visible commandable fleet already matches the manual dispatch scope.'
+              : 'Copy currently visible online or delayed fleet cards into the manual dispatch scope.'}
           >
             {visibleScopeMatchesSelection ? 'Visible in dispatch' : 'Use visible'}
           </button>
@@ -527,11 +572,12 @@ const Overview = ({ setSelectedDrone }) => {
         </label>
         <div className="overview-fleet-toolbar__filters" role="tablist" aria-label="Fleet card filters">
           {[
-            ['all', 'All'],
+            ['active', 'Active'],
             ['attention', 'Attention'],
             ['ready', 'Ready'],
             ['online', 'Online'],
             ['armed', 'Armed'],
+            ['all', 'All'],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -554,21 +600,31 @@ const Overview = ({ setSelectedDrone }) => {
         )}
       </div>
 
-      {notification && <div className="notification">{notification}</div>}
-      {error && <div className="error-message">{error}</div>}
+      {notification && (
+        <OperatorNotice tone="warning" title="Telemetry incomplete" className="overview-notice">
+          {notification}
+        </OperatorNotice>
+      )}
+      {error && (
+        <OperatorNotice tone="danger" title="Backend telemetry unavailable" className="overview-notice">
+          {error}
+        </OperatorNotice>
+      )}
 
       <div className="drone-list">
         {drones.length === 0 && !error && (
-          <div className="overview-empty-state">
-            <strong>No valid drone data is available.</strong>
-            <span>When telemetry resumes, aircraft cards will populate here automatically.</span>
-          </div>
+          <EmptyState
+            className="overview-empty-state"
+            title="No valid drone data"
+            detail="When telemetry resumes, aircraft cards will populate here automatically."
+          />
         )}
         {drones.length > 0 && filteredDrones.length === 0 && !error && (
-          <div className="overview-empty-state">
-            <strong>No drones match the current filters.</strong>
-            <span>Search supports free text and scoped queries like pos 1-5 or hw 2,4.</span>
-          </div>
+          <EmptyState
+            className="overview-empty-state"
+            title="No drones match filters"
+            detail="Search supports free text and scoped queries like pos 1-5 or hw 2,4."
+          />
         )}
         {filteredDrones.map((drone) => (
           <div
@@ -601,7 +657,7 @@ const Overview = ({ setSelectedDrone }) => {
         onClose={closeExpandedDrone}
         originRect={originRect}
       />
-    </div>
+    </PageShell>
   );
 };
 

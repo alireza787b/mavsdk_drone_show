@@ -17,13 +17,13 @@ import {
   Typography,
 } from '@mui/material';
 import {
-  Assessment,
-  CheckCircle,
-  CloudUpload,
-  Security,
-  Timeline,
-  Visibility,
-} from '@mui/icons-material';
+  MdAssessment,
+  MdCheckCircle,
+  MdCloudUpload,
+  MdSecurity,
+  MdTimeline,
+  MdVisibility,
+} from 'react-icons/md';
 
 import { extractApiErrorMessage } from '../services/apiError';
 import { importShowResponse } from '../services/gcsApiService';
@@ -75,7 +75,15 @@ const ProcessingProgressModal = ({
         }}
       >
         <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CloudUpload color={isFailed ? 'error' : isCompleted ? 'success' : 'primary'} />
+          <MdCloudUpload
+            style={{
+              color: isFailed
+                ? 'var(--color-danger)'
+                : isCompleted
+                  ? 'var(--color-success)'
+                  : 'var(--color-primary)',
+            }}
+          />
           {isCompleted ? 'Drone Show Ready' : isFailed ? 'Import Failed' : 'Processing Drone Show'}
         </Typography>
 
@@ -103,7 +111,7 @@ const ProcessingProgressModal = ({
               <ListItem key={detail.step} sx={{ px: 0, py: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
                   {detail.completed ? (
-                    <CheckCircle color="success" sx={{ fontSize: 20 }} />
+                    <MdCheckCircle style={{ color: 'var(--color-success)', fontSize: 20 }} />
                   ) : (
                     <CircularProgress size={16} color="primary" />
                   )}
@@ -133,7 +141,7 @@ const ProcessingProgressModal = ({
               )}
             </Box>
 
-            <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: '#f8fafc' }}>
+            <Paper variant="outlined" className="import-result-card" sx={{ p: 2, mb: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
                 Imported Show
               </Typography>
@@ -328,12 +336,12 @@ const ImportSection = ({ setUploadCount }) => {
 
   return (
     <Box className="import-section">
-      <Typography variant="h5" sx={{ color: '#0056b3', mb: 2 }}>
+      <Typography variant="h5" className="import-section__title" sx={{ mb: 2 }}>
         Import Drone Show
       </Typography>
 
       <Box className="intro-section" sx={{ mb: 3 }}>
-        <Typography variant="body1" paragraph sx={{ color: '#374151', lineHeight: 1.6 }}>
+        <Typography variant="body1" paragraph className="import-section__lede">
           Upload a SkyBrush ZIP archive to generate the processed Drone Show CSV set, launch plots,
           and operator-facing verification data.
         </Typography>
@@ -342,42 +350,42 @@ const ImportSection = ({ setUploadCount }) => {
           from its own local launch frame, use <strong>Custom Show</strong> instead of this page.
         </Alert>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 2, mb: 2 }}>
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <CloudUpload color="primary" />
+        <Box className="import-feature-grid">
+          <Paper variant="outlined" className="import-feature-card">
+            <div className="import-feature-card__header">
+              <MdCloudUpload className="import-feature-card__icon import-feature-card__icon--primary" />
               <Typography variant="subtitle2" fontWeight="bold">Staged Import</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               The archive is validated before it replaces the current active show.
             </Typography>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Timeline color="secondary" />
+          <Paper variant="outlined" className="import-feature-card">
+            <div className="import-feature-card__header">
+              <MdTimeline className="import-feature-card__icon import-feature-card__icon--secondary" />
               <Typography variant="subtitle2" fontWeight="bold">Trajectory Processing</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               SkyBrush CSVs are converted into the processed NED flight files used by Drone Show missions.
             </Typography>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Security color="success" />
+          <Paper variant="outlined" className="import-feature-card">
+            <div className="import-feature-card__header">
+              <MdSecurity className="import-feature-card__icon import-feature-card__icon--success" />
               <Typography variant="subtitle2" fontWeight="bold">Operator Verification</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               After import, verify mission config, origin, and readiness before launch.
             </Typography>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Visibility color="info" />
+          <Paper variant="outlined" className="import-feature-card">
+            <div className="import-feature-card__header">
+              <MdVisibility className="import-feature-card__icon import-feature-card__icon--info" />
               <Typography variant="subtitle2" fontWeight="bold">Plot Review</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               Combined and per-drone plots are refreshed automatically after a successful import.
             </Typography>
@@ -410,19 +418,16 @@ const ImportSection = ({ setUploadCount }) => {
             variant="contained"
             onClick={uploadFile}
             disabled={!selectedFile || isUploading}
-            startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
-            sx={{
-              minWidth: 160,
-              bgcolor: '#10b981',
-              '&:hover': { bgcolor: '#059669' },
-            }}
+            startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <MdCloudUpload />}
+            className="import-primary-action"
+            sx={{ minWidth: 160 }}
           >
             {isUploading ? 'Importing...' : 'Upload & Process'}
           </Button>
 
           {selectedFile && (
             <Chip
-              icon={<Assessment />}
+              icon={<MdAssessment />}
               label="SkyBrush ZIP selected"
               variant="outlined"
               color="primary"

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
-import { useTheme } from '../hooks/useTheme';
+import { MdMyLocation, MdRefresh } from 'react-icons/md';
 import { formatCompactDroneIdentity, normalizeComparableId } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DeviationView.css';
 
 /**
@@ -31,18 +32,11 @@ const DeviationView = ({
   onDroneClick,
   onRefresh
 }) => {
-  const { isDark } = useTheme();
   const [showActualPositions, setShowActualPositions] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  // Theme-aware colors
-  const themeColors = {
-    background: isDark ? '#1a1a1a' : '#f8f9fa',
-    paper: isDark ? '#1a1a1a' : '#f8f9fa',
-    text: isDark ? '#e9ecef' : '#343a40',
-    grid: isDark ? '#495057' : '#dee2e6',
-  };
+  const themeColors = getPlotThemeColors();
 
   // Auto-refresh mechanism - call parent's onRefresh every 5 seconds (only if showing actual positions)
   useEffect(() => {
@@ -82,12 +76,12 @@ const DeviationView = ({
     name: 'Expected',
     marker: {
       size: 18,
-      color: '#3498db',
+      color: themeColors.primary,
       symbol: 'circle',
-      line: { width: 2, color: '#2980b9' }
+      line: { width: 2, color: themeColors.primaryHover }
     },
     textfont: {
-      color: isDark ? '#ffffff' : '#000000',
+      color: themeColors.text,
       size: 10
     },
     textposition: 'middle center',
@@ -131,17 +125,17 @@ const DeviationView = ({
     mode: 'lines',
     type: 'scatter',
     name: 'Deviation',
-    line: { width: 2, color: 'rgba(231, 76, 60, 0.5)' },
+    line: { width: 2, color: themeColors.danger },
     hoverinfo: 'skip',
     showlegend: false
   };
 
   // Status color mapping
   const statusColors = {
-    'ok': '#27ae60',
-    'warning': '#f39c12',
-    'error': '#e74c3c',
-    'no_telemetry': '#95a5a6'
+    'ok': themeColors.success,
+    'warning': themeColors.warning,
+    'error': themeColors.danger,
+    'no_telemetry': themeColors.muted
   };
 
   // Thresholds for deviation-based coloring (matches backend logic)
@@ -279,7 +273,8 @@ const DeviationView = ({
               }}
               disabled={!onRefresh}
             >
-              🔄 Refresh Now
+              <MdRefresh aria-hidden="true" />
+              <span>Refresh Now</span>
             </button>
           </>
         )}
@@ -287,7 +282,8 @@ const DeviationView = ({
 
       {/* Info Banner */}
       <div className="info-banner">
-        📍 Positions from trajectory CSV files (single source of truth)
+        <MdMyLocation aria-hidden="true" />
+        <span>Positions from trajectory CSV files (single source of truth)</span>
       </div>
 
       {/* Summary Statistics Header (only when showing actual positions) */}

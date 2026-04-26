@@ -16,7 +16,7 @@ def _load_module():
 
 def _build_args(suite, tmp_path, **overrides):
     values = {
-        "base_url": "http://127.0.0.1:5000",
+        "base_url": "http://127.0.0.1:5030",
         "repo_root": tmp_path,
         "validator_root": tmp_path / "validators",
         "python": "/venv/bin/python",
@@ -128,7 +128,7 @@ def test_build_suite_steps_uses_operator_template_and_actions_validator(tmp_path
         "tools/sitl_control_client.py",
         "reconcile",
         "--base-url",
-        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5030",
         "--repo-root",
         str(tmp_path),
         "--drone-ids",
@@ -182,7 +182,7 @@ def test_build_suite_steps_inserts_reset_before_late_drone_show_from_modes(tmp_p
         "tools/sitl_control_client.py",
         "reconcile",
         "--base-url",
-        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5030",
         "--repo-root",
         str(tmp_path),
         "--drone-ids",
@@ -242,7 +242,7 @@ def test_build_suite_steps_reads_plan_file_with_step_overrides(tmp_path):
         "tools/sitl_control_client.py",
         "reconcile",
         "--base-url",
-        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5030",
         "--repo-root",
         str(tmp_path),
         "--drone-ids",

@@ -29,6 +29,16 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+---
+
+## [5.3] - 2026-04-25
+
+### Added
 - Node git auth visibility on fleet surfaces:
   drone git-status payloads now expose repo access posture plus node-local git
   auth health summary/issues without leaking secret file paths, and the GCS git
@@ -43,30 +53,34 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   (updated units, coordinator restart scheduling, connectivity reconcile
   result, MAVLink runtime reconcile result, requirements update posture), and
   that summary is exposed through node/GCS git-status surfaces.
-- Runtime Admin mixed-mode preflight visibility:
+- GCS Runtime mixed-mode preflight visibility:
   runtime status/config now report local SITL inventory count, and Runtime
   Admin warns before REAL-mode restart when local SITL containers would remain
   running and only be heartbeat-fenced rather than stopped automatically.
-- Runtime Admin local sidecar entry points:
-  the GCS-local Runtime Admin view now links directly to the local
+- GCS Runtime local sidecar entry points:
+  the GCS-local GCS Runtime view now links directly to the local
   `mavlink-anywhere` and Smart Wi-Fi dashboards when present.
-- Runtime Admin constrained GCS self-update:
-  Runtime Admin now exposes a fast-forward-only `Update GCS` action that
+- GCS Runtime constrained GCS self-update:
+  GCS Runtime now exposes a fast-forward-only `Update GCS` action that
   fetches the tracked upstream, blocks dirty/diverged/no-upstream states, and
   refuses updates touching launcher, frontend, tooling, or dependency paths.
+- Fleet Ops Smart Wi-Fi profile import:
+  added secret-safe GCS APIs and a dashboard action for importing the
+  repo-owned Smart Wi-Fi fleet profile, returning only hashes/status/counts and
+  using the existing Sync + reconcile path for node rollout.
 
 ### Changed
 - Mobile sidebar layering and scrolling were hardened: the drawer now sits above
   the backdrop at modal z-index, owns mobile touch scrolling, and uses an opaque
   mobile light background so it does not appear disabled or faded.
-- Runtime Admin is now explicitly GCS-host scoped: git access hides raw secret
+- GCS Runtime is now explicitly GCS-host scoped: git access hides raw secret
   paths, GCS-local sidecar dashboard links were removed from the primary
   layout, and sidecar/tool state is summarized as host capability context while
   per-drone compliance is reserved for Fleet Ops.
 - Mobile runtime chrome is now sidebar-owned: the standalone mobile runtime
   pill was removed from the page shell, the hamburger overlay no longer blurs
   the dashboard, and the sidebar keeps a compact clickable `REAL`/`SITL`
-  runtime badge that opens Runtime Admin.
+  runtime badge that opens GCS Runtime.
 - SITL mutable latest-on-boot launches now default to the host-mounted current
   `startup_sitl.sh`, while pinned-image launches stay on the image-baked
   bootstrap path.
@@ -87,7 +101,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - GCS tmux startup now waits briefly for fresh panes/windows before sending the
   backend/frontend launch commands, reducing intermittent empty-session
   launches under live host load.
-- Runtime Admin update-readiness is now actionable rather than advisory only:
+- GCS Runtime update-readiness is now actionable rather than advisory only:
   safe runtime/config/docs-only updates can be scheduled directly from the GCS
   host, while higher-risk repo mutations are explicitly redirected to the
   manual update path.
@@ -95,7 +109,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   directory mtime; it now compares real React build markers plus `src/`,
   `public/`, `.env`, `VERSION`, and dependency manifests so routine runtime
   restarts do not trigger unnecessary production frontend rebuilds.
-- Runtime Admin repo update-readiness visibility:
+- GCS Runtime repo update-readiness visibility:
   runtime status now carries a typed GCS repo sync/update posture, and Runtime
   Admin shows whether the host is up to date, behind and fast-forwardable,
   dirty, ahead, divergent, or missing an upstream before any self-update path
@@ -192,7 +206,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   the sidebar uses one shared runtime badge in expanded and collapsed states,
   mobile now keeps the same REAL/SITL badge visible beside the navigation
   toggle, and restart-required drift is surfaced directly in that shell badge
-  instead of only inside Runtime Admin
+  instead of only inside GCS Runtime
 - drone-card runtime labels now follow the same canonical `runtime_mode`
   signal that the backend heartbeat fence uses:
   Mission Config cards prefer the node-declared mode over local serial/network
@@ -203,7 +217,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - heartbeat intake is now runtime-mode aware:
   nodes can declare `runtime_mode`, GCS fences mismatched SITL/REAL heartbeats
   before they contaminate live state, heartbeat/network snapshots now retain the
-  accepted mode, and Runtime Admin can safely rely on a backend-side
+  accepted mode, and GCS Runtime can safely rely on a backend-side
   mixed-mode guard instead of only frontend filtering
 - `PUT /api/v1/system/gcs-config` no longer pretends to persist everything:
   the route now safely writes only host-local `MDS_MODE` /
@@ -211,7 +225,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   running-vs-configured drift explicitly, and warns instead of silently
   accepting unsupported fields such as `gcs_port` or
   `acceptable_deviation`
-- Runtime Admin host-local apply semantics are now explicit:
+- GCS Runtime host-local apply semantics are now explicit:
   `POST /api/v1/system/gcs-config/apply` compares the running process against
   `/etc/mds/gcs.env`, schedules a controlled relaunch through the canonical GCS
   launcher only when drift exists, debounces repeated requests, and warns when
@@ -1456,5 +1470,5 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Fixed the compact group state so operators can manually open a different PX4 section without the UI snapping back to the previously selected parameter group.
 - Added focused React coverage for grouped compact browsing plus the shared dialog flow across narrow and touch-coarse viewports.
 - Followed up the compact list alignment so rows now read as a proper operator list: parameter identity stays left-aligned, current value and state icons trail on the right, and snapshot refresh no longer auto-selects a parameter before the operator chooses one.
-- Runtime Admin state is now reflected in the shared dashboard chrome: sidebar and mobile header show the running mode, surface pending restart drift against configured mode, and link directly to Runtime Admin before operators issue mixed-mode actions.
+- GCS Runtime state is now reflected in the shared dashboard chrome: sidebar and mobile header show the running mode, surface pending restart drift against configured mode, and link directly to GCS Runtime before operators issue mixed-mode actions.
 - Node git-sync runtime state now records systemd unit reload outcomes and deferred apply actions, and fatal post-sync unit reconcile failures abort the sync flow instead of continuing silently.

@@ -11,7 +11,7 @@ import {
   FaSkull,
 } from 'react-icons/fa';
 
-import ConfirmationModal from './ConfirmationModal';
+import { ConfirmDialog } from './ui';
 import InfoHint from './InfoHint';
 import PrecisionMoveDialog from './PrecisionMoveDialog';
 import { buildActionCommand } from '../services/droneApiService';
@@ -295,7 +295,6 @@ const DroneCriticalCommands = ({
             onClick={handleOpenPrecisionMove}
             disabled={Boolean(jogDisabledReason) || submitting}
             aria-disabled={Boolean(jogDisabledReason) || submitting}
-            title={jogDisabledReason || `Open jog control for ${resolvedTargetLabel}`}
           >
             <FaCrosshairs aria-hidden="true" />
             <span className="critical-commands-panel__utility-label">Jog</span>
@@ -306,7 +305,6 @@ const DroneCriticalCommands = ({
             onClick={handleRequestMissionCancel}
             disabled={Boolean(cancelDisabledReason) || submitting}
             aria-disabled={Boolean(cancelDisabledReason) || submitting}
-            title={cancelDisabledReason || `Cancel current mission for ${resolvedTargetLabel}`}
           >
             <FaBan aria-hidden="true" />
             <span className="critical-commands-panel__utility-label">Cancel</span>
@@ -324,7 +322,6 @@ const DroneCriticalCommands = ({
               key={command.actionType}
               type="button"
               className={`critical-command-button ${command.tone}`}
-              title={disabled ? `${command.label}: ${command.disabledReason}` : `${command.label}: ${command.description}`}
               onClick={() => handleCommandClick(command)}
               disabled={disabled || submitting}
               aria-disabled={disabled || submitting}
@@ -338,8 +335,8 @@ const DroneCriticalCommands = ({
         })}
       </div>
 
-      <ConfirmationModal
-        isOpen={modalOpen}
+      <ConfirmDialog
+        open={modalOpen}
         title={pendingAction?.tone === 'danger' ? 'Confirm Critical Action' : 'Confirm Action'}
         message={
           pendingAction
@@ -348,7 +345,7 @@ const DroneCriticalCommands = ({
         }
         confirmLabel={pendingAction?.label || 'Confirm'}
         cancelLabel="Cancel"
-        isDanger={pendingAction?.tone === 'danger'}
+        tone={pendingAction?.tone === 'danger' ? 'danger' : 'neutral'}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />

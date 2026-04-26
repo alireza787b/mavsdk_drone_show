@@ -1,24 +1,63 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import PropTypes from 'prop-types';
-import { OrbitControls, Html, Stars } from '@react-three/drei';
+import { OrbitControls, Stars } from '@react-three/drei';
 import { Color, Vector3 } from 'three';
+import { FaCompressAlt, FaCrosshairs, FaSlidersH } from 'react-icons/fa';
 import { getElevation, llaToLocal } from '../utilities/utilities';
 import Environment from './Environment';
 import GlobeControlBox from './GlobeControlBox';
+import TacticalDroneCard from './TacticalDroneCard';
 import { WORLD_SIZE } from '../utilities/utilities';
 import useElevation from '../useElevation';
 import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
-const DEFAULT_DRONE_MARKER_COLOR = '#2196F3';
+const DEFAULT_DRONE_MARKER_COLOR = 'dodgerblue';
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const SELECTED_CARD_WIDTH_PX = 320;
+const SELECTED_CARD_HEIGHT_PX = 260;
+const SELECTED_CARD_GAP_PX = 18;
+const DEFAULT_CAMERA_POSITION = [12, 10, 12];
+const CAMERA_FIT_PADDING = 6;
+const CAMERA_FIT_SCALE = 1.32;
+const MIN_CAMERA_FIT_DISTANCE = 9;
 
-const resolveMarkerColor = (candidate) => {
+const resolveMarkerColor = (candidate, fallback = DEFAULT_DRONE_MARKER_COLOR) => {
   const normalized = String(candidate || '').trim();
-  return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_DRONE_MARKER_COLOR;
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : fallback;
+};
+
+const hasUsableGeoPosition = (position = []) => {
+  const lat = Number(position[0]);
+  const lon = Number(position[1]);
+  return Number.isFinite(lat) && Number.isFinite(lon) && (Math.abs(lat) > 0.000001 || Math.abs(lon) > 0.000001);
+};
+
+const buildNoFixPosition = (index, total) => {
+  const columns = Math.max(1, Math.ceil(Math.sqrt(Math.max(total, 1))));
+  const row = Math.floor(index / columns);
+  const col = index % columns;
+  const spread = 3.2;
+  return [
+    (col - ((columns - 1) / 2)) * spread,
+    4.6,
+    -2.4 - (row * spread),
+  ];
+};
+
+const buildDisplayPosition = (drone, referencePoint, noFixDrones = []) => {
+  if (!hasUsableGeoPosition(drone.position)) {
+    const noFixIndex = noFixDrones.findIndex((candidate) => (
+      String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID])
+    ));
+    return buildNoFixPosition(noFixIndex, noFixDrones.length);
+  }
+
+  return llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint);
 };
 
 const LoadingSpinner = () => (
@@ -27,41 +66,131 @@ const LoadingSpinner = () => (
     <div className="loading-message">Waiting for drones to connect...</div>
   </div>
 );
-const DroneTooltip = ({ hw_id, pos_id, stateLabel, follow_mode, altitude, opacity, localPosition }) => (
-  <div
-    className="drone-tooltip"
-    style={{
-      opacity: opacity,
-      transition: 'opacity 0.3s',
-    }}
-  >
-    <ul className="tooltip-list">
-      <li><strong>ID:</strong> {formatCompactDroneIdentity(pos_id, hw_id, `H${hw_id}`)}</li>
-      <li><strong>State:</strong> {stateLabel || 'Unknown'}</li>
-      <li><strong>Mode:</strong> {follow_mode === 0 ? 'LEADER' : `Follows Drone ${follow_mode}`}</li>
-      <li><strong>Altitude:</strong> {altitude.toFixed(1)}m</li>
-      <li><strong>Local Position:</strong> [{localPosition[0].toFixed(2)}, {localPosition[1].toFixed(2)}, {localPosition[2].toFixed(2)}]</li>
-    </ul>
-  </div>
-);
 
-const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, marker_color }) => {
+const SelectedDroneScreenAnchor = ({ drone, onScreenPosition }) => {
+  const { camera, size } = useThree();
+  const lastPositionRef = useRef(null);
+
+  useFrame(() => {
+    if (!drone?.position) {
+      return;
+    }
+
+    const projected = new Vector3(...drone.position).project(camera);
+    const visible = projected.z >= -1 && projected.z <= 1;
+    const next = {
+      x: (projected.x * 0.5 + 0.5) * size.width,
+      y: (-projected.y * 0.5 + 0.5) * size.height,
+      width: size.width,
+      height: size.height,
+      visible,
+    };
+    const previous = lastPositionRef.current;
+    if (
+      !previous
+      || Math.abs(previous.x - next.x) > 2
+      || Math.abs(previous.y - next.y) > 2
+      || previous.visible !== next.visible
+    ) {
+      lastPositionRef.current = next;
+      onScreenPosition(next);
+    }
+  });
+
+  return null;
+};
+
+SelectedDroneScreenAnchor.propTypes = {
+  drone: PropTypes.shape({
+    position: PropTypes.arrayOf(PropTypes.number),
+  }),
+  onScreenPosition: PropTypes.func.isRequired,
+};
+
+const DroneScreenAnchorProjector = ({ drones, onScreenAnchors }) => {
+  const { camera, size } = useThree();
+  const lastPayloadRef = useRef('');
+  const themeColors = getPlotThemeColors();
+
+  useFrame(() => {
+    const anchors = drones.map((drone) => {
+      const projected = new Vector3(...drone.position).project(camera);
+      return {
+        id: String(drone[FIELD_NAMES.HW_ID]),
+        label: drone.identityLabel,
+        markerColor: resolveMarkerColor(drone.marker_color, themeColors.primary),
+        noMapFix: drone.noMapFix,
+        runtimeClass: drone.runtime_indicator_class || drone.runtimeStatus?.indicatorClass || 'unknown',
+        x: Math.round((projected.x * 0.5 + 0.5) * size.width),
+        y: Math.round((-projected.y * 0.5 + 0.5) * size.height),
+        visible: projected.z >= -1 && projected.z <= 1,
+      };
+    });
+    const payload = JSON.stringify(anchors);
+    if (payload !== lastPayloadRef.current) {
+      lastPayloadRef.current = payload;
+      onScreenAnchors(anchors);
+    }
+  });
+
+  return null;
+};
+
+DroneScreenAnchorProjector.propTypes = {
+  drones: PropTypes.arrayOf(PropTypes.shape({
+    hw_id: PropTypes.string,
+    identityLabel: PropTypes.string,
+    marker_color: PropTypes.string,
+    noMapFix: PropTypes.bool,
+    runtime_indicator_class: PropTypes.string,
+    runtimeStatus: PropTypes.object,
+    position: PropTypes.arrayOf(PropTypes.number),
+  })).isRequired,
+  onScreenAnchors: PropTypes.func.isRequired,
+};
+
+const resolveSelectedCardPlacement = (screenPosition) => {
+  const x = screenPosition?.x ?? 24;
+  const y = screenPosition?.y ?? 24;
+  const width = screenPosition?.width ?? 0;
+  const height = screenPosition?.height ?? 0;
+  const placeLeft = width > 0 && x > width - SELECTED_CARD_WIDTH_PX - 48;
+  const placeAbove = height > 0 && y > height * 0.38;
+  const rawLeft = Math.round(
+    placeLeft ? x - SELECTED_CARD_WIDTH_PX - SELECTED_CARD_GAP_PX : x + SELECTED_CARD_GAP_PX
+  );
+  const rawTop = Math.round(
+    placeAbove ? y - SELECTED_CARD_HEIGHT_PX - SELECTED_CARD_GAP_PX : y - 16
+  );
+
+  return {
+    placeLeft,
+    placeAbove,
+    style: {
+      left: `min(max(${rawLeft}px, 12px), calc(100% - ${SELECTED_CARD_WIDTH_PX}px))`,
+      top: `min(max(${rawTop}px, 12px), calc(100% - ${SELECTED_CARD_HEIGHT_PX}px))`,
+    },
+  };
+};
+const Drone = ({
+  position,
+  hw_id,
+  marker_color,
+  noMapFix,
+  runtime_indicator_class,
+  selected,
+  onSelect,
+}) => {
   const [isHovered, setIsHovered] = useState(false);
-  const [opacity, setOpacity] = useState(0);
   const meshRef = useRef(null);
   const targetPositionRef = useRef(new Vector3(...position));
   const hasInitialPositionRef = useRef(false);
-  const normalColor = new Color(resolveMarkerColor(marker_color));
-  const hoverColor = new Color('#FF9800');
-
-  useEffect(() => {
-    if (isHovered) {
-      setOpacity(1);
-    } else {
-      const timeout = setTimeout(() => setOpacity(0), 150);
-      return () => clearTimeout(timeout);
-    }
-  }, [isHovered, position, hw_id]);
+  const themeColors = getPlotThemeColors();
+  const normalColor = new Color(resolveMarkerColor(marker_color, themeColors.primary));
+  const hoverColor = new Color(themeColors.warning);
+  const active = selected || isHovered;
+  const markerRadius = noMapFix ? 0.54 : 0.64;
+  const linkDimmed = ['offline', 'never-seen'].includes(runtime_indicator_class);
 
   useEffect(() => {
     targetPositionRef.current.set(...position);
@@ -83,31 +212,32 @@ const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, mar
     <mesh
       ref={meshRef}
       onPointerOver={(e) => { e.stopPropagation(); setIsHovered(true); }}
-      onPointerOut={(e) => setIsHovered(false)}
+      onPointerOut={() => setIsHovered(false)}
       onPointerDown={(e) => {
         e.stopPropagation();
-        setIsHovered((current) => !current);
+        onSelect(String(hw_id));
       }}
     >
-      <sphereGeometry args={[0.5, 16, 16]} />
+      <sphereGeometry args={[markerRadius, 24, 24]} />
       <meshStandardMaterial
-        color={isHovered ? hoverColor : normalColor}
-        emissive={isHovered ? hoverColor : normalColor}
-        emissiveIntensity={0.6}
+        color={active ? hoverColor : normalColor}
+        emissive={active ? hoverColor : normalColor}
+        emissiveIntensity={active ? 0.9 : 0.58}
         metalness={0.5}
-        roughness={0.3}
+        roughness={noMapFix ? 0.68 : 0.3}
+        transparent={noMapFix || linkDimmed}
+        opacity={linkDimmed ? 0.38 : noMapFix ? 0.72 : 1}
       />
-      <Html>
-        <DroneTooltip
-          hw_id={hw_id}
-          pos_id={pos_id}
-          stateLabel={stateLabel}
-          follow_mode={follow_mode}
-          altitude={altitude}
-          opacity={opacity}
-          localPosition={position}
-        />
-      </Html>
+      <mesh>
+        <sphereGeometry args={[1.45, 16, 16]} />
+        <meshBasicMaterial transparent opacity={0.01} depthWrite={false} />
+      </mesh>
+      {active && (
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[noMapFix ? 0.76 : 0.86, 0.035, 10, 36]} />
+          <meshStandardMaterial color={hoverColor} emissive={hoverColor} emissiveIntensity={0.9} />
+        </mesh>
+      )}
     </mesh>
   );
 };
@@ -115,11 +245,11 @@ const Drone = ({ position, hw_id, pos_id, stateLabel, follow_mode, altitude, mar
 Drone.propTypes = {
   position: PropTypes.arrayOf(PropTypes.number).isRequired,
   hw_id: PropTypes.string.isRequired,
-  pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-  stateLabel: PropTypes.string,
-  follow_mode: PropTypes.number.isRequired,
-  altitude: PropTypes.number.isRequired,
   marker_color: PropTypes.string,
+  noMapFix: PropTypes.bool,
+  runtime_indicator_class: PropTypes.string,
+  selected: PropTypes.bool,
+  onSelect: PropTypes.func.isRequired,
 };
 
 const MemoizedDrone = React.memo(Drone);
@@ -170,17 +300,20 @@ CustomOrbitControls.propTypes = {
   controlsRef: PropTypes.object.isRequired,
 };
 
-export default function Globe({ drones }) {
+export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   const [referencePoint, setReferencePoint] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showGround, setShowGround] = useState(false);
   const [droneVisibility, setDroneVisibility] = useState({});
   const [isToolboxOpen, setIsToolboxOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
+  const [selectedScreenPosition, setSelectedScreenPosition] = useState(null);
+  const [screenAnchors, setScreenAnchors] = useState([]);
   const realElevation = useElevation(referencePoint ? referencePoint[0] : null, referencePoint ? referencePoint[1] : null);
   const [groundLevel, setGroundLevel] = useState(0);
   const [targetPosition, setTargetPosition] = useState([0, 0, 0]);
   const controlsRef = useRef();
+  const didInitialCameraFitRef = useRef(false);
 
   const handleGetTerrainClick = () => {
     if (realElevation !== null) {
@@ -211,9 +344,11 @@ export default function Globe({ drones }) {
     setIsLoading(true);
 
     const setReferencePointAsync = async () => {
-      const avgLat = drones.reduce((sum, drone) => sum + drone.position[0], 0) / drones.length;
-      const avgLon = drones.reduce((sum, drone) => sum + drone.position[1], 0) / drones.length;
-      const avgAlt = drones.reduce((sum, drone) => sum + drone.position[2], 0) / drones.length;
+      const positionedDrones = drones.filter((drone) => hasUsableGeoPosition(drone.position));
+      const referenceDrones = positionedDrones.length > 0 ? positionedDrones : drones;
+      const avgLat = referenceDrones.reduce((sum, drone) => sum + drone.position[0], 0) / referenceDrones.length;
+      const avgLon = referenceDrones.reduce((sum, drone) => sum + drone.position[1], 0) / referenceDrones.length;
+      const avgAlt = referenceDrones.reduce((sum, drone) => sum + drone.position[2], 0) / referenceDrones.length;
 
       const elevation = await Promise.race([getElevation(avgLat, avgLon), timeoutPromise(5000)]);
       const localReference = [avgLat, avgLon, elevation ?? avgAlt];
@@ -250,7 +385,8 @@ export default function Globe({ drones }) {
 
   useEffect(() => {
     if (drones?.length && referencePoint) {
-      const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
+      const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+      const convertedPositions = drones.map((drone) => buildDisplayPosition(drone, referencePoint, noFixDrones));
 
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
@@ -260,9 +396,10 @@ export default function Globe({ drones }) {
     }
   }, [drones, referencePoint]);
 
-  const focusOnDrones = () => {
+  const focusOnDrones = useCallback(() => {
     if (drones?.length && referencePoint) {
-      const convertedPositions = drones.map(drone => llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint));
+      const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+      const convertedPositions = drones.map((drone) => buildDisplayPosition(drone, referencePoint, noFixDrones));
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
       const avgZ = convertedPositions.reduce((sum, pos) => sum + pos[2], 0) / convertedPositions.length;
@@ -284,22 +421,70 @@ export default function Globe({ drones }) {
 
       if (controlsRef.current && controlsRef.current.object) {
         const camera = controlsRef.current.object;
-        const offset = maxDistance * 2 + 10;
-        camera.position.set(center[0] + offset, center[1] + offset, center[2] + offset);
+        const offset = Math.max(MIN_CAMERA_FIT_DISTANCE, (maxDistance * CAMERA_FIT_SCALE) + CAMERA_FIT_PADDING);
+        camera.position.set(center[0] + offset, center[1] + (offset * 0.78), center[2] + offset);
         camera.updateProjectionMatrix();
         controlsRef.current.update();
       }
     }
-  };
+  }, [drones, referencePoint]);
+
+  useEffect(() => {
+    if (didInitialCameraFitRef.current || isLoading || !referencePoint || !drones?.length) {
+      return undefined;
+    }
+
+    didInitialCameraFitRef.current = true;
+    const frameId = window.requestAnimationFrame(() => {
+      focusOnDrones();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [drones?.length, focusOnDrones, isLoading, referencePoint]);
+
+  const handleSceneBackgroundPointerDown = useCallback((event) => {
+    const target = event.target;
+    if (
+      target?.closest?.(
+        '.globe-selected-card-popover, .globe-drone-screen-hit, .button-container, .globe-control-box'
+      )
+    ) {
+      return;
+    }
+
+    if (isToolboxOpen) {
+      setIsToolboxOpen(false);
+      return;
+    }
+
+    if (!selectedDroneId) {
+      return;
+    }
+
+    onSelectDrone(null);
+  }, [isToolboxOpen, onSelectDrone, selectedDroneId]);
 
   if (isLoading || !referencePoint) {
     return <LoadingSpinner />;
   }
 
-  const convertedDrones = drones.map(drone => ({
-    ...drone,
-    position: llaToLocal(drone.position[0], drone.position[1], drone.position[2], referencePoint),
-  }));
+  const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+  const convertedDrones = drones.map((drone) => {
+    const noMapFix = !hasUsableGeoPosition(drone.position);
+    const displayPosition = buildDisplayPosition(drone, referencePoint, noFixDrones);
+    const hwId = String(drone[FIELD_NAMES.HW_ID]);
+    return {
+      ...drone,
+      geoPosition: drone.position,
+      identityLabel: formatCompactDroneIdentity(drone[FIELD_NAMES.POS_ID], hwId, `H${hwId}`),
+      noMapFix,
+      position: displayPosition,
+    };
+  });
+  const selectedDrone = convertedDrones.find(
+    (drone) => String(drone[FIELD_NAMES.HW_ID]) === String(selectedDroneId || '')
+  ) || null;
+  const selectedCardPlacement = resolveSelectedCardPlacement(selectedScreenPosition);
 
   const toggleDroneVisibility = (droneId) => {
     setDroneVisibility(prevState => ({
@@ -309,45 +494,127 @@ export default function Globe({ drones }) {
   };
 
   return (
-    <div id="scene-container" className="scene-container">
-      <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
+    <div
+      id="scene-container"
+      className="scene-container"
+      onPointerDown={handleSceneBackgroundPointerDown}
+    >
+      <Canvas camera={{ position: DEFAULT_CAMERA_POSITION, up: [0, 1, 0] }}>
         <ambientLight intensity={0.3} />
         <directionalLight position={[10, 10, 5]} intensity={1} />
         <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade />
         <axesHelper args={[50]} />
         {showGround && <Environment groundLevel={groundLevel} />}
         {convertedDrones.map(drone => (
-          droneVisibility[drone[FIELD_NAMES.HW_ID]] && <MemoizedDrone key={drone[FIELD_NAMES.HW_ID]} {...drone} />
+          droneVisibility[drone[FIELD_NAMES.HW_ID]] && (
+            <MemoizedDrone
+              key={drone[FIELD_NAMES.HW_ID]}
+              {...drone}
+              selected={String(selectedDroneId || '') === String(drone[FIELD_NAMES.HW_ID])}
+              onSelect={onSelectDrone}
+            />
+          )
         ))}
+        {selectedDrone && (
+          <SelectedDroneScreenAnchor
+            drone={selectedDrone}
+            onScreenPosition={setSelectedScreenPosition}
+          />
+        )}
+        <DroneScreenAnchorProjector
+          drones={convertedDrones.filter((drone) => droneVisibility[drone[FIELD_NAMES.HW_ID]])}
+          onScreenAnchors={setScreenAnchors}
+        />
         {showGrid && <gridHelper args={[WORLD_SIZE, 100]} />}
         <CustomOrbitControls targetPosition={targetPosition} controlsRef={controlsRef} />
 
       </Canvas>
+      <div className="globe-drone-screen-targets" aria-label="3D drone touch targets">
+        {screenAnchors.map((anchor) => (
+          anchor.visible && (
+            <button
+              key={anchor.id}
+              type="button"
+              className={[
+                'globe-drone-screen-hit',
+                anchor.noMapFix ? 'no-map-fix' : '',
+                anchor.runtimeClass ? `runtime-${anchor.runtimeClass}` : '',
+                String(selectedDroneId || '') === anchor.id ? 'selected' : '',
+              ].filter(Boolean).join(' ')}
+              style={{
+                '--mds-globe-marker-color': anchor.markerColor,
+                left: `${anchor.x}px`,
+                top: `${anchor.y}px`,
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectDrone(anchor.id);
+              }}
+              onMouseDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectDrone(anchor.id);
+              }}
+              onTouchStart={(event) => event.stopPropagation()}
+              aria-label={`${anchor.label}${anchor.noMapFix ? ' no GPS fix' : ''}`}
+            >
+              <span>{anchor.label}</span>
+            </button>
+          )
+        ))}
+      </div>
+      {selectedDrone && (
+        <div
+          className={[
+            'globe-selected-card-popover',
+            selectedScreenPosition?.visible === false ? 'is-offscreen' : '',
+            selectedCardPlacement.placeLeft ? 'is-left' : '',
+            selectedCardPlacement.placeAbove ? 'is-above' : '',
+          ].filter(Boolean).join(' ')}
+          style={selectedCardPlacement.style}
+          onMouseDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+        >
+          <TacticalDroneCard
+            drone={{
+              ...selectedDrone,
+              position: selectedDrone.position,
+              geoPosition: selectedDrone.geoPosition,
+            }}
+            onClose={() => onSelectDrone(null)}
+          />
+        </div>
+      )}
 
       {/* Render Compass outside the Canvas */}
       
       <div className="button-container">
-        <div
+        <button
+          type="button"
           className="fullscreen-button"
           onClick={toggleFullscreen}
-          title="Toggle Fullscreen"
+          aria-label="Toggle fullscreen"
         >
-          ⛶
-        </div>
-        <div
+          <FaCompressAlt aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           className="focus-button"
           onClick={focusOnDrones}
-          title="Focus on Drones"
+          aria-label="Focus camera on drones"
         >
-          🎯
-        </div>
-        <div
+          <FaCrosshairs aria-hidden="true" />
+        </button>
+        <button
+          type="button"
           className="toolbox-button"
           onClick={() => setIsToolboxOpen(!isToolboxOpen)}
-          title="Toggle Control Panel"
+          aria-label="Toggle 3D view filters"
         >
-          🛠️
-        </div>
+          <FaSlidersH aria-hidden="true" />
+        </button>
       </div>
       <GlobeControlBox
         drones={drones}
@@ -361,6 +628,9 @@ export default function Globe({ drones }) {
         showGrid={showGrid}
         setShowGrid={setShowGrid}
         handleGetTerrainClick={handleGetTerrainClick}
+        selectedDroneId={selectedDroneId}
+        onSelectDrone={onSelectDrone}
+        onClose={() => setIsToolboxOpen(false)}
       />
     </div>
   );
@@ -377,4 +647,11 @@ Globe.propTypes = {
     altitude: PropTypes.number,
     marker_color: PropTypes.string,
   })).isRequired,
+  selectedDroneId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  onSelectDrone: PropTypes.func,
+};
+
+Globe.defaultProps = {
+  selectedDroneId: null,
+  onSelectDrone: () => {},
 };

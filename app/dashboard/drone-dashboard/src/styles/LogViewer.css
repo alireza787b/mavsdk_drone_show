@@ -13,6 +13,46 @@
   overflow: hidden;
 }
 
+.log-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-lg);
+  background: var(--operator-card-background);
+  box-shadow: var(--operator-card-shadow);
+}
+
+.log-viewer-header__copy {
+  min-width: 0;
+}
+
+.log-viewer-header__copy span {
+  display: block;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.log-viewer-header__copy h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-tight);
+}
+
+.log-viewer-header__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .log-viewer-main {
   display: flex;
   flex: 1;
@@ -163,6 +203,14 @@
 .log-health-stat .stat-value {
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+}
+
+.log-health-status.is-online {
+  color: var(--color-success);
+}
+
+.log-health-status.is-offline {
+  color: var(--color-danger);
 }
 
 .log-health-stat.error-count .stat-value {
@@ -493,6 +541,23 @@
   margin-bottom: var(--spacing-md);
 }
 
+.log-export-format-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.log-export-session-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.log-export-session-option {
+  display: block;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
 .log-export-dialog .export-actions {
   display: flex;
   justify-content: flex-end;
@@ -642,8 +707,8 @@
 }
 
 .onboard-ulog-dialog__notice--success {
-  border-color: color-mix(in srgb, var(--color-success, #16a34a) 40%, var(--color-border-primary));
-  background: color-mix(in srgb, var(--color-success, #16a34a) 10%, var(--color-bg-tertiary));
+  border-color: color-mix(in srgb, var(--color-success, var(--color-success)) 40%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-success, var(--color-success)) 10%, var(--color-bg-tertiary));
 }
 
 .onboard-ulog-dialog__notice--error {
@@ -692,7 +757,7 @@
 }
 
 .onboard-ulog-dialog__job-status--ready {
-  color: var(--color-success, #16a34a);
+  color: var(--color-success, var(--color-success));
 }
 
 .onboard-ulog-dialog__job-status--failed {
@@ -714,6 +779,7 @@
 
 .onboard-ulog-dialog__progress-fill {
   height: 100%;
+  width: var(--ulog-progress-percent, 4%);
   border-radius: inherit;
   background: linear-gradient(90deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, white));
   transition: width 180ms ease;

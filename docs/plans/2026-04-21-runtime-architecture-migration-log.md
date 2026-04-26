@@ -2253,3 +2253,813 @@ Verification:
     warning
   - the warning is now explicit in `git_sync_runtime` instead of hidden as
     `not_required`
+
+## Slice 47
+
+Goal:
+
+- tighten the Fleet Ops / Runtime Admin product boundary during the predeploy
+  UI audit so operators do not confuse GCS-host controls with drone-node
+  maintenance controls
+
+Implemented:
+
+- added compact scope badges:
+  - Runtime Admin: `GCS host`
+  - Fleet Ops: `Drone nodes`
+- added explicit cross-links:
+  - Runtime Admin -> Fleet Ops
+  - Fleet Ops -> Runtime Admin
+- shortened page subtitles to one operator-oriented sentence
+- changed Fleet Ops no-selection action summary from `No selection` to
+  `All eligible`, matching the actual selected-first/all-eligible sync behavior
+- made sidecar dashboard fallbacks more explicit:
+  - `Local-only dashboard`
+  - `Dashboard off`
+  - `No dashboard URL`
+- updated focused tests for the new route-link context and visible copy
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/FleetOpsPage.test.js src/pages/RuntimeAdminPage.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 48
+
+Goal:
+
+- remove Fleet Enrollment's page-local confirmation dialog implementation and
+  align enrollment mutations with the shared operator modal primitive
+
+Implemented:
+
+- routed the existing enrollment action wrapper through shared `ConfirmDialog`
+  while preserving all domain form content for:
+  - accept-as-new
+  - replace slot
+  - recover node
+  - ignore
+  - reject
+- removed stale Fleet Enrollment modal/backdrop/button CSS and kept only the
+  domain-specific dialog body layout
+- preserved busy-state behavior, backdrop/Escape blocking through the shared
+  primitive, and the existing mutation service calls
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/FleetEnrollmentPage.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 49
+
+Goal:
+
+- clean Mission Config's remaining local UI drift without changing assignment,
+  enrollment, origin, or save semantics
+
+Implemented:
+
+- replaced the assignment-wall empty paragraph with the shared `EmptyState`
+  primitive
+- removed inline styles from the role-swap review dialog
+- added dialog accessibility attributes for the role-swap review surface
+- moved role-swap modal spacing/alignment into `MissionConfig.css`
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/MissionConfig.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 50
+
+Goal:
+
+- reduce QuickScout SAR sidebar UI drift by moving inline spacing/layout styles
+  into reusable CSS classes
+
+Implemented:
+
+- removed inline layout/spacing styles from `MissionPlanSidebar`
+- removed inline layout/spacing styles from `MissionMonitorSidebar`
+- added shared QuickScout spacing/status classes for:
+  - section offsets
+  - compact stack gaps
+  - bottom gaps
+  - drone status list layout
+  - terrain-following checkbox accent
+  - sticky sidebar action stack
+  - compact launch summary text
+- preserved QuickScout planning, recovery, launch-readiness, monitor, finding,
+  and follow-up behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/QuickScoutPage.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 51
+
+Goal:
+
+- tighten Smart Swarm Design runtime interactions during the predeploy UI
+  cleanup without changing swarm assignment, graph, CSV, or command semantics
+
+Implemented:
+
+- replaced Smart Swarm page `window.confirm` flows with the shared
+  `ConfirmDialog` primitive for:
+  - assignment update/commit review
+  - staged assignment revert
+- replaced Smart Swarm runtime command browser confirmation with the shared
+  `ConfirmDialog`
+- shortened the runtime panel copy and moved scope posture into compact badges
+- switched runtime scope controls to the shared `ActionIconButton` primitive
+- removed unused runtime-scope button styles and stale summary copy styles
+- updated the runtime controls test to confirm through the shared dialog
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/SwarmDesign.test.js src/components/SwarmRuntimeControls.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 52
+
+Goal:
+
+- reduce Trajectory Planning map-chrome UI drift without changing waypoint
+  authoring, terrain refresh, library, export, or swarm handoff behavior
+
+Implemented:
+
+- replaced fixed emoji instruction markers with icon components for map-add
+  and drag guidance
+- moved path-risk legend swatch colors from inline styles into CSS classes
+- moved fixed Mapbox/Leaflet map sizing into a shared
+  `trajectory-map-surface` class
+- removed the now-unused trajectory segment color import from the page
+- kept dynamic waypoint marker CSS variable styling because marker color is
+  data/theme-driven
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/TrajectoryPlanning.test.js src/components/trajectory/TrajectoryToolbar.test.js src/components/trajectory/TrajectorySegmentReview.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 53
+
+Goal:
+
+- reduce Swarm Trajectory presentation drift while preserving leader upload,
+  processing, artifact review, git commit, and clear/download behavior
+
+Implemented:
+
+- replaced emoji-only visual controls with icon components for:
+  - output ready / attention status
+  - KML generation and download
+  - plot zoom affordances
+  - follower output delete action
+  - empty cluster state
+  - lightbox close action
+- moved hidden leader-upload file input styling into CSS
+- removed unused `FormData` construction from leader CSV upload
+- moved progress bar width to a CSS custom property consumed by
+  `.progress-bar-fill`
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/SwarmTrajectory.test.js src/components/trajectory/SwarmTrajectoryWorkspaceSummary.test.js src/components/trajectory/SwarmTrajectoryTransferDialog.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 54
+
+Goal:
+
+- remove stale Manage Drone Show styling left over from older workflow/modal
+  implementations while preserving the active SkyBrush ZIP import surface
+
+Implemented:
+
+- removed unused legacy `workflow-guidance` and advanced-toggle CSS
+- removed unused legacy modal/image navigation CSS from
+  `ManageDroneShow.css`
+- removed responsive, reduced-motion, focus, and high-contrast rules that only
+  targeted those deleted selectors
+- kept active selectors used by `ManageDroneShow`, `ImportSection`,
+  `VisualizationSection`, and `ExportSection`
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 55
+
+Goal:
+
+- tighten Custom CSV Show page copy and remove inline card icon styling while
+  preserving the protocol CSV upload/activation contract
+
+Implemented:
+
+- shortened the page subtitle to a status-first operational summary
+- removed duplicated warning language from the expert-only notice
+- moved card-header icon color/size into `.custom-show-card__icon`
+- replaced inline icon style usage across upload, active CSV, protocol, and
+  preview cards
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 56
+
+Goal:
+
+- tighten Log Viewer toolbar accessibility and icon-first operator controls
+  without changing log stream, filtering, session, export, or ULog behavior
+
+Implemented:
+
+- added `aria-pressed` to Ops/Dev mode toggle buttons
+- added explicit labels and pressed state to the pause/resume stream control
+- added accessible labels for the icon-only clear-live-buffer control
+- added explicit accessible labels for onboard ULog and export actions
+- updated toolbar tests to assert the operator-facing accessible controls
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/logs/LogViewerToolbar.test.js src/hooks/useLogStream.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 57
+
+Goal:
+
+- tidy Drone Show import feature cards by removing inline presentation styles
+  and stale CSS left over from older upload controls
+
+Implemented:
+
+- moved import feature card header layout into
+  `.import-feature-card__header`
+- moved upload/timeline/security/preview icon color and sizing into reusable
+  `import-feature-card__icon` classes
+- removed the unused legacy `.file-input-label` selector family and its
+  responsive, motion, focus, and high-contrast rules
+- preserved the active folder upload input, activation flow, error handling,
+  progress display, validation summary, and visualization handoff
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 58
+
+Goal:
+
+- tighten Drone Show visualization chrome by moving metric/safety icon
+  presentation out of JSX and replacing emoji/modal glyph controls with
+  accessible icon controls
+
+Implemented:
+
+- moved metric icon size/orientation, safety card borders, muted help icons,
+  and expand-chevron rotation into `ManageDroneShow.css`
+- replaced the current-show folder emoji with a semantic folder icon
+- replaced plot lightbox close/previous/next glyph buttons with icon buttons
+  and explicit accessible labels
+- simplified safety tooltip language by removing emoji-led status copy while
+  preserving collision-warning details
+- preserved plot fetching, metrics calculation display, safety status chip,
+  technical analysis collapse state, and image lightbox navigation behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 59
+
+Goal:
+
+- remove remaining inline presentation from Log Viewer export, health, and
+  onboard ULog transfer controls without changing log stream or export
+  behavior
+
+Implemented:
+
+- moved export dialog format spacing and session-list scroll/row styling into
+  `LogViewer.css`
+- moved GCS online/offline health coloring into status classes
+- changed onboard ULog progress fill from a direct inline width to a CSS
+  custom property consumed by the stylesheet
+- preserved session selection, export format handling, health filtering, and
+  onboard ULog transfer progress behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused log tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/logs/LogViewerToolbar.test.js src/components/logs/OnboardUlogDialog.test.js src/hooks/useLogStream.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 60
+
+Goal:
+
+- normalize QuickScout/SAR card and handoff styling hooks while preserving
+  mission planning, monitoring, findings, and handoff behavior
+
+Implemented:
+
+- moved QuickScout coverage progress fills to CSS custom-property driven
+  stylesheet widths
+- moved drone-card status-note spacing, mission-stat summary sizing, and
+  recurring tight title spacing into reusable CSS classes
+- moved handoff panel vertical spacing into existing stack offset classes
+- changed map finding marker priority color from direct inline background to a
+  CSS custom property while preserving priority class styling elsewhere
+- preserved mission recovery/opening, launch review, finding review, monitor
+  summary, handoff export, and QuickScout page behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused QuickScout/SAR tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/sar/DroneStatusCard.test.js src/components/sar/FindingReviewPanel.test.js src/components/sar/MissionStatsBar.test.js src/components/sar/MissionHandoffPanel.test.js src/components/sar/QuickScoutLaunchReview.test.js src/pages/QuickScoutPage.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 61
+
+Goal:
+
+- replace emoji/readiness glyphs in Swarm Mission Readiness with accessible
+  icon-backed status indicators and close the missing processing-state styling
+  gap
+
+Implemented:
+
+- replaced loading, error, empty, refresh, expand, preview, warning, and
+  lightbox-close glyphs with `react-icons` controls and labels where needed
+- split cluster status indicators into icon plus text instead of emoji-prefixed
+  text
+- moved leader readiness status glyphs to reusable status-icon classes
+- added explicit `processing` styling for cluster cards, title hover states,
+  expand icons, CSV indicators, and follower readiness pills
+- preserved readiness summary, action links, cluster expansion, preview
+  lightbox, and trajectory image fallback behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused readiness test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/MissionReadinessCard.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 62
+
+Goal:
+
+- remove remaining emoji labels from the position deviation monitor controls
+  without changing deviation plotting or telemetry refresh behavior
+
+Implemented:
+
+- replaced the manual refresh emoji with an icon-backed button label
+- replaced the position-source banner emoji with a semantic location icon
+- added inline-flex alignment for the manual refresh button in
+  `DeviationView.css`
+- preserved auto-refresh toggling, manual refresh callback behavior, Plotly
+  layout, drone click handling, and deviation summary rendering
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 63
+
+Goal:
+
+- make Mission Details placement accuracy status theme-safe by replacing
+  dynamic inline colors with status classes
+
+Implemented:
+
+- removed color/surface values from the placement status view model
+- replaced inline placement status border/background/value colors with
+  `placement-status-header--*` and `placement-status-value--*` classes
+- kept status icons, Nominal/Review/Blocked text, deviation metrics, origin
+  confirmation, and auto-correction gating behavior unchanged
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused MissionDetails tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/MissionDetails.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 64
+
+Goal:
+
+- remove inline spacing from the drone configuration slot-change confirmation
+  dialog
+
+Implemented:
+
+- replaced the inline confirmation prompt margin with
+  `.confirmation-dialog__prompt`
+- preserved the show-slot change warning, Fleet Enrollment guidance, confirm
+  action, and cancel action behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused DroneConfigCard tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/DroneConfigCard.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 65
+
+Goal:
+
+- replace emoji toolbar controls in Trajectory Planning with accessible icon
+  components while preserving authoring workflow behavior
+
+Implemented:
+
+- replaced add waypoint, undo, redo, save, load, import, export, assign,
+  clear, terrain, keyboard-help, and popover-close glyphs with `react-icons`
+  components
+- kept existing button labels, shortcut help text, disabled states, terrain
+  fallback, handoff posture, and save-status behavior unchanged
+- added a small `btn-icon` flex-shrink rule so icon sizing remains stable in
+  compact toolbar layouts
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused TrajectoryToolbar tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/TrajectoryToolbar.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 66
+
+Goal:
+
+- replace Waypoint Panel warning/delete/edit glyphs with accessible icon
+  controls while preserving waypoint editing behavior
+
+Implemented:
+
+- replaced speed status glyphs, high-speed summary warning, panel collapse
+  glyph, fly-to waypoint glyph, delete/cancel glyphs, inline edit save/cancel
+  glyphs, and high-speed segment warning glyphs with `react-icons`
+- added accessible labels for fly-to and delete/cancel waypoint actions
+- added stable icon layout rules for edit buttons and high-speed warning rows
+- preserved inline coordinate/timing/heading/altitude editing, keyboard
+  save/cancel, waypoint selection, fly-to, delete, and panel collapse behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused WaypointPanel tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointPanel.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 67
+
+Goal:
+
+- replace Waypoint Modal emoji labels and dynamic inline speed status styling
+  with accessible icon labels and CSS-backed status classes
+
+Implemented:
+
+- replaced altitude, timing, time, heading, and speed-warning glyph labels with
+  `react-icons` components
+- moved speed feasibility styling from runtime inline style objects into stable
+  `.speed-display--*` classes
+- removed unused speed-indicator pseudo-glyph CSS from the modal stylesheet
+- preserved terrain validation, AGL/MSL entry behavior, timing modes, heading
+  modes, speed validation, and confirmation behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused WaypointModal tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointModal.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 68
+
+Goal:
+
+- finish the remaining trajectory authoring glyph cleanup so search,
+  waypoint placement, and speed warnings use the same icon-backed operator
+  language
+
+Implemented:
+
+- replaced SearchBar location, search, clear, submit, loading, no-result, and
+  coordinate-tip glyphs with `react-icons`
+- replaced the Waypoint Modal coordinate label glyph with an accessible icon
+  label
+- replaced the Trajectory Planning map speed-warning badge glyph with an icon
+  component
+- replaced waypoint start/end pseudo-emoji indicators with CSS status dots
+- removed the duplicated legacy SearchBar dropdown stylesheet block while
+  preserving the modern z-index/dropdown behavior
+- preserved geocoding, coordinate parsing, keyboard suggestion navigation,
+  waypoint modal behavior, map marker warning behavior, and panel edit guidance
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused trajectory tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/TrajectoryPlanning.test.js src/components/trajectory/WaypointPanel.test.js src/components/trajectory/WaypointModal.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 69
+
+Goal:
+
+- remove emoji/pseudo-glyph status markers from mission configuration save
+  feedback and drone configuration unavailable-state styling
+
+Implemented:
+
+- converted Mission Config save toasts to plain operator text while preserving
+  the reboot instruction and git commit success/failure branches
+- replaced the Drone Config unavailable-state warning pseudo-glyph with a CSS
+  status dot
+- preserved fleet config save, refresh, git result handling, missing-ID
+  warning, and card layout behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused MissionConfig and DroneConfigCard tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/DroneConfigCard.test.js src/pages/MissionConfig.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 70
+
+Goal:
+
+- replace remaining decorative CSS pseudo-content glyphs in mission details,
+  trajectory fallback, swarm legend, and sidebar fallback controls
+
+Implemented:
+
+- replaced Mission Details disclosure arrows with CSS chevrons
+- replaced warning details disclosure glyphs with CSS chevrons
+- replaced Trajectory Planning fallback checkmarks with CSS check strokes
+- replaced Swarm Design legend flow arrow with a CSS arrow stroke
+- replaced Sidebar fallback hamburger glyph with CSS line strokes
+- preserved details open/closed transitions, legend semantics, mobile sidebar
+  fallback behavior, and fallback feature layout
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused CSS-adjacent UI tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/MissionDetails.test.js src/components/SidebarMenu.test.js src/pages/SwarmDesign.test.js src/pages/TrajectoryPlanning.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 71
+
+Goal:
+
+- replace Trajectory Toolbar save-state glyphs with icon/CSS indicators while
+  preserving the draft/saved status model
+
+Implemented:
+
+- replaced saved checkmarks with `MdCheckCircle`
+- replaced unsaved dot glyphs with CSS status dots
+- kept auto-save timestamps, dirty draft messaging, save button state, and
+  shortcut/help behavior unchanged
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused TrajectoryToolbar tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/TrajectoryToolbar.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 72
+
+Goal:
+
+- remove stale legacy/TODO wording from the frontend source where the behavior
+  is now part of the current operator contract
+
+Implemented:
+
+- renamed trajectory `time` and `speed` comments from legacy compatibility to
+  export/storage alias language
+- removed the redundant Mission Config forward-heading TODO because the UI
+  already marks that control as preview-only
+- preserved waypoint creation, inline time editing, mission preview rendering,
+  and heading preview behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed hidden legacy/TODO scan for frontend components/pages/styles
+- passed whitespace check:
+  `git diff --check`
+- passed focused affected tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointPanel.test.js src/pages/TrajectoryPlanning.test.js src/pages/MissionConfig.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 73
+
+Goal:
+
+- move remaining operator-visible Drone Detail and Drone Git Status inline
+  styling into reusable tone classes
+
+Implemented:
+
+- replaced Drone Detail GPS status inline color with status classes
+- replaced Drone Detail connection-dot inline background color with tone
+  classes
+- replaced Drone Git Status commit hash cursor/opacity inline state with
+  `commit-hash--copyable` and `commit-hash--disabled` classes
+- preserved runtime status labels/tooltips, GPS labels, commit-copy behavior,
+  and expanded runtime summary behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused DroneGitStatus tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/DroneGitStatus.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
+
+## Slice 74
+
+Goal:
+
+- close the frontend predeploy cleanup pass with a full audit/test/build gate
+
+Implemented:
+
+- verified the worktree was clean after Slice 73
+- reran the frontend UI audit guardrail with an expanded result window
+- reran decorative glyph and hidden legacy/TODO scans for frontend
+  components/pages/styles
+- ran the full frontend Jest suite on Hetzner
+- ran the production dashboard build on Hetzner
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 300`
+- passed decorative glyph scan for frontend source excluding tests
+- passed hidden legacy/TODO scan for frontend components/pages/styles
+- passed whitespace check:
+  `git diff --check`
+- passed full frontend test suite on Hetzner:
+  `CI=true npm test -- --watchAll=false`
+  - 100 test suites passed
+  - 448 tests passed
+- passed production dashboard build on Hetzner:
+  `npm run build`

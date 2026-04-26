@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-const DARK_THEME_COLOR = '#09111c';
-const LIGHT_THEME_COLOR = '#f8fbfd';
+const META_THEME_COLOR_TOKEN = '--app-meta-theme-color';
 
 // Theme types
 export const THEMES = {
@@ -55,6 +54,13 @@ const setStoredTheme = (theme) => {
   }
 };
 
+const readCssToken = (element, tokenName) => {
+  if (typeof window === 'undefined' || !element) {
+    return '';
+  }
+  return window.getComputedStyle(element).getPropertyValue(tokenName).trim();
+};
+
 // Apply theme to document
 const applyTheme = (theme) => {
   if (typeof document !== 'undefined') {
@@ -70,22 +76,22 @@ const applyTheme = (theme) => {
     // Set data attribute for CSS selectors
     root.setAttribute('data-theme', theme);
     root.style.colorScheme = theme;
-    root.style.backgroundColor = theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+    root.style.backgroundColor = 'var(--color-bg-canvas)';
 
     if (body) {
       body.classList.remove('theme-light', 'theme-dark');
       body.classList.add(`theme-${theme}`);
       body.setAttribute('data-theme', theme);
       body.style.colorScheme = theme;
-      body.style.backgroundColor = theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+      body.style.backgroundColor = 'var(--color-bg-canvas)';
     }
 
+    const metaThemeColor = readCssToken(root, META_THEME_COLOR_TOKEN) || readCssToken(body, META_THEME_COLOR_TOKEN);
+
     // Update meta theme-color for mobile browsers
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute('content',
-        theme === THEMES.DARK ? DARK_THEME_COLOR : LIGHT_THEME_COLOR
-      );
+    const metaThemeColorElement = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColorElement && metaThemeColor) {
+      metaThemeColorElement.setAttribute('content', metaThemeColor);
     }
 
     const metaColorScheme = document.querySelector('meta[name="color-scheme"]');
@@ -176,7 +182,6 @@ export const ThemeProvider = ({ children }) => {
     toggleTheme,
     cycleTheme,
     getThemeInfo,
-    // Legacy compatibility
     isDark: effectiveTheme === THEMES.DARK,
     isLight: effectiveTheme === THEMES.LIGHT
   };

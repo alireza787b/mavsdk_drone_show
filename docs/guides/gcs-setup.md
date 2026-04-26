@@ -272,7 +272,8 @@ sudo ./tools/mds_gcs_init.sh \
 
 ```bash
 # MDS GCS Configuration
-GCS_PORT=5000
+GCS_PORT=5030
+MDS_GCS_API_PORT=5030
 GCS_BACKEND=fastapi
 
 # Repository Settings
@@ -283,6 +284,7 @@ MDS_INSTALL_DIR=~/mavsdk_drone_show
 
 # Dashboard Settings
 DASHBOARD_PORT=3030
+MDS_DASHBOARD_PORT=3030
 
 # Virtual Environment
 VENV_PATH=~/mavsdk_drone_show/venv
@@ -309,7 +311,7 @@ post-install repair to make self-update functional.
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 22 | TCP | SSH access |
-| 5000 | TCP | GCS API Server (FastAPI) |
+| 5030 | TCP | GCS API Server (FastAPI) |
 | 3030 | TCP | React Dashboard |
 | 14550 | UDP | GCS MAVLink (from drones) |
 
@@ -332,7 +334,7 @@ If you skipped firewall setup or need to configure manually:
 ```bash
 # Using UFW
 sudo ufw allow 22/tcp
-sudo ufw allow 5000/tcp
+sudo ufw allow 5030/tcp
 sudo ufw allow 3030/tcp
 sudo ufw allow 14550/udp
 sudo ufw enable
@@ -421,9 +423,9 @@ cd ~/mavsdk_drone_show/app
 **Solution:**
 ```bash
 # Find process using port
-sudo lsof -i :5000
+sudo lsof -i :5030
 # or
-sudo netstat -tlnp | grep 5000
+sudo netstat -tlnp | grep 5030
 
 # Kill the process
 sudo kill -9 <PID>
@@ -528,13 +530,13 @@ Operational note: the FastAPI backend currently keeps heartbeats, command tracki
 - `--prod` intentionally runs a single Gunicorn worker
 - `--sitl` / `--dev` now keep the backend single-process by default as well
 - backend auto-reload is an explicit debug override only: `export MDS_GCS_BACKEND_RELOAD=true`
-- when you change host-local runtime mode, use Runtime Admin or relaunch the
+- when you change host-local runtime mode, use GCS Runtime or relaunch the
   canonical launcher so the process restarts cleanly in the target mode instead
   of trying to mix SITL and real heartbeats in one long-lived backend process
 
-### Runtime Admin
+### GCS Runtime
 
-The dashboard Runtime Admin page is the host-local control surface for the GCS
+The dashboard GCS Runtime page is the host-local control surface for the GCS
 process. It is intentionally narrow:
 
 - save host-local mode (`MDS_MODE`) and git auto-push posture
@@ -544,9 +546,9 @@ process. It is intentionally narrow:
 
 Current operator rules:
 
-- use Runtime Admin for host-local GCS behavior only
+- use GCS Runtime for host-local GCS behavior only
 - use fleet config / swarm config for git-tracked fleet desired state
-- do not treat Runtime Admin as the place to edit raw GitHub secrets
+- do not treat GCS Runtime as the place to edit raw GitHub secrets
 - use the built-in `Update GCS` action only for safe fast-forward runtime
   updates; it intentionally blocks launcher, frontend, tooling, and dependency
   changes so those still go through the manual update path
@@ -571,7 +573,7 @@ When using the constrained GCS self-update path:
   - `tools/`
   - dependency manifests like `package.json`, `requirements*.txt`,
     `pyproject.toml`
-- Runtime Admin will refuse those blocked updates and tell the operator to use
+- GCS Runtime will refuse those blocked updates and tell the operator to use
   the manual update workflow instead
 
 ### Managing the Services
@@ -590,8 +592,8 @@ tmux kill-session -t MDS-GCS
 
 After starting:
 - **React Dashboard:** http://YOUR_SERVER_IP:3030
-- **GCS API Server:** http://YOUR_SERVER_IP:5000
-- **API Health Check:** http://YOUR_SERVER_IP:5000/api/v1/system/health
+- **GCS API Server:** http://YOUR_SERVER_IP:5030
+- **API Health Check:** http://YOUR_SERVER_IP:5030/api/v1/system/health
 
 ---
 

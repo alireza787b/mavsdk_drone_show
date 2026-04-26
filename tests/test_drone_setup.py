@@ -1171,7 +1171,7 @@ class TestCommandReportRetry:
         params = Mock()
         params.trigger_sooner_seconds = 4
         params.GCS_IP = "127.0.0.1"
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         params.COMMAND_REPORT_HTTP_TIMEOUT_SEC = 5
         params.COMMAND_REPORT_RETRY_BASE_DELAY_SEC = 2
         params.COMMAND_REPORT_RETRY_MAX_DELAY_SEC = 60

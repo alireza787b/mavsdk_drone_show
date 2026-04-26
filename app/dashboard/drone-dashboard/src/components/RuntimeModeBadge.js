@@ -35,11 +35,6 @@ export default function RuntimeModeBadge({
       ? 'SITL'
       : 'UNKNOWN';
   const configMatches = normalizedConfiguredMode === normalizedMode && normalizedConfiguredMode !== 'unknown';
-  const title = restartRequired
-    ? `${label} runtime. Persisted host config is ${configuredLabel}; apply restart in Runtime Admin.`
-    : configMatches
-      ? `${label} runtime. Persisted host config matches the running process.`
-      : `${label} runtime.`;
   const ariaLabel = restartRequired
     ? `${label} runtime, configured ${configuredLabel}, restart required`
     : configMatches
@@ -49,7 +44,6 @@ export default function RuntimeModeBadge({
   return (
     <span
       className={`runtime-mode-badge runtime-mode-badge--${normalizedMode}${compact ? ' runtime-mode-badge--compact' : ''}${restartRequired ? ' runtime-mode-badge--restart-required' : ''}${className ? ` ${className}` : ''}`}
-      title={title}
       aria-label={ariaLabel}
     >
       <span className="runtime-mode-badge__label">{label}</span>

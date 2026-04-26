@@ -58,8 +58,8 @@ readonly -a GCS_PHASES=(
 # GCS Required Ports
 declare -A GCS_PORTS=(
     ["22/tcp"]="SSH access"
-    ["5000/tcp"]="GCS API Server (FastAPI)"
-    ["3030/tcp"]="React Dashboard"
+    ["${MDS_DEFAULT_GCS_API_PORT:-5030}/tcp"]="GCS API Server (FastAPI)"
+    ["${MDS_DEFAULT_DASHBOARD_PORT:-3030}/tcp"]="React Dashboard"
     ["14550/udp"]="GCS MAVLink (from drones)"
 )
 

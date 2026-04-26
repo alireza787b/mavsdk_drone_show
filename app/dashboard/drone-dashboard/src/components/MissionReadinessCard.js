@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  MdAssessment,
+  MdCancel,
+  MdCheckCircle,
+  MdClose,
+  MdExpandMore,
+  MdHourglassEmpty,
+  MdRefresh,
+  MdSmartToy,
+  MdVisibility,
+  MdWarningAmber,
+} from 'react-icons/md';
 import useSwarmClusterStatus from '../hooks/useSwarmClusterStatus';
 import { normalizeClusterState } from '../utilities/swarmTrajectoryViewModel';
 import {
@@ -87,6 +99,15 @@ const MissionReadinessCard = ({
     }
   };
 
+  const renderStatusIcon = (tone, className = 'readiness-status-icon') => {
+    const Icon = tone === 'ready'
+      ? MdCheckCircle
+      : tone === 'processing'
+        ? MdHourglassEmpty
+        : MdCancel;
+    return <Icon className={`${className} ${tone}`} aria-hidden="true" />;
+  };
+
   const openLightbox = (imageSrc, title) => {
     setLightboxImage({ src: imageSrc, title });
   };
@@ -119,7 +140,7 @@ const MissionReadinessCard = ({
     return (
       <div className="mission-readiness-card loading">
         <div className="loading-content">
-          <span className="loading-spinner">⏳</span>
+          <MdHourglassEmpty className="loading-spinner" aria-hidden="true" />
           <span className="loading-text">Loading mission readiness...</span>
         </div>
       </div>
@@ -130,7 +151,7 @@ const MissionReadinessCard = ({
     return (
       <div className="mission-readiness-card error">
         <div className="error-content">
-          <span className="error-icon">⚠️</span>
+          <MdWarningAmber className="error-icon" aria-hidden="true" />
           <span className="error-text">{error}</span>
         </div>
       </div>
@@ -141,7 +162,7 @@ const MissionReadinessCard = ({
     return (
       <div className="mission-readiness-card">
         <div className="empty-state">
-          <span className="empty-icon">🤖</span>
+          <MdSmartToy className="empty-icon" aria-hidden="true" />
           <div className="empty-text">
             <h4>No Clusters Found</h4>
             <p>Configure the swarm in Swarm Design, then send leader paths from Trajectory Planning or upload them in Swarm Trajectory.</p>
@@ -221,8 +242,9 @@ const MissionReadinessCard = ({
             className="refresh-btn"
             onClick={handleRefresh}
             title="Refresh status"
+            aria-label="Refresh mission readiness"
           >
-            ↻
+            <MdRefresh aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -297,14 +319,17 @@ const MissionReadinessCard = ({
                 onClick={() => toggleCluster(cluster.leader_id)}
               >
                 <div className="cluster-title">
-                  <span className="expand-icon">{isExpanded ? '▼' : '▶'}</span>
+                  <MdExpandMore
+                    className={`expand-icon ${isExpanded ? 'expanded' : ''}`}
+                    aria-hidden="true"
+                  />
                   <span>Leader {cluster.leader_id}</span>
                 </div>
 
                 <div className="header-actions">
                   <span className="csv-indicator">
-                    {clusterTone === 'ready' ? '✅' : clusterTone === 'processing' ? '⏳' : '❌'}
-                    {getClusterStatusLabel(cluster)}
+                    {renderStatusIcon(clusterTone)}
+                    <span>{getClusterStatusLabel(cluster)}</span>
                   </span>
                   {cluster.cluster_plot_available && (
                     <button
@@ -314,8 +339,9 @@ const MissionReadinessCard = ({
                         openLightbox(getClusterImagePath(cluster.leader_id), `Cluster ${cluster.leader_id} Formation`);
                       }}
                       title="Preview cluster formation"
+                      aria-label={`Preview cluster ${cluster.leader_id} formation`}
                     >
-                      👁️
+                      <MdVisibility aria-hidden="true" />
                     </button>
                   )}
                 </div>
@@ -350,13 +376,16 @@ const MissionReadinessCard = ({
                         <div className="drone-meta">
                           <span className="drone-role">LEADER</span>
                           <span className={`drone-status ${clusterTone}`}>
-                            {clusterTone === 'ready'
-                              ? '✅ Ready'
-                              : normalizeClusterState(cluster.state) === 'partial_outputs'
-                                ? '⏳ Cluster outputs incomplete'
-                                : clusterTone === 'processing'
-                                  ? '⏳ Uploaded, processing required'
-                                  : '❌ Missing CSV'}
+                            {renderStatusIcon(clusterTone)}
+                            <span>
+                              {clusterTone === 'ready'
+                                ? 'Ready'
+                                : normalizeClusterState(cluster.state) === 'partial_outputs'
+                                  ? 'Cluster outputs incomplete'
+                                  : clusterTone === 'processing'
+                                    ? 'Uploaded, processing required'
+                                    : 'Missing CSV'}
+                            </span>
                           </span>
                         </div>
                       </div>
@@ -368,7 +397,8 @@ const MissionReadinessCard = ({
                               onClick={() => openLightbox(getDroneImagePath(cluster.leader_id), `Drone ${cluster.leader_id} Trajectory`)}
                               title="Preview trajectory"
                             >
-                              📊 Leader preview
+                              <MdAssessment aria-hidden="true" />
+                              Leader preview
                             </button>
                           )}
                         </div>
@@ -433,7 +463,7 @@ const MissionReadinessCard = ({
       {/* Action guidance */}
       {overallStatus.status !== 'ready' && (
         <div className="missing-warning">
-          <span className="warning-icon">⚠️</span>
+          <MdWarningAmber className="warning-icon" aria-hidden="true" />
           <div className="warning-text">
             Action needed:{' '}
             {missingCount > 0 && processingCount > 0
@@ -454,8 +484,8 @@ const MissionReadinessCard = ({
           <div className="lightbox-container" onClick={(e) => e.stopPropagation()}>
             <div className="lightbox-header">
               <h3>{lightboxImage.title}</h3>
-              <button className="lightbox-close" onClick={closeLightbox}>
-                ✕
+              <button className="lightbox-close" onClick={closeLightbox} aria-label="Close trajectory preview">
+                <MdClose aria-hidden="true" />
               </button>
             </div>
             <div className="lightbox-content">

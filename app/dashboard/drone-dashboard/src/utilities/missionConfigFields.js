@@ -57,6 +57,8 @@ const CUSTOM_FIELD_KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const ACRONYM_WORDS = new Set(['id', 'ip', 'gps', 'gcs', 'mavlink', 'rtl', 'udp', 'tcp']);
 
+export const DEFAULT_MARKER_COLOR = '#00d4ff';
+
 export const MISSION_CUSTOM_FIELD_TEMPLATES = [
   {
     key: 'callsign',
@@ -70,8 +72,8 @@ export const MISSION_CUSTOM_FIELD_TEMPLATES = [
     key: 'marker_color',
     label: 'Marker Color',
     type: CUSTOM_FIELD_TYPES.COLOR,
-    defaultValue: '#00d4ff',
-    placeholder: '#00d4ff',
+    defaultValue: DEFAULT_MARKER_COLOR,
+    placeholder: DEFAULT_MARKER_COLOR,
     description: 'Optional map/globe marker color. Use #RGB or #RRGGBB.',
   },
   {
@@ -289,7 +291,7 @@ export function coerceMissionCustomFieldValueForEditor(type, value) {
   }
 
   if (type === CUSTOM_FIELD_TYPES.COLOR) {
-    return String(value ?? '').trim() || '#00d4ff';
+    return String(value ?? '').trim() || DEFAULT_MARKER_COLOR;
   }
 
   if (type === CUSTOM_FIELD_TYPES.JSON) {

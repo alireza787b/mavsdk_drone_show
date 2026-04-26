@@ -59,14 +59,21 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
 
     for hw_id, hb_data in heartbeats_dict.items():
         last_timestamp = hb_data.get("timestamp", 0)
+        heartbeat_age_sec = None
         if last_timestamp:
-            time_diff = current_time - (last_timestamp / 1000.0)
-            is_online = time_diff < heartbeat_timeout
+            heartbeat_age_sec = max(0.0, current_time - (last_timestamp / 1000.0))
+            is_online = heartbeat_age_sec < heartbeat_timeout
         else:
             is_online = False
 
-        network_info = hb_data.get("network_info", {})
-        latency_ms = network_info.get("latency_ms") if network_info else None
+        if is_online:
+            presence_state = "live"
+        elif last_timestamp and heartbeat_age_sec is not None and heartbeat_age_sec <= max(30.0, heartbeat_timeout):
+            presence_state = "recently_lost"
+        elif last_timestamp:
+            presence_state = "offline"
+        else:
+            presence_state = "never_seen"
 
         ip_value = hb_data.get("ip")
         if ip_value is not None:
@@ -82,7 +89,8 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
             runtime_mode=hb_data.get("runtime_mode"),
             last_heartbeat=last_timestamp,
             online=is_online,
-            latency_ms=latency_ms,
+            heartbeat_age_sec=heartbeat_age_sec,
+            presence_state=presence_state,
         )
         heartbeats_list.append(heartbeat_obj)
 
@@ -170,6 +178,11 @@ def create_core_router(deps: Any) -> APIRouter:
     async def websocket_telemetry(websocket: WebSocket):
         await websocket.accept()
         deps.log_system_event("Telemetry WebSocket client connected", "INFO", "websocket")
+        try:
+            requested_interval_ms = int(websocket.query_params.get("interval_ms", "1000"))
+        except (TypeError, ValueError):
+            requested_interval_ms = 1000
+        stream_interval_sec = max(0.5, min(requested_interval_ms / 1000.0, 6.0))
 
         try:
             while True:
@@ -179,7 +192,7 @@ def create_core_router(deps: Any) -> APIRouter:
                     data=deps.telemetry_data_all_drones,
                 )
                 await websocket.send_json(message.model_dump())
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(stream_interval_sec)
         except WebSocketDisconnect:
             deps.log_system_event("Telemetry WebSocket client disconnected", "INFO", "websocket")
         except Exception as exc:

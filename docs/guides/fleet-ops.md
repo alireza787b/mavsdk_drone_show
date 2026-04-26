@@ -1,7 +1,7 @@
 # Fleet Ops
 
-Fleet Ops is the operator surface for node-level compliance. Runtime Admin is
-for the GCS host; Fleet Ops is for drones.
+Fleet Ops is the operator surface for node-level maintenance and compliance.
+GCS Runtime is for the GCS host; Fleet Ops is for drones.
 
 Use Fleet Ops to answer:
 
@@ -10,9 +10,15 @@ Use Fleet Ops to answer:
 - which drones have healthy read-only git access?
 - which drones have healthy MAVLink routing sidecars?
 - which drones need connectivity-sidecar attention?
+- which selected drones should sync and reconcile now?
 
-Fleet Ops is intentionally read-only in the first release. It does not edit
-tokens, push credentials, or mutate node sidecar profiles from the browser.
+Fleet Ops is actionable, but guarded:
+
+- selected-node sync is allowed;
+- repo-owned Smart Wi-Fi fleet-profile import is allowed;
+- sidecar reconcile is performed through the node sync runtime;
+- direct dashboard links are shown only when the node reports a reachable URL;
+- raw tokens, private keys, and secret file contents are never shown in browser UI.
 
 ## Data Sources
 
@@ -20,6 +26,8 @@ Fleet Ops uses existing GCS APIs:
 
 - `GET /api/v1/git/status`
 - `GET /api/v1/fleet/heartbeats`
+- `GET /api/v1/fleet/sidecars/connectivity/profile`
+- `PUT /api/v1/fleet/sidecars/connectivity/profile`
 
 The git-status payload already includes per-node:
 
@@ -51,6 +59,10 @@ not install an updated systemd unit file with its current controlled sudoers.
 Rerun the node installer or refresh sudoers before expecting service unit
 changes to apply automatically.
 
+For SITL containers, `service_reload_status=skipped` is expected. SITL does not
+own real-node systemd units inside the git-sync path, so Fleet Ops treats that
+state as healthy/not applicable rather than drift.
+
 The **Drift** filter covers more than commit mismatch. It includes repository
 drift, node-local git-sync runtime warnings, and sidecar desired/applied hash
 drift so a synced commit cannot hide an unapplied service or profile update.
@@ -81,16 +93,41 @@ When Smart Wi-Fi Manager is configured, Fleet Ops shows the resolved profile
 hash plus desired/applied config hashes. Hashes are shortened in the UI for
 operator readability; raw profile content and secrets are not displayed.
 
+Fleet Ops can import a repo-owned Smart Wi-Fi profile JSON into:
+
+`deployment/connectivity/smart-wifi-manager/profile.json`
+
+Only do this for private fleet repositories when the profile includes
+passwords or customer SSIDs. Public demos should either keep
+`MDS_CONNECTIVITY_BACKEND=none`, use placeholder/example profiles, or use a
+host-local Smart Wi-Fi profile source outside git.
+
+The import API returns only status, counts, and hashes. It does not echo SSIDs,
+passwords, token paths, or raw profile content. After import, use **Sync +
+reconcile** to dispatch the normal node git-sync path; real nodes with
+`MDS_CONNECTIVITY_BACKEND=smart-wifi-manager` will pull the updated profile and
+reconcile their Smart Wi-Fi Manager runtime. SITL nodes and nodes with
+connectivity backend `none` report this as not applicable rather than failed.
+
+MAVLink profiles are intentionally not handled as a one-click fleet-wide import
+yet. MAVLink input sources often differ by board, serial path, Ethernet
+topology, or local safety policy, so Fleet Ops currently shows MAVLink status,
+hash drift, and dashboard links while leaving profile authoring to the node or
+deployment profile workflow.
+
 ## Current Boundaries
 
-Fleet Ops currently displays status and drift. Later slices may add:
+Fleet Ops owns drone-side action surfaces:
 
-- selected-node sidecar reconcile retry
-- selected-node git-sync retry
-- direct or proxied node dashboard opening
+- selected-node git sync;
+- selected-node post-sync sidecar reconcile;
+- repo-owned Smart Wi-Fi profile import/status;
+- dashboard open links when reachable;
+- git auth posture;
+- MAVLink and Smart Wi-Fi profile drift visibility.
 
-Those actions should remain preflighted and selected-node scoped; avoid broad
-"fix all" controls without an operator-readable summary.
+GCS Runtime remains host-local only: mode switch, GCS restart, GCS update, and
+GCS auth health.
 
 ## Related Guides
 

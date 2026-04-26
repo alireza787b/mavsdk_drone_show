@@ -21,7 +21,7 @@ set -euo pipefail  # Strict error handling
 # ===========================================
 DEFAULT_MODE="development"
 DEFAULT_BACKEND="fastapi"
-DEFAULT_PORT=5000
+DEFAULT_PORT="${MDS_DEFAULT_GCS_API_PORT:-5030}"
 PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
@@ -100,11 +100,12 @@ EXAMPLES:
   $0
 
   # Start FastAPI in production mode
-  $0 production fastapi 5000
+  $0 production fastapi 5030
 
 ENVIRONMENT VARIABLES:
   GCS_ENV      Override deployment mode (development|production)
   GCS_PORT     Override server port
+  MDS_GCS_API_PORT  Canonical MDS GCS API port
   GCS_BACKEND  Override backend choice (must remain 'fastapi')
 
 EOF
@@ -122,7 +123,7 @@ fi
 # Allow environment variables to override arguments
 MODE="${GCS_ENV:-$MODE}"
 BACKEND="${GCS_BACKEND:-$BACKEND}"
-PORT="${GCS_PORT:-$PORT}"
+PORT="${MDS_GCS_API_PORT:-${GCS_PORT:-$PORT}}"
 
 if [[ "$BACKEND" == "uvicorn" || "$BACKEND" == "gunicorn" ]]; then
     log_warn "Legacy GCS_BACKEND=$BACKEND detected. Mapping to fastapi."
@@ -139,7 +140,7 @@ load_gcs_system_config() {
         # shellcheck source=/dev/null
         source "$GCS_SYSTEM_CONFIG"
 
-        PORT="${GCS_PORT:-$PORT}"
+        PORT="${MDS_GCS_API_PORT:-${GCS_PORT:-$PORT}}"
         export \
             MDS_REPO_URL \
             MDS_BRANCH \
@@ -234,6 +235,7 @@ start_server() {
     # Export environment variables for the server
     export GCS_ENV="$MODE"
     export GCS_PORT="$PORT"
+    export MDS_GCS_API_PORT="$PORT"
     export GCS_BACKEND="$BACKEND"
     export PYTHONPATH="${PROJECT_ROOT}:${PROJECT_ROOT}/src:${PYTHONPATH:-}"
 

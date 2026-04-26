@@ -1,15 +1,14 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import '../styles/DroneGitStatus.css';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faCheckCircle,
-  faExclamationCircle,
-  faChevronDown,
-  faChevronUp,
-  faCopy,
-  faLink,
-} from '@fortawesome/free-solid-svg-icons';
+  FaCheckCircle,
+  FaChevronDown,
+  FaChevronUp,
+  FaCopy,
+  FaExclamationCircle,
+  FaLink,
+} from 'react-icons/fa';
 import { areGitRevisionsEquivalent } from '../utilities/missionIdentityUtils';
 
 const formatRepoAccessMode = (value) => {
@@ -75,7 +74,7 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
       <div className="git-status-card">
         <div className="git-status-header">
           <div className="status-indicator">
-            <FontAwesomeIcon icon={faExclamationCircle} className="status-icon offline" title="Git Status Unavailable" />
+            <FaExclamationCircle className="status-icon offline" aria-label="Git status unavailable" data-help="Git status unavailable" />
           </div>
           <div className="git-basic-info">
             <span className="branch-name">Git Unavailable</span>
@@ -136,24 +135,23 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
       <div className="git-status-header">
         <div className="status-indicator">
           {isInSync ? (
-            <FontAwesomeIcon icon={faCheckCircle} className="status-icon online" title="In Sync" aria-label="In Sync" />
+            <FaCheckCircle className="status-icon online" aria-label="In Sync" data-help="In sync with GCS" />
           ) : (
-            <FontAwesomeIcon icon={faExclamationCircle} className="status-icon dirty" title="Not In Sync" aria-label="Not In Sync" />
+            <FaExclamationCircle className="status-icon dirty" aria-label="Not In Sync" data-help="Not in sync with GCS" />
           )}
         </div>
         <div className="git-basic-info">
-          <span className="branch-name" title={`Branch: ${gitStatus.branch || 'N/A'}`}>
+          <span className="branch-name" data-help={`Branch: ${gitStatus.branch || 'N/A'}`}>
             {gitStatus.branch || 'N/A'}
           </span>
           <span
-            className="commit-hash"
+            className={`commit-hash ${gitStatus.commit ? 'commit-hash--copyable' : 'commit-hash--disabled'}`}
             onClick={gitStatus.commit ? handleCopyCommit : undefined}
-            title={gitStatus.commit ? "Click to copy full commit hash" : "No commit hash available"}
+            data-help={gitStatus.commit ? "Click to copy full commit hash" : "No commit hash available"}
             aria-label={gitStatus.commit ? "Commit hash, click to copy" : "No commit hash available"}
-            style={gitStatus.commit ? { cursor: 'pointer' } : { cursor: 'default', opacity: 0.6 }}
           >
             {shortCommitHash}
-            {gitStatus.commit && <FontAwesomeIcon icon={faCopy} className="copy-icon" />}
+            {gitStatus.commit && <FaCopy className="copy-icon" aria-hidden="true" />}
             {copySuccess && <span className="copy-tooltip">Copied!</span>}
           </span>
         </div>
@@ -163,10 +161,10 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
             onClick={toggleDetails}
             aria-expanded={isExpanded}
             aria-controls={`git-details-${droneName}`}
-            title="Toggle Details"
+            data-help="Toggle details"
             aria-label="Toggle Details"
           >
-            <FontAwesomeIcon icon={isExpanded ? faChevronUp : faChevronDown} />
+            {isExpanded ? <FaChevronUp aria-hidden="true" /> : <FaChevronDown aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -221,7 +219,7 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
                   )}
                   {gitStatus.mavlink_runtime.dashboard_url && (
                     <a href={gitStatus.mavlink_runtime.dashboard_url} target="_blank" rel="noreferrer">
-                      <FontAwesomeIcon icon={faLink} /> Dashboard
+                      <FaLink aria-hidden="true" /> Dashboard
                     </a>
                   )}
                 </div>
@@ -241,7 +239,7 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
                   )}
                   {gitStatus.connectivity_runtime.dashboard_url && (
                     <a href={gitStatus.connectivity_runtime.dashboard_url} target="_blank" rel="noreferrer">
-                      <FontAwesomeIcon icon={faLink} /> Dashboard
+                      <FaLink aria-hidden="true" /> Dashboard
                     </a>
                   )}
                 </div>

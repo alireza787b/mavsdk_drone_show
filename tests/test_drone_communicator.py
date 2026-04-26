@@ -16,6 +16,7 @@ def build_drone_config(follow_value=1):
         last_mission=10,
         trigger_time=0,
         position={"lat": 35.7244359, "long": 51.2756087, "alt": 1286.0},
+        home_position={"lat": 35.7244359, "long": 51.2756087, "alt": 1286.0},
         velocity={"north": 0.0, "east": 0.0, "down": 0.0},
         yaw=100.0,
         battery=15.3,
@@ -62,7 +63,19 @@ def test_get_drone_state_prefers_live_swarm_assignment():
     state = communicator.get_drone_state()
 
     assert state["follow_mode"] == 0
+    assert state["distance_to_home_m"] == 0
     assert communicator._get_live_swarm_assignment()["follow"] == 0
+
+
+def test_get_drone_state_reports_distance_to_home():
+    drone_config = build_drone_config(follow_value=0)
+    drone_config.home_position = {"lat": 35.7244359, "long": 51.2766087, "alt": 1286.0}
+    params = SimpleNamespace(enable_udp_telemetry=False, enable_default_subscriptions=False)
+
+    communicator = DroneCommunicator(drone_config=drone_config, params=params, drones={})
+    state = communicator.get_drone_state()
+
+    assert 90 <= state["distance_to_home_m"] <= 92
 
 
 def test_get_drone_state_falls_back_to_cached_swarm_assignment():

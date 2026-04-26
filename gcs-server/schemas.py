@@ -96,7 +96,6 @@ class FleetConfigEntryPayload(BaseModel):
     pos_id: Optional[int] = Field(None, ge=1, description="Position ID")
     ip: Optional[str] = Field(None, description="IP address")
     mavlink_port: Optional[int] = Field(None, ge=1, description="MAVLink UDP port")
-    connection_str: Optional[str] = Field(None, description="Legacy connection string")
 
 
 class SwarmAssignment(BaseModel):
@@ -161,6 +160,28 @@ class ConfigUpdateResponse(BaseModel):
     message: str = Field(..., description="Status message")
     updated_count: int = Field(..., ge=0, description="Number of drones updated")
     git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if auto-push enabled")
+
+
+class ConnectivityProfileUpdateRequest(BaseModel):
+    """Dashboard request to replace the repo-owned Smart Wi-Fi fleet profile."""
+    model_config = ConfigDict(extra='forbid')
+
+    profile: Dict[str, Any] = Field(..., description="Smart Wi-Fi Manager profile JSON object")
+    commit: Optional[bool] = Field(None, description="Override GCS auto-commit/auto-push policy for this save")
+
+
+class ConnectivityProfileStatusResponse(BaseModel):
+    """Secret-safe summary of the repo-owned Smart Wi-Fi fleet profile."""
+    profile_present: bool = Field(..., description="Whether the repo-owned profile file exists")
+    dashboard_managed: bool = Field(..., description="Whether GCS can safely manage this repo-owned profile path")
+    profile_path: str = Field(..., description="Repository-relative Smart Wi-Fi profile path")
+    profile_hash: Optional[str] = Field(None, description="SHA-256 hash of canonical profile JSON when readable")
+    profile_valid: Optional[bool] = Field(None, description="Whether the current profile is valid JSON object when present")
+    mode: Optional[str] = Field(None, description="Profile mode such as observe/manage when provided")
+    network_count: Optional[int] = Field(None, ge=0, description="Number of configured network profiles when present")
+    updated_count: int = Field(0, ge=0, description="Number of profile resources changed by the request")
+    message: str = Field(..., description="Operator-facing status summary")
+    git_result: Optional[Dict[str, Any]] = Field(None, description="Git commit/push result if requested/enabled")
 
 
 # ============================================================================
@@ -411,6 +432,7 @@ class DroneTelemetry(BaseModel):
     is_ready_to_arm: bool = Field(..., description="Compatibility readiness boolean")
     home_position_set: bool = Field(False, description="Whether PX4 home position has been established")
     home_position_source: Optional[str] = Field(None, description="Source of the cached home position record (px4 or fallback_position)")
+    distance_to_home_m: Optional[float] = Field(None, description="Horizontal distance from current position to cached home position (m)")
 
     readiness_status: str = Field("unknown", description="Operator-facing readiness state")
     readiness_summary: str = Field("Readiness unavailable", description="High-level readiness summary")
@@ -466,7 +488,8 @@ class HeartbeatData(BaseModel):
     runtime_mode: Optional[str] = Field(None, description="Declared node runtime mode if reported")
     last_heartbeat: Optional[int] = Field(None, description="Last heartbeat timestamp (Unix ms)")
     online: bool = Field(..., description="Online status")
-    latency_ms: Optional[float] = Field(None, ge=0, description="Network latency (ms)")
+    heartbeat_age_sec: Optional[float] = Field(None, ge=0, description="Age of the last accepted heartbeat in seconds")
+    presence_state: str = Field("unknown", description="Operator presence state: live, recently_lost, offline, never_seen, or unknown")
 
 
 class HeartbeatResponse(BaseModel):
@@ -1233,7 +1256,7 @@ class GCSRuntimeUpdateResponse(BaseModel):
 
 
 class RuntimeDocsResponse(BaseModel):
-    """Doc links surfaced in the runtime admin view."""
+    """Doc links surfaced in the GCS Runtime view."""
 
     mds_init_setup: Optional[str] = Field(None, description="Bootstrap/setup guide URL")
     fleet_sync_and_secrets: Optional[str] = Field(None, description="Fleet sync and secrets guide URL")
@@ -1271,7 +1294,7 @@ class RuntimeGitAuthHealthResponse(BaseModel):
 
 
 class RuntimeRepoSyncStatusResponse(BaseModel):
-    """Resolved GCS repo sync/update posture for Runtime Admin."""
+    """Resolved GCS repo sync/update posture for GCS Runtime."""
 
     branch: str = Field(..., description="Current branch")
     commit: str = Field(..., description="Current commit hash")
@@ -1286,7 +1309,7 @@ class RuntimeRepoSyncStatusResponse(BaseModel):
 
 
 class RuntimeMavlinkRuntimeResponse(BaseModel):
-    """Managed mavlink-anywhere runtime status surfaced to Runtime Admin."""
+    """Managed mavlink-anywhere runtime status surfaced to GCS Runtime diagnostics."""
 
     status_source: str = Field(..., description="How the runtime status was resolved")
     management_mode: str = Field(..., description="Managed/manual posture for mavlink-anywhere")
@@ -1308,7 +1331,7 @@ class RuntimeMavlinkRuntimeResponse(BaseModel):
 
 
 class RuntimeConnectivityRuntimeResponse(BaseModel):
-    """Connectivity backend runtime status surfaced to Runtime Admin."""
+    """Connectivity backend runtime status surfaced to GCS Runtime diagnostics."""
 
     status_source: str = Field(..., description="How the connectivity status was resolved")
     backend: str = Field(..., description="Resolved connectivity backend")
@@ -1373,7 +1396,6 @@ class NetworkStatus(BaseModel):
     pos_id: int = Field(..., ge=1, description="Position ID")
     ip: str = Field(..., description="IP address")
     reachable: bool = Field(..., description="Network reachable")
-    latency_ms: Optional[float] = Field(None, ge=0, description="Ping latency (ms)")
     packet_loss: Optional[float] = Field(None, ge=0, le=100, description="Packet loss (%)")
     last_check: int = Field(..., description="Last check timestamp (Unix ms)")
 

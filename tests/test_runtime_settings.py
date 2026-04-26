@@ -126,6 +126,8 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
                 "MDS_DEFAULT_REAL_GCS_IP=10.0.0.55",
                 "MDS_DEFAULT_SITL_GCS_IP=172.30.0.1",
                 "MDS_DEFAULT_GCS_API_PORT=5050",
+                "MDS_DEFAULT_DASHBOARD_PORT=3035",
+                "MDS_DEFAULT_DRONE_API_PORT=7075",
                 "MDS_DEFAULT_CONNECTIVITY_BACKEND=smart-wifi-manager",
                 "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git",
                 "MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v1.2.3",
@@ -157,6 +159,8 @@ def test_load_deployment_profile_reads_git_tracked_defaults(monkeypatch, tmp_pat
     assert profile.real_gcs_ip == "10.0.0.55"
     assert profile.sitl_gcs_ip == "172.30.0.1"
     assert profile.gcs_api_port == 5050
+    assert profile.dashboard_port == 3035
+    assert profile.drone_api_port == 7075
     assert profile.connectivity_backend == "smart-wifi-manager"
     assert profile.smart_wifi_manager_repo_url_https == "https://github.com/demo/smart-wifi-manager.git"
     assert profile.smart_wifi_manager_ref == "v1.2.3"
@@ -192,6 +196,7 @@ def test_params_use_deployment_profile_defaults_when_runtime_env_is_absent(monke
                 "MDS_DEFAULT_REAL_GCS_IP=10.0.0.55",
                 "MDS_DEFAULT_SITL_GCS_IP=172.30.0.1",
                 "MDS_DEFAULT_GCS_API_PORT=5050",
+                "MDS_DEFAULT_DRONE_API_PORT=7075",
             ]
         )
         + "\n",
@@ -207,3 +212,4 @@ def test_params_use_deployment_profile_defaults_when_runtime_env_is_absent(monke
     assert params_module.Params.GIT_BRANCH == "release-candidate"
     assert params_module.Params.GCS_IP == "172.30.0.1"
     assert params_module.Params.gcs_api_port == 5050
+    assert params_module.Params.drone_api_port == 7075

@@ -1,5 +1,6 @@
 // src/components/GlobeControlBox.js
 import React from 'react';
+import { FaTimes } from 'react-icons/fa';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/GlobeControlBox.css';
@@ -83,7 +84,10 @@ function GlobeControlBox({
   isToolboxOpen,
   showGrid, 
   setShowGrid, 
-  handleGetTerrainClick 
+  handleGetTerrainClick,
+  selectedDroneId = null,
+  onSelectDrone = () => {},
+  onClose = () => {},
 }) {
   const groupedDrones = React.useMemo(() => buildDroneClusterGroups(drones), [drones]);
 
@@ -94,6 +98,14 @@ function GlobeControlBox({
           <p className="globe-control-box__eyebrow">3D view</p>
           <h4>View Filters</h4>
         </div>
+        <button
+          type="button"
+          className="globe-control-box__close"
+          onClick={onClose}
+          aria-label="Close 3D view filters"
+        >
+          <FaTimes aria-hidden="true" />
+        </button>
       </div>
       <div className="control-section">
         <label className="control-label">
@@ -143,7 +155,10 @@ function GlobeControlBox({
               <div className="drone-toggle-group__title">{group.label}</div>
             )}
             {group.drones.map((drone) => (
-              <div key={drone.id} className="drone-toggle">
+              <div
+                key={drone.id}
+                className={`drone-toggle ${String(selectedDroneId || '') === String(drone.id) ? 'selected' : ''}`}
+              >
                 <label>
                   <input
                     type="checkbox"
@@ -152,6 +167,14 @@ function GlobeControlBox({
                   />
                   <span>{drone.label}</span>
                 </label>
+                <button
+                  type="button"
+                  className="drone-toggle__select"
+                  onClick={() => onSelectDrone(String(selectedDroneId || '') === String(drone.id) ? null : drone.id)}
+                  aria-label={`Open ${drone.label} tactical card`}
+                >
+                  Inspect
+                </button>
               </div>
             ))}
           </div>

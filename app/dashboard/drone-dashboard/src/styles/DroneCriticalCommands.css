@@ -63,7 +63,7 @@
 
 .critical-commands-panel__utility--warning:hover:not(:disabled) {
   color: var(--color-warning);
-  border-color: rgba(237, 137, 54, 0.35);
+  border-color: var(--color-warning-border);
 }
 
 .critical-commands-panel__utility-label {
@@ -125,14 +125,14 @@
 }
 
 .critical-command-button.warning {
-  background: linear-gradient(135deg, rgba(237, 137, 54, 0.14), rgba(237, 137, 54, 0.06));
-  border-color: rgba(237, 137, 54, 0.3);
+  background: linear-gradient(135deg, var(--color-warning-light), var(--color-warning-light));
+  border-color: var(--color-warning-border);
   color: var(--color-warning);
 }
 
 .critical-command-button.danger {
-  background: linear-gradient(135deg, rgba(229, 62, 62, 0.16), rgba(229, 62, 62, 0.08));
-  border-color: rgba(229, 62, 62, 0.34);
+  background: linear-gradient(135deg, var(--color-danger-light), var(--color-danger-light));
+  border-color: var(--color-danger-border);
   color: var(--color-danger);
 }
 

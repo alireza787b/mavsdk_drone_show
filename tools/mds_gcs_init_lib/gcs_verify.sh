@@ -238,7 +238,7 @@ verify_firewall() {
 
         # Check key ports
         local ports_ok=true
-        for port_proto in "22/tcp" "5000/tcp" "3030/tcp" "14550/udp"; do
+        for port_proto in "22/tcp" "${MDS_DEFAULT_GCS_API_PORT:-5030}/tcp" "${MDS_DEFAULT_DASHBOARD_PORT:-3030}/tcp" "14550/udp"; do
             if ufw status | grep -q "$port_proto"; then
                 echo -e "    Port ${port_proto}: ${GREEN}Open${NC}"
             else
@@ -375,9 +375,9 @@ print_next_steps() {
 
     echo -e "  ${WHITE}2. Access the Dashboard:${NC}"
     echo ""
-    echo -e "     Frontend:    ${CYAN}http://<your-ip>:3030${NC}"
-    echo -e "     Backend API: ${CYAN}http://<your-ip>:5000${NC}"
-    echo -e "     Health:      ${CYAN}http://<your-ip>:5000/api/v1/system/health${NC}"
+    echo -e "     Frontend:    ${CYAN}http://<your-ip>:${MDS_DEFAULT_DASHBOARD_PORT:-3030}${NC}"
+    echo -e "     Backend API: ${CYAN}http://<your-ip>:${MDS_DEFAULT_GCS_API_PORT:-5030}${NC}"
+    echo -e "     Health:      ${CYAN}http://<your-ip>:${MDS_DEFAULT_GCS_API_PORT:-5030}/api/v1/system/health${NC}"
     echo ""
 
     echo -e "  ${WHITE}3. Useful Commands:${NC}"

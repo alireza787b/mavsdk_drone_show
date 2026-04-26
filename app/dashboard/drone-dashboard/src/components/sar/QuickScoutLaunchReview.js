@@ -130,7 +130,7 @@ const QuickScoutLaunchReview = ({
     <div className="qs-config-section qs-launch-review">
       <div className="qs-launch-review__header">
         <div>
-          <div className="qs-config-title" style={{ marginBottom: 4 }}>
+          <div className="qs-config-title qs-config-title--tight">
             Launch Review
           </div>
           <div className="qs-launch-review__subtitle">

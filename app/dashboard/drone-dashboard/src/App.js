@@ -23,6 +23,7 @@ import { MapProvider } from './contexts/MapContext';
 import './styles/DesignTokens.css';
 
 import SidebarMenu from './components/SidebarMenu';
+import RouteDocsShortcut from './components/RouteDocsShortcut';
 import SyncWarningBanner from './components/SyncWarningBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import useGcsRuntimeStatus from './hooks/useGcsRuntimeStatus';
@@ -64,6 +65,28 @@ const getIsMobileViewport = () => {
   }
   return window.innerWidth <= MOBILE_BREAKPOINT;
 };
+
+const AppLoadingFallback = () => (
+  <div className="page-loading" role="status" aria-live="polite" aria-label="Loading mission dashboard">
+    <div className="page-loading__card">
+      <div className="page-loading__radar" aria-hidden="true">
+        <span className="page-loading__sweep" />
+        <span className="page-loading__node page-loading__node--one" />
+        <span className="page-loading__node page-loading__node--two" />
+        <span className="page-loading__node page-loading__node--three" />
+      </div>
+      <div className="page-loading__copy">
+        <strong>Loading mission dashboard</strong>
+        <span>Preparing fleet view</span>
+      </div>
+      <div className="page-loading__dots" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+    </div>
+  </div>
+);
 
 const App = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
@@ -151,8 +174,9 @@ const App = () => {
                   runtimeStatus={runtimeStatus}
                 />
                 <div className={contentClassName}>
+                  <RouteDocsShortcut />
                   <SyncWarningBanner />
-                  <Suspense fallback={<div className="page-loading">Loading...</div>}>
+                  <Suspense fallback={<AppLoadingFallback />}>
                     <Routes>
                       {/* Main drone management routes */}
                       <Route path="/drone-show-design" element={<ManageDroneShow />} />

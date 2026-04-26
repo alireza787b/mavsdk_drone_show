@@ -18,8 +18,8 @@
  */
 
 // Default ports for services
-const DEFAULT_GCS_PORT = '5000';
-const DEFAULT_DRONE_PORT = '5050';
+const DEFAULT_GCS_PORT = process.env.REACT_APP_GCS_PORT || '5030';
+const DEFAULT_DRONE_PORT = process.env.REACT_APP_DRONE_PORT || '7070';
 
 /**
  * Determines the base server URL for API calls.
@@ -49,7 +49,7 @@ function getBaseServerURL() {
  * @returns {string} Port number
  */
 function getGCSPort() {
-  return process.env.REACT_APP_GCS_PORT || DEFAULT_GCS_PORT;
+  return DEFAULT_GCS_PORT;
 }
 
 /**
@@ -57,13 +57,13 @@ function getGCSPort() {
  * @returns {string} Port number
  */
 function getDronePort() {
-  return process.env.REACT_APP_DRONE_PORT || DEFAULT_DRONE_PORT;
+  return DEFAULT_DRONE_PORT;
 }
 
 /**
  * Gets the full GCS backend URL including port.
  * @param {string} [port] - Optional port override
- * @returns {string} Full URL (e.g., "http://192.168.1.100:5000")
+ * @returns {string} Full URL (e.g., "http://192.168.1.100:5030")
  */
 export function getBackendURL(port = null) {
   const baseURL = getBaseServerURL();

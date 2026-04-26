@@ -194,24 +194,18 @@ const MissionDetails = ({
     if (worst <= thresholdWarning) {
       return {
         status: 'excellent',
-        color: 'var(--color-success)',
-        surface: 'var(--color-success-light)',
         icon: <FaCheckCircle aria-hidden="true" />,
         text: 'Nominal'
       };
     } else if (worst <= thresholdError) {
       return {
         status: 'warning',
-        color: 'var(--color-warning)',
-        surface: 'var(--color-warning-light)',
         icon: <FaExclamationTriangle aria-hidden="true" />,
         text: 'Review'
       };
     } else {
       return {
         status: 'error',
-        color: 'var(--color-danger)',
-        surface: 'var(--color-danger-light)',
         icon: <FaExclamationTriangle aria-hidden="true" />,
         text: 'Blocked'
       };
@@ -682,15 +676,12 @@ const MissionDetails = ({
                             {/* Placement Status - Most prominent */}
                             {placementStatus && (
                               <div
-                                className="deviation-stat placement-status-header"
-                                style={{
-                                  borderLeft: `4px solid ${placementStatus.color}`,
-                                  backgroundColor: placementStatus.surface,
-                                }}
+                                className={`deviation-stat placement-status-header placement-status-header--${placementStatus.status}`}
                               >
                                 <span className="deviation-label">Placement Accuracy:</span>
-                                <span className="deviation-value placement-status-value" style={{ color: placementStatus.color, fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)' }}>
-                                  {placementStatus.icon} {placementStatus.text}
+                                <span className={`deviation-value placement-status-value placement-status-value--${placementStatus.status}`}>
+                                  {placementStatus.icon}
+                                  <span>{placementStatus.text}</span>
                                 </span>
                               </div>
                             )}
@@ -723,7 +714,7 @@ const MissionDetails = ({
                                 
                                 {/* GPS Warnings (if any) */}
                                 {warningAnalysis.gpsWarnings > 0 && (
-                                  <div className="deviation-stat gps-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'gps').map(w => `Drone ${w.hw_id}: ${w.message}`).join('\n')}>
+                                  <div className="deviation-stat gps-warning-stat" data-help={warningAnalysis.warningDetails.filter(w => w.type === 'gps').map(w => `Drone ${w.hw_id}: ${w.message}`).join('\n')}>
                                     <span className="deviation-label">GPS Quality:</span>
                                     <span className="deviation-value gps-warning-value">
                                       {warningAnalysis.gpsWarnings} warning{warningAnalysis.gpsWarnings !== 1 ? 's' : ''}
@@ -734,7 +725,7 @@ const MissionDetails = ({
                                 
                                 {/* Placement Warnings (only if deviation is actually bad) */}
                                 {warningAnalysis.placementWarnings > 0 && (
-                                  <div className="deviation-stat placement-warning-stat" title={warningAnalysis.warningDetails.filter(w => w.type === 'placement').map(w => `Drone ${w.hw_id}: ${w.message} (${w.deviation.toFixed(2)}m)`).join('\n')}>
+                                  <div className="deviation-stat placement-warning-stat" data-help={warningAnalysis.warningDetails.filter(w => w.type === 'placement').map(w => `Drone ${w.hw_id}: ${w.message} (${w.deviation.toFixed(2)}m)`).join('\n')}>
                                     <span className="deviation-label">Placement:</span>
                                     <span className="deviation-value placement-warning-value">
                                       {warningAnalysis.placementWarnings} drone{warningAnalysis.placementWarnings !== 1 ? 's' : ''} needs adjustment
@@ -744,7 +735,7 @@ const MissionDetails = ({
                                 
                                 {/* Errors */}
                                 {deviationSummary.errors > 0 && (
-                                  <div className="deviation-stat error-stat" title={Object.entries(deviations).filter(([_, d]) => d.status === 'error').map(([hw_id, d]) => `Drone ${hw_id}: ${d.message || 'Error'}`).join('\n')}>
+                                  <div className="deviation-stat error-stat" data-help={Object.entries(deviations).filter(([_, d]) => d.status === 'error').map(([hw_id, d]) => `Drone ${hw_id}: ${d.message || 'Error'}`).join('\n')}>
                                     <span className="deviation-label">Critical:</span>
                                     <span className="deviation-value error-value">
                                       {deviationSummary.errors} error{deviationSummary.errors !== 1 ? 's' : ''} detected

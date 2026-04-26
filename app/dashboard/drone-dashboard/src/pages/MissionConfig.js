@@ -12,8 +12,9 @@ import MissionLayout from '../components/MissionLayout';
 import OriginModal from '../components/OriginModal';
 import DronePositionMap from '../components/DronePositionMap';
 import SaveReviewDialog from '../components/SaveReviewDialog';
-import ClusterScopeBar from '../components/ClusterScopeBar';
-import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
+import MissionConfigAlertStack from '../components/missionConfig/MissionConfigAlertStack';
+import PendingEnrollmentPanel from '../components/missionConfig/PendingEnrollmentPanel';
+import MissionConfigToolbar from '../components/missionConfig/MissionConfigToolbar';
 
 // Hooks
 import useFetch from '../hooks/useFetch';
@@ -29,7 +30,6 @@ import {
   validateConfigWithBackend,
 } from '../utilities/missionConfigUtilities';
 import {
-  DRONE_SEARCH_HELP_TEXT,
   DRONE_SEARCH_PLACEHOLDER,
   matchesDroneSearchQuery,
 } from '../utilities/dronePresentation';
@@ -59,16 +59,12 @@ import {
   setOriginResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
-import { CircularProgress } from '@mui/material';
-
-// Icons
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { FaClipboardList, FaExchangeAlt } from 'react-icons/fa';
 import {
-  faExclamationTriangle,
-  faExchangeAlt,
-  faPlus,
-  faSave,
-} from '@fortawesome/free-solid-svg-icons';
+  EmptyState,
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
 
 const MissionConfig = () => {
   const navigate = useNavigate();
@@ -753,6 +749,13 @@ const MissionConfig = () => {
     ? `${missionAttentionCount} active review item${missionAttentionCount === 1 ? '' : 's'}`
     : 'Assignment wall is clear for save review';
   const missionSearchSummary = `${filteredConfigData.length}/${sortedConfigData.length} assignment card${sortedConfigData.length === 1 ? '' : 's'} visible`;
+  const originStatusLabel = originStatus === 'ready'
+    ? 'Origin ready'
+    : originStatus === 'checking'
+      ? 'Origin checking'
+      : originStatus === 'unavailable'
+        ? 'Origin check failed'
+        : 'Origin needed';
 
   const scrollNodeIntoView = (node, block = 'center') => {
     if (!node) {
@@ -863,271 +866,70 @@ const MissionConfig = () => {
   // Render
   // -----------------------------------------------------
   return (
-    <div className="mission-config-container">
-      <header className="mission-config-page-header">
-        <div className="mission-config-page-header__content">
-          <h2 className="mission-config-title">Mission Configuration</h2>
-          <p className="mission-config-subtitle">
-            Assignment wall for slot ownership, identity, and launch readiness.
-          </p>
-        </div>
-      </header>
-
-      <section className="mission-config-workspace-shell" aria-label="Assignment workspace">
-        <div className="mission-config-primary-bar">
-          <div className="mission-config-primary-bar__copy">
-            <span className="mission-config-primary-bar__kicker">Assignment wall</span>
-            <strong>{missionWorkspaceHeadline}</strong>
-          </div>
-          <div className="mission-config-primary-bar__actions">
-            <button
-              type="button"
-              className="mission-config-primary-button mission-config-primary-button--save"
-              onClick={handleSaveChangesToServerWrapper}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <CircularProgress size={18} color="inherit" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <FontAwesomeIcon icon={faSave} />
-                  Save & Commit
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              className="mission-config-primary-button mission-config-primary-button--add"
-              onClick={addNewDrone}
-            >
-              <FontAwesomeIcon icon={faPlus} />
-              Add Drone
-            </button>
-          </div>
-        </div>
-
-        <IdentityDoctrineStrip surface="mission-config" />
-
-        <section className="mission-config-ops-toolbar" aria-label="Mission configuration filters">
-          <div className="mission-config-ops-toolbar__main">
-            <label className="mission-config-search">
-              <span>Search</span>
-              <input
-                type="search"
-                value={missionConfigSearch}
-                onChange={(event) => setMissionConfigSearch(event.target.value)}
-                placeholder={DRONE_SEARCH_PLACEHOLDER}
-                aria-label="Search assignments by position, hardware ID, or callsign"
-                title={DRONE_SEARCH_HELP_TEXT}
-              />
-            </label>
-            <div className="mission-config-ops-toolbar__summary">
-              <p className="mission-config-ops-note">{missionSearchSummary}</p>
-              <div className="mission-config-ops-summary" aria-label="Mission configuration status summary">
-                {missionWorkspaceStats.map((stat) => (
-                  <button
-                    key={stat.label}
-                    type="button"
-                    className={`mission-config-ops-stat ${stat.tone ? `mission-config-ops-stat--${stat.tone}` : ''}`}
-                    onClick={stat.label === 'Origin' ? reviewOriginWorkflow : undefined}
-                    disabled={stat.label !== 'Origin'}
-                  >
-                    <span className="mission-config-ops-stat__label">{stat.label}</span>
-                    <strong className="mission-config-ops-stat__value">{stat.value}</strong>
-                    {stat.actionLabel ? (
-                      <span className="mission-config-ops-stat__action">{stat.actionLabel}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="mission-config-filter-rails">
-            {assignmentFilterOptions.length > 1 && (
-              <ClusterScopeBar
-                label="Issue focus"
-                options={assignmentFilterOptions}
-                selectedId={assignmentFilter}
-                onSelect={setAssignmentFilter}
-              />
-            )}
-
-            {clusterScopeOptions.length > 1 && (
-              <ClusterScopeBar
-                label="Cluster scope"
-                options={clusterScopeOptions}
-                selectedId={clusterScope}
-                onSelect={setClusterScope}
-              />
-            )}
-          </div>
-        </section>
-      </section>
-
-      {(duplicateHwIds.length > 0 || duplicatePosIds.length > 0 || roleSwaps.length > 0 || pendingEnrollmentDrones.length > 0 || (originStatus !== 'ready' && originStatus !== 'checking')) && (
-        <div className="mission-config-alert-stack">
-          {pendingEnrollmentDrones.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
-              onClick={reviewPendingEnrollmentCandidates}
-            >
-              <FontAwesomeIcon icon={faPlus} />
-              <div>
-                <strong>{pendingEnrollmentDrones.length} detected, not enrolled</strong>
-                <span>
-                  {pendingEnrollmentDrones.slice(0, 3).map((candidate) => formatDroneLabel(candidate.hw_id)).join(' • ')}
-                  {pendingEnrollmentDrones.length > 3 ? ` • +${pendingEnrollmentDrones.length - 3} more` : ''}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">Review</span>
-            </button>
-          )}
-          {duplicateHwIds.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
-              onClick={reviewDuplicateHardwareIds}
-            >
-              <FontAwesomeIcon icon={faExclamationTriangle} />
-              <div>
-                <strong>{duplicateHwIds.length} duplicate hardware ID{duplicateHwIds.length === 1 ? '' : 's'}</strong>
-                <span>
-                  {duplicateHwIds.map((duplicate) => formatDroneLabel(duplicate.hw_id)).join(', ')}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">Review</span>
-            </button>
-          )}
-          {duplicatePosIds.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--danger mission-config-alert--actionable"
-              onClick={reviewDuplicateSlots}
-            >
-              <FontAwesomeIcon icon={faExclamationTriangle} />
-              <div>
-                <strong>{duplicatePosIds.length} slot collision{duplicatePosIds.length === 1 ? '' : 's'}</strong>
-                <span>
-                  {duplicatePosIds.map((duplicate) => (
-                    `${formatShowSlotLabel(duplicate.pos_id)} → ${duplicate.hw_ids.map((hwId) => formatDroneLabel(hwId)).join(', ')}`
-                  )).join(' • ')}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">Review</span>
-            </button>
-          )}
-          {roleSwaps.length > 0 && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--info mission-config-alert--actionable"
-              onClick={reviewRoleSwapAssignments}
-            >
-              <FontAwesomeIcon icon={faExchangeAlt} />
-              <div>
-                <strong>{roleSwaps.length} slot reassignment{roleSwaps.length === 1 ? '' : 's'} active</strong>
-                <span>
-                  {roleSwaps.slice(0, 3).map((drone) => (
-                    `${formatDroneLabel(drone.hw_id)} → ${formatShowSlotLabel(drone.pos_id)}`
-                  )).join(' • ')}
-                  {roleSwaps.length > 0 ? ' • Smart Swarm follow-links stay on hardware IDs.' : ''}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">{roleSwaps.length > 3 ? 'View all' : 'Review'}</span>
-            </button>
-          )}
-          {(originStatus === 'needed' || originStatus === 'unavailable') && (
-            <button
-              type="button"
-              className="mission-config-alert mission-config-alert--warning mission-config-alert--actionable"
-              onClick={reviewOriginWorkflow}
-            >
-              <FontAwesomeIcon icon={faExclamationTriangle} />
-              <div>
-                <strong>{originStatus === 'unavailable' ? 'Origin check failed' : 'Origin needed'}</strong>
-                <span>
-                  {originStatus === 'unavailable'
-                    ? 'The page could not confirm the current origin. Open the origin tools to review or set it again.'
-                    : 'Set the origin before using deviation-based launch review.'}
-                </span>
-              </div>
-              <span className="mission-config-alert__action">{originStatus === 'unavailable' ? 'Review' : 'Set origin'}</span>
-            </button>
-          )}
+    <PageShell
+      className="mission-config-container"
+      eyebrow="Configuration"
+      title="Mission Config"
+      subtitle="Assignment wall for slot ownership, identity, and launch readiness."
+      icon={<FaClipboardList />}
+      docsRoute="/mission-config"
+      docsOptions={{
+        repoUrl: gcsGitStatus?.remote_url || '',
+        branch: gcsGitStatus?.branch || '',
+      }}
+      status={(
+        <div className="mission-config-page-status">
+          <StatusBadge tone={missionAttentionCount > 0 ? 'warning' : 'success'}>
+            {missionAttentionCount} review
+          </StatusBadge>
+          <StatusBadge tone="muted">
+            {filteredConfigData.length}/{sortedConfigData.length} visible
+          </StatusBadge>
+          <StatusBadge tone={originStatus === 'ready' ? 'success' : originStatus === 'checking' ? 'muted' : 'warning'}>
+            {originStatusLabel}
+          </StatusBadge>
         </div>
       )}
+    >
 
-      {pendingEnrollmentDrones.length > 0 && (
-        <section
-          ref={pendingEnrollmentPanelRef}
-          className="mission-config-pending-panel"
-          aria-label="Detected nodes pending enrollment"
-        >
-          <div className="mission-config-pending-panel__header">
-            <div>
-              <h3>Detected, not enrolled</h3>
-              <p>
-                These nodes are reaching GCS by heartbeat only. They are available for replacement
-                workflows, but they are not written into fleet config automatically.
-              </p>
-            </div>
-            <div className="mission-config-pending-panel__header-actions">
-              <span className="mission-config-pending-panel__count">
-                {pendingEnrollmentDrones.length} candidate{pendingEnrollmentDrones.length === 1 ? '' : 's'}
-              </span>
-              <button
-                type="button"
-                className="mission-config-primary-button mission-config-primary-button--add"
-                onClick={() => openFleetEnrollment()}
-              >
-                Review enrollment queue
-              </button>
-            </div>
-          </div>
-          <div className="mission-config-pending-grid">
-            {pendingEnrollmentDrones.map((candidate) => (
-              <article key={candidate.hw_id} className="mission-config-pending-card">
-                <div className="mission-config-pending-card__identity">
-                  <strong>{formatDroneLabel(candidate.hw_id)}</strong>
-                  <span>
-                    {candidate.pos_id
-                      ? `${formatShowSlotLabel(candidate.pos_id)} reported`
-                      : candidate.detected_pos_id
-                        ? `${formatShowSlotLabel(candidate.detected_pos_id)} detected`
-                        : 'No slot hint reported'}
-                  </span>
-                </div>
-                <div className="mission-config-pending-card__meta">
-                  <span>{candidate.ip ? `IP ${candidate.ip}` : 'IP pending'}</span>
-                  <span>{candidate.mavlink_port ? `Port ${candidate.mavlink_port}` : 'Port pending'}</span>
-                  <span className={`mission-config-pending-status mission-config-pending-status--${candidate.heartbeatTone}`}>
-                    {candidate.heartbeatStatus}
-                    {candidate.heartbeatAgeSec !== null ? ` · ${candidate.heartbeatAgeSec}s` : ''}
-                  </span>
-                </div>
-                <p className="mission-config-pending-card__note">
-                  {candidate.registration_state === 'conflict'
-                    ? `Conflict: ${candidate.conflict_reasons.join(', ')}. Review before changing fleet config.`
-                    : 'Use “Replace drone” on a failed slot to map this standby node into service, or review it explicitly before adding a new fleet entry.'}
-                </p>
-                <div className="mission-config-pending-card__actions">
-                  <button
-                    type="button"
-                    className="mission-config-primary-button mission-config-primary-button--add"
-                    onClick={() => openFleetEnrollment({ candidateId: candidate.candidate_id })}
-                  >
-                    Review candidate
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
+      <MissionConfigToolbar
+        headline={missionWorkspaceHeadline}
+        loading={loading}
+        onSave={handleSaveChangesToServerWrapper}
+        onAddDrone={addNewDrone}
+        searchValue={missionConfigSearch}
+        onSearchChange={setMissionConfigSearch}
+        searchPlaceholder={DRONE_SEARCH_PLACEHOLDER}
+        searchSummary={missionSearchSummary}
+        stats={missionWorkspaceStats}
+        onReviewOrigin={reviewOriginWorkflow}
+        assignmentFilterOptions={assignmentFilterOptions}
+        assignmentFilter={assignmentFilter}
+        onAssignmentFilterChange={setAssignmentFilter}
+        clusterScopeOptions={clusterScopeOptions}
+        clusterScope={clusterScope}
+        onClusterScopeChange={setClusterScope}
+      />
+
+      <MissionConfigAlertStack
+        pendingEnrollmentDrones={pendingEnrollmentDrones}
+        duplicateHwIds={duplicateHwIds}
+        duplicatePosIds={duplicatePosIds}
+        roleSwaps={roleSwaps}
+        originStatus={originStatus}
+        onReviewPendingEnrollment={reviewPendingEnrollmentCandidates}
+        onReviewDuplicateHardwareIds={reviewDuplicateHardwareIds}
+        onReviewDuplicateSlots={reviewDuplicateSlots}
+        onReviewRoleSwaps={reviewRoleSwapAssignments}
+        onReviewOrigin={reviewOriginWorkflow}
+      />
+
+      <PendingEnrollmentPanel
+        candidates={pendingEnrollmentDrones}
+        panelRef={pendingEnrollmentPanelRef}
+        onOpenQueue={() => openFleetEnrollment()}
+        onReviewCandidate={(candidateId) => openFleetEnrollment({ candidateId })}
+      />
 
       {/* Origin Modal */}
       {showOriginModal && (
@@ -1150,19 +952,22 @@ const MissionConfig = () => {
           <div
             className="role-swap-modal"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-swap-modal-title"
           >
-            <h3>
-              <FontAwesomeIcon icon={faExchangeAlt} style={{ marginRight: '10px' }} />
+            <h3 id="role-swap-modal-title">
+              <FaExchangeAlt className="role-swap-modal__title-icon" />
               All Active Role Swaps ({roleSwapData.length})
             </h3>
-            <p style={{ marginBottom: '16px' }}>
+            <p className="role-swap-modal__intro">
               These drones are assigned to a different show slot than their own:
             </p>
             <table>
               <thead>
                 <tr>
                   <th>Drone</th>
-                  <th style={{ textAlign: 'center' }}>→</th>
+                  <th className="role-swap-modal__arrow">→</th>
                   <th>Show Slot</th>
                 </tr>
               </thead>
@@ -1172,7 +977,7 @@ const MissionConfig = () => {
                     <td>
                       <strong>{formatDroneLabel(drone.hw_id)}</strong>
                     </td>
-                    <td style={{ textAlign: 'center' }}>→</td>
+                    <td className="role-swap-modal__arrow">→</td>
                     <td>
                       <strong>{formatShowSlotLabel(drone.pos_id)}</strong>
                     </td>
@@ -1180,8 +985,8 @@ const MissionConfig = () => {
                 ))}
               </tbody>
             </table>
-            <div style={{ marginTop: '20px', textAlign: 'right' }}>
-              <button onClick={() => setShowRoleSwapModal(false)}>
+            <div className="role-swap-modal__actions">
+              <button type="button" onClick={() => setShowRoleSwapModal(false)}>
                 Close
               </button>
             </div>
@@ -1238,7 +1043,10 @@ const MissionConfig = () => {
               </div>
             ))
           ) : (
-            <p>No assignment cards match the current search, issue filter, or cluster scope.</p>
+            <EmptyState
+              title="No matching assignments"
+              detail="Clear search, issue focus, or cluster scope to widen the assignment wall."
+            />
           )}
         </div>
 
@@ -1351,7 +1159,6 @@ const MissionConfig = () => {
             openOriginModal={() => setShowOriginModal(true)}
           />
 
-          {/* TODO: Persist mission-wide forward heading once the backend contract is finalized. */}
           <div className="heading-controls heading-controls-preview">
             <div className="heading-controls-header">
               <div>
@@ -1387,7 +1194,7 @@ const MissionConfig = () => {
         onConfirm={handleConfirmSave}
         onCancel={handleCancelSave}
       />
-    </div>
+    </PageShell>
   );
 };
 

@@ -170,6 +170,7 @@ class DroneStateResponse(BaseModel):
     is_armed: bool
     is_ready_to_arm: bool
     home_position_set: bool = False
+    distance_to_home_m: Optional[float] = None
     readiness_status: str = "unknown"
     readiness_summary: str = "Readiness unavailable"
     readiness_checks: List[ReadinessCheckResponse] = Field(default_factory=list)

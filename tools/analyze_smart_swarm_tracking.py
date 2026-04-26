@@ -20,6 +20,7 @@ import asyncio
 import csv
 import json
 import math
+import os
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -140,7 +141,7 @@ def formation_error(leader: dict, follower: dict, entry: dict) -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Analyze Smart Swarm follower tracking quality.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=[1, 2, 3, 4], help="Drone IDs to use for the cluster")
     parser.add_argument("--leader-id", type=int, default=1, help="Leader drone ID to move")
     parser.add_argument("--follower-id", type=int, default=2, help="Follower drone ID to track")
@@ -342,7 +343,8 @@ def compute_tracking_sample(
 
 
 async def stream_swarm_state(ip: str, sink: dict[str, Any], key: str, stop_event: asyncio.Event) -> None:
-    url = f"ws://{ip}:7070/ws/swarm-state"
+    drone_api_port = int(os.getenv("MDS_DRONE_API_PORT", "7070"))
+    url = f"ws://{ip}:{drone_api_port}/ws/swarm-state"
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=5, sock_read=None)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.ws_connect(url, heartbeat=15) as websocket:

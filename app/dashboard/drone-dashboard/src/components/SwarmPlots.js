@@ -71,12 +71,13 @@ function getBaseLayout(colors, isThreeDimensional = false) {
 function buildHoverText(points) {
   return points.map((point) => {
     const clusterPrefix = point.clusterTitle ? `${point.clusterTitle} · ` : '';
-    const identity = formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id));
+    const identity = point.title || formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id));
+    const secondary = point.subtitle ? ` · ${point.subtitle}` : '';
     if (point.follow === '0') {
-      return `${clusterPrefix}${identity} · Top leader`;
+      return `${clusterPrefix}${identity}${secondary} · Top leader`;
     }
 
-    return `${clusterPrefix}${identity} · Follows ${formatDroneLabel(point.follow)}`;
+    return `${clusterPrefix}${identity}${secondary} · Follows ${formatDroneLabel(point.follow)}`;
   });
 }
 
@@ -126,18 +127,11 @@ function ThreeDPlot({ points }) {
       x: points.map((point) => point.x),
       y: points.map((point) => point.y),
       z: points.map((point) => point.z),
-      mode: 'markers+text',
+      mode: 'markers',
       type: 'scatter3d',
       marker: {
         ...buildMarker(points, colors),
         size: 11,
-      },
-      text: points.map((point) => formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id))),
-      textposition: 'middle center',
-      textfont: {
-        color: colors.text,
-        size: 10,
-        family: colors.fontFamily,
       },
       hovertext: buildHoverText(points),
       hoverinfo: 'text',
@@ -177,15 +171,8 @@ function NorthEastPlot({ points }) {
     {
       x: points.map((point) => point.x),
       y: points.map((point) => point.y),
-      mode: 'markers+text',
+      mode: 'markers',
       marker: buildMarker(points, colors),
-      text: points.map((point) => formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id))),
-      textposition: 'middle center',
-      textfont: {
-        color: colors.text,
-        size: 9,
-        family: colors.fontFamily,
-      },
       hovertext: buildHoverText(points),
       hoverinfo: 'text',
     },
@@ -213,15 +200,8 @@ function EastAltitudePlot({ points }) {
     {
       x: points.map((point) => point.x),
       y: points.map((point) => point.z),
-      mode: 'markers+text',
+      mode: 'markers',
       marker: buildMarker(points, colors),
-      text: points.map((point) => formatCompactDroneIdentity(point.pos_id, point.hw_id, formatDroneLabel(point.hw_id))),
-      textposition: 'middle center',
-      textfont: {
-        color: colors.text,
-        size: 9,
-        family: colors.fontFamily,
-      },
       hovertext: buildHoverText(points),
       hoverinfo: 'text',
     },
@@ -249,15 +229,8 @@ function NorthAltitudePlot({ points }) {
     {
       x: points.map((point) => point.y),
       y: points.map((point) => point.z),
-      mode: 'markers+text',
+      mode: 'markers',
       marker: buildMarker(points, colors),
-      text: points.map((point) => `A${point.hw_id}`),
-      textposition: 'middle center',
-      textfont: {
-        color: colors.text,
-        size: 9,
-        family: colors.fontFamily,
-      },
       hovertext: buildHoverText(points),
       hoverinfo: 'text',
     },

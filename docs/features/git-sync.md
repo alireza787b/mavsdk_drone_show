@@ -125,6 +125,16 @@ Current behavior:
 12. schedule a delayed coordinator restart only when the synced revision affects
    the live node runtime
 
+SITL/non-systemd behavior:
+
+- when `MDS_MODE=sitl` or `MDS_SKIP_SYSTEMD_RECONCILE=true`, git sync skips the
+  rendered systemd-unit reconcile step
+- the sync result records `service_reload_status=skipped`
+- Fleet Ops treats that as healthy/not applicable for SITL instead of a
+  service failure
+- SITL containers still pull/reset code, validate runtime files, and run the
+  applicable non-systemd reconcile steps
+
 Important service semantics:
 
 - `coordinator.service`

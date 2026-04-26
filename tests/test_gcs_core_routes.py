@@ -49,11 +49,11 @@ def _make_deps():
                 "pos_id": 1,
                 "ip": "10.0.0.1",
                 "timestamp": 1_700_000_000_000,
-                "network_info": {"latency_ms": 12},
+                "network_info": {"wifi": {"ssid": "mds", "signal_strength_percent": 88}},
             }
         },
         get_network_info_from_heartbeats=lambda: {
-            "1": {"reachable": True, "latency_ms": 12}
+            "1": {"pos_id": 1, "ip": "10.0.0.1", "reachable": True, "last_check": 1_700_000_000_000}
         },
         load_config=lambda: [{"hw_id": "1", "ip": "10.0.0.1"}],
         log_system_event=lambda *args, **kwargs: None,
@@ -83,7 +83,7 @@ def test_core_router_uses_live_dependency_attributes_after_router_creation():
     app = FastAPI()
     app.include_router(create_core_router(deps))
 
-    replacement_handle = Mock()
+    replacement_handle = Mock(return_value={"message": "Heartbeat received", "accepted": True})
     deps.handle_heartbeat_post = replacement_handle
 
     with TestClient(app) as client:
@@ -94,7 +94,7 @@ def test_core_router_uses_live_dependency_attributes_after_router_creation():
                 "hw_id": "1",
                 "ip": "10.0.0.1",
                 "timestamp": 1_700_000_000_000,
-                "network_info": {"latency_ms": 12},
+                "network_info": {"wifi": {"ssid": "mds", "signal_strength_percent": 88}},
             },
         )
 

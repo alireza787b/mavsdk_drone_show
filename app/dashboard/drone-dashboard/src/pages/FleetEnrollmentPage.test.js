@@ -169,6 +169,6 @@ describe('FleetEnrollmentPage', () => {
     });
 
     expect(await screen.findByText(/candidate accepted/i)).toBeInTheDocument();
-    expect(await screen.findByRole('link', { name: /git status/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /fleet ops/i })).toBeInTheDocument();
   });
 });

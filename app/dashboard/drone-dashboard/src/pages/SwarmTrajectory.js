@@ -1,8 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  FaCheckCircle,
+  FaExclamationTriangle,
+  FaGlobeAmericas,
+  FaHourglassHalf,
+  FaRobot,
+  FaSearchPlus,
+  FaTimes,
+  FaTrashAlt,
+} from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
-import ConfirmationModal from '../components/ConfirmationModal';
+import { ConfirmDialog, DocsLink, MetricStrip, OperatorNotice, StatusBadge } from '../components/ui';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
@@ -49,6 +59,12 @@ const buildConfirmMessage = ({ summary, details = [], warning = '' }) => (
 );
 
 const formatRecommendationTone = (action = '') => action.replace(/_/g, '-');
+
+const normalizeNoticeTone = (tone = 'info') => {
+  if (tone === 'error') return 'danger';
+  if (['info', 'success', 'warning', 'danger', 'neutral'].includes(tone)) return tone;
+  return 'info';
+};
 
 const triggerBlobDownload = (blob, filename) => {
   const url = window.URL.createObjectURL(blob);
@@ -133,6 +149,38 @@ const SwarmTrajectory = () => {
       ? 'commit_and_push'
       : 'local_commit';
   const isPartialPackage = viewModel.currentOutcome === 'partial';
+  const workspaceMetricItems = useMemo(() => [
+    {
+      key: 'clusters',
+      label: 'Clusters',
+      value: viewModel.clusterSummary.cluster_count || leaders.length,
+      tone: 'info',
+    },
+    {
+      key: 'leader-csvs',
+      label: 'Leader CSVs',
+      value: viewModel.uploadedLeaderIds.length,
+      tone: viewModel.uploadedLeaderIds.length > 0 ? 'success' : 'neutral',
+    },
+    {
+      key: 'ready-clusters',
+      label: 'Ready Clusters',
+      value: viewModel.clusterSummary.ready_cluster_count,
+      tone: viewModel.clusterSummary.ready_cluster_count > 0 ? 'success' : 'neutral',
+    },
+    {
+      key: 'processed-drones',
+      label: 'Processed Drones',
+      value: viewModel.processedDroneCount,
+      tone: viewModel.processedDroneCount > 0 ? 'success' : 'neutral',
+    },
+  ], [
+    leaders.length,
+    viewModel.clusterSummary.cluster_count,
+    viewModel.clusterSummary.ready_cluster_count,
+    viewModel.processedDroneCount,
+    viewModel.uploadedLeaderIds.length,
+  ]);
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
     method(message ? `${title} — ${message}` : title);
@@ -261,9 +309,6 @@ const SwarmTrajectory = () => {
     if (!file) {
       return;
     }
-
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
       const result = await uploadSwarmTrajectory(leaderId, file, file.name);
@@ -681,54 +726,53 @@ const SwarmTrajectory = () => {
 
   return (
     <div className="swarm-trajectory">
-      <div className="header">
+      <div className="swarm-trajectory__header">
         <div className="title-section">
           <h1>Swarm Trajectory Mission</h1>
           <p className="subtitle">
-            Upload leader paths, regenerate follower outputs, and confirm the launch package.
+            Leader paths → follower outputs → launch package.
           </p>
         </div>
-        <div className="mode-badge">
-          {simulationMode ? 'SIMULATION' : 'LIVE'}
+        <div className="swarm-trajectory__header-tools">
+          <StatusBadge tone={simulationMode ? 'info' : 'success'}>
+            {simulationMode ? 'SIM' : 'LIVE'}
+          </StatusBadge>
+          <DocsLink route="/swarm-trajectory" compact />
         </div>
       </div>
 
       <div className="status-card">
         <h2>Workspace Status</h2>
 
-        <div className="status-metrics">
-          <div className="metric">
-            <span className="metric-value">{viewModel.clusterSummary.cluster_count || leaders.length}</span>
-            <span className="metric-label">Clusters</span>
-          </div>
-          <div className="metric">
-            <span className="metric-value">{viewModel.uploadedLeaderIds.length}</span>
-            <span className="metric-label">Leader CSVs</span>
-          </div>
-          <div className="metric">
-            <span className="metric-value">{viewModel.clusterSummary.ready_cluster_count}</span>
-            <span className="metric-label">Ready Clusters</span>
-          </div>
-          <div className="metric">
-            <span className="metric-value">{viewModel.processedDroneCount}</span>
-            <span className="metric-label">Processed Drones</span>
-          </div>
-        </div>
+        <MetricStrip
+          items={workspaceMetricItems}
+          label="Swarm trajectory workspace status"
+          className="swarm-trajectory__metric-strip"
+        />
 
         {pageError ? (
-          <div className="swarm-status-banner swarm-status-banner--error" role="alert">
-            <div>
-              <strong>Status load failed.</strong>
-              <span>{pageError}</span>
-            </div>
-          </div>
+          <OperatorNotice tone="danger" title="Status load failed" role="alert" className="swarm-trajectory__notice">
+            {pageError}
+          </OperatorNotice>
         ) : null}
 
         {operatorNotice ? (
-          <div className={`swarm-status-banner swarm-status-banner--${operatorNotice.tone}`} role="status">
-            <div>
-              <strong>{operatorNotice.title}</strong>
-              <span>{operatorNotice.message}</span>
+          <OperatorNotice
+            tone={normalizeNoticeTone(operatorNotice.tone)}
+            title={operatorNotice.title}
+            role={normalizeNoticeTone(operatorNotice.tone) === 'danger' ? 'alert' : 'status'}
+            className="swarm-trajectory__notice"
+            action={(
+              <button
+                type="button"
+                className="operator-button operator-button--ghost"
+                onClick={() => setOperatorNotice(null)}
+              >
+                Dismiss
+              </button>
+            )}
+          >
+            {operatorNotice.message ? <span>{operatorNotice.message}</span> : null}
               {operatorNotice.details?.length ? (
                 <ul className="swarm-status-banner__details">
                   {operatorNotice.details.map((detail) => (
@@ -736,11 +780,7 @@ const SwarmTrajectory = () => {
                   ))}
                 </ul>
               ) : null}
-            </div>
-            <button type="button" className="swarm-status-banner__dismiss" onClick={() => setOperatorNotice(null)}>
-              Dismiss
-            </button>
-          </div>
+          </OperatorNotice>
         ) : null}
 
         <SwarmTrajectoryWorkspaceSummary
@@ -821,7 +861,7 @@ const SwarmTrajectory = () => {
                           event.target.value = '';
                         }}
                         id={`file-${leaderId}`}
-                        style={{ display: 'none' }}
+                        className="swarm-trajectory-file-input"
                       />
                       <div className="upload-controls">
                         <label htmlFor={`file-${leaderId}`} className="upload-btn">
@@ -832,7 +872,7 @@ const SwarmTrajectory = () => {
                           <button
                             className="remove-btn"
                             onClick={() => removeTrajectoryFile(leaderId)}
-                            title={`Remove leader ${leaderId} CSV and related outputs`}
+                            aria-label={`Remove leader ${leaderId} CSV and related outputs`}
                           >
                             Remove Leader CSV
                           </button>
@@ -943,7 +983,9 @@ const SwarmTrajectory = () => {
 
               <div className={`success-card ${viewModel.currentOutcome === 'partial' ? 'success-card--warning' : ''}`}>
                 <div className="success-header">
-                  <span className="success-icon">{viewModel.currentOutcome === 'partial' ? '!' : 'OK'}</span>
+                  <span className="success-icon" aria-hidden="true">
+                    {viewModel.currentOutcome === 'partial' ? <FaExclamationTriangle /> : <FaCheckCircle />}
+                  </span>
                   <div>
                     <h4>
                       {viewModel.currentOutcome === 'partial'
@@ -1050,12 +1092,11 @@ const SwarmTrajectory = () => {
                                         className={`cluster-kml-btn ${downloadingKML ? 'loading' : ''}`}
                                         onClick={() => downloadClusterKML(leaderId)}
                                         disabled={downloadingKML}
-                                        title="Download cluster formation KML"
                                         aria-label={`Download cluster ${leaderId} KML file`}
                                       >
                                         {downloadingKML ? (
                                           <>
-                                            <span className="btn-icon spinner">⏳</span>
+                                            <span className="btn-icon spinner" aria-hidden="true"><FaHourglassHalf /></span>
                                             <div className="btn-content">
                                               <span className="btn-text">Generating...</span>
                                               <span className="btn-subtitle">Please wait</span>
@@ -1063,7 +1104,7 @@ const SwarmTrajectory = () => {
                                           </>
                                         ) : (
                                           <>
-                                            <span className="btn-icon">🌍</span>
+                                            <span className="btn-icon" aria-hidden="true"><FaGlobeAmericas /></span>
                                             <div className="btn-content">
                                               <span className="btn-text">Cluster KML</span>
                                               <span className="btn-subtitle">Google Earth</span>
@@ -1085,7 +1126,7 @@ const SwarmTrajectory = () => {
                                       }}
                                     />
                                     <div className="zoom-overlay">
-                                      <span className="zoom-icon">🔍</span>
+                                      <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                       <span>Click to enlarge</span>
                                     </div>
                                   </div>
@@ -1126,18 +1167,18 @@ const SwarmTrajectory = () => {
                                         }}
                                       />
                                       <div className="zoom-overlay">
-                                        <span className="zoom-icon">🔍</span>
+                                        <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                       </div>
                                     </div>
 
                                     <div className="preview-actions">
-                                      <button className="preview-btn download" onClick={() => downloadDroneTrajectory(leaderId)} title="Download CSV">
+                                      <button className="preview-btn download" onClick={() => downloadDroneTrajectory(leaderId)} aria-label={`Download drone ${leaderId} CSV`}>
                                         CSV
                                       </button>
-                                      <button className="preview-btn kml" onClick={() => downloadDroneKML(leaderId)} title="Download KML">
+                                      <button className="preview-btn kml" onClick={() => downloadDroneKML(leaderId)} aria-label={`Download drone ${leaderId} KML`}>
                                         KML
                                       </button>
-                                      <button className="preview-btn clear-single" onClick={() => clearSingleTrajectory(leaderId)} title="Clear cluster">
+                                      <button className="preview-btn clear-single" onClick={() => clearSingleTrajectory(leaderId)} aria-label={`Clear cluster ${leaderId} outputs`}>
                                         Clear Cluster
                                       </button>
                                     </div>
@@ -1150,11 +1191,12 @@ const SwarmTrajectory = () => {
                                         <div className="header-actions">
                                           <span className="drone-type-badge follower">FOLLOWER</span>
                                           <button
+                                            type="button"
                                             className="delete-drone-btn"
                                             onClick={() => clearIndividualDrone(followerId)}
-                                            title="Delete this drone output"
+                                            aria-label={`Delete drone ${followerId} output`}
                                           >
-                                            🗑️
+                                            <FaTrashAlt aria-hidden="true" />
                                           </button>
                                         </div>
                                       </div>
@@ -1171,15 +1213,15 @@ const SwarmTrajectory = () => {
                                           }}
                                         />
                                         <div className="zoom-overlay">
-                                          <span className="zoom-icon">🔍</span>
+                                          <span className="zoom-icon" aria-hidden="true"><FaSearchPlus /></span>
                                         </div>
                                       </div>
 
                                       <div className="preview-actions">
-                                        <button className="preview-btn download" onClick={() => downloadDroneTrajectory(followerId)} title="Download CSV">
+                                        <button className="preview-btn download" onClick={() => downloadDroneTrajectory(followerId)} aria-label={`Download drone ${followerId} CSV`}>
                                           CSV
                                         </button>
-                                        <button className="preview-btn kml" onClick={() => downloadDroneKML(followerId)} title="Download KML">
+                                        <button className="preview-btn kml" onClick={() => downloadDroneKML(followerId)} aria-label={`Download drone ${followerId} KML`}>
                                           KML
                                         </button>
                                       </div>
@@ -1209,7 +1251,7 @@ const SwarmTrajectory = () => {
         </>
       ) : (
         <div className="empty-state">
-          <div className="empty-icon">🤖</div>
+          <div className="empty-icon" aria-hidden="true"><FaRobot /></div>
           <h3>No clusters found</h3>
           <p>
             Configure top leaders in <Link to="/swarm-design" className="guide-link">Swarm Design</Link> before using this workflow.
@@ -1225,8 +1267,8 @@ const SwarmTrajectory = () => {
           <div className="lightbox-container" onClick={(event) => event.stopPropagation()}>
             <div className="lightbox-header">
               <h3>{lightboxImage.title}</h3>
-              <button className="lightbox-close" onClick={closeLightbox}>
-                ✕
+              <button className="lightbox-close" onClick={closeLightbox} aria-label="Close plot preview">
+                <FaTimes aria-hidden="true" />
               </button>
             </div>
             <div className="lightbox-content">
@@ -1255,7 +1297,10 @@ const SwarmTrajectory = () => {
 
             <div className="progress-content">
               <div className="progress-bar-container">
-                <div className="progress-bar-fill" style={{ width: `${commitProgress.progress}%` }}></div>
+                <div
+                  className="progress-bar-fill"
+                  style={{ '--progress-percent': `${commitProgress.progress}%` }}
+                ></div>
               </div>
 
               <div className="progress-step">
@@ -1282,7 +1327,10 @@ const SwarmTrajectory = () => {
 
             <div className="progress-content">
               <div className="progress-bar-container">
-                <div className="progress-bar-fill" style={{ width: `${kmlProgress.progress}%` }}></div>
+                <div
+                  className="progress-bar-fill"
+                  style={{ '--progress-percent': `${kmlProgress.progress}%` }}
+                ></div>
               </div>
 
               <div className="progress-step">
@@ -1297,13 +1345,13 @@ const SwarmTrajectory = () => {
         </div>
       ) : null}
 
-      <ConfirmationModal
-        isOpen={Boolean(confirmDialog)}
+      <ConfirmDialog
+        open={Boolean(confirmDialog)}
         title={confirmDialog?.title || 'Confirm'}
         message={confirmDialog?.message || ''}
         confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
         cancelLabel={confirmDialog?.cancelLabel || 'Cancel'}
-        isDanger={Boolean(confirmDialog?.isDanger)}
+        tone={confirmDialog?.isDanger ? 'danger' : 'neutral'}
         onConfirm={handleConfirmDialog}
         onCancel={closeConfirmDialog}
       />

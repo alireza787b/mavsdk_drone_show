@@ -7,8 +7,9 @@ const GitInfo = ({ collapsed = false }) => {
   const gitInfo = useGcsGitInfo();
 
   if (collapsed) {
+    const gitSummary = `${gitInfo.repo} • ${gitInfo.runtimeLabel}`;
     return (
-      <div className="git-info-collapsed" title={`${gitInfo.repo} • ${gitInfo.runtimeLabel}`}>
+      <div className="git-info-collapsed" data-help={gitSummary} aria-label={gitSummary}>
         <div className="git-branch-indicator">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11.75 2.5a.75.75 0 100 1.5.75.75 0 000-1.5zm-2.25.75a2.25 2.25 0 113 2.122V6A2.5 2.5 0 018 8.5H6.5v1.378a2.25 2.25 0 11-1.5 0V5.372a2.25 2.25 0 111.5 0V7H8a1 1 0 001-1V5.622A2.25 2.25 0 0111.75 2.5zM5 4.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM5 11.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/>

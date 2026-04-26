@@ -89,6 +89,10 @@ MDS does not hardcode parameter metadata to one firmware snapshot.
 - official docs links are generated from the configured docs version plus the
   parameter anchor, for example:
   - `https://docs.px4.io/main/en/advanced_config/parameter_reference.html#GF_MAX_HOR_DIST`
+- when neither vehicle-served metadata nor a matching local catalog is
+  available, MDS can optionally fetch the official PX4 parameter-reference page,
+  parse it into a read-only local cache, and use that as operator reference
+  metadata
 
 If PX4 does not provide a metadata field, MDS leaves it empty instead of
 inventing one.
@@ -103,12 +107,37 @@ For a production-grade fleet, the intended metadata source order is:
 3. a local generated PX4 catalog available on the companion/runtime host
    (`parameters.json`) for SITL or tightly managed embedded deployments
 4. MAVSDK component-information float hints as a weaker fallback
-5. official PX4 docs links for operator reference only
+5. cached official PX4 docs metadata for operator reference only
+6. official PX4 docs links for operator reference only
 
 The important rule is that online docs should not become the authority for
 runtime parameter semantics. They are useful as a human-readable reference and
 can be cached for convenience, but the authoritative machine-readable metadata
 should come from the connected PX4 firmware or its shipped metadata bundle.
+
+### Online Docs Cache Fallback
+
+The official PX4 docs cache is a bounded fallback for hardware that returns live
+parameter values but no rich metadata. It is useful for labels, groups,
+defaults, units, reboot hints, and descriptions when the firmware is close to
+the configured PX4 docs version.
+
+It is not a replacement for firmware-matched metadata. Custom PX4 builds should
+prefer either vehicle-served Component Metadata or the generated build
+`parameters.json` from that exact firmware build.
+
+Configuration:
+
+- `MDS_PX4_PARAMETER_METADATA_CATALOG_PATHS`: comma-separated paths to local
+  PX4 `parameters.json` files; this takes priority over the online docs cache
+- `MDS_PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED`: enables the online fallback
+  when no local catalog is found; default `true`
+- `MDS_PX4_PARAMETER_METADATA_CACHE_DIR`: local cache directory; default
+  `~/.cache/mds/px4-param-docs`
+- `MDS_PX4_PARAMETER_METADATA_CACHE_TTL_DAYS`: fresh-cache window; default `14`
+- `MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC`: fetch timeout; default `2.5`
+- `MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES`: maximum retained docs-cache
+  files; default `4`
 
 ### Caching Guidance
 
@@ -120,6 +149,8 @@ should come from the connected PX4 firmware or its shipped metadata bundle.
   the vehicle advertises a changed metadata file or firmware version
 - keep online docs caching optional and read-only; stale docs must not block
   parameter inspection or mutation
+- prune stale online docs cache files so old PX4 releases do not accumulate or
+  silently override the configured docs version
 
 ## Safety Policy
 

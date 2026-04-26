@@ -31,7 +31,7 @@ class ConnectivityChecker:
         # Optionally, you can add a connectivity_check_endpoint in your Params; otherwise use default.
         self.endpoint = getattr(params, 'connectivity_check_endpoint', ConnectivityChecker.DEFAULT_ENDPOINT)
         # Use a port from params if available, else fall back to gcs_api_port (or a default value)
-        self.port = getattr(params, 'gcs_api_port', 5000)
+        self.port = getattr(params, 'gcs_api_port', 5030)
 
     def start(self):
         """

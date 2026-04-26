@@ -17,16 +17,16 @@
 }
 
 .drone-readiness.ready {
-  border-color: rgba(56, 161, 105, 0.35);
+  border-color: var(--color-success-border);
 }
 
 .drone-readiness.warning {
-  border-color: rgba(237, 137, 54, 0.35);
+  border-color: var(--color-warning-border);
 }
 
 .drone-readiness.blocked,
 .drone-readiness.unknown {
-  border-color: rgba(229, 62, 62, 0.35);
+  border-color: var(--color-danger-border);
 }
 
 .drone-readiness__header {
@@ -49,18 +49,18 @@
 }
 
 .drone-readiness__pill.ready {
-  background: rgba(56, 161, 105, 0.14);
+  background: var(--color-success-light);
   color: var(--color-success);
 }
 
 .drone-readiness__pill.warning {
-  background: rgba(237, 137, 54, 0.14);
+  background: var(--color-warning-light);
   color: var(--color-warning);
 }
 
 .drone-readiness__pill.blocked,
 .drone-readiness__pill.unknown {
-  background: rgba(229, 62, 62, 0.12);
+  background: var(--color-danger-light);
   color: var(--color-danger);
 }
 
@@ -128,15 +128,15 @@
   gap: var(--spacing-xs);
   padding: 8px 10px;
   border-radius: var(--border-radius-sm);
-  background: rgba(15, 23, 42, 0.24);
+  background: var(--color-surface-inset);
 }
 
 .drone-readiness__list-item.warning {
-  background: rgba(237, 137, 54, 0.1);
+  background: var(--color-warning-light);
 }
 
 .drone-readiness__list-item.error {
-  background: rgba(229, 62, 62, 0.12);
+  background: var(--color-danger-light);
 }
 
 .drone-readiness__message-source {
@@ -149,24 +149,24 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   text-align: center;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-shadow-light);
   color: var(--color-text-secondary);
 }
 
 .drone-readiness__message-source.px4 {
-  background: rgba(49, 130, 206, 0.16);
+  background: var(--color-info-light);
   color: var(--color-info);
 }
 
 .drone-readiness__message-source.telemetry,
 .drone-readiness__message-source.link.error {
-  background: rgba(229, 62, 62, 0.12);
+  background: var(--color-danger-light);
   color: var(--color-danger);
 }
 
 .drone-readiness__message-source.link.warning,
 .drone-readiness__message-source.telemetry.warning {
-  background: rgba(237, 137, 54, 0.14);
+  background: var(--color-warning-light);
   color: var(--color-warning);
 }
 
@@ -193,15 +193,15 @@
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
   padding: var(--spacing-sm);
-  background: rgba(15, 23, 42, 0.18);
+  background: var(--color-surface-inset);
 }
 
 .drone-readiness__check.ready {
-  border-color: rgba(56, 161, 105, 0.28);
+  border-color: var(--color-success-border);
 }
 
 .drone-readiness__check.blocked {
-  border-color: rgba(229, 62, 62, 0.28);
+  border-color: var(--color-danger-border);
 }
 
 .drone-readiness__check-label {

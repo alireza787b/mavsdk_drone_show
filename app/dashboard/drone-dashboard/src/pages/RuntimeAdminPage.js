@@ -6,12 +6,18 @@ import {
   FaCodeBranch,
   FaExclamationTriangle,
   FaKey,
+  FaNetworkWired,
   FaRedoAlt,
   FaSatelliteDish,
   FaSave,
   FaServer,
 } from 'react-icons/fa';
 
+import {
+  OperatorNotice,
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
 import { applyGcsConfigResponse, applyRuntimeUpdateResponse, saveGcsConfigResponse } from '../services/gcsApiService';
@@ -31,7 +37,12 @@ function formatRepoAccessModeLabel(mode) {
 }
 
 function StatusPill({ tone = 'neutral', children }) {
-  return <span className={`runtime-admin-page__pill runtime-admin-page__pill--${tone}`}>{children}</span>;
+  const primitiveTone = tone === 'good' ? 'success' : ['success', 'warning', 'danger', 'muted', 'info'].includes(tone) ? tone : 'neutral';
+  return (
+    <StatusBadge tone={primitiveTone} className={`runtime-admin-page__pill runtime-admin-page__pill--${tone}`}>
+      {children}
+    </StatusBadge>
+  );
 }
 
 function formatAuthHealthTone(status) {
@@ -207,26 +218,31 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     setDraftDirty(true);
   };
 
+  const persistRuntimeSettings = async () => {
+    const response = await saveGcsConfigResponse({
+      mode: draftMode,
+      git_auto_push: draftGitAutoPush,
+    });
+    const payload = response?.data || {};
+    const configuredMode = String(payload.configured_mode || draftMode || effectiveConfiguredMode).trim().toLowerCase() || 'sitl';
+    const configuredGitAutoPush = Object.prototype.hasOwnProperty.call(payload, 'configured_git_auto_push')
+      ? Boolean(payload.configured_git_auto_push)
+      : Boolean(draftGitAutoPush);
+    const restartRequired = Boolean(payload.restart_required);
+    setOptimisticConfig({
+      configuredMode,
+      configuredModeLabel: configuredMode === 'real' ? 'REAL' : 'SITL',
+      configuredGitAutoPush,
+      restartRequired,
+    });
+    setDraftDirty(false);
+    return { payload, restartRequired };
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await saveGcsConfigResponse({
-        mode: draftMode,
-        git_auto_push: draftGitAutoPush,
-      });
-      const payload = response?.data || {};
-      const configuredMode = String(payload.configured_mode || draftMode || effectiveConfiguredMode).trim().toLowerCase() || 'sitl';
-      const configuredGitAutoPush = Object.prototype.hasOwnProperty.call(payload, 'configured_git_auto_push')
-        ? Boolean(payload.configured_git_auto_push)
-        : Boolean(draftGitAutoPush);
-      const restartRequired = Boolean(payload.restart_required);
-      setOptimisticConfig({
-        configuredMode,
-        configuredModeLabel: configuredMode === 'real' ? 'REAL' : 'SITL',
-        configuredGitAutoPush,
-        restartRequired,
-      });
-      setDraftDirty(false);
+      const { payload, restartRequired } = await persistRuntimeSettings();
       setNotice(buildNotice(payload, restartRequired ? 'warning' : 'success'));
     } catch (error) {
       const message = error?.response?.data?.detail || error?.message || 'Failed to persist host-local runtime settings.';
@@ -239,6 +255,14 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const handleApply = async () => {
     setApplying(true);
     try {
+      if (hasDraftChanges) {
+        const { payload, restartRequired } = await persistRuntimeSettings();
+        if (!restartRequired) {
+          setNotice(buildNotice(payload, 'success'));
+          return;
+        }
+      }
+
       const response = await applyGcsConfigResponse();
       const payload = response?.data || {};
       setNotice(buildNotice(payload, payload.scheduled ? 'success' : 'warning'));
@@ -279,16 +303,26 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   };
 
   return (
-    <div className="runtime-admin-page">
-      <header className="runtime-admin-page__hero">
-        <div>
-          <span className="runtime-admin-page__eyebrow">System</span>
-          <h1>Runtime Admin</h1>
-          <p>
-            Live runtime posture, host-local config authority, and restart-safe apply controls for SITL/REAL switching.
-          </p>
-        </div>
-        <div className="runtime-admin-page__hero-pills">
+    <PageShell
+      className="runtime-admin-page"
+      eyebrow="System"
+      title="GCS Runtime"
+      subtitle="Host-local mode, update, and restart. Drone-node controls live in Fleet Ops."
+      icon={<FaServer />}
+      docsRoute="/runtime-admin"
+      docsOptions={{
+        repoUrl: runtime.repoSyncStatus?.remote_url || '',
+        branch: runtime.repoBranch || gitInfo.branch || runtime.repoSyncStatus?.branch || '',
+      }}
+      actions={(
+        <Link className="runtime-admin-page__scope-link" to="/fleet-ops" aria-label="Open Fleet Ops">
+          <FaNetworkWired aria-hidden="true" />
+          <span>Fleet Ops</span>
+        </Link>
+      )}
+      status={(
+        <div className="runtime-admin-page__status-pills">
+          <StatusPill tone="info">GCS host</StatusPill>
           <StatusPill tone={runtimeTone}>{runtime.modeLabel}</StatusPill>
           <StatusPill tone={effectiveConfiguredMode === 'real' ? 'real' : 'sitl'}>
             Config {effectiveConfiguredModeLabel}
@@ -300,40 +334,43 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
           <StatusPill tone={authHealthTone}>{runtime.gitAuthHealth?.status || 'unknown'} auth</StatusPill>
           {effectiveRestartRequired ? <StatusPill tone="warning">Restart required</StatusPill> : null}
         </div>
-      </header>
+      )}
+    >
 
       {runtime.error ? (
-        <div className="runtime-admin-page__banner runtime-admin-page__banner--warning">
-          Runtime status could not be loaded. The page is showing the last safe fallback only.
-        </div>
+        <OperatorNotice tone="warning" title="Runtime status unavailable">
+          Showing the last safe fallback only.
+        </OperatorNotice>
       ) : null}
 
       {effectiveRestartRequired ? (
-        <div className="runtime-admin-page__banner runtime-admin-page__banner--warning">
-          Running GCS runtime and persisted host config do not match. Save any final changes, then apply a clean restart.
-        </div>
+        <OperatorNotice tone="warning" title="Restart required">
+          Running GCS runtime and persisted host config do not match. Save final changes, then apply a clean restart.
+        </OperatorNotice>
       ) : null}
 
       {showSitlInventoryWarning ? (
-        <div className="runtime-admin-page__banner runtime-admin-page__banner--warning">
-          <div className="runtime-admin-page__banner-title">
-            <FaExclamationTriangle />
-            <span>{sitlInventoryWarningMessage}</span>
-          </div>
-          <div className="runtime-admin-page__banner-actions">
+        <OperatorNotice
+          tone="warning"
+          title="SITL containers still running"
+          icon={<FaExclamationTriangle />}
+          action={(
             <Link className="runtime-admin-page__doc-link" to="/sitl-control">
               Open SITL Control
             </Link>
-          </div>
-        </div>
+          )}
+        >
+          {sitlInventoryWarningMessage}
+        </OperatorNotice>
       ) : null}
 
       {notice ? (
-        <div className={`runtime-admin-page__banner runtime-admin-page__banner--${notice.tone || 'neutral'}`}>
-          <div className="runtime-admin-page__banner-title">
-            {notice.tone === 'danger' ? <FaExclamationTriangle /> : <FaCheckCircle />}
-            <span>{notice.message}</span>
-          </div>
+        <OperatorNotice
+          tone={notice.tone || 'neutral'}
+          title={notice.tone === 'danger' ? 'Runtime action failed' : 'Runtime action'}
+          icon={notice.tone === 'danger' ? <FaExclamationTriangle /> : <FaCheckCircle />}
+        >
+          {notice.message}
           {notice.warnings?.length ? (
             <ul className="runtime-admin-page__issues runtime-admin-page__issues--inline">
               {notice.warnings.map((warning) => (
@@ -341,7 +378,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
               ))}
             </ul>
           ) : null}
-        </div>
+        </OperatorNotice>
       ) : null}
 
       <section className="runtime-admin-page__grid">
@@ -350,7 +387,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaRedoAlt />
             <div>
               <h2>Runtime Controls</h2>
-              <p>Persist host-local mode and git auto-push, then relaunch the GCS cleanly through the canonical launcher.</p>
+              <p>Persist host mode and relaunch through the canonical GCS launcher.</p>
             </div>
           </div>
 
@@ -362,7 +399,6 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   type="button"
                   className={`runtime-admin-page__segmented-btn ${draftMode === 'real' ? 'is-active is-real' : ''}`}
                   onClick={() => setModeDraft('real')}
-                  title="Persist REAL mode for the next clean GCS restart"
                   aria-label="Set runtime mode to REAL"
                   disabled={saving || applying}
                 >
@@ -372,7 +408,6 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   type="button"
                   className={`runtime-admin-page__segmented-btn ${draftMode === 'sitl' ? 'is-active is-sitl' : ''}`}
                   onClick={() => setModeDraft('sitl')}
-                  title="Persist SITL mode for the next clean GCS restart"
                   aria-label="Set runtime mode to SITL"
                   disabled={saving || applying}
                 >
@@ -388,7 +423,6 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   type="button"
                   className={`runtime-admin-page__segmented-btn ${draftGitAutoPush ? 'is-active is-good' : ''}`}
                   onClick={() => setGitAutoPushDraft(true)}
-                  title="Persist git auto-push enabled for this GCS host"
                   aria-label="Enable git auto-push"
                   disabled={saving || applying}
                 >
@@ -398,7 +432,6 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   type="button"
                   className={`runtime-admin-page__segmented-btn ${!draftGitAutoPush ? 'is-active is-warning' : ''}`}
                   onClick={() => setGitAutoPushDraft(false)}
-                  title="Persist git auto-push disabled for this GCS host"
                   aria-label="Disable git auto-push"
                   disabled={saving || applying}
                 >
@@ -413,7 +446,6 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                 className="runtime-admin-page__action-btn runtime-admin-page__action-btn--primary"
                 onClick={handleSave}
                 disabled={!hasDraftChanges || saving || applying}
-                title="Persist host-local runtime settings to the GCS env file"
                 aria-label="Save runtime settings"
               >
                 <FaSave />
@@ -423,12 +455,11 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                 type="button"
                 className="runtime-admin-page__action-btn"
                 onClick={handleApply}
-                disabled={!effectiveRestartRequired || saving || applying}
-                title="Schedule a clean GCS restart through linux_dashboard_start.sh"
-                aria-label="Apply persisted runtime settings with restart"
+                disabled={(!effectiveRestartRequired && !hasDraftChanges) || saving || applying}
+                aria-label={hasDraftChanges ? 'Apply runtime changes and restart GCS' : 'Apply persisted runtime settings with restart'}
               >
                 <FaRedoAlt />
-                <span>{applying ? 'Scheduling...' : 'Apply restart'}</span>
+                <span>{applying ? 'Scheduling...' : hasDraftChanges ? 'Save + restart' : 'Apply restart'}</span>
               </button>
             </div>
           </div>
@@ -462,7 +493,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaServer />
             <div>
               <h2>GCS Runtime</h2>
-              <p>Canonical mode and local host runtime inputs.</p>
+              <p>Canonical mode and host runtime inputs.</p>
             </div>
           </div>
           <dl className="runtime-admin-page__facts">
@@ -517,7 +548,6 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
               className="runtime-admin-page__action-btn"
               onClick={handleRuntimeUpdate}
               disabled={!canRunControlledUpdate || saving || applying || updating}
-              title={controlledUpdateHint}
               aria-label="Run controlled GCS update"
             >
               <FaRedoAlt />
@@ -571,7 +601,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <FaSatelliteDish />
             <div>
               <h2>Host Capabilities</h2>
-              <p>GCS-local capability summary. Drone-side git auth, MAVLink, and Smart Wi-Fi compliance belong in Fleet Ops.</p>
+              <p>Local host capability summary. Node compliance belongs in Fleet Ops.</p>
             </div>
           </div>
           <div className="runtime-admin-page__capability-grid">
@@ -590,16 +620,16 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <div className="runtime-admin-page__capability">
               <span className="runtime-admin-page__capability-label">MAVLink Policy</span>
               <StatusPill>{runtime.fleetDefaults?.mavlink_management_mode || 'Unknown'}</StatusPill>
-              <p>Desired node ref: {runtime.fleetDefaults?.mavlink_anywhere_ref || 'unknown'}. {mavlinkHostSummary}.</p>
+              <p>Fleet default ref {runtime.fleetDefaults?.mavlink_anywhere_ref || 'unknown'}; local host {mavlinkHostSummary}.</p>
             </div>
             <div className="runtime-admin-page__capability">
               <span className="runtime-admin-page__capability-label">Connectivity Policy</span>
               <StatusPill>{runtime.fleetDefaults?.connectivity_backend || 'Unknown'}</StatusPill>
-              <p>Desired node ref: {runtime.fleetDefaults?.smart_wifi_manager_ref || 'unknown'}; mode {runtime.fleetDefaults?.smart_wifi_manager_mode || 'unknown'}. {connectivityHostSummary}.</p>
+              <p>Fleet default ref {runtime.fleetDefaults?.smart_wifi_manager_ref || 'unknown'}; local host {connectivityHostSummary}.</p>
             </div>
           </div>
           <p className="runtime-admin-page__empty">
-            This page does not manage drone-side sidecar dashboards. Use Fleet Ops for per-node MAVLink, Smart Wi-Fi, git auth, and profile compliance.
+            Use Fleet Ops for drone MAVLink, Smart Wi-Fi, git auth, profile drift, and sync actions.
           </p>
         </article>
 
@@ -644,11 +674,11 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             <li>Mode changes are host-local GCS mutations. Save them first, then apply through the canonical launcher restart.</li>
             <li>Mode-tagged heartbeats are fenced at intake so stale SITL or REAL nodes do not contaminate the other runtime after restart.</li>
             <li>Local SITL containers are not stopped automatically when switching the GCS into REAL mode; remove them explicitly through SITL Control, which stays available in cleanup-only mode.</li>
-            <li>Fleet defaults shown here are git-tracked intent for future bootstraps; node-local overrides still live in each host runtime env.</li>
+            <li>Fleet defaults shown here are read-only host context. Use Fleet Ops for node actions and profile drift.</li>
           </ul>
         </article>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

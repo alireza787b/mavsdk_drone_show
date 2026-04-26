@@ -15,7 +15,7 @@
 }
 
 .heading-display {
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 500;
   margin-left: 0.5rem;
 }
@@ -35,35 +35,35 @@
   align-items: center;
   cursor: pointer;
   padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid #3a3f4b;
+  background: var(--color-shadow-light);
+  border: 1px solid var(--color-bg-tertiary);
   border-radius: 6px;
   transition: all 0.2s ease;
 }
 
 .radio-option:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: #00d4ff;
+  background: var(--color-border-light);
+  border-color: var(--color-primary);
 }
 
 .radio-option input[type="radio"] {
   margin-right: 0.5rem;
-  accent-color: #00d4ff;
+  accent-color: var(--color-primary);
 }
 
 .radio-label {
-  color: #e0e4e7;
+  color: var(--color-text-primary);
   font-size: 0.875rem;
 }
 
 .auto-heading-value {
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
 .disabled-input {
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: #888 !important;
+  background: var(--color-shadow-light) !important;
+  color: var(--color-text-tertiary) !important;
   cursor: not-allowed !important;
 }
 
@@ -76,17 +76,17 @@
 .manual-heading-note,
 .first-waypoint-note {
   display: block;
-  color: #888;
+  color: var(--color-text-tertiary);
   font-size: 0.75rem;
   margin-top: 0.25rem;
 }
 
 .auto-heading-note {
-  color: #00d4ff;
+  color: var(--color-primary);
 }
 
 .manual-heading-note {
-  color: #ffc107;
+  color: var(--color-warning);
 }
 
 .waypoint-modal-overlay {
@@ -95,27 +95,27 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10000;
+  z-index: var(--z-modal-backdrop);
   backdrop-filter: blur(4px);
   animation: backdropFadeIn 0.3s ease;
 }
 
 .waypoint-modal {
-  background: #1f2128;
+  background: var(--color-bg-primary);
   border-radius: 12px;
   box-shadow: 
-    0 20px 25px -5px rgba(0, 0, 0, 0.4),
-    0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    0 20px 25px -5px var(--color-overlay),
+    0 10px 10px -5px var(--color-overlay);
   width: 90%;
   max-width: 500px;
   max-height: 85vh;
   overflow: hidden;
   animation: modalSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  border: 2px solid #3a3f4b;
+  border: 2px solid var(--color-bg-tertiary);
 }
 
 /* =============================================== */
@@ -127,13 +127,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #3a3f4b;
-  background: linear-gradient(135deg, #2a2d3a, #1f2128);
+  border-bottom: 1px solid var(--color-bg-tertiary);
+  background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-primary));
 }
 
 .waypoint-modal-header h3 {
   margin: 0;
-  color: #ffffff;
+  color: var(--color-text-primary);
   font-size: 1.25rem;
   font-weight: 600;
 }
@@ -141,7 +141,7 @@
 .waypoint-modal-close {
   background: none;
   border: none;
-  color: #a2a5b9;
+  color: var(--color-text-secondary);
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.25rem;
@@ -155,8 +155,8 @@
 }
 
 .waypoint-modal-close:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-primary);
+  background: var(--color-border-light);
 }
 
 /* =============================================== */
@@ -179,21 +179,21 @@
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background: rgba(0, 212, 255, 0.05);
+  background: var(--color-primary-light);
   border-radius: 8px;
-  border: 1px solid rgba(0, 212, 255, 0.2);
+  border: 1px solid var(--color-primary-border);
 }
 
 .smart-defaults-info {
   padding: 0.75rem;
-  background: rgba(0, 212, 255, 0.08);
+  background: var(--color-primary-light);
   border-radius: 6px;
-  border-left: 3px solid #00d4ff;
+  border-left: 3px solid var(--color-primary);
 }
 
 .defaults-note {
   font-size: 0.75rem;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 500;
   margin: 0;
 }
@@ -206,7 +206,7 @@
 
 .location-item label {
   font-size: 0.75rem;
-  color: #a2a5b9;
+  color: var(--color-text-secondary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -214,7 +214,7 @@
 
 .location-item span {
   font-size: 0.9rem;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 600;
   font-family: 'Monaco', 'Courier New', monospace;
 }
@@ -235,12 +235,23 @@
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--color-text-primary);
+}
+
+.input-label--with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.input-label--with-icon svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
 }
 
 .time-constraint {
   font-size: 0.75rem;
-  color: #a2a5b9;
+  color: var(--color-text-secondary);
   font-weight: 400;
   margin-left: 0.5rem;
 }
@@ -248,10 +259,10 @@
 .waypoint-input {
   width: 100%;
   padding: 0.75rem 1rem;
-  background: #2a2d3a;
-  border: 2px solid #3a3f4b;
+  background: var(--color-bg-secondary);
+  border: 2px solid var(--color-bg-tertiary);
   border-radius: 8px;
-  color: #ffffff;
+  color: var(--color-text-primary);
   font-size: 0.9rem;
   transition: all 0.2s ease;
   font-family: 'Monaco', 'Courier New', monospace;
@@ -259,31 +270,31 @@
 
 .waypoint-input:focus {
   outline: none;
-  border-color: #00d4ff;
-  background: #1a1c23;
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .waypoint-input::placeholder {
-  color: #6c757d;
+  color: var(--color-text-tertiary);
 }
 
 .waypoint-input.validation-error,
 .waypoint-input:invalid,
 .waypoint-input.error {
-  border-color: #dc3545;
-  background: rgba(220, 53, 69, 0.1);
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
 }
 
 .waypoint-input.warning {
-  border-color: #ffc107;
-  background: rgba(255, 193, 7, 0.1);
+  border-color: var(--color-warning);
+  background: var(--color-warning-light);
 }
 
 .input-hint {
   margin-top: 0.25rem;
   font-size: 0.75rem;
-  color: #a2a5b9;
+  color: var(--color-text-secondary);
 }
 
 /* =============================================== */
@@ -295,40 +306,40 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.75rem;
-  background: #2a2d3a;
+  background: var(--color-bg-secondary);
   border-radius: 6px;
-  border-left: 4px solid #00d4ff;
+  border-left: 4px solid var(--color-primary);
   margin-top: 0.5rem;
 }
 
 .terrain-note,
 .agl-note {
   font-size: 0.75rem;
-  color: #a2a5b9;
+  color: var(--color-text-secondary);
   font-family: 'Monaco', 'Courier New', monospace;
 }
 
 .terrain-note strong,
 .agl-note strong {
-  color: #ffffff;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
 .terrain-warning {
-  color: #ffc107;
+  color: var(--color-warning);
   font-weight: 500;
 }
 
 .altitude-source {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--color-text-tertiary);
   font-style: italic;
   margin-top: 0.25rem;
 }
 
 .time-calculation {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--color-text-tertiary);
   margin-top: 0.5rem;
   font-style: italic;
 }
@@ -343,14 +354,14 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   padding: 0.65rem 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--color-shadow-light);
+  border: 1px solid var(--color-shadow-light);
   border-radius: 8px;
   margin-top: 0.75rem;
 }
 
 .loading-indicator {
-  color: #00d4ff;
+  color: var(--color-primary);
   animation: spin 1s linear infinite;
 }
 
@@ -361,9 +372,9 @@
 .speed-section,
 .speed-calculation {
   padding: 1rem;
-  background: #2a2d3a;
+  background: var(--color-bg-secondary);
   border-radius: 8px;
-  border-left: 4px solid #00d4ff;
+  border-left: 4px solid var(--color-primary);
   margin-bottom: 1.5rem;
 }
 
@@ -377,7 +388,7 @@
 .speed-header label,
 .speed-label {
   font-size: 0.9rem;
-  /* color: #ffffff; */
+  /* color: var(--color-text-primary); */
   font-weight: 500;
 }
 
@@ -389,62 +400,16 @@
 
 .speed-kmh {
   font-size: 0.8rem;
-  color: #a2a5b9;
+  color: var(--color-text-secondary);
   font-weight: normal;
   margin-left: 0.5rem;
 }
 
 .speed-note {
   font-size: 0.75rem;
-  color: #6c757d;
+  color: var(--color-text-tertiary);
   margin-top: 0.5rem;
   font-style: italic;
-}
-
-.speed-indicator {
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.speed-indicator-green {
-  background: rgba(40, 167, 69, 0.2);
-  color: #28a745;
-  border: 1px solid rgba(40, 167, 69, 0.3);
-}
-
-.speed-indicator-green::before {
-  content: "✓";
-}
-
-.speed-indicator-yellow {
-  background: rgba(255, 193, 7, 0.2);
-  color: #ffc107;
-  border: 1px solid rgba(255, 193, 7, 0.3);
-}
-
-.speed-indicator-yellow::before {
-  content: "⚠";
-}
-
-.speed-indicator-red {
-  background: rgba(220, 53, 69, 0.2);
-  color: #dc3545;
-  border: 1px solid rgba(220, 53, 69, 0.3);
-}
-
-.speed-indicator-red::before {
-  content: "⚠";
-}
-
-.speed-indicator-gray {
-  background: rgba(108, 117, 125, 0.2);
-  color: #6c757d;
-  border: 1px solid rgba(108, 117, 125, 0.3);
 }
 
 .speed-status {
@@ -453,26 +418,49 @@
 }
 
 .speed-status.feasible {
-  color: #28a745;
+  color: var(--color-success);
 }
 
 .speed-status.marginal {
-  color: #ffc107;
+  color: var(--color-warning);
 }
 
 .speed-status.impossible {
-  color: #dc3545;
+  color: var(--color-danger);
 }
 
 .speed-warning,
 .speed-warning-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.75rem;
-  color: #dc3545;
-  background: rgba(220, 53, 69, 0.1);
+  color: var(--color-danger);
+  background: var(--color-danger-light);
   padding: 0.5rem;
   border-radius: 4px;
   margin-top: 0.5rem;
-  border-left: 3px solid #dc3545;
+  border-left: 3px solid var(--color-danger);
+}
+
+.speed-display {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-tertiary);
+}
+
+.speed-display--feasible {
+  color: var(--color-success);
+  background: var(--color-success-light);
+}
+
+.speed-display--marginal {
+  color: var(--color-warning);
+  background: var(--color-warning-light);
+}
+
+.speed-display--impossible {
+  color: var(--color-danger);
+  background: var(--color-danger-light);
 }
 
 .waypoint-authoring-brief {
@@ -488,41 +476,41 @@
   gap: 0.25rem;
   padding: 0.8rem 0.9rem;
   border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--color-border-light);
+  background: var(--color-surface-inset);
 }
 
 .waypoint-authoring-card--success {
-  border-color: rgba(34, 197, 94, 0.35);
+  border-color: var(--color-success-border);
 }
 
 .waypoint-authoring-card--info {
-  border-color: rgba(56, 189, 248, 0.35);
+  border-color: var(--color-info-border);
 }
 
 .waypoint-authoring-card--warning {
-  border-color: rgba(245, 158, 11, 0.45);
+  border-color: var(--color-warning-border);
 }
 
 .waypoint-authoring-card--danger {
-  border-color: rgba(220, 38, 38, 0.45);
+  border-color: var(--color-danger-border);
 }
 
 .waypoint-authoring-card__label {
   font-size: 0.68rem;
-  color: #94a3b8;
+  color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .waypoint-authoring-card__value {
   font-size: 0.95rem;
-  color: #f8fafc;
+  color: var(--color-text-primary);
 }
 
 .waypoint-authoring-card__detail {
   font-size: 0.76rem;
-  color: #cbd5e1;
+  color: var(--color-text-secondary);
   line-height: 1.4;
 }
 
@@ -542,16 +530,16 @@
 
 .validation-message.error,
 .validation-error {
-  background: rgba(220, 53, 69, 0.1);
-  color: #dc3545;
-  border-left: 4px solid #dc3545;
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+  border-left: 4px solid var(--color-danger);
 }
 
 .validation-message.warning,
 .validation-warning {
-  background: rgba(255, 193, 7, 0.1);
-  color: #ffc107;
-  border-left: 4px solid #ffc107;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border-left: 4px solid var(--color-warning);
 }
 
 .validation-message__body {
@@ -574,7 +562,7 @@
 }
 
 .validation-action-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-shadow-light);
 }
 
 /* =============================================== */
@@ -585,8 +573,8 @@
   display: flex;
   gap: 0.75rem;
   padding: 1.5rem;
-  border-top: 1px solid #3a3f4b;
-  background: rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--color-bg-tertiary);
+  background: var(--color-border-light);
 }
 
 .modal-btn {
@@ -607,37 +595,37 @@
 
 .modal-btn-cancel,
 .modal-btn.secondary {
-  background: #3a3f4b;
-  color: #a2a5b9;
-  border: 1px solid #4a4f5b;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-bg-quaternary);
 }
 
 .modal-btn-cancel:hover,
 .modal-btn.secondary:hover {
-  background: #4a4f5b;
-  color: #ffffff;
+  background: var(--color-bg-quaternary);
+  color: var(--color-text-primary);
 }
 
 .modal-btn-confirm,
 .modal-btn.primary {
-  background: #00d4ff;
-  color: #000000;
-  border: 1px solid #00d4ff;
+  background: var(--color-primary);
+  color: var(--color-text-inverse);
+  border: 1px solid var(--color-primary);
 }
 
 .modal-btn-confirm:hover:not(:disabled),
 .modal-btn.primary:hover:not(:disabled) {
-  background: #00a8cc;
-  border-color: #00a8cc;
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 212, 255, 0.3);
+  box-shadow: 0 4px 8px var(--color-primary-border);
 }
 
 .modal-btn-confirm:disabled,
 .modal-btn:disabled {
-  background: #6c757d;
-  color: #ffffff;
-  border-color: #6c757d;
+  background: var(--color-text-tertiary);
+  color: var(--color-text-primary);
+  border-color: var(--color-text-tertiary);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -650,8 +638,8 @@
 
 .wm-terrain-banner {
   position: relative;
-  background: rgba(0, 212, 255, 0.08);
-  border: 1px solid rgba(0, 212, 255, 0.25);
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-primary-border);
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 1rem;
@@ -663,7 +651,7 @@
   left: 0;
   height: 3px;
   width: 40%;
-  background: linear-gradient(90deg, transparent, #00d4ff, transparent);
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
   animation: wmProgressSlide 1.5s ease-in-out infinite;
 }
 
@@ -677,7 +665,7 @@
 
 .wm-terrain-banner-text {
   font-size: 0.85rem;
-  color: #00d4ff;
+  color: var(--color-primary);
   font-weight: 500;
 }
 
@@ -685,9 +673,9 @@
   padding: 0.35rem 0.75rem;
   font-size: 0.8rem;
   font-weight: 600;
-  color: #fff;
-  background: #3a3f4b;
-  border: 1px solid #4a4f5b;
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-bg-quaternary);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -695,15 +683,15 @@
 }
 
 .wm-terrain-skip-btn:hover {
-  background: #4a4f5b;
-  border-color: #00d4ff;
+  background: var(--color-bg-quaternary);
+  border-color: var(--color-primary);
 }
 
 .wm-terrain-fallback-msg {
   font-size: 0.8rem;
-  color: #ffc107;
-  background: rgba(255, 193, 7, 0.08);
-  border-left: 3px solid #ffc107;
+  color: var(--color-warning);
+  background: var(--color-warning-light);
+  border-left: 3px solid var(--color-warning);
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
   margin-bottom: 0.75rem;
@@ -718,25 +706,25 @@
 
 .wm-ground-elevation-label {
   font-size: 0.8rem;
-  color: #e0e4e7;
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 
 .wm-ground-elevation-input {
   width: 90px;
   padding: 0.3rem 0.5rem;
-  background: #2a2d3a;
-  border: 1px solid #4a4f5b;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-bg-quaternary);
   border-radius: 4px;
-  color: #fff;
+  color: var(--color-text-primary);
   font-size: 0.85rem;
   font-family: 'Monaco', 'Courier New', monospace;
 }
 
 .wm-ground-elevation-input:focus {
   outline: none;
-  border-color: #ffc107;
-  box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.15);
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 2px var(--color-warning-light);
 }
 
 @keyframes wmProgressSlide {
@@ -867,6 +855,6 @@
 .waypoint-input:focus-visible,
 .modal-btn:focus-visible,
 .waypoint-modal-close:focus-visible {
-  outline: 2px solid #00d4ff;
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }

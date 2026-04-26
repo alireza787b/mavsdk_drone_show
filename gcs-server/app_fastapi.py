@@ -645,6 +645,7 @@ def _build_background_unavailable_record(
         "is_armed": bool(existing.get("is_armed", False)),
         "is_ready_to_arm": False,
         "home_position_set": bool(existing.get("home_position_set", False)),
+        "distance_to_home_m": existing.get("distance_to_home_m"),
         "readiness_status": "unknown",
         "readiness_summary": error_message,
         "readiness_checks": existing.get("readiness_checks", []),
@@ -1001,7 +1002,7 @@ if __name__ == "__main__":
     import uvicorn
 
     # Read environment configuration
-    port = int(os.getenv('GCS_PORT', Params.gcs_api_port))
+    port = int(os.getenv('MDS_GCS_API_PORT', os.getenv('GCS_PORT', Params.gcs_api_port)))
     env_mode = os.getenv('GCS_ENV', 'development')
     is_dev = env_mode == 'development'
 

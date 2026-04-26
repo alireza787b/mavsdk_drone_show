@@ -145,7 +145,8 @@ configure_gcs_env() {
     repo_url=$(gcs_state_get_value "repo_url" "$GCS_DEFAULT_REPO_SSH")
     local repo_branch
     repo_branch=$(gcs_state_get_value "repo_branch" "$GCS_DEFAULT_BRANCH")
-    local gcs_api_port="${MDS_DEFAULT_GCS_API_PORT:-5000}"
+    local gcs_api_port="${MDS_DEFAULT_GCS_API_PORT:-5030}"
+    local dashboard_port="${MDS_DEFAULT_DASHBOARD_PORT:-3030}"
     local git_auth_token_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
     local git_ssh_key_file="${MDS_GIT_SSH_KEY_FILE:-}"
     local access_method
@@ -165,6 +166,8 @@ configure_gcs_env() {
     local existing_git_ssh_key_file=""
     local existing_install_dir=""
     local existing_mode=""
+    local existing_gcs_api_port=""
+    local existing_dashboard_port=""
     local config_matches="false"
 
     if [[ -f "$GCS_CONFIG_FILE" ]]; then
@@ -175,6 +178,14 @@ configure_gcs_env() {
         existing_git_ssh_key_file=$(get_existing_gcs_env_value "MDS_GIT_SSH_KEY_FILE" "$GCS_CONFIG_FILE" || true)
         existing_install_dir=$(get_existing_gcs_env_value "MDS_INSTALL_DIR" "$GCS_CONFIG_FILE" || true)
         existing_mode=$(get_existing_gcs_env_value "MDS_MODE" "$GCS_CONFIG_FILE" || true)
+        existing_gcs_api_port=$(get_existing_gcs_env_value "MDS_GCS_API_PORT" "$GCS_CONFIG_FILE" || true)
+        if [[ -z "$existing_gcs_api_port" ]]; then
+            existing_gcs_api_port=$(get_existing_gcs_env_value "GCS_PORT" "$GCS_CONFIG_FILE" || true)
+        fi
+        existing_dashboard_port=$(get_existing_gcs_env_value "MDS_DASHBOARD_PORT" "$GCS_CONFIG_FILE" || true)
+        if [[ -z "$existing_dashboard_port" ]]; then
+            existing_dashboard_port=$(get_existing_gcs_env_value "DASHBOARD_PORT" "$GCS_CONFIG_FILE" || true)
+        fi
 
         if [[ "$existing_repo_url" == "$repo_url" ]] && \
            [[ "$existing_repo_branch" == "$repo_branch" ]] && \
@@ -182,6 +193,8 @@ configure_gcs_env() {
            [[ "$existing_git_auth_token_file" == "$git_auth_token_file" ]] && \
            [[ "$existing_git_ssh_key_file" == "$git_ssh_key_file" ]] && \
            [[ "$existing_install_dir" == "$install_dir" ]] && \
+           [[ "$existing_gcs_api_port" == "$gcs_api_port" ]] && \
+           [[ "$existing_dashboard_port" == "$dashboard_port" ]] && \
            [[ "$existing_mode" == "real" ]]; then
             config_matches="true"
         fi
@@ -190,7 +203,7 @@ configure_gcs_env() {
     # Check if file exists
     if [[ -f "$GCS_CONFIG_FILE" ]]; then
         if [[ "$config_matches" == "true" ]]; then
-            log_info "GCS configuration already matches requested repo and branch"
+            log_info "GCS configuration already matches requested repo, branch, ports, and runtime mode"
             return 0
         fi
 
@@ -213,6 +226,7 @@ configure_gcs_env() {
 
 # GCS Server Settings
 GCS_PORT=${gcs_api_port}
+MDS_GCS_API_PORT=${gcs_api_port}
 GCS_BACKEND=fastapi
 MDS_MODE=real
 
@@ -225,7 +239,8 @@ MDS_GIT_SSH_KEY_FILE=${git_ssh_key_file}
 MDS_INSTALL_DIR=${install_dir}
 
 # Dashboard Settings
-DASHBOARD_PORT=3030
+DASHBOARD_PORT=${dashboard_port}
+MDS_DASHBOARD_PORT=${dashboard_port}
 
 # Virtual Environment
 VENV_PATH=${install_dir}/venv
@@ -267,7 +282,7 @@ handle_deprecated_items() {
         local server_url
         server_url=$(grep "^REACT_APP_SERVER_URL=" "$env_file" | cut -d'=' -f2-)
 
-        if [[ -n "$server_url" ]] && [[ "$server_url" != "http://localhost:5000" ]]; then
+        if [[ -n "$server_url" ]] && [[ "$server_url" != "http://localhost:5030" ]]; then
             deprecated_found=true
             log_warn "REACT_APP_SERVER_URL is deprecated (found: $server_url)"
             echo -e "  ${DIM}The dashboard now auto-detects the backend URL.${NC}"

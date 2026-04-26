@@ -649,7 +649,7 @@ def require_full_execution(status: dict, expected_targets: int, label: str) -> N
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Validate Smart Swarm runtime on a live GCS/SITL stack.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="GCS API base URL")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="GCS API base URL")
     parser.add_argument("--drones", default=None, help="Comma-separated drone hardware IDs to validate")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to validate")
     parser.add_argument("--takeoff-min-gain", type=float, default=4.0, help="Minimum altitude gain required after takeoff")

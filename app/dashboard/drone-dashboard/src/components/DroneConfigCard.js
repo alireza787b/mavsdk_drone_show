@@ -2,23 +2,22 @@ import React, { useState, useEffect, memo } from 'react';
 import PropTypes from 'prop-types';
 import DroneGitStatus from './DroneGitStatus';
 import { toast } from 'react-toastify';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faEdit,
-  faTrash,
-  faSave,
-  faTimes,
-  faCircle,
-  faExclamationTriangle,
-  faTimesCircle,
-  faExclamationCircle,
-  faPlusCircle,
-  faSignal,
-  faCheckCircle,
-  faExchangeAlt,
-  faCodeBranch,
-  faInfoCircle,
-} from '@fortawesome/free-solid-svg-icons';
+  FaCheckCircle,
+  FaCircle,
+  FaCodeBranch,
+  FaEdit,
+  FaExchangeAlt,
+  FaExclamationCircle,
+  FaExclamationTriangle,
+  FaInfoCircle,
+  FaPlusCircle,
+  FaSave,
+  FaSignal,
+  FaTimes,
+  FaTimesCircle,
+  FaTrash,
+} from 'react-icons/fa';
 import {
   areGitRevisionsEquivalent,
   buildKnownPositionIds,
@@ -49,6 +48,7 @@ import {
   validateMissionCustomFields,
 } from '../utilities/missionConfigFields';
 import { buildMissionSlotStatusPresentation } from '../utilities/missionSlotStatus';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DroneConfigCard.css';
 
 const SERIAL_PORT_OPTIONS = [
@@ -67,6 +67,40 @@ const BAUDRATE_OPTIONS = [
 ];
 
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const RGB_COLOR_PATTERN = /^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i;
+const DEFAULT_MARKER_COLOR_FALLBACK = [95, 185, 255];
+
+const toHexColorPair = (value) => Math.max(0, Math.min(255, Number(value) || 0))
+  .toString(16)
+  .padStart(2, '0');
+
+const buildHexColor = (red, green, blue) => `#${[
+  toHexColorPair(red),
+  toHexColorPair(green),
+  toHexColorPair(blue),
+].join('')}`;
+
+const resolveColorInputValue = (candidate, fallback = DEFAULT_MARKER_COLOR_FALLBACK) => {
+  const normalized = String(candidate || '').trim();
+  const normalizedFallback = Array.isArray(fallback) ? '' : String(fallback || '').trim();
+  const colorCandidate = normalized || normalizedFallback;
+  if (HEX_COLOR_PATTERN.test(colorCandidate)) {
+    return colorCandidate.length === 4
+      ? buildHexColor(
+        parseInt(`${colorCandidate[1]}${colorCandidate[1]}`, 16),
+        parseInt(`${colorCandidate[2]}${colorCandidate[2]}`, 16),
+        parseInt(`${colorCandidate[3]}${colorCandidate[3]}`, 16)
+      )
+      : colorCandidate;
+  }
+
+  const rgbMatch = colorCandidate.match(RGB_COLOR_PATTERN);
+  if (rgbMatch) {
+    return buildHexColor(rgbMatch[1], rgbMatch[2], rgbMatch[3]);
+  }
+
+  return buildHexColor(...DEFAULT_MARKER_COLOR_FALLBACK);
+};
 
 function normalizeRuntimeModeValue(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -120,38 +154,34 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     switch (heartbeatStatus) {
       case 'Online (Recent)':
         return (
-          <FontAwesomeIcon
-            icon={faCircle}
+          <FaCircle
             className="status-icon online"
-            title="Online (Recent): Drone is actively sending heartbeat"
+            data-help="Online (Recent): Drone is actively sending heartbeat"
             aria-label="Online (Recent)"
           />
         );
       case 'Stale (>20s)':
         return (
-          <FontAwesomeIcon
-            icon={faExclamationTriangle}
+          <FaExclamationTriangle
             className="status-icon stale"
-            title="Stale (>20s): Heartbeat hasn't been received recently"
+            data-help="Stale (>20s): Heartbeat hasn't been received recently"
             aria-label="Stale (>20s)"
           />
         );
       case 'Offline (>60s)':
         return (
-          <FontAwesomeIcon
-            icon={faTimesCircle}
+          <FaTimesCircle
             className="status-icon offline"
-            title="Offline (>60s): Drone hasn't sent heartbeat in a long time"
+            data-help="Offline (>60s): Drone hasn't sent heartbeat in a long time"
             aria-label="Offline (>60s)"
           />
         );
       default:
         // "No heartbeat"
         return (
-          <FontAwesomeIcon
-            icon={faCircle}
+          <FaCircle
             className="status-icon no-heartbeat"
-            title="No Heartbeat: Drone is not connected or not sending heartbeat"
+            data-help="No Heartbeat: Drone is not connected or not sending heartbeat"
             aria-label="No Heartbeat"
           />
         );
@@ -164,39 +194,35 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const getWifiIcon = (strength) => {
     if (strength >= 80) {
       return (
-        <FontAwesomeIcon
-          icon={faSignal}
-          className="wifi-icon strong"
-          title="Strong Wi-Fi Signal"
-          aria-label="Strong Wi-Fi Signal"
-        />
+          <FaSignal
+            className="wifi-icon strong"
+            data-help="Strong Wi-Fi Signal"
+            aria-label="Strong Wi-Fi Signal"
+          />
       );
     }
     if (strength >= 50) {
       return (
-        <FontAwesomeIcon
-          icon={faSignal}
-          className="wifi-icon medium"
-          title="Medium Wi-Fi Signal"
-          aria-label="Medium Wi-Fi Signal"
-        />
+          <FaSignal
+            className="wifi-icon medium"
+            data-help="Medium Wi-Fi Signal"
+            aria-label="Medium Wi-Fi Signal"
+          />
       );
     }
     if (strength > 0) {
       return (
-        <FontAwesomeIcon
-          icon={faSignal}
-          className="wifi-icon weak"
-          title="Weak Wi-Fi Signal"
-          aria-label="Weak Wi-Fi Signal"
-        />
+          <FaSignal
+            className="wifi-icon weak"
+            data-help="Weak Wi-Fi Signal"
+            aria-label="Weak Wi-Fi Signal"
+          />
       );
     }
     return (
-      <FontAwesomeIcon
-        icon={faSignal}
+      <FaSignal
         className="wifi-icon none"
-        title="No Wi-Fi Signal"
+        data-help="No Wi-Fi Signal"
         aria-label="No Wi-Fi Signal"
       />
     );
@@ -302,7 +328,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const inspectorButtons = [
     {
       key: 'slot',
-      icon: slotPresentation.tone === 'verified' ? faCheckCircle : faExclamationTriangle,
+      icon: slotPresentation.tone === 'verified' ? FaCheckCircle : FaExclamationTriangle,
       label: 'Slot',
       value: slotIndicatorValue,
       note: slotIndicatorNote,
@@ -311,7 +337,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     },
     {
       key: 'link',
-      icon: faSignal,
+      icon: FaSignal,
       label: 'Link',
       value: linkIndicatorValue,
       note: linkIndicatorNote,
@@ -320,7 +346,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     },
     {
       key: 'git',
-      icon: faCodeBranch,
+      icon: FaCodeBranch,
       label: 'Git',
       value: gitCompactLabel,
       note: gitIndicatorNote,
@@ -330,7 +356,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     ...(secondaryCustomFieldEntries.length > 0
       ? [{
         key: 'fields',
-        icon: faInfoCircle,
+        icon: FaInfoCircle,
         label: 'Fields',
         value: `${secondaryCustomFieldEntries.length} saved`,
         note: secondaryCustomFieldEntries[0]?.label || 'Additional fields',
@@ -351,10 +377,9 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <p className="position-detail">{slotPresentation.detail}</p>
         </div>
         {slotPresentation.tone === 'verified' && (
-          <FontAwesomeIcon
-            icon={faCheckCircle}
+          <FaCheckCircle
             className="status-icon all-good"
-            title="Mission slot sources are aligned"
+            data-help="Mission slot sources are aligned"
           />
         )}
       </div>
@@ -364,7 +389,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <div
             key={`${chip.label}-${chip.rawValue || 'missing'}`}
             className={`position-source-chip ${chip.tone}`}
-            title={`${chip.label === 'Cfg' ? 'Configured slot' : chip.label === 'HB' ? 'Heartbeat slot' : 'Auto-detected slot'}: ${chip.value}`}
+            data-help={`${chip.label === 'Cfg' ? 'Configured slot' : chip.label === 'HB' ? 'Heartbeat slot' : 'Auto-detected slot'}: ${chip.value}`}
           >
             <span className="position-source-chip-label">{chip.label}</span>
             <span className="position-source-chip-value">{chip.value}</span>
@@ -390,10 +415,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
               type="button"
               className="accept-button"
               onClick={() => onAcceptConfigFromAuto?.(slotPresentation.actions.acceptAutoValue)}
-              title="Accept auto-detected show slot"
+              data-help="Accept auto-detected show slot"
               aria-label="Accept auto-detected show slot"
             >
-              <FontAwesomeIcon icon={faCheckCircle} />
+              <FaCheckCircle />
               Use Auto {`P${slotPresentation.actions.acceptAutoValue}`}
             </button>
           )}
@@ -402,10 +427,10 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
               type="button"
               className="accept-button accept-assigned-btn"
               onClick={() => onAcceptConfigFromHb?.(slotPresentation.actions.acceptAssignedValue)}
-              title="Accept heartbeat-assigned show slot"
+              data-help="Accept heartbeat-assigned show slot"
               aria-label="Accept heartbeat-assigned show slot"
             >
-              <FontAwesomeIcon icon={faCheckCircle} />
+              <FaCheckCircle />
               Use HB {`P${slotPresentation.actions.acceptAssignedValue}`}
             </button>
           )}
@@ -423,16 +448,15 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       <div className="info-section">
         <div className="info-row">
           <span className="info-label">Runtime mode</span>
-          <span className="info-value" title={runtimeModeSourceLabel}>{runtimeModeLongLabel}</span>
+          <span className="info-value" data-help={runtimeModeSourceLabel}>{runtimeModeLongLabel}</span>
         </div>
         <div className="info-row">
           <span className="info-label">Telemetry path</span>
           <span className={`info-value ${ipMismatch ? 'mismatch' : ''}`}>
             {runtimePathLabel}
             {ipMismatch && heartbeatIP && (
-              <FontAwesomeIcon
-                icon={faExclamationCircle}
-                title={`IP mismatch: heartbeat path is ${heartbeatIP}`}
+              <FaExclamationCircle
+                data-help={`IP mismatch: heartbeat path is ${heartbeatIP}`}
                 aria-label={`IP mismatch: heartbeat path is ${heartbeatIP}`}
               />
             )}
@@ -450,7 +474,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
 
       <div className="network-section">
         <div className="network-header">
-          <FontAwesomeIcon icon={faSignal} />
+          <FaSignal />
           Runtime Connectivity
         </div>
         <div className="network-content">
@@ -573,7 +597,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     <>
       {isNew && (
         <div className="new-drone-badge" aria-label="Draft Assignment">
-          <FontAwesomeIcon icon={faPlusCircle} /> Draft assignment
+          <FaPlusCircle /> Draft assignment
         </div>
       )}
 
@@ -587,13 +611,13 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           <div className="identity-meta-row">
             <span
               className={`assignment-badge ${isRoleSwap ? 'role-swap' : 'default'}`}
-              title={isRoleSwap ? 'Hardware ID and assigned show slot differ. This is a slot reassignment, not a physical replacement.' : 'Hardware ID and assigned show slot match.'}
+              data-help={isRoleSwap ? 'Hardware ID and assigned show slot differ. This is a slot reassignment, not a physical replacement.' : 'Hardware ID and assigned show slot match.'}
             >
               {isRoleSwap ? 'Reassigned slot' : 'Own slot'}
             </span>
             <span
               className={`identity-runtime-chip ${runtimeBadgeTone}`}
-              title={`${runtimeModeLongLabel}. ${runtimeModeSourceLabel}.`}
+              data-help={`${runtimeModeLongLabel}. ${runtimeModeSourceLabel}.`}
             >
               {runtimeModeLabel}
             </span>
@@ -617,23 +641,26 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
       {/* Main Content */}
       <div className="drone-content">
         <div className="operator-indicator-grid" aria-label="Operator card indicators">
-          {inspectorButtons.map((indicator) => (
-            <button
-              key={indicator.key}
-              type="button"
-              className={`operator-indicator operator-indicator--${indicator.tone}${activeInspector === indicator.key ? ' is-active' : ''}`}
-              onClick={() => toggleInspector(indicator.key)}
-              aria-expanded={activeInspector === indicator.key}
-              title={indicator.title}
-            >
-              <span className="operator-indicator__topline">
-                <FontAwesomeIcon icon={indicator.icon} className="operator-indicator__icon" />
-                <span className="operator-indicator__label">{indicator.label}</span>
-              </span>
-              <span className="operator-indicator__value">{indicator.value}</span>
-              <span className="operator-indicator__note">{indicator.note}</span>
-            </button>
-          ))}
+          {inspectorButtons.map((indicator) => {
+            const IndicatorIcon = indicator.icon;
+            return (
+              <button
+                key={indicator.key}
+                type="button"
+                className={`operator-indicator operator-indicator--${indicator.tone}${activeInspector === indicator.key ? ' is-active' : ''}`}
+                onClick={() => toggleInspector(indicator.key)}
+                aria-expanded={activeInspector === indicator.key}
+                data-help={indicator.title}
+              >
+                <span className="operator-indicator__topline">
+                  <IndicatorIcon className="operator-indicator__icon" />
+                  <span className="operator-indicator__label">{indicator.label}</span>
+                </span>
+                <span className="operator-indicator__value">{indicator.value}</span>
+                <span className="operator-indicator__note">{indicator.note}</span>
+              </button>
+            );
+          })}
         </div>
         {hasSecondaryDetails && activeInspector && (
           <div className="drone-card-details-rail">
@@ -654,28 +681,28 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         <button
           className="action-button secondary"
           onClick={onEdit}
-          title="Edit drone configuration"
+          data-help="Edit drone configuration"
           aria-label="Edit drone configuration"
         >
-          <FontAwesomeIcon icon={faEdit} /> Edit
+          <FaEdit /> Edit
         </button>
         {(heartbeatStatus === 'Offline (>60s)' || heartbeatStatus === 'No heartbeat') && onReplace && (
           <button
             className="action-button replace"
             onClick={onReplace}
-            title="Replace this drone with a spare"
+            data-help="Replace this drone with a spare"
             aria-label="Replace this drone"
           >
-            <FontAwesomeIcon icon={faExchangeAlt} /> Replace
+            <FaExchangeAlt /> Replace
           </button>
         )}
         <button
           className="action-button danger"
           onClick={onRemove}
-          title="Remove this drone"
+          data-help="Remove this drone"
           aria-label="Remove this drone"
         >
-          <FontAwesomeIcon icon={faTrash} /> Remove
+          <FaTrash /> Remove
         </button>
       </div>
     </>
@@ -865,7 +892,7 @@ const DroneEditForm = memo(function DroneEditForm({
 
     if (field.type === CUSTOM_FIELD_TYPES.COLOR || normalizedKey === 'marker_color') {
       const colorValue = String(field.value || '').trim();
-      const safeColorValue = HEX_COLOR_PATTERN.test(colorValue) ? colorValue : '#00d4ff';
+      const safeColorValue = resolveColorInputValue(colorValue, getPlotThemeColors().primary);
       return (
         <div className="custom-color-field">
           <input
@@ -880,7 +907,7 @@ const DroneEditForm = memo(function DroneEditForm({
             value={field.value}
             onChange={(event) => onCustomFieldChange(field.id, { value: event.target.value })}
             className="form-input"
-            placeholder={fieldTemplate?.placeholder || '#00d4ff'}
+            placeholder={fieldTemplate?.placeholder || 'Theme primary color'}
             spellCheck={false}
             aria-label={`${field.key || 'Marker color'} value`}
           />
@@ -935,7 +962,7 @@ const DroneEditForm = memo(function DroneEditForm({
             <p>
               If a different spare airframe is taking over this slot, use Fleet Enrollment → Replace existing slot instead of editing the slot here.
             </p>
-            <p style={{ marginTop: '1rem' }}>Do you want to proceed?</p>
+            <p className="confirmation-dialog__prompt">Do you want to proceed?</p>
             <div className="dialog-buttons">
               <button className="confirm-button" onClick={handleConfirmPosChange}>
                 Yes
@@ -1078,10 +1105,9 @@ const DroneEditForm = memo(function DroneEditForm({
                     aria-label="IP Address"
                   />
                   {ipMismatch && (
-                    <FontAwesomeIcon
-                      icon={faExclamationCircle}
+                    <FaExclamationCircle
                       className="warning-icon"
-                      title={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
+                      data-help={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
                       aria-label={`IP mismatch: Heartbeat IP=${heartbeatIP}`}
                     />
                   )}
@@ -1179,7 +1205,7 @@ const DroneEditForm = memo(function DroneEditForm({
                   value=""
                   onChange={handleAddCustomFieldSelection}
                   className="form-select custom-field-template-select"
-                  title="Add a predefined mission field or create a custom one"
+                  data-help="Add a predefined mission field or create a custom one"
                   aria-label="Add additional mission field"
                 >
                   <option value="" disabled>Add field...</option>
@@ -1193,10 +1219,10 @@ const DroneEditForm = memo(function DroneEditForm({
                   type="button"
                   className="action-button secondary compact"
                   onClick={() => onAddCustomField(null)}
-                  title="Create a blank custom field"
+                  data-help="Create a blank custom field"
                   aria-label="Create custom additional field"
                 >
-                  <FontAwesomeIcon icon={faPlusCircle} /> Custom
+                  <FaPlusCircle /> Custom
                 </button>
               </div>
             </div>
@@ -1216,7 +1242,7 @@ const DroneEditForm = memo(function DroneEditForm({
                             {fieldTemplate && (
                               <span
                                 className="custom-field-template-badge"
-                                title={fieldTemplate.description}
+                                data-help={fieldTemplate.description}
                               >
                                 defined
                               </span>
@@ -1280,10 +1306,10 @@ const DroneEditForm = memo(function DroneEditForm({
                           type="button"
                           className="custom-field-remove-button"
                           onClick={() => onRemoveCustomField(field.id)}
-                          title="Remove additional field"
+                          data-help="Remove additional field"
                           aria-label={`Remove ${field.key || 'additional field'}`}
                         >
-                          <FontAwesomeIcon icon={faTrash} />
+                          <FaTrash />
                         </button>
                       </div>
                     </div>
@@ -1304,10 +1330,10 @@ const DroneEditForm = memo(function DroneEditForm({
                 type="button"
                 className="action-button success"
                 onClick={onAcceptIp}
-                title="Accept heartbeat IP"
+                data-help="Accept heartbeat IP"
                 aria-label="Accept heartbeat IP"
               >
-                <FontAwesomeIcon icon={faCheckCircle} /> Accept
+                <FaCheckCircle /> Accept
               </button>
             </div>
           )}
@@ -1321,10 +1347,10 @@ const DroneEditForm = memo(function DroneEditForm({
                 type="button"
                 className="action-button success"
                 onClick={onAcceptPos}
-                title="Accept heartbeat-assigned show slot"
+                data-help="Accept heartbeat-assigned show slot"
                 aria-label="Accept heartbeat-assigned show slot"
                 >
-                  <FontAwesomeIcon icon={faCheckCircle} /> Accept
+                  <FaCheckCircle /> Accept
                 </button>
               </div>
             )}
@@ -1336,10 +1362,10 @@ const DroneEditForm = memo(function DroneEditForm({
                 type="button"
                 className="action-button success"
                 onClick={onAcceptPosAuto}
-                title="Accept auto-detected show slot"
+                data-help="Accept auto-detected show slot"
                 aria-label="Accept auto-detected show slot"
               >
-                <FontAwesomeIcon icon={faCheckCircle} /> Accept Auto
+                <FaCheckCircle /> Accept Auto
               </button>
             </div>
           )}
@@ -1350,18 +1376,18 @@ const DroneEditForm = memo(function DroneEditForm({
           <button
             className="action-button success"
             onClick={handleSaveRequest}
-            title="Save changes"
+            data-help="Save changes"
             aria-label="Save changes"
           >
-            <FontAwesomeIcon icon={faSave} /> Save
+            <FaSave /> Save
           </button>
           <button
             className="action-button secondary"
             onClick={onCancel}
-            title="Cancel editing"
+            data-help="Cancel editing"
             aria-label="Cancel editing"
           >
-            <FontAwesomeIcon icon={faTimes} /> Cancel
+            <FaTimes /> Cancel
           </button>
         </div>
 

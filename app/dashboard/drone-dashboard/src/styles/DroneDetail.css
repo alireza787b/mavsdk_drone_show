@@ -77,6 +77,22 @@
     box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.08);
 }
 
+.drone-detail .status-dot--good {
+    background: var(--color-success);
+}
+
+.drone-detail .status-dot--warning {
+    background: var(--color-warning);
+}
+
+.drone-detail .status-dot--danger {
+    background: var(--color-danger);
+}
+
+.drone-detail .status-dot--muted {
+    background: var(--color-text-tertiary);
+}
+
 .drone-detail .status-text {
     color: var(--color-text-primary);
 }
@@ -330,6 +346,14 @@
     color: var(--color-success);
 }
 
+.drone-detail .rtk {
+    color: var(--color-primary);
+}
+
+.drone-detail .dgps {
+    color: var(--color-info);
+}
+
 .drone-detail .fair,
 .drone-detail .warning {
     color: var(--color-warning-text);
@@ -338,6 +362,10 @@
 .drone-detail .poor,
 .drone-detail .critical {
     color: var(--color-danger);
+}
+
+.drone-detail .none {
+    color: var(--color-text-tertiary);
 }
 
 .drone-detail .map-display {

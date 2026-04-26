@@ -1,6 +1,6 @@
 # MAVSDK Drone Show Documentation
 
-**Complete documentation index for MDS 5.2**
+**Complete documentation index for MDS 5.3**
 
 Welcome to the MAVSDK Drone Show documentation! This index will help you find the right guide for your needs.
 
@@ -14,6 +14,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 |--------------|---------------|
 | get a working SITL demo fast | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
 | run reusable end-to-end SITL regression suites | [SITL Validation Platform](guides/sitl-validation-platform.md) |
+| understand the main dashboard and dispatch scope | [Dashboard Operator Guide](guides/dashboard-operator.md) |
 | fly a Drone Show from the dashboard | [Drone Show Guide](features/drone-show.md) |
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
 | inspect Smart Swarm tracking quality | [Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md) |
@@ -50,6 +51,8 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[Repo Agent Operating Spec](../AGENTS.md)** - canonical machine-oriented operating loop for terminal AI agents; root vendor shims (`CLAUDE.md`, `GEMINI.md`) stay thin and point here
 - **[AI Agent Context Index](superpowers/README.md)** - index for machine-oriented specs and plans without cluttering the normal operator docs
 - **[AI Agent SITL Audit Loop](superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md)** - deeper agent-only execution contract for reproduce, patch, validate, package, and handoff phases
+- **[Frontend Design System](guides/frontend-design-system.md)** - canonical operator UI/UX, action-density, map/globe, and route-doc standards for maintainers and AI agents
+- **[Frontend UI Audit Guide](guides/frontend-ui-audit.md)** - predeploy UI/UX cleanup guardrails, route-doc mapping rules, and audit command
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage
@@ -61,6 +64,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 ### Core Secondary Guides
 
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
+- **[Dashboard Operator Guide](guides/dashboard-operator.md)** - main dashboard status model, dispatch scope behavior, and SITL/REAL safety reminders
 - **[Custom SITL Auth Guide](guides/custom-sitl-auth.md)** - official/public/private repo auth split for GCS write access, SITL read access, and image-prep credentials
 - **[SITL Control Guide](guides/sitl-control.md)** - dashboard-based local SITL lifecycle control, image save flow, and operator-focused container management
 - **[Mapbox Setup](guides/mapbox-setup.md)** - optional Mapbox token setup and fallback behavior for map views
@@ -239,7 +243,7 @@ Topics covered:
 - Automated version synchronization
 - Manual override capabilities
 
-**Current Version:** 5.2
+**Current Version:** 5.3
 
 **Changelog:** See [CHANGELOG.md](../CHANGELOG.md) for complete version history.
 

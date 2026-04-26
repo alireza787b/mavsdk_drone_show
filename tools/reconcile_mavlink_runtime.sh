@@ -97,6 +97,12 @@ router_binary_present() {
     command -v mavlink-routerd >/dev/null 2>&1 || [[ -x /usr/bin/mavlink-routerd ]] || [[ -x /usr/local/bin/mavlink-routerd ]]
 }
 
+runtime_git() {
+    local install_dir
+    install_dir="$(resolve_install_dir)"
+    git -c "safe.directory=${install_dir}" -C "${install_dir}" "$@"
+}
+
 dashboard_ready() {
     local skip_dashboard
     local install_dir
@@ -136,9 +142,9 @@ ensure_runtime_checkout() {
 
     if [[ -d "${install_dir}/.git" ]]; then
         log INFO "Syncing managed mavlink-anywhere runtime (${repo_ref})"
-        git -C "${install_dir}" remote set-url origin "${repo_url}" >/dev/null 2>&1
-        git -C "${install_dir}" fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1
-        git -C "${install_dir}" checkout -f FETCH_HEAD >/dev/null 2>&1
+        runtime_git remote set-url origin "${repo_url}" >/dev/null 2>&1
+        runtime_git fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1
+        runtime_git checkout -f FETCH_HEAD >/dev/null 2>&1
         return 0
     fi
 
@@ -259,7 +265,7 @@ show_status() {
 
     if runtime_present; then
         echo "runtime_present=true"
-        echo "runtime_head=$(git -C "$(resolve_install_dir)" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+        echo "runtime_head=$(runtime_git rev-parse --short HEAD 2>/dev/null || echo unknown)"
     else
         echo "runtime_present=false"
     fi

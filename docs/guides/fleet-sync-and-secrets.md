@@ -34,7 +34,7 @@ Examples:
 - `config.json` / `config_sitl.json`
 - `swarm.json` / `swarm_sitl.json`
 - `deployment/defaults.env`
-- future repo-owned connectivity profiles such as Smart Wi-Fi Manager bundles
+- repo-owned connectivity profiles such as Smart Wi-Fi Manager bundles
 - future repo-owned fleet default MAVLink Anywhere profiles
 
 This state is git-tracked.
@@ -143,7 +143,8 @@ Example:
 - change fleet topology
 - change swarm defaults
 - change default branch/channel
-- change future Wi-Fi or MAVLink profile intent
+- change Wi-Fi profile intent
+- change future MAVLink profile intent
 
 Flow:
 
@@ -209,7 +210,11 @@ Target model:
 
 - repo owns fleet default connectivity profile intent
 - nodes apply that profile unless they have a justified local override
-- future GCS UI can edit/import/export/roll out those profiles
+- Fleet Ops can import a repo-owned profile into
+  `deployment/connectivity/smart-wifi-manager/profile.json`
+- node sync/reconcile rolls that profile out to managed real nodes
+- Fleet Ops and node runtime status compare hashes without exposing profile
+  secrets
 
 ### MAVLink Anywhere
 
@@ -249,12 +254,12 @@ Current expectation:
 - read-only node/private SITL auth through `MDS_GIT_AUTH_TOKEN_FILE`
 - write-capable GCS git flow
 - optional connectivity-backend foundation in runtime/bootstrap code
+- Fleet Ops Smart Wi-Fi profile import/status using secret-safe hashes
+- node sync/reconcile applies repo-owned Smart Wi-Fi profiles to managed real nodes
 
 ### Planned next
 
-- standalone Smart Wi-Fi Manager integration as the optional connectivity backend
 - richer fleet-default versus node-override UI
-- clearer rollout/apply status for connectivity profiles
 - future repo-owned MAVLink Anywhere default profile support
 - long-term GitHub App support for better large-fleet credential management
 
@@ -294,7 +299,7 @@ runtime user today unless the deployment explicitly says otherwise.
 | node identity | `/etc/mds/node_identity.json`, `MDS_HW_ID` |
 | private repo read credential | local secret file + `MDS_GIT_AUTH_TOKEN_FILE` |
 | GCS write credential | local secret file / SSH key on the GCS only |
-| future fleet default Wi-Fi profile | repo-owned connectivity profile (planned model) |
+| fleet default Wi-Fi profile | `deployment/connectivity/smart-wifi-manager/profile.json` in the fleet repo |
 | board-specific MAVLink input path | host-local runtime override |
 
 ## 11. Bottom Line

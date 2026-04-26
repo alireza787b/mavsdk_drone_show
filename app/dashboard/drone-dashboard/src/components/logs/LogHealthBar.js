@@ -26,7 +26,7 @@ const LogHealthBar = ({
       <div className="log-health-stat">
         <FaServer size={12} />
         <span>GCS</span>
-        <span className="stat-value" style={{ color: gcsOnline ? 'var(--color-success)' : 'var(--color-danger)' }}>
+        <span className={`stat-value log-health-status ${gcsOnline ? 'is-online' : 'is-offline'}`}>
           {gcsOnline ? 'Online' : 'Offline'}
         </span>
       </div>

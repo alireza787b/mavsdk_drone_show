@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 import SwarmRuntimeControls from './SwarmRuntimeControls';
 import { CommandActivityProvider, useCommandActivity } from '../contexts/CommandActivityContext';
@@ -63,7 +63,6 @@ describe('SwarmRuntimeControls', () => {
     jest.clearAllMocks();
     getActiveCommands.mockResolvedValue({ commands: [] });
     getRecentCommands.mockResolvedValue({ commands: [] });
-    window.confirm = jest.fn(() => true);
   });
 
   it('publishes Smart Swarm runtime commands into the shared command activity stream', async () => {
@@ -122,6 +121,7 @@ describe('SwarmRuntimeControls', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /start smart swarm/i }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /start smart swarm/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Monitor: Start Smart Swarm')).toBeInTheDocument();

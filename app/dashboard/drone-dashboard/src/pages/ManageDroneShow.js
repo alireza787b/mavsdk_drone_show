@@ -1,123 +1,145 @@
 // src/pages/ManageDroneShow.js
 import React, { useState } from 'react';
-import { Container, Box, Typography, Paper, Button, Link } from '@mui/material';
-import { ToastContainer } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
-import ImportSection from '../components/ImportSection';
+import { ToastContainer } from 'react-toastify';
+import { FaCheckCircle, FaFileArchive, FaRocket, FaRoute, FaUpload } from 'react-icons/fa';
+
 import ExportSection from '../components/ExportSection';
+import ImportSection from '../components/ImportSection';
 import VisualizationSection from '../components/VisualizationSection';
+import {
+  ActionIconButton,
+  MetricStrip,
+  OperatorCard,
+  OperatorNotice,
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
 import '../styles/ManageDroneShow.css';
+
+const WORKFLOW_STEPS = [
+  {
+    key: 'create',
+    label: 'Create',
+    detail: 'Blender / SkyBrush',
+    icon: <FaFileArchive />,
+  },
+  {
+    key: 'upload',
+    label: 'Upload',
+    detail: 'ZIP pipeline',
+    icon: <FaUpload />,
+    active: true,
+  },
+  {
+    key: 'config',
+    label: 'Config',
+    detail: 'Mission geometry',
+    route: '/mission-config',
+    icon: <FaRoute />,
+  },
+  {
+    key: 'launch',
+    label: 'Launch',
+    detail: 'Overview preflight',
+    route: '/mission-control',
+    icon: <FaRocket />,
+  },
+];
 
 const WorkflowGuidanceSection = () => {
   const navigate = useNavigate();
-  
+
   return (
-    <Paper 
-      elevation={3} 
-      sx={{ 
-        p: 2, 
-        mb: 3, 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white'
-      }}
-    >
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-        Standard Drone Show Workflow
-      </Typography>
-      <Typography variant="body2" sx={{ mb: 2, color: 'white', fontWeight: 500 }}>
-        Create in Blender / SkyBrush, import here, verify launch geometry in Mission Config, then confirm live readiness in Overview before launch.
-      </Typography>
-      <Typography variant="body2" sx={{ mb: 2, color: 'rgba(255,255,255,0.88)' }}>
-        This page is only for the normal SkyBrush ZIP pipeline. The expert-only shared-CSV override lives on the{' '}
-        <Link
-          component="button"
-          type="button"
-          underline="always"
-          color="inherit"
+    <OperatorNotice
+      tone="info"
+      title="Standard SkyBrush ZIP workflow"
+      className="manage-drone-show__workflow"
+      action={(
+        <ActionIconButton
+          icon={<FaFileArchive />}
+          label="Open Custom CSV mode"
+          size="sm"
           onClick={() => navigate('/custom-show')}
-          sx={{ fontWeight: 700 }}
         >
-          Custom Show
-        </Link>{' '}
-        page.
-      </Typography>
-      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-        <Button
-          variant="outlined"
-          sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
-        >
-          1. Create in Blender/SkyBrush
-        </Button>
-        <Button 
-          variant="contained" 
-          sx={{ 
-            bgcolor: 'rgba(255,255,255,0.2)', 
-            color: 'white',
-            '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' }
-          }}
-        >
-          2. Upload & Process ← You are here
-        </Button>
-        <Button
-          variant="outlined"
-          sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
-          onClick={() => navigate('/mission-config')}
-        >
-          3. Review Mission Config
-        </Button>
-        <Button
-          variant="outlined"
-          sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.5)' }}
-          onClick={() => navigate('/mission-control')}
-        >
-          4. Verify Overview / Launch
-        </Button>
-      </Box>
-    </Paper>
+          Custom CSV
+        </ActionIconButton>
+      )}
+    >
+      <div className="manage-drone-show__workflow-body">
+        <div className="manage-drone-show__workflow-steps" aria-label="Drone show import workflow">
+          {WORKFLOW_STEPS.map((step) => (
+            <button
+              key={step.key}
+              type="button"
+              className={[
+                'manage-drone-show__workflow-step',
+                step.active ? 'is-active' : '',
+              ].filter(Boolean).join(' ')}
+              disabled={!step.route}
+              onClick={() => step.route && navigate(step.route)}
+              aria-current={step.active ? 'step' : undefined}
+            >
+              <span aria-hidden="true">{step.icon}</span>
+              <strong>{step.label}</strong>
+              <small>{step.detail}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+    </OperatorNotice>
   );
 };
-
 
 const ManageDroneShow = () => {
   const [uploadCount, setUploadCount] = useState(0);
 
+  const statusItems = [
+    {
+      key: 'pipeline',
+      label: 'Pipeline',
+      value: 'SkyBrush ZIP',
+      detail: 'normal show import',
+      icon: <FaFileArchive />,
+      tone: 'info',
+    },
+    {
+      key: 'state',
+      label: 'Current Step',
+      value: 'Upload',
+      detail: 'process and inspect',
+      icon: <FaCheckCircle />,
+      tone: 'success',
+    },
+  ];
 
   return (
-    <Container maxWidth="97%" className="manage-drone-show-container">
+    <PageShell
+      className="manage-drone-show-container"
+      eyebrow="Drone show authoring"
+      title="Manage Drone Show"
+      subtitle="Import, inspect, export."
+      docsRoute="/manage-drone-show"
+      status={<StatusBadge tone="info">ZIP pipeline</StatusBadge>}
+    >
       <ToastContainer />
-      
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, mb: 2 }}>
-        <Typography variant="h4" sx={{ color: '#0056b3' }}>
-          Manage Drone Show
-        </Typography>
-      </Box>
 
-      {/* Workflow Guidance */}
+      <MetricStrip items={statusItems} label="Drone show import status" />
+
       <WorkflowGuidanceSection />
 
-      {/* Import Section - Always Visible */}
-      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+      <OperatorCard className="manage-drone-show__section">
         <ImportSection setUploadCount={setUploadCount} />
-      </Paper>
+      </OperatorCard>
 
-      {/* Visualization Section - Always Visible */}
-      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+      <OperatorCard className="manage-drone-show__section">
         <VisualizationSection uploadCount={uploadCount} />
-      </Paper>
+      </OperatorCard>
 
-      {/* Export Options */}
-      <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
+      <OperatorCard className="manage-drone-show__section">
         <ExportSection />
-      </Paper>
-
-      {/* Footer */}
-      <Box textAlign="center" sx={{ mt: 4, mb: 2 }}>
-        <Typography variant="body2" color="textSecondary">
-          &copy; {new Date().getFullYear()} Drone Show Management System. All rights reserved.
-        </Typography>
-      </Box>
-
-    </Container>
+      </OperatorCard>
+    </PageShell>
   );
 };
 

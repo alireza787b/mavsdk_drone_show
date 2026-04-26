@@ -2,6 +2,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import {
+  MdCheck,
+  MdClose,
+  MdDelete,
+  MdExpandMore,
+  MdLightbulb,
+  MdList,
+  MdLocationOn,
+  MdWarningAmber,
+} from 'react-icons/md';
 import { 
   ALTITUDE_REFERENCE,
   getSpeedStatus, 
@@ -265,7 +275,7 @@ const WaypointPanel = ({
             return;
           }
           updates.timeFromStart = time;
-          updates.time = time; // Legacy compatibility
+          updates.time = time; // Export/storage alias for trajectory interchange.
         } else {
           setEditFeedback({
             tone: 'error',
@@ -413,11 +423,11 @@ const WaypointPanel = ({
     
     switch (status) {
       case 'feasible':
-        return <span className="speed-indicator speed-feasible" title="Optimal speed">✓</span>;
+        return <MdCheck className="speed-indicator speed-feasible" data-help="Optimal speed" aria-hidden="true" />;
       case 'marginal':
-        return <span className="speed-indicator speed-marginal" title="High speed - use caution">⚠</span>;
+        return <MdWarningAmber className="speed-indicator speed-marginal" data-help="High speed - use caution" aria-hidden="true" />;
       case 'impossible':
-        return <span className="speed-indicator speed-impossible" title="Speed too high for safe operation">⚠</span>;
+        return <MdWarningAmber className="speed-indicator speed-impossible" data-help="Speed too high for safe operation" aria-hidden="true" />;
       default:
         return null;
     }
@@ -593,8 +603,8 @@ const WaypointPanel = ({
               disabled={isApplyingEdit}
             />
             <div className="edit-buttons">
-              <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)" disabled={isApplyingEdit}>✓</button>
-              <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)" disabled={isApplyingEdit}>✕</button>
+              <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}><MdCheck aria-hidden="true" /></button>
+              <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}><MdClose aria-hidden="true" /></button>
             </div>
           </div>
         );
@@ -641,8 +651,8 @@ const WaypointPanel = ({
                 )}
               </select>
               <div className="edit-buttons">
-                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)" disabled={isApplyingEdit}>✓</button>
-                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)" disabled={isApplyingEdit}>✕</button>
+                <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}><MdCheck aria-hidden="true" /></button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}><MdClose aria-hidden="true" /></button>
               </div>
             </div>
           );
@@ -694,8 +704,8 @@ const WaypointPanel = ({
                 }
               />
               <div className="edit-buttons">
-                <button onClick={handleEditSave} className="edit-btn save-btn" title="Save (Enter)" disabled={isApplyingEdit}>✓</button>
-                <button onClick={handleEditCancel} className="edit-btn cancel-btn" title="Cancel (Esc)" disabled={isApplyingEdit}>✕</button>
+                <button onClick={handleEditSave} className="edit-btn save-btn" data-help="Save (Enter)" aria-label="Save edit" disabled={isApplyingEdit}><MdCheck aria-hidden="true" /></button>
+                <button onClick={handleEditCancel} className="edit-btn cancel-btn" data-help="Cancel (Esc)" aria-label="Cancel edit" disabled={isApplyingEdit}><MdClose aria-hidden="true" /></button>
               </div>
             </div>
           );
@@ -707,7 +717,7 @@ const WaypointPanel = ({
       <span 
         className="detail-value editable" 
         onClick={() => handleEditStart(waypoint, field)}
-        title={field === 'coordinates' ? 'Click to edit. Coordinate changes refresh terrain and clearance.' : 'Click to edit'}
+        data-help={field === 'coordinates' ? 'Click to edit. Coordinate changes refresh terrain and clearance.' : 'Click to edit'}
       >
         {displayValue}
       </span>
@@ -721,7 +731,7 @@ const WaypointPanel = ({
           <h3>Waypoints ({waypoints.length})</h3>
           {waypoints.some((wp) => wp.estimatedSpeed > TRAJECTORY_SPEED_POLICY.MARGINAL_MAX) && (
             <div className="speed-warning-summary">
-              <span className="speed-indicator speed-impossible">⚠</span>
+              <MdWarningAmber className="speed-indicator speed-impossible" aria-hidden="true" />
               {!isCollapsed && <span className="warning-text">High speed detected</span>}
             </div>
           )}
@@ -730,10 +740,10 @@ const WaypointPanel = ({
           <button
             className={`collapse-toggle ${isCollapsed ? 'collapsed' : 'expanded'}`}
             onClick={() => setIsCollapsed(!isCollapsed)}
-            title={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
+            data-help={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
             aria-label={isCollapsed ? 'Expand waypoint panel' : 'Collapse waypoint panel'}
           >
-            {isCollapsed ? '📋' : '▼'}
+            {isCollapsed ? <MdList aria-hidden="true" /> : <MdExpandMore aria-hidden="true" />}
           </button>
         </div>
       </div>
@@ -765,11 +775,12 @@ const WaypointPanel = ({
               <div className="waypoint-actions">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onFlyTo(waypoint); }}
-                  title="Fly to waypoint"
+                  data-help="Fly to waypoint"
                   className="action-btn fly-btn"
                   disabled={editingWaypointId === waypoint.id}
+                  aria-label={`Fly to ${waypoint.name}`}
                 >
-                  📍
+                  <MdLocationOn aria-hidden="true" />
                 </button>
                 <button 
                   onClick={(e) => { 
@@ -780,10 +791,11 @@ const WaypointPanel = ({
                       onDeleteWaypoint(waypoint.id); 
                     }
                   }}
-                  title={editingWaypointId === waypoint.id ? "Cancel edit" : "Delete waypoint"}
+                  data-help={editingWaypointId === waypoint.id ? "Cancel edit" : "Delete waypoint"}
                   className="action-btn delete-btn"
+                  aria-label={editingWaypointId === waypoint.id ? `Cancel editing ${waypoint.name}` : `Delete ${waypoint.name}`}
                 >
-                  {editingWaypointId === waypoint.id ? '✕' : '🗑️'}
+                  {editingWaypointId === waypoint.id ? <MdClose aria-hidden="true" /> : <MdDelete aria-hidden="true" />}
                 </button>
               </div>
             </div>
@@ -793,7 +805,7 @@ const WaypointPanel = ({
                 <span
                   key={`${waypoint.id}-${tag.text}`}
                   className={`waypoint-intent-tag waypoint-intent-tag--${tag.tone}`}
-                  title={tag.title || tag.text}
+                  data-help={tag.title || tag.text}
                 >
                   {tag.text}
                 </span>
@@ -824,7 +836,7 @@ const WaypointPanel = ({
               <div className="detail-row">
                 <span
                   className="detail-label"
-                  title={getTrajectoryStoredAltitudeFieldDescription({
+                  data-help={getTrajectoryStoredAltitudeFieldDescription({
                     altitudeReference: getAltitudeReference(waypoint),
                   })}
                 >
@@ -833,7 +845,7 @@ const WaypointPanel = ({
                 {getAltitudeReference(waypoint) === ALTITUDE_REFERENCE.AGL ? (
                   <span
                     className="detail-value derived-value"
-                    title={getTrajectoryStoredAltitudeFieldDescription({
+                    data-help={getTrajectoryStoredAltitudeFieldDescription({
                       altitudeReference: getAltitudeReference(waypoint),
                     })}
                     onClick={() => showDerivedFieldNotice(
@@ -855,7 +867,7 @@ const WaypointPanel = ({
               <div className="detail-row timing-row">
                 <span
                   className="detail-label"
-                  title={getTrajectoryAltitudeReferenceDescription(getAltitudeReference(waypoint))}
+                  data-help={getTrajectoryAltitudeReferenceDescription(getAltitudeReference(waypoint))}
                 >
                   Altitude Entry:
                 </span>
@@ -873,7 +885,7 @@ const WaypointPanel = ({
                     <div className="detail-row timing-row">
                       <span
                         className="detail-label"
-                        title={getTrajectoryTerrainConfidenceDescription({
+                        data-help={getTrajectoryTerrainConfidenceDescription({
                           terrainResolved: true,
                           terrainAccurate: waypoint.terrainAccurate !== false,
                           groundElevation: waypoint.groundElevation,
@@ -910,7 +922,7 @@ const WaypointPanel = ({
               <div className="detail-row">
                 <span
                   className="detail-label"
-                  title={index === 0
+                  data-help={index === 0
                     ? getTrajectoryMissionAnchorDescription(index)
                     : getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
                 >
@@ -922,7 +934,7 @@ const WaypointPanel = ({
                 {getTimingMode(waypoint) === TIMING_MODES.AUTO_SPEED ? (
                   <span
                     className="detail-value derived-value"
-                    title="Derived from the leg speed target. Edit Timing Mode or Preferred Leg Speed to change it."
+                    data-help="Derived from the leg speed target. Edit Timing Mode or Preferred Leg Speed to change it."
                     onClick={() => showDerivedFieldNotice(
                       'Waypoint arrival time is derived from the preferred leg speed in Speed-driven ETA mode. Switch Timing Mode to Time-driven speed if you want to type an arrival time directly.'
                     )}
@@ -943,7 +955,7 @@ const WaypointPanel = ({
                 <div className="detail-row timing-row">
                   <span
                     className="detail-label"
-                    title={getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
+                    data-help={getTrajectoryTimingModeDescription(getTimingMode(waypoint))}
                   >
                     Leg Planning:
                   </span>
@@ -963,7 +975,7 @@ const WaypointPanel = ({
                   <span className="detail-label">Route Role:</span>
                   <span
                     className="detail-value start-indicator"
-                    title={getTrajectoryMissionAnchorDescription(index)}
+                    data-help={getTrajectoryMissionAnchorDescription(index)}
                   >
                     {getTrajectoryMissionAnchorLabel(index)}
                   </span>
@@ -1012,7 +1024,7 @@ const WaypointPanel = ({
               <div className="detail-row heading-row">
                 <span
                   className="detail-label"
-                  title={getTrajectoryHeadingModeDescription(
+                  data-help={getTrajectoryHeadingModeDescription(
                     index === 0
                       ? YAW_CONSTANTS.MANUAL
                       : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
@@ -1030,7 +1042,7 @@ const WaypointPanel = ({
                   {index > 0 && (waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO) === YAW_CONSTANTS.AUTO ? (
                     <span
                       className="detail-value derived-value"
-                      title={getTrajectoryDisplayedHeadingFieldDescription({
+                      data-help={getTrajectoryDisplayedHeadingFieldDescription({
                         isMissionAnchor: false,
                         headingMode: YAW_CONSTANTS.AUTO,
                       })}
@@ -1051,7 +1063,7 @@ const WaypointPanel = ({
                   )}
                   <span
                     className="heading-mode-indicator"
-                    title={getTrajectoryHeadingModeDescription(
+                    data-help={getTrajectoryHeadingModeDescription(
                       index === 0
                         ? YAW_CONSTANTS.MANUAL
                         : waypoint.headingMode || waypoint.yawMode || YAW_CONSTANTS.AUTO,
@@ -1082,7 +1094,7 @@ const WaypointPanel = ({
                   <div
                     key={`${waypoint.id}-${card.key}`}
                     className={`waypoint-brief-card waypoint-brief-card--${card.tone}`}
-                    title={card.detail}
+                    data-help={card.detail}
                   >
                     <span className="waypoint-brief-card__label">{card.label}</span>
                     <strong className="waypoint-brief-card__value">{card.value}</strong>
@@ -1096,7 +1108,8 @@ const WaypointPanel = ({
             {/* Speed warning for high-speed segments */}
             {index > 0 && waypoint.estimatedSpeed > TRAJECTORY_SPEED_POLICY.MARGINAL_MAX && (
               <div className="waypoint-speed-warning">
-                <small>⚠ High speed segment - verify drone capabilities</small>
+                <MdWarningAmber aria-hidden="true" />
+                <small>High speed segment - verify drone capabilities</small>
               </div>
             )}
 
@@ -1164,7 +1177,8 @@ const WaypointPanel = ({
       {waypoints.length > 0 && !editingWaypointId && !isCollapsed && (
         <div className="edit-instructions">
           <small>
-            💡 {isMobile ? 'Tap editable values to change operator-owned inputs' : 'Click editable values to change operator-owned inputs inline'}.
+            <MdLightbulb aria-hidden="true" />
+            <span>{isMobile ? 'Tap editable values to change operator-owned inputs' : 'Click editable values to change operator-owned inputs inline'}.</span>
             {' '}Derived timing and speed checks stay locked so the panel always shows what the planner is calculating.
             {!isMobile && ' Drag waypoints on map to reposition.'}
           </small>

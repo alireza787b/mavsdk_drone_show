@@ -14,6 +14,8 @@
   box-shadow: var(--shadow-sm);
   container-type: inline-size;
   container-name: drone-card;
+  --drone-card-accent-layer: var(--z-local-raised);
+  --drone-card-badge-layer: var(--z-local-floating);
 }
 
 .drone-config-card:hover {
@@ -31,7 +33,7 @@
   width: 4px;
   height: 100%;
   background: var(--card-accent-color, var(--color-primary));
-  z-index: 2;
+  z-index: var(--drone-card-accent-layer);
   transition: var(--transition-base);
 }
 
@@ -1337,7 +1339,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  z-index: 10;
+  z-index: var(--drone-card-badge-layer);
 }
 
 /* Legacy Support - Clean up old styles */
@@ -1514,9 +1516,12 @@ input:checked + .slider:before {
 }
 
 .data-unavailable::before {
-  content: "⚠";
-  color: var(--color-warning);
-  font-style: normal;
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--color-warning);
+  flex-shrink: 0;
 }
 
 /* Responsive Design */
@@ -1629,7 +1634,7 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-modal-backdrop);
   backdrop-filter: blur(2px);
 }
 
@@ -1655,6 +1660,10 @@ input:checked + .slider:before {
   color: var(--color-text-secondary);
   margin: var(--spacing-sm) 0;
   line-height: var(--line-height-normal);
+}
+
+.confirmation-dialog__prompt {
+  margin-top: var(--spacing-base) !important;
 }
 
 .dialog-buttons {
@@ -1760,9 +1769,9 @@ input:checked + .slider:before {
 @media print {
   .drone-config-card {
     box-shadow: none;
-    border: 1px solid #000;
-    background: #fff !important;
-    color: #000 !important;
+    border: 1px solid var(--color-text-inverse);
+    background: var(--color-text-primary) !important;
+    color: var(--color-text-inverse) !important;
     break-inside: avoid;
   }
 

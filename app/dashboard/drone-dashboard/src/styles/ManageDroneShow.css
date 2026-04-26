@@ -9,94 +9,68 @@
     min-height: 100vh;
 }
 
-/* Workflow Guidance Styling */
-.workflow-guidance {
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-    border-radius: var(--border-radius-lg);
-    padding: var(--spacing-xl);
-    margin-bottom: var(--spacing-xl);
-    color: var(--color-text-primary);
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--color-primary-border);
-    backdrop-filter: blur(8px);
-    position: relative;
-    overflow: hidden;
+.manage-drone-show__workflow {
+    margin-top: var(--spacing-lg);
 }
 
-.workflow-guidance::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1));
-}
-
-.workflow-guidance .workflow-buttons {
+.manage-drone-show__workflow-body {
     display: flex;
+    flex-direction: column;
+    gap: var(--spacing-base);
+}
+
+.manage-drone-show__workflow-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--spacing-sm);
-    flex-wrap: wrap;
-    margin-top: var(--spacing-base);
+}
+
+.manage-drone-show__workflow-step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+        "icon label"
+        "icon detail";
     align-items: center;
-}
-
-.workflow-guidance .workflow-button {
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: var(--border-radius-base);
-    padding: var(--spacing-sm) var(--spacing-base);
-    background: rgba(255, 255, 255, 0.1);
+    gap: 0 var(--spacing-sm);
+    min-height: 58px;
+    border: var(--operator-control-border);
+    border-radius: var(--border-radius-lg);
+    background: var(--operator-control-background);
     color: var(--color-text-primary);
-    text-transform: none;
-    font-weight: var(--font-weight-medium);
-    font-family: var(--font-family-primary);
-    transition: var(--transition-all);
-    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm);
+    text-align: left;
     cursor: pointer;
-    backdrop-filter: blur(4px);
 }
 
-.workflow-guidance .workflow-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-sm);
+.manage-drone-show__workflow-step:disabled {
+    cursor: default;
+    opacity: 0.78;
 }
 
-.workflow-guidance .workflow-button.active {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.7);
-    font-weight: var(--font-weight-semibold);
-    box-shadow: var(--shadow-base);
+.manage-drone-show__workflow-step.is-active {
+    border-color: var(--color-success-border);
+    background: var(--color-success-light);
 }
 
-/* Advanced Features Toggle */
-.advanced-features-toggle {
-    background: var(--color-bg-secondary);
-    border: 1px solid var(--color-border-primary);
-    border-radius: var(--border-radius-base);
-    transition: var(--transition-all);
-}
-
-.advanced-features-toggle:hover {
-    background: var(--color-bg-tertiary);
-    border-color: var(--color-border-secondary);
-    box-shadow: var(--shadow-sm);
-}
-
-.advanced-toggle-button {
+.manage-drone-show__workflow-step span {
+    grid-area: icon;
     color: var(--color-primary);
-    font-weight: var(--font-weight-semibold);
-    text-transform: none;
-    padding: var(--spacing-sm) var(--spacing-base);
-    border-radius: var(--border-radius-base);
-    transition: var(--transition-all);
-    font-family: var(--font-family-primary);
 }
 
-.advanced-toggle-button:hover {
-    background: var(--color-primary-light);
-    color: var(--color-primary-hover);
+.manage-drone-show__workflow-step strong {
+    grid-area: label;
+    font-size: var(--font-size-sm);
+}
+
+.manage-drone-show__workflow-step small {
+    grid-area: detail;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.manage-drone-show__section {
+    margin-top: var(--spacing-lg);
 }
 
 /* Section styling */
@@ -109,6 +83,11 @@
     border: 1px solid var(--color-border-primary);
     box-shadow: var(--shadow-base);
     transition: var(--transition-all);
+}
+
+.export-section__title {
+    color: var(--color-primary) !important;
+    margin-bottom: var(--spacing-base) !important;
 }
 
 .intro-section ul {
@@ -137,119 +116,6 @@
 .file-upload:hover {
     background: var(--color-bg-quaternary);
     border-color: var(--color-primary-border);
-}
-
-/* Override MUI container styling */
-.MuiContainer-root {
-    width: 97% !important;
-    background: var(--color-bg-primary) !important;
-    color: var(--color-text-primary) !important;
-}
-
-/* Modal Overlay and Content */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: var(--z-modal);
-    padding: var(--spacing-xl);
-    backdrop-filter: blur(8px);
-}
-
-.modal-close-button {
-    position: absolute;
-    top: var(--spacing-base);
-    right: var(--spacing-base);
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border-primary);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    font-size: var(--font-size-xl);
-    cursor: pointer;
-    transition: var(--transition-all);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    backdrop-filter: blur(4px);
-}
-
-.modal-close-button:hover {
-    background: var(--color-danger);
-    border-color: var(--color-danger-border);
-    transform: scale(1.1);
-    box-shadow: var(--shadow-md);
-}
-
-/* Navigation buttons inside the modal */
-.modal-image-container {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    height: 100%;
-}
-
-.nav-button {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: var(--color-bg-secondary);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border-primary);
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: var(--font-size-lg);
-    cursor: pointer;
-    transition: var(--transition-all);
-    backdrop-filter: blur(4px);
-}
-
-.nav-button:hover {
-    background: var(--color-primary);
-    border-color: var(--color-primary-border);
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: var(--shadow-md);
-}
-
-.prev-button {
-    left: var(--spacing-xl);
-}
-
-.next-button {
-    right: var(--spacing-xl);
-}
-
-.modal-image-wrapper {
-    max-width: 90vw;
-    max-height: 90vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-radius: var(--border-radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-dark-lg);
-}
-
-.modal-image {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    user-select: none;
-    pointer-events: none;
-    border-radius: var(--border-radius-base);
 }
 
 /* Plots styling */
@@ -433,7 +299,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-shadow-light), transparent);
     animation: shimmer 2s infinite;
 }
 
@@ -508,7 +374,7 @@
 
 /* Upload Button Enhancement */
 .upload-button {
-    background: linear-gradient(135deg, var(--color-success), #059669);
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-hover));
     border: none;
     border-radius: var(--border-radius-base);
     color: var(--color-text-primary);
@@ -530,7 +396,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-shadow-light), transparent);
     transition: var(--transition-base);
 }
 
@@ -539,7 +405,7 @@
 }
 
 .upload-button:hover {
-    background: linear-gradient(135deg, #059669, #047857);
+    background: linear-gradient(135deg, var(--color-success-hover), var(--color-success-dark));
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
 }
@@ -553,7 +419,7 @@
 }
 
 /* Typography overrides for theme consistency */
-.MuiTypography-h4 {
+.manage-drone-show-container .MuiTypography-h4 {
     color: var(--color-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-weight: var(--font-weight-bold) !important;
@@ -565,7 +431,7 @@
     background-clip: text;
 }
 
-.MuiTypography-h6 {
+.manage-drone-show-container .MuiTypography-h6 {
     color: var(--color-text-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-weight: var(--font-weight-semibold) !important;
@@ -573,7 +439,7 @@
     line-height: var(--line-height-tight) !important;
 }
 
-.MuiTypography-body1 {
+.manage-drone-show-container .MuiTypography-body1 {
     color: var(--color-text-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-size: var(--font-size-base) !important;
@@ -581,7 +447,7 @@
     margin-bottom: var(--spacing-sm) !important;
 }
 
-.MuiTypography-body2 {
+.manage-drone-show-container .MuiTypography-body2 {
     color: var(--color-text-secondary) !important;
     font-family: var(--font-family-primary) !important;
     font-size: var(--font-size-sm) !important;
@@ -589,15 +455,15 @@
     font-weight: var(--font-weight-medium) !important;
 }
 
-.MuiTypography-subtitle1,
-.MuiTypography-subtitle2 {
+.manage-drone-show-container .MuiTypography-subtitle1,
+.manage-drone-show-container .MuiTypography-subtitle2 {
     color: var(--color-text-primary) !important;
     font-family: var(--font-family-primary) !important;
     font-weight: var(--font-weight-semibold) !important;
     line-height: var(--line-height-tight) !important;
 }
 
-.MuiPaper-root {
+.manage-drone-show-container .MuiPaper-root {
     background: var(--color-bg-secondary) !important;
     color: var(--color-text-primary) !important;
     border: 1px solid var(--color-border-primary) !important;
@@ -616,6 +482,10 @@
         padding-bottom: var(--spacing-xl);
     }
 
+    .manage-drone-show__workflow-steps {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .plot-full-width img {
         width: 100%;
         max-width: 100%;
@@ -624,21 +494,6 @@
     .plot-grid {
         grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         gap: var(--spacing-xs);
-        padding: var(--spacing-sm);
-    }
-
-    .workflow-guidance {
-        padding: var(--spacing-base);
-    }
-
-    .workflow-guidance .workflow-buttons {
-        flex-direction: column;
-        gap: var(--spacing-xs);
-    }
-
-    .workflow-guidance .workflow-button {
-        width: 100%;
-        text-align: center;
         padding: var(--spacing-sm);
     }
 
@@ -653,28 +508,11 @@
         gap: var(--spacing-sm);
     }
 
-    .nav-button {
-        width: 40px;
-        height: 40px;
-        font-size: var(--font-size-base);
-    }
-
-    .prev-button {
-        left: var(--spacing-base);
-    }
-
-    .next-button {
-        right: var(--spacing-base);
-    }
 }
 
 @media (max-width: 480px) {
-    .modal-overlay {
-        padding: var(--spacing-base);
-    }
-
-    .workflow-guidance {
-        padding: var(--spacing-sm);
+    .manage-drone-show__workflow-steps {
+        grid-template-columns: 1fr;
     }
 
     .upload-button {
@@ -689,139 +527,31 @@
 
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
-    .workflow-guidance,
-    .workflow-guidance .workflow-button,
     .feature-card,
     .upload-button,
     .clickable-image,
-    .nav-button,
-    .modal-close-button,
     .processing-progress-bar::after {
         transition: none;
         animation: none;
     }
 
-    .workflow-guidance .workflow-button:hover,
     .feature-card:hover,
     .upload-button:hover,
-    .clickable-image:hover,
-    .nav-button:hover {
+    .clickable-image:hover {
         transform: none;
     }
 }
 
 /* Focus states for accessibility */
-.workflow-guidance .workflow-button:focus-visible,
 .upload-button:focus-visible,
-.nav-button:focus-visible,
-.modal-close-button:focus-visible,
 .metrics-toggle-button:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 2px;
 }
 
-/* Current Show Information Box - Theme Override */
-.manage-drone-show-container .MuiBox-root[style*="bgcolor: rgb(248, 249, 250)"] {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary)) !important;
-    border: 1px solid var(--color-border-primary) !important;
-    border-radius: var(--border-radius-lg) !important;
-    backdrop-filter: blur(8px);
-    box-shadow: var(--shadow-base) !important;
-    position: relative;
-    transition: var(--transition-all);
-    padding: var(--spacing-lg) !important;
-    margin-bottom: var(--spacing-base) !important;
-}
-
-.manage-drone-show-container .MuiBox-root[style*="bgcolor: rgb(248, 249, 250)"]::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
-}
-
 /* Professional Left Column Layout Improvements */
 .manage-drone-show-container .MuiBox-root {
     margin-bottom: var(--spacing-base) !important;
-}
-
-/* Feature Cards Grid Layout */
-.manage-drone-show-container .MuiBox-root:has(.MuiPaper-root[style*="bgcolor: #f8f9fa"]) {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-    gap: var(--spacing-base) !important;
-    margin-bottom: var(--spacing-lg) !important;
-}
-
-/* Individual Feature Cards */
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] {
-    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-quaternary)) !important;
-    border: 1px solid var(--color-border-primary) !important;
-    border-radius: var(--border-radius-base) !important;
-    padding: var(--spacing-base) !important;
-    box-shadow: var(--shadow-sm) !important;
-    transition: var(--transition-all) !important;
-    position: relative;
-    height: auto !important;
-    min-height: 100px !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"]:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md) !important;
-    border-color: var(--color-primary-border) !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"]::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
-    opacity: 0;
-    transition: var(--transition-base);
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"]:hover::before {
-    opacity: 1;
-}
-
-/* Feature Card Content Spacing */
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiBox-root {
-    margin-bottom: var(--spacing-xs) !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: var(--spacing-sm) !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiTypography-subtitle2 {
-    color: var(--color-text-primary) !important;
-    font-weight: var(--font-weight-bold) !important;
-    font-size: var(--font-size-base) !important;
-    margin: 0 !important;
-    line-height: var(--line-height-tight) !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiTypography-body2 {
-    color: var(--color-text-secondary) !important;
-    font-size: var(--font-size-sm) !important;
-    line-height: var(--line-height-normal) !important;
-    margin: var(--spacing-xs) 0 0 0 !important;
-    font-weight: var(--font-weight-medium) !important;
-}
-
-/* Icon Styling in Feature Cards */
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiSvgIcon-root {
-    font-size: var(--font-size-xl) !important;
-    flex-shrink: 0;
-    opacity: 0.8;
 }
 
 /* Pro Tip Section */
@@ -861,16 +591,6 @@
 .manage-drone-show-container .MuiLink-root:hover {
     color: var(--color-primary-hover) !important;
     border-bottom-color: var(--color-primary) !important;
-}
-
-.manage-drone-show-container .MuiTypography-root[style*="color: rgb(0, 86, 179)"] {
-    color: var(--color-text-primary) !important;
-    font-weight: var(--font-weight-bold) !important;
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: var(--spacing-xs) !important;
 }
 
 /* Override Material-UI Components Theme */
@@ -947,8 +667,7 @@
         border-width: 2px !important;
     }
 
-    .upload-button,
-    .workflow-guidance .workflow-button {
+    .upload-button {
         border: 2px solid var(--color-primary);
     }
 }
@@ -966,8 +685,16 @@
 }
 
 .upload-info-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
     color: var(--color-text-primary) !important;
     font-weight: var(--font-weight-bold) !important;
+}
+
+.upload-info-title__icon {
+    color: var(--color-primary);
+    font-size: 1.15rem;
 }
 
 .upload-info-subtitle {
@@ -984,19 +711,28 @@
 }
 
 .metric-card:hover {
-    box-shadow: 0 8px 25px rgba(0, 86, 179, 0.15) !important;
+    box-shadow: var(--shadow-md) !important;
     border-color: var(--color-primary-border) !important;
     transform: translateY(-2px);
 }
 
 /* Dark mode hover effect */
 [data-theme="dark"] .metric-card:hover {
-    box-shadow: 0 8px 25px rgba(100, 181, 246, 0.2) !important;
+    box-shadow: var(--shadow-lg) !important;
 }
 
 .metric-icon {
     opacity: 0.9;
     filter: drop-shadow(0 2px 4px var(--color-shadow-light));
+}
+
+.metric-icon--large {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-base);
+}
+
+.metric-icon--inverted {
+    transform: rotate(180deg);
 }
 
 .metric-icon.primary {
@@ -1033,4 +769,59 @@
 .metric-detail {
     color: var(--color-text-secondary) !important;
     font-weight: var(--font-weight-medium) !important;
+}
+
+.metric-help-icon {
+    font-size: 1.125rem;
+}
+
+.metric-help-icon--muted {
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+}
+
+.visualization-section__expand-icon {
+    transition: transform var(--transition-base);
+}
+
+.visualization-section__expand-icon.is-open {
+    transform: rotate(180deg);
+}
+
+.manage-drone-show-container .safety-metric-card {
+    height: 100%;
+    background: var(--color-bg-secondary) !important;
+    border-radius: var(--border-radius-lg) !important;
+    transition: var(--transition-all) !important;
+}
+
+.manage-drone-show-container .safety-metric-card:hover {
+    box-shadow: var(--shadow-md) !important;
+}
+
+.manage-drone-show-container .safety-metric-card.safety-metric-card--safe {
+    border: 2px solid var(--color-success) !important;
+}
+
+.manage-drone-show-container .safety-metric-card.safety-metric-card--caution {
+    border: 2px solid var(--color-warning) !important;
+}
+
+.manage-drone-show-container .safety-metric-card.safety-metric-card--neutral {
+    border: 2px solid var(--color-border-primary) !important;
+}
+
+.safety-metric-card__icon {
+    color: var(--color-text-secondary);
+    font-size: 2.5rem;
+    margin-bottom: var(--spacing-base);
+}
+
+.safety-metric-card__icon.is-safe,
+.safety-metric-card__icon--safe {
+    color: var(--color-success);
+}
+
+.safety-metric-card__icon--caution {
+    color: var(--color-warning);
 }

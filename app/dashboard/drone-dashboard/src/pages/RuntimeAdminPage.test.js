@@ -128,7 +128,9 @@ describe('RuntimeAdminPage', () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole('heading', { name: /runtime admin/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /gcs runtime/i })).toBeInTheDocument();
+    expect(screen.getByText(/gcs host/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
     expect(screen.getByText(/config real/i)).toBeInTheDocument();
     expect(screen.getByText('/opt/demo-gcs')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /host capabilities/i })).toBeInTheDocument();
@@ -140,7 +142,7 @@ describe('RuntimeAdminPage', () => {
     expect(screen.queryByText('/root/.mds_git_read_token')).not.toBeInTheDocument();
     expect(screen.queryByText('/opt/demo-mavlink')).not.toBeInTheDocument();
     expect(screen.queryByText('/tmp/demo-profile.json')).not.toBeInTheDocument();
-    expect(screen.getByText(/use fleet ops for per-node mavlink, smart wi-fi, git auth, and profile compliance/i)).toBeInTheDocument();
+    expect(screen.getByText(/use fleet ops for drone mavlink, smart wi-fi, git auth, profile drift, and sync actions/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /run controlled gcs update/i })).toBeEnabled();
     expect(screen.getByRole('link', { name: /bootstrap guide/i })).toHaveAttribute(
       'href',
@@ -205,6 +207,52 @@ describe('RuntimeAdminPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/gcs restart scheduled/i)).toBeInTheDocument();
+    });
+  });
+
+  test('can save changed runtime settings and schedule restart from one action', async () => {
+    mockSaveGcsConfigResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'success',
+        message: 'Host-local GCS settings were persisted. Restart the GCS runtime to apply them.',
+        configured_mode: 'sitl',
+        configured_git_auto_push: false,
+        restart_required: true,
+        warnings: [],
+      },
+    });
+    mockApplyGcsConfigResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'scheduled',
+        message: 'GCS restart scheduled.',
+        configured_mode: 'sitl',
+        configured_git_auto_push: false,
+        restart_required: true,
+        scheduled: true,
+        restart_delay_ms: 2000,
+        warnings: [],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /set runtime mode to sitl/i }));
+    fireEvent.click(screen.getByRole('button', { name: /apply runtime changes and restart gcs/i }));
+
+    await waitFor(() => {
+      expect(mockSaveGcsConfigResponse).toHaveBeenCalledWith({
+        mode: 'sitl',
+        git_auto_push: false,
+      });
+    });
+    await waitFor(() => {
+      expect(mockApplyGcsConfigResponse).toHaveBeenCalledTimes(1);
     });
   });
 

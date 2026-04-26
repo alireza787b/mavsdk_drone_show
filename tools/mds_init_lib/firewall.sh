@@ -18,8 +18,8 @@ _MDS_FIREWALL_LOADED=1
 # MDS required ports with descriptions
 declare -A MDS_PORTS=(
     ["22/tcp"]="SSH access"
-    ["5000/tcp"]="GCS API Server"
-    ["7070/tcp"]="Drone API Server"
+    ["${MDS_GCS_API_PORT:-${MDS_DEFAULT_GCS_API_PORT:-5030}}/tcp"]="GCS API Server"
+    ["${MDS_DRONE_API_PORT:-${MDS_DEFAULT_DRONE_API_PORT:-7070}}/tcp"]="Drone API Server"
     ["14540/udp"]="MAVSDK SDK connection"
     ["14550/udp"]="GCS/QGroundControl"
     ["14569/udp"]="mavlink2rest API"

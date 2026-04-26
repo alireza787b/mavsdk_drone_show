@@ -49,7 +49,7 @@ def test_run_reconcile_auto_falls_back_to_shell(tmp_path, monkeypatch):
     )
 
     payload = client.run_reconcile(
-        base_url="http://127.0.0.1:5000",
+        base_url="http://127.0.0.1:5030",
         repo_root=tmp_path,
         drone_ids=[1, 2, 3],
         mode="auto",
@@ -85,7 +85,7 @@ def test_wait_for_operation_returns_final_success(monkeypatch):
     monkeypatch.setattr(client.time, "sleep", lambda *_args, **_kwargs: None)
 
     payload = client.wait_for_operation(
-        "http://127.0.0.1:5000",
+        "http://127.0.0.1:5030",
         "sitl-123",
         timeout_sec=5.0,
         poll_interval_sec=0.01,

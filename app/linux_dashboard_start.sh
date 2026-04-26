@@ -45,12 +45,12 @@ set -euo pipefail  # Strict error handling
 # ===========================================
 DEFAULT_MODE="development"
 PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
-PROD_WSGI_BIND="0.0.0.0:5000"
+PROD_WSGI_BIND="0.0.0.0:5030"
 PROD_GUNICORN_TIMEOUT=120
 PROD_LOG_LEVEL="info"
 DEV_BACKEND_RELOAD="${MDS_GCS_BACKEND_RELOAD:-false}"
 DEV_REACT_PORT=3030
-DEV_GCS_PORT=5000  # GCS Server port for development
+DEV_GCS_PORT=5030  # GCS Server port for development
 SESSION_NAME="MDS-GCS"
 REACT_BUILD_MAX_OLD_SPACE_SIZE="${MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE:-4096}"
 NPM_ALLOW_INSTALL_FALLBACK="${MDS_ALLOW_NPM_INSTALL_FALLBACK:-false}"
@@ -93,6 +93,8 @@ if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
     # shellcheck disable=SC1090
     source "$DEPLOYMENT_PROFILE_LOADER"
     DEV_GCS_PORT="${MDS_DEFAULT_GCS_API_PORT:-$DEV_GCS_PORT}"
+    DEV_REACT_PORT="${MDS_DEFAULT_DASHBOARD_PORT:-$DEV_REACT_PORT}"
+    PROD_WSGI_BIND="0.0.0.0:${DEV_GCS_PORT}"
 fi
 
 # All paths are relative to PROJECT_ROOT (the repository root)
@@ -155,8 +157,17 @@ load_gcs_system_config() {
         # Apply config values (respect CLI overrides)
         [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
         [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
-        [[ -n "${GCS_PORT:-}" ]] && DEV_GCS_PORT="$GCS_PORT"
-        [[ -n "${DASHBOARD_PORT:-}" ]] && DEV_REACT_PORT="$DASHBOARD_PORT"
+        if [[ -n "${MDS_GCS_API_PORT:-}" ]]; then
+            DEV_GCS_PORT="$MDS_GCS_API_PORT"
+        elif [[ -n "${GCS_PORT:-}" ]]; then
+            DEV_GCS_PORT="$GCS_PORT"
+        fi
+        if [[ -n "${MDS_DASHBOARD_PORT:-}" ]]; then
+            DEV_REACT_PORT="$MDS_DASHBOARD_PORT"
+        elif [[ -n "${DASHBOARD_PORT:-}" ]]; then
+            DEV_REACT_PORT="$DASHBOARD_PORT"
+        fi
+        PROD_WSGI_BIND="0.0.0.0:${DEV_GCS_PORT}"
 
         if [[ -n "${GCS_BACKEND:-}" && "${GCS_BACKEND}" != "fastapi" ]]; then
             log_warn "Legacy GCS_BACKEND=${GCS_BACKEND} detected in ${GCS_SYSTEM_CONFIG}. Using fastapi."
@@ -820,6 +831,33 @@ handle_env_file() {
     log_info "Checking .env configuration..."
 
     local env_example="$REACT_APP_DIR/.env.example"
+    local env_changed=false
+
+    set_dashboard_env_value() {
+        local key="$1"
+        local value="$2"
+        local current=""
+
+        current="$(grep -m1 "^${key}=" "$ENV_FILE_PATH" 2>/dev/null | cut -d= -f2- || true)"
+        if grep -q "^${key}=" "$ENV_FILE_PATH" 2>/dev/null; then
+            if [[ "$current" != "$value" ]]; then
+                sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE_PATH"
+                env_changed=true
+            fi
+        else
+            printf '\n%s=%s\n' "$key" "$value" >> "$ENV_FILE_PATH"
+            env_changed=true
+        fi
+
+        if grep -q "^# ${key}=" "$ENV_FILE_PATH" 2>/dev/null; then
+            local current_comment=""
+            current_comment="$(grep -m1 "^# ${key}=" "$ENV_FILE_PATH" 2>/dev/null | cut -d= -f2- || true)"
+            if [[ "$current_comment" != "$value" ]]; then
+                sed -i "s|^# ${key}=.*|# ${key}=${value}|" "$ENV_FILE_PATH"
+                env_changed=true
+            fi
+        fi
+    }
 
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file found."
@@ -852,9 +890,9 @@ handle_env_file() {
 # Uncomment only if you need to override (e.g., different host):
 # REACT_APP_SERVER_URL=http://192.168.1.100
 
-REACT_APP_GCS_PORT=5000
-REACT_APP_DRONE_PORT=7070
-PORT=3030
+REACT_APP_GCS_PORT=${DEV_GCS_PORT}
+REACT_APP_DRONE_PORT=${MDS_DEFAULT_DRONE_API_PORT:-7070}
+PORT=${DEV_REACT_PORT}
 GENERATE_SOURCEMAP=false
 SKIP_PREFLIGHT_CHECK=true
 EOF
@@ -872,6 +910,19 @@ EOF
             fi
             log_success "Server IP override applied: $OVERWRITE_IP"
         fi
+    fi
+
+    # These values are controlled by the launcher/deployment profile. Keep them
+    # synchronized on existing hosts so stale .env files cannot point a rebuilt
+    # dashboard at the wrong backend port.
+    set_dashboard_env_value "REACT_APP_GCS_PORT" "$DEV_GCS_PORT"
+    set_dashboard_env_value "REACT_APP_DRONE_PORT" "${MDS_DEFAULT_DRONE_API_PORT:-7070}"
+    set_dashboard_env_value "PORT" "$DEV_REACT_PORT"
+    set_dashboard_env_value "GENERATE_SOURCEMAP" "false"
+    set_dashboard_env_value "SKIP_PREFLIGHT_CHECK" "true"
+
+    if [[ "$env_changed" == "true" ]]; then
+        log_success "Dashboard .env runtime keys synchronized."
     fi
 }
 
@@ -1056,6 +1107,8 @@ setup_production_environment() {
         # Environment configuration
         export GCS_ENV=production
         export GCS_PORT="$DEV_GCS_PORT"
+        export MDS_GCS_API_PORT="$DEV_GCS_PORT"
+        export MDS_DASHBOARD_PORT="$DEV_REACT_PORT"
         export GCS_BACKEND="$GCS_BACKEND"
 
         # Node/React environment
@@ -1068,6 +1121,8 @@ setup_production_environment() {
         # Environment configuration
         export GCS_ENV=development
         export GCS_PORT="$DEV_GCS_PORT"
+        export MDS_GCS_API_PORT="$DEV_GCS_PORT"
+        export MDS_DASHBOARD_PORT="$DEV_REACT_PORT"
         export GCS_BACKEND="$GCS_BACKEND"
 
         # Node/React environment

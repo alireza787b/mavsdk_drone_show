@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FaHandPaper, FaMapMarkerAlt } from 'react-icons/fa';
+import { MdWarningAmber } from 'react-icons/md';
 
 // Import existing trajectory components
 import WaypointPanel from '../components/trajectory/WaypointPanel';
@@ -21,7 +23,6 @@ import {
   calculateTrajectoryStats, 
   calculateWaypointSpeeds,
   getRetimedAutoSpeedWaypoints,
-  getTrajectorySegmentColor,
   TIMING_MODES,
   YAW_CONSTANTS
 } from '../utilities/SpeedCalculator';
@@ -47,6 +48,7 @@ import {
   resolveImportedTrajectoryTerrainContext,
   resolveWaypointTerrainContext,
 } from '../utilities/trajectoryTerrainContext';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -55,6 +57,7 @@ import MapFallbackBanner from '../components/map/MapFallbackBanner';
 import MapProviderToggle from '../components/map/MapProviderToggle';
 import { Marker as LMarker, Polyline as LPolyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { DocsLink, OperatorNotice, StatusBadge } from '../components/ui/OperatorPrimitives';
 
 // Import styles
 import '../styles/TrajectoryPlanning.css';
@@ -114,16 +117,23 @@ const LeafletResizeBridge = ({ mapRef, resizeKey }) => {
 // Create numbered waypoint icon for Leaflet
 const createWaypointIcon = (index, color) =>
   L.divIcon({
-    html: `<div style="width:40px;height:40px;border-radius:50%;background:${color};color:#fff;font-size:14px;font-weight:bold;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${index + 1}</div>`,
+    html: `<div class="waypoint-marker" style="--waypoint-marker-color:${color}">${index + 1}</div>`,
     className: '',
     iconSize: [40, 40],
     iconAnchor: [20, 20],
   });
 
+const normalizeNoticeTone = (tone = 'info') => {
+  if (tone === 'error') return 'danger';
+  if (['info', 'success', 'warning', 'danger', 'neutral'].includes(tone)) return tone;
+  return 'info';
+};
+
 const TrajectoryPlanning = () => {
   const navigate = useNavigate();
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === 'leaflet' || !ctxMapboxAvailable;
+  const trajectoryThemeColors = getPlotThemeColors();
 
   // Enhanced state management with state manager
   const mapRef = useRef(null);
@@ -541,7 +551,7 @@ const TrajectoryPlanning = () => {
       groundElevation: waypointData.groundElevation || 0,
       terrainAccurate: waypointData.terrainAccurate !== false,
       time: waypointData.timeFromStart,
-      speed: 0, // Legacy compatibility
+      speed: 0, // Export/storage alias; recalculated immediately after insertion.
       index: waypoints.length + 1,
       // Aviation standard heading data
       heading: waypointData.heading || 0,
@@ -1172,58 +1182,85 @@ const TrajectoryPlanning = () => {
   }, []);
 
   const getWaypointColor = useCallback((waypoint, index) => {
-    if (index === 0) return '#28a745'; // Start - Green
-    if (index === waypoints.length - 1) return '#dc3545'; // End - Red
-    if (waypoint.speedStatus === 'impossible') return '#dc3545';
-    if (waypoint.speedStatus === 'marginal' || !waypoint.speedFeasible) return '#f5a623';
-    return '#007bff'; // Default - Blue
-  }, [waypoints.length]);
+    if (index === 0) return trajectoryThemeColors.success;
+    if (index === waypoints.length - 1) return trajectoryThemeColors.danger;
+    if (waypoint.speedStatus === 'impossible') return trajectoryThemeColors.danger;
+    if (waypoint.speedStatus === 'marginal' || !waypoint.speedFeasible) return trajectoryThemeColors.warning;
+    return trajectoryThemeColors.primary;
+  }, [
+    trajectoryThemeColors.danger,
+    trajectoryThemeColors.primary,
+    trajectoryThemeColors.success,
+    trajectoryThemeColors.warning,
+    waypoints.length,
+  ]);
 
   const pathRiskLegend = waypoints.length > 1 ? (
     <div className="trajectory-path-legend" aria-label="Trajectory path risk legend">
       <div className="trajectory-path-legend__item">
         <span
-          className="trajectory-path-legend__swatch"
-          style={{ backgroundColor: getTrajectorySegmentColor('feasible') }}
+          className="trajectory-path-legend__swatch trajectory-path-legend__swatch--feasible"
         />
         <span>Nominal leg</span>
       </div>
       <div className="trajectory-path-legend__item">
         <span
-          className="trajectory-path-legend__swatch"
-          style={{ backgroundColor: getTrajectorySegmentColor('marginal') }}
+          className="trajectory-path-legend__swatch trajectory-path-legend__swatch--marginal"
         />
         <span>Review leg</span>
       </div>
       <div className="trajectory-path-legend__item">
         <span
-          className="trajectory-path-legend__swatch"
-          style={{ backgroundColor: getTrajectorySegmentColor('impossible') }}
+          className="trajectory-path-legend__swatch trajectory-path-legend__swatch--impossible"
         />
         <span>Unsafe leg</span>
       </div>
     </div>
   ) : null;
 
-  const plannerNoticeBanner = plannerNotice ? (
-    <div className={`trajectory-planner-notice ${plannerNotice.tone || 'info'}`}>
-      <div className="trajectory-planner-notice__copy">{plannerNotice.text}</div>
-      <div className="trajectory-planner-notice__actions">
-        {plannerNotice.actionLabel && plannerNotice.actionHandler && (
-          <button
-            type="button"
-            className="trajectory-planner-notice__action"
-            onClick={plannerNotice.actionHandler}
-          >
-            {plannerNotice.actionLabel}
-          </button>
-        )}
-        <button type="button" onClick={clearOperationNotice}>
-          {plannerNotice.dismissLabel || 'Dismiss'}
+  const plannerNoticeActions = plannerNotice ? (
+    <div className="trajectory-planner-notice__actions">
+      {plannerNotice.actionLabel && plannerNotice.actionHandler && (
+        <button
+          type="button"
+          className="operator-button operator-button--primary trajectory-planner-notice__action"
+          onClick={plannerNotice.actionHandler}
+        >
+          {plannerNotice.actionLabel}
         </button>
-      </div>
+      )}
+      <button type="button" className="operator-button operator-button--ghost" onClick={clearOperationNotice}>
+        {plannerNotice.dismissLabel || 'Dismiss'}
+      </button>
     </div>
   ) : null;
+
+  const plannerNoticeBanner = plannerNotice ? (
+    <OperatorNotice
+      tone={normalizeNoticeTone(plannerNotice.tone)}
+      title="Planner update"
+      className={`trajectory-planner-notice trajectory-planner-notice--${normalizeNoticeTone(plannerNotice.tone)}`}
+      action={plannerNoticeActions}
+    >
+      {plannerNotice.text}
+    </OperatorNotice>
+  ) : null;
+
+  const plannerStatusTone = normalizeNoticeTone(plannerMissionReadiness.posture.tone || 'neutral');
+  const plannerHeader = (
+    <div className="trajectory-header">
+      <div className="header-left">
+        <div className="trajectory-header__identity">
+          <h1>Trajectory Planning</h1>
+          <StatusBadge tone={plannerStatusTone}>{`Planner: ${plannerMissionReadiness.posture.label}`}</StatusBadge>
+          <DocsLink route="/trajectory-planning" compact />
+        </div>
+        <SearchBar onLocationSelect={handleLocationSelect} />
+        <MapProviderToggle />
+      </div>
+      <TrajectoryStats stats={trajectoryStats} />
+    </div>
+  );
 
   const swarmTransferDialog = (
     <SwarmTrajectoryTransferDialog
@@ -1305,14 +1342,7 @@ const TrajectoryPlanning = () => {
           hidden
           onChange={handleImportFileChange}
         />
-        <div className="trajectory-header">
-          <div className="header-left">
-            <h1>Trajectory Planning</h1>
-            <SearchBar onLocationSelect={handleLocationSelect} />
-            <MapProviderToggle />
-          </div>
-          <TrajectoryStats stats={trajectoryStats} />
-        </div>
+        {plannerHeader}
 
         <div className="trajectory-container">
           <div className="trajectory-main">
@@ -1348,8 +1378,8 @@ const TrajectoryPlanning = () => {
               <LeafletMapBase
                 center={[viewState.latitude || 35.7262, viewState.longitude || 51.2721]}
                 zoom={viewState.zoom || 12}
-                defaultLayer="osm"
-                style={{ width: '100%', height: '100%' }}
+                defaultLayer="esriSatellite"
+                className="trajectory-map-surface"
               >
                 <LeafletResizeBridge
                   mapRef={mapRef}
@@ -1396,7 +1426,7 @@ const TrajectoryPlanning = () => {
               {isAddingWaypoint && !isDragging && (
                 <div className="map-instruction-overlay">
                   <div className="instruction-content">
-                    <span className="instruction-icon">📍</span>
+                    <span className="instruction-icon" aria-hidden="true"><FaMapMarkerAlt /></span>
                     <span className="instruction-text">Click map to place waypoint</span>
                   </div>
                 </div>
@@ -1444,14 +1474,7 @@ const TrajectoryPlanning = () => {
         hidden
         onChange={handleImportFileChange}
       />
-      <div className="trajectory-header">
-        <div className="header-left">
-          <h1>Trajectory Planning</h1>
-          <SearchBar onLocationSelect={handleLocationSelect} />
-          <MapProviderToggle />
-        </div>
-        <TrajectoryStats stats={trajectoryStats} />
-      </div>
+      {plannerHeader}
 
       <div className="trajectory-container">
         <div className="trajectory-main">
@@ -1491,7 +1514,7 @@ const TrajectoryPlanning = () => {
               onMove={evt => setViewState(evt.viewState)}
               onClick={handleMapClick}
               mapboxAccessToken={mapboxToken}
-              style={{ width: '100%', height: '100%' }}
+              className="trajectory-map-surface"
               mapStyle={showTerrain ? "mapbox://styles/mapbox/satellite-streets-v12" : "mapbox://styles/mapbox/streets-v12"}
               terrain={showTerrain ? { source: 'mapbox-dem', exaggeration: 1.5 } : undefined}
               cursor={
@@ -1536,10 +1559,10 @@ const TrajectoryPlanning = () => {
                         'match',
                         ['get', 'speedStatus'],
                         'impossible',
-                        '#dc3545',
+                        trajectoryThemeColors.danger,
                         'marginal',
-                        '#f5a623',
-                        '#00d4ff'
+                        trajectoryThemeColors.warning,
+                        trajectoryThemeColors.primary
                       ],
                       'line-width': 4,
                       'line-opacity': 0.8
@@ -1580,18 +1603,7 @@ const TrajectoryPlanning = () => {
                     <div
                       className="waypoint-marker"
                       style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: getWaypointColor(waypoint, index),
-                        color: 'white',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '3px solid white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        '--waypoint-marker-color': getWaypointColor(waypoint, index),
                         cursor: isDragging ? 'grabbing' : 'grab'
                       }}
                     >
@@ -1599,8 +1611,8 @@ const TrajectoryPlanning = () => {
                     </div>
                     
                     {!waypoint.speedFeasible && (
-                      <div className="speed-warning-badge" title="Speed warning - check timing">
-                        ⚠
+                      <div className="speed-warning-badge" role="img" aria-label="Speed warning - check timing">
+                        <MdWarningAmber aria-hidden="true" />
                       </div>
                     )}
                   </div>
@@ -1612,7 +1624,7 @@ const TrajectoryPlanning = () => {
             {isAddingWaypoint && !isDragging && (
               <div className="map-instruction-overlay">
                 <div className="instruction-content">
-                  <span className="instruction-icon">📍</span>
+                  <span className="instruction-icon" aria-hidden="true"><FaMapMarkerAlt /></span>
                   <span className="instruction-text">Click map to place waypoint</span>
                 </div>
               </div>
@@ -1621,7 +1633,7 @@ const TrajectoryPlanning = () => {
             {isDragging && (
               <div className="map-instruction-overlay drag-mode">
                 <div className="instruction-content">
-                  <span className="instruction-icon">✋</span>
+                  <span className="instruction-icon" aria-hidden="true"><FaHandPaper /></span>
                   <span className="instruction-text">Drag updates terrain and timing</span>
                 </div>
               </div>

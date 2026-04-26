@@ -164,12 +164,12 @@ When GCS is already running, prefer the typed SITL Control API/CLI over raw
 
 ```bash
 python3 tools/sitl_control_client.py policy \
-  --base-url http://127.0.0.1:5000
+  --base-url http://127.0.0.1:5030
 ```
 
 ```bash
 python3 tools/sitl_control_client.py reconcile \
-  --base-url http://127.0.0.1:5000 \
+  --base-url http://127.0.0.1:5030 \
   --repo-root ~/mavsdk_drone_show \
   --drone-ids 1 2 3 \
   --mode auto

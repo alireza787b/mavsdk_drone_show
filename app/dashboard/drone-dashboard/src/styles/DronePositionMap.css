@@ -81,7 +81,7 @@
   --mds-launch-marker-size: 28px;
   --mds-launch-marker-font-size: 9px;
   --mds-launch-marker-border-width: 2px;
-  --mds-launch-marker-border-color: rgba(255, 255, 255, 0.9);
+  --mds-launch-marker-border-color: var(--color-surface-raised);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,20 +89,20 @@
   height: var(--mds-launch-marker-size);
   border-radius: 50%;
   border: var(--mds-launch-marker-border-width) solid var(--mds-launch-marker-border-color);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.28);
+  box-shadow: 0 8px 18px var(--color-surface-inset);
   font-size: var(--mds-launch-marker-font-size);
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: #031525;
+  color: var(--color-primary-text);
 }
 
 .drone-position-map__expected-marker {
-  background: rgba(56, 189, 248, 0.92);
+  background: var(--color-info);
 }
 
 .drone-position-map__origin-marker {
-  background: rgba(248, 250, 252, 0.94);
-  --mds-launch-marker-border-color: rgba(15, 23, 42, 0.22);
+  background: var(--color-surface-raised);
+  --mds-launch-marker-border-color: var(--color-border-light);
 }
 
 @media (max-width: 768px) {

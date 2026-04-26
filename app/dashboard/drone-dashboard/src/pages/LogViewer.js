@@ -41,6 +41,7 @@ import LogSourceTree from '../components/logs/LogSourceTree';
 import LogExportDialog from '../components/logs/LogExportDialog';
 import OnboardUlogDialog from '../components/logs/OnboardUlogDialog';
 import IdentityDoctrineStrip from '../components/IdentityDoctrineStrip';
+import { DocsLink, StatusBadge } from '../components/ui';
 
 import '../styles/LogViewer.css';
 
@@ -310,6 +311,11 @@ const LogViewer = () => {
     ? selectedScope?.label || `H${scopeDroneId}`
     : 'GCS';
   const defaultLevel = mode === MODES.OPS ? OPS_DEFAULT_LEVEL : DEV_DEFAULT_LEVEL;
+  const streamBadge = selectedSession
+    ? { tone: 'info', label: 'History' }
+    : connected
+      ? { tone: 'success', label: 'Live stream' }
+      : { tone: 'warning', label: 'Stream offline' };
 
   const activeFilters = useMemo(() => {
     const filters = [];
@@ -419,6 +425,17 @@ const LogViewer = () => {
 
   return (
     <div className={`log-viewer-page ${isDark ? 'dark' : 'light'}`}>
+      <div className="log-viewer-header">
+        <div className="log-viewer-header__copy">
+          <span>Operations log</span>
+          <h1>Log Viewer</h1>
+        </div>
+        <div className="log-viewer-header__tools">
+          <StatusBadge tone={streamBadge.tone}>{streamBadge.label}</StatusBadge>
+          <DocsLink route="/logs" compact />
+        </div>
+      </div>
+
       <IdentityDoctrineStrip surface="log-viewer" />
       <LogViewerToolbar
         mode={mode}

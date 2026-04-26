@@ -215,18 +215,15 @@ export const getSpeedDescription = (speed) => {
   }
 };
 
-export const getTrajectorySegmentColor = (speedStatus = 'unknown') => {
-  switch (speedStatus) {
-    case 'feasible':
-      return '#00d4ff';
-    case 'marginal':
-      return '#f5a623';
-    case 'impossible':
-      return '#dc3545';
-    default:
-      return '#8ea4bf';
-  }
-};
+export const TRAJECTORY_SEGMENT_COLORS = Object.freeze({
+  feasible: '#00d4ff',
+  marginal: '#f5a623',
+  impossible: '#dc3545',
+  unknown: '#8ea4bf',
+});
+
+export const getTrajectorySegmentColor = (speedStatus = 'unknown') =>
+  TRAJECTORY_SEGMENT_COLORS[speedStatus] ?? TRAJECTORY_SEGMENT_COLORS.unknown;
 
 export const buildTrajectorySegments = (waypoints = []) => {
   if (!Array.isArray(waypoints) || waypoints.length < 2) {

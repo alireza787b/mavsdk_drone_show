@@ -4,6 +4,7 @@
 @import './DesignTokens.css';
 
 /* Mission Config Container */
+.operator-page-shell.mission-config-container,
 .mission-config-container {
     min-height: 100vh;
     background:
@@ -14,34 +15,11 @@
     color: var(--color-text-primary);
 }
 
-/* Page Header */
-.mission-config-page-header {
+.mission-config-page-status {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--spacing-lg);
-    margin-bottom: var(--spacing-lg);
-}
-
-.mission-config-page-header__content {
-    display: grid;
-    gap: 0.25rem;
-}
-
-.mission-config-title {
-    font-size: var(--font-size-3xl);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text-primary);
-    margin: 0;
-    letter-spacing: -0.02em;
-}
-
-.mission-config-subtitle {
-    margin: 0;
-    max-width: 42rem;
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-normal);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--spacing-xs);
 }
 
 .mission-config-workspace-shell {
@@ -913,14 +891,6 @@ button.mission-config-alert {
         padding: var(--spacing-base);
     }
 
-    .mission-config-title {
-        font-size: var(--font-size-2xl);
-    }
-
-    .mission-config-page-header {
-        margin-bottom: var(--spacing-base);
-    }
-
     .mission-config-primary-button {
         width: 100%;
     }
@@ -978,10 +948,6 @@ button.mission-config-alert {
 @media (max-width: 480px) {
     .mission-config-container {
         padding: var(--spacing-sm);
-    }
-
-    .mission-config-subtitle {
-        font-size: var(--font-size-sm);
     }
 
     .mission-config-ops-summary {
@@ -1092,7 +1058,7 @@ button.mission-config-alert {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: var(--z-modal-backdrop);
 }
 
 .role-swap-modal {
@@ -1108,11 +1074,23 @@ button.mission-config-alert {
 }
 
 .role-swap-modal h3 {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
     color: var(--color-text-primary);
     font-size: var(--font-size-xl);
     margin-bottom: var(--spacing-lg);
     border-bottom: 2px solid var(--color-info);
     padding-bottom: var(--spacing-sm);
+}
+
+.role-swap-modal__title-icon {
+    flex: 0 0 auto;
+}
+
+.role-swap-modal__intro {
+    margin: 0 0 var(--spacing-base) 0;
+    color: var(--color-text-secondary);
 }
 
 .role-swap-modal table {
@@ -1137,6 +1115,15 @@ button.mission-config-alert {
 
 .role-swap-modal tr:hover {
     background: var(--color-bg-secondary);
+}
+
+.role-swap-modal__arrow {
+    text-align: center;
+}
+
+.role-swap-modal__actions {
+    margin-top: var(--spacing-lg);
+    text-align: right;
 }
 
 .role-swap-modal button {

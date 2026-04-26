@@ -121,14 +121,14 @@ const MissionMonitorSidebar = ({
             </div>
 
             {statusSummary ? (
-              <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+              <div className="qs-launch-review__brief qs-stack-offset-lg">
                 <span className="qs-launch-review__brief-label">Operational Status</span>
                 <p>{statusSummary}</p>
-                {operatorGuidance ? <p style={{ marginTop: 6 }}>{operatorGuidance}</p> : null}
+                {operatorGuidance ? <p className="qs-stack-tight">{operatorGuidance}</p> : null}
               </div>
             ) : null}
 
-            <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+            <div className="qs-launch-review__brief qs-stack-offset-lg">
               <span className="qs-launch-review__brief-label">{geometrySummary.title}</span>
               <div className="qs-launch-review__chip-row">
                 {geometrySummary.chips.map((chip) => (
@@ -139,13 +139,13 @@ const MissionMonitorSidebar = ({
             </div>
 
             {missionBrief ? (
-              <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+              <div className="qs-empty-copy qs-stack-offset">
                 {missionBrief}
               </div>
             ) : null}
 
             {lastCommandSummary?.message ? (
-              <div className="qs-launch-review__brief" style={{ marginTop: 10 }}>
+              <div className="qs-launch-review__brief qs-stack-offset-lg">
                 <span className="qs-launch-review__brief-label">Last Control Outcome</span>
                 <div className="qs-launch-review__chip-row">
                   {lastCommandSummary?.action ? (
@@ -161,7 +161,7 @@ const MissionMonitorSidebar = ({
                 </div>
                 <p>{lastCommandSummary.message}</p>
                 {lastCommandSummary.operator_guidance ? (
-                  <p style={{ marginTop: 6 }}>{lastCommandSummary.operator_guidance}</p>
+                  <p className="qs-stack-tight">{lastCommandSummary.operator_guidance}</p>
                 ) : null}
               </div>
             ) : null}
@@ -179,7 +179,7 @@ const MissionMonitorSidebar = ({
         <div className="qs-config-section">
           <div className="qs-config-title">Drones ({sortedDrones.length})</div>
           {sortedDrones.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div className="qs-drone-status-list">
               {sortedDrones.map((ds) => (
                 <DroneStatusCard
                   key={ds.hw_id}
@@ -223,7 +223,7 @@ const MissionMonitorSidebar = ({
               ))}
             </div>
           ) : (
-            <div className="qs-empty-copy" style={{ marginBottom: 10 }}>
+            <div className="qs-empty-copy qs-gap-bottom">
               Mark findings from the map to capture observations, triage them, and keep the mission handoff clean.
             </div>
           )}

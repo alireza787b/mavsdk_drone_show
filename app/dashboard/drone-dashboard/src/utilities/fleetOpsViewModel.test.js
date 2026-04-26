@@ -1,5 +1,7 @@
 import {
   buildFleetOpsViewModel,
+  buildGitHubDocsUrl,
+  classifyNodePresence,
   classifyGitSyncRuntime,
   classifyMavlinkRuntime,
   compactHash,
@@ -8,7 +10,11 @@ import {
 describe('fleetOpsViewModel', () => {
   test('builds fleet rows and compliance counters from git status and heartbeat payloads', () => {
     const gitPayload = {
-      gcs_status: { commit: 'abcdef123456' },
+      gcs_status: {
+        branch: 'main-candidate',
+        commit: 'abcdef123456',
+        remote_url: 'git@github.com:demo/customer-mds.git',
+      },
       git_status: {
         1: {
           pos_id: 1,
@@ -77,6 +83,7 @@ describe('fleetOpsViewModel', () => {
       accessLabel: 'HTTPS token',
       needsAttention: false,
     });
+    expect(viewModel.docs.fleetOps).toBe('https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md');
     expect(viewModel.rows[1]).toMatchObject({
       posId: '2',
       needsAttention: true,
@@ -136,6 +143,20 @@ describe('fleetOpsViewModel', () => {
     });
   });
 
+  test('does not treat SITL systemd reconcile skip as operator attention', () => {
+    expect(classifyGitSyncRuntime({
+      status: 'success',
+      summary: 'Git synchronization completed successfully.',
+      service_reload_status: 'skipped',
+      service_reload_message: 'Systemd unit reconcile skipped for this runtime.',
+      mavlink_runtime_reconcile_status: 'not_required',
+      connectivity_reconcile_status: 'not_required',
+    })).toMatchObject({
+      state: 'healthy',
+      tone: 'good',
+    });
+  });
+
   test('does not treat unknown-only git sync runtime state as attention', () => {
     expect(classifyGitSyncRuntime({
       status: 'unknown',
@@ -151,5 +172,29 @@ describe('fleetOpsViewModel', () => {
   test('compacts sidecar hashes for fleet display', () => {
     expect(compactHash('abcdef1234567890')).toBe('abcdef123456');
     expect(compactHash('')).toBe('unknown');
+  });
+
+  test('builds safe GitHub docs URLs only from normal GitHub remotes', () => {
+    expect(buildGitHubDocsUrl('https://github.com/demo/customer-mds.git', 'main', '/docs/guides/fleet-ops.md'))
+      .toBe('https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md');
+    expect(buildGitHubDocsUrl('git@github.com:demo/customer-mds.git', 'main-candidate', 'docs/guides/fleet-ops.md'))
+      .toBe('https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md');
+    expect(buildGitHubDocsUrl('https://token@github.com/demo/customer-mds.git', 'main', 'docs/guides/fleet-ops.md'))
+      .toBeNull();
+  });
+
+  test('separates never-seen, recently-lost, and offline node presence', () => {
+    expect(classifyNodePresence(null, 100000)).toMatchObject({
+      state: 'never_seen',
+      tone: 'muted',
+    });
+    expect(classifyNodePresence({ online: false, runtime_mode: 'real', last_heartbeat: 90000 }, 100000)).toMatchObject({
+      state: 'recently_lost',
+      tone: 'warning',
+    });
+    expect(classifyNodePresence({ online: false, runtime_mode: 'real', last_heartbeat: 1000 }, 100000)).toMatchObject({
+      state: 'offline',
+      tone: 'danger',
+    });
   });
 });

@@ -19,7 +19,7 @@ class TestConnectivityCheckerInit:
     def test_init_with_default_endpoint(self):
         """Test initialization with default endpoint"""
         params = Mock()
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         del params.connectivity_check_endpoint  # Ensure attribute doesn't exist
 
         led_controller = Mock()
@@ -29,7 +29,7 @@ class TestConnectivityCheckerInit:
         assert checker.params == params
         assert checker.led_controller == led_controller
         assert checker.endpoint == "/ping"
-        assert checker.port == 5000
+        assert checker.port == 5030
         assert checker.is_running is False
 
     def test_init_with_custom_endpoint(self):
@@ -52,7 +52,7 @@ class TestConnectivityCheckerInit:
 
         checker = ConnectivityChecker(params, led_controller)
 
-        assert checker.port == 5000  # Default fallback
+        assert checker.port == 5030  # Default fallback
 
 
 class TestConnectivityCheckerStartStop:
@@ -147,7 +147,7 @@ class TestConnectivityCheck:
         """Test successful connectivity check"""
         params = Mock()
         params.sim_mode = False
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         led_controller = Mock()
 
         checker = ConnectivityChecker(params, led_controller)
@@ -166,7 +166,7 @@ class TestConnectivityCheck:
         """Test connectivity check with non-200 status"""
         params = Mock()
         params.sim_mode = False
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         led_controller = Mock()
 
         checker = ConnectivityChecker(params, led_controller)
@@ -184,7 +184,7 @@ class TestConnectivityCheck:
         """Test connectivity check with exception"""
         params = Mock()
         params.sim_mode = False
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         led_controller = Mock()
 
         checker = ConnectivityChecker(params, led_controller)
@@ -200,7 +200,7 @@ class TestConnectivityCheck:
         """Test connectivity check with timeout"""
         params = Mock()
         params.sim_mode = False
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         led_controller = Mock()
 
         checker = ConnectivityChecker(params, led_controller)
@@ -241,7 +241,7 @@ class TestConnectivityCheckerRun:
         params.connectivity_check_ip = "192.168.1.1"
         params.connectivity_check_interval = 0.01
         params.sim_mode = False
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         led_controller = Mock()
 
         checker = ConnectivityChecker(params, led_controller)
@@ -266,7 +266,7 @@ class TestConnectivityCheckerIntegration:
         params.connectivity_check_ip = "127.0.0.1"
         params.connectivity_check_interval = 0.01
         params.sim_mode = True
-        params.gcs_api_port = 5000
+        params.gcs_api_port = 5030
         led_controller = Mock()
 
         checker = ConnectivityChecker(params, led_controller)

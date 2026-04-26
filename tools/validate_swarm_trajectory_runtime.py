@@ -73,6 +73,7 @@ except Exception:  # pragma: no cover - validator fallback only
         LIVE_ARMABILITY_PROBE_CONNECT_TIMEOUT_SEC = 5.0
         LIVE_ARMABILITY_PROBE_TIMEOUT_SEC = 6.0
         LIVE_ARMABILITY_PROBE_HTTP_BUFFER_SEC = 2.0
+        drone_api_port = 7070
 
     Params = _FallbackParams()
 
@@ -314,7 +315,8 @@ def _probe_live_armability_for_drone_once(
     query = urllib.parse.urlencode(
         {"require_global_position": str(bool(require_global_position)).lower()}
     )
-    url = f"http://{normalized_ip}:7070{DRONE_LIVE_ARMABILITY_ROUTE}?{query}"
+    drone_api_port = int(getattr(Params, "drone_api_port", 7070))
+    url = f"http://{normalized_ip}:{drone_api_port}{DRONE_LIVE_ARMABILITY_ROUTE}?{query}"
 
     try:
         with urllib.request.urlopen(url, timeout=request_timeout) as response:
@@ -1275,7 +1277,7 @@ def cleanup_land(client: ApiClient, ids: list[int], label: str, baselines: dict[
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate Swarm Trajectory runtime behavior against a live GCS API.")
-    parser.add_argument("--base-url", default="http://127.0.0.1:5000", help="Base URL of the GCS API")
+    parser.add_argument("--base-url", default="http://127.0.0.1:5030", help="Base URL of the GCS API")
     parser.add_argument("--repo-root", type=Path, default=Path("/root/mavsdk_drone_show"), help="Repository root on the runtime host")
     parser.add_argument("--drone-ids", nargs="+", type=int, default=[1, 2, 3, 4, 5], help="Drone IDs to include in validation")
     parser.add_argument("--horiz-tolerance", type=float, default=18.0, help="Allowed horizontal formation error in meters")

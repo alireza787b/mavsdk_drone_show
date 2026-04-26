@@ -42,6 +42,7 @@ import {
 } from '../utilities/swarmDesignUtils';
 import Px4ParamInspector from '../components/px4/Px4ParamInspector';
 import Px4ParamProfilePanel from '../components/px4/Px4ParamProfilePanel';
+import { DocsLink } from '../components/ui';
 import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
@@ -264,7 +265,6 @@ const CompactParameterRow = ({
           {row.reboot_required ? (
             <span
               className="px4-compact-signal px4-compact-signal--warning"
-              title="Restart required"
               role="img"
               aria-label="Restart required"
             >
@@ -274,7 +274,6 @@ const CompactParameterRow = ({
           {row.docs_url ? (
             <span
               className="px4-compact-signal"
-              title="PX4 Docs available"
               role="img"
               aria-label="PX4 Docs available"
             >
@@ -827,6 +826,13 @@ const Px4ParametersPage = () => {
     writeBlockedReason,
     snapshotSummary: snapshotResponse?.snapshot,
   });
+  const metadataQualityLabel = snapshotResponse?.snapshot?.metadata_quality
+    ? String(snapshotResponse.snapshot.metadata_quality).replace(/_/g, ' ')
+    : 'unknown';
+  const metadataWarning = snapshotResponse?.snapshot?.metadata_warning || '';
+  const metadataWarningSummary = metadataWarning
+    ? 'Live values available; reference metadata is partial.'
+    : '';
   const modifiedRowCount = useMemo(
     () => (snapshotResponse?.rows || []).filter((row) => row.default_value !== null
       && row.default_value !== undefined
@@ -1453,6 +1459,12 @@ const Px4ParametersPage = () => {
                 <strong>{snapshotStatusLabel}</strong>
               </div>
               <div>
+                <span>Metadata</span>
+                <strong aria-label={metadataWarning || 'PX4 metadata source quality'}>
+                  {metadataQualityLabel}
+                </strong>
+              </div>
+              <div>
                 <span>Default delta</span>
                 <strong>{modifiedRowCount}</strong>
               </div>
@@ -1486,6 +1498,19 @@ const Px4ParametersPage = () => {
               />
             </div>
             <StatusNotice notice={singleNotice} />
+            {metadataWarning ? (
+              <div className="px4-inline-notice px4-inline-notice--warning">
+                <div className="px4-inline-notice__header">
+                  <strong>PX4 metadata limited</strong>
+                  <DocsLink route="/px4-parameters" compact />
+                </div>
+                <span>{metadataWarningSummary}</span>
+                <details className="px4-metadata-details">
+                  <summary>Source requirements</summary>
+                  <span>{metadataWarning}</span>
+                </details>
+              </div>
+            ) : null}
             {rebootBlockedReason && !rebootingPx4 ? (
               <div className="px4-inline-notice">
                 <strong>Reboot safety</strong>
@@ -1911,6 +1936,12 @@ const Px4ParametersPage = () => {
                 <div>
                   <span>Status</span>
                   <strong>{snapshotStatusLabel}</strong>
+                </div>
+                <div>
+                  <span>Metadata</span>
+                  <strong aria-label={metadataWarning || 'PX4 metadata source quality'}>
+                    {metadataQualityLabel}
+                  </strong>
                 </div>
               </div>
               <div className="px4-param-inspector__actions">
