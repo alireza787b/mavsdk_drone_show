@@ -2552,3 +2552,32 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/logs/LogViewerToolbar.test.js src/hooks/useLogStream.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 57
+
+Goal:
+
+- tidy Drone Show import feature cards by removing inline presentation styles
+  and stale CSS left over from older upload controls
+
+Implemented:
+
+- moved import feature card header layout into
+  `.import-feature-card__header`
+- moved upload/timeline/security/preview icon color and sizing into reusable
+  `import-feature-card__icon` classes
+- removed the unused legacy `.file-input-label` selector family and its
+  responsive, motion, focus, and high-contrast rules
+- preserved the active folder upload input, activation flow, error handling,
+  progress display, validation summary, and visualization handoff
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

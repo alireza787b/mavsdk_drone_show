@@ -352,40 +352,40 @@ const ImportSection = ({ setUploadCount }) => {
 
         <Box className="import-feature-grid">
           <Paper variant="outlined" className="import-feature-card">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <MdCloudUpload style={{ color: 'var(--color-primary)' }} />
+            <div className="import-feature-card__header">
+              <MdCloudUpload className="import-feature-card__icon import-feature-card__icon--primary" />
               <Typography variant="subtitle2" fontWeight="bold">Staged Import</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               The archive is validated before it replaces the current active show.
             </Typography>
           </Paper>
 
           <Paper variant="outlined" className="import-feature-card">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <MdTimeline style={{ color: 'var(--brand-secondary)' }} />
+            <div className="import-feature-card__header">
+              <MdTimeline className="import-feature-card__icon import-feature-card__icon--secondary" />
               <Typography variant="subtitle2" fontWeight="bold">Trajectory Processing</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               SkyBrush CSVs are converted into the processed NED flight files used by Drone Show missions.
             </Typography>
           </Paper>
 
           <Paper variant="outlined" className="import-feature-card">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <MdSecurity style={{ color: 'var(--color-success)' }} />
+            <div className="import-feature-card__header">
+              <MdSecurity className="import-feature-card__icon import-feature-card__icon--success" />
               <Typography variant="subtitle2" fontWeight="bold">Operator Verification</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               After import, verify mission config, origin, and readiness before launch.
             </Typography>
           </Paper>
 
           <Paper variant="outlined" className="import-feature-card">
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <MdVisibility style={{ color: 'var(--color-info)' }} />
+            <div className="import-feature-card__header">
+              <MdVisibility className="import-feature-card__icon import-feature-card__icon--info" />
               <Typography variant="subtitle2" fontWeight="bold">Plot Review</Typography>
-            </Box>
+            </div>
             <Typography variant="body2" color="textSecondary">
               Combined and per-drone plots are refreshed automatically after a successful import.
             </Typography>
