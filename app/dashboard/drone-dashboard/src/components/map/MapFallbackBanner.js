@@ -35,11 +35,11 @@ const MapFallbackBanner = () => {
           href={MAPBOX_GUIDE_URL}
           target="_blank"
           rel="noreferrer"
-          title="Open Mapbox setup guide"
+          data-help="Open Mapbox setup guide"
         >
           Setup
         </a>
-        <button onClick={handleDismiss} title="Dismiss">
+        <button onClick={handleDismiss} data-help="Dismiss">
           Dismiss
         </button>
       </div>

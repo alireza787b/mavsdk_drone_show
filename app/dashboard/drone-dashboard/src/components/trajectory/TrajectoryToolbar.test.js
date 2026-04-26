@@ -103,7 +103,10 @@ describe('TrajectoryToolbar', () => {
     });
 
     expect(screen.getByText(/draft auto-saved/i)).toBeInTheDocument();
-    expect(screen.getByTitle(/working draft auto-saved/i)).toBeInTheDocument();
+    expect(screen.getByText(/draft auto-saved/i).closest('.status-unsaved')).toHaveAttribute(
+      'data-help',
+      expect.stringMatching(/working draft auto-saved/i)
+    );
   });
 
 });

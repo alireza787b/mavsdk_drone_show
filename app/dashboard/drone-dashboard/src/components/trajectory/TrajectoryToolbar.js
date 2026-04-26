@@ -63,7 +63,7 @@ const TrajectoryToolbar = ({
         <button 
           className={`toolbar-btn ${isAddingWaypoint ? 'active' : ''}`}
           onClick={onToggleAddWaypoint}
-          title="Add Waypoint Mode (A)"
+          data-help="Add Waypoint Mode (A)"
         >
           <span className="btn-icon">📍</span>
           <span className="btn-text">Add Waypoint</span>
@@ -75,7 +75,7 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn undo-btn ${!canUndo ? 'disabled' : ''}`}
           onClick={onUndo}
           disabled={!canUndo}
-          title={canUndo ? `Undo: ${undoDescription} (Ctrl+Z)` : 'Nothing to undo'}
+          data-help={canUndo ? `Undo: ${undoDescription} (Ctrl+Z)` : 'Nothing to undo'}
         >
           <span className="btn-icon">↶</span>
           <span className="btn-text">Undo</span>
@@ -85,7 +85,7 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn redo-btn ${!canRedo ? 'disabled' : ''}`}
           onClick={onRedo}
           disabled={!canRedo}
-          title={canRedo ? `Redo: ${redoDescription} (Ctrl+Y)` : 'Nothing to redo'}
+          data-help={canRedo ? `Redo: ${redoDescription} (Ctrl+Y)` : 'Nothing to redo'}
         >
           <span className="btn-icon">↷</span>
           <span className="btn-text">Redo</span>
@@ -96,7 +96,7 @@ const TrajectoryToolbar = ({
         <button 
           className="toolbar-btn save-btn"
           onClick={onSave}
-          title="Save Trajectory (Ctrl+S)"
+          data-help="Save Trajectory (Ctrl+S)"
         >
           <span className="btn-icon">💾</span>
           <span className="btn-text">Save</span>
@@ -106,7 +106,7 @@ const TrajectoryToolbar = ({
         <button 
           className="toolbar-btn load-btn"
           onClick={onLoad}
-          title="Load Trajectory (Ctrl+O)"
+          data-help="Load Trajectory (Ctrl+O)"
         >
           <span className="btn-icon">📂</span>
           <span className="btn-text">Load</span>
@@ -115,7 +115,7 @@ const TrajectoryToolbar = ({
         <button
           className="toolbar-btn import-btn"
           onClick={onImport}
-          title="Import a leader-route CSV or planner JSON"
+          data-help="Import a leader-route CSV or planner JSON"
         >
           <span className="btn-icon">📥</span>
           <span className="btn-text">Import</span>
@@ -125,7 +125,7 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn export-btn ${waypointCount === 0 ? 'disabled' : ''}`}
           onClick={onExportTrajectory} 
           disabled={waypointCount === 0}
-          title="Export the current leader route"
+          data-help="Export the current leader route"
         >
           <span className="btn-icon">📤</span>
           <span className="btn-text">Export</span>
@@ -135,7 +135,7 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn primary-btn ${!canSendToSwarm ? 'disabled' : ''}`}
           onClick={onSendToSwarm}
           disabled={!canSendToSwarm}
-          title={canSendToSwarm ? `${handoffActionLabel}. ${handoffSummary}` : 'Add at least one waypoint before assigning a leader path to a cluster'}
+          data-help={canSendToSwarm ? `${handoffActionLabel}. ${handoffSummary}` : 'Add at least one waypoint before assigning a leader path to a cluster'}
         >
           <span className="btn-icon">🧭</span>
           <span className="btn-text">{handoffActionLabel}</span>
@@ -145,7 +145,7 @@ const TrajectoryToolbar = ({
           className={`toolbar-btn clear-btn danger ${waypointCount === 0 ? 'disabled' : ''}`}
           onClick={onClearTrajectory} 
           disabled={waypointCount === 0}
-          title="Clear All Waypoints"
+          data-help="Clear All Waypoints"
         >
           <span className="btn-icon">🗑️</span>
           <span className="btn-text">Clear</span>
@@ -158,7 +158,7 @@ const TrajectoryToolbar = ({
             <button
               className={`toolbar-btn terrain-btn ${showTerrain ? 'active' : ''}`}
               onClick={onToggleTerrain}
-              title="Toggle 3D Terrain"
+              data-help="Toggle 3D Terrain"
             >
               <span className="btn-icon">🏔️</span>
               <span className="btn-text">Terrain</span>
@@ -170,7 +170,7 @@ const TrajectoryToolbar = ({
                 value={sceneMode}
                 onChange={(e) => onSceneModeChange(e.target.value)}
                 className="view-mode-select"
-                title="Change View Mode"
+                data-help="Change View Mode"
               >
                 <option value="3D">3D</option>
                 <option value="2D">2D</option>
@@ -181,7 +181,7 @@ const TrajectoryToolbar = ({
         ) : (
           <div
             className="trajectory-map-fallback-note"
-            title="Mapbox 3D terrain controls are unavailable in the Leaflet fallback map. Authoring remains available in 2D."
+            data-help="Mapbox 3D terrain controls are unavailable in the Leaflet fallback map. Authoring remains available in 2D."
           >
             <span className="trajectory-map-fallback-note__label">Map</span>
             <strong className="trajectory-map-fallback-note__value">2D fallback</strong>
@@ -192,7 +192,7 @@ const TrajectoryToolbar = ({
       <div className="toolbar-group toolbar-status">
         <div
           className={`trajectory-handoff-status trajectory-handoff-status--${handoffTone}`}
-          title={handoffSummary}
+          data-help={handoffSummary}
         >
           <span className="trajectory-handoff-status__label">Handoff</span>
           <strong className="trajectory-handoff-status__value">{handoffLabel}</strong>
@@ -217,7 +217,7 @@ const TrajectoryToolbar = ({
           {isDirty ? (
             <span
               className="status-unsaved"
-              title={saveStatus.autoSaveTime
+              data-help={saveStatus.autoSaveTime
                 ? `Working draft auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`
                 : 'Trajectory draft has unsaved library changes'}
             >
@@ -229,12 +229,12 @@ const TrajectoryToolbar = ({
               </span>
             </span>
           ) : saveStatus.persistedAt ? (
-            <span className="status-saved" title={`Saved at ${new Date(saveStatus.persistedAt).toLocaleTimeString()}`}>
+            <span className="status-saved" data-help={`Saved at ${new Date(saveStatus.persistedAt).toLocaleTimeString()}`}>
               <span className="status-indicator">✓</span>
               <span className="status-text">Saved</span>
             </span>
           ) : saveStatus.autoSaveTime ? (
-            <span className="status-saved" title={`Auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`}>
+            <span className="status-saved" data-help={`Auto-saved at ${new Date(saveStatus.autoSaveTime).toLocaleTimeString()}`}>
               <span className="status-indicator">✓</span>
               <span className="status-text">Auto-saved {formatAutoSaveTime(saveStatus.autoSaveTime)}</span>
             </span>
@@ -250,7 +250,7 @@ const TrajectoryToolbar = ({
       <div className="toolbar-group toolbar-help">
         <button 
           className="toolbar-btn help-btn"
-          title="Show planner shortcuts"
+          data-help="Show planner shortcuts"
           aria-label="Show planner shortcuts"
           aria-expanded={showShortcutHelp}
           onClick={() => setShowShortcutHelp((prev) => !prev)}
