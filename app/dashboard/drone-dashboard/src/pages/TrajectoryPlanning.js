@@ -1378,7 +1378,7 @@ const TrajectoryPlanning = () => {
               <LeafletMapBase
                 center={[viewState.latitude || 35.7262, viewState.longitude || 51.2721]}
                 zoom={viewState.zoom || 12}
-                defaultLayer="osm"
+                defaultLayer="esriSatellite"
                 className="trajectory-map-surface"
               >
                 <LeafletResizeBridge

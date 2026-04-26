@@ -1,8 +1,9 @@
 import React, { useEffect, useId } from 'react';
 import PropTypes from 'prop-types';
-import { FaBookOpen, FaExclamationTriangle, FaInfoCircle, FaTimes } from 'react-icons/fa';
+import { FaBookOpen, FaEllipsisH, FaExclamationTriangle, FaInfoCircle, FaTimes } from 'react-icons/fa';
 
 import { buildDocsUrl, getRouteDoc } from '../../config/routeDocs';
+import { GIT_BRANCH, GIT_REPO } from '../../version';
 import '../../styles/OperatorPrimitives.css';
 
 const TONES = ['neutral', 'info', 'success', 'warning', 'danger', 'muted'];
@@ -157,9 +158,9 @@ MetricStrip.propTypes = {
 export function DocsLink({
   route,
   doc = null,
-  repoUrl = '',
+  repoUrl = GIT_REPO,
   repoWebUrl = '',
-  branch = '',
+  branch = GIT_BRANCH,
   label = '',
   compact = false,
   className = '',
@@ -198,6 +199,59 @@ DocsLink.propTypes = {
   branch: PropTypes.string,
   label: PropTypes.string,
   compact: PropTypes.bool,
+  className: PropTypes.string,
+};
+
+export function PageActionBar({
+  primary = [],
+  secondary = [],
+  overflowLabel = 'More',
+  className = '',
+}) {
+  const normalizedPrimary = React.Children.toArray(primary).filter(Boolean);
+  const normalizedSecondary = React.Children.toArray(secondary).filter(Boolean);
+  const overflowSecondary = normalizedSecondary.map((child, index) => (
+    React.isValidElement(child)
+      ? React.cloneElement(child, { key: `overflow-${child.key || index}` })
+      : child
+  ));
+
+  if (!normalizedPrimary.length && !normalizedSecondary.length) {
+    return null;
+  }
+
+  return (
+    <div className={['operator-page-action-bar', className].filter(Boolean).join(' ')}>
+      {normalizedPrimary.length ? (
+        <div className="operator-page-action-bar__primary">
+          {normalizedPrimary}
+        </div>
+      ) : null}
+
+      {normalizedSecondary.length ? (
+        <>
+          <div className="operator-page-action-bar__secondary-inline" aria-label="Secondary page actions">
+            {normalizedSecondary}
+          </div>
+          <details className="operator-page-action-bar__overflow">
+            <summary aria-label={`${overflowLabel} page actions`}>
+              <FaEllipsisH aria-hidden="true" />
+              <span>{overflowLabel}</span>
+            </summary>
+            <div className="operator-page-action-bar__overflow-panel">
+              {overflowSecondary}
+            </div>
+          </details>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+PageActionBar.propTypes = {
+  primary: PropTypes.node,
+  secondary: PropTypes.node,
+  overflowLabel: PropTypes.string,
   className: PropTypes.string,
 };
 

@@ -1,5 +1,6 @@
 import { FIELD_NAMES, normalizeDroneData } from '../constants/fieldMappings';
 import { getDroneShowStateName } from '../constants/droneStates';
+import { getPromotedMissionConfigField } from './missionConfigFields';
 import { normalizeDroneConfigData } from './missionIdentityUtils';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
 
@@ -67,11 +68,17 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         ? Math.sqrt((velocityNorth ** 2) + (velocityEast ** 2) + (velocityDown ** 2))
         : null;
       const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
+      const promotedField = getPromotedMissionConfigField(config);
+      const operatorAlias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
+        ? promotedField.displayValue
+        : '';
 
       return {
         ...drone,
         hw_id: String(drone[FIELD_NAMES.HW_ID] ?? id),
         pos_id: config.pos_id ?? drone[FIELD_NAMES.POS_ID] ?? id,
+        operator_alias: operatorAlias,
+        operator_alias_label: promotedField?.label || null,
         position: [
           toFiniteNumber(drone[FIELD_NAMES.POSITION_LAT], 0),
           toFiniteNumber(drone[FIELD_NAMES.POSITION_LONG], 0),

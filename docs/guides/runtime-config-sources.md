@@ -99,6 +99,15 @@ also apply:
 backend. Those exported values take precedence over repo fallback defaults in
 `deployment/defaults.env` and `src/params.py`.
 
+The dashboard **GCS Runtime** page edits this same host-local configuration.
+For a mode change, the operator may either:
+
+1. save the host config and then apply the restart, or
+2. use the single **Save + restart** action when draft changes are present.
+
+Both paths schedule the canonical launcher restart. Do not restart random
+backend/frontend processes manually as the primary mode-switch workflow.
+
 `git_sync_mds.service` now follows the same host-aware precedence:
 
 1. `/etc/mds/gcs.env`
@@ -161,6 +170,8 @@ Do not expect Fleet Enrollment to rewrite swarm topology automatically.
 2. export `MDS_REPO_URL`, `MDS_BRANCH`, and optional auth env vars before launch when needed
 3. use `deployment/defaults.env` for repo-wide defaults and process env for temporary overrides
 4. avoid editing `src/params.py` just to point SITL at a different repo or branch
+5. keep `MDS_MODE=sitl` in the SITL runtime so git sync skips real-node systemd
+   unit reconciliation and reports that step as `skipped`, not failed
 
 ## Practical Rule
 

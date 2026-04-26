@@ -7,7 +7,7 @@ export {
   MetricStrip,
   OperatorCard,
   OperatorNotice,
+  PageActionBar,
   PageShell,
   StatusBadge,
 } from './OperatorPrimitives';
-

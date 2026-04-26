@@ -1,7 +1,7 @@
 // src/components/GlobeMapView.js
 // 2D map view for drone visualization — dual-provider (Mapbox + Leaflet fallback)
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { FaCrosshairs, FaSatelliteDish } from 'react-icons/fa';
 import { useMapContext } from '../contexts/MapContext';
@@ -77,6 +77,43 @@ const LeafletInvalidateSize = () => {
   return null;
 };
 
+function fitLeafletMapToFleet(map, validDrones = []) {
+  if (!map || validDrones.length === 0) {
+    return;
+  }
+
+  if (validDrones.length === 1) {
+    map.flyTo?.([validDrones[0].position[0], validDrones[0].position[1]], 17, { animate: true, duration: 0.6 });
+    return;
+  }
+
+  const bounds = L.latLngBounds(validDrones.map((drone) => [drone.position[0], drone.position[1]]));
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, { padding: [72, 72], maxZoom: 17, animate: true, duration: 0.6 });
+  }
+}
+
+const LeafletFleetFitBridge = ({ validDrones, fitSignal }) => {
+  const map = useMap();
+  const validDronesRef = useRef(validDrones);
+
+  useEffect(() => {
+    validDronesRef.current = validDrones;
+  }, [validDrones]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => fitLeafletMapToFleet(map, validDronesRef.current), 250);
+    return () => window.clearTimeout(timeoutId);
+  }, [fitSignal, map, validDrones.length]);
+
+  return null;
+};
+
+LeafletFleetFitBridge.propTypes = {
+  validDrones: PropTypes.arrayOf(PropTypes.object).isRequired,
+  fitSignal: PropTypes.number.isRequired,
+};
+
 const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
   const markerRef = useRef(null);
   const droneId = String(drone[FIELD_NAMES.HW_ID]);
@@ -101,7 +138,7 @@ const LeafletDroneMarker = ({ drone, selected, onSelect }) => {
         },
       }}
     >
-      <Popup className="tactical-drone-leaflet-popup" minWidth={260} maxWidth={330}>
+      <Popup className="tactical-drone-leaflet-popup" minWidth={250} maxWidth={320} closeButton={false}>
         <TacticalDroneCard drone={drone} onClose={() => onSelect(null)} />
       </Popup>
     </LeafletMarker>
@@ -118,6 +155,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === MAP_PROVIDERS.LEAFLET || !ctxMapboxAvailable || !mapboxAvailable;
   const mapboxRef = useRef(null);
+  const [leafletFitSignal, setLeafletFitSignal] = useState(0);
   const themeColors = getPlotThemeColors();
 
   // Compute center and valid drones from average drone position
@@ -161,6 +199,10 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
       { padding: 72, maxZoom: 17, duration: 600 }
     );
   }, [useLeaflet, validDrones]);
+
+  const fitLeafletToFleet = useCallback(() => {
+    setLeafletFitSignal((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (useLeaflet || !mapboxRef.current) {
@@ -219,17 +261,17 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
           <span>{validDrones.length}</span>
         </div>
         <MapProviderToggle />
-        {!useLeaflet && (
-          <button
-            type="button"
-            className="globe-map-ops-bar__button"
-            onClick={fitMapboxToFleet}
-            aria-label="Fit map to live fleet"
-          >
-            <FaCrosshairs aria-hidden="true" />
-            <span>Fit</span>
-          </button>
-        )}
+        <button
+          type="button"
+          className="globe-map-ops-bar__button"
+          onClick={useLeaflet ? fitLeafletToFleet : fitMapboxToFleet}
+          disabled={validDrones.length === 0}
+          aria-label="Fit map to live fleet"
+          data-help="Fit map to live fleet"
+        >
+          <FaCrosshairs aria-hidden="true" />
+          <span>Fit</span>
+        </button>
       </div>
       {selectedDrone && !selectedDroneHasMapFix && (
         <div
@@ -314,6 +356,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
           style={{ width: '100%', height: '100%' }}
         >
           <LeafletInvalidateSize />
+          <LeafletFleetFitBridge validDrones={validDrones} fitSignal={leafletFitSignal} />
           {validDrones.map(drone => (
             <LeafletDroneMarker
               key={drone[FIELD_NAMES.HW_ID]}

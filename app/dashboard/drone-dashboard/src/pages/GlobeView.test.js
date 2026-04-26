@@ -69,7 +69,7 @@ describe('GlobeView', () => {
     expect(screen.getByText(/loading telemetry/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /map setup/i })).toHaveAttribute(
       'href',
-      'docs/guides/mapbox-setup.md',
+      'https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/guides/mapbox-setup.md',
     );
   });
 

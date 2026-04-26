@@ -792,6 +792,15 @@ check_service_updates() {
     SERVICE_RELOAD_STATUS="not_required"
     SERVICE_RELOAD_MESSAGE=""
 
+    if [[ "${MDS_SKIP_SYSTEMD_RECONCILE:-false}" == "true" ]] \
+        || [[ "${MDS_MODE:-}" == "sitl" ]] \
+        || ! command -v systemctl >/dev/null 2>&1; then
+        SERVICE_RELOAD_STATUS="skipped"
+        SERVICE_RELOAD_MESSAGE="Systemd unit reconcile skipped for this runtime; SITL/non-systemd nodes do not manage MDS units through git sync."
+        log_info "$component" "$SERVICE_RELOAD_MESSAGE"
+        return 0
+    fi
+
     for service in "${services[@]}"; do
         local src_file repo_file
         case $service in

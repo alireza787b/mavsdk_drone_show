@@ -141,6 +141,11 @@ export function normalizeGithubRepoUrl(repoUrl = '') {
     return '';
   }
 
+  const ownerRepoMatch = value.match(/^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/);
+  if (ownerRepoMatch) {
+    return `https://github.com/${ownerRepoMatch[1]}/${ownerRepoMatch[2]}`;
+  }
+
   const sshMatch = value.match(/^git@github\.com:([^/]+)\/(.+)$/);
   if (sshMatch) {
     return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;

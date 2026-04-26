@@ -143,6 +143,20 @@ describe('fleetOpsViewModel', () => {
     });
   });
 
+  test('does not treat SITL systemd reconcile skip as operator attention', () => {
+    expect(classifyGitSyncRuntime({
+      status: 'success',
+      summary: 'Git synchronization completed successfully.',
+      service_reload_status: 'skipped',
+      service_reload_message: 'Systemd unit reconcile skipped for this runtime.',
+      mavlink_runtime_reconcile_status: 'not_required',
+      connectivity_reconcile_status: 'not_required',
+    })).toMatchObject({
+      state: 'healthy',
+      tone: 'good',
+    });
+  });
+
   test('does not treat unknown-only git sync runtime state as attention', () => {
     expect(classifyGitSyncRuntime({
       status: 'unknown',

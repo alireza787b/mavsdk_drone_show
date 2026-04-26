@@ -34,6 +34,15 @@ const formatNumber = (value, digits = 1, fallback = 'n/a') => {
   return Number.isFinite(numeric) ? numeric.toFixed(digits) : fallback;
 };
 
+const formatMetricNumber = (value, digits = 1, fallback = 'n/a') => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return Math.abs(numeric) >= 10 ? numeric.toFixed(0) : numeric.toFixed(digits);
+};
+
 const formatLastUpdate = (value) => {
   if (!value) {
     return 'n/a';
@@ -77,6 +86,9 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const hwId = String(drone?.[FIELD_NAMES.HW_ID] ?? drone?.hw_id ?? '');
   const posId = drone?.[FIELD_NAMES.POS_ID] ?? drone?.pos_id;
   const identity = formatCompactDroneIdentity(posId, hwId, `H${hwId || '?'}`);
+  const alias = String(drone?.operator_alias || drone?.callsign || '').trim();
+  const displayTitle = alias || identity;
+  const hardwareSubtitle = alias ? identity : '';
   const markerColor = resolveMarkerColor(drone?.marker_color);
   const missionDisplay = getMissionDisplayContext(drone?.mission, drone?.last_mission);
   const flightMode = getFlightModeTitle(drone?.flight_mode);
@@ -92,17 +104,18 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
     <section
       className={`tactical-drone-card ${className}`.trim()}
       style={{ '--mds-tactical-drone-color': markerColor }}
-      aria-label={`${identity} tactical summary`}
+      aria-label={`${displayTitle} tactical summary`}
     >
       <div className="tactical-drone-card__header">
         <div>
           <p className="tactical-drone-card__eyebrow">
-            Live aircraft
             <span aria-label={`Last telemetry update ${lastSeen}`} data-help="Last telemetry update">
-              <FaClock aria-hidden="true" /> {lastSeen}
+              <FaClock aria-hidden="true" />
+              {lastSeen}
             </span>
           </p>
-          <h3>{identity}</h3>
+          <h3>{displayTitle}</h3>
+          {hardwareSubtitle ? <span className="tactical-drone-card__subtitle">{hardwareSubtitle}</span> : null}
         </div>
         <span className="tactical-drone-card__state">{drone?.stateLabel || 'Unknown'}</span>
         {onClose && (
@@ -110,7 +123,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
             type="button"
             className="tactical-drone-card__close"
             onClick={onClose}
-            aria-label={`Close ${identity} summary`}
+            aria-label={`Close ${displayTitle} summary`}
           >
             ×
           </button>
@@ -118,8 +131,8 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       </div>
 
       <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
-        <TacticalMetric icon={FaCompass} label="Altitude" value={`${formatNumber(drone?.altitude)} m`} />
-        <TacticalMetric icon={FaHome} label="Distance home" value={distanceToHome} help="Horizontal distance to cached home position" />
+        <TacticalMetric icon={FaCompass} label="Altitude" value={`${formatMetricNumber(drone?.altitude)} m`} />
+        <TacticalMetric icon={FaHome} label="Distance home" value={Number.isFinite(Number(drone?.distance_to_home_m)) ? `${formatMetricNumber(drone.distance_to_home_m)} m` : distanceToHome} help="Horizontal distance to cached home position" />
         <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
         <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />
       </div>
@@ -173,6 +186,8 @@ TacticalDroneCard.propTypes = {
   drone: PropTypes.shape({
     hw_id: PropTypes.string,
     pos_id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    operator_alias: PropTypes.string,
+    callsign: PropTypes.string,
     position: PropTypes.arrayOf(PropTypes.number),
     geoPosition: PropTypes.arrayOf(PropTypes.number),
     stateLabel: PropTypes.string,

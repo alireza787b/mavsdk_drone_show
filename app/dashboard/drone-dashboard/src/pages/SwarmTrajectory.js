@@ -730,7 +730,7 @@ const SwarmTrajectory = () => {
         <div className="title-section">
           <h1>Swarm Trajectory Mission</h1>
           <p className="subtitle">
-            Upload leader paths, regenerate follower outputs, and confirm the launch package.
+            Leader paths → follower outputs → launch package.
           </p>
         </div>
         <div className="swarm-trajectory__header-tools">

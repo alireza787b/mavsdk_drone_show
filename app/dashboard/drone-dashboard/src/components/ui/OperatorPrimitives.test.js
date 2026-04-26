@@ -8,6 +8,7 @@ import {
   EmptyState,
   MetricStrip,
   OperatorNotice,
+  PageActionBar,
   PageShell,
   StatusBadge,
 } from './OperatorPrimitives';
@@ -69,6 +70,19 @@ describe('operator UI primitives', () => {
     expect(button).not.toHaveAttribute('title');
     fireEvent.click(button);
     expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  test('groups primary and secondary page actions with a mobile overflow affordance', () => {
+    render(
+      <PageActionBar
+        primary={<button type="button">Commit</button>}
+        secondary={<button type="button">Export</button>}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'Commit' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Export' })).toHaveLength(2);
+    expect(screen.getByText('More')).toBeInTheDocument();
   });
 
   test('renders notices and empty states as compact operator surfaces', () => {

@@ -20,7 +20,7 @@ describe('globeTelemetryViewModel', () => {
           distance_to_home_m: 12.5,
         },
       },
-      [{ hw_id: '2', pos_id: '7', marker_color: '#ffaa00' }]
+      [{ hw_id: '2', pos_id: '7', marker_color: '#ffaa00', callsign: 'SCOUT-2' }]
     );
 
     expect(result).toHaveLength(1);
@@ -29,6 +29,7 @@ describe('globeTelemetryViewModel', () => {
       pos_id: '7',
       position: [35.1, 51.2, 103.5],
       marker_color: '#ffaa00',
+      operator_alias: 'SCOUT-2',
       battery_voltage: 16.44,
       distance_to_home_m: 12.5,
     });

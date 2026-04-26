@@ -3,10 +3,15 @@
 
 import React, { useState } from 'react';
 import { useMapContext } from '../../contexts/MapContext';
+import { buildDocsUrl, getRouteDoc } from '../../config/routeDocs';
+import { GIT_BRANCH, GIT_REPO } from '../../version';
 import '../../styles/MapCommon.css';
 
 const SESSION_KEY = 'mds_fallback_banner_dismissed';
-const MAPBOX_GUIDE_URL = 'https://github.com/alireza787b/mavsdk_drone_show/blob/main-candidate/docs/guides/mapbox-setup.md';
+const MAPBOX_GUIDE_URL = buildDocsUrl(getRouteDoc('/globe-view'), {
+  repoUrl: GIT_REPO,
+  branch: GIT_BRANCH,
+});
 
 const MapFallbackBanner = () => {
   const { provider, isMapboxAvailable, fallbackReason } = useMapContext();

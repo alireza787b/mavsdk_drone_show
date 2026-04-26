@@ -18,7 +18,7 @@
     visibility: hidden;
     max-width: 320px;
     width: 100%;
-    z-index: var(--z-globe-overlay);
+    z-index: var(--z-command-overlay);
 }
 
 .globe-control-box.show {
@@ -56,6 +56,25 @@
     margin: 0;
     color: var(--color-text-primary);
     font-size: 16px;
+}
+
+.globe-control-box__close {
+    align-items: center;
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border-secondary);
+    border-radius: 999px;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    width: 30px;
+}
+
+.globe-control-box__close:hover,
+.globe-control-box__close:focus-visible {
+    border-color: var(--color-primary-border);
+    color: var(--color-text-primary);
 }
 
 .control-section {

@@ -459,6 +459,8 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
     const alias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
       ? promotedField.displayValue
       : '';
+    const hardwareLabel = formatDroneLabel(drone.hw_id);
+    const slotLabel = formatShowSlotLabel(posId);
 
     return {
       ...drone,
@@ -486,8 +488,10 @@ export function buildSwarmViewModel(assignments = [], configData = []) {
       depth,
       alias,
       aliasLabel: promotedField?.label || null,
-      title: formatDroneLabel(drone.hw_id),
-      subtitle: formatShowSlotLabel(posId),
+      hardwareLabel,
+      slotLabel,
+      title: alias || hardwareLabel,
+      subtitle: alias ? `${hardwareLabel} · ${slotLabel}` : slotLabel,
     };
   });
 
@@ -635,6 +639,8 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
           pos_id: drone.pos_id,
           follow: drone.follow,
           role: drone.role,
+          title: drone.title,
+          subtitle: drone.subtitle,
           clusterId: currentCluster.id,
           clusterTitle: currentCluster.title,
           x: offset.east,
@@ -669,6 +675,8 @@ export function calculateClusterPlotData(assignments = [], configData = [], clus
       pos_id: drone.pos_id,
       follow: drone.follow,
       role: drone.role,
+      title: drone.title,
+      subtitle: drone.subtitle,
       x: offset.east,
       y: offset.north,
       z: offset.up,

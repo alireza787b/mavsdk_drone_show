@@ -96,7 +96,7 @@ const DroneCard = forwardRef(function DroneCard(
           <div className="swarm-drone-card__title-row">
             <h3>{drone.title}</h3>
             <span className="swarm-drone-card__slot-pill">{drone.subtitle}</span>
-            {drone.alias && (
+            {drone.alias && drone.alias !== drone.title && (
               <span className="swarm-drone-card__alias-pill">{drone.alias}</span>
             )}
           </div>

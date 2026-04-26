@@ -67,7 +67,6 @@ const WorkflowGuidanceSection = () => {
       )}
     >
       <div className="manage-drone-show__workflow-body">
-        <span>Create externally, import here, review geometry, then launch only after Overview preflight is clear.</span>
         <div className="manage-drone-show__workflow-steps" aria-label="Drone show import workflow">
           {WORKFLOW_STEPS.map((step) => (
             <button
@@ -119,7 +118,7 @@ const ManageDroneShow = () => {
       className="manage-drone-show-container"
       eyebrow="Drone show authoring"
       title="Manage Drone Show"
-      subtitle="Import the standard SkyBrush ZIP package, inspect plots, and export validated show artifacts."
+      subtitle="Import, inspect, export."
       docsRoute="/manage-drone-show"
       status={<StatusBadge tone="info">ZIP pipeline</StatusBadge>}
     >

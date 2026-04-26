@@ -13,7 +13,6 @@ import useElevation from '../useElevation';
 import '../styles/Globe.css';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
-import { findNearestScreenAnchor, getEventClientPoint } from '../utilities/globeScreenInteractions';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 const timeoutPromise = (ms) => new Promise((resolve) => setTimeout(() => resolve(null), ms));
@@ -429,14 +428,8 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       return;
     }
 
-    const point = getEventClientPoint(event);
-    const nearestAnchor = findNearestScreenAnchor(
-      screenAnchors,
-      point,
-      event.currentTarget?.getBoundingClientRect?.(),
-    );
-    if (nearestAnchor?.id) {
-      onSelectDrone(nearestAnchor.id);
+    if (isToolboxOpen) {
+      setIsToolboxOpen(false);
       return;
     }
 
@@ -445,7 +438,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     }
 
     onSelectDrone(null);
-  }, [onSelectDrone, screenAnchors, selectedDroneId]);
+  }, [isToolboxOpen, onSelectDrone, selectedDroneId]);
 
   if (isLoading || !referencePoint) {
     return <LoadingSpinner />;
@@ -486,8 +479,6 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
       id="scene-container"
       className="scene-container"
       onPointerDown={handleSceneBackgroundPointerDown}
-      onPointerDownCapture={handleSceneBackgroundPointerDown}
-      onTouchStartCapture={handleSceneBackgroundPointerDown}
     >
       <Canvas camera={{ position: [20, 20, 20], up: [0, 1, 0] }}>
         <ambientLight intensity={0.3} />
@@ -541,7 +532,11 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
                 onSelectDrone(anchor.id);
               }}
               onMouseDown={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectDrone(anchor.id);
+              }}
               onTouchStart={(event) => event.stopPropagation()}
               aria-label={`${anchor.label}${anchor.noMapFix ? ' no GPS fix' : ''}`}
             >
@@ -616,6 +611,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
         handleGetTerrainClick={handleGetTerrainClick}
         selectedDroneId={selectedDroneId}
         onSelectDrone={onSelectDrone}
+        onClose={() => setIsToolboxOpen(false)}
       />
     </div>
   );

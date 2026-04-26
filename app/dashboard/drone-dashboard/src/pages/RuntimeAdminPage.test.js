@@ -210,6 +210,52 @@ describe('RuntimeAdminPage', () => {
     });
   });
 
+  test('can save changed runtime settings and schedule restart from one action', async () => {
+    mockSaveGcsConfigResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'success',
+        message: 'Host-local GCS settings were persisted. Restart the GCS runtime to apply them.',
+        configured_mode: 'sitl',
+        configured_git_auto_push: false,
+        restart_required: true,
+        warnings: [],
+      },
+    });
+    mockApplyGcsConfigResponse.mockResolvedValue({
+      data: {
+        success: true,
+        status: 'scheduled',
+        message: 'GCS restart scheduled.',
+        configured_mode: 'sitl',
+        configured_git_auto_push: false,
+        restart_required: true,
+        scheduled: true,
+        restart_delay_ms: 2000,
+        warnings: [],
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /set runtime mode to sitl/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save runtime settings and restart gcs/i }));
+
+    await waitFor(() => {
+      expect(mockSaveGcsConfigResponse).toHaveBeenCalledWith({
+        mode: 'sitl',
+        git_auto_push: false,
+      });
+    });
+    await waitFor(() => {
+      expect(mockApplyGcsConfigResponse).toHaveBeenCalledTimes(1);
+    });
+  });
+
   test('runs constrained runtime update when the checkout is fast-forwardable', async () => {
     mockApplyRuntimeUpdateResponse.mockResolvedValue({
       data: {

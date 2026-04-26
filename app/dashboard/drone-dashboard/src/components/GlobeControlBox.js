@@ -1,5 +1,6 @@
 // src/components/GlobeControlBox.js
 import React from 'react';
+import { FaTimes } from 'react-icons/fa';
 import { FIELD_NAMES } from '../constants/fieldMappings';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import '../styles/GlobeControlBox.css';
@@ -86,6 +87,7 @@ function GlobeControlBox({
   handleGetTerrainClick,
   selectedDroneId = null,
   onSelectDrone = () => {},
+  onClose = () => {},
 }) {
   const groupedDrones = React.useMemo(() => buildDroneClusterGroups(drones), [drones]);
 
@@ -96,6 +98,14 @@ function GlobeControlBox({
           <p className="globe-control-box__eyebrow">3D view</p>
           <h4>View Filters</h4>
         </div>
+        <button
+          type="button"
+          className="globe-control-box__close"
+          onClick={onClose}
+          aria-label="Close 3D view filters"
+        >
+          <FaTimes aria-hidden="true" />
+        </button>
       </div>
       <div className="control-section">
         <label className="control-label">

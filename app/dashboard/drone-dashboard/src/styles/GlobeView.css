@@ -350,6 +350,11 @@
     border-color: var(--color-primary-border);
 }
 
+.globe-map-ops-bar__button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
 .globe-map-container .mds-map-container {
     width: 100%;
     height: 100%;

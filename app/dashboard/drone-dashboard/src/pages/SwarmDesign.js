@@ -26,6 +26,7 @@ import {
   EmptyState,
   MetricStrip,
   OperatorNotice,
+  PageActionBar,
   PageShell,
   StatusBadge,
 } from '../components/ui/OperatorPrimitives';
@@ -574,56 +575,70 @@ function SwarmDesign() {
       docsRoute="/swarm-design"
       status={<StatusBadge tone={pageStatusTone}>{pageStatusLabel}</StatusBadge>}
       actions={(
-        <div className="swarm-design-actions">
-          <ActionIconButton
-            icon={<FaSyncAlt />}
-            label="Update Smart Swarm assignments"
-            onClick={() => confirmAndSave(false)}
-            tone="info"
-            disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
-          >
-            Update
-          </ActionIconButton>
-          <ActionIconButton
-            icon={<FaCloudUploadAlt />}
-            label="Commit Smart Swarm assignment changes"
-            onClick={() => confirmAndSave(true)}
-            tone="success"
-            disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
-          >
-            Commit
-          </ActionIconButton>
-          <label className="swarm-action-button import">
-            <FaUpload />
-            Import JSON / CSV
-            <input type="file" accept=".json,.csv" onChange={handleImport} />
-          </label>
-          <ActionIconButton
-            icon={<FaDownload />}
-            label="Export Smart Swarm assignments as JSON"
-            onClick={handleJsonExport}
-            disabled={workingAssignments.length === 0}
-          >
-            JSON
-          </ActionIconButton>
-          <ActionIconButton
-            icon={<FaDownload />}
-            label="Export Smart Swarm assignments as CSV"
-            onClick={handleCsvExport}
-            disabled={workingAssignments.length === 0}
-          >
-            CSV
-          </ActionIconButton>
-          <ActionIconButton
-            icon={<FaUndo />}
-            label="Revert local Smart Swarm edits"
-            onClick={handleRevert}
-            disabled={!hasStagedChanges}
-            tone="warning"
-          >
-            Revert
-          </ActionIconButton>
-        </div>
+        <PageActionBar
+          className="swarm-design-actions"
+          primary={[
+            <ActionIconButton
+              key="update"
+              icon={<FaSyncAlt />}
+              label="Update Smart Swarm assignments"
+              onClick={() => confirmAndSave(false)}
+              tone="info"
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
+            >
+              Update
+            </ActionIconButton>,
+            <ActionIconButton
+              key="commit"
+              icon={<FaCloudUploadAlt />}
+              label="Commit Smart Swarm assignment changes"
+              onClick={() => confirmAndSave(true)}
+              tone="success"
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
+            >
+              Commit
+            </ActionIconButton>,
+          ]}
+          secondary={[
+            <label
+              key="import"
+              className="swarm-action-button import"
+              aria-label="Import Smart Swarm assignments from JSON or CSV"
+            >
+              <FaUpload aria-hidden="true" />
+              <span>Import</span>
+              <input type="file" accept=".json,.csv" onChange={handleImport} />
+            </label>,
+            <ActionIconButton
+              key="json"
+              icon={<FaDownload />}
+              label="Export Smart Swarm assignments as JSON"
+              onClick={handleJsonExport}
+              disabled={workingAssignments.length === 0}
+            >
+              JSON
+            </ActionIconButton>,
+            <ActionIconButton
+              key="csv"
+              icon={<FaDownload />}
+              label="Export Smart Swarm assignments as CSV"
+              onClick={handleCsvExport}
+              disabled={workingAssignments.length === 0}
+            >
+              CSV
+            </ActionIconButton>,
+            <ActionIconButton
+              key="revert"
+              icon={<FaUndo />}
+              label="Revert local Smart Swarm edits"
+              onClick={handleRevert}
+              disabled={!hasStagedChanges}
+              tone="warning"
+            >
+              Revert
+            </ActionIconButton>,
+          ]}
+        />
       )}
     >
 

@@ -51,6 +51,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[Repo Agent Operating Spec](../AGENTS.md)** - canonical machine-oriented operating loop for terminal AI agents; root vendor shims (`CLAUDE.md`, `GEMINI.md`) stay thin and point here
 - **[AI Agent Context Index](superpowers/README.md)** - index for machine-oriented specs and plans without cluttering the normal operator docs
 - **[AI Agent SITL Audit Loop](superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md)** - deeper agent-only execution contract for reproduce, patch, validate, package, and handoff phases
+- **[Frontend Design System](guides/frontend-design-system.md)** - canonical operator UI/UX, action-density, map/globe, and route-doc standards for maintainers and AI agents
 - **[Frontend UI Audit Guide](guides/frontend-ui-audit.md)** - predeploy UI/UX cleanup guardrails, route-doc mapping rules, and audit command
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes

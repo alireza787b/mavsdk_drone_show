@@ -59,6 +59,10 @@ not install an updated systemd unit file with its current controlled sudoers.
 Rerun the node installer or refresh sudoers before expecting service unit
 changes to apply automatically.
 
+For SITL containers, `service_reload_status=skipped` is expected. SITL does not
+own real-node systemd units inside the git-sync path, so Fleet Ops treats that
+state as healthy/not applicable rather than drift.
+
 The **Drift** filter covers more than commit mismatch. It includes repository
 drift, node-local git-sync runtime warnings, and sidecar desired/applied hash
 drift so a synced commit cannot hide an unapplied service or profile update.

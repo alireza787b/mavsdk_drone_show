@@ -227,6 +227,73 @@
   color: var(--color-danger);
 }
 
+.operator-page-action-bar {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+}
+
+.operator-page-action-bar__primary,
+.operator-page-action-bar__secondary-inline {
+  align-items: center;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+}
+
+.operator-page-action-bar__overflow {
+  display: none;
+  position: relative;
+}
+
+.operator-page-action-bar__overflow summary {
+  align-items: center;
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-full);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  gap: var(--spacing-xs);
+  min-height: var(--button-icon-size-base);
+  padding: 0 var(--spacing-md);
+  user-select: none;
+}
+
+.operator-page-action-bar__overflow summary::-webkit-details-marker {
+  display: none;
+}
+
+.operator-page-action-bar__overflow summary:focus-visible {
+  outline: none;
+  box-shadow: var(--operator-focus-ring);
+}
+
+.operator-page-action-bar__overflow-panel {
+  background: var(--color-surface-raised);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: grid;
+  gap: var(--spacing-sm);
+  min-width: min(260px, calc(100vw - 32px));
+  padding: var(--spacing-sm);
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--spacing-xs));
+  z-index: var(--z-popover);
+}
+
+.operator-page-action-bar__overflow-panel > * {
+  justify-content: center;
+  width: 100%;
+}
+
 .operator-action-icon-button--success:hover,
 .operator-action-icon-button--success.is-active {
   border-color: var(--color-success-border);
@@ -494,6 +561,24 @@
 
   .operator-page-shell__tools {
     justify-content: flex-start;
+  }
+
+  .operator-page-action-bar {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .operator-page-action-bar__primary {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+  }
+
+  .operator-page-action-bar__secondary-inline {
+    display: none;
+  }
+
+  .operator-page-action-bar__overflow {
+    display: inline-block;
   }
 
   .operator-notice__action,

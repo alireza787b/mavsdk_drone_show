@@ -1088,6 +1088,37 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_service_updates_skip_systemd_reconcile_for_sitl_runtime():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        systemd_dir="$tmpdir/systemd"
+        home_dir="$tmpdir/home/companion"
+        mkdir -p "$repo_dir/tools" "$systemd_dir" "$home_dir/logs"
+        cp "{REPO_ROOT / 'tools' / 'coordinator.service'}" "$repo_dir/tools/coordinator.service"
+
+        cat > "$systemd_dir/coordinator.service" <<'EOF'
+[Service]
+ExecStart=/old/path/coordinator.py
+EOF
+
+        HOME="$home_dir" \
+        USER="companion" \
+        REPO_USER="companion" \
+        REPO_DIR="$repo_dir" \
+        MDS_USER="companion" \
+        MDS_HOME="$home_dir" \
+        MDS_INSTALL_DIR="$repo_dir" \
+        MDS_SYSTEMD_DIR="$systemd_dir" \
+        MDS_MODE="sitl" \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; check_service_updates; [[ "$SERVICE_RELOAD_STATUS" == "skipped" ]]; grep -q "^ExecStart=/old/path/coordinator.py$" "$MDS_SYSTEMD_DIR/coordinator.service"; [[ "${{#UPDATED_SYSTEMD_UNITS[@]}}" -eq 0 ]]'
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_git_sync_service_updates_restore_previous_units_when_daemon_reload_fails():
     result = run_bash(
         f"""

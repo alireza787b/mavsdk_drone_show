@@ -26,6 +26,7 @@ describe('routeDocs', () => {
   });
 
   test('normalizes GitHub repo references for docs links', () => {
+    expect(normalizeGithubRepoUrl('demo/customer-mds')).toBe('https://github.com/demo/customer-mds');
     expect(normalizeGithubRepoUrl('git@github.com:demo/customer-mds.git')).toBe('https://github.com/demo/customer-mds');
     expect(normalizeGithubRepoUrl('https://github.com/demo/customer-mds.git')).toBe('https://github.com/demo/customer-mds');
   });

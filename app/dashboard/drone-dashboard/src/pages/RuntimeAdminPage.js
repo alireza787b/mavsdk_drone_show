@@ -218,26 +218,31 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     setDraftDirty(true);
   };
 
+  const persistRuntimeSettings = async () => {
+    const response = await saveGcsConfigResponse({
+      mode: draftMode,
+      git_auto_push: draftGitAutoPush,
+    });
+    const payload = response?.data || {};
+    const configuredMode = String(payload.configured_mode || draftMode || effectiveConfiguredMode).trim().toLowerCase() || 'sitl';
+    const configuredGitAutoPush = Object.prototype.hasOwnProperty.call(payload, 'configured_git_auto_push')
+      ? Boolean(payload.configured_git_auto_push)
+      : Boolean(draftGitAutoPush);
+    const restartRequired = Boolean(payload.restart_required);
+    setOptimisticConfig({
+      configuredMode,
+      configuredModeLabel: configuredMode === 'real' ? 'REAL' : 'SITL',
+      configuredGitAutoPush,
+      restartRequired,
+    });
+    setDraftDirty(false);
+    return { payload, restartRequired };
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await saveGcsConfigResponse({
-        mode: draftMode,
-        git_auto_push: draftGitAutoPush,
-      });
-      const payload = response?.data || {};
-      const configuredMode = String(payload.configured_mode || draftMode || effectiveConfiguredMode).trim().toLowerCase() || 'sitl';
-      const configuredGitAutoPush = Object.prototype.hasOwnProperty.call(payload, 'configured_git_auto_push')
-        ? Boolean(payload.configured_git_auto_push)
-        : Boolean(draftGitAutoPush);
-      const restartRequired = Boolean(payload.restart_required);
-      setOptimisticConfig({
-        configuredMode,
-        configuredModeLabel: configuredMode === 'real' ? 'REAL' : 'SITL',
-        configuredGitAutoPush,
-        restartRequired,
-      });
-      setDraftDirty(false);
+      const { payload, restartRequired } = await persistRuntimeSettings();
       setNotice(buildNotice(payload, restartRequired ? 'warning' : 'success'));
     } catch (error) {
       const message = error?.response?.data?.detail || error?.message || 'Failed to persist host-local runtime settings.';
@@ -250,6 +255,14 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const handleApply = async () => {
     setApplying(true);
     try {
+      if (hasDraftChanges) {
+        const { payload, restartRequired } = await persistRuntimeSettings();
+        if (!restartRequired) {
+          setNotice(buildNotice(payload, 'success'));
+          return;
+        }
+      }
+
       const response = await applyGcsConfigResponse();
       const payload = response?.data || {};
       setNotice(buildNotice(payload, payload.scheduled ? 'success' : 'warning'));
@@ -442,11 +455,11 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                 type="button"
                 className="runtime-admin-page__action-btn"
                 onClick={handleApply}
-                disabled={!effectiveRestartRequired || saving || applying}
-                aria-label="Apply persisted runtime settings with restart"
+                disabled={(!effectiveRestartRequired && !hasDraftChanges) || saving || applying}
+                aria-label={hasDraftChanges ? 'Save runtime settings and restart GCS' : 'Apply persisted runtime settings with restart'}
               >
                 <FaRedoAlt />
-                <span>{applying ? 'Scheduling...' : 'Apply restart'}</span>
+                <span>{applying ? 'Scheduling...' : hasDraftChanges ? 'Save + restart' : 'Apply restart'}</span>
               </button>
             </div>
           </div>
