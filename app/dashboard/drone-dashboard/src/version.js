@@ -12,7 +12,7 @@
 
 const DEFAULT_VERSION = '5.3';
 const DEFAULT_GIT_COMMIT = '9c300006';
-const DEFAULT_GIT_BRANCH = 'main-candidate';
+const DEFAULT_GIT_BRANCH = 'main';
 const DEFAULT_GIT_REPO = 'alireza787b/mavsdk_drone_show';
 
 const VERSION = process.env.REACT_APP_VERSION || DEFAULT_VERSION;

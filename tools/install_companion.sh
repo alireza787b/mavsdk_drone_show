@@ -21,7 +21,7 @@ fi
 
 DEFAULT_REPO_SLUG="${MDS_DEFAULT_REPO_SLUG:-alireza787b/mavsdk_drone_show}"
 DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/${DEFAULT_REPO_SLUG}.git}"
-DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main-candidate}"
+DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main}"
 DEFAULT_PROJECT_NAME="${DEFAULT_REPO_SLUG##*/}"
 
 if [[ "${BASH_SOURCE[0]-$0}" == "$0" ]] && [[ -n "$SCRIPT_DIR" && -f "${SCRIPT_DIR}/install_mds_node.sh" ]]; then

@@ -12,7 +12,7 @@ if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
 fi
 
 DEFAULT_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
-DEFAULT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+DEFAULT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 DOCS_PATH="${MDS_GIT_AUTH_DOCS_PATH:-docs/guides/custom-sitl-auth.md}"
 
 REPO_URL="$DEFAULT_REPO_URL"

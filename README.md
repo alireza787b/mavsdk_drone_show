@@ -54,7 +54,7 @@ For the default official HTTPS demo path, the GCS now treats git write-back as d
 If you skipped the bootstrap installer and do not have the repo yet:
 
 ```bash
-git clone -b main-candidate https://github.com/alireza787b/mavsdk_drone_show.git
+git clone -b main https://github.com/alireza787b/mavsdk_drone_show.git
 cd mavsdk_drone_show
 ```
 
@@ -161,7 +161,7 @@ See [LICENSE](LICENSE) and [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md).
 - **GitHub issues:** [bug reports and feature requests](https://github.com/alireza787b/mavsdk_drone_show/issues)
 - **Contributing guide:** [CONTRIBUTING.md](CONTRIBUTING.md)
 
-Contributors should branch from `main-candidate`. Public-facing `main` is kept aligned after validation.
+Contributors should start feature branches from `main`. Use short-lived feature or client branches for work-in-progress, then merge back to `main` only after SITL/hardware validation.
 
 ## Safety Note
 

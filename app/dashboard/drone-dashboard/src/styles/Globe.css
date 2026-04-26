@@ -10,6 +10,11 @@
     box-shadow: 0 4px 20px var(--color-overlay);
   }
 
+.scene-container.filters-open .globe-drone-screen-targets {
+    opacity: 0.18;
+    pointer-events: none;
+}
+
 
 .button-container {
     position: absolute;
@@ -18,6 +23,16 @@
     display: flex;
     gap: 10px;
     z-index: var(--z-globe-overlay);
+}
+
+.globe-control-backdrop {
+    background: rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.34);
+    border: 0;
+    cursor: pointer;
+    inset: 0;
+    padding: 0;
+    position: absolute;
+    z-index: calc(var(--z-tooltip) + 8);
 }
 
 .button-container .fullscreen-button,
@@ -48,6 +63,11 @@
     position: absolute;
     z-index: var(--z-tooltip);
     pointer-events: auto;
+}
+
+.scene-container.filters-open .globe-selected-card-popover {
+    opacity: 0.18;
+    pointer-events: none;
 }
 
 .globe-selected-card-popover::before {

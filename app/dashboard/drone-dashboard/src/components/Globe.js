@@ -496,7 +496,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
   return (
     <div
       id="scene-container"
-      className="scene-container"
+      className={`scene-container ${isToolboxOpen ? 'filters-open' : ''}`}
       onPointerDown={handleSceneBackgroundPointerDown}
     >
       <Canvas camera={{ position: DEFAULT_CAMERA_POSITION, up: [0, 1, 0] }}>
@@ -616,6 +616,14 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
           <FaSlidersH aria-hidden="true" />
         </button>
       </div>
+      {isToolboxOpen && (
+        <button
+          type="button"
+          className="globe-control-backdrop"
+          onClick={() => setIsToolboxOpen(false)}
+          aria-label="Close 3D view filters"
+        />
+      )}
       <GlobeControlBox
         drones={drones}
         setShowGround={setShowGround}

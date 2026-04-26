@@ -21,7 +21,7 @@ describe('operator UI primitives', () => {
         title="Fleet Ops"
         subtitle="Node posture"
         docsRoute="/fleet-ops"
-        docsOptions={{ repoUrl: 'git@github.com:demo/customer-mds.git', branch: 'main-candidate' }}
+        docsOptions={{ repoUrl: 'git@github.com:demo/customer-mds.git', branch: 'main' }}
       >
         <div>Body</div>
       </PageShell>
@@ -35,7 +35,7 @@ describe('operator UI primitives', () => {
     );
     expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
       'href',
-      'https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md'
+      'https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md'
     );
   });
 

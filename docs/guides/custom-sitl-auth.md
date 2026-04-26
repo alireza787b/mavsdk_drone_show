@@ -171,7 +171,7 @@ For public repos, use HTTPS and no credential:
 
 ```bash
 export MDS_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
-export MDS_BRANCH="main-candidate"
+export MDS_BRANCH="main"
 unset MDS_GIT_AUTH_TOKEN_FILE
 unset MDS_GIT_AUTH_TOKEN
 unset MDS_GIT_SSH_KEY_FILE

@@ -7,7 +7,7 @@ DEFAULT_ARCHIVE_BASENAME="${MDS_SITL_IMAGE_ARCHIVE_BASENAME:-mavsdk-drone-show-s
 DEFAULT_MEGA_TARGET="${MDS_SITL_MEGA_TARGET:-/Root/mavsdk-drone-show-sitl}"
 DEFAULT_IMAGE_REPO="${MDS_SITL_IMAGE_REPO:-mavsdk-drone-show-sitl}"
 DEFAULT_VERSION_TAG="${MDS_SITL_VERSION_TAG:-v5}"
-DEFAULT_BRANCH="${MDS_BRANCH:-main-candidate}"
+DEFAULT_BRANCH="${MDS_BRANCH:-main}"
 DEFAULT_REPO_URL="${MDS_REPO_URL:-https://github.com/alireza787b/mavsdk_drone_show.git}"
 
 ARTIFACT_DIR="$DEFAULT_ARTIFACT_DIR"

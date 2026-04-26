@@ -5,8 +5,10 @@
     position: absolute;
     top: 60px;
     right: 15px;
-    background-color: var(--color-surface-raised);
-    backdrop-filter: blur(10px);
+    background:
+        linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.08), transparent 48%),
+        color-mix(in srgb, var(--color-bg-secondary) 96%, black);
+    backdrop-filter: blur(18px) saturate(1.05);
     padding: 16px;
     border-radius: 12px;
     border: 1px solid var(--color-border-primary);
@@ -18,7 +20,7 @@
     visibility: hidden;
     max-width: 320px;
     width: 100%;
-    z-index: var(--z-tooltip);
+    z-index: calc(var(--z-tooltip) + 12);
 }
 
 .globe-control-box.show {
@@ -127,7 +129,7 @@
 }
 
 .drone-toggles {
-    max-height: 150px;
+    max-height: min(34vh, 240px);
     overflow-y: auto;
     padding-top: 4px;
 }
@@ -199,4 +201,28 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--color-text-secondary);
+}
+
+@media (max-width: 700px) {
+    .globe-control-box {
+        left: 12px;
+        max-height: min(70vh, 620px);
+        max-width: none;
+        overflow: auto;
+        right: 12px;
+        top: 72px;
+        width: auto;
+    }
+
+    .control-section {
+        margin-bottom: 10px;
+    }
+
+    .control-label {
+        font-size: 13px;
+    }
+
+    .drone-toggles {
+        max-height: min(30vh, 260px);
+    }
 }

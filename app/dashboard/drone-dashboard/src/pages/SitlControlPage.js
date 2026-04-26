@@ -1953,7 +1953,7 @@ function SitlControlPage() {
                                   aria-label="Image branch override"
                                   value={imageReleaseForm.branch}
                                   onChange={(event) => handleReleaseFieldChange('branch', event.target.value)}
-                                  placeholder="main-candidate"
+                                  placeholder="main"
                                 />
                               </label>
                               <label className="sitl-field">

@@ -230,7 +230,7 @@ Access Portainer via the browser using your domain, IP address, or the reverse D
 The bootstrap installer handles Python, Node.js, venv, npm, firewall, repository setup, and configuration:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | sudo bash
 ```
 
 See the [GCS Setup Guide](gcs-setup.md) for full details and CLI options (for example `--dry-run`, `-y`, or `--fork`).
@@ -253,7 +253,7 @@ If you prefer to set things up manually:
 cd ~
 git clone https://github.com/alireza787b/mavsdk_drone_show
 cd mavsdk_drone_show
-git checkout main-candidate
+git checkout main
 python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt

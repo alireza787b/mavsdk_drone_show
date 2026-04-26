@@ -52,7 +52,7 @@ set -euo pipefail
 #
 # EXAMPLES:
 #   # Normal usage (no environment variables):
-#   bash update_repo_https.sh main-candidate
+#   bash update_repo_https.sh main
 #
 #   # Advanced usage with custom repository:
 #   export MDS_REPO_URL="https://github.com/company/fork.git"

@@ -20,7 +20,7 @@ const SidebarMenu = require('./SidebarMenu').default;
 
 const baseGitInfo = {
   repo: 'demo/customer-mds',
-  runtimeLabel: 'main-candidate · abcdef1',
+  runtimeLabel: 'main · abcdef1',
 };
 
 const baseTheme = {

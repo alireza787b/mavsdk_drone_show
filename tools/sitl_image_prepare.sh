@@ -12,7 +12,7 @@ if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
 fi
 
 DEFAULT_REPO_URL="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}"
-DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main-candidate}"
+DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main}"
 BASE_DIR="${MDS_BASE_DIR:-/root/mavsdk_drone_show}"
 PX4_DIR="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
 REPO_URL="${1:-${MDS_REPO_URL:-$DEFAULT_REPO_URL}}"

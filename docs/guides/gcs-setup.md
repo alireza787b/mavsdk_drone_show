@@ -26,7 +26,7 @@
 The fastest way to set up a GCS server on a fresh Ubuntu VPS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | sudo bash
 ```
 
 By default the wrapper clones into `~/mavsdk_drone_show` for the invoking user.
@@ -34,7 +34,7 @@ Override that wrapper-level default with `MDS_INSTALL_DIR` if your host layout
 requires a different checkout path:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | \
   sudo env MDS_INSTALL_DIR=/srv/customer-mds bash
 ```
 
@@ -147,7 +147,7 @@ For a private GitHub repo over HTTPS, use `--git-auth-token-file /path/to/read_o
 
 1. **Clone the repository:**
    ```bash
-   git clone -b main-candidate https://github.com/alireza787b/mavsdk_drone_show.git
+   git clone -b main https://github.com/alireza787b/mavsdk_drone_show.git
    cd mavsdk_drone_show
    ```
 

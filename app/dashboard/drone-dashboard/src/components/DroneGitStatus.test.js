@@ -7,7 +7,7 @@ describe('DroneGitStatus', () => {
     droneName: 'Drone 101',
     gcsGitStatus: { commit: 'abc12345' },
     gitStatus: {
-      branch: 'main-candidate',
+      branch: 'main',
       commit: 'abc12345',
       status: 'clean',
       in_sync_with_gcs: true,

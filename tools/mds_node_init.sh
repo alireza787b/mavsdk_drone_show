@@ -181,7 +181,7 @@ REPOSITORY OPTIONS:
     -r, --repo-url URL          Git repository URL
                                 Default: git@github.com:alireza787b/mavsdk_drone_show.git
     -b, --branch BRANCH         Git branch to use
-                                Default: main-candidate
+                                Default: main
     --fork OWNER[/REPO]         Use GitHub fork or custom repo path
     --https                     Use HTTPS instead of SSH for git operations
     --git-auth-token-file PATH  Preferred private HTTPS Git auth token file
@@ -253,7 +253,7 @@ EXAMPLES:
     sudo ./mds_node_init.sh -d 1 --fork myuser --branch main
 
     # Custom org/private repo path (using --fork shorthand)
-    sudo ./mds_node_init.sh -d 1 --fork myorg/customer-mds --branch main-candidate
+    sudo ./mds_node_init.sh -d 1 --fork myorg/customer-mds --branch main
 
     # Or with full URL
     sudo ./mds_node_init.sh -d 1 --https -r https://github.com/myuser/myfork.git -b main
@@ -758,7 +758,7 @@ main() {
     fi
 
     # Show banner with version info
-    print_banner "${branch:-main-candidate}" "${commit:-pending}"
+    print_banner "${branch:-main}" "${commit:-pending}"
 
     log_info "Initialization started: $(date '+%Y-%m-%d %H:%M:%S')"
     log_info "Script version: ${MDS_VERSION}"

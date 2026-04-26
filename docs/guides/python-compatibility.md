@@ -33,7 +33,7 @@ The latest Raspberry Pi OS now ships with Python 3.13. We've updated MDS to work
 Run the bootstrap script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- -d <drone_id> -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash -s -- -d <drone_id> -y
 ```
 
 The script will:
@@ -87,7 +87,7 @@ sudo apt-get install -y \
 
 ```bash
 cd ~/mavsdk_drone_show
-git pull origin main-candidate
+git pull origin main
 sudo ./tools/mds_node_init.sh -d <your_drone_id> -y
 ```
 

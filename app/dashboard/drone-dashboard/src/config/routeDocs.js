@@ -1,7 +1,7 @@
 // src/config/routeDocs.js
 // Route-to-documentation metadata used by operator help links and UI audit checks.
 
-export const DEFAULT_DOC_BRANCH = 'main-candidate';
+export const DEFAULT_DOC_BRANCH = 'main';
 
 export const ROUTE_DOCS = Object.freeze([
   {

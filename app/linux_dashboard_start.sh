@@ -134,7 +134,7 @@ SKIP_DEPENDENCY_CHECK=false
 # Repository Configuration: Environment Variable Support (MDS v3.1+)
 # This script now supports custom branches via environment variables
 # Default behavior unchanged for normal users
-BRANCH_NAME="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+BRANCH_NAME="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 PROJECT_VERSION="unknown"
 
 if [[ -f "$VERSION_FILE_PATH" ]]; then

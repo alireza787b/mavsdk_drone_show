@@ -19,7 +19,7 @@ describe('DroneConfigCard', () => {
           ],
         }}
         gitStatus={{
-          branch: 'main-candidate',
+          branch: 'main',
           commit: 'abcdef1234567890',
           in_sync_with_gcs: true,
         }}

@@ -43,7 +43,7 @@ repo cloned locally. This is the public bootstrap wrapper.
 The fastest way to set up a fresh companion-computer node:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash
 ```
 
 By default the wrapper creates the `droneshow` runtime user and clones the repo
@@ -52,7 +52,7 @@ into `/home/droneshow/<repo-dir>`. Override those wrapper-level defaults with
 install location:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | \
   sudo env MDS_USER=companion MDS_INSTALL_DIR=/srv/customer-mds bash -s -- -d 1 -y
 ```
 
@@ -62,26 +62,26 @@ environment overrides.
 
 **With drone ID (non-interactive):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash -s -- -d 1 -y
 ```
 
 **Using your own fork or org repo:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- --fork yourusername -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash -s -- --fork yourusername -d 1 -y
 ```
 
 For confidentiality-sensitive customers, prefer an org-owned private repo instead of assuming a normal GitHub fork will be private.
 
 **Using a customer org/private repo path:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash -s -- --fork yourorg/customer-mds --branch customer-demo -d 1 -y
 ```
 
 For a first-time private SSH bootstrap, omit `-y` unless the deploy key is already authorized on GitHub. Non-interactive `-y` is safe only after that prerequisite is already satisfied.
 
 **Using an explicit repository URL:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash -s -- --repo-url git@github.com:yourorg/customer-mds.git --branch customer-demo -d 1 -y
 ```
 
 **Using a private HTTPS repository with a read-only token file:**
@@ -89,7 +89,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 install -m 600 /dev/null /home/<mds-user>/.mds_git_read_token
 printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /home/<mds-user>/.mds_git_read_token
 
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | \
   sudo bash -s -- \
   --repo-url https://github.com/yourorg/customer-mds.git \
   --branch customer-demo \
@@ -99,7 +99,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 
 **Using a private SSH repository with an existing read-only key:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | \
   sudo bash -s -- \
   --repo-url git@github.com:yourorg/customer-mds.git \
   --branch customer-demo \

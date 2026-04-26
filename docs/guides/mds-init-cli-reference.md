@@ -21,7 +21,7 @@ These parameters are required but can be provided interactively if omitted:
 | Option | Description | Default |
 |--------|-------------|---------|
 | `-r, --repo-url URL` | Git repository URL | `git@github.com:alireza787b/mavsdk_drone_show.git` |
-| `-b, --branch BRANCH` | Git branch to use | `main-candidate` |
+| `-b, --branch BRANCH` | Git branch to use | `main` |
 | `--fork OWNER[/REPO]` | Use GitHub fork shorthand (`OWNER/mavsdk_drone_show`) or explicit owner/repo path | - |
 | `--https` | Use HTTPS instead of SSH for git operations | SSH |
 
@@ -357,7 +357,7 @@ The following changes affect users upgrading from older versions:
 For fresh companion-computer installations, use the bootstrap installer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash
 ```
 
 `install_mds_node.sh` remains supported as a compatibility alias.

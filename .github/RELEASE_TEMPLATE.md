@@ -35,8 +35,8 @@ Before creating the release, ensure all items are completed:
 - [ ] All links in documentation verified
 
 ### Repository
-- [ ] All changes committed to main-candidate
-- [ ] main-candidate merged to main
+- [ ] All changes committed to main
+- [ ] `main` contains the validated release commit
 - [ ] No uncommitted changes
 
 ---

@@ -31,8 +31,16 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ### Added
 
 ### Changed
+- Active installer, dashboard, docs-link, SITL image, and git-sync defaults now
+  use `main` as the canonical deployment branch; feature/client branches remain
+  explicit overrides through `MDS_BRANCH`.
+- Dashboard drone cards were compacted for mobile/operator use by reducing
+  repeated visual weight and keeping telemetry indicators in a denser grid.
 
 ### Fixed
+- 3D Globe filter controls now open as a scene-local modal layer above drone
+  labels/cards, with click-away dismissal and disabled drone touch targets
+  while filters are open.
 
 ---
 

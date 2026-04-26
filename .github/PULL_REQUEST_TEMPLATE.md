@@ -72,5 +72,5 @@ Related to #
 ---
 
 **Note for Maintainers:**
-- Target branch should be `main-candidate` for normal PRs
-- Only merge to `main` for release preparation
+- Target branch should be `main` for normal PRs
+- Keep `main` deployable; use feature/client branches for unvalidated work

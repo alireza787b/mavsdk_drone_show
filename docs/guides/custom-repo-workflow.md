@@ -120,7 +120,7 @@ For confidentiality-sensitive customers, prefer:
 3. seed it from the official repo
 4. keep a documented upstream-sync process
 
-That private repo can still track `main` or `main-candidate`, but it should be treated as a private mirror/customization repo, not assumed to be a private fork.
+That private repo can still track `main` or `main`, but it should be treated as a private mirror/customization repo, not assumed to be a private fork.
 
 ## `--fork` Versus `--repo-url`
 
@@ -159,7 +159,7 @@ Recommendation:
 For a customer-owned GitHub repo with dashboard write-back:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | \
   sudo bash -s -- \
   --fork yourorg/customer-mds \
   --branch customer-demo
@@ -168,7 +168,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 Or with an explicit URL:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | \
   sudo bash -s -- \
   --repo-url git@github.com:yourorg/customer-mds.git \
   --branch customer-demo
@@ -180,7 +180,7 @@ For a private read-only demo/evaluation repo with deploy keys disabled:
 install -m 600 /dev/null /root/.mds_git_read_token
 printf '%s' 'YOUR_READ_ONLY_GITHUB_TOKEN' > /root/.mds_git_read_token
 
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | \
   sudo bash -s -- \
   --repo-url https://github.com/yourorg/customer-mds.git \
   --branch customer-demo \
@@ -222,7 +222,7 @@ The same token-file path is now preserved into `/etc/mds/gcs.env` and the runtim
 For a drone that should follow the customer repo:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | \
   sudo bash -s -- \
   -d 1 \
   --fork yourorg/customer-mds \
@@ -233,7 +233,7 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-
 Or:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | \
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | \
   sudo bash -s -- \
   -d 1 \
   --repo-url git@github.com:yourorg/customer-mds.git \

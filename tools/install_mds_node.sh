@@ -9,9 +9,9 @@
 # =============================================================================
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_companion.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash
 #   # compatibility alias:
-#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_mds_node.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_mds_node.sh | sudo bash
 #
 #   Or with options:
 #   curl -fsSL ... | sudo bash -s -- -d 1 --fork myuser
@@ -36,7 +36,7 @@ fi
 
 DEFAULT_REPO_SLUG="${MDS_DEFAULT_REPO_SLUG:-alireza787b/mavsdk_drone_show}"
 DEFAULT_REPO_URL_HTTPS="${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/${DEFAULT_REPO_SLUG}.git}"
-DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main-candidate}"
+DEFAULT_BRANCH="${MDS_DEFAULT_BRANCH:-main}"
 DEFAULT_PROJECT_NAME="${DEFAULT_REPO_SLUG##*/}"
 DEFAULT_REPO_WEB_URL="https://github.com/${DEFAULT_REPO_SLUG}"
 DEFAULT_INSTALL_COMPANION_URL="https://raw.githubusercontent.com/${DEFAULT_REPO_SLUG}/${DEFAULT_BRANCH}/tools/install_companion.sh"

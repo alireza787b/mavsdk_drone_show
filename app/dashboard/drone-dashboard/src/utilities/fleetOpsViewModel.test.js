@@ -11,7 +11,7 @@ describe('fleetOpsViewModel', () => {
   test('builds fleet rows and compliance counters from git status and heartbeat payloads', () => {
     const gitPayload = {
       gcs_status: {
-        branch: 'main-candidate',
+        branch: 'main',
         commit: 'abcdef123456',
         remote_url: 'git@github.com:demo/customer-mds.git',
       },
@@ -20,7 +20,7 @@ describe('fleetOpsViewModel', () => {
           pos_id: 1,
           hw_id: '1',
           ip: '100.82.72.33',
-          branch: 'main-candidate',
+          branch: 'main',
           commit: 'abcdef123456',
           in_sync_with_gcs: true,
           repo_access_mode: 'https_token_file',
@@ -47,7 +47,7 @@ describe('fleetOpsViewModel', () => {
           pos_id: 2,
           hw_id: '2',
           ip: '100.82.47.7',
-          branch: 'main-candidate',
+          branch: 'main',
           commit: '1111111',
           in_sync_with_gcs: false,
           repo_access_mode: 'ssh_key',
@@ -83,7 +83,7 @@ describe('fleetOpsViewModel', () => {
       accessLabel: 'HTTPS token',
       needsAttention: false,
     });
-    expect(viewModel.docs.fleetOps).toBe('https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md');
+    expect(viewModel.docs.fleetOps).toBe('https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md');
     expect(viewModel.rows[1]).toMatchObject({
       posId: '2',
       needsAttention: true,
@@ -177,8 +177,8 @@ describe('fleetOpsViewModel', () => {
   test('builds safe GitHub docs URLs only from normal GitHub remotes', () => {
     expect(buildGitHubDocsUrl('https://github.com/demo/customer-mds.git', 'main', '/docs/guides/fleet-ops.md'))
       .toBe('https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md');
-    expect(buildGitHubDocsUrl('git@github.com:demo/customer-mds.git', 'main-candidate', 'docs/guides/fleet-ops.md'))
-      .toBe('https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md');
+    expect(buildGitHubDocsUrl('git@github.com:demo/customer-mds.git', 'main', 'docs/guides/fleet-ops.md'))
+      .toBe('https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md');
     expect(buildGitHubDocsUrl('https://token@github.com/demo/customer-mds.git', 'main', 'docs/guides/fleet-ops.md'))
       .toBeNull();
   });

@@ -120,7 +120,7 @@ MODE SELECTION:
 
 REPOSITORY OPTIONS:
     -r, --repo-url URL  Git repository URL
-    -b, --branch BRANCH Git branch (default: main-candidate)
+    -b, --branch BRANCH Git branch (default: main)
     --https             Use HTTPS instead of SSH for git
     --git-auth-token-file PATH
                         Preferred private HTTPS Git auth token file

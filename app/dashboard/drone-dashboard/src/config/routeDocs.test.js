@@ -41,7 +41,7 @@ describe('routeDocs', () => {
 
     expect(getRouteDocUrl('/quickscout', {
       repoWebUrl: 'https://github.com/demo/customer-mds',
-    })).toBe('https://github.com/demo/customer-mds/blob/main-candidate/docs/quickscout.md');
+    })).toBe('https://github.com/demo/customer-mds/blob/main/docs/quickscout.md');
   });
 
   test('falls back to repo-relative paths without repo metadata', () => {

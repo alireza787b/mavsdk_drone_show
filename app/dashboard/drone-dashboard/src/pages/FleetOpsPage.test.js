@@ -16,7 +16,7 @@ jest.mock('../services/gcsApiService', () => {
 
 const gitPayload = {
   gcs_status: {
-    branch: 'main-candidate',
+    branch: 'main',
     commit: 'abcdef1234567890',
     remote_url: 'git@github.com:demo/customer-mds.git',
   },
@@ -25,7 +25,7 @@ const gitPayload = {
       pos_id: 1,
       hw_id: '1',
       ip: '100.82.72.33',
-      branch: 'main-candidate',
+      branch: 'main',
       commit: 'abcdef1234567890',
       in_sync_with_gcs: true,
       repo_access_mode: 'https_token_file',
@@ -65,7 +65,7 @@ const gitPayload = {
       pos_id: 2,
       hw_id: '2',
       ip: '100.82.47.7',
-      branch: 'main-candidate',
+      branch: 'main',
       commit: '1111111111111111',
       in_sync_with_gcs: false,
       repo_access_mode: 'ssh_key',
@@ -141,7 +141,7 @@ describe('FleetOpsPage', () => {
     expect(screen.getByRole('heading', { name: /fleet ops/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /fleet ops guide/i })).toHaveAttribute(
       'href',
-      'https://github.com/demo/customer-mds/blob/main-candidate/docs/guides/fleet-ops.md',
+      'https://github.com/demo/customer-mds/blob/main/docs/guides/fleet-ops.md',
     );
     expect(screen.getAllByText('1/2').length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText('1 MAVLink')).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe('FleetOpsPage', () => {
       pos_id: 3,
       hw_id: '3',
       ip: '100.82.47.9',
-      branch: 'main-candidate',
+      branch: 'main',
       commit: 'abcdef1234567890',
       in_sync_with_gcs: true,
       repo_access_mode: 'https_token_file',

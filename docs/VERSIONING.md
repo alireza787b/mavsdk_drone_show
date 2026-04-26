@@ -292,7 +292,7 @@ MAVSDK Drone Show - Version Synchronization
 📝 Updating app/dashboard/drone-dashboard/package.json...
    ✅ Updated to version 3.7
 📝 Generating app/dashboard/drone-dashboard/src/version.js...
-   ✅ Generated: v3.7 (a1b2c3d) on main-candidate
+   ✅ Generated: v3.7 (a1b2c3d) on main
 
 ============================================================
 ✅ Version synchronization complete!
@@ -337,25 +337,27 @@ git commit -m "chore: bump version to 3.7"
 
 ## Release Workflow
 
-MDS uses a **two-branch release workflow**:
+MDS uses a **main-first release workflow**:
 
 ### Branch Strategy
 
 ```
-main-candidate  ←  Development & testing
+feature/client branch  ←  Development & testing
       ↓
-    main  ←  Stable releases only
+    main  ←  Default deployable branch
+      ↓
+ GitHub release tag  ←  Published release checkpoint
 ```
 
 **Branches:**
-- **main-candidate**: Active development, new features, testing
-- **main**: Stable releases only, production-ready code
+- **feature/client branches**: Active development, experiments, private customization, and work that is not yet validated.
+- **main**: Default branch used by installers, SITL images, GCS startup, drone sync, and public documentation. Keep it deployable.
 
 ### Release Process
 
-#### Phase 1: Development (main-candidate)
+#### Phase 1: Development
 
-1. Develop features on `main-candidate` branch
+1. Develop features on a short-lived feature/client branch from `main`
 2. Test thoroughly in SITL environment
 3. Version number can be bumped to next minor version early (e.g., `3.7`)
 4. Multiple commits during development
@@ -373,7 +375,7 @@ main-candidate  ←  Development & testing
 
 ```bash
 git checkout main
-git merge main-candidate
+git merge <validated-feature-branch>
 git push origin main
 ```
 
@@ -473,7 +475,7 @@ python tools/version_sync.py
 ❌ **Don't merge to main without testing**
 - main branch should always be stable
 
-❌ **Don't create GitHub releases from main-candidate**
+❌ **Don't create GitHub releases from an unvalidated feature/client branch**
 - Only create releases from main branch
 
 ---
@@ -501,9 +503,9 @@ cd app/dashboard/drone-dashboard && npm run build && cd ../../..
 git add -A
 git commit -m "chore: bump version to 3.7 with new trajectory features"
 
-# 6. Merge to main (when ready)
+# 6. Merge validated work to main (when ready)
 git checkout main
-git merge main-candidate
+git merge <validated-feature-branch>
 git push origin main
 
 # 7. Create GitHub release v3.7
@@ -614,7 +616,7 @@ git status
 2. **Sync Tool:** `python tools/version_sync.py`
 3. **Version Format:** `X.Y` (simple two-part)
 4. **Release Branch:** main (stable releases only)
-5. **Development Branch:** main-candidate
+5. **Development Branch:** short-lived feature/client branch from `main`
 6. **Manual Override:** Supported (edit VERSION file)
 
 **Version Bump Checklist:**

@@ -16,7 +16,7 @@ SCRIPT_NAME=$(basename "$0")
 SCRIPT_VERSION="2.0.0"
 
 DEFAULT_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
-DEFAULT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+DEFAULT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 DEFAULT_IMAGE_NAME="${MDS_DOCKER_IMAGE:-mavsdk-drone-show-sitl:custom}"
 BASE_IMAGE="${MDS_SITL_BASE_IMAGE:-mavsdk-drone-show-sitl:latest}"
 

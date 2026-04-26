@@ -137,7 +137,7 @@ MDS supports environment variable overrides for advanced configuration:
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `MDS_REPO_URL` | Custom git repository URL | Official repo |
-| `MDS_BRANCH` | Custom git branch | `main-candidate` |
+| `MDS_BRANCH` | Custom git branch | `main` |
 | `MDS_GIT_AUTH_TOKEN_FILE` | Preferred read-only GitHub HTTPS token file for private SITL/image-prep/GCS read setups | unset |
 | `MDS_GIT_SSH_KEY_FILE` | Optional SSH private key file for private GitHub SSH runtime sync | unset |
 | `MDS_GIT_AUTO_PUSH` | Allow dashboard saves/imports to commit + push on the GCS | `true` in writable setups |
@@ -201,7 +201,7 @@ See [Advanced SITL Guide](guides/advanced-sitl.md) for usage examples.
 
 Quick start for VPS/Ubuntu:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main-candidate/tools/install_gcs.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_gcs.sh | sudo bash
 ```
 
 Manual setup:
@@ -239,7 +239,7 @@ Understanding how MDS manages versions:
 Topics covered:
 - Version numbering scheme (X.Y)
 - How to bump versions
-- Release process (main-candidate → main → GitHub release)
+- Release process (validated `main` commit → GitHub release)
 - Automated version synchronization
 - Manual override capabilities
 
