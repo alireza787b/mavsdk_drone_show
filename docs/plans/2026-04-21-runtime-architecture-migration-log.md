@@ -2671,3 +2671,34 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/sar/DroneStatusCard.test.js src/components/sar/FindingReviewPanel.test.js src/components/sar/MissionStatsBar.test.js src/components/sar/MissionHandoffPanel.test.js src/components/sar/QuickScoutLaunchReview.test.js src/pages/QuickScoutPage.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 61
+
+Goal:
+
+- replace emoji/readiness glyphs in Swarm Mission Readiness with accessible
+  icon-backed status indicators and close the missing processing-state styling
+  gap
+
+Implemented:
+
+- replaced loading, error, empty, refresh, expand, preview, warning, and
+  lightbox-close glyphs with `react-icons` controls and labels where needed
+- split cluster status indicators into icon plus text instead of emoji-prefixed
+  text
+- moved leader readiness status glyphs to reusable status-icon classes
+- added explicit `processing` styling for cluster cards, title hover states,
+  expand icons, CSV indicators, and follower readiness pills
+- preserved readiness summary, action links, cluster expansion, preview
+  lightbox, and trajectory image fallback behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused readiness test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/MissionReadinessCard.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

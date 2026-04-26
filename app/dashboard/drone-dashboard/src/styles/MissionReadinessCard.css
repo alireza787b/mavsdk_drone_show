@@ -102,6 +102,9 @@
 }
 
 .refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
@@ -261,6 +264,12 @@
   box-shadow: var(--shadow-sm);
 }
 
+.cluster-card.processing {
+  border-left-color: var(--color-warning);
+  background: linear-gradient(135deg, var(--color-warning-light), var(--color-bg-secondary));
+  box-shadow: var(--shadow-sm);
+}
+
 .cluster-card.missing {
   border-left-color: var(--color-danger);
   background: linear-gradient(135deg, var(--color-danger-light), var(--color-bg-secondary));
@@ -292,6 +301,12 @@
 .cluster-card.uploaded .cluster-header.clickable:hover .cluster-title {
   background: var(--color-info-light);
   border-color: var(--color-info);
+  transform: translateY(-1px);
+}
+
+.cluster-card.processing .cluster-header.clickable:hover .cluster-title {
+  background: var(--color-warning-light);
+  border-color: var(--color-warning);
   transform: translateY(-1px);
 }
 
@@ -331,6 +346,13 @@
   box-shadow: var(--shadow-sm);
 }
 
+.cluster-card.processing .cluster-title {
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 2px solid var(--color-warning);
+  box-shadow: var(--shadow-sm);
+}
+
 .cluster-card.missing .cluster-title {
   color: var(--color-text-primary);
   background: var(--color-bg-primary);
@@ -345,6 +367,11 @@
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
   transition: var(--transition-base);
+  transform: rotate(-90deg);
+}
+
+.expand-icon.expanded {
+  transform: rotate(0deg);
 }
 
 /* Theme-aware expand icon styling */
@@ -355,6 +382,11 @@
 
 .cluster-card.uploaded .expand-icon {
   color: var(--color-info);
+  font-weight: var(--font-weight-bold);
+}
+
+.cluster-card.processing .expand-icon {
+  color: var(--color-warning);
   font-weight: var(--font-weight-bold);
 }
 
@@ -394,6 +426,12 @@
   border-color: var(--color-info);
 }
 
+.cluster-card.processing .csv-indicator {
+  background: var(--color-warning-light);
+  color: var(--color-text-primary);
+  border-color: var(--color-warning);
+}
+
 .cluster-card.missing .csv-indicator {
   background: var(--color-danger-light);
   color: var(--color-text-primary);
@@ -401,6 +439,9 @@
 }
 
 .preview-cluster-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--color-bg-tertiary);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
@@ -466,6 +507,12 @@
   background: var(--color-info-light);
   color: var(--color-text-primary);
   border-color: var(--color-info);
+}
+
+.drone-id.follower.processing {
+  background: var(--color-warning-light);
+  color: var(--color-text-primary);
+  border-color: var(--color-warning);
 }
 
 .drone-id.follower.missing {
@@ -648,6 +695,22 @@
   align-items: center;
   gap: var(--spacing-xs);
   color: var(--color-text-secondary);
+}
+
+.readiness-status-icon {
+  flex-shrink: 0;
+}
+
+.readiness-status-icon.ready {
+  color: var(--color-success);
+}
+
+.readiness-status-icon.processing {
+  color: var(--color-warning);
+}
+
+.readiness-status-icon.missing {
+  color: var(--color-danger);
 }
 
 .drone-actions {
@@ -967,6 +1030,9 @@
 }
 
 .lightbox-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--color-bg-quaternary);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
