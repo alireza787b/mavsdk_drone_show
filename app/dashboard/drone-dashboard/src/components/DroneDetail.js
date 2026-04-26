@@ -304,7 +304,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <div className="detail-grid">
           <div className="detail-item">
             <label>GPS Fix Type</label>
-            <span style={{ color: gpsStatus.color }}>{gpsStatus.label}</span>
+            <span className={gpsStatus.class}>{gpsStatus.label}</span>
           </div>
           <div className="detail-item">
             <label>Satellites Visible</label>
@@ -414,8 +414,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
             </span>
             <div className="connection-indicator">
               <span
-                className="status-dot"
-                style={{ backgroundColor: connectionStatus.color }}
+                className={`status-dot status-dot--${connectionStatus.tone}`}
                 title={runtimeStatus.tooltip}
               />
               <span className="status-text">

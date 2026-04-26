@@ -145,11 +145,10 @@ const DroneGitStatus = ({ gitStatus, gcsGitStatus, droneName }) => {
             {gitStatus.branch || 'N/A'}
           </span>
           <span
-            className="commit-hash"
+            className={`commit-hash ${gitStatus.commit ? 'commit-hash--copyable' : 'commit-hash--disabled'}`}
             onClick={gitStatus.commit ? handleCopyCommit : undefined}
             data-help={gitStatus.commit ? "Click to copy full commit hash" : "No commit hash available"}
             aria-label={gitStatus.commit ? "Commit hash, click to copy" : "No commit hash available"}
-            style={gitStatus.commit ? { cursor: 'pointer' } : { cursor: 'default', opacity: 0.6 }}
           >
             {shortCommitHash}
             {gitStatus.commit && <FaCopy className="copy-icon" aria-hidden="true" />}

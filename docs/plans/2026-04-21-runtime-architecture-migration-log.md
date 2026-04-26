@@ -3005,3 +3005,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointPanel.test.js src/pages/TrajectoryPlanning.test.js src/pages/MissionConfig.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 73
+
+Goal:
+
+- move remaining operator-visible Drone Detail and Drone Git Status inline
+  styling into reusable tone classes
+
+Implemented:
+
+- replaced Drone Detail GPS status inline color with status classes
+- replaced Drone Detail connection-dot inline background color with tone
+  classes
+- replaced Drone Git Status commit hash cursor/opacity inline state with
+  `commit-hash--copyable` and `commit-hash--disabled` classes
+- preserved runtime status labels/tooltips, GPS labels, commit-copy behavior,
+  and expanded runtime summary behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed whitespace check:
+  `git diff --check`
+- passed focused DroneGitStatus tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/DroneGitStatus.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
