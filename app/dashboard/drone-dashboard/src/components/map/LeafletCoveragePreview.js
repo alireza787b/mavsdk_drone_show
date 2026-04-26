@@ -3,19 +3,30 @@
 
 import React, { useMemo } from 'react';
 import { Polyline } from 'react-leaflet';
+import { getPlotThemeColors } from '../../utilities/plotThemeColors';
 
-const DRONE_COLORS = [
-  '#3b82f6', '#22c55e', '#f97316', '#ef4444',
-  '#a855f7', '#06b6d4', '#eab308', '#ec4899',
-];
+const getCoveragePalette = () => {
+  const themeColors = getPlotThemeColors();
+  return [
+    themeColors.primary,
+    themeColors.success,
+    themeColors.warning,
+    themeColors.danger,
+    themeColors.secondary,
+    themeColors.info,
+    themeColors.accent,
+    themeColors.primaryHover,
+  ];
+};
 
 const LeafletCoveragePreview = ({ plans, missionStatus }) => {
   const segments = useMemo(() => {
     if (!plans || plans.length === 0) return [];
     const result = [];
+    const droneColors = getCoveragePalette();
 
     plans.forEach((plan, droneIdx) => {
-      const color = DRONE_COLORS[droneIdx % DRONE_COLORS.length];
+      const color = droneColors[droneIdx % droneColors.length];
       const droneState = missionStatus?.drone_states?.[plan.hw_id];
       const completedWpIdx = droneState?.current_waypoint_index || 0;
 
