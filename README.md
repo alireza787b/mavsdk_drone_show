@@ -45,6 +45,19 @@ bash app/linux_dashboard_start.sh --sitl
 
 Then open `http://<host>:3030`.
 
+If you prefer a memorable command wrapper, the root `Makefile` exposes the same
+canonical scripts without replacing them:
+
+```bash
+make help
+make gcs-sitl
+make gcs-real START_FLAGS="--prod --skip-deps"
+make fleet-sync
+```
+
+See the [Operator Makefile Guide](docs/guides/operator-makefile.md) for the
+full command map and the rule that `make` targets must remain thin wrappers.
+
 `bash app/linux_dashboard_start.sh --sitl` now keeps the FastAPI backend single-process by default, even in development mode, so telemetry, heartbeats, command tracking, and other in-memory operational state stay coherent during live SITL runs. Only enable backend auto-reload for backend code editing with `MDS_GCS_BACKEND_RELOAD=true`.
 
 For the stock official SITL package, Mission Config starts from the tracked Azadi Stadium demo origin in `data/origin.sitl.default.json`. If you later set a different origin in the dashboard or via the API, MDS writes a local runtime override to `data/origin.json` on that server. Remove that local file when you want the stock Azadi default to apply again.

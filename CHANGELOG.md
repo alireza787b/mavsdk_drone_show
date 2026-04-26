@@ -29,6 +29,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 ## [Unreleased]
 
 ### Added
+- Root `Makefile` command index for common GCS startup, bootstrap, fleet sync,
+  SITL reconcile, and validation commands, plus an operator guide documenting
+  that `make` targets are thin wrappers around canonical scripts/APIs.
 
 ### Changed
 - Active installer, dashboard, docs-link, SITL image, and git-sync defaults now

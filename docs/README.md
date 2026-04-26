@@ -26,6 +26,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | configure private SITL/container repo auth | [Custom SITL Auth Guide](guides/custom-sitl-auth.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
 | deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
+| use repeatable `make` shortcuts for common commands | [Operator Makefile](guides/operator-makefile.md) |
 | build or redistribute a validated custom SITL image | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
 | control local SITL containers from the dashboard | [SITL Control Guide](guides/sitl-control.md) |
 | configure Mapbox-backed map views | [Mapbox Setup](guides/mapbox-setup.md) |
@@ -71,6 +72,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - dedicated follower-tracking capture and plots built on the Smart Swarm websocket stream
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - package accepted run summaries, metrics, visuals, logs, and optional PDFs in a customer-neutral format
+- **[Operator Makefile](guides/operator-makefile.md)** - thin root `make` command wrappers for common launcher, bootstrap, fleet-sync, SITL, and validation workflows
 - **`tools/sitl_plans/`** - checked-in named SITL scenario library for maintainers, CI, and AI agents
 - **[QuickScout Guide](quickscout.md)** - SAR / recon workflows
 - **[Versioning Guide](VERSIONING.md)** - release flow and version management
