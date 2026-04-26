@@ -2,6 +2,19 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import {
+  MdApartment,
+  MdArrowForward,
+  MdAutorenew,
+  MdClose,
+  MdFlight,
+  MdGpsFixed,
+  MdLightbulb,
+  MdLocationCity,
+  MdPlace,
+  MdSearch,
+  MdTerrain,
+} from 'react-icons/md';
 import { TRAJECTORY_ALTITUDE_POLICY } from '../../constants/trajectoryMissionPolicy';
 import '../../styles/SearchBar.css';
 
@@ -259,24 +272,26 @@ const SearchBar = ({ onLocationSelect }) => {
     searchInputRef.current?.focus();
   };
 
-  // Get location type icon
-  const getLocationIcon = (type) => {
+  const getLocationIconComponent = (type) => {
     switch (type) {
-      case 'coordinate': return '🎯';
-      case 'city': return '🏙️';
-      case 'village': return '🏘️';
-      case 'airport': return '✈️';
-      case 'building': return '🏢';
-      case 'amenity': return '📍';
-      case 'natural': return '🌍';
-      default: return '📍';
+      case 'coordinate': return MdGpsFixed;
+      case 'city': return MdLocationCity;
+      case 'village': return MdLocationCity;
+      case 'airport': return MdFlight;
+      case 'building': return MdApartment;
+      case 'natural': return MdTerrain;
+      case 'amenity':
+      default:
+        return MdPlace;
     }
   };
 
   return (
     <div className="search-bar-container" ref={suggestionsRef}>
       <div className="search-input-wrapper">
-        <span className="search-icon">🔍</span>
+        <span className="search-icon" aria-hidden="true">
+          <MdSearch />
+        </span>
         
         <input
           ref={searchInputRef}
@@ -291,25 +306,29 @@ const SearchBar = ({ onLocationSelect }) => {
         
         {searchTerm && (
           <button 
+            type="button"
             onClick={handleClear}
             className="clear-button"
             title="Clear search"
+            aria-label="Clear search"
             disabled={isLoading}
           >
-            ✕
+            <MdClose aria-hidden="true" />
           </button>
         )}
         
         <button 
+          type="button"
           onClick={handleSearch}
           className="search-button"
           disabled={isLoading || !searchTerm.trim()}
           title="Search location"
+          aria-label="Search location"
         >
           {isLoading ? (
-            <span className="spinner">⟳</span>
+            <MdAutorenew className="spinner" aria-hidden="true" />
           ) : (
-            '→'
+            <MdArrowForward aria-hidden="true" />
           )}
         </button>
       </div>
@@ -324,27 +343,31 @@ const SearchBar = ({ onLocationSelect }) => {
       {/* Suggestions dropdown */}
       {showSuggestions && suggestions.length > 0 && (
         <div className="search-suggestions">
-          {suggestions.map((suggestion, index) => (
-            <div
-              key={`${suggestion.latitude}-${suggestion.longitude}-${index}`}
-              className={`suggestion-item ${index === selectedIndex ? 'selected' : ''}`}
-              onClick={() => handleSuggestionSelect(suggestion)}
-            >
-              <span className="suggestion-icon">
-                {getLocationIcon(suggestion.type)}
-              </span>
-              <div className="suggestion-text">
-                <div className="suggestion-main">{suggestion.name}</div>
-                <div className="suggestion-sub">
-                  {suggestion.description} • {suggestion.latitude.toFixed(4)}, {suggestion.longitude.toFixed(4)}
+          {suggestions.map((suggestion, index) => {
+            const LocationIcon = getLocationIconComponent(suggestion.type);
+
+            return (
+              <div
+                key={`${suggestion.latitude}-${suggestion.longitude}-${index}`}
+                className={`suggestion-item ${index === selectedIndex ? 'selected' : ''}`}
+                onClick={() => handleSuggestionSelect(suggestion)}
+              >
+                <span className="suggestion-icon">
+                  <LocationIcon aria-hidden="true" />
+                </span>
+                <div className="suggestion-text">
+                  <div className="suggestion-main">{suggestion.name}</div>
+                  <div className="suggestion-sub">
+                    {suggestion.description} • {suggestion.latitude.toFixed(4)}, {suggestion.longitude.toFixed(4)}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           
-          {/* Coordinate parsing hint */}
-          <div className="suggestion-hint">
-            💡 Tip: Enter coordinates as "latitude, longitude" (e.g., "35.7262, 51.2721")
+          <div className="suggestion-hint suggestion-hint--with-icon">
+            <MdLightbulb aria-hidden="true" />
+            <span>Tip: Enter coordinates as "latitude, longitude" (e.g., "35.7262, 51.2721")</span>
           </div>
         </div>
       )}
@@ -353,7 +376,7 @@ const SearchBar = ({ onLocationSelect }) => {
       {isLoading && searchTerm.length >= 2 && (
         <div className="search-suggestions loading">
           <div className="suggestion-item loading-item">
-            <span className="spinner">⟳</span>
+            <MdAutorenew className="spinner" aria-hidden="true" />
             <span>Searching locations...</span>
           </div>
         </div>
@@ -363,7 +386,9 @@ const SearchBar = ({ onLocationSelect }) => {
       {showSuggestions && !isLoading && suggestions.length === 0 && searchTerm.length >= 2 && (
         <div className="search-suggestions">
           <div className="suggestion-item no-results">
-            <span>🔍</span>
+            <span className="suggestion-icon">
+              <MdSearch aria-hidden="true" />
+            </span>
             <div className="suggestion-text">
               <div className="suggestion-main">No locations found</div>
               <div className="suggestion-sub">Try entering coordinates as "latitude, longitude"</div>

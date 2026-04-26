@@ -7,6 +7,7 @@ import {
   MdClose,
   MdDelete,
   MdExpandMore,
+  MdLightbulb,
   MdList,
   MdLocationOn,
   MdWarningAmber,
@@ -1176,7 +1177,8 @@ const WaypointPanel = ({
       {waypoints.length > 0 && !editingWaypointId && !isCollapsed && (
         <div className="edit-instructions">
           <small>
-            💡 {isMobile ? 'Tap editable values to change operator-owned inputs' : 'Click editable values to change operator-owned inputs inline'}.
+            <MdLightbulb aria-hidden="true" />
+            <span>{isMobile ? 'Tap editable values to change operator-owned inputs' : 'Click editable values to change operator-owned inputs inline'}.</span>
             {' '}Derived timing and speed checks stay locked so the panel always shows what the planner is calculating.
             {!isMobile && ' Drag waypoints on map to reposition.'}
           </small>

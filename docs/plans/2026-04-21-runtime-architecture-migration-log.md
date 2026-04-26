@@ -2864,3 +2864,36 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointModal.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 68
+
+Goal:
+
+- finish the remaining trajectory authoring glyph cleanup so search,
+  waypoint placement, and speed warnings use the same icon-backed operator
+  language
+
+Implemented:
+
+- replaced SearchBar location, search, clear, submit, loading, no-result, and
+  coordinate-tip glyphs with `react-icons`
+- replaced the Waypoint Modal coordinate label glyph with an accessible icon
+  label
+- replaced the Trajectory Planning map speed-warning badge glyph with an icon
+  component
+- replaced waypoint start/end pseudo-emoji indicators with CSS status dots
+- removed the duplicated legacy SearchBar dropdown stylesheet block while
+  preserving the modern z-index/dropdown behavior
+- preserved geocoding, coordinate parsing, keyboard suggestion navigation,
+  waypoint modal behavior, map marker warning behavior, and panel edit guidance
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused trajectory tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/TrajectoryPlanning.test.js src/components/trajectory/WaypointPanel.test.js src/components/trajectory/WaypointModal.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

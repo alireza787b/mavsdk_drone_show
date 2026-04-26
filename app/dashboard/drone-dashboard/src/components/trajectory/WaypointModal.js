@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import {
   MdCalendarToday,
   MdExplore,
+  MdPlace,
   MdTerrain,
   MdTimer,
   MdWarningAmber,
@@ -487,7 +488,10 @@ const WaypointModal = ({
         <div className="waypoint-modal-body">
           <div className="waypoint-location-info">
             <div className="location-item">
-              <label>📍 Coordinates</label>
+              <label className="input-label--with-icon">
+                <MdPlace aria-hidden="true" />
+                <span>Coordinates</span>
+              </label>
               <span>{position?.latitude?.toFixed(6)}, {position?.longitude?.toFixed(6)}</span>
             </div>
             

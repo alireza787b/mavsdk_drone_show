@@ -708,6 +708,19 @@
   text-align: center;
 }
 
+.edit-instructions small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.edit-instructions svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
 .detail-value.small {
   font-size: 0.75rem;
   line-height: 1.4;

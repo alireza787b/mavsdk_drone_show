@@ -1246,7 +1246,12 @@
 }
 
 .start-indicator::before {
-  content: "🟢 ";
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: currentColor;
   margin-right: var(--spacing-xs);
 }
 
@@ -1256,7 +1261,12 @@
 }
 
 .end-indicator::before {
-  content: "🔴 ";
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: currentColor;
   margin-right: var(--spacing-xs);
 }
 

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaHandPaper, FaMapMarkerAlt } from 'react-icons/fa';
+import { MdWarningAmber } from 'react-icons/md';
 
 // Import existing trajectory components
 import WaypointPanel from '../components/trajectory/WaypointPanel';
@@ -1611,7 +1612,7 @@ const TrajectoryPlanning = () => {
                     
                     {!waypoint.speedFeasible && (
                       <div className="speed-warning-badge" role="img" aria-label="Speed warning - check timing">
-                        ⚠
+                        <MdWarningAmber aria-hidden="true" />
                       </div>
                     )}
                   </div>
