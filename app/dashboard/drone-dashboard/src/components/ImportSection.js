@@ -133,7 +133,7 @@ const ProcessingProgressModal = ({
               )}
             </Box>
 
-            <Paper variant="outlined" sx={{ p: 2, mb: 2, bgcolor: '#f8fafc' }}>
+            <Paper variant="outlined" className="import-result-card" sx={{ p: 2, mb: 2 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 700 }}>
                 Imported Show
               </Typography>
@@ -328,12 +328,12 @@ const ImportSection = ({ setUploadCount }) => {
 
   return (
     <Box className="import-section">
-      <Typography variant="h5" sx={{ color: '#0056b3', mb: 2 }}>
+      <Typography variant="h5" className="import-section__title" sx={{ mb: 2 }}>
         Import Drone Show
       </Typography>
 
       <Box className="intro-section" sx={{ mb: 3 }}>
-        <Typography variant="body1" paragraph sx={{ color: '#374151', lineHeight: 1.6 }}>
+        <Typography variant="body1" paragraph className="import-section__lede">
           Upload a SkyBrush ZIP archive to generate the processed Drone Show CSV set, launch plots,
           and operator-facing verification data.
         </Typography>
@@ -342,8 +342,8 @@ const ImportSection = ({ setUploadCount }) => {
           from its own local launch frame, use <strong>Custom Show</strong> instead of this page.
         </Alert>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 2, mb: 2 }}>
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+        <Box className="import-feature-grid">
+          <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <CloudUpload color="primary" />
               <Typography variant="subtitle2" fontWeight="bold">Staged Import</Typography>
@@ -353,7 +353,7 @@ const ImportSection = ({ setUploadCount }) => {
             </Typography>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+          <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Timeline color="secondary" />
               <Typography variant="subtitle2" fontWeight="bold">Trajectory Processing</Typography>
@@ -363,7 +363,7 @@ const ImportSection = ({ setUploadCount }) => {
             </Typography>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+          <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Security color="success" />
               <Typography variant="subtitle2" fontWeight="bold">Operator Verification</Typography>
@@ -373,7 +373,7 @@ const ImportSection = ({ setUploadCount }) => {
             </Typography>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: '#f8f9fa' }}>
+          <Paper variant="outlined" className="import-feature-card">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Visibility color="info" />
               <Typography variant="subtitle2" fontWeight="bold">Plot Review</Typography>
@@ -411,11 +411,8 @@ const ImportSection = ({ setUploadCount }) => {
             onClick={uploadFile}
             disabled={!selectedFile || isUploading}
             startIcon={isUploading ? <CircularProgress size={20} color="inherit" /> : <CloudUpload />}
-            sx={{
-              minWidth: 160,
-              bgcolor: '#10b981',
-              '&:hover': { bgcolor: '#059669' },
-            }}
+            className="import-primary-action"
+            sx={{ minWidth: 160 }}
           >
             {isUploading ? 'Importing...' : 'Upload & Process'}
           </Button>

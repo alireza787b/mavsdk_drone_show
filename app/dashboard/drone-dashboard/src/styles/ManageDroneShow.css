@@ -94,7 +94,7 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1));
+    background: linear-gradient(90deg, var(--color-shadow-light), transparent);
 }
 
 .workflow-guidance .workflow-buttons {
@@ -106,10 +106,10 @@
 }
 
 .workflow-guidance .workflow-button {
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid var(--color-primary-border);
     border-radius: var(--border-radius-base);
     padding: var(--spacing-sm) var(--spacing-base);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-primary-light);
     color: var(--color-text-primary);
     text-transform: none;
     font-weight: var(--font-weight-medium);
@@ -121,15 +121,15 @@
 }
 
 .workflow-guidance .workflow-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.5);
+    background: var(--color-bg-tertiary);
+    border-color: var(--color-border-secondary);
     transform: translateY(-2px);
     box-shadow: var(--shadow-sm);
 }
 
 .workflow-guidance .workflow-button.active {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.7);
+    background: var(--color-bg-quaternary);
+    border-color: var(--color-border-focus);
     font-weight: var(--font-weight-semibold);
     box-shadow: var(--shadow-base);
 }
@@ -215,7 +215,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.9);
+    background: var(--color-bg-overlay);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -495,7 +495,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-shadow-light), transparent);
     animation: shimmer 2s infinite;
 }
 
@@ -592,7 +592,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-shadow-light), transparent);
     transition: var(--transition-base);
 }
 
@@ -790,108 +790,9 @@
     outline-offset: 2px;
 }
 
-/* Current Show Information Box - Theme Override */
-.manage-drone-show-container .MuiBox-root[style*="bgcolor: rgb(248, 249, 250)"] {
-    background: linear-gradient(135deg, var(--color-bg-secondary), var(--color-bg-tertiary)) !important;
-    border: 1px solid var(--color-border-primary) !important;
-    border-radius: var(--border-radius-lg) !important;
-    backdrop-filter: blur(8px);
-    box-shadow: var(--shadow-base) !important;
-    position: relative;
-    transition: var(--transition-all);
-    padding: var(--spacing-lg) !important;
-    margin-bottom: var(--spacing-base) !important;
-}
-
-.manage-drone-show-container .MuiBox-root[style*="bgcolor: rgb(248, 249, 250)"]::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
-}
-
 /* Professional Left Column Layout Improvements */
 .manage-drone-show-container .MuiBox-root {
     margin-bottom: var(--spacing-base) !important;
-}
-
-/* Feature Cards Grid Layout */
-.manage-drone-show-container .MuiBox-root:has(.MuiPaper-root[style*="bgcolor: #f8f9fa"]) {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
-    gap: var(--spacing-base) !important;
-    margin-bottom: var(--spacing-lg) !important;
-}
-
-/* Individual Feature Cards */
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] {
-    background: linear-gradient(135deg, var(--color-bg-tertiary), var(--color-bg-quaternary)) !important;
-    border: 1px solid var(--color-border-primary) !important;
-    border-radius: var(--border-radius-base) !important;
-    padding: var(--spacing-base) !important;
-    box-shadow: var(--shadow-sm) !important;
-    transition: var(--transition-all) !important;
-    position: relative;
-    height: auto !important;
-    min-height: 100px !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"]:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md) !important;
-    border-color: var(--color-primary-border) !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"]::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    border-radius: var(--border-radius-base) var(--border-radius-base) 0 0;
-    opacity: 0;
-    transition: var(--transition-base);
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"]:hover::before {
-    opacity: 1;
-}
-
-/* Feature Card Content Spacing */
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiBox-root {
-    margin-bottom: var(--spacing-xs) !important;
-    display: flex !important;
-    align-items: center !important;
-    gap: var(--spacing-sm) !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiTypography-subtitle2 {
-    color: var(--color-text-primary) !important;
-    font-weight: var(--font-weight-bold) !important;
-    font-size: var(--font-size-base) !important;
-    margin: 0 !important;
-    line-height: var(--line-height-tight) !important;
-}
-
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiTypography-body2 {
-    color: var(--color-text-secondary) !important;
-    font-size: var(--font-size-sm) !important;
-    line-height: var(--line-height-normal) !important;
-    margin: var(--spacing-xs) 0 0 0 !important;
-    font-weight: var(--font-weight-medium) !important;
-}
-
-/* Icon Styling in Feature Cards */
-.manage-drone-show-container .MuiPaper-root[style*="bgcolor: #f8f9fa"] .MuiSvgIcon-root {
-    font-size: var(--font-size-xl) !important;
-    flex-shrink: 0;
-    opacity: 0.8;
 }
 
 /* Pro Tip Section */
@@ -931,16 +832,6 @@
 .manage-drone-show-container .MuiLink-root:hover {
     color: var(--color-primary-hover) !important;
     border-bottom-color: var(--color-primary) !important;
-}
-
-.manage-drone-show-container .MuiTypography-root[style*="color: rgb(0, 86, 179)"] {
-    color: var(--color-text-primary) !important;
-    font-weight: var(--font-weight-bold) !important;
-    background: linear-gradient(135deg, var(--color-primary), var(--brand-secondary));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: var(--spacing-xs) !important;
 }
 
 /* Override Material-UI Components Theme */
@@ -1054,14 +945,14 @@
 }
 
 .metric-card:hover {
-    box-shadow: 0 8px 25px rgba(0, 86, 179, 0.15) !important;
+    box-shadow: var(--shadow-md) !important;
     border-color: var(--color-primary-border) !important;
     transform: translateY(-2px);
 }
 
 /* Dark mode hover effect */
 [data-theme="dark"] .metric-card:hover {
-    box-shadow: 0 8px 25px rgba(100, 181, 246, 0.2) !important;
+    box-shadow: var(--shadow-lg) !important;
 }
 
 .metric-icon {
