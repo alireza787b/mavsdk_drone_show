@@ -61,6 +61,9 @@
 }
 
 .manual-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
   padding: var(--spacing-sm) var(--spacing-base);
   background: var(--color-primary);
   color: var(--color-primary-text);

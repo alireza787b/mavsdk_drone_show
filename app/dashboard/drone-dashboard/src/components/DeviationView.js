@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
+import { MdMyLocation, MdRefresh } from 'react-icons/md';
 import { formatCompactDroneIdentity, normalizeComparableId } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import '../styles/DeviationView.css';
@@ -272,7 +273,8 @@ const DeviationView = ({
               }}
               disabled={!onRefresh}
             >
-              🔄 Refresh Now
+              <MdRefresh aria-hidden="true" />
+              <span>Refresh Now</span>
             </button>
           </>
         )}
@@ -280,7 +282,8 @@ const DeviationView = ({
 
       {/* Info Banner */}
       <div className="info-banner">
-        📍 Positions from trajectory CSV files (single source of truth)
+        <MdMyLocation aria-hidden="true" />
+        <span>Positions from trajectory CSV files (single source of truth)</span>
       </div>
 
       {/* Summary Statistics Header (only when showing actual positions) */}

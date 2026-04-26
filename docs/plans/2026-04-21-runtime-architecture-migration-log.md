@@ -2702,3 +2702,30 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/MissionReadinessCard.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 62
+
+Goal:
+
+- remove remaining emoji labels from the position deviation monitor controls
+  without changing deviation plotting or telemetry refresh behavior
+
+Implemented:
+
+- replaced the manual refresh emoji with an icon-backed button label
+- replaced the position-source banner emoji with a semantic location icon
+- added inline-flex alignment for the manual refresh button in
+  `DeviationView.css`
+- preserved auto-refresh toggling, manual refresh callback behavior, Plotly
+  layout, drone click handling, and deviation summary rendering
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
