@@ -2347,3 +2347,36 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/pages/MissionConfig.test.js src/components/ui/OperatorPrimitives.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 50
+
+Goal:
+
+- reduce QuickScout SAR sidebar UI drift by moving inline spacing/layout styles
+  into reusable CSS classes
+
+Implemented:
+
+- removed inline layout/spacing styles from `MissionPlanSidebar`
+- removed inline layout/spacing styles from `MissionMonitorSidebar`
+- added shared QuickScout spacing/status classes for:
+  - section offsets
+  - compact stack gaps
+  - bottom gaps
+  - drone status list layout
+  - terrain-following checkbox accent
+  - sticky sidebar action stack
+  - compact launch summary text
+- preserved QuickScout planning, recovery, launch-readiness, monitor, finding,
+  and follow-up behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/pages/QuickScoutPage.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

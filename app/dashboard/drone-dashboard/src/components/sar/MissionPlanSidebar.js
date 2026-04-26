@@ -153,7 +153,7 @@ const MissionPlanSidebar = ({
             ))}
           </div>
           {missionProfileId === 'custom' && (
-            <div className="qs-empty-copy" style={{ marginBottom: 10 }}>
+            <div className="qs-empty-copy qs-gap-bottom">
               Current survey settings are custom and no longer match a saved profile.
             </div>
           )}
@@ -170,9 +170,8 @@ const MissionPlanSidebar = ({
           </div>
 
           <div
-            className="qs-collapsible-header"
+            className="qs-collapsible-header qs-stack-offset"
             onClick={() => setShowMissionBrief(!showMissionBrief)}
-            style={{ marginTop: 8 }}
           >
             <span className="qs-config-label">Mission Brief</span>
             {showMissionBrief ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
@@ -281,10 +280,10 @@ const MissionPlanSidebar = ({
               >
                 Use Map Center
               </button>
-              <div className="qs-search-note" style={{ marginTop: 8 }}>
+              <div className="qs-search-note qs-stack-offset">
                 QuickScout will build a point-centered search envelope from this report and partition the resulting coverage package across the selected aircraft.
               </div>
-              <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+              <div className="qs-empty-copy qs-stack-offset">
                 SearchBar selections also seed the last known point automatically.
               </div>
             </>
@@ -312,7 +311,7 @@ const MissionPlanSidebar = ({
                   {searchFootprintHa > 0 ? `${searchFootprintHa.toFixed(2)} ha` : 'Not set'}
                 </span>
               </div>
-              <div className="qs-choice-row" style={{ marginTop: 8 }}>
+              <div className="qs-choice-row qs-stack-offset">
                 <button
                   type="button"
                   className="qs-choice-chip"
@@ -337,10 +336,10 @@ const MissionPlanSidebar = ({
                   Clear Route
                 </button>
               </div>
-              <div className="qs-search-note" style={{ marginTop: 8 }}>
+              <div className="qs-search-note qs-stack-offset">
                 SearchBar selections append route points for the corridor. The mission package expands that route into a buffered search strip before partitioning aircraft assignments.
               </div>
-              <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+              <div className="qs-empty-copy qs-stack-offset">
                 Add at least two ordered route points, then compute the corridor package.
               </div>
             </>
@@ -350,7 +349,7 @@ const MissionPlanSidebar = ({
               <span className="qs-stat-value">{searchArea.length}</span>
             </div>
           ) : (
-            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+            <div className="qs-empty-copy">
               Draw a polygon on the map to define the search area
             </div>
           )}
@@ -380,12 +379,12 @@ const MissionPlanSidebar = ({
               </label>
             ))}
             {drones.length === 0 && (
-              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>
+              <div className="qs-empty-copy">
                 No drones configured &mdash; add drones in Mission Config
               </div>
             )}
           </div>
-          <div className="qs-empty-copy" style={{ marginTop: 8 }}>
+          <div className="qs-empty-copy qs-stack-offset">
             QuickScout planning selects assigned slots and resolves them to the current hardware fleet at launch.
           </div>
           <IdentityDoctrineStrip surface="quickscout" className="qs-identity-doctrine" />
@@ -433,15 +432,14 @@ const MissionPlanSidebar = ({
 
           {/* Advanced Options */}
           <div
-            className="qs-collapsible-header"
+            className="qs-collapsible-header qs-stack-offset"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            style={{ marginTop: 8 }}
           >
             <span className="qs-config-label">More Options</span>
             {showAdvanced ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
           </div>
           {showAdvanced && (
-            <div style={{ marginTop: 6 }}>
+            <div className="qs-stack-tight">
               <div className="qs-config-row">
                 <span className="qs-config-label">Overlap</span>
                 <div>
@@ -494,9 +492,9 @@ const MissionPlanSidebar = ({
                 <span className="qs-config-label">Terrain Following</span>
                 <input
                   type="checkbox"
+                  className="qs-terrain-checkbox"
                   checked={surveyConfig.use_terrain_following}
                   onChange={(e) => updateConfig('use_terrain_following', e.target.checked)}
-                  style={{ accentColor: 'var(--color-primary)' }}
                 />
               </div>
             </div>
@@ -527,7 +525,7 @@ const MissionPlanSidebar = ({
         )}
 
         {/* Action Buttons */}
-        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="qs-sidebar-actions">
           <button
             className="qs-btn qs-btn-primary qs-btn-full"
             onClick={onComputePlan}
@@ -537,7 +535,7 @@ const MissionPlanSidebar = ({
           </button>
 
           {coveragePlan && (
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>
+            <div className="qs-launch-summary">
               {planNeedsRecompute
                 ? 'Mission inputs changed after compute — regenerate the package before launch.'
                 : `${coveragePlan.plans?.length} drones, ~${(coveragePlan.estimated_coverage_time_s / 60).toFixed(1)} min`}

@@ -193,6 +193,22 @@
     margin-bottom: 8px;
 }
 
+.qs-stack-offset {
+    margin-top: 8px;
+}
+
+.qs-stack-offset-lg {
+    margin-top: 10px;
+}
+
+.qs-stack-tight {
+    margin-top: 6px;
+}
+
+.qs-gap-bottom {
+    margin-bottom: 10px;
+}
+
 .qs-config-row {
     display: flex;
     align-items: center;
@@ -265,6 +281,12 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+.qs-drone-status-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .qs-drone-item {
@@ -479,6 +501,23 @@
 
 .qs-config-input-wide {
     width: 132px;
+}
+
+.qs-terrain-checkbox {
+    accent-color: var(--color-primary);
+}
+
+.qs-sidebar-actions {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.qs-launch-summary {
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    text-align: center;
 }
 
 .qs-search-center-marker {
