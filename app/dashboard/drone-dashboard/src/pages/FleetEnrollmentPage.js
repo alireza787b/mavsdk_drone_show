@@ -820,7 +820,7 @@ function FleetEnrollmentPage() {
           </label>
           <label>
             <span>UI color</span>
-            <input type="text" value={dialogState.color ?? ''} onChange={(event) => updateDialogState('color', event.target.value)} placeholder="#22c55e" />
+            <input type="text" value={dialogState.color ?? ''} onChange={(event) => updateDialogState('color', event.target.value)} placeholder="Optional marker color" />
           </label>
         </div>
         <label className="fleet-enrollment-form-stack">

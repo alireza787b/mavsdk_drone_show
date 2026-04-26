@@ -17,6 +17,7 @@ import {
   calculateGlobeTelemetryIntervalMs,
 } from '../utilities/globeTelemetryViewModel';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 const GlobeView = () => {
   const [drones, setDrones] = useState([]);
@@ -239,7 +240,7 @@ const GlobeView = () => {
                 selected ? 'selected' : '',
                 drone.runtime_indicator_class ? `runtime-${drone.runtime_indicator_class}` : '',
               ].filter(Boolean).join(' ')}
-              style={{ '--mds-drone-marker-color': drone.marker_color || '#00d4ff' }}
+              style={{ '--mds-drone-marker-color': drone.marker_color || getPlotThemeColors().primary }}
               onClick={() => setSelectedDroneId(selected ? null : droneId)}
               aria-label={`Select ${formatCompactDroneIdentity(drone.pos_id, drone.hw_id, `H${drone.hw_id}`)} on the active view`}
             >

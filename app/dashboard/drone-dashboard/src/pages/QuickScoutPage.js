@@ -60,6 +60,7 @@ import {
   calculateCircularAreaSqM,
   normalizeSearchPath,
 } from '../utilities/quickScoutSearchGeometry';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 // Styles
 import '../styles/QuickScout.css';
@@ -120,10 +121,9 @@ const hasDronePosition = (drone) => (
 );
 
 // Create simple drone icon for Leaflet markers
-// Note: divIcon HTML must use inline styles — Leaflet injects outside React's CSS scope
 const createDroneIcon = (hwId) =>
   L.divIcon({
-    html: `<div style="width:20px;height:20px;background:var(--color-primary,#00d4ff);border-radius:50%;border:2px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#000">${hwId}</div>`,
+    html: `<div class="qs-drone-marker-icon">${hwId}</div>`,
     className: '',
     iconSize: [20, 20],
     iconAnchor: [10, 10],
@@ -143,6 +143,7 @@ const LeafletFlyTo = ({ target }) => {
 const QuickScoutPage = () => {
   const { provider, isMapboxAvailable, mapboxToken } = useMapContext();
   const useLeaflet = provider === 'leaflet' || !isMapboxAvailable || !mapboxLibAvailable;
+  const mapThemeColors = getPlotThemeColors();
 
   // Mode
   const [mode, setMode] = useState('plan');
@@ -1058,7 +1059,7 @@ const QuickScoutPage = () => {
                         id="qs-point-search-fill"
                         type="fill"
                         paint={{
-                          'fill-color': '#00d4ff',
+                          'fill-color': mapThemeColors.primary,
                           'fill-opacity': 0.08,
                         }}
                       />
@@ -1066,7 +1067,7 @@ const QuickScoutPage = () => {
                         id="qs-point-search-outline"
                         type="line"
                         paint={{
-                          'line-color': '#00d4ff',
+                          'line-color': mapThemeColors.primary,
                           'line-width': 2,
                           'line-opacity': 0.75,
                         }}
@@ -1091,7 +1092,7 @@ const QuickScoutPage = () => {
                         id="qs-corridor-fill"
                         type="fill"
                         paint={{
-                          'fill-color': '#00d4ff',
+                          'fill-color': mapThemeColors.primary,
                           'fill-opacity': 0.08,
                         }}
                       />
@@ -1099,7 +1100,7 @@ const QuickScoutPage = () => {
                         id="qs-corridor-outline"
                         type="line"
                         paint={{
-                          'line-color': '#00d4ff',
+                          'line-color': mapThemeColors.primary,
                           'line-width': 2,
                           'line-opacity': 0.72,
                         }}
@@ -1112,7 +1113,7 @@ const QuickScoutPage = () => {
                         id="qs-corridor-path"
                         type="line"
                         paint={{
-                          'line-color': '#facc15',
+                          'line-color': mapThemeColors.warning,
                           'line-width': 3,
                           'line-opacity': 0.88,
                         }}
@@ -1176,10 +1177,10 @@ const QuickScoutPage = () => {
                       center={[searchCenter.lat, searchCenter.lng]}
                       radius={Number(searchRadiusM)}
                       pathOptions={{
-                        color: '#00d4ff',
+                        color: mapThemeColors.primary,
                         weight: 2,
                         opacity: 0.75,
-                        fillColor: '#00d4ff',
+                        fillColor: mapThemeColors.primary,
                         fillOpacity: 0.08,
                       }}
                     />
@@ -1201,10 +1202,10 @@ const QuickScoutPage = () => {
                   <LeafletPolygon
                     positions={corridorSearchPreview.features[0].geometry.coordinates[0].map(([lng, lat]) => [lat, lng])}
                     pathOptions={{
-                      color: '#00d4ff',
+                      color: mapThemeColors.primary,
                       weight: 2,
                       opacity: 0.72,
-                      fillColor: '#00d4ff',
+                      fillColor: mapThemeColors.primary,
                       fillOpacity: 0.08,
                     }}
                   />
@@ -1212,7 +1213,7 @@ const QuickScoutPage = () => {
                     <LeafletPolyline
                       positions={corridorPathPreview.features[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])}
                       pathOptions={{
-                        color: '#facc15',
+                        color: mapThemeColors.warning,
                         weight: 3,
                         opacity: 0.88,
                       }}
