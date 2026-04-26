@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import InfoHint from '../components/InfoHint';
+import { ConfirmDialog, EmptyState } from '../components/ui';
 import { GIT_COMMIT } from '../version';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { clearThrottledToast, toastErrorThrottled } from '../utilities/toastFeedback';
@@ -215,12 +216,9 @@ function SectionHeader({ title, detail = '', action = null }) {
   );
 }
 
-function EmptyState({ title, detail }) {
+function SitlEmptyState({ title, detail }) {
   return (
-    <div className="sitl-empty-state">
-      <strong>{title}</strong>
-      <span>{detail}</span>
-    </div>
+    <EmptyState title={title} detail={detail} className="sitl-empty-state" />
   );
 }
 
@@ -233,69 +231,26 @@ function FieldLabel({ label, hint = '' }) {
   );
 }
 
-function ConfirmDialog({ dialog, onCancel, onConfirm, busy = false }) {
+function buildConfirmDialogMessage(dialog) {
   if (!dialog) {
     return null;
   }
 
   const {
-    title,
     message,
     facts = [],
-    confirmLabel = 'Confirm',
-    tone = 'default',
   } = dialog;
 
   return (
-    <div className="sitl-dialog-backdrop" role="presentation" onClick={busy ? undefined : onCancel}>
-      <div
-        className={`sitl-dialog sitl-dialog--${tone}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="sitl-confirm-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="sitl-dialog__header">
-          <div>
-            <h3 id="sitl-confirm-dialog-title">{title}</h3>
-            {message ? <p>{message}</p> : null}
-          </div>
-          <button
-            type="button"
-            className="sitl-icon-button"
-            onClick={onCancel}
-            disabled={busy}
-            aria-label="Close confirmation dialog"
-          >
-            <FaTimes />
-          </button>
+    <div className="sitl-confirm-message">
+      {message ? <p>{message}</p> : null}
+      {facts.length > 0 ? (
+        <div className="sitl-confirm-message__facts">
+          {facts.map((fact) => (
+            <span key={fact} className="sitl-badge sitl-badge--muted">{fact}</span>
+          ))}
         </div>
-        {facts.length > 0 ? (
-          <div className="sitl-dialog__facts">
-            {facts.map((fact) => (
-              <span key={fact} className="sitl-badge sitl-badge--muted">{fact}</span>
-            ))}
-          </div>
-        ) : null}
-        <div className="sitl-dialog__actions">
-          <button
-            type="button"
-            className="sitl-action-button"
-            onClick={onCancel}
-            disabled={busy}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className={`sitl-action-button ${tone === 'danger' ? 'sitl-action-button--danger' : 'sitl-action-button--primary'}`}
-            onClick={onConfirm}
-            disabled={busy}
-          >
-            {busy ? 'Working…' : confirmLabel}
-          </button>
-        </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -1233,7 +1188,7 @@ function SitlControlPage() {
   const renderInstanceDetail = (instance, { inline = false } = {}) => {
     if (!instance) {
       return (
-        <EmptyState
+        <SitlEmptyState
           title="Select an instance"
           detail="The detail panel will show runtime facts, lifecycle controls, and tailed logs for the selected SITL container."
         />
@@ -1420,7 +1375,7 @@ function SitlControlPage() {
           </div>
 
           {!sitlControlUiEnabled ? (
-            <EmptyState
+            <SitlEmptyState
               title="SITL control is disabled on this runtime"
               detail="This page is intended for GCS instances running in simulation mode."
             />
@@ -1760,7 +1715,7 @@ function SitlControlPage() {
                   </button>
                   {operationsExpanded ? (
                     operations.length === 0 ? (
-                      <EmptyState
+                      <SitlEmptyState
                         title="No SITL operations yet"
                         detail="Run a reconcile, add, restart, remove, or image save action to populate this list."
                       />
@@ -2050,7 +2005,7 @@ function SitlControlPage() {
                       ) : null}
 
                       {images.length === 0 ? (
-                        <EmptyState
+                        <SitlEmptyState
                           title="No SITL images detected"
                           detail="Build or load an MDS SITL image on this host before trying to reconcile a fleet."
                         />
@@ -2140,7 +2095,7 @@ function SitlControlPage() {
                 ) : null}
 
                 {instances.length === 0 ? (
-                  <EmptyState
+                  <SitlEmptyState
                     title={cleanupOnlyMode ? 'No local SITL leftovers detected' : 'No SITL containers detected'}
                     detail={cleanupOnlyMode
                       ? 'This REAL-mode host has no local SITL containers left to remove.'
@@ -2191,7 +2146,11 @@ function SitlControlPage() {
         </>
       ) : null}
       <ConfirmDialog
-        dialog={confirmDialog}
+        open={Boolean(confirmDialog)}
+        title={confirmDialog?.title || 'Confirm SITL action'}
+        message={buildConfirmDialogMessage(confirmDialog) || 'Confirm this SITL operation.'}
+        confirmLabel={confirmDialog?.confirmLabel || 'Confirm'}
+        tone={confirmDialog?.tone === 'danger' ? 'danger' : 'neutral'}
         onCancel={closeConfirmDialog}
         onConfirm={handleConfirmDialog}
         busy={confirmBusy}

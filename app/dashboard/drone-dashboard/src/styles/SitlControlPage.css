@@ -692,11 +692,8 @@
   line-height: 1.45;
 }
 
-.sitl-empty-state {
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+.sitl-empty-state.operator-empty-state {
+  align-items: flex-start;
 }
 
 .sitl-loading-shell {
@@ -727,58 +724,19 @@
   }
 }
 
-.sitl-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal-backdrop);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  background: var(--color-overlay);
-  backdrop-filter: blur(3px);
+.sitl-confirm-message {
+  display: grid;
+  gap: var(--spacing-sm);
 }
 
-.sitl-dialog {
-  width: min(100%, 34rem);
-  border: 1px solid var(--color-border-primary);
-  border-radius: 20px;
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  box-shadow: 0 24px 48px var(--color-overlay);
-  padding: 1rem;
-}
-
-.sitl-dialog__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.sitl-dialog__header h3 {
+.sitl-confirm-message p {
   margin: 0;
 }
 
-.sitl-dialog__header p {
-  margin: 0.35rem 0 0;
-  color: var(--color-text-secondary);
-  line-height: 1.45;
-}
-
-.sitl-dialog__facts {
+.sitl-confirm-message__facts {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-top: 0.95rem;
-}
-
-.sitl-dialog__actions {
-  display: flex;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  margin-top: 1rem;
 }
 
 @media (max-width: 1100px) {

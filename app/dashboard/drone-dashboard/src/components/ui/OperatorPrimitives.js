@@ -324,7 +324,7 @@ export function ConfirmDialog({
 
     const previousOverflow = document.body.style.overflow;
     const handleEscape = (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !busy) {
         onCancel();
       }
     };
@@ -335,7 +335,7 @@ export function ConfirmDialog({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [onCancel, open]);
+  }, [busy, onCancel, open]);
 
   if (!open) {
     return null;
@@ -346,7 +346,7 @@ export function ConfirmDialog({
       className="operator-confirm-dialog"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (!busy && event.target === event.currentTarget) {
           onCancel();
         }
       }}
@@ -363,6 +363,7 @@ export function ConfirmDialog({
             type="button"
             className="operator-confirm-dialog__close"
             onClick={onCancel}
+            disabled={busy}
             aria-label="Close confirmation dialog"
           >
             <FaTimes aria-hidden="true" />
