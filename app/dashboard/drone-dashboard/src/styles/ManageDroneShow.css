@@ -685,8 +685,16 @@
 }
 
 .upload-info-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
     color: var(--color-text-primary) !important;
     font-weight: var(--font-weight-bold) !important;
+}
+
+.upload-info-title__icon {
+    color: var(--color-primary);
+    font-size: 1.15rem;
 }
 
 .upload-info-subtitle {
@@ -716,6 +724,15 @@
 .metric-icon {
     opacity: 0.9;
     filter: drop-shadow(0 2px 4px var(--color-shadow-light));
+}
+
+.metric-icon--large {
+    font-size: 3rem;
+    margin-bottom: var(--spacing-base);
+}
+
+.metric-icon--inverted {
+    transform: rotate(180deg);
 }
 
 .metric-icon.primary {
@@ -752,4 +769,59 @@
 .metric-detail {
     color: var(--color-text-secondary) !important;
     font-weight: var(--font-weight-medium) !important;
+}
+
+.metric-help-icon {
+    font-size: 1.125rem;
+}
+
+.metric-help-icon--muted {
+    color: var(--color-text-secondary);
+    font-size: 1rem;
+}
+
+.visualization-section__expand-icon {
+    transition: transform var(--transition-base);
+}
+
+.visualization-section__expand-icon.is-open {
+    transform: rotate(180deg);
+}
+
+.manage-drone-show-container .safety-metric-card {
+    height: 100%;
+    background: var(--color-bg-secondary) !important;
+    border-radius: var(--border-radius-lg) !important;
+    transition: var(--transition-all) !important;
+}
+
+.manage-drone-show-container .safety-metric-card:hover {
+    box-shadow: var(--shadow-md) !important;
+}
+
+.manage-drone-show-container .safety-metric-card.safety-metric-card--safe {
+    border: 2px solid var(--color-success) !important;
+}
+
+.manage-drone-show-container .safety-metric-card.safety-metric-card--caution {
+    border: 2px solid var(--color-warning) !important;
+}
+
+.manage-drone-show-container .safety-metric-card.safety-metric-card--neutral {
+    border: 2px solid var(--color-border-primary) !important;
+}
+
+.safety-metric-card__icon {
+    color: var(--color-text-secondary);
+    font-size: 2.5rem;
+    margin-bottom: var(--spacing-base);
+}
+
+.safety-metric-card__icon.is-safe,
+.safety-metric-card__icon--safe {
+    color: var(--color-success);
+}
+
+.safety-metric-card__icon--caution {
+    color: var(--color-warning);
 }

@@ -2581,3 +2581,34 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 58
+
+Goal:
+
+- tighten Drone Show visualization chrome by moving metric/safety icon
+  presentation out of JSX and replacing emoji/modal glyph controls with
+  accessible icon controls
+
+Implemented:
+
+- moved metric icon size/orientation, safety card borders, muted help icons,
+  and expand-chevron rotation into `ManageDroneShow.css`
+- replaced the current-show folder emoji with a semantic folder icon
+- replaced plot lightbox close/previous/next glyph buttons with icon buttons
+  and explicit accessible labels
+- simplified safety tooltip language by removing emoji-led status copy while
+  preserving collision-warning details
+- preserved plot fetching, metrics calculation display, safety status chip,
+  technical analysis collapse state, and image lightbox navigation behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed route smoke test on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
