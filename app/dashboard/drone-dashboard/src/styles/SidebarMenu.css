@@ -323,8 +323,8 @@
 }
 
 .nav-indicator--warning {
-  background: rgba(180, 125, 24, 0.14);
-  border-color: rgba(180, 125, 24, 0.35);
+  background: var(--color-warning-light);
+  border-color: var(--color-warning-border);
   color: var(--color-warning);
 }
 
@@ -596,7 +596,7 @@
 
   .modern-sidebar-wrapper.mobile.mobile-open {
     transform: translateX(0);
-    box-shadow: 18px 0 48px rgba(4, 10, 18, 0.28);
+    box-shadow: 18px 0 48px var(--color-overlay);
   }
 
   .modern-sidebar-wrapper.mobile .sidebar-toggle {
@@ -672,7 +672,7 @@
 .modern-sidebar-wrapper.light {
   background:
     linear-gradient(180deg, rgba(var(--color-primary-rgb), 0.04) 0%, var(--color-bg-primary) 18%, var(--color-bg-secondary) 100%);
-  box-shadow: 0 18px 44px rgba(20, 32, 48, 0.08);
+  box-shadow: 0 18px 44px var(--color-surface-inset);
 }
 
 .modern-sidebar-wrapper.light .nav-item:hover {

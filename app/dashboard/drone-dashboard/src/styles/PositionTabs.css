@@ -97,7 +97,7 @@
 
 .badge.warning {
   background: var(--color-warning);
-  color: var(--color-warning-text, #000);
+  color: var(--color-warning-text, var(--color-text-inverse));
 }
 
 .badge.error {

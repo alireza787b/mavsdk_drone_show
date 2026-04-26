@@ -7,7 +7,7 @@
     background-color: var(--color-bg-primary);
     border-radius: 10px;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 20px var(--color-overlay);
   }
 
 
@@ -41,7 +41,7 @@
 .button-container .focus-button:hover,
 .button-container .toolbox-button:hover {
     transform: scale(1.2);
-    background-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--color-border-secondary);
 }
 
 .globe-selected-card-popover {
@@ -133,7 +133,7 @@
     background: color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 22%, var(--color-bg-secondary));
     border: 1px solid color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 70%, white);
     border-radius: 999px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 8px 20px var(--color-overlay);
     font-size: 10px;
     font-weight: 900;
     min-height: 24px;
@@ -169,7 +169,7 @@
 .globe-drone-screen-hit:hover {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1.04);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 18%, transparent), 0 12px 26px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--mds-globe-marker-color, var(--color-primary)) 18%, transparent), 0 12px 26px var(--color-overlay);
 }
 
 @media (max-width: 700px) {
@@ -212,7 +212,7 @@
     max-width: min(280px, 74vw);
     font-size: 12px;
     line-height: 1.35;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px var(--color-overlay);
 }
 
 .tooltip-list {

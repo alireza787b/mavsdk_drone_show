@@ -682,8 +682,8 @@
 }
 
 .onboard-ulog-dialog__notice--success {
-  border-color: color-mix(in srgb, var(--color-success, #16a34a) 40%, var(--color-border-primary));
-  background: color-mix(in srgb, var(--color-success, #16a34a) 10%, var(--color-bg-tertiary));
+  border-color: color-mix(in srgb, var(--color-success, var(--color-success)) 40%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-success, var(--color-success)) 10%, var(--color-bg-tertiary));
 }
 
 .onboard-ulog-dialog__notice--error {
@@ -732,7 +732,7 @@
 }
 
 .onboard-ulog-dialog__job-status--ready {
-  color: var(--color-success, #16a34a);
+  color: var(--color-success, var(--color-success));
 }
 
 .onboard-ulog-dialog__job-status--failed {

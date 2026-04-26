@@ -159,7 +159,7 @@
 .custom-show-card code {
     padding: 0 0.35rem;
     border-radius: 999px;
-    background: rgba(14, 165, 233, 0.12);
+    background: var(--color-info-light);
     color: var(--color-primary);
     font-size: 0.95em;
 }

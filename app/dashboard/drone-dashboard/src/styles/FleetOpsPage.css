@@ -54,25 +54,25 @@
 
 .fleet-ops-pill--good,
 .fleet-ops-metric--good svg {
-  border-color: rgba(63, 134, 61, 0.35);
+  border-color: var(--color-success-border);
   color: var(--color-success);
 }
 
 .fleet-ops-pill--warning,
 .fleet-ops-metric--warning svg {
-  border-color: rgba(180, 125, 24, 0.35);
+  border-color: var(--color-warning-border);
   color: var(--color-warning);
 }
 
 .fleet-ops-pill--danger,
 .fleet-ops-metric--danger svg {
-  border-color: rgba(164, 48, 70, 0.35);
+  border-color: var(--color-danger-border);
   color: var(--color-danger);
 }
 
 .fleet-ops-pill--real {
-  background: rgba(18, 124, 93, 0.12);
-  border-color: rgba(18, 124, 93, 0.35);
+  background: var(--color-success-light);
+  border-color: var(--color-success-border);
   color: var(--color-success);
 }
 
@@ -252,7 +252,7 @@
 }
 
 .fleet-ops-node-card.is-attention {
-  border-color: rgba(180, 125, 24, 0.38);
+  border-color: var(--color-warning-border);
 }
 
 .fleet-ops-node-card.is-selected {

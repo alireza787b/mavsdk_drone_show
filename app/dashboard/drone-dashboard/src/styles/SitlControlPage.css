@@ -40,9 +40,9 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.22));
+  border: 1px solid var(--color-border-primary);
   border-radius: 999px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.06));
+  background: var(--color-surface-raised);
   color: var(--color-text-primary);
   padding: 0.55rem 0.9rem;
   cursor: pointer;
@@ -50,20 +50,20 @@
 }
 
 .sitl-action-button--primary {
-  background: rgba(79, 140, 255, 0.16);
-  border-color: rgba(79, 140, 255, 0.42);
-  color: var(--color-accent, #4f8cff);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
 }
 
 .sitl-action-button--danger {
-  background: rgba(220, 64, 64, 0.12);
-  border-color: rgba(220, 64, 64, 0.28);
-  color: #c0392b;
+  background: var(--color-danger-light);
+  border-color: var(--color-danger-border);
+  color: var(--color-danger-dark);
 }
 
 .sitl-action-button--active {
-  background: rgba(79, 140, 255, 0.16);
-  border-color: rgba(79, 140, 255, 0.42);
+  background: var(--color-primary-light);
+  border-color: var(--color-primary-border);
 }
 
 .sitl-action-button:disabled {
@@ -89,9 +89,9 @@
   gap: 0.55rem;
   width: fit-content;
   max-width: 100%;
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border: 1px solid var(--color-border-primary);
   border-radius: 999px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
+  background: var(--color-surface-raised);
   color: var(--color-text-secondary);
   padding: 0.45rem 0.85rem;
 }
@@ -111,7 +111,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  color: var(--color-accent, #4f8cff);
+  color: var(--color-primary);
   text-decoration: none;
 }
 
@@ -150,7 +150,7 @@
 }
 
 .sitl-icon-button:hover {
-  background: rgba(148, 163, 184, 0.12);
+  background: var(--color-border-light);
 }
 
 .sitl-inline-disclosure {
@@ -158,9 +158,9 @@
   flex-direction: column;
   gap: 0.55rem;
   min-width: min(100%, 15rem);
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border: 1px solid var(--color-border-primary);
   border-radius: 14px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.03));
+  background: var(--color-surface-raised);
   padding: 0.45rem 0.7rem;
 }
 
@@ -190,9 +190,9 @@
   flex-direction: column;
   gap: 0.85rem;
   width: 100%;
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border: 1px solid var(--color-border-primary);
   border-radius: 16px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.035));
+  background: var(--color-surface-raised);
   padding: 0.85rem;
 }
 
@@ -229,10 +229,10 @@
 .sitl-reconcile-card,
 .sitl-instance-detail,
 .sitl-empty-state {
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border: 1px solid var(--color-border-primary);
   border-radius: 18px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  background: var(--color-surface-raised);
+  box-shadow: 0 12px 28px var(--color-border-light);
 }
 
 .sitl-summary-card {
@@ -256,8 +256,8 @@
   align-items: center;
   justify-content: center;
   border-radius: 14px;
-  background: rgba(84, 135, 255, 0.14);
-  color: var(--color-accent, #4f8cff);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -287,13 +287,13 @@
 }
 
 .sitl-summary-card--good .sitl-summary-card__icon {
-  background: rgba(38, 181, 120, 0.16);
-  color: #1b9a66;
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .sitl-summary-card--warning .sitl-summary-card__icon {
-  background: rgba(255, 177, 66, 0.16);
-  color: #ce7c13;
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
 }
 
 .sitl-form-grid {
@@ -321,15 +321,15 @@
 .sitl-field select {
   width: 100%;
   border-radius: 12px;
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.22));
-  background: var(--color-surface, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-raised);
   color: var(--color-text-primary);
   padding: 0.62rem 0.78rem;
 }
 
 .sitl-advanced-panel {
   margin-top: 1rem;
-  border-top: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border-top: 1px solid var(--color-border-primary);
   padding-top: 0.9rem;
 }
 
@@ -398,9 +398,9 @@
   align-items: center;
   gap: 0.55rem;
   min-width: min(100%, 20rem);
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.22));
+  border: 1px solid var(--color-border-primary);
   border-radius: 999px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
+  background: var(--color-surface-raised);
   color: var(--color-text-secondary);
   padding: 0.55rem 0.85rem;
 }
@@ -415,9 +415,9 @@
 }
 
 .sitl-collapsible {
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border: 1px solid var(--color-border-primary);
   border-radius: 18px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
+  background: var(--color-surface-raised);
   padding: 0.85rem 1rem;
 }
 
@@ -477,9 +477,9 @@
   gap: 0.9rem;
   width: 100%;
   padding: 0.8rem 0.95rem;
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.18));
+  border: 1px solid var(--color-border-primary);
   border-radius: 16px;
-  background: var(--color-surface-raised, rgba(255, 255, 255, 0.04));
+  background: var(--color-surface-raised);
   text-align: left;
   cursor: pointer;
   transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
@@ -492,9 +492,9 @@
 
 .sitl-compact-row:hover,
 .sitl-compact-row.is-active {
-  border-color: var(--color-accent, #4f8cff);
+  border-color: var(--color-primary);
   transform: translateY(-1px);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 16px 32px var(--color-border-light);
 }
 
 .sitl-compact-row__main,
@@ -531,9 +531,9 @@
 
 .sitl-entity-card--button:hover,
 .sitl-entity-card--button.is-active {
-  border-color: var(--color-accent, #4f8cff);
+  border-color: var(--color-primary);
   transform: translateY(-1px);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 16px 32px var(--color-border-light);
 }
 
 .sitl-entity-card__header,
@@ -565,24 +565,24 @@
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
-  background: rgba(84, 135, 255, 0.14);
-  color: var(--color-accent, #4f8cff);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   white-space: nowrap;
 }
 
 .sitl-badge--good {
-  background: rgba(38, 181, 120, 0.16);
-  color: #1b9a66;
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .sitl-badge--warning {
-  background: rgba(255, 177, 66, 0.16);
-  color: #ce7c13;
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
 }
 
 .sitl-badge--muted {
-  background: rgba(148, 163, 184, 0.16);
-  color: #64748b;
+  background: var(--color-border-light);
+  color: var(--color-text-tertiary);
 }
 
 .sitl-instance-layout {
@@ -668,8 +668,8 @@
 
 .sitl-log-panel__header select {
   border-radius: 10px;
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.22));
-  background: var(--color-surface, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-raised);
   color: var(--color-text-primary);
   padding: 0.35rem 0.55rem;
 }
@@ -679,7 +679,7 @@
   max-height: 420px;
   overflow: auto;
   border-radius: 14px;
-  background: rgba(7, 15, 26, 0.92);
+  background: var(--color-surface-raised);
   padding: 0.85rem;
 }
 
@@ -687,7 +687,7 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #d9ecff;
+  color: var(--color-info-text);
   font-size: 0.83rem;
   line-height: 1.45;
 }
@@ -710,9 +710,9 @@
   border-radius: 18px;
   background: linear-gradient(
     90deg,
-    rgba(148, 163, 184, 0.12),
-    rgba(148, 163, 184, 0.22),
-    rgba(148, 163, 184, 0.12)
+    var(--color-border-light),
+    var(--color-border-secondary),
+    var(--color-border-light)
   );
   background-size: 200% 100%;
   animation: sitlPulse 1.3s ease-in-out infinite;
@@ -735,17 +735,17 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(3, 8, 16, 0.68);
+  background: var(--color-overlay);
   backdrop-filter: blur(3px);
 }
 
 .sitl-dialog {
   width: min(100%, 34rem);
-  border: 1px solid var(--color-border, rgba(128, 128, 128, 0.22));
+  border: 1px solid var(--color-border-primary);
   border-radius: 20px;
-  background: var(--color-surface, #0f172a);
+  background: var(--color-bg-primary);
   color: var(--color-text-primary);
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 24px 48px var(--color-overlay);
   padding: 1rem;
 }
 

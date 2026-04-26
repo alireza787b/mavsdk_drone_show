@@ -338,7 +338,7 @@
 
 .qs-btn-success {
     background: var(--color-success);
-    color: #fff;
+    color: var(--color-text-primary);
 }
 
 .qs-btn-success:hover:not(:disabled) {
@@ -347,7 +347,7 @@
 
 .qs-btn-warning {
     background: var(--color-warning);
-    color: #000;
+    color: var(--color-text-inverse);
 }
 
 .qs-btn-secondary {
@@ -362,7 +362,7 @@
 
 .qs-btn-danger {
     background: var(--color-danger);
-    color: #fff;
+    color: var(--color-text-primary);
 }
 
 .qs-btn-danger:hover:not(:disabled) {
@@ -403,7 +403,7 @@
 
 .qs-profile-card.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
 }
 
 .qs-profile-label {
@@ -463,7 +463,7 @@
 
 .qs-template-card.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
 }
 
 .qs-template-label {
@@ -549,17 +549,17 @@
 }
 
 .qs-launch-review__banner--good {
-    border-color: rgba(46, 204, 113, 0.3);
+    border-color: var(--color-success-border);
     background: color-mix(in srgb, var(--color-success) 12%, var(--color-bg-secondary));
 }
 
 .qs-launch-review__banner--warning {
-    border-color: rgba(245, 166, 35, 0.35);
+    border-color: var(--color-warning-border);
     background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-secondary));
 }
 
 .qs-launch-review__banner--danger {
-    border-color: rgba(255, 107, 107, 0.35);
+    border-color: var(--color-danger-border);
     background: color-mix(in srgb, var(--color-danger) 12%, var(--color-bg-secondary));
 }
 
@@ -637,12 +637,12 @@
 .qs-launch-review__issue-group {
     padding: 10px 12px;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(255, 107, 107, 0.28);
+    border: 1px solid var(--color-danger-border);
     background: color-mix(in srgb, var(--color-danger) 10%, var(--color-bg-secondary));
 }
 
 .qs-launch-review__issue-group--warning {
-    border-color: rgba(245, 166, 35, 0.28);
+    border-color: var(--color-warning-border);
     background: color-mix(in srgb, var(--color-warning) 10%, var(--color-bg-secondary));
 }
 
@@ -698,7 +698,7 @@
 
 .qs-action-btn.resume { border-color: var(--color-success); color: var(--color-success); }
 .qs-action-btn.pause { border-color: var(--color-warning); color: var(--color-warning); }
-.qs-action-btn.end { border-color: #fd7e14; color: #fd7e14; }
+.qs-action-btn.end { border-color: var(--color-warning); color: var(--color-warning); }
 
 /* === Drone Status Card === */
 .qs-drone-card {
@@ -817,7 +817,7 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 0 2px var(--color-surface-raised);
 }
 
 .qs-finding-marker.selected {
@@ -825,7 +825,7 @@
 }
 
 .qs-finding-marker.critical { background: var(--color-danger); }
-.qs-finding-marker.high { background: #fd7e14; }
+.qs-finding-marker.high { background: var(--color-warning); }
 .qs-finding-marker.medium { background: var(--color-warning); }
 .qs-finding-marker.low { background: var(--color-primary); }
 
@@ -949,7 +949,7 @@
     justify-content: center;
     font-size: 9px;
     font-weight: 700;
-    color: #000;
+    color: var(--color-text-inverse);
 }
 
 /* === Mapbox Setup Instructions === */
@@ -1056,7 +1056,7 @@
     align-items: center;
     gap: 8px;
     padding: 6px 12px;
-    background: rgba(0, 0, 0, 0.7);
+    background: var(--color-overlay);
     border-radius: var(--radius-md);
     backdrop-filter: blur(4px);
     max-width: calc(100% - 120px);
@@ -1066,7 +1066,7 @@
 
 .ldc-instruction-text {
     font-size: 12px;
-    color: #fff;
+    color: var(--color-text-primary);
     white-space: nowrap;
 }
 
@@ -1078,7 +1078,7 @@
 .ldc-action-btn {
     padding: 4px 10px;
     font-size: 12px;
-    color: #fff;
+    color: var(--color-text-primary);
     border: none;
     border-radius: 4px;
     cursor: pointer;
@@ -1090,15 +1090,15 @@
 }
 
 .ldc-action-btn--close {
-    background: #28a745;
+    background: var(--color-success);
 }
 
 .ldc-action-btn--reset {
-    background: #dc3545;
+    background: var(--color-danger);
 }
 
 .ldc-action-btn--undo {
-    background: #6c757d;
+    background: var(--color-text-tertiary);
 }
 
 /* === SearchBar Wrapper (QuickScout top bar) === */
@@ -1188,7 +1188,7 @@
 
 .qs-mission-card.active {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.18);
+    box-shadow: 0 0 0 1px var(--color-primary-border);
 }
 
 .qs-mission-card-header {

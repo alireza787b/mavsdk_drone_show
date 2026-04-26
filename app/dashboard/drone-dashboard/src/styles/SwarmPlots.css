@@ -89,7 +89,7 @@
   flex: 1;
   padding: var(--spacing-lg);
   border-radius: var(--border-radius-base);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--color-shadow-light);
   border: 1px dashed var(--color-border-secondary);
   color: var(--color-text-secondary);
   text-align: center;

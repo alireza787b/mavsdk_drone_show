@@ -269,7 +269,7 @@
 }
 
 .fleet-enrollment-guidance--warning {
-  background: rgba(245, 158, 11, 0.12);
+  background: var(--color-warning-light);
 }
 
 .fleet-enrollment-guidance--subtle {
@@ -335,7 +335,7 @@
 }
 
 .fleet-enrollment-action-card--danger {
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: var(--color-danger-border);
 }
 
 .fleet-enrollment-empty-state {
@@ -346,14 +346,14 @@
 }
 
 .fleet-enrollment-empty-state--danger {
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: var(--color-danger-border);
 }
 
 .fleet-enrollment-dialog-backdrop {
   position: fixed;
   inset: 0;
   z-index: var(--z-modal);
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--color-surface-inset);
   display: grid;
   place-items: center;
   padding: var(--spacing-base);

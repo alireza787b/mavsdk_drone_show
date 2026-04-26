@@ -111,7 +111,7 @@
 }
 
 .error-message button {
-    background: linear-gradient(135deg, var(--color-danger), #c62828);
+    background: linear-gradient(135deg, var(--color-danger), var(--color-danger-dark));
     color: var(--color-text-primary);
     border: none;
     padding: var(--spacing-sm) var(--spacing-lg);
@@ -133,12 +133,12 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-border-secondary), transparent);
     transition: var(--transition-base);
 }
 
 .error-message button:hover {
-    background: linear-gradient(135deg, #c62828, var(--color-danger));
+    background: linear-gradient(135deg, var(--color-danger-dark), var(--color-danger));
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
 }
@@ -452,7 +452,7 @@
 .globe-tactical-strip__chip:focus-visible {
     background: var(--mds-drone-marker-color);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--mds-drone-marker-color) 24%, transparent);
-    color: #041016;
+    color: var(--color-primary-text);
     transform: translateY(-1px);
 }
 
@@ -496,10 +496,10 @@
 .globe-map-ops-bar__badge,
 .globe-map-ops-bar__button {
     align-items: center;
-    background: rgba(15, 23, 42, 0.88);
-    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border-secondary);
     border-radius: 999px;
-    color: #f8fafc;
+    color: var(--color-text-primary);
     display: inline-flex;
     font-size: 12px;
     font-weight: 800;
@@ -539,7 +539,7 @@
     justify-content: center;
     font-size: 9px;
     font-weight: 900;
-    color: #000;
+    color: var(--color-text-inverse);
     box-shadow: var(--shadow-md);
     cursor: pointer;
     padding: 0 7px;
@@ -579,10 +579,10 @@
 }
 
 .globe-map-selected-fallback__note {
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid rgba(245, 158, 11, 0.55);
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-warning-border);
     border-radius: 999px;
-    color: #fde68a;
+    color: var(--color-warning-text);
     display: inline-flex;
     font-size: 11px;
     font-weight: 900;

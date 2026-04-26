@@ -27,6 +27,19 @@ SOURCE_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx", ".css"}
 TOKEN_FILES = {
     (SRC_ROOT / "styles" / "DesignTokens.css").resolve(),
 }
+ALLOWED_DOMAIN_COLOR_FILES = {
+    # These values are data passed to map/plot renderers or HTML color inputs,
+    # not CSS styling. CSS variables would be invalid or unreliable there.
+    "app/dashboard/drone-dashboard/src/utilities/SpeedCalculator.js": {
+        "#00d4ff",
+        "#f5a623",
+        "#dc3545",
+        "#8ea4bf",
+    },
+    "app/dashboard/drone-dashboard/src/utilities/missionConfigFields.js": {
+        "#00d4ff",
+    },
+}
 
 COLOR_LITERAL_RE = re.compile(r"(#[0-9a-fA-F]{3,8}\b|rgba?\([^)]+\))")
 Z_INDEX_LITERAL_RE = re.compile(r"z-index\s*:\s*(?!var\()[0-9]+", re.IGNORECASE)
@@ -66,6 +79,16 @@ def line_number(text: str, index: int) -> int:
     return text.count("\n", 0, index) + 1
 
 
+def is_test_file(path: Path) -> bool:
+    return any(path.name.endswith(suffix) for suffix in (".test.js", ".test.jsx", ".test.ts", ".test.tsx"))
+
+
+def is_allowed_hardcoded_color(path: Path, literal: str) -> bool:
+    if is_test_file(path):
+        return True
+    return literal in ALLOWED_DOMAIN_COLOR_FILES.get(rel(path), set())
+
+
 def audit_hardcoded_colors() -> list[Finding]:
     findings: list[Finding] = []
     for path in iter_source_files():
@@ -78,6 +101,8 @@ def audit_hardcoded_colors() -> list[Finding]:
             literal = match.group(1)
             source_window = text[match.start():match.start() + 32]
             if "currentColor" in literal or "var(" in literal or source_window.startswith(("rgba(var(", "rgb(var(")):
+                continue
+            if is_allowed_hardcoded_color(path, literal):
                 continue
             findings.append(
                 Finding(

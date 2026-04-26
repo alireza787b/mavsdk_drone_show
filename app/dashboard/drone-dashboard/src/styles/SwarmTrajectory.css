@@ -178,7 +178,7 @@
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-base);
-  background: linear-gradient(135deg, var(--color-success), #047857);
+  background: linear-gradient(135deg, var(--color-success), var(--color-success-dark));
   border: none;
   border-radius: var(--border-radius-base);
   color: var(--color-text-primary);
@@ -197,7 +197,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-border-secondary), transparent);
   transition: var(--transition-base);
 }
 
@@ -335,13 +335,13 @@
 }
 
 .guide-steps {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--color-surface-raised);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
 }
 
 .guide-link {
-  color: #ffd700;
+  color: var(--color-warning);
   text-decoration: none;
   font-weight: var(--font-weight-medium);
   transition: var(--transition-base);
@@ -350,7 +350,7 @@
 
 .guide-link:hover {
   color: var(--color-text-primary);
-  border-bottom-color: #ffd700;
+  border-bottom-color: var(--color-warning);
   text-decoration: none;
 }
 
@@ -574,8 +574,8 @@
   gap: var(--spacing-xs);
   padding: var(--spacing-base);
   border-radius: var(--border-radius-base);
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: var(--color-border-secondary);
+  border: 1px solid var(--color-border-secondary);
   align-self: flex-start;
 }
 
@@ -1328,7 +1328,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1393,7 +1393,7 @@
   right: 0;
   bottom: 0;
   width: 20px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3));
+  background: linear-gradient(90deg, transparent, var(--color-border-secondary));
   animation: progressShimmer 1.5s infinite;
 }
 
@@ -1525,7 +1525,7 @@
 }
 
 .cluster-stats {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--color-border-secondary);
   padding: var(--spacing-xs) var(--spacing-base);
   border-radius: var(--border-radius-full);
   font-size: var(--font-size-base);
@@ -1710,7 +1710,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1740,7 +1740,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;

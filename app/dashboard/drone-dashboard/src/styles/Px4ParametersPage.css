@@ -804,7 +804,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--spacing-sm);
-  background: rgba(7, 13, 24, 0.66);
+  background: var(--color-overlay);
   backdrop-filter: blur(6px);
   animation: px4-dialog-fade 140ms ease-out;
 }

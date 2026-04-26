@@ -395,8 +395,8 @@
 .precision-move-dialog__control-core {
   grid-area: core;
   text-align: center;
-  background: color-mix(in srgb, var(--color-warning, #b66a00) 12%, var(--color-bg-primary));
-  border-color: color-mix(in srgb, var(--color-warning, #b66a00) 45%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-warning, var(--color-warning-dark)) 12%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-warning, var(--color-warning-dark)) 45%, var(--color-border-primary));
 }
 
 .precision-move-dialog__live-badge {
@@ -434,20 +434,20 @@
 }
 
 .precision-move-dialog__status-step--complete {
-  border-color: color-mix(in srgb, var(--color-success, #17803d) 60%, var(--color-border-primary));
-  background: color-mix(in srgb, var(--color-success, #17803d) 16%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-success, var(--color-success)) 60%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-success, var(--color-success)) 16%, var(--color-bg-primary));
   color: var(--color-text-primary);
 }
 
 .precision-move-dialog__status-step--warning {
-  border-color: color-mix(in srgb, var(--color-warning, #b66a00) 60%, var(--color-border-primary));
-  background: color-mix(in srgb, var(--color-warning, #b66a00) 14%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-warning, var(--color-warning-dark)) 60%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-warning, var(--color-warning-dark)) 14%, var(--color-bg-primary));
   color: var(--color-text-primary);
 }
 
 .precision-move-dialog__status-step--danger {
-  border-color: color-mix(in srgb, var(--color-danger, #b42318) 60%, var(--color-border-primary));
-  background: color-mix(in srgb, var(--color-danger, #b42318) 12%, var(--color-bg-primary));
+  border-color: color-mix(in srgb, var(--color-danger, var(--color-danger-dark)) 60%, var(--color-border-primary));
+  background: color-mix(in srgb, var(--color-danger, var(--color-danger-dark)) 12%, var(--color-bg-primary));
   color: var(--color-text-primary);
 }
 
