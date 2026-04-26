@@ -293,7 +293,7 @@ const OriginModal = ({
             </label>
             {errors.input && <span className="error-message">{errors.input}</span>}
 
-            <label style={{marginTop: '1rem'}}>
+            <label className="manual-entry__altitude-label">
               Altitude MSL (optional, meters):
               <input
                 type="number"
@@ -303,7 +303,7 @@ const OriginModal = ({
                 placeholder="Ground level (default: 0m)"
               />
             </label>
-            <small className="help-text" style={{display: 'block', marginTop: '0.25rem', color: '#666'}}>
+            <small className="help-text">
               Mean Sea Level altitude in meters. Leave blank for ground level (0m).
             </small>
 
