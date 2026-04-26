@@ -2526,3 +2526,29 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 56
+
+Goal:
+
+- tighten Log Viewer toolbar accessibility and icon-first operator controls
+  without changing log stream, filtering, session, export, or ULog behavior
+
+Implemented:
+
+- added `aria-pressed` to Ops/Dev mode toggle buttons
+- added explicit labels and pressed state to the pause/resume stream control
+- added accessible labels for the icon-only clear-live-buffer control
+- added explicit accessible labels for onboard ULog and export actions
+- updated toolbar tests to assert the operator-facing accessible controls
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused frontend tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/logs/LogViewerToolbar.test.js src/hooks/useLogStream.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`
