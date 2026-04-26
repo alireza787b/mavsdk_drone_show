@@ -551,7 +551,7 @@ const TrajectoryPlanning = () => {
       groundElevation: waypointData.groundElevation || 0,
       terrainAccurate: waypointData.terrainAccurate !== false,
       time: waypointData.timeFromStart,
-      speed: 0, // Legacy compatibility
+      speed: 0, // Export/storage alias; recalculated immediately after insertion.
       index: waypoints.length + 1,
       // Aviation standard heading data
       heading: waypointData.heading || 0,

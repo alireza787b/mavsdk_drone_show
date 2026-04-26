@@ -275,7 +275,7 @@ const WaypointPanel = ({
             return;
           }
           updates.timeFromStart = time;
-          updates.time = time; // Legacy compatibility
+          updates.time = time; // Export/storage alias for trajectory interchange.
         } else {
           setEditFeedback({
             tone: 'error',

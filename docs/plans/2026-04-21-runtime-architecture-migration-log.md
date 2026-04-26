@@ -2977,3 +2977,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/trajectory/TrajectoryToolbar.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 72
+
+Goal:
+
+- remove stale legacy/TODO wording from the frontend source where the behavior
+  is now part of the current operator contract
+
+Implemented:
+
+- renamed trajectory `time` and `speed` comments from legacy compatibility to
+  export/storage alias language
+- removed the redundant Mission Config forward-heading TODO because the UI
+  already marks that control as preview-only
+- preserved waypoint creation, inline time editing, mission preview rendering,
+  and heading preview behavior
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 200`
+- passed hidden legacy/TODO scan for frontend components/pages/styles
+- passed whitespace check:
+  `git diff --check`
+- passed focused affected tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/WaypointPanel.test.js src/pages/TrajectoryPlanning.test.js src/pages/MissionConfig.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

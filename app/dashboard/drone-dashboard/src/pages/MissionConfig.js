@@ -1159,7 +1159,6 @@ const MissionConfig = () => {
             openOriginModal={() => setShowOriginModal(true)}
           />
 
-          {/* TODO: Persist mission-wide forward heading once the backend contract is finalized. */}
           <div className="heading-controls heading-controls-preview">
             <div className="heading-controls-header">
               <div>
