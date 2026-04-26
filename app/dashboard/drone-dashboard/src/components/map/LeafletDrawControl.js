@@ -7,26 +7,36 @@ import { useMapEvents, Polyline, Polygon, Marker, useMap } from 'react-leaflet';
 import { area as turfArea } from '@turf/area';
 import { polygon as turfPolygon } from '@turf/helpers';
 import L from 'leaflet';
+import { getPlotThemeColors } from '../../utilities/plotThemeColors';
 
-const createVertexIcon = (fillColor) =>
+const createVertexIcon = (fillColor, borderColor, shadowColor) =>
   L.divIcon({
-    html: `<div style="width:12px;height:12px;border-radius:50%;background:${fillColor};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,0.4)"></div>`,
+    html: `<div style="width:12px;height:12px;border-radius:50%;background:${fillColor};border:2px solid ${borderColor};box-shadow:0 0 3px ${shadowColor}"></div>`,
     className: '',
     iconSize: [12, 12],
     iconAnchor: [6, 6],
   });
 
-const createStartIcon = () =>
+const createStartIcon = (fillColor, borderColor, shadowColor) =>
   L.divIcon({
-    html: `<div style="width:16px;height:16px;border-radius:50%;background:#28a745;border:2px solid #fff;box-shadow:0 0 6px rgba(40,167,69,0.6)"></div>`,
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${fillColor};border:2px solid ${borderColor};box-shadow:0 0 6px ${shadowColor}"></div>`,
     className: '',
     iconSize: [16, 16],
     iconAnchor: [8, 8],
   });
 
-const VERTEX_ICON = createVertexIcon('#3b82f6');
-const START_ICON = createStartIcon();
 const CLICK_DELAY = 300;
+
+const getDrawPalette = () => {
+  const themeColors = getPlotThemeColors();
+  return {
+    polygon: themeColors.primary,
+    route: themeColors.warning,
+    start: themeColors.success,
+    markerBorder: themeColors.text,
+    markerShadow: themeColors.grid,
+  };
+};
 
 function normalizeInitialPoints(points = []) {
   return (Array.isArray(points) ? points : [])
@@ -49,6 +59,15 @@ const LeafletDrawControl = ({
   const rafRef = useRef(null);
   const instructionBarRef = useRef(null);
   const map = useMap();
+  const drawPalette = useMemo(getDrawPalette, []);
+  const vertexIcon = useMemo(
+    () => createVertexIcon(drawPalette.polygon, drawPalette.markerBorder, drawPalette.markerShadow),
+    [drawPalette]
+  );
+  const startIcon = useMemo(
+    () => createStartIcon(drawPalette.start, drawPalette.markerBorder, drawPalette.markerShadow),
+    [drawPalette]
+  );
 
   useEffect(() => {
     const normalized = normalizeInitialPoints(initialPoints);
@@ -278,7 +297,8 @@ const LeafletDrawControl = ({
             <button
               className="ldc-action-btn ldc-action-btn--undo"
               onClick={handleUndo}
-              title="Undo last point (Ctrl+Z)"
+              aria-label="Undo last point"
+              data-help="Undo last point (Ctrl+Z)"
             >
               Undo
             </button>
@@ -306,7 +326,7 @@ const LeafletDrawControl = ({
         <Polyline
           positions={previewLine}
           pathOptions={{
-            color: isLineMode ? '#facc15' : '#3b82f6',
+            color: isLineMode ? drawPalette.route : drawPalette.polygon,
             weight: isLineMode ? 3 : 2,
             dashArray: '6 4',
             opacity: 0.6,
@@ -318,7 +338,7 @@ const LeafletDrawControl = ({
         <Polyline
           positions={vertices}
           pathOptions={{
-            color: isLineMode ? '#facc15' : '#3b82f6',
+            color: isLineMode ? drawPalette.route : drawPalette.polygon,
             weight: isLineMode ? 3 : 2,
             dashArray: isLineMode ? '8 4' : '5 5',
           }}
@@ -329,8 +349,8 @@ const LeafletDrawControl = ({
         <Polygon
           positions={vertices}
           pathOptions={{
-            color: '#3b82f6',
-            fillColor: '#3b82f6',
+            color: drawPalette.polygon,
+            fillColor: drawPalette.polygon,
             fillOpacity: 0.15,
             weight: 2,
           }}
@@ -341,7 +361,7 @@ const LeafletDrawControl = ({
         <Polyline
           positions={vertices}
           pathOptions={{
-            color: '#facc15',
+            color: drawPalette.route,
             weight: 3,
             opacity: 0.9,
           }}
@@ -352,7 +372,7 @@ const LeafletDrawControl = ({
         <Marker
           key={`${geometryMode}-${index}`}
           position={pos}
-          icon={index === 0 ? START_ICON : VERTEX_ICON}
+          icon={index === 0 ? startIcon : vertexIcon}
           draggable={true}
           eventHandlers={
             index === 0
