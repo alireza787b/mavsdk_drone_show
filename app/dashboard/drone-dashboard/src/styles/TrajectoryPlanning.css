@@ -749,14 +749,20 @@
 }
 
 .waypoint-marker {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--border-radius-full);
+  background: var(--waypoint-marker-color, var(--color-primary));
+  border: 3px solid var(--color-bg-primary);
+  box-shadow: var(--shadow-md);
   transition: var(--transition-all);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-text);
   user-select: none;
   font-family: var(--font-family-primary);
   position: relative;
@@ -765,7 +771,7 @@
 .waypoint-marker:hover {
   transform: scale(1.15);
   z-index: var(--z-tooltip);
-  box-shadow: 0 4px 16px rgba(0, 123, 255, 0.6);
+  box-shadow: var(--shadow-lg);
 }
 
 .waypoint-marker.selected {
@@ -777,7 +783,7 @@
   cursor: grabbing !important;
   transform: scale(1.2);
   z-index: var(--z-tooltip);
-  box-shadow: 0 8px 20px rgba(0, 123, 255, 0.6);
+  box-shadow: var(--shadow-lg);
   transition: none;
 }
 

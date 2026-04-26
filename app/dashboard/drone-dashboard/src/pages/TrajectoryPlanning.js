@@ -47,6 +47,7 @@ import {
   resolveImportedTrajectoryTerrainContext,
   resolveWaypointTerrainContext,
 } from '../utilities/trajectoryTerrainContext';
+import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 // Leaflet fallback components
 import { useMapContext } from '../contexts/MapContext';
@@ -115,7 +116,7 @@ const LeafletResizeBridge = ({ mapRef, resizeKey }) => {
 // Create numbered waypoint icon for Leaflet
 const createWaypointIcon = (index, color) =>
   L.divIcon({
-    html: `<div style="width:40px;height:40px;border-radius:50%;background:${color};color:#fff;font-size:14px;font-weight:bold;display:flex;align-items:center;justify-content:center;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)">${index + 1}</div>`,
+    html: `<div class="waypoint-marker" style="--waypoint-marker-color:${color}">${index + 1}</div>`,
     className: '',
     iconSize: [40, 40],
     iconAnchor: [20, 20],
@@ -131,6 +132,7 @@ const TrajectoryPlanning = () => {
   const navigate = useNavigate();
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
   const useLeaflet = provider === 'leaflet' || !ctxMapboxAvailable;
+  const trajectoryThemeColors = getPlotThemeColors();
 
   // Enhanced state management with state manager
   const mapRef = useRef(null);
@@ -1179,12 +1181,18 @@ const TrajectoryPlanning = () => {
   }, []);
 
   const getWaypointColor = useCallback((waypoint, index) => {
-    if (index === 0) return '#28a745'; // Start - Green
-    if (index === waypoints.length - 1) return '#dc3545'; // End - Red
-    if (waypoint.speedStatus === 'impossible') return '#dc3545';
-    if (waypoint.speedStatus === 'marginal' || !waypoint.speedFeasible) return '#f5a623';
-    return '#007bff'; // Default - Blue
-  }, [waypoints.length]);
+    if (index === 0) return trajectoryThemeColors.success;
+    if (index === waypoints.length - 1) return trajectoryThemeColors.danger;
+    if (waypoint.speedStatus === 'impossible') return trajectoryThemeColors.danger;
+    if (waypoint.speedStatus === 'marginal' || !waypoint.speedFeasible) return trajectoryThemeColors.warning;
+    return trajectoryThemeColors.primary;
+  }, [
+    trajectoryThemeColors.danger,
+    trajectoryThemeColors.primary,
+    trajectoryThemeColors.success,
+    trajectoryThemeColors.warning,
+    waypoints.length,
+  ]);
 
   const pathRiskLegend = waypoints.length > 1 ? (
     <div className="trajectory-path-legend" aria-label="Trajectory path risk legend">
@@ -1553,10 +1561,10 @@ const TrajectoryPlanning = () => {
                         'match',
                         ['get', 'speedStatus'],
                         'impossible',
-                        '#dc3545',
+                        trajectoryThemeColors.danger,
                         'marginal',
-                        '#f5a623',
-                        '#00d4ff'
+                        trajectoryThemeColors.warning,
+                        trajectoryThemeColors.primary
                       ],
                       'line-width': 4,
                       'line-opacity': 0.8
@@ -1597,18 +1605,7 @@ const TrajectoryPlanning = () => {
                     <div
                       className="waypoint-marker"
                       style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: getWaypointColor(waypoint, index),
-                        color: 'white',
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        border: '3px solid white',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                        '--waypoint-marker-color': getWaypointColor(waypoint, index),
                         cursor: isDragging ? 'grabbing' : 'grab'
                       }}
                     >
