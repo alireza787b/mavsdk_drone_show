@@ -2729,3 +2729,29 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/App.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 63
+
+Goal:
+
+- make Mission Details placement accuracy status theme-safe by replacing
+  dynamic inline colors with status classes
+
+Implemented:
+
+- removed color/surface values from the placement status view model
+- replaced inline placement status border/background/value colors with
+  `placement-status-header--*` and `placement-status-value--*` classes
+- kept status icons, Nominal/Review/Blocked text, deviation metrics, origin
+  confirmation, and auto-correction gating behavior unchanged
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused MissionDetails tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/MissionDetails.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

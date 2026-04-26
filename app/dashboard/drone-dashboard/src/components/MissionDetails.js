@@ -194,24 +194,18 @@ const MissionDetails = ({
     if (worst <= thresholdWarning) {
       return {
         status: 'excellent',
-        color: 'var(--color-success)',
-        surface: 'var(--color-success-light)',
         icon: <FaCheckCircle aria-hidden="true" />,
         text: 'Nominal'
       };
     } else if (worst <= thresholdError) {
       return {
         status: 'warning',
-        color: 'var(--color-warning)',
-        surface: 'var(--color-warning-light)',
         icon: <FaExclamationTriangle aria-hidden="true" />,
         text: 'Review'
       };
     } else {
       return {
         status: 'error',
-        color: 'var(--color-danger)',
-        surface: 'var(--color-danger-light)',
         icon: <FaExclamationTriangle aria-hidden="true" />,
         text: 'Blocked'
       };
@@ -682,15 +676,12 @@ const MissionDetails = ({
                             {/* Placement Status - Most prominent */}
                             {placementStatus && (
                               <div
-                                className="deviation-stat placement-status-header"
-                                style={{
-                                  borderLeft: `4px solid ${placementStatus.color}`,
-                                  backgroundColor: placementStatus.surface,
-                                }}
+                                className={`deviation-stat placement-status-header placement-status-header--${placementStatus.status}`}
                               >
                                 <span className="deviation-label">Placement Accuracy:</span>
-                                <span className="deviation-value placement-status-value" style={{ color: placementStatus.color, fontSize: 'var(--font-size-base)', fontWeight: 'var(--font-weight-bold)' }}>
-                                  {placementStatus.icon} {placementStatus.text}
+                                <span className={`deviation-value placement-status-value placement-status-value--${placementStatus.status}`}>
+                                  {placementStatus.icon}
+                                  <span>{placementStatus.text}</span>
                                 </span>
                               </div>
                             )}
