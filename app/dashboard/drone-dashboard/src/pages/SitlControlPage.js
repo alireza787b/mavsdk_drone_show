@@ -1255,13 +1255,13 @@ function SitlControlPage() {
         </div>
 
         <div className="sitl-inline-facts">
-          <span className="sitl-badge sitl-badge--muted" title={`Repository: ${instance.git_repo_url || 'not reported'}`}>
+          <span className="sitl-badge sitl-badge--muted" data-help={`Repository: ${instance.git_repo_url || 'not reported'}`}>
             {getRepoLabel(instance.git_repo_url)}
           </span>
-          <span className="sitl-badge sitl-badge--muted" title={`Branch: ${instance.git_branch || 'not reported'}`}>
+          <span className="sitl-badge sitl-badge--muted" data-help={`Branch: ${instance.git_branch || 'not reported'}`}>
             {instance.git_branch || 'branch —'}
           </span>
-          <span className="sitl-badge sitl-badge--muted" title={`Image: ${instance.image_ref || 'not reported'}`}>
+          <span className="sitl-badge sitl-badge--muted" data-help={`Image: ${instance.image_ref || 'not reported'}`}>
             {getImageShortLabel(instance.image_ref)}
           </span>
         </div>
@@ -1272,7 +1272,7 @@ function SitlControlPage() {
             className="sitl-action-button"
             onClick={() => handleRestartInstance(instance)}
             disabled={submitting || Boolean(pendingAction) || !instanceRestartEnabled}
-            title={instanceRestartEnabled
+            data-help={instanceRestartEnabled
               ? 'Restart only this container and keep the rest of the fleet visible'
               : 'Restart is only available while the GCS is running in SITL mode'}
           >
@@ -1284,7 +1284,7 @@ function SitlControlPage() {
             className="sitl-action-button sitl-action-button--danger"
             onClick={() => handleRemoveInstance(instance)}
             disabled={submitting || Boolean(pendingAction) || !instanceRemoveEnabled}
-            title={instanceRemoveEnabled
+            data-help={instanceRemoveEnabled
               ? 'Remove only this container from the local SITL fleet'
               : 'Remove is not available on this runtime'}
           >
@@ -1366,7 +1366,7 @@ function SitlControlPage() {
             className="sitl-action-button"
             onClick={handleRefresh}
             disabled={loading || refreshing}
-            title="Refresh host, image, instance, and operation inventory"
+            data-help="Refresh host, image, instance, and operation inventory"
           >
             <FaRedoAlt />
             <span>{refreshing ? 'Refreshing…' : 'Refresh'}</span>
@@ -1521,7 +1521,7 @@ function SitlControlPage() {
                             aria-label="Image repository"
                             value={resolvedImageSelection.repo}
                             onChange={(event) => handleImageRepoChange(event.target.value)}
-                            title="Select a discovered SITL image repository"
+                            data-help="Select a discovered SITL image repository"
                           >
                             {imageCatalog.map((image) => (
                               <option key={image.repo} value={image.repo}>{image.repo}</option>
@@ -1534,7 +1534,7 @@ function SitlControlPage() {
                             aria-label="Image tag"
                             value={resolvedImageSelection.tag}
                             onChange={(event) => handleImageTagChange(event.target.value)}
-                            title="Select a discovered tag for the chosen image repository"
+                            data-help="Select a discovered tag for the chosen image repository"
                           >
                             {availableImageTags.map((tag) => (
                               <option key={tag} value={tag}>{tag}</option>
@@ -1638,7 +1638,7 @@ function SitlControlPage() {
                         type="submit"
                         className="sitl-action-button sitl-action-button--primary"
                         disabled={!dockerState?.daemon_reachable || submitting}
-                        title="Recreate the requested range and prune extra containers outside that range"
+                        data-help="Recreate the requested range and prune extra containers outside that range"
                       >
                         <FaPlay />
                         <span>{submitting ? 'Submitting…' : 'Reconcile'}</span>
@@ -1647,7 +1647,7 @@ function SitlControlPage() {
                         type="button"
                         className="sitl-action-button"
                         disabled={!dockerState?.daemon_reachable || creatingInstance}
-                        title={`Add one new SITL container using the next free ID/IP (${nextSuggestedInstance.instanceId} / ${nextSuggestedInstance.ipLastOctet})`}
+                        data-help={`Add one new SITL container using the next free ID/IP (${nextSuggestedInstance.instanceId} / ${nextSuggestedInstance.ipLastOctet})`}
                         onClick={() => handleAddInstance({ custom: false })}
                       >
                         <FaPlus />
@@ -1658,7 +1658,7 @@ function SitlControlPage() {
                         className={`sitl-action-button ${customCreateExpanded ? 'sitl-action-button--active' : ''}`.trim()}
                         disabled={!dockerState?.daemon_reachable || creatingInstance}
                         onClick={() => setCustomCreateExpanded((current) => !current)}
-                        title="Create one exact slot/IP container without pruning the rest of the fleet"
+                        data-help="Create one exact slot/IP container without pruning the rest of the fleet"
                       >
                         <FaLayerGroup />
                         <span>Custom</span>
@@ -1699,7 +1699,7 @@ function SitlControlPage() {
                             className="sitl-action-button sitl-action-button--primary"
                             disabled={!dockerState?.daemon_reachable || creatingInstance}
                             onClick={() => handleAddInstance({ custom: true })}
-                            title="Create one exact-slot container without pruning the rest of the fleet"
+                            data-help="Create one exact-slot container without pruning the rest of the fleet"
                           >
                             <FaPlus />
                             <span>{creatingInstance ? 'Adding…' : 'Add exact'}</span>
@@ -1721,19 +1721,19 @@ function SitlControlPage() {
                     ) : null}
 
                     <div className="sitl-inline-facts" aria-label="Fleet reconcile behavior">
-                      <span className="sitl-badge sitl-badge--muted" title="Reconcile recreates the requested range fresh">fresh</span>
-                      <span className="sitl-badge sitl-badge--muted" title="Reconcile removes extra containers outside the requested range">prune</span>
+                      <span className="sitl-badge sitl-badge--muted" data-help="Reconcile recreates the requested range fresh">fresh</span>
+                      <span className="sitl-badge sitl-badge--muted" data-help="Reconcile removes extra containers outside the requested range">prune</span>
                       {resolvedImageSelection.tag ? (
-                        <span className="sitl-badge sitl-badge--muted" title="Selected image tag">
+                        <span className="sitl-badge sitl-badge--muted" data-help="Selected image tag">
                           {resolvedImageSelection.tag}
                         </span>
                       ) : null}
                       {selectedImageSummary?.commit ? (
-                        <span className="sitl-badge sitl-badge--muted" title="Selected image commit">
+                        <span className="sitl-badge sitl-badge--muted" data-help="Selected image commit">
                           {selectedImageSummary.commit.slice(0, 7)}
                         </span>
                       ) : null}
-                      <span className="sitl-badge sitl-badge--muted" title="Next free slot and IP">
+                      <span className="sitl-badge sitl-badge--muted" data-help="Next free slot and IP">
                         next {nextSuggestedInstance.instanceId}
                       </span>
                     </div>
@@ -1778,7 +1778,7 @@ function SitlControlPage() {
                                 type="button"
                                 className={`sitl-compact-row ${isSelected ? 'is-active' : ''}`.trim()}
                                 onClick={() => toggleSelectedOperation(operation.operation_id)}
-                                title={operation.detail || operation.summary}
+                                data-help={operation.detail || operation.summary}
                               >
                                 <div className="sitl-compact-row__main">
                                   <strong>{operation.summary}</strong>
@@ -1873,7 +1873,7 @@ function SitlControlPage() {
                           className={`sitl-action-button ${imageReleaseExpanded ? 'sitl-action-button--active' : ''}`.trim()}
                           onClick={toggleImageReleasePanel}
                           disabled={!dockerState?.daemon_reachable || releasingImage || images.length === 0}
-                          title="Build and optionally export a fresh flattened SITL image"
+                          data-help="Build and optionally export a fresh flattened SITL image"
                         >
                           <FaSave />
                           <span>Save image</span>
@@ -2063,7 +2063,7 @@ function SitlControlPage() {
                                 <span>{image.branch || 'branch —'} · {image.commit || 'commit —'}</span>
                               </div>
                               <div className="sitl-compact-row__side">
-                                <span className="sitl-badge" title="Tag">{splitImageRef(image.primary_tag || '').tag || 'untagged'}</span>
+                                <span className="sitl-badge" data-help="Tag">{splitImageRef(image.primary_tag || '').tag || 'untagged'}</span>
                                 <small>{formatBytes(image.size_bytes)}</small>
                               </div>
                             </article>
@@ -2117,7 +2117,7 @@ function SitlControlPage() {
                           className="sitl-action-button"
                           onClick={() => handleBatchInstanceAction('restart')}
                           disabled={submitting || visibleInstanceNames.length === 0}
-                          title="Restart every container in the filtered list"
+                          data-help="Restart every container in the filtered list"
                         >
                           <FaSyncAlt />
                           <span>Restart visible</span>
@@ -2128,7 +2128,7 @@ function SitlControlPage() {
                         className="sitl-action-button sitl-action-button--danger"
                         onClick={() => handleBatchInstanceAction('remove')}
                         disabled={submitting || visibleInstanceNames.length === 0 || !instanceRemoveEnabled}
-                        title={instanceRemoveEnabled
+                        data-help={instanceRemoveEnabled
                           ? 'Remove every container in the filtered list'
                           : 'Remove is not available on this runtime'}
                       >
@@ -2161,7 +2161,7 @@ function SitlControlPage() {
                             type="button"
                             className={`sitl-compact-row ${isSelected ? 'is-active' : ''}`.trim()}
                             onClick={() => toggleSelectedInstance(instance)}
-                            title={`${formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · ${getPrimaryInstanceIp(instance, preferredNetworkName)}`}
+                            data-help={`${formatCompactDroneIdentity(instance.pos_id_hint, instance.hw_id, instance.name)} · ${getPrimaryInstanceIp(instance, preferredNetworkName)}`}
                           >
                             <div className="sitl-compact-row__main">
                               <strong>{instance.name}</strong>
@@ -2171,10 +2171,10 @@ function SitlControlPage() {
                               <span className={`sitl-badge sitl-badge--${formatInstanceTone(instance)}`}>
                                 {instance.state}
                               </span>
-                              <small title={`Repo ${getRepoLabel(instance.git_repo_url)} / ${instance.git_branch || 'branch —'}`}>
+                              <small data-help={`Repo ${getRepoLabel(instance.git_repo_url)} / ${instance.git_branch || 'branch —'}`}>
                                 {getRepoLabel(instance.git_repo_url)} · {instance.git_branch || '—'}
                               </small>
-                              <small title={`Image ${instance.image_ref || 'not reported'}`}>
+                              <small data-help={`Image ${instance.image_ref || 'not reported'}`}>
                                 {getImageShortLabel(instance.image_ref)}
                               </small>
                             </div>
