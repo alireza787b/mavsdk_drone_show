@@ -92,6 +92,7 @@
 .btn-icon {
   font-size: var(--font-size-base);
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .btn-text {

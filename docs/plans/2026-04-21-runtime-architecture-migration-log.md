@@ -2780,3 +2780,31 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/DroneConfigCard.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 65
+
+Goal:
+
+- replace emoji toolbar controls in Trajectory Planning with accessible icon
+  components while preserving authoring workflow behavior
+
+Implemented:
+
+- replaced add waypoint, undo, redo, save, load, import, export, assign,
+  clear, terrain, keyboard-help, and popover-close glyphs with `react-icons`
+  components
+- kept existing button labels, shortcut help text, disabled states, terrain
+  fallback, handoff posture, and save-status behavior unchanged
+- added a small `btn-icon` flex-shrink rule so icon sizing remains stable in
+  compact toolbar layouts
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 120`
+- passed whitespace check:
+  `git diff --check`
+- passed focused TrajectoryToolbar tests on Hetzner:
+  `CI=true npm test -- --runTestsByPath src/components/trajectory/TrajectoryToolbar.test.js --watchAll=false`
+- passed production dashboard build on Hetzner:
+  `npm run build`

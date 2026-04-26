@@ -2,6 +2,20 @@
 
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import {
+  MdAddLocationAlt,
+  MdClose,
+  MdDelete,
+  MdExplore,
+  MdFileDownload,
+  MdFileUpload,
+  MdFolderOpen,
+  MdKeyboard,
+  MdRedo,
+  MdSave,
+  MdTerrain,
+  MdUndo,
+} from 'react-icons/md';
 import '../../styles/TrajectoryToolbar.css';
 
 const TrajectoryToolbar = ({
@@ -65,7 +79,7 @@ const TrajectoryToolbar = ({
           onClick={onToggleAddWaypoint}
           data-help="Add Waypoint Mode (A)"
         >
-          <span className="btn-icon">📍</span>
+          <MdAddLocationAlt className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Add Waypoint</span>
         </button>
         
@@ -77,7 +91,7 @@ const TrajectoryToolbar = ({
           disabled={!canUndo}
           data-help={canUndo ? `Undo: ${undoDescription} (Ctrl+Z)` : 'Nothing to undo'}
         >
-          <span className="btn-icon">↶</span>
+          <MdUndo className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Undo</span>
         </button>
         
@@ -87,7 +101,7 @@ const TrajectoryToolbar = ({
           disabled={!canRedo}
           data-help={canRedo ? `Redo: ${redoDescription} (Ctrl+Y)` : 'Nothing to redo'}
         >
-          <span className="btn-icon">↷</span>
+          <MdRedo className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Redo</span>
         </button>
       </div>
@@ -98,7 +112,7 @@ const TrajectoryToolbar = ({
           onClick={onSave}
           data-help="Save Trajectory (Ctrl+S)"
         >
-          <span className="btn-icon">💾</span>
+          <MdSave className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Save</span>
           {isDirty && <span className="unsaved-indicator">●</span>}
         </button>
@@ -108,7 +122,7 @@ const TrajectoryToolbar = ({
           onClick={onLoad}
           data-help="Load Trajectory (Ctrl+O)"
         >
-          <span className="btn-icon">📂</span>
+          <MdFolderOpen className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Load</span>
         </button>
 
@@ -117,7 +131,7 @@ const TrajectoryToolbar = ({
           onClick={onImport}
           data-help="Import a leader-route CSV or planner JSON"
         >
-          <span className="btn-icon">📥</span>
+          <MdFileUpload className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Import</span>
         </button>
         
@@ -127,7 +141,7 @@ const TrajectoryToolbar = ({
           disabled={waypointCount === 0}
           data-help="Export the current leader route"
         >
-          <span className="btn-icon">📤</span>
+          <MdFileDownload className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Export</span>
         </button>
 
@@ -137,7 +151,7 @@ const TrajectoryToolbar = ({
           disabled={!canSendToSwarm}
           data-help={canSendToSwarm ? `${handoffActionLabel}. ${handoffSummary}` : 'Add at least one waypoint before assigning a leader path to a cluster'}
         >
-          <span className="btn-icon">🧭</span>
+          <MdExplore className="btn-icon" aria-hidden="true" />
           <span className="btn-text">{handoffActionLabel}</span>
         </button>
         
@@ -147,7 +161,7 @@ const TrajectoryToolbar = ({
           disabled={waypointCount === 0}
           data-help="Clear All Waypoints"
         >
-          <span className="btn-icon">🗑️</span>
+          <MdDelete className="btn-icon" aria-hidden="true" />
           <span className="btn-text">Clear</span>
         </button>
       </div>
@@ -160,7 +174,7 @@ const TrajectoryToolbar = ({
               onClick={onToggleTerrain}
               data-help="Toggle 3D Terrain"
             >
-              <span className="btn-icon">🏔️</span>
+              <MdTerrain className="btn-icon" aria-hidden="true" />
               <span className="btn-text">Terrain</span>
             </button>
 
@@ -255,7 +269,7 @@ const TrajectoryToolbar = ({
           aria-expanded={showShortcutHelp}
           onClick={() => setShowShortcutHelp((prev) => !prev)}
         >
-          <span className="btn-icon">⌨️</span>
+          <MdKeyboard className="btn-icon" aria-hidden="true" />
         </button>
         {showShortcutHelp && (
           <div className="toolbar-shortcut-popover" role="dialog" aria-label="Planner shortcuts">
@@ -267,7 +281,7 @@ const TrajectoryToolbar = ({
                 onClick={() => setShowShortcutHelp(false)}
                 aria-label="Close planner shortcuts"
               >
-                ✕
+                <MdClose aria-hidden="true" />
               </button>
             </div>
             <ul className="toolbar-shortcut-popover__list">
