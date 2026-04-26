@@ -1,12 +1,12 @@
 // src/pages/Overview.js
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { FaChevronDown } from 'react-icons/fa';
+import { FaBroadcastTower, FaChevronDown } from 'react-icons/fa';
 import CommandSender from '../components/CommandSender';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import DroneWidget from '../components/DroneWidget';
 import ExpandedDronePortal from '../components/ExpandedDronePortal';
-import { EmptyState, MetricStrip, OperatorNotice } from '../components/ui';
+import { EmptyState, MetricStrip, OperatorNotice, PageShell, StatusBadge } from '../components/ui';
 import useFetch from '../hooks/useFetch';
 import {
   DRONE_RUNTIME_CLOCK_PROP,
@@ -446,15 +446,20 @@ const Overview = ({ setSelectedDrone }) => {
   };
 
   return (
-    <div className="overview-container">
-      <header className="overview-header">
-        <div className="overview-header__copy">
-          <p className="overview-eyebrow">Operations dashboard</p>
-          <h1>Fleet Command Overview</h1>
-          <p className="overview-description">
-            Live fleet status, dispatch scope, and launch readiness.
-          </p>
-        </div>
+    <PageShell
+      className="overview-container"
+      eyebrow="Operations dashboard"
+      title="Fleet Command"
+      subtitle="Live fleet status, dispatch scope, launch readiness."
+      icon={<FaBroadcastTower />}
+      docsRoute="/mission-control"
+      status={(
+        <StatusBadge tone={fleetSummary.online > 0 ? 'success' : 'warning'}>
+          {fleetSummary.online}/{fleetSummary.total} live
+        </StatusBadge>
+      )}
+    >
+      <section className="overview-header" aria-label="Fleet command summary">
         <div
           className={`overview-summary-panel ${fleetPanelExpanded ? 'is-open' : ''}`}
           role="button"
@@ -503,7 +508,7 @@ const Overview = ({ setSelectedDrone }) => {
             </div>
           )}
         </div>
-      </header>
+      </section>
 
       <div
         className="mission-trigger-section"
@@ -652,7 +657,7 @@ const Overview = ({ setSelectedDrone }) => {
         onClose={closeExpandedDrone}
         originRect={originRect}
       />
-    </div>
+    </PageShell>
   );
 };
 
