@@ -3033,3 +3033,33 @@ Verification:
   `CI=true npm test -- --runTestsByPath src/components/DroneGitStatus.test.js --watchAll=false`
 - passed production dashboard build on Hetzner:
   `npm run build`
+
+## Slice 74
+
+Goal:
+
+- close the frontend predeploy cleanup pass with a full audit/test/build gate
+
+Implemented:
+
+- verified the worktree was clean after Slice 73
+- reran the frontend UI audit guardrail with an expanded result window
+- reran decorative glyph and hidden legacy/TODO scans for frontend
+  components/pages/styles
+- ran the full frontend Jest suite on Hetzner
+- ran the production dashboard build on Hetzner
+
+Verification:
+
+- passed frontend UI audit locally:
+  `python3 tools/audit_frontend_ui.py --max-items 300`
+- passed decorative glyph scan for frontend source excluding tests
+- passed hidden legacy/TODO scan for frontend components/pages/styles
+- passed whitespace check:
+  `git diff --check`
+- passed full frontend test suite on Hetzner:
+  `CI=true npm test -- --watchAll=false`
+  - 100 test suites passed
+  - 448 tests passed
+- passed production dashboard build on Hetzner:
+  `npm run build`
