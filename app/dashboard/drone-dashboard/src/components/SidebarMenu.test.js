@@ -111,9 +111,24 @@ describe('SidebarMenu', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /open profile for admin/i }));
 
-    expect(screen.getByRole('dialog', { name: /signed-in user profile/i })).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: /signed-in user profile/i });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.closest('.modern-sidebar-wrapper')).toBeNull();
     expect(screen.getByText(/admin · session 12h/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /security/i })).toHaveAttribute('href', '/runtime-admin');
     expect(screen.getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');
+  });
+
+  it('shows compact project footer links in expanded mode', () => {
+    renderSidebar(
+      <SidebarMenu
+        collapsed={false}
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+      />
+    );
+
+    expect(screen.getByRole('link', { name: /alireza ghaderi/i })).toHaveAttribute('href', 'https://joomtalk.ir/');
+    expect(screen.getByRole('link', { name: /open linkedin profile/i })).toHaveAttribute('href', 'https://linkedin.com/in/alireza787b');
   });
 });

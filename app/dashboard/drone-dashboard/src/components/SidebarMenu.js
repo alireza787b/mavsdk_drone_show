@@ -1,5 +1,6 @@
 //app/dashboard/drone-dashboard/src/components/SidebarMenu.js
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, NavLink } from 'react-router-dom';
 import {
   FaGlobe,
@@ -181,79 +182,91 @@ const SidebarMenu = ({
     }
   };
 
-  const profilePopover = profileOpen ? (
-    <div className="auth-profile-popover" role="dialog" aria-label="Signed-in user profile">
+  const profilePopoverContent = (
+    <div className="auth-profile-layer">
       <button
         type="button"
-        className="auth-profile-popover__close"
+        className="auth-profile-popover-backdrop"
         onClick={() => setProfileOpen(false)}
         aria-label="Close profile"
-      >
-        ×
-      </button>
-      <div className="auth-profile-popover__header">
-        <FaUserShield aria-hidden="true" />
-        <div>
-          <strong>{currentUserLabel}</strong>
-          <span>{currentUserRole} · session {sessionTtl}</span>
-        </div>
-      </div>
-      <dl className="auth-profile-popover__meta">
-        <div>
-          <dt>Password</dt>
-          <dd>{passwordChangedAt}</dd>
-        </div>
-        <div>
-          <dt>API auth</dt>
-          <dd>{authStatus?.api_auth_enabled ? 'required' : 'off'}</dd>
-        </div>
-      </dl>
-      <form className="auth-profile-popover__form" onSubmit={handlePasswordChange}>
-        <label>
-          <span>Current</span>
-          <input
-            type="password"
-            value={passwordForm.currentPassword}
-            onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        <label>
-          <span>New</span>
-          <input
-            type="password"
-            value={passwordForm.newPassword}
-            onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-            autoComplete="new-password"
-            required
-          />
-        </label>
-        <label>
-          <span>Confirm</span>
-          <input
-            type="password"
-            value={passwordForm.confirmPassword}
-            onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-            autoComplete="new-password"
-            required
-          />
-        </label>
-        {profileNotice && (
-          <p className={`auth-profile-popover__notice auth-profile-popover__notice--${profileNotice.tone}`}>
-            {profileNotice.message}
-          </p>
-        )}
-        <button type="submit" disabled={profileBusy}>
-          {profileBusy ? 'Updating…' : 'Change password'}
+      />
+      <div className="auth-profile-popover" role="dialog" aria-label="Signed-in user profile">
+        <button
+          type="button"
+          className="auth-profile-popover__close"
+          onClick={() => setProfileOpen(false)}
+          aria-label="Close profile"
+        >
+          ×
         </button>
-      </form>
-      <div className="auth-profile-popover__links">
-        <Link to="/runtime-admin" onClick={handleProfileLinkNavigate}>Security</Link>
-        <Link to="/logs" onClick={handleProfileLinkNavigate}>Logs</Link>
+        <div className="auth-profile-popover__header">
+          <FaUserShield aria-hidden="true" />
+          <div>
+            <strong>{currentUserLabel}</strong>
+            <span>{currentUserRole} · session {sessionTtl}</span>
+          </div>
+        </div>
+        <dl className="auth-profile-popover__meta">
+          <div>
+            <dt>Password</dt>
+            <dd>{passwordChangedAt}</dd>
+          </div>
+          <div>
+            <dt>API auth</dt>
+            <dd>{authStatus?.api_auth_enabled ? 'required' : 'off'}</dd>
+          </div>
+        </dl>
+        <form className="auth-profile-popover__form" onSubmit={handlePasswordChange}>
+          <label>
+            <span>Current</span>
+            <input
+              type="password"
+              value={passwordForm.currentPassword}
+              onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+              autoComplete="current-password"
+              required
+            />
+          </label>
+          <label>
+            <span>New</span>
+            <input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+              autoComplete="new-password"
+              required
+            />
+          </label>
+          <label>
+            <span>Confirm</span>
+            <input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+              autoComplete="new-password"
+              required
+            />
+          </label>
+          {profileNotice && (
+            <p className={`auth-profile-popover__notice auth-profile-popover__notice--${profileNotice.tone}`}>
+              {profileNotice.message}
+            </p>
+          )}
+          <button type="submit" disabled={profileBusy}>
+            {profileBusy ? 'Updating…' : 'Change password'}
+          </button>
+        </form>
+        <div className="auth-profile-popover__links">
+          <Link to="/runtime-admin" onClick={handleProfileLinkNavigate}>Security</Link>
+          <Link to="/logs" onClick={handleProfileLinkNavigate}>Logs</Link>
+        </div>
       </div>
     </div>
-  ) : null;
+  );
+
+  const profilePopover = profileOpen
+    ? (typeof document === 'undefined' ? profilePopoverContent : createPortal(profilePopoverContent, document.body))
+    : null;
 
   return (
     <div className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${mobile ? 'mobile' : 'desktop'} ${mobileOpen ? 'mobile-open' : ''} ${isDark ? 'dark' : 'light'}`}>
@@ -478,7 +491,16 @@ const SidebarMenu = ({
         <div className="footer-item social-links">
           {!isCollapsed ? (
             <div className="social-expanded">
-              <span className="copyright">© {new Date().getFullYear()} MDS by Alireza787b</span>
+              <div className="sidebar-brand-footer">
+                <span>© {new Date().getFullYear()} MDS · {VERSION_DISPLAY}</span>
+                <a
+                  href="https://joomtalk.ir/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Alireza Ghaderi
+                </a>
+              </div>
               <div className="social-icons">
                 <a
                   href="https://github.com/alireza787b/mavsdk_drone_show"
@@ -501,6 +523,18 @@ const SidebarMenu = ({
           ) : (
             <div className="social-collapsed">
               <a
+                href="https://joomtalk.ir/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open Alireza Ghaderi personal page"
+                onMouseEnter={() => handleTooltip('Alireza')}
+              >
+                <FaSatelliteDish aria-hidden="true" />
+                {activeTooltip === 'Alireza' && (
+                  <span className="nav-tooltip">Alireza</span>
+                )}
+              </a>
+              <a
                 href="https://github.com/alireza787b/mavsdk_drone_show"
                 target="_blank"
                 rel="noopener noreferrer"
@@ -510,6 +544,18 @@ const SidebarMenu = ({
                 <FaGithub aria-hidden="true" />
                 {activeTooltip === 'GitHub' && (
                   <span className="nav-tooltip">GitHub</span>
+                )}
+              </a>
+              <a
+                href="https://linkedin.com/in/alireza787b"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open LinkedIn profile"
+                onMouseEnter={() => handleTooltip('LinkedIn')}
+              >
+                <FaLinkedin aria-hidden="true" />
+                {activeTooltip === 'LinkedIn' && (
+                  <span className="nav-tooltip">LinkedIn</span>
                 )}
               </a>
             </div>
