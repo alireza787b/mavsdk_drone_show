@@ -100,6 +100,9 @@ sudo python3 tools/mds_auth_admin.py enable-dashboard
 sudo python3 tools/mds_auth_admin.py rotate-session-secret
 ```
 
+`status` output intentionally reports posture, users, and token metadata only;
+it does not print password hashes or token hashes.
+
 Token examples:
 
 ```bash

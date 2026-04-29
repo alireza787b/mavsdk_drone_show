@@ -151,10 +151,49 @@ Verification:
 - Hetzner: `npm run build`
 - Hetzner: `python3 tools/audit_frontend_ui.py --strict`
 
-### Remaining Release Work
+### Slice 6: Release And Live Rollout Corrections
 
-- After official push/tag, merge the official changes into the private client repo without copying private data back to public.
-- Configure the private GCS with dashboard auth enabled and API auth disabled:
-  - admin username: `admin`
-  - admin password: supplied during bootstrap/test and never committed
-- Restart private GCS in REAL mode after remote validation.
+Status: completed
+
+Goals:
+
+- Push/tag/release official first, then sync private without copying client data to public.
+- Configure the private GCS with dashboard auth enabled and API auth disabled.
+- Keep REAL-mode hardware staging available after restart.
+- Record any live rollout defects as permanent fixes rather than manual workarounds.
+
+Implemented:
+
+- Official releases:
+  - `v5.3.28-auth`: initial optional auth implementation.
+  - `v5.3.29-auth`: redacted password hashes from `tools/mds_auth_admin.py status`.
+  - `v5.3.30-auth-runtime`: exported all managed `/etc/mds/gcs.env` settings from the production GCS launcher.
+- Private releases:
+  - `cad-v5.3.28-auth`
+  - `cad-v5.3.29-auth`
+  - `cad-v5.3.30-auth-runtime`
+- Private deployment:
+  - live checkout moved to the private `main` branch at `cad-v5.3.30-auth-runtime`
+  - dashboard auth enabled
+  - API auth left disabled for the current hardware/SITL workflow
+  - admin user created from the bootstrap/test credential supplied out-of-band
+  - GCS restarted in REAL mode
+
+Live rollout findings:
+
+- The recovery CLI originally printed stored password hashes in `status`; this was fixed and covered by a regression test.
+- The production launcher originally sourced `/etc/mds/gcs.env` without exporting new auth keys; this was fixed by auto-exporting the managed env file so future runtime/security keys are not silently ignored.
+
+Verification:
+
+- Official targeted checks:
+  - `python3 -m pytest tests/test_mds_auth.py::test_auth_admin_status_redacts_password_hashes tests/test_bootstrap_installers.py::test_gcs_server_launcher_exports_sitl_runtime_env_from_system_config -q`
+  - `bash -n gcs-server/start_gcs_server.sh`
+  - `git diff --check`
+- Private Hetzner live checks:
+  - `/api/v1/auth/status` reports dashboard auth enabled and API auth disabled.
+  - unauthenticated `/api/v1/system/runtime-status` returns `401`.
+  - admin login succeeds and returns a CSRF token.
+  - authenticated `/api/v1/system/runtime-status` returns `200` and REAL mode.
+  - machine bootstrap endpoint is not blocked by auth while API auth is disabled.
+  - static dashboard server on `3030` returns `200`.
