@@ -137,8 +137,12 @@ load_gcs_system_config() {
     fi
 
     if [[ -f "$GCS_SYSTEM_CONFIG" ]]; then
+        # Export every key from the managed env file. Keeping this generic
+        # prevents new runtime/security settings from being silently ignored.
+        set -a
         # shellcheck source=/dev/null
         source "$GCS_SYSTEM_CONFIG"
+        set +a
 
         PORT="${MDS_GCS_API_PORT:-${GCS_PORT:-$PORT}}"
         export \

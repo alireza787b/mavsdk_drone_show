@@ -691,10 +691,12 @@ def test_gcs_server_launcher_exports_sitl_runtime_env_from_system_config():
     launcher_script = REPO_ROOT / "gcs-server" / "start_gcs_server.sh"
     launcher_text = launcher_script.read_text(encoding="utf-8")
 
+    assert "set -a" in launcher_text
     assert "MDS_MODE" in launcher_text
     assert "MDS_DOCKER_IMAGE" in launcher_text
     assert "MDS_SITL_GIT_SYNC" in launcher_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in launcher_text
+    assert "new runtime/security settings" in launcher_text
 
 
 def test_netbird_detail_parsers_extract_primary_identity_fields():
