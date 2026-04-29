@@ -86,7 +86,7 @@ def cmd_status(args) -> int:
         "setup_required": service.setup_required(),
         "users_file": str(service.settings.users_file),
         "tokens_file": str(service.settings.tokens_file),
-        "users": service.store.list_users(),
+        "users": [service.store.sanitize_user(user) for user in service.store.list_users()],
         "tokens": service.store.list_tokens(),
     }
     print(json.dumps(payload, indent=2, sort_keys=True))

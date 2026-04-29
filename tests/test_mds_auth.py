@@ -1,9 +1,17 @@
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api_routes.auth import create_auth_router
 from auth_runtime import MDSAuthMiddleware
 from src.security.auth import AuthService, AuthSettings, hash_password, verify_password
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _set_auth_env(monkeypatch, tmp_path, *, dashboard=True, api=False):
@@ -70,6 +78,25 @@ def test_auth_store_user_and_token_lifecycle(monkeypatch, tmp_path):
 
     service.store.revoke_token(created["id"])
     assert service.store.verify_token(plaintext) is None
+
+
+def test_auth_admin_status_redacts_password_hashes(monkeypatch, tmp_path):
+    _set_auth_env(monkeypatch, tmp_path, dashboard=True, api=False)
+    service = AuthService(AuthSettings.from_env())
+    service.store.upsert_user("admin", password="test-password", role="admin")
+
+    env = os.environ.copy()
+    result = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools" / "mds_auth_admin.py"), "status"],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    payload = json.loads(result.stdout)
+
+    assert payload["users"][0]["username"] == "admin"
+    assert "password_hash" not in payload["users"][0]
 
 
 def test_auth_disabled_keeps_existing_api_open(monkeypatch, tmp_path):
