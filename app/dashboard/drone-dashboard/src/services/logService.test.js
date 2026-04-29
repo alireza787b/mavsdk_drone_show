@@ -1,9 +1,9 @@
 // src/services/logService.test.js
-import axios from 'axios';
 import {
   buildDroneUlogDownloadURL,
   buildStreamURL,
   createDroneUlogDownloadJob,
+  deleteDroneUlogDownloadJob,
   eraseAllDroneUlogs,
   getConfiguredDrones,
   getDroneUlogFiles,
@@ -14,15 +14,20 @@ import {
 } from './logService';
 import {
   buildLogsUrl,
+  deleteGcsResource,
+  fetchGcsResource,
   getFleetConfigResponse,
   getFleetHeartbeatsResponse,
+  postGcsResource,
 } from './gcsApiService';
 
-jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
   buildLogsUrl: jest.fn((suffix = '') => `http://gcs.test:5030/api/logs${suffix}`),
+  deleteGcsResource: jest.fn(),
+  fetchGcsResource: jest.fn(),
   getFleetConfigResponse: jest.fn(),
   getFleetHeartbeatsResponse: jest.fn(),
+  postGcsResource: jest.fn(),
 }));
 
 describe('logService', () => {
@@ -74,12 +79,12 @@ describe('logService', () => {
   });
 
   test('encodes drone ids in drone session routes', async () => {
-    axios.get.mockResolvedValue({ data: [] });
+    fetchGcsResource.mockResolvedValue({ data: [] });
 
     await getDroneSessions('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/sessions');
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/sessions');
+    expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/sessions');
   });
 
   test('builds onboard ULog browser download URL', () => {
@@ -90,28 +95,28 @@ describe('logService', () => {
   });
 
   test('requests drone onboard ULog policy through the GCS log proxy', async () => {
-    axios.get.mockResolvedValue({ data: { policy: { supported: true } } });
+    fetchGcsResource.mockResolvedValue({ data: { policy: { supported: true } } });
 
     const result = await getDroneUlogPolicy('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/policy');
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/policy');
+    expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/policy');
     expect(result.policy.supported).toBe(true);
   });
 
   test('requests drone onboard ULog files through the GCS log proxy', async () => {
-    axios.get.mockResolvedValue({ data: { files: [] } });
+    fetchGcsResource.mockResolvedValue({ data: { files: [] } });
 
     const result = await getDroneUlogFiles('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/files');
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/files');
+    expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/files');
     expect(result.files).toEqual([]);
   });
 
   test('creates and polls onboard ULog download jobs', async () => {
-    axios.post.mockResolvedValue({ data: { job: { job_id: 'job-1' } } });
-    axios.get.mockResolvedValue({ data: { job: { job_id: 'job-1', status: 'ready' } } });
+    postGcsResource.mockResolvedValue({ data: { job: { job_id: 'job-1' } } });
+    fetchGcsResource.mockResolvedValue({ data: { job: { job_id: 'job-1', status: 'ready' } } });
 
     const created = await createDroneUlogDownloadJob('leader/1', 12);
     const status = await getDroneUlogDownloadJob('leader/1', 'job-1');
@@ -122,13 +127,23 @@ describe('logService', () => {
     expect(status.job.status).toBe('ready');
   });
 
+  test('deletes onboard ULog download jobs through the authenticated GCS helper', async () => {
+    deleteGcsResource.mockResolvedValue({ data: { status: 'deleted' } });
+
+    const result = await deleteDroneUlogDownloadJob('leader/1', 'job-1');
+
+    expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/downloads/job-1');
+    expect(deleteGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/downloads/job-1');
+    expect(result.status).toBe('deleted');
+  });
+
   test('sends onboard ULog erase-all through the GCS log proxy', async () => {
-    axios.post.mockResolvedValue({ data: { status: 'accepted' } });
+    postGcsResource.mockResolvedValue({ data: { status: 'accepted' } });
 
     const result = await eraseAllDroneUlogs('leader/1');
 
     expect(buildLogsUrl).toHaveBeenCalledWith('/drone/leader%2F1/ulog/erase-all');
-    expect(axios.post).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/erase-all');
+    expect(postGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/logs/drone/leader%2F1/ulog/erase-all');
     expect(result.status).toBe('accepted');
   });
 });

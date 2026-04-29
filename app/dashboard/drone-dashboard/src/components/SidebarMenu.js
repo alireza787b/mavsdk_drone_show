@@ -266,6 +266,7 @@ const SidebarMenu = ({
               <span>Current</span>
               <input
                 type="password"
+                placeholder="Current password"
                 value={passwordForm.currentPassword}
                 onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
                 autoComplete="current-password"
@@ -276,6 +277,7 @@ const SidebarMenu = ({
               <span>New</span>
               <input
                 type="password"
+                placeholder="New password"
                 value={passwordForm.newPassword}
                 onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
                 autoComplete="new-password"
@@ -286,6 +288,7 @@ const SidebarMenu = ({
               <span>Confirm</span>
               <input
                 type="password"
+                placeholder="Confirm new password"
                 value={passwordForm.confirmPassword}
                 onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
                 autoComplete="new-password"

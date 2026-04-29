@@ -119,6 +119,9 @@ describe('SidebarMenu', () => {
     expect(screen.queryByLabelText(/current/i)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /change password/i }));
     expect(screen.getByLabelText(/current/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/current password/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/^new password$/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/confirm new password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save password/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /security/i })).toHaveAttribute('href', '/runtime-admin');
     expect(screen.getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');

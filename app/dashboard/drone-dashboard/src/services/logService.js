@@ -1,16 +1,18 @@
 // src/services/logService.js
 // API service for all /api/logs/* endpoints
 
-import axios from 'axios';
 import {
   buildLogsUrl,
+  deleteGcsResource,
+  fetchGcsResource,
   getFleetConfigResponse,
   getFleetHeartbeatsResponse,
+  postGcsResource,
 } from './gcsApiService';
 
 /** GET /api/logs/sources — registered components */
 export const getSources = async () => {
-  const resp = await axios.get(buildLogsUrl('/sources'));
+  const resp = await fetchGcsResource(buildLogsUrl('/sources'));
   return resp.data;
 };
 
@@ -28,7 +30,7 @@ export const getHeartbeats = async () => {
 
 /** GET /api/logs/sessions — list GCS sessions */
 export const getSessions = async () => {
-  const resp = await axios.get(buildLogsUrl('/sessions'));
+  const resp = await fetchGcsResource(buildLogsUrl('/sessions'));
   return resp.data;
 };
 
@@ -40,13 +42,13 @@ export const getSessionContent = async (sessionId, { level, component, limit, of
   if (limit) params.limit = limit;
   if (offset) params.offset = offset;
   if (since) params.since = since;
-  const resp = await axios.get(buildLogsUrl(`/sessions/${encodeURIComponent(sessionId)}`), { params });
+  const resp = await fetchGcsResource(buildLogsUrl(`/sessions/${encodeURIComponent(sessionId)}`), { params });
   return resp.data;
 };
 
 /** GET /api/logs/drone/:id/sessions — list sessions on a drone */
 export const getDroneSessions = async (droneId) => {
-  const resp = await axios.get(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions`));
+  const resp = await fetchGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions`));
   return resp.data;
 };
 
@@ -58,7 +60,7 @@ export const getDroneSessionContent = async (droneId, sessionId, { level, compon
   if (limit) params.limit = limit;
   if (offset) params.offset = offset;
   if (since) params.since = since;
-  const resp = await axios.get(
+  const resp = await fetchGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/sessions/${encodeURIComponent(sessionId)}`),
     { params },
   );
@@ -67,19 +69,19 @@ export const getDroneSessionContent = async (droneId, sessionId, { level, compon
 
 /** GET /api/logs/drone/:id/ulog/policy — onboard ULog maintenance policy */
 export const getDroneUlogPolicy = async (droneId) => {
-  const resp = await axios.get(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/policy`));
+  const resp = await fetchGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/policy`));
   return resp.data;
 };
 
 /** GET /api/logs/drone/:id/ulog/files — onboard PX4 ULog files */
 export const getDroneUlogFiles = async (droneId) => {
-  const resp = await axios.get(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files`));
+  const resp = await fetchGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files`));
   return resp.data;
 };
 
 /** POST /api/logs/drone/:id/ulog/files/:logId/download — create staged download job */
 export const createDroneUlogDownloadJob = async (droneId, logId) => {
-  const resp = await axios.post(
+  const resp = await postGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/files/${encodeURIComponent(logId)}/download`),
   );
   return resp.data;
@@ -87,7 +89,7 @@ export const createDroneUlogDownloadJob = async (droneId, logId) => {
 
 /** GET /api/logs/drone/:id/ulog/downloads/:jobId — get staged job state */
 export const getDroneUlogDownloadJob = async (droneId, jobId) => {
-  const resp = await axios.get(
+  const resp = await fetchGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}`),
   );
   return resp.data;
@@ -95,7 +97,7 @@ export const getDroneUlogDownloadJob = async (droneId, jobId) => {
 
 /** DELETE /api/logs/drone/:id/ulog/downloads/:jobId — delete staged job */
 export const deleteDroneUlogDownloadJob = async (droneId, jobId) => {
-  const resp = await axios.delete(
+  const resp = await deleteGcsResource(
     buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/downloads/${encodeURIComponent(jobId)}`),
   );
   return resp.data;
@@ -103,7 +105,7 @@ export const deleteDroneUlogDownloadJob = async (droneId, jobId) => {
 
 /** POST /api/logs/drone/:id/ulog/erase-all — erase all onboard PX4 ULogs */
 export const eraseAllDroneUlogs = async (droneId) => {
-  const resp = await axios.post(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/erase-all`));
+  const resp = await postGcsResource(buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/ulog/erase-all`));
   return resp.data;
 };
 
@@ -117,7 +119,7 @@ export const exportSessions = async (sessionIds, format = 'jsonl', droneId = nul
   const endpoint = droneId != null
     ? buildLogsUrl(`/drone/${encodeURIComponent(droneId)}/export`)
     : buildLogsUrl('/export');
-  const resp = await axios.post(
+  const resp = await postGcsResource(
     endpoint,
     { session_ids: sessionIds, format },
     { responseType: 'blob' },
@@ -127,7 +129,7 @@ export const exportSessions = async (sessionIds, format = 'jsonl', droneId = nul
 
 /** POST /api/logs/frontend — report frontend error */
 export const reportFrontendError = async (level, msg, extra = null) => {
-  const resp = await axios.post(buildLogsUrl('/frontend'), {
+  const resp = await postGcsResource(buildLogsUrl('/frontend'), {
     level,
     component: 'frontend',
     msg,
@@ -138,7 +140,7 @@ export const reportFrontendError = async (level, msg, extra = null) => {
 
 /** POST /api/logs/config — toggle background pull */
 export const updateLogConfig = async (config) => {
-  const resp = await axios.post(buildLogsUrl('/config'), config);
+  const resp = await postGcsResource(buildLogsUrl('/config'), config);
   return resp.data;
 };
 

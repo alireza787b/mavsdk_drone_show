@@ -4,8 +4,9 @@ import useLogStream from './useLogStream';
 
 // Mock EventSource
 class MockEventSource {
-  constructor(url) {
+  constructor(url, options = undefined) {
     this.url = url;
+    this.options = options;
     this.onopen = null;
     this.onmessage = null;
     this.onerror = null;
@@ -29,6 +30,7 @@ describe('useLogStream', () => {
     renderHook(() => useLogStream({ enabled: true }));
     expect(MockEventSource.instances).toHaveLength(1);
     expect(MockEventSource.instances[0].url).toContain('/api/logs/stream');
+    expect(MockEventSource.instances[0].options).toEqual({ withCredentials: true });
   });
 
   test('does not connect when disabled', () => {

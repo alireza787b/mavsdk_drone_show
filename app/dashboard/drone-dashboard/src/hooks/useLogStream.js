@@ -71,7 +71,7 @@ const useLogStream = ({ level = null, component = null, source = null, droneId =
     idCounterRef.current = 0;
     setEntries([]);
     const url = buildStreamURL({ level, component, source }, droneId);
-    const es = new EventSource(url);
+    const es = new EventSource(url, { withCredentials: true });
     esRef.current = es;
 
     es.onopen = () => {
