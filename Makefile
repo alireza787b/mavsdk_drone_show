@@ -61,6 +61,30 @@ node-resume: ## Resume or repair an interrupted companion-node bootstrap.
 git-access-check: ## Validate non-interactive git access for the configured repo/branch.
 	bash tools/mds_git_access_check.sh $(ARGS)
 
+.PHONY: auth-status
+auth-status: ## Print dashboard/API auth posture, users, and token metadata.
+	sudo python3 tools/mds_auth_admin.py status
+
+.PHONY: auth-add-user
+auth-add-user: ## Create/reset a dashboard user. Example: make auth-add-user ARGS="admin --role admin".
+	sudo python3 tools/mds_auth_admin.py add-user $(ARGS)
+
+.PHONY: auth-enable-dashboard
+auth-enable-dashboard: ## Enable dashboard login in /etc/mds/gcs.env; restart GCS to apply.
+	sudo python3 tools/mds_auth_admin.py enable-dashboard
+
+.PHONY: auth-disable-dashboard
+auth-disable-dashboard: ## Disable dashboard login in /etc/mds/gcs.env; restart GCS to apply.
+	sudo python3 tools/mds_auth_admin.py disable-dashboard
+
+.PHONY: auth-create-token
+auth-create-token: ## Create an API/debug token. Example: make auth-create-token ARGS="--name field-debug --scope readonly --ttl-hours 4".
+	sudo python3 tools/mds_auth_admin.py create-token $(ARGS)
+
+.PHONY: auth-revoke-token
+auth-revoke-token: ## Revoke an API token by id. Example: make auth-revoke-token ARGS="tok_abcd".
+	sudo python3 tools/mds_auth_admin.py revoke-token $(ARGS)
+
 .PHONY: fleet-git-status
 fleet-git-status: ## Query GCS aggregated fleet git/auth/sidecar status.
 	curl -sS "$(GCS_API)/api/v1/git/status"

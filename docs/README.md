@@ -23,6 +23,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | understand what should sync fleet-wide versus stay local/secret | [Fleet Sync And Secrets](guides/fleet-sync-and-secrets.md) |
 | inspect per-drone sync/auth/MAVLink/Smart-Wi-Fi posture | [Fleet Ops](guides/fleet-ops.md) |
+| enable optional dashboard login/API tokens | [GCS Auth Guide](guides/gcs-auth.md) |
 | configure private SITL/container repo auth | [Custom SITL Auth Guide](guides/custom-sitl-auth.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
 | deploy companion-computer hardware | [MDS Init Setup](guides/mds-init-setup.md) |
@@ -54,6 +55,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[AI Agent SITL Audit Loop](superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md)** - deeper agent-only execution contract for reproduce, patch, validate, package, and handoff phases
 - **[Frontend Design System](guides/frontend-design-system.md)** - canonical operator UI/UX, action-density, map/globe, and route-doc standards for maintainers and AI agents
 - **[Frontend UI Audit Guide](guides/frontend-ui-audit.md)** - predeploy UI/UX cleanup guardrails, route-doc mapping rules, and audit command
+- **[GCS Auth Guide](guides/gcs-auth.md)** - optional dashboard login, roles, token management, bootstrap flags, and SSH recovery
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage

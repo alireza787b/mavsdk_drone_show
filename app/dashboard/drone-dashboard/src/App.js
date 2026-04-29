@@ -18,6 +18,7 @@ import { FaBars, FaTimes } from 'react-icons/fa';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { CommandActivityProvider } from './contexts/CommandActivityContext';
 import { MapProvider } from './contexts/MapContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Import design tokens first
 import './styles/DesignTokens.css';
@@ -51,6 +52,7 @@ const FleetOpsPage = lazy(() => import('./pages/FleetOpsPage'));
 const LogViewer = lazy(() => import('./pages/LogViewer'));
 const SitlControlPage = lazy(() => import('./pages/SitlControlPage'));
 const RuntimeAdminPage = lazy(() => import('./pages/RuntimeAdminPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
 
 /**
  * Main Application Component
@@ -88,12 +90,47 @@ const AppLoadingFallback = () => (
   </div>
 );
 
-const App = () => {
+const AuthLoadingFallback = () => (
+  <div className="page-loading" role="status" aria-live="polite" aria-label="Checking dashboard access">
+    <div className="page-loading__card">
+      <div className="page-loading__radar" aria-hidden="true">
+        <span className="page-loading__sweep" />
+        <span className="page-loading__node page-loading__node--one" />
+        <span className="page-loading__node page-loading__node--two" />
+      </div>
+      <div className="page-loading__copy">
+        <strong>Checking dashboard access</strong>
+        <span>Preparing secure session</span>
+      </div>
+    </div>
+  </div>
+);
+
+const AuthGate = ({ children }) => {
+  const auth = useAuth();
+
+  if (auth.loading && !auth.status?.dashboard_auth_enabled) {
+    return <AuthLoadingFallback />;
+  }
+
+  if (auth.dashboardAuthEnabled && !auth.authenticated) {
+    return (
+      <Suspense fallback={<AuthLoadingFallback />}>
+        <LoginPage />
+      </Suspense>
+    );
+  }
+
+  return children;
+};
+
+const AppShell = () => {
   const [selectedDrone, setSelectedDrone] = useState(null);
   const [isMobile, setIsMobile] = useState(getIsMobileViewport);
   const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(getIsMobileViewport);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const runtimeStatus = useGcsRuntimeStatus();
+  const auth = useAuth();
 
   useEffect(() => {
     const handleResize = () => {
@@ -133,16 +170,12 @@ const App = () => {
   }`;
 
   return (
-    <ThemeProvider>
-      <ErrorBoundary>
-        <CommandActivityProvider>
-          <MapProvider>
-            <Router
-              future={{
-                v7_startTransition: true,
-                v7_relativeSplatPath: true,
-              }}
-            >
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
               <div className={`app-container ${isMobile ? 'app-mobile' : 'app-desktop'}`}>
                 {isMobile && (
                   <>
@@ -172,6 +205,9 @@ const App = () => {
                   onNavigate={handleSidebarNavigate}
                   onToggle={handleSidebarToggle}
                   runtimeStatus={runtimeStatus}
+                  authStatus={auth.status}
+                  currentUser={auth.user}
+                  onLogout={auth.logout}
                 />
                 <div className={contentClassName}>
                   <RouteDocsShortcut />
@@ -227,12 +263,24 @@ const App = () => {
                 bodyClassName="toast-body"
                 progressClassName="toast-progress"
               />
-            </Router>
-          </MapProvider>
-        </CommandActivityProvider>
-      </ErrorBoundary>
-    </ThemeProvider>
+    </Router>
   );
 };
+
+const App = () => (
+  <ThemeProvider>
+    <ErrorBoundary>
+      <CommandActivityProvider>
+        <MapProvider>
+          <AuthProvider>
+            <AuthGate>
+              <AppShell />
+            </AuthGate>
+          </AuthProvider>
+        </MapProvider>
+      </CommandActivityProvider>
+    </ErrorBoundary>
+  </ThemeProvider>
+);
 
 export default App;

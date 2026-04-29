@@ -484,7 +484,7 @@ Live auth audit captured during this slice:
   - no MDS deploy key is currently present under `/home/droneshow/.ssh`
 - Hetzner GCS
   - `/etc/mds/gcs.env` currently says HTTPS + token-file runtime authority
-  - live `origin` is still SSH to the Catch-A-Drone repo
+  - live `origin` is still SSH to the private client repo
   - this is exactly the kind of drift now surfaced by the new status/verify output
 
 Residual drift intentionally deferred to the next slice:
@@ -1022,7 +1022,7 @@ Residual drift after this slice:
 - Smart Wi-Fi Manager fleet-profile integration is still a planned next slice,
   not a live Arnaud-board capability yet
 - hardware convergence remains blocked on private token approval from the
-  Catch-A-Drone org
+  private client org
 
 ## Slice 15
 

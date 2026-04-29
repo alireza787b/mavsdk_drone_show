@@ -50,6 +50,11 @@ jest.mock('../config/apiConfig', () => ({
   },
 }));
 
+const authConfig = (config = {}) => ({
+  ...config,
+  withCredentials: true,
+});
+
 describe('gcsApiService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -195,7 +200,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/fleet/telemetry',
-      { timeout: 2000 }
+      authConfig({ timeout: 2000 })
     );
   });
 
@@ -206,7 +211,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/commands/cmd%2Fleader%201',
-      {}
+      authConfig()
     );
   });
 
@@ -217,7 +222,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/commands/policy/precision-move',
-      {}
+      authConfig()
     );
   });
 
@@ -229,7 +234,7 @@ describe('gcsApiService', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/git/sync-operations',
       { pos_ids: [1, 2] },
-      { timeout: 3000 }
+      authConfig({ timeout: 3000 })
     );
   });
 
@@ -242,12 +247,12 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/fleet/sidecars/connectivity/profile',
-      { timeout: 1500 }
+      authConfig({ timeout: 1500 })
     );
     expect(axios.put).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/fleet/sidecars/connectivity/profile',
       { profile: { profiles: [] } },
-      { timeout: 2500 }
+      authConfig({ timeout: 2500 })
     );
   });
 
@@ -259,7 +264,7 @@ describe('gcsApiService', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/runtime-update',
       {},
-      {}
+      authConfig()
     );
   });
 
@@ -299,7 +304,7 @@ describe('gcsApiService', () => {
         operator_label: 'launch-now',
         takeoff_altitude: 15,
       },
-      {}
+      authConfig()
     );
   });
 
@@ -343,7 +348,7 @@ describe('gcsApiService', () => {
           },
         },
       },
-      {}
+      authConfig()
     );
   });
 
@@ -356,7 +361,7 @@ describe('gcsApiService', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/shows/skybrush/import',
       formData,
-      { timeout: 4000 }
+      authConfig({ timeout: 4000 })
     );
   });
 
@@ -369,7 +374,7 @@ describe('gcsApiService', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/shows/custom/import',
       formData,
-      { timeout: 4000 }
+      authConfig({ timeout: 4000 })
     );
   });
 
@@ -384,13 +389,13 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/commands/recent',
-      {
+      authConfig({
         params: {
           limit: 12,
           status: 'running',
           mission_type: 4,
         },
-      }
+      })
     );
   });
 
@@ -402,7 +407,7 @@ describe('gcsApiService', () => {
     expect(axios.put).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/config/fleet',
       [{ hw_id: '1' }],
-      { timeout: 2500 }
+      authConfig({ timeout: 2500 })
     );
   });
 
@@ -413,7 +418,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/config/fleet/trajectory-start-positions/7',
-      {}
+      authConfig()
     );
   });
 
@@ -425,7 +430,7 @@ describe('gcsApiService', () => {
     expect(axios.put).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/origin',
       { lat: 35, lon: -120, alt: 12, alt_source: 'manual' },
-      { timeout: 2500 }
+      authConfig({ timeout: 2500 })
     );
   });
 
@@ -436,7 +441,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/gcs-config',
-      { timeout: 1200 }
+      authConfig({ timeout: 1200 })
     );
   });
 
@@ -448,7 +453,7 @@ describe('gcsApiService', () => {
     expect(axios.put).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/gcs-config',
       { mode: 'real', git_auto_push: false },
-      { timeout: 1100 }
+      authConfig({ timeout: 1100 })
     );
   });
 
@@ -460,7 +465,7 @@ describe('gcsApiService', () => {
     expect(axios.post).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/gcs-config/apply',
       {},
-      { timeout: 900 }
+      authConfig({ timeout: 900 })
     );
   });
 
@@ -471,7 +476,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/runtime-status',
-      { timeout: 900 }
+      authConfig({ timeout: 900 })
     );
   });
 
@@ -482,7 +487,7 @@ describe('gcsApiService', () => {
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/fleet/network-details',
-      { timeout: 1800 }
+      authConfig({ timeout: 1800 })
     );
   });
 
@@ -497,12 +502,12 @@ describe('gcsApiService', () => {
         version: 1,
         assignments: [{ hw_id: '1' }],
       },
-      {
+      authConfig({
         timeout: 3000,
         params: {
           commit: 'true',
         },
-      }
+      })
     );
   });
 });

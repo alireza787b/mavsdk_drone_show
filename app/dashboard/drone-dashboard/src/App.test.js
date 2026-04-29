@@ -18,6 +18,19 @@ jest.mock('./components/ErrorBoundary', () => ({ children }) => <>{children}</>)
 jest.mock('./contexts/CommandActivityContext', () => ({
   CommandActivityProvider: ({ children }) => <>{children}</>,
 }));
+jest.mock('./hooks/useGcsRuntimeStatus', () => ({
+  __esModule: true,
+  default: () => ({
+    loading: false,
+    error: null,
+    mode: 'sitl',
+    modeLabel: 'SITL',
+    configuredMode: 'sitl',
+    configuredModeLabel: 'SITL',
+    restartRequired: false,
+    docs: {},
+  }),
+}));
 
 // Mock lazy-loaded pages — must return { default: Component } for React.lazy
 jest.mock('./pages/SwarmDesign', () => ({ __esModule: true, default: () => <div data-testid="swarm-design" /> }));
@@ -37,6 +50,23 @@ jest.mock('./services/logService', () => ({
   reportFrontendError: jest.fn().mockResolvedValue({ status: 'received' }),
 }));
 
+jest.mock('./services/gcsApiService', () => {
+  const actual = jest.requireActual('./services/gcsApiService');
+  return {
+    ...actual,
+    getAuthStatusResponse: jest.fn().mockResolvedValue({
+      data: {
+        dashboard_auth_enabled: false,
+        api_auth_enabled: false,
+        authenticated: false,
+      },
+    }),
+    loginResponse: jest.fn(),
+    logoutResponse: jest.fn().mockResolvedValue({ data: { authenticated: false } }),
+    setGcsCsrfToken: jest.fn(),
+  };
+});
+
 describe('App', () => {
   const originalInnerWidth = window.innerWidth;
 
@@ -46,13 +76,13 @@ describe('App', () => {
 
   test('renders without crashing', async () => {
     render(<App />);
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(await screen.findByTestId('sidebar')).toBeInTheDocument();
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });
 
   test('renders sidebar navigation', async () => {
     render(<App />);
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+    expect(await screen.findByTestId('sidebar')).toBeInTheDocument();
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
   });
 
@@ -69,7 +99,7 @@ describe('App', () => {
     window.innerWidth = 375;
     render(<App />);
 
-    const sidebar = screen.getByTestId('sidebar');
+    const sidebar = await screen.findByTestId('sidebar');
     expect(sidebar).toHaveAttribute('data-mobile', 'true');
     expect(sidebar).toHaveAttribute('data-collapsed', 'false');
     expect(sidebar).toHaveAttribute('data-open', 'false');

@@ -1,7 +1,7 @@
 # Predeploy UI/UX + Frontend Refactor Audit Plan
 
-Date: 2026-04-25  
-Scope: official MDS frontend first, then private Catch-A-Drone sync after approval  
+Date: 2026-04-25
+Scope: official MDS frontend first, then private client sync after approval
 Mode: planning only; no implementation in this pass
 
 ## Executive Summary
@@ -37,7 +37,7 @@ This refactor should optimize for a high-workload drone operator:
 - Do not migrate off Create React App during this predeploy phase unless build/security checks force it.
 - Do not upgrade major libraries blindly. Dependency work must be isolated and tested.
 - Do not remove operator-critical details; relocate them to drill-down surfaces.
-- Do not leak Catch-A-Drone-specific data into official docs, screenshots, examples, or public releases.
+- Do not leak private-client-specific data into official docs, screenshots, examples, or public releases.
 
 ## Initial Findings
 
@@ -561,7 +561,7 @@ Acceptance:
 
 - no UI link points to stale/missing docs
 - public docs contain no private data
-- private docs can add Catch-A-Drone-specific notes only in the private repo
+- private docs can add client-specific notes only in the private repo
 
 ## Phase 10: Visual Regression And Release Closeout
 
@@ -589,7 +589,7 @@ Release actions after approval and implementation:
 - commit official
 - push official `main-candidate`
 - tag official release
-- sync/cherry-pick to private Catch-A-Drone
+- sync/cherry-pick to private client
 - tag private release
 - deploy latest to Hetzner
 - keep SITL or REAL running as requested
@@ -669,7 +669,6 @@ Before implementation starts, confirm:
 
 - we should create the shared primitives first rather than visually patching individual pages
 - CRA/Vite migration is deferred unless dependency audit forces it
-- private Catch-A-Drone should only receive the approved official changes after official tests pass
+- private client repo should only receive the approved official changes after official tests pass
 - Hetzner remains the heavy build/test/deploy host
 - Linode/local remains clean for code inspection and lightweight checks only
-

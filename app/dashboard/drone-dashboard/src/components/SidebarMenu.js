@@ -24,6 +24,8 @@ import {
   FaDocker,
   FaServer,
   FaNetworkWired,
+  FaSignOutAlt,
+  FaUserShield,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -54,6 +56,9 @@ const SidebarMenu = ({
     modeLabel: 'UNKNOWN',
     restartRequired: false,
   },
+  authStatus = {},
+  currentUser = null,
+  onLogout = null,
 }) => {
   const themeState = useTheme() || {};
   const gitInfoState = useGcsGitInfo() || {};
@@ -69,6 +74,9 @@ const SidebarMenu = ({
   const runtimeAdminTitle = runtimeStatus.restartRequired
     ? `Running ${runningModeLabel}. Configured ${configuredModeLabel}. Restart pending; open GCS Runtime.`
     : `Running ${runningModeLabel}. Open GCS Runtime.`;
+  const authEnabled = Boolean(authStatus?.dashboard_auth_enabled);
+  const currentUserLabel = currentUser?.username || 'operator';
+  const currentUserRole = currentUser?.role || authStatus?.role || 'operator';
 
   const menuSections = [
     {
@@ -241,6 +249,49 @@ const SidebarMenu = ({
 
       {/* Footer Section */}
       <div className="sidebar-footer">
+        {/* Theme Toggle */}
+        {authEnabled && (
+          <div className="footer-item auth-user-container">
+            {!isCollapsed ? (
+              <div
+                className="auth-user-pill"
+                aria-label={`Signed in as ${currentUserLabel} (${currentUserRole})`}
+              >
+                <FaUserShield aria-hidden="true" />
+                <span>{currentUserLabel}</span>
+                <strong>{currentUserRole}</strong>
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    aria-label="Log out of MDS dashboard"
+                    title="Log out"
+                  >
+                    <FaSignOutAlt aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <Link
+                to="/runtime-admin"
+                className="auth-user-icon"
+                aria-label={`Signed in as ${currentUserLabel}. Open runtime security for details.`}
+                onMouseEnter={() => handleTooltip(`Signed in: ${currentUserLabel}`)}
+                onClick={() => {
+                  if (mobile && onNavigate) {
+                    onNavigate();
+                  }
+                }}
+              >
+                <FaUserShield aria-hidden="true" />
+                {activeTooltip === `Signed in: ${currentUserLabel}` && (
+                  <span className="nav-tooltip">{currentUserLabel}</span>
+                )}
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* Theme Toggle */}
         <div className="footer-item theme-toggle-container">
           <ThemeToggle

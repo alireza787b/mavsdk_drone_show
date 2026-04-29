@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
+from auth_runtime import authorize_websocket
 from schemas import (
     HealthCheckResponse,
     HeartbeatData,
@@ -176,6 +177,8 @@ def create_core_router(deps: Any) -> APIRouter:
 
     @router.websocket("/ws/telemetry")
     async def websocket_telemetry(websocket: WebSocket):
+        if await authorize_websocket(websocket) is None:
+            return
         await websocket.accept()
         deps.log_system_event("Telemetry WebSocket client connected", "INFO", "websocket")
         try:
@@ -215,6 +218,8 @@ def create_core_router(deps: Any) -> APIRouter:
 
     @router.websocket("/ws/heartbeats")
     async def websocket_heartbeats(websocket: WebSocket):
+        if await authorize_websocket(websocket) is None:
+            return
         await websocket.accept()
         deps.log_system_event("Heartbeat WebSocket client connected", "INFO", "websocket")
 

@@ -24,6 +24,23 @@ Use the bootstrap scripts this way:
 
 `install_mds_node.sh` remains supported as a compatibility alias for existing automation.
 
+For GCS-side automation, `mds_gcs_init.sh` can also enable optional dashboard
+login without an interactive prompt:
+
+```bash
+printf '%s\n' "$MDS_ADMIN_PASSWORD" > /root/mds-admin.pass
+chmod 600 /root/mds-admin.pass
+
+sudo ./tools/mds_gcs_init.sh \
+  --auth \
+  --auth-admin-user admin \
+  --auth-admin-password-file /root/mds-admin.pass \
+  -y
+```
+
+Keep `--api-auth` disabled until drone, SITL, AI-agent, and field-script bearer
+token provisioning has been tested. See [GCS Auth Guide](gcs-auth.md).
+
 ## Non-Interactive Mode
 
 Enable non-interactive mode with the `-y` or `--yes` flag:

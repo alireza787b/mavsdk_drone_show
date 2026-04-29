@@ -80,8 +80,9 @@ def resolve_current_git_branch(
         if line.strip() and not line.strip().endswith('/HEAD')
     ]
     if remote_refs:
+        preferred_order = ('main', 'master', 'main-candidate')
         preferred = next(
-            (ref for ref in remote_refs if ref in {'main-candidate', 'main', 'master'}),
+            (branch for branch in preferred_order if branch in remote_refs),
             remote_refs[0],
         )
         return preferred

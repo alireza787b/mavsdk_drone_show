@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FaBookOpen,
@@ -11,6 +11,8 @@ import {
   FaSatelliteDish,
   FaSave,
   FaServer,
+  FaSignOutAlt,
+  FaUserShield,
 } from 'react-icons/fa';
 
 import {
@@ -20,7 +22,18 @@ import {
 } from '../components/ui';
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import useGcsRuntimeStatus from '../hooks/useGcsRuntimeStatus';
-import { applyGcsConfigResponse, applyRuntimeUpdateResponse, saveGcsConfigResponse } from '../services/gcsApiService';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  applyGcsConfigResponse,
+  applyRuntimeUpdateResponse,
+  createAuthTokenResponse,
+  createAuthUserResponse,
+  listAuthTokensResponse,
+  listAuthUsersResponse,
+  revokeAuthTokenResponse,
+  saveGcsConfigResponse,
+  updateAuthUserResponse,
+} from '../services/gcsApiService';
 import '../styles/RuntimeAdminPage.css';
 
 function formatRepoAccessModeLabel(mode) {
@@ -126,12 +139,14 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const gitInfoState = useGcsGitInfo() || {};
   const runtime = runtimeOverride || runtimeState;
   const gitInfo = gitInfoOverride || gitInfoState;
+  const auth = useAuth();
 
   const runtimeTone = runtime.mode === 'real' ? 'real' : runtime.mode === 'sitl' ? 'sitl' : 'neutral';
   const authHealthTone = formatAuthHealthTone(runtime.gitAuthHealth?.status);
   const repoSyncTone = formatRepoSyncTone(runtime.repoSyncStatus?.update_readiness);
   const docs = [
     { key: 'mds_init_setup', label: 'Bootstrap guide' },
+    { key: 'gcs_auth', label: 'Auth guide' },
     { key: 'fleet_sync_and_secrets', label: 'Fleet sync and secrets' },
     { key: 'mavlink_routing_setup', label: 'MAVLink routing' },
     { key: 'git_sync_feature', label: 'Git sync feature' },
@@ -145,6 +160,12 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [authUsers, setAuthUsers] = useState([]);
+  const [authTokens, setAuthTokens] = useState([]);
+  const [authNotice, setAuthNotice] = useState(null);
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'operator' });
+  const [newToken, setNewToken] = useState({ name: '', scopes: 'operator', ttl_hours: 4 });
+  const [revealedToken, setRevealedToken] = useState(null);
 
   const effectiveConfiguredMode = optimisticConfig?.configuredMode || runtime.configuredMode || runtime.mode || 'sitl';
   const effectiveConfiguredModeLabel = optimisticConfig?.configuredModeLabel || runtime.configuredModeLabel || runtime.modeLabel;
@@ -177,6 +198,26 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     runtime.configuredMode,
     runtime.restartRequired,
   ]);
+
+  const refreshSecurityLists = useCallback(async () => {
+    if (!auth.dashboardAuthEnabled || auth.role !== 'admin') {
+      setAuthUsers([]);
+      setAuthTokens([]);
+      return;
+    }
+    const [usersResponse, tokensResponse] = await Promise.all([
+      listAuthUsersResponse(),
+      listAuthTokensResponse(),
+    ]);
+    setAuthUsers(usersResponse?.data?.users || []);
+    setAuthTokens(tokensResponse?.data?.tokens || []);
+  }, [auth.dashboardAuthEnabled, auth.role]);
+
+  useEffect(() => {
+    refreshSecurityLists().catch(() => {
+      setAuthNotice({ tone: 'warning', message: 'Security lists unavailable. Check auth role or backend logs.' });
+    });
+  }, [refreshSecurityLists]);
 
   const hasDraftChanges = useMemo(
     () => draftMode !== effectiveConfiguredMode || Boolean(draftGitAutoPush) !== Boolean(effectiveConfiguredGitAutoPush),
@@ -302,6 +343,64 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     }
   };
 
+  const handleCreateUser = async (event) => {
+    event.preventDefault();
+    setAuthNotice(null);
+    try {
+      await createAuthUserResponse(newUser);
+      setNewUser({ username: '', password: '', role: 'operator' });
+      await refreshSecurityLists();
+      setAuthNotice({ tone: 'success', message: 'User saved.' });
+    } catch (error) {
+      setAuthNotice({ tone: 'danger', message: error?.response?.data?.detail || error?.message || 'Failed to save user.' });
+    }
+  };
+
+  const handleDisableUser = async (username, disabled) => {
+    setAuthNotice(null);
+    try {
+      await updateAuthUserResponse(username, { disabled });
+      await refreshSecurityLists();
+      setAuthNotice({ tone: 'success', message: disabled ? 'User disabled.' : 'User enabled.' });
+    } catch (error) {
+      setAuthNotice({ tone: 'danger', message: error?.response?.data?.detail || error?.message || 'Failed to update user.' });
+    }
+  };
+
+  const handleCreateToken = async (event) => {
+    event.preventDefault();
+    setAuthNotice(null);
+    setRevealedToken(null);
+    try {
+      const scopes = String(newToken.scopes || '')
+        .split(',')
+        .map((scope) => scope.trim())
+        .filter(Boolean);
+      const response = await createAuthTokenResponse({
+        name: newToken.name,
+        scopes,
+        ttl_hours: Number(newToken.ttl_hours) || undefined,
+      });
+      setRevealedToken(response?.data?.token || null);
+      setNewToken({ name: '', scopes: 'operator', ttl_hours: 4 });
+      await refreshSecurityLists();
+      setAuthNotice({ tone: 'success', message: 'Token created. Copy it now; it will not be shown again.' });
+    } catch (error) {
+      setAuthNotice({ tone: 'danger', message: error?.response?.data?.detail || error?.message || 'Failed to create token.' });
+    }
+  };
+
+  const handleRevokeToken = async (tokenId) => {
+    setAuthNotice(null);
+    try {
+      await revokeAuthTokenResponse(tokenId);
+      await refreshSecurityLists();
+      setAuthNotice({ tone: 'success', message: 'Token revoked.' });
+    } catch (error) {
+      setAuthNotice({ tone: 'danger', message: error?.response?.data?.detail || error?.message || 'Failed to revoke token.' });
+    }
+  };
+
   return (
     <PageShell
       className="runtime-admin-page"
@@ -332,6 +431,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
           </StatusPill>
           <StatusPill>{formatRepoAccessModeLabel(runtime.repoAccessMode)}</StatusPill>
           <StatusPill tone={authHealthTone}>{runtime.gitAuthHealth?.status || 'unknown'} auth</StatusPill>
+          {auth.dashboardAuthEnabled ? <StatusPill tone="good">Login on</StatusPill> : <StatusPill>Login off</StatusPill>}
           {effectiveRestartRequired ? <StatusPill tone="warning">Restart required</StatusPill> : null}
         </div>
       )}
@@ -382,6 +482,138 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       ) : null}
 
       <section className="runtime-admin-page__grid">
+        <article className="runtime-admin-page__card runtime-admin-page__card--wide">
+          <div className="runtime-admin-page__card-header">
+            <FaUserShield />
+            <div>
+              <h2>Security</h2>
+              <p>Operator login, roles, and API tokens. SSH CLI remains the recovery path.</p>
+            </div>
+          </div>
+
+          <div className="runtime-admin-page__security-summary">
+            <StatusPill tone={auth.dashboardAuthEnabled ? 'good' : 'neutral'}>
+              Dashboard {auth.dashboardAuthEnabled ? 'locked' : 'open'}
+            </StatusPill>
+            <StatusPill tone={auth.apiAuthEnabled ? 'warning' : 'neutral'}>
+              API tokens {auth.apiAuthEnabled ? 'required' : 'optional'}
+            </StatusPill>
+            <StatusPill>{auth.role || 'open'}</StatusPill>
+            {auth.user ? (
+              <button type="button" className="runtime-admin-page__icon-action" onClick={auth.logout} aria-label="Log out">
+                <FaSignOutAlt aria-hidden="true" />
+                <span>Logout</span>
+              </button>
+            ) : null}
+          </div>
+
+          {authNotice ? (
+            <OperatorNotice tone={authNotice.tone || 'neutral'} title="Security action">
+              {authNotice.message}
+            </OperatorNotice>
+          ) : null}
+
+          {!auth.dashboardAuthEnabled ? (
+            <p className="runtime-admin-page__empty">
+              Dashboard auth is disabled. Enable it through GCS bootstrap or the recovery CLI, then restart GCS.
+            </p>
+          ) : auth.role !== 'admin' ? (
+            <p className="runtime-admin-page__empty">
+              Signed in as {auth.role || 'operator'}. Admin role is required to manage users and tokens.
+            </p>
+          ) : (
+            <div className="runtime-admin-page__security-grid">
+              <form className="runtime-admin-page__security-form" onSubmit={handleCreateUser}>
+                <h3>Users</h3>
+                <div className="runtime-admin-page__inline-fields">
+                  <input
+                    placeholder="username"
+                    value={newUser.username}
+                    onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))}
+                    required
+                  />
+                  <input
+                    placeholder="password"
+                    type="password"
+                    value={newUser.password}
+                    onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))}
+                    required
+                  />
+                  <select
+                    value={newUser.role}
+                    onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))}
+                  >
+                    <option value="admin">admin</option>
+                    <option value="operator">operator</option>
+                    <option value="viewer">viewer</option>
+                  </select>
+                  <button type="submit" className="runtime-admin-page__action-btn">
+                    Save user
+                  </button>
+                </div>
+                <div className="runtime-admin-page__mini-table">
+                  {authUsers.map((user) => (
+                    <div key={user.username} className="runtime-admin-page__mini-row">
+                      <span>{user.username}</span>
+                      <StatusPill>{user.role}</StatusPill>
+                      <button type="button" onClick={() => handleDisableUser(user.username, !user.disabled)}>
+                        {user.disabled ? 'Enable' : 'Disable'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </form>
+
+              <form className="runtime-admin-page__security-form" onSubmit={handleCreateToken}>
+                <h3>Tokens</h3>
+                <div className="runtime-admin-page__inline-fields">
+                  <input
+                    placeholder="purpose"
+                    value={newToken.name}
+                    onChange={(event) => setNewToken((current) => ({ ...current, name: event.target.value }))}
+                    required
+                  />
+                  <input
+                    placeholder="scopes"
+                    value={newToken.scopes}
+                    onChange={(event) => setNewToken((current) => ({ ...current, scopes: event.target.value }))}
+                  />
+                  <input
+                    aria-label="Token TTL hours"
+                    type="number"
+                    min="1"
+                    max="8760"
+                    value={newToken.ttl_hours}
+                    onChange={(event) => setNewToken((current) => ({ ...current, ttl_hours: event.target.value }))}
+                  />
+                  <button type="submit" className="runtime-admin-page__action-btn">
+                    Create token
+                  </button>
+                </div>
+                {revealedToken?.token ? (
+                  <div className="runtime-admin-page__token-reveal">
+                    <span>Shown once</span>
+                    <code>{revealedToken.token}</code>
+                  </div>
+                ) : null}
+                <div className="runtime-admin-page__mini-table">
+                  {authTokens.map((token) => (
+                    <div key={token.id} className="runtime-admin-page__mini-row">
+                      <span>{token.name || token.id}</span>
+                      <StatusPill tone={token.revoked ? 'danger' : 'good'}>
+                        {token.revoked ? 'revoked' : 'active'}
+                      </StatusPill>
+                      <button type="button" disabled={token.revoked} onClick={() => handleRevokeToken(token.id)}>
+                        Revoke
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </form>
+            </div>
+          )}
+        </article>
+
         <article className="runtime-admin-page__card runtime-admin-page__card--wide">
           <div className="runtime-admin-page__card-header">
             <FaRedoAlt />

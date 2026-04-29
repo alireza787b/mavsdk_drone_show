@@ -1857,10 +1857,45 @@ not the older raw internal heartbeat map.
 
 ## Authentication
 
-Currently, no authentication is required. In production deployments, consider adding:
-- API key authentication
-- JWT tokens
-- IP whitelisting
+Authentication is optional and disabled by default for isolated demos and local
+development.
+
+Recommended staged production posture:
+
+1. Enable dashboard login with `MDS_AUTH_ENABLED=true`.
+2. Keep machine/API auth disabled with `MDS_API_AUTH_ENABLED=false` until drone,
+   SITL, AI-agent, and field-script token provisioning has been tested.
+3. Enable full bearer-token enforcement only when every machine client can send
+   `Authorization: Bearer mds_...`.
+
+Auth management routes:
+
+- `GET /api/v1/auth/status`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/auth/users` (admin)
+- `POST /api/v1/auth/users` (admin)
+- `PATCH /api/v1/auth/users/{username}` (admin)
+- `GET /api/v1/auth/tokens` (admin)
+- `POST /api/v1/auth/tokens` (admin)
+- `POST /api/v1/auth/tokens/{token_id}/revoke` (admin)
+
+When dashboard auth is enabled, `/docs`, `/redoc`, and `/openapi.json` require a
+login session or bearer token. Log into the dashboard in the same browser before
+opening Swagger UI.
+
+When `MDS_API_AUTH_ENABLED=false`, current companion-node machine endpoints
+remain open on the trusted network:
+
+- `GET /api/v1/origin/bootstrap`
+- `POST /api/v1/fleet/heartbeats`
+- `POST /api/v1/command-reports/execution-start`
+- `POST /api/v1/command-reports/execution-result`
+- `POST /api/v1/fleet/candidates/announce`
+
+See [GCS Auth Guide](../guides/gcs-auth.md) for bootstrap flags, roles, token
+rotation, SSH recovery, and API-auth rollout guidance.
 
 ---
 
@@ -1883,6 +1918,8 @@ error contract is shared.
 **Common Status Codes:**
 - `200`: Success
 - `400`: Bad Request (invalid parameters)
+- `401`: Authentication Required
+- `403`: Permission Denied
 - `404`: Not Found
 - `422`: Validation Error
 - `500`: Internal Server Error

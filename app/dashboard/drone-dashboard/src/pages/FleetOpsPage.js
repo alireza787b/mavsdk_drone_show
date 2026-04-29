@@ -125,7 +125,7 @@ function DashboardQuickLinks({ row }) {
   return (
     <div className="fleet-ops-node-card__quick-links" aria-label={`Drone ${row.posId} sidecar dashboard links`}>
       {links.map((link) => (
-        <a key={link.key} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
+        <a key={link.key} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label}>
           {link.icon}
         </a>
       ))}

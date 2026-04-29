@@ -477,6 +477,11 @@ OPTIONS:
                         Read private HTTPS Git auth token from PATH
     --git-ssh-key-file PATH
                         Use an existing SSH private key file for private GitHub SSH access
+    --auth              Enable optional dashboard username/password login
+    --auth-admin-user USER
+                        First dashboard admin username when --auth is enabled
+    --auth-admin-password-file PATH
+                        File containing first dashboard admin password for headless setup
     --install-dir PATH  Installation directory (default: ${INSTALL_DIR})
     -h, --help          Show this help message
 

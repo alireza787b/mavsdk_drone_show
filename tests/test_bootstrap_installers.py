@@ -229,7 +229,7 @@ def test_identity_setup_local_env_persists_node_git_auth_file_paths():
         log_info() {{ :; }}
         is_dry_run() {{ return 1; }}
         get_repo_origin_url() {{ printf '%s\\n' 'https://github.com/demo/private.git'; }}
-        get_repo_branch() {{ printf '%s\\n' 'main-candidate'; }}
+        get_repo_branch() {{ printf '%s\\n' 'main'; }}
         MDS_VERSION="test"
         MDS_CONNECTIVITY_BACKEND="none"
         MDS_DEFAULT_CONNECTIVITY_BACKEND="none"
@@ -237,7 +237,7 @@ def test_identity_setup_local_env_persists_node_git_auth_file_paths():
         MDS_LOCAL_ENV="$MDS_CONFIG_DIR/local.env"
         GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
         GIT_SSH_KEY_FILE="/home/droneshow/.ssh/customer_read_key"
-        setup_local_env 2 "100.82.207.49" "https://github.com/Catch-A-Drone/mavsdk_drone_show.git" "main-candidate" "http://100.82.207.49:5030"
+        setup_local_env 2 "100.82.207.49" "https://github.com/example-org/private-mds.git" "main" "http://100.82.207.49:5030"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/customer_read_key$' "$MDS_LOCAL_ENV"
         """
@@ -1539,7 +1539,7 @@ def test_git_sync_runtime_state_persists_post_sync_summary():
         HOME="$tmpdir/home"
         REPO_DIR="$tmpdir/repo"
         MDS_GIT_SYNC_STATE_FILE="$tmpdir/last_result.env"
-        BRANCH_NAME="main-candidate"
+        BRANCH_NAME="fleet-test"
         source "{GIT_SYNC_SCRIPT}"
         UPDATED_SYSTEMD_UNITS=("coordinator.service" "git_sync_mds.service")
         DEFERRED_UNIT_ACTIONS=("git_sync_mds.service:next_invocation")
@@ -1573,7 +1573,7 @@ def test_git_sync_runtime_state_defaults_to_user_home_state_dir():
         mkdir -p "$tmpdir/home/logs" "$tmpdir/repo/.git"
         HOME="$tmpdir/home"
         REPO_DIR="$tmpdir/repo"
-        BRANCH_NAME="main-candidate"
+        BRANCH_NAME="fleet-test"
         source "{GIT_SYNC_SCRIPT}"
         persist_git_sync_state "success" "ok"
         test -f "$tmpdir/home/.local/state/mds/git-sync/last_result.env"
@@ -2445,7 +2445,7 @@ def test_configure_gcs_env_persists_private_https_token_file():
         GCS_CONFIG_FILE="$tmpdir/gcs.env"
         GCS_INSTALL_DIR="/opt/mds"
         GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
-        GCS_DEFAULT_BRANCH="main-candidate"
+        GCS_DEFAULT_BRANCH="main"
         MDS_GIT_AUTH_TOKEN_FILE="/root/.mds_git_read_token"
         log_step() {{ :; }}
         log_info() {{ :; }}
@@ -2481,7 +2481,7 @@ def test_configure_gcs_env_persists_private_ssh_key_file():
         GCS_CONFIG_FILE="$tmpdir/gcs.env"
         GCS_INSTALL_DIR="/opt/mds"
         GCS_DEFAULT_REPO_SSH="git@github.com:alireza787b/mavsdk_drone_show.git"
-        GCS_DEFAULT_BRANCH="main-candidate"
+        GCS_DEFAULT_BRANCH="main"
         MDS_GIT_SSH_KEY_FILE="/root/.ssh/customer_gcs_write_key"
         log_step() {{ :; }}
         log_info() {{ :; }}
@@ -2556,6 +2556,58 @@ EOF
         grep -q '^MDS_GCS_API_PORT=5030$' "$GCS_CONFIG_FILE"
         grep -q '^DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_configure_gcs_env_persists_optional_auth_and_first_admin():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        GCS_CONFIG_FILE="$tmpdir/gcs.env"
+        GCS_INSTALL_DIR="{REPO_ROOT}"
+        GCS_DEFAULT_REPO_SSH="git@github.com:example-org/private-mds.git"
+        GCS_DEFAULT_BRANCH="main"
+        MDS_AUTH_ENABLED=true
+        MDS_API_AUTH_ENABLED=false
+        AUTH_ADMIN_USER="admin"
+        AUTH_ADMIN_PASSWORD_FILE="$tmpdir/admin-password"
+        MDS_AUTH_USERS_FILE="$tmpdir/users.json"
+        MDS_API_TOKENS_FILE="$tmpdir/api_tokens.json"
+        MDS_AUTH_SESSION_SECRET_FILE="$tmpdir/session_secret"
+        MDS_AUTH_CSRF_SECRET_FILE="$tmpdir/csrf_secret"
+        printf 'test-password\\n' > "$AUTH_ADMIN_PASSWORD_FILE"
+        NON_INTERACTIVE=true
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_success() {{ :; }}
+        backup_file() {{ :; }}
+        confirm() {{ return 1; }}
+        is_dry_run() {{ return 1; }}
+        gcs_state_get_value() {{
+            case "$1" in
+                repo_url) echo "git@github.com:example-org/private-mds.git" ;;
+                repo_branch) echo "main" ;;
+                access_method) echo "ssh" ;;
+                *) echo "$2" ;;
+            esac
+        }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
+        configure_gcs_env
+        grep -q '^MDS_AUTH_ENABLED=true$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_API_AUTH_ENABLED=false$' "$GCS_CONFIG_FILE"
+        grep -q "^MDS_AUTH_USERS_FILE=$tmpdir/users.json$" "$GCS_CONFIG_FILE"
+        python3 - "$tmpdir/users.json" <<'PY'
+import json
+import sys
+users = json.load(open(sys.argv[1], encoding="utf-8"))["users"]
+assert users[0]["username"] == "admin"
+assert users[0]["role"] == "admin"
+assert "password_hash" in users[0]
+PY
         """
     )
 
@@ -2746,7 +2798,7 @@ def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
         MDS_VERSION="4.5.0"
         DRONE_ID=101
         REPO_URL="git@github.com:example-org/private-mds.git"
-        BRANCH="main-candidate"
+        BRANCH="field-test"
         MAVLINK_INPUT_TYPE="uart"
         log_warn() {{ :; }}
         log_success() {{ :; }}

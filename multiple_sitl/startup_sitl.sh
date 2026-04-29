@@ -31,7 +31,7 @@ fi
 #
 # FOR NORMAL USERS (99%):
 #   - No action required - defaults work identically to previous versions
-#   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git@main-candidate
+#   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git@main
 #   - Simply run: bash create_dockers.sh <number_of_drones>
 #
 # FOR ADVANCED USERS (Custom Forks):
@@ -67,7 +67,7 @@ fi
 
 # GitHub Repository Details (with environment variable override support)
 DEFAULT_GIT_REMOTE="origin"
-DEFAULT_GIT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main-candidate}}"
+DEFAULT_GIT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 GITHUB_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"

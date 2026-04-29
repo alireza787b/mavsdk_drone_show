@@ -246,6 +246,15 @@ sudo ./tools/mds_gcs_init.sh \
   --repo-url git@github.com:yourorg/customer-mds.git \
   --branch customer-demo \
   --git-ssh-key-file /root/.ssh/customer_gcs_write_key
+
+# Optional dashboard login with a headless first-admin password file
+printf '%s\n' 'change-this-password' > /root/mds-admin.pass
+chmod 600 /root/mds-admin.pass
+sudo ./tools/mds_gcs_init.sh \
+  --auth \
+  --auth-admin-user admin \
+  --auth-admin-password-file /root/mds-admin.pass \
+  -y
 ```
 
 ---
@@ -286,6 +295,19 @@ MDS_INSTALL_DIR=~/mavsdk_drone_show
 DASHBOARD_PORT=3030
 MDS_DASHBOARD_PORT=3030
 
+# Optional Dashboard/API Auth
+MDS_AUTH_ENABLED=false
+MDS_API_AUTH_ENABLED=false
+MDS_AUTH_USERS_FILE=/etc/mds/auth/users.json
+MDS_API_TOKENS_FILE=/etc/mds/auth/api_tokens.json
+MDS_AUTH_SESSION_SECRET_FILE=/etc/mds/auth/session_secret
+MDS_AUTH_CSRF_SECRET_FILE=/etc/mds/auth/csrf_secret
+MDS_AUTH_SESSION_TTL_HOURS=12
+MDS_AUTH_SECURE_COOKIES=false
+MDS_AUTH_CSRF_ENABLED=true
+MDS_AUTH_ALLOWED_CIDRS=
+MDS_AUTH_TRUSTED_PROXY_CIDRS=
+
 # Virtual Environment
 VENV_PATH=~/mavsdk_drone_show/venv
 ```
@@ -301,6 +323,11 @@ by later boot-time/runtime sync without requiring a second hidden env file.
 Fresh GCS bootstrap now reconciles that service as an explicit `services`
 phase after `env_config`, so a new host does not need a separate manual
 post-install repair to make self-update functional.
+
+Optional dashboard/API authentication is covered in [GCS Auth Guide](gcs-auth.md).
+The default remains open for isolated demos; customer/operator-visible
+deployments should enable dashboard login and keep full machine API auth staged
+until drone/agent token provisioning is tested.
 
 ---
 

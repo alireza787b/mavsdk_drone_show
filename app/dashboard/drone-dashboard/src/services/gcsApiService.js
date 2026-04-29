@@ -7,6 +7,12 @@ export const COMMAND_SUBMIT_TIMEOUT_MS = 12000;
 
 export const GCS_ROUTE_KEYS = Object.freeze({
   systemHealth: 'systemHealth',
+  authStatus: 'authStatus',
+  authLogin: 'authLogin',
+  authLogout: 'authLogout',
+  authMe: 'authMe',
+  authUsers: 'authUsers',
+  authTokens: 'authTokens',
   fleetTelemetry: 'fleetTelemetry',
   fleetHeartbeats: 'fleetHeartbeats',
   fleetCandidates: 'fleetCandidates',
@@ -75,6 +81,12 @@ export const GCS_ROUTE_KEYS = Object.freeze({
 
 export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.systemHealth]: '/api/v1/system/health',
+  [GCS_ROUTE_KEYS.authStatus]: '/api/v1/auth/status',
+  [GCS_ROUTE_KEYS.authLogin]: '/api/v1/auth/login',
+  [GCS_ROUTE_KEYS.authLogout]: '/api/v1/auth/logout',
+  [GCS_ROUTE_KEYS.authMe]: '/api/v1/auth/me',
+  [GCS_ROUTE_KEYS.authUsers]: '/api/v1/auth/users',
+  [GCS_ROUTE_KEYS.authTokens]: '/api/v1/auth/tokens',
   [GCS_ROUTE_KEYS.fleetTelemetry]: '/api/v1/fleet/telemetry',
   [GCS_ROUTE_KEYS.fleetHeartbeats]: '/api/v1/fleet/heartbeats',
   [GCS_ROUTE_KEYS.fleetCandidates]: '/api/v1/fleet/candidates',
@@ -151,6 +163,12 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/ping': GCS_ROUTE_KEYS.systemHealth,
   '/health': GCS_ROUTE_KEYS.systemHealth,
   '/api/v1/system/health': GCS_ROUTE_KEYS.systemHealth,
+  '/api/v1/auth/status': GCS_ROUTE_KEYS.authStatus,
+  '/api/v1/auth/login': GCS_ROUTE_KEYS.authLogin,
+  '/api/v1/auth/logout': GCS_ROUTE_KEYS.authLogout,
+  '/api/v1/auth/me': GCS_ROUTE_KEYS.authMe,
+  '/api/v1/auth/users': GCS_ROUTE_KEYS.authUsers,
+  '/api/v1/auth/tokens': GCS_ROUTE_KEYS.authTokens,
   '/api/v1/fleet/telemetry': GCS_ROUTE_KEYS.fleetTelemetry,
   '/api/v1/fleet/heartbeats': GCS_ROUTE_KEYS.fleetHeartbeats,
   '/api/v1/fleet/candidates': GCS_ROUTE_KEYS.fleetCandidates,
@@ -266,6 +284,32 @@ export function buildGcsWebSocketUrl(path) {
   return base.toString();
 }
 
+let currentCsrfToken = null;
+
+export function setGcsCsrfToken(token) {
+  currentCsrfToken = token || null;
+}
+
+function withGcsAuthConfig(config = {}, method = 'GET') {
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  const headers = {
+    ...(config.headers || {}),
+  };
+
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(normalizedMethod) && currentCsrfToken && !headers['X-MDS-CSRF-Token']) {
+    headers['X-MDS-CSRF-Token'] = currentCsrfToken;
+  }
+
+  const authConfig = {
+    ...config,
+    withCredentials: true,
+  };
+  if (Object.keys(headers).length > 0) {
+    authConfig.headers = headers;
+  }
+  return authConfig;
+}
+
 export function buildTelemetryWebSocketUrl() {
   return buildGcsWebSocketUrl(GCS_WS_ROUTES.telemetry);
 }
@@ -328,30 +372,76 @@ export function unwrapSwarmConfigPayload(payload) {
 }
 
 export async function fetchGcsResource(routeOrPath, config = {}) {
-  return axios.get(buildGcsUrl(routeOrPath), config);
+  return axios.get(buildGcsUrl(routeOrPath), withGcsAuthConfig(config, 'GET'));
 }
 
 export async function fetchBlobGcsResource(routeOrPath, config = {}) {
-  return axios.get(buildGcsUrl(routeOrPath), {
+  return axios.get(buildGcsUrl(routeOrPath), withGcsAuthConfig({
     ...config,
     responseType: config.responseType || 'blob',
-  });
+  }, 'GET'));
 }
 
 export async function postGcsResource(routeOrPath, payload = {}, config = {}) {
-  return axios.post(buildGcsUrl(routeOrPath), payload, config);
+  return axios.post(buildGcsUrl(routeOrPath), payload, withGcsAuthConfig(config, 'POST'));
 }
 
 export async function putGcsResource(routeOrPath, payload = {}, config = {}) {
-  return axios.put(buildGcsUrl(routeOrPath), payload, config);
+  return axios.put(buildGcsUrl(routeOrPath), payload, withGcsAuthConfig(config, 'PUT'));
 }
 
 export async function patchGcsResource(routeOrPath, payload = {}, config = {}) {
-  return axios.patch(buildGcsUrl(routeOrPath), payload, config);
+  return axios.patch(buildGcsUrl(routeOrPath), payload, withGcsAuthConfig(config, 'PATCH'));
 }
 
 export async function deleteGcsResource(routeOrPath, config = {}) {
-  return axios.delete(buildGcsUrl(routeOrPath), config);
+  return axios.delete(buildGcsUrl(routeOrPath), withGcsAuthConfig(config, 'DELETE'));
+}
+
+export async function getAuthStatusResponse(config = {}) {
+  const response = await fetchGcsResource(GCS_ROUTE_KEYS.authStatus, config);
+  if (response?.data?.csrf_token) {
+    setGcsCsrfToken(response.data.csrf_token);
+  }
+  return response;
+}
+
+export async function loginResponse(payload, config = {}) {
+  const response = await postGcsResource(GCS_ROUTE_KEYS.authLogin, payload, config);
+  if (response?.data?.csrf_token) {
+    setGcsCsrfToken(response.data.csrf_token);
+  }
+  return response;
+}
+
+export async function logoutResponse(config = {}) {
+  const response = await postGcsResource(GCS_ROUTE_KEYS.authLogout, {}, config);
+  setGcsCsrfToken(null);
+  return response;
+}
+
+export async function listAuthUsersResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.authUsers, config);
+}
+
+export async function createAuthUserResponse(payload, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.authUsers, payload, config);
+}
+
+export async function updateAuthUserResponse(username, payload, config = {}) {
+  return patchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.authUsers]}/${encodeURIComponent(username)}`, payload, config);
+}
+
+export async function listAuthTokensResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.authTokens, config);
+}
+
+export async function createAuthTokenResponse(payload, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.authTokens, payload, config);
+}
+
+export async function revokeAuthTokenResponse(tokenId, config = {}) {
+  return postGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.authTokens]}/${encodeURIComponent(tokenId)}/revoke`, {}, config);
 }
 
 export async function getFleetTelemetryResponse(config = {}) {

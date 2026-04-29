@@ -1259,6 +1259,7 @@ class RuntimeDocsResponse(BaseModel):
     """Doc links surfaced in the GCS Runtime view."""
 
     mds_init_setup: Optional[str] = Field(None, description="Bootstrap/setup guide URL")
+    gcs_auth: Optional[str] = Field(None, description="GCS auth guide URL")
     fleet_sync_and_secrets: Optional[str] = Field(None, description="Fleet sync and secrets guide URL")
     mavlink_routing_setup: Optional[str] = Field(None, description="MAVLink routing guide URL")
     git_sync_feature: Optional[str] = Field(None, description="Git sync feature guide URL")

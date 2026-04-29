@@ -95,6 +95,7 @@ from src import __version__ as MDS_VERSION
 # Import SAR router
 from api_routes.fleet_candidates import create_fleet_candidates_router
 from sar.routes import create_sar_router
+from api_routes.auth import create_auth_router
 from api_routes.commands import create_command_router
 from api_routes.configuration import create_configuration_router
 from api_routes.core import create_core_router
@@ -142,6 +143,8 @@ else:
 
 from process_formation import run_formation_process
 from request_logging import get_request_log_level
+from auth_runtime import MDSAuthMiddleware
+from src.security.auth import AuthSettings
 
 # Import metrics engine
 try:
@@ -768,6 +771,12 @@ async def lifespan(app: FastAPI):
 # FastAPI Application
 # ============================================================================
 
+_auth_settings = AuthSettings.from_env()
+_cors_origin_regex = os.environ.get(
+    "MDS_CORS_ALLOW_ORIGIN_REGEX",
+    r"https?://[^/]+(:3030|:5030)?",
+)
+
 app = FastAPI(
     title="GCS Server API",
     description="Ground Control Station server for MAVSDK Drone Show with HTTP REST and WebSocket support",
@@ -778,19 +787,29 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware - completely permissive for development/production
+# Auth middleware must be registered before CORS so CORS remains the outer
+# wrapper and auth errors still include browser CORS headers.
+app.add_middleware(MDSAuthMiddleware)
+
+# CORS middleware.
+#
+# When auth is enabled we cannot use wildcard origins with credentials. The
+# default regex keeps browser operation portable across localhost/VPS/NetBird
+# hosts while allowing the browser to send the HttpOnly auth cookie.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins
-    allow_credentials=True,  # Allow credentials
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["*"],  # Expose all headers to the client
-    max_age=3600,  # Cache preflight requests for 1 hour
+    allow_origins=[] if _auth_settings.any_auth_enabled else ["*"],
+    allow_origin_regex=_cors_origin_regex if _auth_settings.any_auth_enabled else None,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # Register SAR router
 app.include_router(create_sar_router(sys.modules[__name__]))
+app.include_router(create_auth_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_command_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_core_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_configuration_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)

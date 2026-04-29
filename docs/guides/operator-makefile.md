@@ -69,6 +69,24 @@ The `ARGS` variable is passed directly to the underlying script. Keep secrets in
 the documented env/token/key files; do not place private tokens directly in a
 shell history or Makefile command.
 
+## Auth Recovery Shortcuts
+
+These wrap `tools/mds_auth_admin.py`; they do not create a separate auth
+configuration layer.
+
+```bash
+make auth-status
+make auth-add-user ARGS="admin --role admin"
+make auth-enable-dashboard
+make auth-disable-dashboard
+make auth-create-token ARGS="--name field-debug --scope readonly --ttl-hours 4"
+make auth-revoke-token ARGS="tok_abc123"
+```
+
+For password input, let the CLI prompt interactively or pass a password file
+with the underlying script. Do not put passwords or tokens directly in
+`ARGS`.
+
 ## Validation
 
 ```bash

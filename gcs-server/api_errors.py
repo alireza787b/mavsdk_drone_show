@@ -13,6 +13,8 @@ from schemas import ErrorDetail, ErrorResponse
 
 
 DEFAULT_ERROR_RESPONSES = {
+    401: {"model": ErrorResponse, "description": "Authentication Required"},
+    403: {"model": ErrorResponse, "description": "Permission Denied"},
     400: {"model": ErrorResponse, "description": "Bad Request"},
     404: {"model": ErrorResponse, "description": "Not Found"},
     409: {"model": ErrorResponse, "description": "Conflict"},
@@ -24,6 +26,8 @@ DEFAULT_ERROR_RESPONSES = {
 
 
 _ERROR_TITLES = {
+    401: "Authentication required",
+    403: "Permission denied",
     400: "Bad request",
     404: "Not found",
     409: "Conflict",

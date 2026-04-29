@@ -16,10 +16,27 @@ jest.mock('../hooks/useGcsRuntimeStatus', () => ({
   default: jest.fn(() => ({})),
 }));
 
+jest.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({
+    dashboardAuthEnabled: false,
+    apiAuthEnabled: false,
+    role: null,
+    user: null,
+    status: { dashboard_auth_enabled: false, api_auth_enabled: false },
+    logout: jest.fn(),
+  }),
+}));
+
 jest.mock('../services/gcsApiService', () => ({
   saveGcsConfigResponse: (...args) => mockSaveGcsConfigResponse(...args),
   applyGcsConfigResponse: (...args) => mockApplyGcsConfigResponse(...args),
   applyRuntimeUpdateResponse: (...args) => mockApplyRuntimeUpdateResponse(...args),
+  listAuthUsersResponse: jest.fn().mockResolvedValue({ data: { users: [] } }),
+  listAuthTokensResponse: jest.fn().mockResolvedValue({ data: { tokens: [] } }),
+  createAuthUserResponse: jest.fn(),
+  updateAuthUserResponse: jest.fn(),
+  createAuthTokenResponse: jest.fn(),
+  revokeAuthTokenResponse: jest.fn(),
 }));
 
 const RuntimeAdminPage = require('./RuntimeAdminPage').default;

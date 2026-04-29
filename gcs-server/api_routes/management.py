@@ -289,7 +289,7 @@ def _normalize_github_docs_base(repo_url: str, branch: str) -> str | None:
         normalized = normalized[:-4]
     if not normalized.startswith("https://github.com/"):
         return None
-    branch_name = str(branch or "").strip() or "main-candidate"
+    branch_name = str(branch or "").strip() or "main"
     return f"{normalized}/blob/{branch_name}"
 
 
@@ -527,6 +527,7 @@ def _build_runtime_status_response(deps: Any) -> RuntimeStatusResponse:
 
     docs = RuntimeDocsResponse(
         mds_init_setup=f"{docs_base}/docs/guides/mds-init-setup.md" if docs_base else None,
+        gcs_auth=f"{docs_base}/docs/guides/gcs-auth.md" if docs_base else None,
         fleet_sync_and_secrets=f"{docs_base}/docs/guides/fleet-sync-and-secrets.md" if docs_base else None,
         mavlink_routing_setup=f"{docs_base}/docs/guides/mavlink-routing-setup.md" if docs_base else None,
         git_sync_feature=f"{docs_base}/docs/features/git-sync.md" if docs_base else None,

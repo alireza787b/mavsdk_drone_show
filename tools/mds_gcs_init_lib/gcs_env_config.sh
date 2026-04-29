@@ -29,6 +29,96 @@ get_existing_gcs_env_value() {
     awk -F= -v target="$key" '$1 == target {print substr($0, index($0, "=") + 1); exit}' "$env_file"
 }
 
+normalize_env_bool() {
+    local value="${1:-}"
+    local default="${2:-false}"
+
+    case "${value,,}" in
+        1|true|yes|on|enabled) echo "true" ;;
+        0|false|no|off|disabled) echo "false" ;;
+        *) echo "$default" ;;
+    esac
+}
+
+clamp_auth_ttl_hours() {
+    local ttl="${1:-12}"
+    if [[ ! "$ttl" =~ ^[0-9]+$ ]]; then
+        echo "12"
+        return 0
+    fi
+    if (( ttl < 1 )); then
+        echo "1"
+    elif (( ttl > 720 )); then
+        echo "720"
+    else
+        echo "$ttl"
+    fi
+}
+
+gcs_auth_python_bin() {
+    local install_dir="$1"
+    if [[ -x "${install_dir}/venv/bin/python" ]]; then
+        echo "${install_dir}/venv/bin/python"
+    elif [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then
+        echo "${VIRTUAL_ENV}/bin/python"
+    else
+        echo "python3"
+    fi
+}
+
+configure_gcs_initial_admin_user() {
+    local auth_enabled="$1"
+    local install_dir="$2"
+    local admin_user="$3"
+    local password_file="$4"
+    local prompted_password="${5:-}"
+
+    if [[ "$auth_enabled" != "true" ]]; then
+        return 0
+    fi
+
+    if is_dry_run; then
+        echo -e "  ${DIM}[DRY-RUN] Would ensure first auth admin user exists${NC}"
+        return 0
+    fi
+
+    local auth_tool="${install_dir}/tools/mds_auth_admin.py"
+    if [[ ! -f "$auth_tool" ]]; then
+        log_warn "Auth admin helper not found at ${auth_tool}. Create the first admin manually after bootstrap."
+        return 0
+    fi
+
+    local python_bin
+    python_bin=$(gcs_auth_python_bin "$install_dir")
+
+    if [[ -n "$password_file" ]]; then
+        if [[ ! -r "$password_file" ]]; then
+            log_error "Auth admin password file is not readable: ${password_file}"
+            return 1
+        fi
+        if ! MDS_GCS_SYSTEM_CONFIG="$GCS_CONFIG_FILE" "$python_bin" "$auth_tool" add-user "$admin_user" --role admin --password-file "$password_file" >/dev/null; then
+            log_error "Failed to configure dashboard auth admin user. Check ${auth_tool} dependencies and ${GCS_CONFIG_FILE}."
+            return 1
+        fi
+        log_success "Dashboard auth admin user is configured: ${admin_user}"
+        return 0
+    fi
+
+    if [[ -n "$prompted_password" ]]; then
+        if ! printf '%s\n' "$prompted_password" | MDS_GCS_SYSTEM_CONFIG="$GCS_CONFIG_FILE" "$python_bin" "$auth_tool" add-user "$admin_user" --role admin --password-stdin >/dev/null; then
+            log_error "Failed to configure dashboard auth admin user. Check ${auth_tool} dependencies and ${GCS_CONFIG_FILE}."
+            return 1
+        fi
+        log_success "Dashboard auth admin user is configured: ${admin_user}"
+        return 0
+    fi
+
+    log_warn "Dashboard auth is enabled, but no admin password was supplied."
+    echo -e "  ${DIM}Create or reset the first admin with:${NC}"
+    echo -e "  ${GREEN}sudo ${python_bin} ${auth_tool} add-user ${admin_user} --role admin${NC}"
+    return 0
+}
+
 # =============================================================================
 # DASHBOARD .env CONFIGURATION
 # =============================================================================
@@ -149,11 +239,54 @@ configure_gcs_env() {
     local dashboard_port="${MDS_DEFAULT_DASHBOARD_PORT:-3030}"
     local git_auth_token_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
     local git_ssh_key_file="${MDS_GIT_SSH_KEY_FILE:-}"
+    local auth_enabled
+    auth_enabled=$(normalize_env_bool "${AUTH_ENABLED:-${MDS_AUTH_ENABLED:-false}}" "false")
+    local api_auth_enabled
+    api_auth_enabled=$(normalize_env_bool "${API_AUTH_ENABLED:-${MDS_API_AUTH_ENABLED:-false}}" "false")
+    local auth_admin_user="${AUTH_ADMIN_USER:-${MDS_AUTH_ADMIN_USER:-admin}}"
+    local auth_admin_password_file="${AUTH_ADMIN_PASSWORD_FILE:-${MDS_AUTH_ADMIN_PASSWORD_FILE:-}}"
+    local auth_session_ttl_hours
+    auth_session_ttl_hours=$(clamp_auth_ttl_hours "${AUTH_SESSION_TTL_HOURS:-${MDS_AUTH_SESSION_TTL_HOURS:-12}}")
+    local auth_secure_cookies
+    auth_secure_cookies=$(normalize_env_bool "${AUTH_SECURE_COOKIES:-${MDS_AUTH_SECURE_COOKIES:-false}}" "false")
+    local auth_users_file="${MDS_AUTH_USERS_FILE:-/etc/mds/auth/users.json}"
+    local api_tokens_file="${MDS_API_TOKENS_FILE:-/etc/mds/auth/api_tokens.json}"
+    local auth_session_secret_file="${MDS_AUTH_SESSION_SECRET_FILE:-/etc/mds/auth/session_secret}"
+    local auth_csrf_secret_file="${MDS_AUTH_CSRF_SECRET_FILE:-/etc/mds/auth/csrf_secret}"
+    local auth_csrf_enabled
+    auth_csrf_enabled=$(normalize_env_bool "${MDS_AUTH_CSRF_ENABLED:-true}" "true")
+    local auth_allowed_cidrs="${MDS_AUTH_ALLOWED_CIDRS:-}"
+    local auth_trusted_proxy_cidrs="${MDS_AUTH_TRUSTED_PROXY_CIDRS:-}"
+    local prompted_auth_password=""
     local access_method
     access_method=$(gcs_state_get_value "access_method" "ssh")
     local git_auto_push="true"
     if [[ "$access_method" == "https" ]]; then
         git_auto_push="false"
+    fi
+
+    if can_prompt; then
+        if confirm "Enable dashboard username/password login?" "$( [[ "$auth_enabled" == "true" ]] && echo "y" || echo "n" )"; then
+            auth_enabled="true"
+        else
+            auth_enabled="false"
+        fi
+
+        if [[ "$auth_enabled" == "true" ]]; then
+            if confirm "Require bearer tokens for drone/agent machine API endpoints?" "$( [[ "$api_auth_enabled" == "true" ]] && echo "y" || echo "n" )"; then
+                api_auth_enabled="true"
+            else
+                api_auth_enabled="false"
+            fi
+            prompt_input "First admin username" "$auth_admin_user" auth_admin_user
+            if [[ -z "$auth_admin_password_file" ]]; then
+                prompt_input "First admin password (leave empty to manage later by SSH)" "" prompted_auth_password true
+            fi
+        else
+            api_auth_enabled="false"
+        fi
+    elif [[ "$auth_enabled" != "true" ]]; then
+        api_auth_enabled="false"
     fi
 
     # Create /etc/mds directory if needed
@@ -168,6 +301,12 @@ configure_gcs_env() {
     local existing_mode=""
     local existing_gcs_api_port=""
     local existing_dashboard_port=""
+    local existing_auth_enabled=""
+    local existing_api_auth_enabled=""
+    local existing_auth_users_file=""
+    local existing_api_tokens_file=""
+    local existing_auth_session_ttl_hours=""
+    local existing_auth_secure_cookies=""
     local config_matches="false"
 
     if [[ -f "$GCS_CONFIG_FILE" ]]; then
@@ -186,6 +325,12 @@ configure_gcs_env() {
         if [[ -z "$existing_dashboard_port" ]]; then
             existing_dashboard_port=$(get_existing_gcs_env_value "DASHBOARD_PORT" "$GCS_CONFIG_FILE" || true)
         fi
+        existing_auth_enabled=$(get_existing_gcs_env_value "MDS_AUTH_ENABLED" "$GCS_CONFIG_FILE" || true)
+        existing_api_auth_enabled=$(get_existing_gcs_env_value "MDS_API_AUTH_ENABLED" "$GCS_CONFIG_FILE" || true)
+        existing_auth_users_file=$(get_existing_gcs_env_value "MDS_AUTH_USERS_FILE" "$GCS_CONFIG_FILE" || true)
+        existing_api_tokens_file=$(get_existing_gcs_env_value "MDS_API_TOKENS_FILE" "$GCS_CONFIG_FILE" || true)
+        existing_auth_session_ttl_hours=$(get_existing_gcs_env_value "MDS_AUTH_SESSION_TTL_HOURS" "$GCS_CONFIG_FILE" || true)
+        existing_auth_secure_cookies=$(get_existing_gcs_env_value "MDS_AUTH_SECURE_COOKIES" "$GCS_CONFIG_FILE" || true)
 
         if [[ "$existing_repo_url" == "$repo_url" ]] && \
            [[ "$existing_repo_branch" == "$repo_branch" ]] && \
@@ -195,7 +340,13 @@ configure_gcs_env() {
            [[ "$existing_install_dir" == "$install_dir" ]] && \
            [[ "$existing_gcs_api_port" == "$gcs_api_port" ]] && \
            [[ "$existing_dashboard_port" == "$dashboard_port" ]] && \
-           [[ "$existing_mode" == "real" ]]; then
+           [[ "$existing_mode" == "real" ]] && \
+           [[ "$(normalize_env_bool "$existing_auth_enabled" "false")" == "$auth_enabled" ]] && \
+           [[ "$(normalize_env_bool "$existing_api_auth_enabled" "false")" == "$api_auth_enabled" ]] && \
+           [[ "${existing_auth_users_file:-/etc/mds/auth/users.json}" == "$auth_users_file" ]] && \
+           [[ "${existing_api_tokens_file:-/etc/mds/auth/api_tokens.json}" == "$api_tokens_file" ]] && \
+           [[ "${existing_auth_session_ttl_hours:-12}" == "$auth_session_ttl_hours" ]] && \
+           [[ "$(normalize_env_bool "$existing_auth_secure_cookies" "false")" == "$auth_secure_cookies" ]]; then
             config_matches="true"
         fi
     fi
@@ -204,6 +355,7 @@ configure_gcs_env() {
     if [[ -f "$GCS_CONFIG_FILE" ]]; then
         if [[ "$config_matches" == "true" ]]; then
             log_info "GCS configuration already matches requested repo, branch, ports, and runtime mode"
+            configure_gcs_initial_admin_user "$auth_enabled" "$install_dir" "$auth_admin_user" "$auth_admin_password_file" "$prompted_auth_password" || return 1
             return 0
         fi
 
@@ -242,12 +394,26 @@ MDS_INSTALL_DIR=${install_dir}
 DASHBOARD_PORT=${dashboard_port}
 MDS_DASHBOARD_PORT=${dashboard_port}
 
+# Optional Dashboard/API Auth
+MDS_AUTH_ENABLED=${auth_enabled}
+MDS_API_AUTH_ENABLED=${api_auth_enabled}
+MDS_AUTH_USERS_FILE=${auth_users_file}
+MDS_API_TOKENS_FILE=${api_tokens_file}
+MDS_AUTH_SESSION_SECRET_FILE=${auth_session_secret_file}
+MDS_AUTH_CSRF_SECRET_FILE=${auth_csrf_secret_file}
+MDS_AUTH_SESSION_TTL_HOURS=${auth_session_ttl_hours}
+MDS_AUTH_SECURE_COOKIES=${auth_secure_cookies}
+MDS_AUTH_CSRF_ENABLED=${auth_csrf_enabled}
+MDS_AUTH_ALLOWED_CIDRS=${auth_allowed_cidrs}
+MDS_AUTH_TRUSTED_PROXY_CIDRS=${auth_trusted_proxy_cidrs}
+
 # Virtual Environment
 VENV_PATH=${install_dir}/venv
 EOF
 
     chmod 644 "$GCS_CONFIG_FILE"
     log_success "GCS system configuration created: ${GCS_CONFIG_FILE}"
+    configure_gcs_initial_admin_user "$auth_enabled" "$install_dir" "$auth_admin_user" "$auth_admin_password_file" "$prompted_auth_password" || return 1
     if [[ "$git_auto_push" == "false" ]]; then
         log_info "Set MDS_GIT_AUTO_PUSH=false because this GCS is configured with an HTTPS/read-only repository."
     fi

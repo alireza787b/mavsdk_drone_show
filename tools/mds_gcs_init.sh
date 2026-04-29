@@ -63,6 +63,15 @@ USE_HTTPS="false"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
+# Optional dashboard/API auth. Auth is disabled by default so public demo and
+# local development setups stay frictionless until explicitly locked down.
+AUTH_ENABLED="${MDS_AUTH_ENABLED:-false}"
+API_AUTH_ENABLED="${MDS_API_AUTH_ENABLED:-false}"
+AUTH_ADMIN_USER="${MDS_AUTH_ADMIN_USER:-admin}"
+AUTH_ADMIN_PASSWORD_FILE="${MDS_AUTH_ADMIN_PASSWORD_FILE:-}"
+AUTH_SESSION_TTL_HOURS="${MDS_AUTH_SESSION_TTL_HOURS:-12}"
+AUTH_SECURE_COOKIES="${MDS_AUTH_SECURE_COOKIES:-false}"
+
 # Installation options
 GCS_INSTALL_DIR=""
 
@@ -86,7 +95,9 @@ VERBOSE="false"
 DEBUG="false"
 
 # Export all for libraries
-export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE GCS_INSTALL_DIR
+export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE
+export AUTH_ENABLED API_AUTH_ENABLED AUTH_ADMIN_USER AUTH_ADMIN_PASSWORD_FILE AUTH_SESSION_TTL_HOURS AUTH_SECURE_COOKIES
+export GCS_INSTALL_DIR
 export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
 export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG SKIP_SERVICES
 export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG
@@ -126,6 +137,18 @@ REPOSITORY OPTIONS:
                         Preferred private HTTPS Git auth token file
     --git-ssh-key-file PATH
                         Existing SSH private key file for private GitHub SSH access
+    --auth              Enable dashboard username/password login
+    --no-auth           Disable dashboard username/password login (default)
+    --api-auth          Require bearer tokens for drone/agent/API machine endpoints
+    --no-api-auth       Leave machine endpoints open on the trusted network (default)
+    --auth-admin-user USER
+                        First admin username when --auth is enabled (default: admin)
+    --auth-admin-password-file PATH
+                        File containing the first admin password for headless setup
+    --auth-session-ttl-hours HOURS
+                        Login session TTL, 1-720 hours (default: 12)
+    --auth-secure-cookies
+                        Mark auth cookies Secure when serving behind HTTPS
 
 INSTALLATION OPTIONS:
     --install-dir PATH  Installation directory (default: current directory)
@@ -249,6 +272,38 @@ parse_arguments() {
                 fi
                 shift 2
                 ;;
+            --auth)
+                AUTH_ENABLED="true"
+                shift
+                ;;
+            --no-auth)
+                AUTH_ENABLED="false"
+                shift
+                ;;
+            --api-auth)
+                API_AUTH_ENABLED="true"
+                shift
+                ;;
+            --no-api-auth)
+                API_AUTH_ENABLED="false"
+                shift
+                ;;
+            --auth-admin-user)
+                AUTH_ADMIN_USER="$2"
+                shift 2
+                ;;
+            --auth-admin-password-file)
+                AUTH_ADMIN_PASSWORD_FILE="$2"
+                shift 2
+                ;;
+            --auth-session-ttl-hours)
+                AUTH_SESSION_TTL_HOURS="$2"
+                shift 2
+                ;;
+            --auth-secure-cookies)
+                AUTH_SECURE_COOKIES="true"
+                shift
+                ;;
 
             # Installation options
             --install-dir)
@@ -341,7 +396,9 @@ parse_arguments() {
     [[ -z "$GCS_INSTALL_DIR" ]] && GCS_INSTALL_DIR="$(pwd)"
 
     # Export updated values
-    export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE GCS_INSTALL_DIR
+    export MODE REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE
+    export AUTH_ENABLED API_AUTH_ENABLED AUTH_ADMIN_USER AUTH_ADMIN_PASSWORD_FILE AUTH_SESSION_TTL_HOURS AUTH_SECURE_COOKIES
+    export GCS_INSTALL_DIR
     export SKIP_PREREQS SKIP_PYTHON SKIP_NODEJS SKIP_REPO SKIP_FIREWALL
     export SKIP_PYTHON_ENV SKIP_NODEJS_ENV SKIP_ENV_CONFIG SKIP_SERVICES
     export NON_INTERACTIVE DRY_RUN RESUME FORCE VERBOSE DEBUG

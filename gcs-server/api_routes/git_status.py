@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from auth_runtime import authorize_websocket
 from git_status import commits_match
 from schemas import (
     DroneConnectivityRuntimeStatus,
@@ -210,7 +211,7 @@ def create_git_router(deps: Any) -> APIRouter:
             deps._sync_state["results"] = None
 
             gcs_status = deps.get_gcs_git_report()
-            branch = (gcs_status or {}).get("branch") or getattr(deps.Params, "GIT_BRANCH", "main-candidate")
+            branch = (gcs_status or {}).get("branch") or getattr(deps.Params, "GIT_BRANCH", "main")
             expected_commit = (gcs_status or {}).get("commit", "")
             command_data = {
                 "mission_type": 103,
@@ -319,6 +320,8 @@ def create_git_router(deps: Any) -> APIRouter:
     @router.websocket("/ws/git-status")
     async def websocket_git_status(websocket: WebSocket):
         """Stream the same git-status payload shape exposed by GET /api/v1/git/status."""
+        if await authorize_websocket(websocket) is None:
+            return
         await websocket.accept()
         deps.log_system_event("Git status WebSocket client connected", "INFO", "websocket")
 

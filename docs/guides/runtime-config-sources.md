@@ -28,6 +28,7 @@ handled separately from normal desired state, see
 | SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
 | SITL swarm topology | `swarm_sitl.json` | Selected when `MDS_MODE=sitl` |
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |
+| GCS dashboard/API auth | `/etc/mds/gcs.env` + `/etc/mds/auth/*` | Config flags in env; user/token/session secrets in root-owned local files |
 | Node runtime overrides | `/etc/mds/local.env` | `MDS_HW_ID`, `MDS_MODE`, GCS routing, repo/branch/auth/connectivity overrides for that node |
 | Node identity metadata | `/etc/mds/node_identity.json` | Canonical structured node identity/reporting metadata |
 | Fallback runtime policy | `src/params.py` | Runtime policy and final code defaults only |
@@ -123,6 +124,26 @@ overrides `/etc/mds/gcs.env`.
 GCS bootstrap now also installs/reconciles `git_sync_mds.service` after
 writing `/etc/mds/gcs.env`, so the service inherits the same precedence model
 on a fresh host instead of depending on a later manual install step.
+
+### GCS auth runtime
+
+Dashboard/API auth flags are host-local and belong in `/etc/mds/gcs.env`:
+
+- `MDS_AUTH_ENABLED`
+- `MDS_API_AUTH_ENABLED`
+- `MDS_AUTH_USERS_FILE`
+- `MDS_API_TOKENS_FILE`
+- `MDS_AUTH_SESSION_SECRET_FILE`
+- `MDS_AUTH_CSRF_SECRET_FILE`
+- `MDS_AUTH_SESSION_TTL_HOURS`
+- `MDS_AUTH_SECURE_COOKIES`
+- `MDS_AUTH_CSRF_ENABLED`
+- `MDS_AUTH_ALLOWED_CIDRS`
+- `MDS_AUTH_TRUSTED_PROXY_CIDRS`
+
+The referenced files under `/etc/mds/auth` are not git-tracked. See
+[GCS Auth Guide](gcs-auth.md) for bootstrap, UI management, token, and recovery
+workflows.
 
 `MDS_REPO_URL` in `/etc/mds/gcs.env` and `/etc/mds/local.env` is the canonical
 runtime repo authority for that host. The checkout remote (`git remote get-url

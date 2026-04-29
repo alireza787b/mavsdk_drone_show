@@ -19,6 +19,7 @@ gunicorn==23.0.0
 pydantic==2.10.0
 python-multipart==0.0.20
 httpx>=0.24.0
+pwdlib[argon2]>=0.2.1,<1
 
 # Web Framework - Flask (Legacy)
 Flask==3.0.3
