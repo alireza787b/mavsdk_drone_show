@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -91,3 +92,61 @@ def test_git_router_get_gcs_status_uses_live_dependency_after_router_creation():
     assert response.status_code == 200
     replacement_report.assert_called_once()
     assert response.json()["gcs_status"]["branch"] == "release"
+
+
+def test_git_status_keeps_stale_offline_drift_out_of_global_sync_warning():
+    deps = _make_deps()
+    deps.Params.TELEMETRY_POLLING_TIMEOUT = 5
+    deps.get_gcs_git_report = lambda: {"branch": "main-candidate", "commit": "new67890"}
+    deps.git_status_data_all_drones = {
+        "1": {
+            "status": "clean",
+            "branch": "main-candidate",
+            "commit": "old12345",
+            "uncommitted_changes": [],
+        },
+    }
+    deps.get_all_heartbeats = lambda: {
+        "1": {
+            "timestamp": int((time.time() - 60) * 1000),
+            "hw_id": "1",
+        },
+    }
+
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/git/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["git_status"]["1"]["in_sync_with_gcs"] is False
+    assert payload["total_drones"] == 1
+    assert payload["needs_sync_count"] == 0
+
+
+def test_git_status_empty_heartbeat_set_suppresses_global_sync_warning():
+    deps = _make_deps()
+    deps.get_gcs_git_report = lambda: {"branch": "main-candidate", "commit": "new67890"}
+    deps.git_status_data_all_drones = {
+        "1": {
+            "status": "clean",
+            "branch": "main-candidate",
+            "commit": "old12345",
+            "uncommitted_changes": [],
+        },
+    }
+    deps.get_all_heartbeats = lambda: {}
+
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/git/status")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["git_status"]["1"]["in_sync_with_gcs"] is False
+    assert payload["total_drones"] == 1
+    assert payload["needs_sync_count"] == 0

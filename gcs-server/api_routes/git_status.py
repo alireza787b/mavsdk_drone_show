@@ -34,6 +34,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
     gcs_branch = (gcs_status or {}).get("branch")
     gcs_commit = (gcs_status or {}).get("commit")
     transformed_git_status = {}
+    actionable_online_hw_ids = _resolve_actionable_online_hw_ids(deps)
 
     with deps.data_lock_git_status:
         for hw_id, raw_data in deps.git_status_data_all_drones.items():
@@ -169,17 +170,57 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 last_sync=None,
             )
 
-    synced_count = len([status for status in transformed_git_status.values() if status.in_sync_with_gcs])
+    actionable_statuses = [
+        status
+        for hw_id, status in transformed_git_status.items()
+        if actionable_online_hw_ids is None or hw_id in actionable_online_hw_ids
+    ]
+    synced_count = len([status for status in actionable_statuses if status.in_sync_with_gcs])
 
     return GitStatusResponse(
         git_status=transformed_git_status,
         total_drones=len(transformed_git_status),
         synced_count=synced_count,
-        needs_sync_count=len(transformed_git_status) - synced_count,
+        needs_sync_count=len(actionable_statuses) - synced_count,
         gcs_status=gcs_status,
         sync_in_progress=deps._sync_state["active"],
         timestamp=int(time.time() * 1000),
     )
+
+
+def _resolve_actionable_online_hw_ids(deps: Any) -> set[str] | None:
+    """Return online heartbeat ids for sync warnings, or None when unavailable.
+
+    Git status records can outlive an offline drone. Keeping those records is
+    useful for Fleet Ops diagnostics, but the global sync warning should only
+    count drones that are currently actionable.
+    """
+    try:
+        heartbeats = deps.get_all_heartbeats() or {}
+    except Exception:
+        return None
+
+    if not isinstance(heartbeats, dict):
+        return None
+    if not heartbeats:
+        return set()
+
+    timeout = float(getattr(deps.Params, "TELEMETRY_POLLING_TIMEOUT", 30.0) or 30.0)
+    now = time.time()
+    online_hw_ids: set[str] = set()
+
+    for hw_id, heartbeat in heartbeats.items():
+        if not isinstance(heartbeat, dict):
+            continue
+        timestamp = heartbeat.get("timestamp")
+        try:
+            heartbeat_age_sec = now - (float(timestamp) / 1000.0)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= heartbeat_age_sec < timeout:
+            online_hw_ids.add(str(hw_id))
+
+    return online_hw_ids
 
 
 def create_git_router(deps: Any) -> APIRouter:

@@ -164,9 +164,7 @@ const LogTable = ({
             disableColumnMenu
             disableRowSelectionOnClick
             getRowClassName={getRowClassName}
-            onRowClick={(params) => setSelectedRow(
-              selectedRow === params.row._id ? null : params.row._id
-            )}
+            onRowClick={(params) => setSelectedRow(params.row._id)}
             hideFooter={filtered.length <= 100}
             pageSizeOptions={[100, 500, 1000]}
             initialState={{
@@ -176,6 +174,9 @@ const LogTable = ({
               border: 'none',
               '& .MuiDataGrid-cell': {
                 color: 'var(--color-text-primary)',
+              },
+              '& .MuiDataGrid-row': {
+                cursor: 'pointer',
               },
               '& .MuiDataGrid-columnHeader': {
                 color: 'var(--color-text-secondary)',
@@ -191,7 +192,7 @@ const LogTable = ({
               noRowsLabel: searchQuery ? 'No log entries matching search' : 'No log entries',
             }}
           />
-          {selectedEntry && <LogRowDetail entry={selectedEntry} />}
+          {selectedEntry && <LogRowDetail entry={selectedEntry} onClose={() => setSelectedRow(null)} />}
         </>
       )}
     </div>
