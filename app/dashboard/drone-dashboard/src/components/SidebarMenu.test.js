@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../hooks/useTheme', () => ({
@@ -114,7 +114,12 @@ describe('SidebarMenu', () => {
     const dialog = screen.getByRole('dialog', { name: /signed-in user profile/i });
     expect(dialog).toBeInTheDocument();
     expect(dialog.closest('.modern-sidebar-wrapper')).toBeNull();
-    expect(screen.getByText(/admin · session 12h/i)).toBeInTheDocument();
+    expect(within(dialog).getByText('admin', { selector: 'strong' })).toBeInTheDocument();
+    expect(within(dialog).getByText('admin', { selector: 'span' })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/current/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /change password/i }));
+    expect(screen.getByLabelText(/current/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save password/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /security/i })).toHaveAttribute('href', '/runtime-admin');
     expect(screen.getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');
   });

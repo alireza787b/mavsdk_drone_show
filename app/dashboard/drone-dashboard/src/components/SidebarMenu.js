@@ -27,6 +27,7 @@ import {
   FaNetworkWired,
   FaSignOutAlt,
   FaUserShield,
+  FaKey,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -69,6 +70,7 @@ const SidebarMenu = ({
   const [localCollapsed, setLocalCollapsed] = useState(getInitialCollapsed);
   const [activeTooltip, setActiveTooltip] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordPanelOpen, setPasswordPanelOpen] = useState(false);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -87,16 +89,30 @@ const SidebarMenu = ({
   const authEnabled = Boolean(authStatus?.dashboard_auth_enabled);
   const currentUserLabel = currentUser?.username || 'operator';
   const currentUserRole = currentUser?.role || authStatus?.role || 'operator';
-  const passwordChangedAt = currentUser?.password_changed_at || 'not recorded';
-  const sessionTtl = authStatus?.session_ttl_hours ? `${authStatus.session_ttl_hours}h` : 'default';
+
+  const resetPasswordForm = () => {
+    setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  };
+
+  const closeProfile = () => {
+    setProfileOpen(false);
+    setPasswordPanelOpen(false);
+    setProfileNotice(null);
+    resetPasswordForm();
+  };
 
   const handleProfileToggle = () => {
+    if (profileOpen) {
+      closeProfile();
+      return;
+    }
     setProfileNotice(null);
-    setProfileOpen((current) => !current);
+    setPasswordPanelOpen(false);
+    setProfileOpen(true);
   };
 
   const handleProfileLinkNavigate = () => {
-    setProfileOpen(false);
+    closeProfile();
     if (mobile && onNavigate) {
       onNavigate();
     }
@@ -119,7 +135,8 @@ const SidebarMenu = ({
         currentPassword: passwordForm.currentPassword,
         newPassword: passwordForm.newPassword,
       });
-      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      resetPasswordForm();
+      setPasswordPanelOpen(false);
       setProfileNotice({ tone: 'good', message: 'Password updated.' });
     } catch (error) {
       setProfileNotice({
@@ -187,14 +204,14 @@ const SidebarMenu = ({
       <button
         type="button"
         className="auth-profile-popover-backdrop"
-        onClick={() => setProfileOpen(false)}
+        onClick={closeProfile}
         aria-label="Close profile"
       />
       <div className="auth-profile-popover" role="dialog" aria-label="Signed-in user profile">
         <button
           type="button"
           className="auth-profile-popover__close"
-          onClick={() => setProfileOpen(false)}
+          onClick={closeProfile}
           aria-label="Close profile"
         >
           ×
@@ -203,63 +220,83 @@ const SidebarMenu = ({
           <FaUserShield aria-hidden="true" />
           <div>
             <strong>{currentUserLabel}</strong>
-            <span>{currentUserRole} · session {sessionTtl}</span>
+            <span>{currentUserRole}</span>
           </div>
         </div>
-        <dl className="auth-profile-popover__meta">
-          <div>
-            <dt>Password</dt>
-            <dd>{passwordChangedAt}</dd>
-          </div>
-          <div>
-            <dt>API auth</dt>
-            <dd>{authStatus?.api_auth_enabled ? 'required' : 'off'}</dd>
-          </div>
-        </dl>
-        <form className="auth-profile-popover__form" onSubmit={handlePasswordChange}>
-          <label>
-            <span>Current</span>
-            <input
-              type="password"
-              value={passwordForm.currentPassword}
-              onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-          <label>
-            <span>New</span>
-            <input
-              type="password"
-              value={passwordForm.newPassword}
-              onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
-              autoComplete="new-password"
-              required
-            />
-          </label>
-          <label>
-            <span>Confirm</span>
-            <input
-              type="password"
-              value={passwordForm.confirmPassword}
-              onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
-              autoComplete="new-password"
-              required
-            />
-          </label>
-          {profileNotice && (
-            <p className={`auth-profile-popover__notice auth-profile-popover__notice--${profileNotice.tone}`}>
-              {profileNotice.message}
-            </p>
-          )}
-          <button type="submit" disabled={profileBusy}>
-            {profileBusy ? 'Updating…' : 'Change password'}
-          </button>
-        </form>
+        {profileNotice && (
+          <p className={`auth-profile-popover__notice auth-profile-popover__notice--${profileNotice.tone}`}>
+            {profileNotice.message}
+          </p>
+        )}
         <div className="auth-profile-popover__links">
+          {onChangePassword && (
+            <button
+              type="button"
+              onClick={() => {
+                setProfileNotice(null);
+                setPasswordPanelOpen((current) => !current);
+                if (passwordPanelOpen) {
+                  resetPasswordForm();
+                }
+              }}
+              aria-expanded={passwordPanelOpen}
+            >
+              <FaKey aria-hidden="true" />
+              <span>{passwordPanelOpen ? 'Cancel' : 'Change password'}</span>
+            </button>
+          )}
           <Link to="/runtime-admin" onClick={handleProfileLinkNavigate}>Security</Link>
           <Link to="/logs" onClick={handleProfileLinkNavigate}>Logs</Link>
+          {onLogout && (
+            <button
+              type="button"
+              onClick={() => {
+                closeProfile();
+                onLogout();
+              }}
+            >
+              <FaSignOutAlt aria-hidden="true" />
+              <span>Log out</span>
+            </button>
+          )}
         </div>
+        {passwordPanelOpen && (
+          <form className="auth-profile-popover__form" onSubmit={handlePasswordChange}>
+            <label>
+              <span>Current</span>
+              <input
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              <span>New</span>
+              <input
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <label>
+              <span>Confirm</span>
+              <input
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <button type="submit" disabled={profileBusy}>
+              {profileBusy ? 'Updating…' : 'Save password'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

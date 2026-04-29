@@ -543,19 +543,20 @@
   height: 100%;
   border: 0;
   padding: 0;
-  background: transparent;
+  background: var(--color-bg-overlay);
   cursor: default;
   pointer-events: auto;
 }
 
 .auth-profile-popover {
   position: fixed;
-  left: clamp(12px, 2vw, 22px);
-  bottom: max(16px, env(safe-area-inset-bottom, 0px));
-  width: min(340px, calc(100vw - 28px));
-  max-height: min(620px, calc(100vh - 120px));
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(360px, calc(100vw - 28px));
+  max-height: min(620px, calc(100vh - 48px));
   overflow-y: auto;
-  padding: var(--spacing-base);
+  padding: var(--spacing-lg);
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-lg);
   background: color-mix(in srgb, var(--color-bg-primary) 94%, transparent);
@@ -563,6 +564,18 @@
   backdrop-filter: blur(18px);
   z-index: var(--z-local-floating);
   pointer-events: auto;
+  animation: authProfileDialogIn 0.18s ease-out;
+}
+
+@keyframes authProfileDialogIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .auth-profile-popover__close {
@@ -583,6 +596,7 @@
   align-items: center;
   gap: 0.65rem;
   padding-right: 2.2rem;
+  margin-bottom: 0.85rem;
 }
 
 .auth-profile-popover__header > svg {
@@ -595,43 +609,24 @@
 }
 
 .auth-profile-popover__header span {
-  color: var(--color-text-tertiary);
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.12rem 0.45rem;
+  border-radius: var(--border-radius-full);
+  background: rgba(var(--color-primary-rgb), 0.1);
+  color: var(--color-primary);
   font-size: 0.74rem;
-  margin-top: 0.1rem;
-}
-
-.auth-profile-popover__meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem;
-  margin: 0.85rem 0;
-}
-
-.auth-profile-popover__meta div {
-  padding: 0.55rem;
-  border: 1px solid var(--color-border-secondary);
-  border-radius: var(--border-radius-base);
-  background: var(--color-surface-inset);
-}
-
-.auth-profile-popover__meta dt {
-  margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-}
-
-.auth-profile-popover__meta dd {
-  margin: 0.2rem 0 0;
-  color: var(--color-text-primary);
-  font-size: 0.72rem;
-  overflow-wrap: anywhere;
+  margin-top: 0.2rem;
 }
 
 .auth-profile-popover__form {
   display: grid;
   gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border-secondary);
 }
 
 .auth-profile-popover__form label {
@@ -652,7 +647,8 @@
 }
 
 .auth-profile-popover__form button,
-.auth-profile-popover__links a {
+.auth-profile-popover__links a,
+.auth-profile-popover__links button {
   min-height: 34px;
   border: 1px solid var(--color-primary-border);
   border-radius: var(--border-radius-base);
@@ -661,6 +657,7 @@
   font-weight: 900;
   cursor: pointer;
   text-decoration: none;
+  font-size: 0.78rem;
 }
 
 .auth-profile-popover__form button:disabled {
@@ -689,13 +686,14 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
-  margin-top: 0.65rem;
 }
 
-.auth-profile-popover__links a {
+.auth-profile-popover__links a,
+.auth-profile-popover__links button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.4rem;
 }
 
 /* Theme Toggle */
