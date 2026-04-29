@@ -37,6 +37,9 @@ ADMIN_PREFIXES = (
     "/api/v1/system/sitl",
     "/api/v1/git/sync-operations",
 )
+SELF_SERVICE_MUTATION_PATHS = {
+    "/api/v1/auth/me/password",
+}
 
 
 def _auth_error(status_code: int, error: str, message: str, recovery_hint: str | None = None) -> JSONResponse:
@@ -82,6 +85,8 @@ def _role_allows_request(role: str, method: str, path: str) -> tuple[bool, str |
         return True, None
     if _is_admin_path(path):
         return False, "Admin role required for security/runtime administration."
+    if path in SELF_SERVICE_MUTATION_PATHS:
+        return True, None
     if normalized_role == "viewer" and method.upper() not in SAFE_METHODS:
         return False, "Viewer role is read-only."
     return True, None

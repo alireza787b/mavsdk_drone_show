@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 import {
   getAuthStatusResponse,
+  changeOwnPasswordResponse,
   loginResponse,
   logoutResponse,
   setGcsCsrfToken,
@@ -51,6 +52,16 @@ export function AuthProvider({ children }) {
     await refresh();
   }, [refresh]);
 
+  const changePassword = useCallback(async ({ currentPassword, newPassword }) => {
+    setError(null);
+    const response = await changeOwnPasswordResponse({
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    await refresh();
+    return response.data || {};
+  }, [refresh]);
+
   const value = useMemo(() => {
     const dashboardAuthEnabled = Boolean(status?.dashboard_auth_enabled);
     const authenticated = dashboardAuthEnabled ? Boolean(status?.authenticated) : true;
@@ -67,8 +78,9 @@ export function AuthProvider({ children }) {
       refresh,
       login,
       logout,
+      changePassword,
     };
-  }, [error, loading, login, logout, refresh, status]);
+  }, [changePassword, error, loading, login, logout, refresh, status]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

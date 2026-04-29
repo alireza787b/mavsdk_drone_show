@@ -79,6 +79,8 @@ make auth-status
 make auth-add-user ARGS="admin --role admin"
 make auth-enable-dashboard
 make auth-disable-dashboard
+make auth-enable-api
+make auth-disable-api
 make auth-create-token ARGS="--name field-debug --scope readonly --ttl-hours 4"
 make auth-revoke-token ARGS="tok_abc123"
 ```

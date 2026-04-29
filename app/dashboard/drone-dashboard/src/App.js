@@ -208,6 +208,7 @@ const AppShell = () => {
                   authStatus={auth.status}
                   currentUser={auth.user}
                   onLogout={auth.logout}
+                  onChangePassword={auth.changePassword}
                 />
                 <div className={contentClassName}>
                   <RouteDocsShortcut />

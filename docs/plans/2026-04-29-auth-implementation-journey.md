@@ -197,3 +197,44 @@ Verification:
   - authenticated `/api/v1/system/runtime-status` returns `200` and REAL mode.
   - machine bootstrap endpoint is not blocked by auth while API auth is disabled.
   - static dashboard server on `3030` returns `200`.
+
+### Slice 7: Drone API-Token Provisioning And User Profile
+
+Status: completed
+
+Goals:
+
+- Make the full API-auth path explicit for existing drones, future drones, SITL, field scripts, and AI agents.
+- Keep current hardware/SITL working when only dashboard login is enabled.
+- Avoid unsafe auto-approval of unknown drones requesting tokens.
+- Let a signed-in dashboard user inspect their profile posture and change their own password from the sidebar.
+
+Implemented:
+
+- Added `src/gcs_auth_client.py` as the shared drone/SITL helper for GCS bearer-token headers.
+- Updated heartbeat, command-report, origin-bootstrap, and candidate-announce calls to attach `Authorization: Bearer ...` when `MDS_GCS_API_TOKEN_FILE` or `MDS_GCS_API_TOKEN` is configured.
+- Added `--gcs-api-token-file` and `--gcs-api-token` to node bootstrap, and `--gcs-api-token-file` to the announce helper.
+- Stored one-shot `--gcs-api-token` values in `/root/.mds/keys/gcs_api_token` with root-only permissions, then persisted only `MDS_GCS_API_TOKEN_FILE` in `/etc/mds/local.env`.
+- Added `PATCH /api/v1/auth/me/password` with CSRF/session protection and viewer-safe self-service authorization.
+- Added sidebar profile popover with signed-in user info, API-auth posture, Security/Logs links, and password change.
+- Added Makefile shortcuts for `auth-enable-api` and `auth-disable-api`.
+- Updated `docs/guides/gcs-auth.md`, `docs/guides/headless-automation.md`, and `docs/guides/operator-makefile.md`.
+
+Decision:
+
+- No unauthenticated "new drone requests token, admin approves" queue is implemented. That flow creates a trust problem on a shared network. Locked-down deployments must provision a scoped machine token explicitly before enabling `MDS_API_AUTH_ENABLED=true`.
+
+Verification:
+
+- Local/light:
+  - `python3 -m py_compile src/gcs_auth_client.py src/heartbeat_sender.py src/drone_setup.py src/drone_api_server.py gcs-server/api_routes/auth.py gcs-server/auth_runtime.py`
+  - `bash -n tools/mds_node_init.sh`
+  - `bash -n tools/mds_node_announce.sh`
+  - `bash -n tools/mds_init_lib/announce.sh`
+  - `bash -n tools/mds_init_lib/identity.sh`
+  - `python3 -m pytest tests/test_gcs_auth_client.py tests/test_mds_auth.py -q`
+  - `python3 tools/audit_frontend_ui.py --strict`
+  - `git diff --check`
+- Hetzner:
+  - `CI=true npm test -- --watchAll=false --runInBand src/components/SidebarMenu.test.js src/services/gcsApiService.test.js`
+  - `npm run build`

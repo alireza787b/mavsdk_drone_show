@@ -41,6 +41,24 @@ sudo ./tools/mds_gcs_init.sh \
 Keep `--api-auth` disabled until drone, SITL, AI-agent, and field-script bearer
 token provisioning has been tested. See [GCS Auth Guide](gcs-auth.md).
 
+When API auth is enabled, provision a GCS bearer token before node bootstrap.
+Prefer a root-readable file so the token is not stored in shell history:
+
+```bash
+sudo install -d -m 700 /root/.mds/keys
+sudo sh -c 'umask 077; printf "%s\n" "mds_REPLACE_WITH_TOKEN" > /root/.mds/keys/gcs_api_token'
+
+sudo ./tools/mds_node_init.sh \
+  -d 1 \
+  --gcs-api-url http://GCS_HOST:5030 \
+  --gcs-api-token-file /root/.mds/keys/gcs_api_token \
+  -y
+```
+
+For one-shot provisioning systems that inject secrets securely, `--gcs-api-token`
+writes the token into the standard root-only file and records only
+`MDS_GCS_API_TOKEN_FILE` in `/etc/mds/local.env`.
+
 ## Non-Interactive Mode
 
 Enable non-interactive mode with the `-y` or `--yes` flag:

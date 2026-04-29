@@ -148,6 +148,25 @@ def test_viewer_role_is_read_only(monkeypatch, tmp_path):
     assert response.json()["error"] == "permission_denied"
 
 
+def test_signed_in_user_can_change_own_password(monkeypatch, tmp_path):
+    _set_auth_env(monkeypatch, tmp_path, dashboard=True, api=False)
+    service = AuthService(AuthSettings.from_env())
+    service.store.upsert_user("viewer", password="old-password", role="viewer")
+    client = TestClient(_make_app())
+    login = client.post("/api/v1/auth/login", json={"username": "viewer", "password": "old-password"})
+    csrf = login.json()["csrf_token"]
+
+    response = client.patch(
+        "/api/v1/auth/me/password",
+        json={"current_password": "old-password", "new_password": "new-password"},
+        headers={"X-MDS-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    assert service.store.authenticate_user("viewer", "old-password") is None
+    assert service.store.authenticate_user("viewer", "new-password")["username"] == "viewer"
+
+
 def test_machine_endpoint_open_until_api_auth_enabled(monkeypatch, tmp_path):
     _set_auth_env(monkeypatch, tmp_path, dashboard=True, api=False)
     client = TestClient(_make_app())

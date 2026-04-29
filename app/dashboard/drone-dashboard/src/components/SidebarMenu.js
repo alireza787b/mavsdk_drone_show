@@ -59,6 +59,7 @@ const SidebarMenu = ({
   authStatus = {},
   currentUser = null,
   onLogout = null,
+  onChangePassword = null,
 }) => {
   const themeState = useTheme() || {};
   const gitInfoState = useGcsGitInfo() || {};
@@ -66,6 +67,14 @@ const SidebarMenu = ({
   const gitInfo = gitInfoOverride || gitInfoState;
   const [localCollapsed, setLocalCollapsed] = useState(getInitialCollapsed);
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [profileNotice, setProfileNotice] = useState(null);
+  const [profileBusy, setProfileBusy] = useState(false);
 
   const isCollapsed = mobile ? false : (collapsed !== undefined ? collapsed : localCollapsed);
   const handleToggle = onToggle || setLocalCollapsed;
@@ -77,6 +86,49 @@ const SidebarMenu = ({
   const authEnabled = Boolean(authStatus?.dashboard_auth_enabled);
   const currentUserLabel = currentUser?.username || 'operator';
   const currentUserRole = currentUser?.role || authStatus?.role || 'operator';
+  const passwordChangedAt = currentUser?.password_changed_at || 'not recorded';
+  const sessionTtl = authStatus?.session_ttl_hours ? `${authStatus.session_ttl_hours}h` : 'default';
+
+  const handleProfileToggle = () => {
+    setProfileNotice(null);
+    setProfileOpen((current) => !current);
+  };
+
+  const handleProfileLinkNavigate = () => {
+    setProfileOpen(false);
+    if (mobile && onNavigate) {
+      onNavigate();
+    }
+  };
+
+  const handlePasswordChange = async (event) => {
+    event.preventDefault();
+    setProfileNotice(null);
+    if (!onChangePassword) {
+      setProfileNotice({ tone: 'danger', message: 'Password change is unavailable in this session.' });
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setProfileNotice({ tone: 'danger', message: 'New password confirmation does not match.' });
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      await onChangePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setProfileNotice({ tone: 'good', message: 'Password updated.' });
+    } catch (error) {
+      setProfileNotice({
+        tone: 'danger',
+        message: error?.response?.data?.detail || error?.message || 'Password update failed.',
+      });
+    } finally {
+      setProfileBusy(false);
+    }
+  };
 
   const menuSections = [
     {
@@ -128,6 +180,80 @@ const SidebarMenu = ({
       setTimeout(() => setActiveTooltip(null), 2000);
     }
   };
+
+  const profilePopover = profileOpen ? (
+    <div className="auth-profile-popover" role="dialog" aria-label="Signed-in user profile">
+      <button
+        type="button"
+        className="auth-profile-popover__close"
+        onClick={() => setProfileOpen(false)}
+        aria-label="Close profile"
+      >
+        ×
+      </button>
+      <div className="auth-profile-popover__header">
+        <FaUserShield aria-hidden="true" />
+        <div>
+          <strong>{currentUserLabel}</strong>
+          <span>{currentUserRole} · session {sessionTtl}</span>
+        </div>
+      </div>
+      <dl className="auth-profile-popover__meta">
+        <div>
+          <dt>Password</dt>
+          <dd>{passwordChangedAt}</dd>
+        </div>
+        <div>
+          <dt>API auth</dt>
+          <dd>{authStatus?.api_auth_enabled ? 'required' : 'off'}</dd>
+        </div>
+      </dl>
+      <form className="auth-profile-popover__form" onSubmit={handlePasswordChange}>
+        <label>
+          <span>Current</span>
+          <input
+            type="password"
+            value={passwordForm.currentPassword}
+            onChange={(event) => setPasswordForm((current) => ({ ...current, currentPassword: event.target.value }))}
+            autoComplete="current-password"
+            required
+          />
+        </label>
+        <label>
+          <span>New</span>
+          <input
+            type="password"
+            value={passwordForm.newPassword}
+            onChange={(event) => setPasswordForm((current) => ({ ...current, newPassword: event.target.value }))}
+            autoComplete="new-password"
+            required
+          />
+        </label>
+        <label>
+          <span>Confirm</span>
+          <input
+            type="password"
+            value={passwordForm.confirmPassword}
+            onChange={(event) => setPasswordForm((current) => ({ ...current, confirmPassword: event.target.value }))}
+            autoComplete="new-password"
+            required
+          />
+        </label>
+        {profileNotice && (
+          <p className={`auth-profile-popover__notice auth-profile-popover__notice--${profileNotice.tone}`}>
+            {profileNotice.message}
+          </p>
+        )}
+        <button type="submit" disabled={profileBusy}>
+          {profileBusy ? 'Updating…' : 'Change password'}
+        </button>
+      </form>
+      <div className="auth-profile-popover__links">
+        <Link to="/runtime-admin" onClick={handleProfileLinkNavigate}>Security</Link>
+        <Link to="/logs" onClick={handleProfileLinkNavigate}>Logs</Link>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${mobile ? 'mobile' : 'desktop'} ${mobileOpen ? 'mobile-open' : ''} ${isDark ? 'dark' : 'light'}`}>
@@ -253,13 +379,18 @@ const SidebarMenu = ({
         {authEnabled && (
           <div className="footer-item auth-user-container">
             {!isCollapsed ? (
-              <div
-                className="auth-user-pill"
-                aria-label={`Signed in as ${currentUserLabel} (${currentUserRole})`}
-              >
-                <FaUserShield aria-hidden="true" />
-                <span>{currentUserLabel}</span>
-                <strong>{currentUserRole}</strong>
+              <div className="auth-user-pill">
+                <button
+                  type="button"
+                  className="auth-user-profile-trigger"
+                  onClick={handleProfileToggle}
+                  aria-expanded={profileOpen}
+                  aria-label={`Open profile for ${currentUserLabel} (${currentUserRole})`}
+                >
+                  <FaUserShield aria-hidden="true" />
+                  <span>{currentUserLabel}</span>
+                  <strong>{currentUserRole}</strong>
+                </button>
                 {onLogout && (
                   <button
                     type="button"
@@ -270,24 +401,25 @@ const SidebarMenu = ({
                     <FaSignOutAlt aria-hidden="true" />
                   </button>
                 )}
+                {profilePopover}
               </div>
             ) : (
-              <Link
-                to="/runtime-admin"
-                className="auth-user-icon"
-                aria-label={`Signed in as ${currentUserLabel}. Open runtime security for details.`}
-                onMouseEnter={() => handleTooltip(`Signed in: ${currentUserLabel}`)}
-                onClick={() => {
-                  if (mobile && onNavigate) {
-                    onNavigate();
-                  }
-                }}
-              >
-                <FaUserShield aria-hidden="true" />
-                {activeTooltip === `Signed in: ${currentUserLabel}` && (
-                  <span className="nav-tooltip">{currentUserLabel}</span>
-                )}
-              </Link>
+              <>
+                <button
+                  type="button"
+                  className="auth-user-icon"
+                  aria-label={`Open profile for ${currentUserLabel}`}
+                  onMouseEnter={() => handleTooltip(`Signed in: ${currentUserLabel}`)}
+                  onClick={handleProfileToggle}
+                  aria-expanded={profileOpen}
+                >
+                  <FaUserShield aria-hidden="true" />
+                  {activeTooltip === `Signed in: ${currentUserLabel}` && (
+                    <span className="nav-tooltip">{currentUserLabel}</span>
+                  )}
+                </button>
+                {profilePopover}
+              </>
             )}
           </div>
         )}

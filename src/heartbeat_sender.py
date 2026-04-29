@@ -9,6 +9,7 @@ import subprocess
 from mds_logging import get_logger
 from src.params import Params
 from src.drone_config import DroneConfig
+from src.gcs_auth_client import gcs_auth_headers
 
 logger = get_logger("heartbeat")
 
@@ -106,7 +107,7 @@ class HeartbeatSender:
         logger.debug(f"Sending heartbeat to {url} with data={data}")
         
         try:
-            resp = requests.post(url, json=data, timeout=3)
+            resp = requests.post(url, json=data, headers=gcs_auth_headers(), timeout=3)
             if resp.status_code == 200:
                 if not HeartbeatSender._gcs_connected:
                     HeartbeatSender._gcs_connected = True

@@ -17,6 +17,7 @@ source "${LIB_DIR}/announce.sh"
 IDENTITY_FILE="${MDS_NODE_IDENTITY_FILE}"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV}"
 GCS_API_URL="${MDS_GCS_API_BASE_URL:-}"
+GCS_API_TOKEN_FILE="${MDS_GCS_API_TOKEN_FILE:-}"
 REPORT_JSON=""
 TIMEOUT_SEC="${DEFAULT_ANNOUNCE_TIMEOUT_SEC}"
 DRY_RUN="false"
@@ -35,6 +36,8 @@ DESCRIPTION:
 OPTIONS:
     --gcs-api-url URL       Explicit GCS API base URL
                             Example: http://100.96.32.75:5030
+    --gcs-api-token-file PATH
+                            Bearer token file for auth-protected GCS APIs
     --identity-file PATH    Override node identity file
                             Default: /etc/mds/node_identity.json
     --local-env PATH        Override local.env path for URL discovery
@@ -53,6 +56,7 @@ URL RESOLUTION ORDER:
 
 EXAMPLES:
     sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
+    sudo ./tools/mds_node_announce.sh --gcs-api-token-file /root/.mds/keys/gcs_api_token
     sudo ./tools/mds_node_announce.sh --dry-run --report-json -
     sudo ./tools/mds_node_announce.sh --local-env /etc/mds/local.env
 EOF
@@ -62,7 +66,7 @@ parse_args() {
     local parsed
     parsed=$(getopt \
         -o h \
-        --long help,gcs-api-url:,identity-file:,local-env:,timeout:,report-json:,dry-run \
+        --long help,gcs-api-url:,gcs-api-token-file:,identity-file:,local-env:,timeout:,report-json:,dry-run \
         -n 'mds_node_announce.sh' -- "$@") || {
         echo "Error: invalid arguments. Use --help for usage." >&2
         exit 1
@@ -74,6 +78,12 @@ parse_args() {
         case "$1" in
             --gcs-api-url)
                 GCS_API_URL="$2"
+                shift 2
+                ;;
+            --gcs-api-token-file)
+                GCS_API_TOKEN_FILE="$2"
+                MDS_GCS_API_TOKEN_FILE="$2"
+                export MDS_GCS_API_TOKEN_FILE
                 shift 2
                 ;;
             --identity-file)
@@ -115,6 +125,11 @@ parse_args() {
 main() {
     parse_args "$@"
     init_logging
+
+    if [[ -n "$GCS_API_TOKEN_FILE" ]]; then
+        MDS_GCS_API_TOKEN_FILE="$GCS_API_TOKEN_FILE"
+        export MDS_GCS_API_TOKEN_FILE
+    fi
 
     if [[ ! -f "$IDENTITY_FILE" ]]; then
         log_error "Node identity manifest not found: $IDENTITY_FILE"

@@ -77,6 +77,14 @@ auth-enable-dashboard: ## Enable dashboard login in /etc/mds/gcs.env; restart GC
 auth-disable-dashboard: ## Disable dashboard login in /etc/mds/gcs.env; restart GCS to apply.
 	sudo python3 tools/mds_auth_admin.py disable-dashboard
 
+.PHONY: auth-enable-api
+auth-enable-api: ## Require bearer tokens for drone/agent/API machine endpoints; restart GCS to apply.
+	sudo python3 tools/mds_auth_admin.py enable-api
+
+.PHONY: auth-disable-api
+auth-disable-api: ## Leave drone/agent/API machine endpoints open on the trusted network; restart GCS to apply.
+	sudo python3 tools/mds_auth_admin.py disable-api
+
 .PHONY: auth-create-token
 auth-create-token: ## Create an API/debug token. Example: make auth-create-token ARGS="--name field-debug --scope readonly --ttl-hours 4".
 	sudo python3 tools/mds_auth_admin.py create-token $(ARGS)

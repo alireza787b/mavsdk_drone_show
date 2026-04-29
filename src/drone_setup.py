@@ -19,6 +19,7 @@ from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
     GCS_COMMAND_REPORT_EXECUTION_START_ROUTE,
 )
+from src.gcs_auth_client import gcs_auth_headers
 
 logger = get_logger("drone_setup")
 
@@ -531,6 +532,7 @@ class DroneSetup:
             async with session.post(
                 url,
                 json=payload,
+                headers=gcs_auth_headers(),
                 timeout=aiohttp.ClientTimeout(total=timeout_sec),
             ) as response:
                 return response.status == 200

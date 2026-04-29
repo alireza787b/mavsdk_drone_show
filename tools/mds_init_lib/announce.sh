@@ -110,6 +110,31 @@ resolve_gcs_api_base_url() {
     normalize_api_base_url "http://${host}:${port}"
 }
 
+read_gcs_api_token() {
+    local local_env_path="${1:-${MDS_LOCAL_ENV}}"
+    local token_file=""
+    local token=""
+
+    if [[ -n "${MDS_GCS_API_TOKEN:-}" ]]; then
+        printf '%s\n' "${MDS_GCS_API_TOKEN}"
+        return 0
+    fi
+
+    if [[ -n "${MDS_GCS_API_TOKEN_FILE:-}" ]]; then
+        token_file="${MDS_GCS_API_TOKEN_FILE}"
+    else
+        token_file="$(read_key_value_file "$local_env_path" "MDS_GCS_API_TOKEN_FILE" 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$token_file" || ! -r "$token_file" ]]; then
+        return 1
+    fi
+
+    token="$(tr -d '\r\n' < "$token_file")"
+    [[ -n "$token" ]] || return 1
+    printf '%s\n' "$token"
+}
+
 determine_bootstrap_status_for_announce() {
     if [[ -f "${MDS_STATE_FILE:-}" ]] && command_exists jq; then
         if jq -e '.phases | to_entries | map(select(.key != "candidate_announce")) | any(.value.status == "failed")' "${MDS_STATE_FILE}" >/dev/null 2>&1; then
@@ -295,15 +320,32 @@ announce_candidate_to_gcs() {
     fi
 
     local curl_rc=0 http_status=""
+    local curl_config_file=""
+    local token=""
+    token="$(read_gcs_api_token "${MDS_LOCAL_ENV:-}" 2>/dev/null || true)"
+    if [[ -n "$token" ]]; then
+        curl_config_file="$(mktemp)"
+        chmod 600 "$curl_config_file" 2>/dev/null || true
+        printf 'header = "Authorization: Bearer %s"\n' "$token" > "$curl_config_file"
+    fi
+
+    local curl_auth_args=()
+    if [[ -n "$curl_config_file" ]]; then
+        curl_auth_args=(--config "$curl_config_file")
+    fi
+
     http_status=$(curl -sS \
         --connect-timeout 5 \
         --max-time "$timeout_sec" \
         -o "$response_file" \
         -w '%{http_code}' \
+        "${curl_auth_args[@]}" \
         -H 'Content-Type: application/json' \
         -X POST \
         --data-binary "@${payload_file}" \
         "$endpoint") || curl_rc=$?
+
+    rm -f "$curl_config_file"
 
     ANNOUNCE_LAST_HTTP_STATUS="$http_status"
 

@@ -11,6 +11,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   authLogin: 'authLogin',
   authLogout: 'authLogout',
   authMe: 'authMe',
+  authMePassword: 'authMePassword',
   authUsers: 'authUsers',
   authTokens: 'authTokens',
   fleetTelemetry: 'fleetTelemetry',
@@ -85,6 +86,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.authLogin]: '/api/v1/auth/login',
   [GCS_ROUTE_KEYS.authLogout]: '/api/v1/auth/logout',
   [GCS_ROUTE_KEYS.authMe]: '/api/v1/auth/me',
+  [GCS_ROUTE_KEYS.authMePassword]: '/api/v1/auth/me/password',
   [GCS_ROUTE_KEYS.authUsers]: '/api/v1/auth/users',
   [GCS_ROUTE_KEYS.authTokens]: '/api/v1/auth/tokens',
   [GCS_ROUTE_KEYS.fleetTelemetry]: '/api/v1/fleet/telemetry',
@@ -167,6 +169,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/auth/login': GCS_ROUTE_KEYS.authLogin,
   '/api/v1/auth/logout': GCS_ROUTE_KEYS.authLogout,
   '/api/v1/auth/me': GCS_ROUTE_KEYS.authMe,
+  '/api/v1/auth/me/password': GCS_ROUTE_KEYS.authMePassword,
   '/api/v1/auth/users': GCS_ROUTE_KEYS.authUsers,
   '/api/v1/auth/tokens': GCS_ROUTE_KEYS.authTokens,
   '/api/v1/fleet/telemetry': GCS_ROUTE_KEYS.fleetTelemetry,
@@ -418,6 +421,10 @@ export async function logoutResponse(config = {}) {
   const response = await postGcsResource(GCS_ROUTE_KEYS.authLogout, {}, config);
   setGcsCsrfToken(null);
   return response;
+}
+
+export async function changeOwnPasswordResponse(payload, config = {}) {
+  return patchGcsResource(GCS_ROUTE_KEYS.authMePassword, payload, config);
 }
 
 export async function listAuthUsersResponse(config = {}) {

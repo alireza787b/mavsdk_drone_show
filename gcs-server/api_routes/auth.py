@@ -36,6 +36,11 @@ class UserUpdateRequest(BaseModel):
     force_password_change: bool | None = None
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=1)
+
+
 class TokenCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     scopes: list[str] = Field(default_factory=lambda: ["readonly"])
@@ -154,6 +159,20 @@ def create_auth_router(deps: Any) -> APIRouter:
             "role": auth_context.get("role"),
             "kind": auth_context.get("kind"),
         }
+
+    @router.patch("/api/v1/auth/me/password")
+    async def change_own_password(payload: PasswordChangeRequest, request: Request):
+        auth_context = _current_auth(request)
+        username = str(auth_context.get("username") or "")
+        if auth_context.get("kind") != "session" or not username:
+            raise HTTPException(status_code=403, detail="Password changes require an interactive login session")
+        if payload.current_password == payload.new_password:
+            raise HTTPException(status_code=400, detail="New password must be different")
+        service = build_auth_service()
+        if service.store.authenticate_user(username, payload.current_password) is None:
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+        user = service.store.set_password(username, payload.new_password)
+        return {"user": user, "message": "Password updated"}
 
     @router.get("/api/v1/auth/users")
     async def list_users(request: Request):

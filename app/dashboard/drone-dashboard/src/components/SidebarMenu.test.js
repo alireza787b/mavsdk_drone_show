@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../hooks/useTheme', () => ({
@@ -85,5 +85,35 @@ describe('SidebarMenu', () => {
     expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
     expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
     expect(screen.getByRole('button', { name: /show git status hint/i })).not.toHaveAttribute('title');
+  });
+
+  it('opens a compact signed-in user profile from the sidebar', () => {
+    const onChangePassword = jest.fn().mockResolvedValue({});
+    renderSidebar(
+      <SidebarMenu
+        collapsed={false}
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+        authStatus={{
+          dashboard_auth_enabled: true,
+          api_auth_enabled: false,
+          session_ttl_hours: 12,
+        }}
+        currentUser={{
+          username: 'admin',
+          role: 'admin',
+          password_changed_at: '2026-04-29T00:00:00Z',
+        }}
+        onChangePassword={onChangePassword}
+        onLogout={jest.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /open profile for admin/i }));
+
+    expect(screen.getByRole('dialog', { name: /signed-in user profile/i })).toBeInTheDocument();
+    expect(screen.getByText(/admin · session 12h/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /security/i })).toHaveAttribute('href', '/runtime-admin');
+    expect(screen.getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');
   });
 });

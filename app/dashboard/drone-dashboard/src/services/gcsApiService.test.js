@@ -15,6 +15,7 @@ import {
   GCS_WS_ROUTES,
   applyGcsConfigResponse,
   applyRuntimeUpdateResponse,
+  changeOwnPasswordResponse,
   getGcsConfigResponse,
   getConnectivityProfileResponse,
   getNetworkInfoResponse,
@@ -442,6 +443,24 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/gcs-config',
       authConfig({ timeout: 1200 })
+    );
+  });
+
+  it('changes the current user password through the self-service auth route', async () => {
+    axios.patch.mockResolvedValue({ data: { message: 'Password updated' } });
+
+    await changeOwnPasswordResponse({
+      current_password: 'old',
+      new_password: 'new',
+    });
+
+    expect(axios.patch).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/auth/me/password',
+      {
+        current_password: 'old',
+        new_password: 'new',
+      },
+      authConfig()
     );
   });
 

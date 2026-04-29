@@ -87,6 +87,7 @@ from src.gcs_api_routes import (
     GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE,
     GCS_ORIGIN_BOOTSTRAP_ROUTE,
 )
+from src.gcs_auth_client import gcs_auth_headers
 from src.managed_runtime_status import (
     build_connectivity_runtime_summary,
     build_mavlink_runtime_summary,
@@ -1856,7 +1857,13 @@ class DroneAPIServer:
                 'duration_ms': 0,
             }
             url = f"http://{gcs_ip}:{self.params.gcs_api_port}{GCS_COMMAND_REPORT_EXECUTION_RESULT_ROUTE}"
-            response = await asyncio.to_thread(requests.post, url, json=payload, timeout=5)
+            response = await asyncio.to_thread(
+                requests.post,
+                url,
+                json=payload,
+                headers=gcs_auth_headers(),
+                timeout=5,
+            )
             if response.status_code == 200:
                 logger.info(f"Reported superseded pending command {command_id[:8]}...")
             else:
@@ -1883,7 +1890,11 @@ class DroneAPIServer:
             gcs_port = self.params.gcs_api_port
             gcs_url = f"http://{gcs_ip}:{gcs_port}"
 
-            response = requests.get(f"{gcs_url}{GCS_ORIGIN_BOOTSTRAP_ROUTE}", timeout=5)
+            response = requests.get(
+                f"{gcs_url}{GCS_ORIGIN_BOOTSTRAP_ROUTE}",
+                headers=gcs_auth_headers(),
+                timeout=5,
+            )
             if response.status_code == 200:
                 data = response.json()
                 if 'lat' in data and 'lon' in data:

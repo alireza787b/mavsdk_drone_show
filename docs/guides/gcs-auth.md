@@ -80,6 +80,7 @@ When dashboard auth is enabled:
 - the sidebar shows the current signed-in user
 - Runtime Admin shows dashboard/API auth posture
 - admins can create/disable users and create/revoke API tokens
+- signed-in users can open their sidebar profile and change their own password
 - viewer users are read-only
 - operator users can use normal operator actions but cannot manage auth/runtime administration
 
@@ -119,6 +120,8 @@ The root `Makefile` provides thin shortcuts:
 ```bash
 make auth-status
 make auth-add-user ARGS="admin --role admin"
+make auth-enable-api
+make auth-disable-api
 make auth-create-token ARGS="--name field-debug --scope readonly --ttl-hours 4"
 ```
 
@@ -154,7 +157,108 @@ header. The dashboard handles this automatically.
 Dashboard login mode does not change drone heartbeat, command report, candidate
 announce, or SITL reconciliation behavior.
 
-Full API auth is stricter. Do not enable it until:
+Full API auth is stricter. Drones, SITL containers, field scripts, and AI agents
+must have a bearer token before `MDS_API_AUTH_ENABLED=true` is applied.
+
+MDS intentionally does not auto-approve unknown drones that ask for a token.
+That would let an untrusted host on the network request fleet access. The safe
+workflow is explicit token provisioning by an admin.
+
+### Current Drones
+
+If only dashboard login is enabled (`MDS_API_AUTH_ENABLED=false`), current
+hardware boards and SITL containers continue to work when they reconnect.
+
+Before enabling full API auth for an already-installed drone:
+
+1. Create a scoped token from Runtime Admin, or through SSH:
+
+   ```bash
+   make auth-create-token ARGS="--name drone-1 --scope drone --ttl-hours 8760"
+   ```
+
+2. Copy the plaintext token once to the drone as root:
+
+   ```bash
+   sudo install -d -m 700 /root/.mds/keys
+   sudo sh -c 'umask 077; printf "%s\n" "mds_REPLACE_WITH_TOKEN" > /root/.mds/keys/gcs_api_token'
+   ```
+
+3. Ensure `/etc/mds/local.env` points to that file:
+
+   ```bash
+   MDS_GCS_API_TOKEN_FILE=/root/.mds/keys/gcs_api_token
+   ```
+
+4. Restart the drone-side MDS services, or reboot the companion computer.
+
+When the token file exists, heartbeat sender, command reports, origin bootstrap,
+and candidate announce calls add:
+
+```text
+Authorization: Bearer mds_...
+```
+
+### New Drone Bootstrap
+
+For a new drone in a full-API-auth deployment, provide the token during
+bootstrap. The preferred option is a root-readable token file:
+
+```bash
+sudo ./tools/mds_node_init.sh \
+  -d 5 \
+  --gcs-api-url http://GCS_HOST:5030 \
+  --gcs-api-token-file /root/.mds/keys/gcs_api_token \
+  -y
+```
+
+For one-time headless provisioning, `--gcs-api-token` writes the token into the
+standard root-only file and stores only the file path in `/etc/mds/local.env`:
+
+```bash
+sudo ./tools/mds_node_init.sh \
+  -d 5 \
+  --gcs-api-url http://GCS_HOST:5030 \
+  --gcs-api-token mds_REPLACE_WITH_TOKEN \
+  -y
+```
+
+If full API auth is enabled and a drone has no token, bootstrap/announce does
+not create an approval queue. It receives `401 authentication_required`, writes
+that into the bootstrap report, and the operator must provision a token or
+temporarily disable API auth.
+
+To retry announce after adding a token:
+
+```bash
+sudo ./tools/mds_node_announce.sh \
+  --gcs-api-url http://GCS_HOST:5030 \
+  --gcs-api-token-file /root/.mds/keys/gcs_api_token
+```
+
+### SITL Containers
+
+Keep API auth disabled for ordinary public-demo SITL. For private locked-down
+SITL, pass a read-only machine token into the container runtime as
+`MDS_GCS_API_TOKEN_FILE` or `MDS_GCS_API_TOKEN`, and do not bake raw tokens into
+the image. Rotate/revoke SITL tokens after customer demos.
+
+### Enabling Or Disabling API Auth
+
+Changing auth mode through the CLI updates `/etc/mds/gcs.env`. Restart the GCS
+launcher after changing dashboard/API auth so the running process uses the new
+environment:
+
+```bash
+make auth-enable-api
+make gcs-stop
+make gcs-prod-real
+```
+
+Use `make auth-disable-api` and restart the GCS to return machine endpoints to
+trusted-network/open mode.
+
+Full API auth should only be enabled when:
 
 - drone bootstrap has received a machine token or equivalent enrollment token
 - SITL containers know how to read their token from runtime config
