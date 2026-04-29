@@ -151,8 +151,12 @@ GCS_SYSTEM_CONFIG="/etc/mds/gcs.env"
 
 load_gcs_system_config() {
     if [[ -f "$GCS_SYSTEM_CONFIG" ]]; then
+        # Export every key from the managed env file. Keeping this generic
+        # prevents new runtime/security settings from being silently ignored.
+        set -a
         # shellcheck source=/dev/null
         source "$GCS_SYSTEM_CONFIG"
+        set +a
 
         # Apply config values (respect CLI overrides)
         [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
@@ -1209,6 +1213,17 @@ TMUX_RUNTIME_ENV_VARS=(
     MDS_SITL_GIT_SYNC
     MDS_SITL_REQUIREMENTS_SYNC
     MDS_SITL_USE_HOST_STARTUP_SCRIPT
+    MDS_AUTH_ENABLED
+    MDS_API_AUTH_ENABLED
+    MDS_AUTH_USERS_FILE
+    MDS_API_TOKENS_FILE
+    MDS_AUTH_SESSION_SECRET_FILE
+    MDS_AUTH_CSRF_SECRET_FILE
+    MDS_AUTH_SESSION_TTL_HOURS
+    MDS_AUTH_SECURE_COOKIES
+    MDS_AUTH_CSRF_ENABLED
+    MDS_AUTH_ALLOWED_CIDRS
+    MDS_AUTH_TRUSTED_PROXY_CIDRS
     MDS_GCS_SYSTEM_CONFIG
     MDS_SKIP_GCS_SYSTEM_CONFIG
     GCS_ENV

@@ -475,6 +475,8 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "sync_runtime_compatibility_marker" not in start_text
     assert start_text.index("load_gcs_system_config") < start_text.index('if [[ "$STATUS_ONLY" == "true" ]]')
     assert "/api/v1/system/health" in start_text
+    assert "set -a" in start_text
+    assert "new runtime/security settings" in start_text
     assert "/api/v1/system/health" in verify_text
     assert "Configured Repo:" in verify_text
     assert "Origin Remote:" in verify_text
@@ -482,6 +484,9 @@ def test_dashboard_start_uses_canonical_runtime_mode_and_health_path():
     assert "MDS_DOCKER_IMAGE" in start_text
     assert "MDS_SITL_GIT_SYNC" in start_text
     assert "MDS_SITL_REQUIREMENTS_SYNC" in start_text
+    assert "MDS_AUTH_ENABLED" in start_text
+    assert "MDS_API_AUTH_ENABLED" in start_text
+    assert "MDS_AUTH_USERS_FILE" in start_text
     assert "sync_tmux_session_environment() {" in start_text
     assert "build_tmux_runtime_env_prefix() {" in start_text
     assert 'tmux set-environment -t "$session" "$var_name" "${!var_name}"' in start_text
@@ -569,16 +574,22 @@ PY
         SESSION_NAME="MDS-GCS"
         MDS_MODE="real"
         MDS_REPO_URL="git@github.com:demo/private.git"
+        MDS_AUTH_ENABLED="true"
+        MDS_API_AUTH_ENABLED="false"
         GCS_ENV="production"
         unset MDS_GIT_AUTH_TOKEN_FILE
         sync_tmux_session_environment "$SESSION_NAME"
         tmux_prefix="$(build_tmux_runtime_env_prefix)"
         grep -q 'set-environment -t MDS-GCS MDS_MODE real' "$tmpdir/tmux.log"
         grep -q 'set-environment -t MDS-GCS MDS_REPO_URL git@github.com:demo/private.git' "$tmpdir/tmux.log"
+        grep -q 'set-environment -t MDS-GCS MDS_AUTH_ENABLED true' "$tmpdir/tmux.log"
+        grep -q 'set-environment -t MDS-GCS MDS_API_AUTH_ENABLED false' "$tmpdir/tmux.log"
         grep -q 'set-environment -t MDS-GCS GCS_ENV production' "$tmpdir/tmux.log"
         grep -q 'set-environment -t MDS-GCS -u MDS_GIT_AUTH_TOKEN_FILE' "$tmpdir/tmux.log"
         grep -q 'export MDS_MODE=real;' <<<"$tmux_prefix"
         grep -q 'export MDS_REPO_URL=git@github.com:demo/private.git;' <<<"$tmux_prefix"
+        grep -q 'export MDS_AUTH_ENABLED=true;' <<<"$tmux_prefix"
+        grep -q 'export MDS_API_AUTH_ENABLED=false;' <<<"$tmux_prefix"
         grep -q 'export GCS_ENV=production;' <<<"$tmux_prefix"
         grep -q 'unset MDS_GIT_AUTH_TOKEN_FILE;' <<<"$tmux_prefix"
         """

@@ -238,3 +238,29 @@ Verification:
 - Hetzner:
   - `CI=true npm test -- --watchAll=false --runInBand src/components/SidebarMenu.test.js src/services/gcsApiService.test.js`
   - `npm run build`
+
+### Slice 8: Dashboard Launcher Auth Export Fix
+
+Status: completed
+
+Finding:
+
+- Live Hetzner restart after `v5.3.32-auth-token` loaded `/etc/mds/gcs.env`,
+  but the main dashboard launcher did not export auth variables into the tmux
+  GCS process. Result: `/api/v1/auth/status` reported auth disabled even though
+  `/etc/mds/gcs.env` contained `MDS_AUTH_ENABLED=true`.
+
+Implemented:
+
+- Updated `app/linux_dashboard_start.sh` to source `/etc/mds/gcs.env` under
+  `set -a` so all managed runtime/security keys are exported.
+- Added auth variables to the tmux runtime environment whitelist, including
+  user/token/session/CSRF file paths and API-auth flags.
+- Added regression coverage so future security/env keys are not silently dropped
+  by the production dashboard launcher.
+
+Verification:
+
+- `bash -n app/linux_dashboard_start.sh`
+- `python3 -m pytest tests/test_bootstrap_installers.py::test_dashboard_start_uses_canonical_runtime_mode_and_health_path tests/test_bootstrap_installers.py::test_dashboard_start_syncs_runtime_env_into_tmux_session tests/test_bootstrap_installers.py::test_gcs_server_launcher_exports_sitl_runtime_env_from_system_config -q`
+- `git diff --check`
