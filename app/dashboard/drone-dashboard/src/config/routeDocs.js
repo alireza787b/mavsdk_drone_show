@@ -53,6 +53,12 @@ export const ROUTE_DOCS = Object.freeze([
     feature: 'runtime-admin',
   },
   {
+    path: '/environments',
+    label: 'Environment registry',
+    docPath: 'docs/reference/mds-environment-registry.md',
+    feature: 'environments',
+  },
+  {
     path: '/sitl-control',
     label: 'SITL control guide',
     docPath: 'docs/guides/sitl-control.md',

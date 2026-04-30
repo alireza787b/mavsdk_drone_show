@@ -360,7 +360,9 @@ For fresh companion-computer installations, use the bootstrap installer:
 curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash
 ```
 
-`install_mds_node.sh` remains supported as a compatibility alias.
+`install_companion.sh` is the public hardware-bootstrap entrypoint.
+`install_mds_node.sh` remains an equivalent packaged entrypoint for automation
+that intentionally references the node-specific filename.
 
 To emit a machine-readable report for Ansible or an AI agent:
 

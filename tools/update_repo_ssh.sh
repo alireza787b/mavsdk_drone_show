@@ -1129,7 +1129,7 @@ release_lock() {
 }
 
 git_https_auth_enabled() {
-    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
+    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]]
 }
 
 git_ssh_auth_enabled() {
@@ -1206,7 +1206,7 @@ if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ];
     tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
     exit 0
 fi
-printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+exit 1
 EOF
 
     chmod 700 "$askpass_path"
@@ -1224,7 +1224,6 @@ run_git_command() {
             GIT_ASKPASS="$(git_askpass_path)" \
             MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" \
             MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
             git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" "$@"
     elif [[ "$repo_url" == git@* ]] && git_ssh_auth_enabled; then
         env GIT_SSH_COMMAND="$(git_ssh_command)" git "$@"
@@ -1531,7 +1530,6 @@ perform_git_fetch() {
                 GIT_ASKPASS="$(git_askpass_path)" \
                 MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" \
                 MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-                MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
                 timeout "$FETCH_TIMEOUT" \
                 git -c credential.username="${MDS_GIT_AUTH_USERNAME:-$GIT_AUTH_USERNAME}" fetch --all --prune; then
             log_info "$component" "Fetch completed successfully"
@@ -1614,8 +1612,8 @@ parse_arguments() {
         esac
     done
     
-    # Set values with precedence: CLI args > modern env vars > legacy env vars > defaults
-    BRANCH_NAME="${branch_name:-${MDS_BRANCH:-${DRONE_BRANCH:-$DEFAULT_BRANCH}}}"
+    # Set values with precedence: CLI args > canonical env vars > defaults
+    BRANCH_NAME="${branch_name:-${MDS_BRANCH:-$DEFAULT_BRANCH}}"
     REPO_URL="${repo_url:-${MDS_REPO_URL:-$DEFAULT_SSH_GIT_URL}}"
     REPO_DIR="${repo_dir:-$REPO_DIR}"
     
@@ -1644,7 +1642,6 @@ ENVIRONMENT VARIABLES:
     MDS_GCS_ENV_FILE       Alternate /etc/mds/gcs.env path for testing
     MDS_LOCAL_ENV_FILE     Alternate /etc/mds/local.env path for testing
     MDS_USER_ENV_FILE      Alternate user env path for testing
-    DRONE_BRANCH           Legacy branch override (fallback)
     DEFAULT_SSH_GIT_URL    Legacy repository URL fallback
     RECOVERY_STRATEGY       'graceful' or 'aggressive' (default: graceful)
     ENABLE_JITTER          Add random delays for swarm operations (default: true)

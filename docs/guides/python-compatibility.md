@@ -42,7 +42,9 @@ The script will:
 - Create a virtual environment
 - Install all Python dependencies
 
-`install_mds_node.sh` remains supported as a compatibility alias.
+`install_companion.sh` is the public hardware-bootstrap entrypoint.
+`install_mds_node.sh` remains an equivalent packaged entrypoint for automation
+that intentionally references the node-specific filename.
 
 ### For SITL (Docker)
 

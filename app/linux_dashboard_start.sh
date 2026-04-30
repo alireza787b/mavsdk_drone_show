@@ -60,7 +60,7 @@ NODE_BIN_PATH=""
 NPM_BIN_PATH=""
 
 enforce_fastapi_single_worker() {
-    if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$GCS_BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
+    if [[ "$DEPLOYMENT_MODE" == "production" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
         log_warn "FastAPI production mode uses in-memory heartbeat, command, and background service state."
         log_warn "Overriding MDS_PROD_WSGI_WORKERS=$PROD_WSGI_WORKERS to 1 to avoid split state across workers."
         PROD_WSGI_WORKERS=1
@@ -141,9 +141,6 @@ if [[ -f "$VERSION_FILE_PATH" ]]; then
     PROJECT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE_PATH")"
 fi
 
-# Backend: FastAPI (Flask legacy removed)
-GCS_BACKEND="fastapi"
-
 # ===========================================
 # SYSTEM CONFIGURATION (MDS GCS Init Integration)
 # ===========================================
@@ -163,20 +160,11 @@ load_gcs_system_config() {
         [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
         if [[ -n "${MDS_GCS_API_PORT:-}" ]]; then
             DEV_GCS_PORT="$MDS_GCS_API_PORT"
-        elif [[ -n "${GCS_PORT:-}" ]]; then
-            DEV_GCS_PORT="$GCS_PORT"
         fi
         if [[ -n "${MDS_DASHBOARD_PORT:-}" ]]; then
             DEV_REACT_PORT="$MDS_DASHBOARD_PORT"
-        elif [[ -n "${DASHBOARD_PORT:-}" ]]; then
-            DEV_REACT_PORT="$DASHBOARD_PORT"
         fi
         PROD_WSGI_BIND="0.0.0.0:${DEV_GCS_PORT}"
-
-        if [[ -n "${GCS_BACKEND:-}" && "${GCS_BACKEND}" != "fastapi" ]]; then
-            log_warn "Legacy GCS_BACKEND=${GCS_BACKEND} detected in ${GCS_SYSTEM_CONFIG}. Using fastapi."
-            GCS_BACKEND="fastapi"
-        fi
 
         # Export repo/runtime settings so Python/runtime helpers inherit them
         export \
@@ -185,7 +173,6 @@ load_gcs_system_config() {
             MDS_INSTALL_DIR \
             MDS_GIT_AUTO_PUSH \
             MDS_GIT_AUTH_TOKEN_FILE \
-            MDS_GIT_AUTH_TOKEN \
             MDS_GIT_AUTH_USERNAME \
             MDS_GIT_SSH_KEY_FILE \
             MDS_GIT_KNOWN_HOSTS_FILE \
@@ -443,7 +430,7 @@ Origin Remote:    $(get_origin_remote_url)
 Repo Authority:   $(repo_authority_status)
 Repo Access:      $(get_repo_access_mode)
 Git Auto Push:    $(get_git_auto_push_status)
-Backend:          $GCS_BACKEND
+Backend:          FastAPI
 Backend Reload:   $([[ "$DEPLOYMENT_MODE" == "production" ]] && echo "DISABLED (production)" || (backend_reload_enabled && echo "ENABLED (dev override)" || echo "DISABLED (state-safe default)"))
 Virtual Env:      $([[ -d "$VENV_PATH" ]] && echo "OK ($VENV_PATH)" || echo "MISSING")
 React Build:      $([[ -d "$BUILD_DIR" ]] && echo "EXISTS" || echo "NOT BUILT")
@@ -580,7 +567,7 @@ run_configuration_check() {
     # Check .env file
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file: OK"
-        local server_url=$(grep "^REACT_APP_SERVER_URL=" "$ENV_FILE_PATH" 2>/dev/null | head -1 || echo "")
+        local server_url=$(grep "^REACT_APP_MDS_SERVER_URL=" "$ENV_FILE_PATH" 2>/dev/null | head -1 || echo "")
         if [[ -n "$server_url" ]]; then
             log_info "  Server URL: $server_url (explicit override)"
         else
@@ -863,18 +850,36 @@ handle_env_file() {
         fi
     }
 
+    remove_dashboard_env_key() {
+        local key="$1"
+        if grep -q "^${key}=" "$ENV_FILE_PATH" 2>/dev/null || grep -q "^# ${key}=" "$ENV_FILE_PATH" 2>/dev/null; then
+            sed -i "/^${key}=.*/d;/^# ${key}=.*/d" "$ENV_FILE_PATH"
+            env_changed=true
+        fi
+    }
+
+    migrate_legacy_dashboard_server_url() {
+        local old_key="REACT_APP_SERVER_URL"
+        local new_key="REACT_APP_MDS_SERVER_URL"
+        local old_value=""
+
+        old_value="$(grep -m1 "^${old_key}=" "$ENV_FILE_PATH" 2>/dev/null | cut -d= -f2- || true)"
+        if [[ -n "$old_value" ]] && ! grep -q "^${new_key}=" "$ENV_FILE_PATH" 2>/dev/null; then
+            set_dashboard_env_value "$new_key" "$old_value"
+            log_warn "Migrated obsolete ${old_key} to ${new_key}."
+        fi
+        remove_dashboard_env_key "$old_key"
+    }
+
     if [[ -f "$ENV_FILE_PATH" ]]; then
         log_success ".env file found."
+        migrate_legacy_dashboard_server_url
+
         # Handle explicit IP override (for advanced use cases)
         if [[ -n "$OVERWRITE_IP" ]]; then
             log_info "Overwriting server IP to: $OVERWRITE_IP"
             cp "$ENV_FILE_PATH" "$ENV_FILE_PATH.bak"
-            # Add or update SERVER_URL line
-            if grep -q "^REACT_APP_SERVER_URL=" "$ENV_FILE_PATH"; then
-                sed -i "s|^REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
-            else
-                echo "REACT_APP_SERVER_URL=http://$OVERWRITE_IP" >> "$ENV_FILE_PATH"
-            fi
+            set_dashboard_env_value "REACT_APP_MDS_SERVER_URL" "http://$OVERWRITE_IP"
             log_success "Server IP updated and backup created."
         fi
     else
@@ -882,7 +887,7 @@ handle_env_file() {
         mkdir -p "$(dirname "$ENV_FILE_PATH")"
 
         if [[ -f "$env_example" ]]; then
-            # Copy from .env.example (SERVER_URL is commented out for auto-detection)
+            # Copy from .env.example (server URL is unset for auto-detection)
             cp "$env_example" "$ENV_FILE_PATH"
             log_success ".env created from template"
             log_info "Server URL: Auto-detected from browser (no configuration needed)"
@@ -892,7 +897,7 @@ handle_env_file() {
 # Auto-generated .env file
 # Server URL is auto-detected from browser location (no configuration needed)
 # Uncomment only if you need to override (e.g., different host):
-# REACT_APP_SERVER_URL=http://192.168.1.100
+# REACT_APP_MDS_SERVER_URL=http://192.168.1.100
 
 REACT_APP_GCS_PORT=${DEV_GCS_PORT}
 REACT_APP_DRONE_PORT=${MDS_DEFAULT_DRONE_API_PORT:-7070}
@@ -906,15 +911,12 @@ EOF
         # Apply explicit override if provided
         if [[ -n "$OVERWRITE_IP" ]]; then
             log_info "Applying server IP override: $OVERWRITE_IP"
-            # Add SERVER_URL for override
-            if grep -q "^# REACT_APP_SERVER_URL=" "$ENV_FILE_PATH"; then
-                sed -i "s|^# REACT_APP_SERVER_URL=.*|REACT_APP_SERVER_URL=http://$OVERWRITE_IP|" "$ENV_FILE_PATH"
-            else
-                echo "REACT_APP_SERVER_URL=http://$OVERWRITE_IP" >> "$ENV_FILE_PATH"
-            fi
+            set_dashboard_env_value "REACT_APP_MDS_SERVER_URL" "http://$OVERWRITE_IP"
             log_success "Server IP override applied: $OVERWRITE_IP"
         fi
     fi
+
+    migrate_legacy_dashboard_server_url
 
     # These values are controlled by the launcher/deployment profile. Keep them
     # synchronized on existing hosts so stale .env files cannot point a rebuilt
@@ -1110,29 +1112,23 @@ setup_production_environment() {
         log_info "Configuring production environment..."
         # Environment configuration
         export GCS_ENV=production
-        export GCS_PORT="$DEV_GCS_PORT"
         export MDS_GCS_API_PORT="$DEV_GCS_PORT"
         export MDS_DASHBOARD_PORT="$DEV_REACT_PORT"
-        export GCS_BACKEND="$GCS_BACKEND"
-
         # Node/React environment
         export NODE_ENV=production
         export REACT_APP_ENV=production
         install_production_dependencies
-        log_success "Production environment configured (Backend: $GCS_BACKEND)"
+        log_success "Production environment configured (Backend: FastAPI)"
     else
         log_info "Configuring development environment..."
         # Environment configuration
         export GCS_ENV=development
-        export GCS_PORT="$DEV_GCS_PORT"
         export MDS_GCS_API_PORT="$DEV_GCS_PORT"
         export MDS_DASHBOARD_PORT="$DEV_REACT_PORT"
-        export GCS_BACKEND="$GCS_BACKEND"
-
         # Node/React environment
         export NODE_ENV=development
         export REACT_APP_ENV=development
-        log_success "Development environment configured (Backend: $GCS_BACKEND)"
+        log_success "Development environment configured (Backend: FastAPI)"
     fi
 }
 
@@ -1206,7 +1202,6 @@ TMUX_RUNTIME_ENV_VARS=(
     MDS_INSTALL_DIR
     MDS_GIT_AUTO_PUSH
     MDS_GIT_AUTH_TOKEN_FILE
-    MDS_GIT_AUTH_TOKEN
     MDS_GIT_AUTH_USERNAME
     MDS_GIT_SSH_KEY_FILE
     MDS_DOCKER_IMAGE
@@ -1227,8 +1222,6 @@ TMUX_RUNTIME_ENV_VARS=(
     MDS_GCS_SYSTEM_CONFIG
     MDS_SKIP_GCS_SYSTEM_CONFIG
     GCS_ENV
-    GCS_PORT
-    GCS_BACKEND
     NODE_ENV
     REACT_APP_ENV
 )
@@ -1321,7 +1314,7 @@ start_services_in_tmux() {
         local pane_index=0
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
-            tmux send-keys -t "$session:Services.$pane_index" "${tmux_env_prefix}clear && echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
+            tmux send-keys -t "$session:Services.$pane_index" "${tmux_env_prefix}clear && echo 'Starting GCS server (FastAPI) in $DEPLOYMENT_MODE mode...' && $gcs_cmd" C-m
             pane_index=$((pane_index + 1))
         fi
         
@@ -1342,7 +1335,7 @@ start_services_in_tmux() {
         
         if [[ "$RUN_GCS_SERVER" == "true" ]]; then
             tmux rename-window -t "$session:0" "GCS-Server"
-            tmux send-keys -t "$session:GCS-Server" "${tmux_env_prefix}clear && echo 'Starting GCS server ($GCS_BACKEND)...' && $gcs_cmd" C-m
+            tmux send-keys -t "$session:GCS-Server" "${tmux_env_prefix}clear && echo 'Starting GCS server (FastAPI)...' && $gcs_cmd" C-m
             window_index=$((window_index + 1))
         fi
         
@@ -1377,7 +1370,7 @@ start_services_no_tmux() {
 
     if [[ "$RUN_GCS_SERVER" == "true" ]]; then
         local gcs_cmd=$(get_gcs_server_command)
-        gnome-terminal -- bash -c "echo 'Starting GCS server ($GCS_BACKEND) in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
+        gnome-terminal -- bash -c "echo 'Starting GCS server (FastAPI) in $DEPLOYMENT_MODE mode...' && $gcs_cmd; exec bash"
     fi
 
     if [[ "$RUN_GUI_APP" == "true" ]]; then
@@ -1534,7 +1527,7 @@ print_startup_summary() {
     echo "==============================================================================="
     echo ""
     printf "  %-20s %s\n" "Mode:" "$(echo $DEPLOYMENT_MODE | tr '[:lower:]' '[:upper:]')"
-    printf "  %-20s %s\n" "Backend:" "$GCS_BACKEND"
+    printf "  %-20s %s\n" "Backend:" "FastAPI"
     printf "  %-20s %s\n" "Drone Mode:" "$(get_current_drone_mode)"
     printf "  %-20s %s\n" "Session:" "$SESSION_NAME"
     echo ""

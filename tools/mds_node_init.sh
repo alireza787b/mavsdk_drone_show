@@ -85,7 +85,6 @@ GATEWAY=""
 GCS_IP=""
 GCS_API_URL=""
 GCS_API_TOKEN_FILE="${MDS_GCS_API_TOKEN_FILE:-}"
-GCS_API_TOKEN="${MDS_GCS_API_TOKEN:-}"
 MAVSDK_VERSION=""
 MAVSDK_URL=""
 
@@ -197,7 +196,6 @@ OPTIONAL COMPONENTS:
     --gcs-ip IP                 Override GCS IP address
     --gcs-api-url URL           Override GCS API base URL for candidate announce
     --gcs-api-token-file PATH   Bearer token file for auth-protected GCS APIs
-    --gcs-api-token TOKEN       Write bearer token to a root-readable local file
     --connectivity-backend NAME Connectivity backend: none|smart-wifi-manager
     --smart-wifi-mode MODE      Smart Wi-Fi Manager mode: manage|observe|disabled
     --smart-wifi-config PATH    Smart Wi-Fi Manager JSON profile to import
@@ -326,7 +324,7 @@ parse_args() {
     # Use getopt for proper argument parsing
     local PARSED_ARGS
     PARSED_ARGS=$(getopt -o d:r:b:yvh \
-        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,gcs-api-token-file:,gcs-api-token:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,mavlink-repo-url:,mavlink-ref:,mavlink-install-dir:,mavlink-dashboard:,skip-mavlink-dashboard,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
+        --long drone-id:,repo-url:,branch:,fork:,https,git-auth-token-file:,git-ssh-key-file:,netbird-key:,netbird-url:,static-ip:,gateway:,gcs-ip:,gcs-api-url:,gcs-api-token-file:,connectivity-backend:,smart-wifi-mode:,smart-wifi-config:,smart-wifi-import-mode:,smart-wifi-dashboard:,skip-smart-wifi-dashboard,mavsdk-version:,mavsdk-url:,mavlink-auto,mavlink-skip,mavlink-uart:,mavlink-baud:,mavlink-endpoints:,mavlink-input:,mavlink-input-port:,mavlink-repo-url:,mavlink-ref:,mavlink-install-dir:,mavlink-dashboard:,skip-mavlink-dashboard,skip-firewall,skip-netbird,skip-ntp,skip-services,skip-mavsdk,skip-venv,yes,dry-run,report-json:,announce-report-json:,announce-timeout:,resume,force,verbose,debug,help \
         -n 'mds_node_init.sh' -- "$@") || {
         echo "Error: Invalid arguments. Use --help for usage." >&2
         exit 1
@@ -400,10 +398,6 @@ parse_args() {
                 ;;
             --gcs-api-token-file)
                 GCS_API_TOKEN_FILE="$2"
-                shift 2
-                ;;
-            --gcs-api-token)
-                GCS_API_TOKEN="$2"
                 shift 2
                 ;;
             --connectivity-backend)
@@ -586,7 +580,7 @@ parse_args() {
 
     # Export all configuration for use by libraries
     export DRONE_ID REPO_URL BRANCH USE_HTTPS GIT_AUTH_TOKEN_FILE GIT_SSH_KEY_FILE
-    export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP GCS_API_URL GCS_API_TOKEN_FILE GCS_API_TOKEN
+    export NETBIRD_KEY NETBIRD_URL STATIC_IP GATEWAY GCS_IP GCS_API_URL GCS_API_TOKEN_FILE
     export MDS_CONNECTIVITY_BACKEND SMART_WIFI_MANAGER_MODE SMART_WIFI_MANAGER_IMPORT_MODE
     export SMART_WIFI_MANAGER_PROFILE_SOURCE SMART_WIFI_MANAGER_CONFIG_FILE
     export SMART_WIFI_MANAGER_INSTALL_DIR SMART_WIFI_MANAGER_DASHBOARD_LISTEN

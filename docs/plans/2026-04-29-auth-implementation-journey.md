@@ -212,9 +212,8 @@ Goals:
 Implemented:
 
 - Added `src/gcs_auth_client.py` as the shared drone/SITL helper for GCS bearer-token headers.
-- Updated heartbeat, command-report, origin-bootstrap, and candidate-announce calls to attach `Authorization: Bearer ...` when `MDS_GCS_API_TOKEN_FILE` or `MDS_GCS_API_TOKEN` is configured.
-- Added `--gcs-api-token-file` and `--gcs-api-token` to node bootstrap, and `--gcs-api-token-file` to the announce helper.
-- Stored one-shot `--gcs-api-token` values in `/root/.mds/keys/gcs_api_token` with root-only permissions, then persisted only `MDS_GCS_API_TOKEN_FILE` in `/etc/mds/local.env`.
+- Updated heartbeat, command-report, origin-bootstrap, and candidate-announce calls to attach `Authorization: Bearer ...` when `MDS_GCS_API_TOKEN_FILE` is configured.
+- Added `--gcs-api-token-file` to node bootstrap and the announce helper.
 - Added `PATCH /api/v1/auth/me/password` with CSRF/session protection and viewer-safe self-service authorization.
 - Added sidebar profile popover with signed-in user info, API-auth posture, Security/Logs links, and password change.
 - Added Makefile shortcuts for `auth-enable-api` and `auth-disable-api`.

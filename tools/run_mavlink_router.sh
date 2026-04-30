@@ -36,7 +36,7 @@ set -e
 # Note: MAVSDK connects directly to PX4:14540, no routing needed
 MAVLINK2REST_PORT=14569
 LOCAL_MAVLINK_PORT=12550
-GCS_PORT=24550  # Legacy standard for remote GCS
+REMOTE_GCS_MAVLINK_PORT=24550
 
 # Default PX4 SITL input port (PX4 SITL streams to 14550 for GCS)
 DEFAULT_PX4_PORT=14550
@@ -75,7 +75,7 @@ print_config() {
     echo "  Input:   0.0.0.0:${PX4_PORT} (PX4 SITL UDP)"
     echo "  Output:  127.0.0.1:${MAVLINK2REST_PORT} (mavlink2rest)"
     echo "  Output:  127.0.0.1:${LOCAL_MAVLINK_PORT} (LocalMavlinkController)"
-    echo "  Output:  ${GCS_IP}:${GCS_PORT} (Remote GCS)"
+    echo "  Output:  ${GCS_IP}:${REMOTE_GCS_MAVLINK_PORT} (Remote GCS)"
     echo "  Note:    MAVSDK connects directly to PX4:14540"
     echo "============================================================"
 }
@@ -84,7 +84,7 @@ run_mavlink_router() {
     mavlink-routerd \
         -e 127.0.0.1:${MAVLINK2REST_PORT} \
         -e 127.0.0.1:${LOCAL_MAVLINK_PORT} \
-        -e ${GCS_IP}:${GCS_PORT} \
+        -e ${GCS_IP}:${REMOTE_GCS_MAVLINK_PORT} \
         0.0.0.0:${PX4_PORT}
 }
 

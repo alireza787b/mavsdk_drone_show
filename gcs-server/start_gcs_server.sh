@@ -11,7 +11,7 @@
 #   This script is kept as a standalone FastAPI launcher for operators
 #   who want a direct backend entrypoint outside linux_dashboard_start.sh.
 #
-# Usage: ./start_gcs_server.sh [MODE] [fastapi] [PORT]
+# Usage: ./start_gcs_server.sh [MODE] [PORT]
 #########################################
 
 set -euo pipefail  # Strict error handling
@@ -20,7 +20,6 @@ set -euo pipefail  # Strict error handling
 # CONFIGURATION
 # ===========================================
 DEFAULT_MODE="development"
-DEFAULT_BACKEND="fastapi"
 DEFAULT_PORT="${MDS_DEFAULT_GCS_API_PORT:-5030}"
 PROD_WSGI_WORKERS="${MDS_PROD_WSGI_WORKERS:-1}"
 PROD_GUNICORN_TIMEOUT=120
@@ -34,13 +33,7 @@ PROD_GUNICORN_MAX_REQUESTS_JITTER="${MDS_PROD_GUNICORN_MAX_REQUESTS_JITTER:-50}"
 # PARSE ARGUMENTS
 # ===========================================
 MODE="${1:-$DEFAULT_MODE}"
-BACKEND="${2:-$DEFAULT_BACKEND}"
-PORT="${3:-$DEFAULT_PORT}"
-
-if [[ "$BACKEND" =~ ^[0-9]+$ ]]; then
-    PORT="$BACKEND"
-    BACKEND="$DEFAULT_BACKEND"
-fi
+PORT="${2:-$DEFAULT_PORT}"
 
 # ===========================================
 # PATH RESOLUTION
@@ -64,7 +57,7 @@ log_error() { echo "[ERROR] $1" >&2; }
 log_success() { echo "[SUCCESS] $1"; }
 
 enforce_fastapi_single_worker() {
-    if [[ "$MODE" == "production" ]] && [[ "$BACKEND" == "fastapi" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
+    if [[ "$MODE" == "production" ]] && [[ "$PROD_WSGI_WORKERS" != "1" ]]; then
         log_warn "FastAPI production mode uses in-memory state for heartbeats, command tracking, and background pollers."
         log_warn "Overriding MDS_PROD_WSGI_WORKERS=$PROD_WSGI_WORKERS to 1 to prevent state divergence across workers."
         PROD_WSGI_WORKERS=1
@@ -84,14 +77,11 @@ display_usage() {
     cat << EOF
 GCS Server Launcher - FastAPI
 
-USAGE: $0 [MODE] [fastapi] [PORT]
+USAGE: $0 [MODE] [PORT]
 
 ARGUMENTS:
   MODE      deployment mode (default: $DEFAULT_MODE)
             Options: development, production
-
-  BACKEND   optional compatibility placeholder
-            Only 'fastapi' is supported
 
   PORT      server port (default: $DEFAULT_PORT)
 
@@ -100,13 +90,11 @@ EXAMPLES:
   $0
 
   # Start FastAPI in production mode
-  $0 production fastapi 5030
+  $0 production 5030
 
 ENVIRONMENT VARIABLES:
   GCS_ENV      Override deployment mode (development|production)
-  GCS_PORT     Override server port
   MDS_GCS_API_PORT  Canonical MDS GCS API port
-  GCS_BACKEND  Override backend choice (must remain 'fastapi')
 
 EOF
     exit 0
@@ -122,13 +110,7 @@ fi
 # ===========================================
 # Allow environment variables to override arguments
 MODE="${GCS_ENV:-$MODE}"
-BACKEND="${GCS_BACKEND:-$BACKEND}"
-PORT="${MDS_GCS_API_PORT:-${GCS_PORT:-$PORT}}"
-
-if [[ "$BACKEND" == "uvicorn" || "$BACKEND" == "gunicorn" ]]; then
-    log_warn "Legacy GCS_BACKEND=$BACKEND detected. Mapping to fastapi."
-    BACKEND="fastapi"
-fi
+PORT="${MDS_GCS_API_PORT:-$PORT}"
 
 load_gcs_system_config() {
     if [[ "${MDS_SKIP_GCS_SYSTEM_CONFIG:-false}" == "true" ]]; then
@@ -144,7 +126,7 @@ load_gcs_system_config() {
         source "$GCS_SYSTEM_CONFIG"
         set +a
 
-        PORT="${MDS_GCS_API_PORT:-${GCS_PORT:-$PORT}}"
+        PORT="${MDS_GCS_API_PORT:-$PORT}"
         export \
             MDS_REPO_URL \
             MDS_BRANCH \
@@ -152,7 +134,6 @@ load_gcs_system_config() {
             MDS_INSTALL_DIR \
             MDS_GIT_AUTO_PUSH \
             MDS_GIT_AUTH_TOKEN_FILE \
-            MDS_GIT_AUTH_TOKEN \
             MDS_GIT_AUTH_USERNAME \
             MDS_GIT_SSH_KEY_FILE \
             MDS_DOCKER_IMAGE \
@@ -172,11 +153,6 @@ load_gcs_system_config
 # ===========================================
 if [[ "$MODE" != "development" && "$MODE" != "production" ]]; then
     log_error "Invalid MODE: $MODE. Must be 'development' or 'production'"
-    exit 1
-fi
-
-if [[ "$BACKEND" != "fastapi" ]]; then
-    log_error "Invalid BACKEND: $BACKEND. Flask mode has been removed; use 'fastapi'."
     exit 1
 fi
 
@@ -229,7 +205,7 @@ start_server() {
     log_info "Starting GCS Server..."
     apply_logging_mode_defaults
     log_info "  Mode: $MODE"
-    log_info "  Backend: $BACKEND"
+    log_info "  Backend: FastAPI"
     log_info "  Port: $PORT"
     log_info "  Directory: $SCRIPT_DIR"
 
@@ -238,9 +214,7 @@ start_server() {
 
     # Export environment variables for the server
     export GCS_ENV="$MODE"
-    export GCS_PORT="$PORT"
     export MDS_GCS_API_PORT="$PORT"
-    export GCS_BACKEND="$BACKEND"
     export PYTHONPATH="${PROJECT_ROOT}:${PROJECT_ROOT}/src:${PYTHONPATH:-}"
 
     start_fastapi

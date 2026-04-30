@@ -72,7 +72,6 @@ def test_git_access_check_fails_when_branch_is_missing(tmp_path):
 
 def test_git_access_check_rejects_credentials_embedded_in_repo_url(tmp_path):
     env = os.environ.copy()
-    env.pop("MDS_GIT_AUTH_TOKEN", None)
     env.pop("MDS_GIT_AUTH_TOKEN_FILE", None)
     result = subprocess.run(
         [

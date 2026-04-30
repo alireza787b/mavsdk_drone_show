@@ -7,6 +7,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.settings.env_files import read_env_assignments
+
 logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -62,15 +64,7 @@ def get_deployment_profile_path() -> Path:
 
 
 def _parse_env_profile(path: Path) -> dict[str, str]:
-    data: dict[str, str] = {}
-    with path.open(encoding="utf-8") as handle:
-        for raw_line in handle:
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            data[key.strip()] = value.strip().strip('"').strip("'")
-    return data
+    return read_env_assignments(path)
 
 
 def _parse_int(data: dict[str, str], key: str, default: int, path: Path) -> int:

@@ -10,6 +10,7 @@ from auth_runtime import authorize_websocket
 from git_status import commits_match
 from schemas import (
     DroneConnectivityRuntimeStatus,
+    DroneEnvRuntimeStatus,
     DroneGitStatus,
     DroneGitSyncRuntimeStatus,
     DroneMavlinkRuntimeStatus,
@@ -20,6 +21,19 @@ from schemas import (
     SyncReposResponse,
 )
 from src.managed_runtime_status import resolve_dashboard_access
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
 
 
 def _build_git_status_response(deps: Any) -> GitStatusResponse:
@@ -78,6 +92,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
             raw_mavlink_runtime = raw_data.get("mavlink_runtime") if isinstance(raw_data.get("mavlink_runtime"), dict) else None
             raw_connectivity_runtime = raw_data.get("connectivity_runtime") if isinstance(raw_data.get("connectivity_runtime"), dict) else None
             raw_git_sync_runtime = raw_data.get("git_sync_runtime") if isinstance(raw_data.get("git_sync_runtime"), dict) else None
+            raw_env_runtime = raw_data.get("env_runtime") if isinstance(raw_data.get("env_runtime"), dict) else None
 
             mavlink_runtime = None
             if raw_mavlink_runtime:
@@ -144,6 +159,30 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     requirements_update_status=raw_git_sync_runtime.get("requirements_update_status", "unknown"),
                 )
 
+            env_runtime = None
+            if raw_env_runtime:
+                raw_env_hw_id = raw_env_runtime.get("hw_id")
+                env_hw_id = _safe_int(raw_env_hw_id, 0) or None
+                env_runtime = DroneEnvRuntimeStatus(
+                    status_source=raw_env_runtime.get("status_source", "unknown"),
+                    registry_version=_safe_int(raw_env_runtime.get("registry_version"), 0),
+                    registry_hash=raw_env_runtime.get("registry_hash", ""),
+                    local_env_path=raw_env_runtime.get("local_env_path", ""),
+                    local_env_present=bool(raw_env_runtime.get("local_env_present", False)),
+                    node_identity_path=raw_env_runtime.get("node_identity_path", ""),
+                    node_identity_present=bool(raw_env_runtime.get("node_identity_present", False)),
+                    runtime_mode=raw_env_runtime.get("runtime_mode", "unknown"),
+                    runtime_mode_source=raw_env_runtime.get("runtime_mode_source", "unknown"),
+                    hw_id=env_hw_id,
+                    hw_id_source=raw_env_runtime.get("hw_id_source", "unknown"),
+                    configured_key_count=_safe_int(raw_env_runtime.get("configured_key_count"), 0),
+                    configured_node_key_count=_safe_int(raw_env_runtime.get("configured_node_key_count"), 0),
+                    registered_node_key_count=_safe_int(raw_env_runtime.get("registered_node_key_count"), 0),
+                    unknown_keys=_safe_string_list(raw_env_runtime.get("unknown_keys")),
+                    deprecated_keys=_safe_string_list(raw_env_runtime.get("deprecated_keys")),
+                    warnings=_safe_string_list(raw_env_runtime.get("warnings")),
+                )
+
             transformed_git_status[str(hw_id)] = DroneGitStatus(
                 pos_id=int(drone_info.get("pos_id", hw_id)),
                 hw_id=str(hw_id),
@@ -166,6 +205,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                 mavlink_runtime=mavlink_runtime,
                 connectivity_runtime=connectivity_runtime,
                 git_sync_runtime=git_sync_runtime,
+                env_runtime=env_runtime,
                 last_check=int(time.time() * 1000),
                 last_sync=None,
             )

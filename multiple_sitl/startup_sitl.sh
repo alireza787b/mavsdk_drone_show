@@ -24,13 +24,13 @@ if [[ -f "$DEPLOYMENT_PROFILE_LOADER" ]]; then
 fi
 
 # =============================================================================
-# REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
+# REPOSITORY CONFIGURATION: Environment Variable Support
 # =============================================================================
-# This script now supports environment variable override for advanced deployments
-# while maintaining 100% backward compatibility for normal users.
+# This script uses canonical MDS_* environment variables for repository and
+# runtime configuration.
 #
-# FOR NORMAL USERS (99%):
-#   - No action required - defaults work identically to previous versions
+# FOR NORMAL USERS:
+#   - No action required - deployment profile defaults are used
 #   - Uses: https://github.com/alireza787b/mavsdk_drone_show.git@main
 #   - Simply run: bash create_dockers.sh <number_of_drones>
 #
@@ -57,8 +57,7 @@ fi
 #   MDS_REPO_URL         - Git repository URL (SSH or HTTPS format)
 #   MDS_BRANCH           - Git branch name to checkout and use
 #   MDS_HW_ID           - Canonical hardware ID for this SITL container
-#   MDS_GIT_AUTH_TOKEN_FILE - Preferred path to an authenticated HTTPS token file for private GitHub repos
-#   MDS_GIT_AUTH_TOKEN      - Legacy fallback authenticated HTTPS token for private GitHub repos
+#   MDS_GIT_AUTH_TOKEN_FILE - Authenticated HTTPS token file for private GitHub repos
 #   MDS_GIT_AUTH_USERNAME   - Optional HTTPS username for token auth (default: x-access-token)
 #   MDS_GIT_SSH_KEY_FILE    - Optional SSH private key path for private GitHub SSH repos
 #
@@ -70,7 +69,7 @@ DEFAULT_GIT_REMOTE="origin"
 DEFAULT_GIT_BRANCH="${MDS_BRANCH:-${MDS_DEFAULT_BRANCH:-main}}"
 GITHUB_REPO_URL="${MDS_REPO_URL:-${MDS_DEFAULT_REPO_URL_HTTPS:-https://github.com/alireza787b/mavsdk_drone_show.git}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
+GIT_AUTH_TOKEN_VALUE=""
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 
@@ -187,10 +186,6 @@ IMAGE_BUILD_METADATA_FILE="$BASE_DIR/.mds_sitl_image_build.env"
 PX4_PROVENANCE_FILE="$BASE_DIR/.mds_px4_source_provenance.env"
 PX4_SUBMODULE_STATUS_FILE="$BASE_DIR/.mds_px4_submodules.txt"
 
-# Backward-compatible legacy option parsing: the launcher now always forces
-# headless Gazebo Harmonic, but older invocations may still pass `-s`.
-REQUESTED_SIMULATION_MODE="h"
-
 # Initialize Git variables
 GIT_REMOTE="$DEFAULT_GIT_REMOTE"
 GIT_BRANCH="$DEFAULT_GIT_BRANCH"
@@ -220,7 +215,6 @@ Usage: $SCRIPT_NAME [options]
 Options:
   -r <git_remote>       Specify the GitHub repository remote name (default: $DEFAULT_GIT_REMOTE)
   -b <git_branch>       Specify the GitHub repository branch name (default: $DEFAULT_GIT_BRANCH)
-  -s <simulation_mode>  Deprecated compatibility flag. Docker SITL now always runs headless PX4 Gazebo Harmonic (gz_x500)
   -v, --verbose         Run coordinator.py in verbose mode (foreground with output to screen)
   -h, --help            Display this help message
 
@@ -245,7 +239,7 @@ load_git_auth_token() {
             exit 1
         fi
 
-        GIT_AUTH_TOKEN="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
+        GIT_AUTH_TOKEN_VALUE="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
     fi
 }
 
@@ -333,15 +327,6 @@ parse_args() {
                     usage
                 fi
                 ;;
-            -s)
-                if [[ -n "${2:-}" && ! $2 =~ ^- ]]; then
-                    REQUESTED_SIMULATION_MODE="$2"
-                    shift 2
-                else
-                    log_message "ERROR: -s requires a non-empty option argument."
-                    usage
-                fi
-                ;;
             -v|--verbose)
                 VERBOSE_MODE=true
                 shift
@@ -386,20 +371,20 @@ check_dependencies() {
     fi
 }
 
-resolve_runtime_hwid() {
-    HWID="${MDS_HW_ID:-}"
+resolve_runtime_hw_id() {
+    RUNTIME_HW_ID="${MDS_HW_ID:-}"
 
-    if [[ -z "$HWID" ]]; then
+    if [[ -z "$RUNTIME_HW_ID" ]]; then
         log_message "ERROR: MDS_HW_ID is required for SITL container startup."
         exit 1
     fi
 
-    if ! [[ "$HWID" =~ ^[1-9][0-9]*$ ]]; then
-        log_message "ERROR: MDS_HW_ID '$HWID' is not a positive integer."
+    if ! [[ "$RUNTIME_HW_ID" =~ ^[1-9][0-9]*$ ]]; then
+        log_message "ERROR: MDS_HW_ID '$RUNTIME_HW_ID' is not a positive integer."
         exit 1
     fi
 
-    log_message "Resolved runtime HW_ID from MDS_HW_ID=$HWID"
+    log_message "Resolved runtime hardware ID from MDS_HW_ID=$RUNTIME_HW_ID"
 }
 
 ensure_runtime_paths() {
@@ -495,7 +480,7 @@ resolve_gz_partition() {
         GZ_PARTITION_VALUE="$GZ_PARTITION_OVERRIDE"
         log_message "Using Gazebo transport partition override: $GZ_PARTITION_VALUE"
     else
-        GZ_PARTITION_VALUE="${GZ_PARTITION_PREFIX}_${HWID}"
+        GZ_PARTITION_VALUE="${GZ_PARTITION_PREFIX}_${RUNTIME_HW_ID}"
         log_message "Using per-drone Gazebo transport partition: $GZ_PARTITION_VALUE"
     fi
 }
@@ -561,17 +546,11 @@ format_sitl_param_overrides() {
 }
 
 log_startup_configuration() {
-    local requested_mode_note="$REQUESTED_SIMULATION_MODE"
-    if [ "$REQUESTED_SIMULATION_MODE" != "h" ]; then
-        requested_mode_note="$REQUESTED_SIMULATION_MODE (legacy request; forced to headless ${PX4_GZ_TARGET})"
-    fi
-
     log_message "Configuration:"
     log_message "  Git Remote: $GIT_REMOTE"
     log_message "  Git Branch: $GIT_BRANCH"
     log_message "  Base Directory: $BASE_DIR"
     log_message "  Use Global Python: $USE_GLOBAL_PYTHON"
-    log_message "  Requested Legacy Sim Mode: $requested_mode_note"
     log_message "  PX4 Gazebo Target: $PX4_GZ_TARGET"
     log_message "  Headless Mode: true"
     log_message "  QT_QPA_PLATFORM: $QT_QPA_PLATFORM_VALUE"
@@ -592,7 +571,7 @@ log_startup_configuration() {
 
 log_runtime_identity() {
     log_message "Runtime Identity:"
-    log_message "  HWID / MAV_SYS_ID: $HWID"
+    log_message "  Hardware ID / MAV_SYS_ID: $RUNTIME_HW_ID"
     log_message "  Gazebo Transport Partition: $GZ_PARTITION_VALUE"
     log_message "  SITL PX4 Parameter Overrides: $(format_sitl_param_overrides)"
 }
@@ -770,12 +749,12 @@ github_authenticated_https_url() {
     local repo_url="$1"
     local repo_path=""
 
-    [[ -n "$GIT_AUTH_TOKEN" ]] || return 1
+    [[ -n "$GIT_AUTH_TOKEN_VALUE" ]] || return 1
     repo_path=$(github_repo_path "$repo_url") || return 1
 
     local encoded_username encoded_token
     encoded_username=$(urlencode_value "$GIT_AUTH_USERNAME")
-    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN")
+    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN_VALUE")
     printf 'https://%s:%s@github.com/%s\n' "$encoded_username" "$encoded_token" "$repo_path"
 }
 
@@ -1292,7 +1271,7 @@ prepare_px4_build_artifacts() {
 # Prepare SITL-only PX4 parameter overrides using the native PX4_PARAM_* env
 # mechanism. PX4 applies these after the airframe defaults load, which is more
 # reliable than mutating the generated build rcS file.
-configure_px4_sitl_rcs() {
+configure_px4_sitl_params() {
     log_message "Preparing PX4 SITL parameter overrides..."
 
     build_sitl_param_overrides
@@ -1307,7 +1286,7 @@ configure_px4_sitl_rcs() {
 # Function to read offsets from trajectory CSV
 # Note: x,y positions now come from trajectory CSV files (single source of truth), not config.json
 read_offsets() {
-    log_message "Reading offsets from trajectory CSV for HWID: $HWID..."
+    log_message "Reading offsets from trajectory CSV for hardware ID: $RUNTIME_HW_ID..."
 
     OFFSET_X=0
     OFFSET_Y=0
@@ -1324,15 +1303,15 @@ read_offsets() {
     fi
 
     local drone_entry
-    drone_entry=$(jq -c ".drones[] | select(.hw_id == $HWID)" "$CONFIG_FILE" 2>/dev/null)
+    drone_entry=$(jq -c ".drones[] | select(.hw_id == $RUNTIME_HW_ID)" "$CONFIG_FILE" 2>/dev/null)
 
     local POS_ID=""
     if [[ -z "$drone_entry" || "$drone_entry" == "null" ]]; then
-        log_message "WARNING: HWID $HWID not found in $CONFIG_FILE. Using default offsets (0,0)."
+        log_message "WARNING: Hardware ID $RUNTIME_HW_ID not found in $CONFIG_FILE. Using default offsets (0,0)."
         return
     else
         POS_ID=$(echo "$drone_entry" | jq -r '.pos_id')
-        log_message "Found pos_id=$POS_ID for hw_id=$HWID"
+        log_message "Found pos_id=$POS_ID for hw_id=$RUNTIME_HW_ID"
     fi
 
     # Read trajectory CSV to get initial position (px, py from first row)
@@ -1340,10 +1319,10 @@ read_offsets() {
 
     if [ ! -f "$TRAJECTORY_FILE" ]; then
         log_message "WARNING: Trajectory file not found: $TRAJECTORY_FILE"
-        log_message "Falling back to row spawning with fixed spacing for drone $HWID"
+        log_message "Falling back to row spawning with fixed spacing for drone $RUNTIME_HW_ID"
         # Spawn in row with 10m spacing
         OFFSET_X=0
-        OFFSET_Y=$((($HWID - 1) * 10))
+        OFFSET_Y=$(((RUNTIME_HW_ID - 1) * 10))
         log_message "Using fallback offsets - X: $OFFSET_X, Y: $OFFSET_Y (row formation)"
         return
     fi
@@ -1411,18 +1390,13 @@ export_env_vars() {
     export PX4_HOME_LAT="$NEW_LAT"
     export PX4_HOME_LON="$NEW_LON"
     export PX4_HOME_ALT="$DEFAULT_ALT"
-    export MAV_SYS_ID="$HWID"
-    export MDS_HW_ID="$HWID"
+    export MAV_SYS_ID="$RUNTIME_HW_ID"
+    export MDS_HW_ID="$RUNTIME_HW_ID"
     log_message "Environment variables set: PX4_HOME_LAT=$PX4_HOME_LAT, PX4_HOME_LON=$PX4_HOME_LON, PX4_HOME_ALT=$PX4_HOME_ALT, MAV_SYS_ID=$MAV_SYS_ID, MDS_HW_ID=$MDS_HW_ID"
 }
 
-# Function to determine the simulation command
+# Function to determine the fixed headless PX4 Gazebo Harmonic command
 determine_simulation_command() {
-    if [ "$REQUESTED_SIMULATION_MODE" != "h" ]; then
-        log_message "WARNING: Legacy simulation mode '$REQUESTED_SIMULATION_MODE' requested."
-        log_message "WARNING: Docker SITL now always uses headless PX4 Gazebo Harmonic (${PX4_GZ_TARGET})."
-    fi
-
     SIMULATION_ENV_VARS=(
         "HEADLESS=1"
         "QT_QPA_PLATFORM=$QT_QPA_PLATFORM_VALUE"
@@ -1444,7 +1418,7 @@ start_simulation() {
     cd "$PX4_DIR"
 
     # Export instance identifier
-    export px4_instance="${HWID}-1"
+    export px4_instance="${RUNTIME_HW_ID}-1"
 
     # Execute the simulation command in the background
     launch_with_log_policy "$BASE_DIR/logs/sitl_simulation.log" env "${SIMULATION_ENV_VARS[@]}" "${SIMULATION_COMMAND[@]}"
@@ -1518,9 +1492,9 @@ log_message ""
 check_dependencies
 
 # Resolve the canonical runtime hardware identity
-resolve_runtime_hwid
+resolve_runtime_hw_id
 
-# Resolve per-drone runtime values once HWID is known
+# Resolve per-drone runtime values once MDS_HW_ID is known
 resolve_gz_partition
 build_sitl_param_overrides
 log_runtime_identity
@@ -1541,7 +1515,7 @@ cleanup_stale_simulation_processes
 
 # Ensure PX4 build artifacts exist and prepare PX4 launch-time parameter overrides.
 prepare_px4_build_artifacts
-configure_px4_sitl_rcs
+configure_px4_sitl_params
 
 # Read offsets from config.json
 read_offsets
@@ -1552,7 +1526,7 @@ calculate_new_coordinates
 # Export environment variables
 export_env_vars
 
-# Determine simulation mode
+# Build the fixed headless PX4 Gazebo Harmonic launch command
 determine_simulation_command
 
 # Start SITL simulation

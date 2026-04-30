@@ -643,10 +643,9 @@ class SitlControlService:
 
     @staticmethod
     def _derive_hw_id(container_name: str, env: dict[str, str]) -> str | None:
-        for key in ("MDS_HW_ID", "MDS_HWID", "HW_ID"):
-            value = env.get(key)
-            if value:
-                return str(value).strip()
+        value = env.get("MDS_HW_ID")
+        if value:
+            return str(value).strip()
         match = _CONTAINER_NAME_PATTERN.match(str(container_name))
         if match:
             return match.group(1)

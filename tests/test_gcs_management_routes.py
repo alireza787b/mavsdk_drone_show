@@ -1,3 +1,4 @@
+import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -20,6 +21,9 @@ def _make_deps():
             GIT_BRANCH="customer-demo",
         ),
         get_network_info_from_heartbeats=lambda: [{"hw_id": "1", "wifi": {"ssid": "mds"}}],
+        load_config=lambda: [{"hw_id": 1, "pos_id": 1}, {"hw_id": 2, "pos_id": 2}],
+        data_lock_git_status=threading.RLock(),
+        git_status_data_all_drones={},
         log_system_event=lambda *args, **kwargs: None,
         log_system_error=lambda *args, **kwargs: None,
     )
@@ -34,6 +38,10 @@ def test_management_router_registers_expected_routes():
 
     assert "/api/v1/system/gcs-config" in routes
     assert "/api/v1/system/runtime-status" in routes
+    assert "/api/v1/system/env/registry" in routes
+    assert "/api/v1/system/env/gcs" in routes
+    assert "/api/v1/system/env/fleet/plan" in routes
+    assert "/api/v1/system/env/gcs/apply" in routes
     assert "/api/v1/system/gcs-config/apply" in routes
     assert "/api/v1/system/runtime-update" in routes
     assert "/api/v1/fleet/network-details" in routes
@@ -307,6 +315,136 @@ def test_management_router_save_gcs_config_rejects_conflicting_mode_inputs(monke
 
     assert response.status_code == 422
     assert response.json()["detail"] == "mode and sim_mode describe different runtime modes"
+
+
+def test_management_router_env_registry_and_gcs_env(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    gcs_env = tmp_path / "gcs.env"
+    gcs_env.write_text("MDS_MODE=real\nGCS_PORT=5030\nMDS_AUTH_ENABLED=false\n", encoding="utf-8")
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
+
+    with TestClient(app) as client:
+        registry_response = client.get("/api/v1/system/env/registry")
+        env_response = client.get("/api/v1/system/env/gcs")
+
+    assert registry_response.status_code == 200
+    registry_data = registry_response.json()
+    assert registry_data["version"] >= 1
+    assert any(entry["name"] == "MDS_AUTH_ENABLED" for entry in registry_data["entries"])
+
+    assert env_response.status_code == 200
+    env_data = env_response.json()
+    assert env_data["config_path"] == str(gcs_env)
+    assert "GCS_PORT" in env_data["unknown_keys"]
+    mode_entry = next(entry for entry in env_data["values"] if entry["name"] == "MDS_MODE")
+    assert mode_entry["value"] == "real"
+    assert mode_entry["editable"] is True
+    assert mode_entry["allowed_values"] == ["real", "sitl"]
+
+
+def test_management_router_gcs_env_update_validates_and_persists(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    gcs_env = tmp_path / "gcs.env"
+    gcs_env.write_text("MDS_MODE=real\nMDS_AUTH_ENABLED=false\n", encoding="utf-8")
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
+
+    with TestClient(app) as client:
+        dry_run = client.put(
+            "/api/v1/system/env/gcs",
+            json={"dry_run": True, "updates": {"MDS_AUTH_ENABLED": True}},
+        )
+        response = client.put(
+            "/api/v1/system/env/gcs",
+            json={"updates": {"MDS_AUTH_ENABLED": True, "MDS_AUTH_SESSION_TTL_HOURS": "24"}},
+        )
+
+    assert dry_run.status_code == 200
+    assert dry_run.json()["changed_keys"] == []
+    assert dry_run.json()["restart_required"] is True
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["changed_keys"] == ["MDS_AUTH_ENABLED", "MDS_AUTH_SESSION_TTL_HOURS"]
+    assert data["restart_required"] is True
+    assert "MDS_AUTH_ENABLED=true" in gcs_env.read_text(encoding="utf-8")
+    assert "MDS_AUTH_SESSION_TTL_HOURS=24" in gcs_env.read_text(encoding="utf-8")
+
+
+def test_management_router_gcs_env_update_rejects_unknown_or_unsafe(monkeypatch, tmp_path):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(tmp_path / "gcs.env"))
+
+    with TestClient(app) as client:
+        unknown = client.put("/api/v1/system/env/gcs", json={"updates": {"GCS_PORT": 5030}})
+        raw_secret = client.put("/api/v1/system/env/gcs", json={"updates": {"MDS_GCS_API_TOKEN": "raw"}})
+        node_key = client.put("/api/v1/system/env/gcs", json={"updates": {"MDS_HW_ID": 2}})
+
+    assert unknown.status_code == 422
+    assert "not registered" in unknown.json()["detail"]
+    assert raw_secret.status_code == 422
+    assert "not registered" in raw_secret.json()["detail"]
+    assert node_key.status_code == 422
+    assert "node key" in node_key.json()["detail"]
+
+
+def test_management_router_fleet_env_plan_validates_node_keys_without_mutation():
+    deps = _make_deps()
+    registry_hash = management_module.load_env_registry().content_hash
+    deps.git_status_data_all_drones = {
+        "1": {
+            "env_runtime": {
+                "status_source": "local",
+                "registry_version": 1,
+                "registry_hash": registry_hash,
+                "local_env_present": True,
+                "unknown_keys": [],
+                "deprecated_keys": [],
+            }
+        }
+    }
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/system/env/fleet/plan",
+            json={
+                "target_hw_ids": [1, 2],
+                "updates": {"MDS_GCS_API_TOKEN_FILE": "/root/.mds/keys/gcs_api_token"},
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["dry_run"] is True
+    assert data["mutation_enabled"] is False
+    assert data["validated_keys"] == ["MDS_GCS_API_TOKEN_FILE"]
+    assert data["target_count"] == 2
+    assert data["blocked_count"] == 1
+    node_status = {item["hw_id"]: item["status"] for item in data["node_plans"]}
+    assert node_status == {"1": "planned", "2": "unavailable"}
+
+
+def test_management_router_fleet_env_plan_rejects_gcs_or_unknown_keys():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+
+    with TestClient(app) as client:
+        gcs_key = client.post("/api/v1/system/env/fleet/plan", json={"updates": {"MDS_AUTH_ENABLED": True}})
+        unknown = client.post("/api/v1/system/env/fleet/plan", json={"updates": {"MDS_GCS_API_TOKEN": "raw"}})
+
+    assert gcs_key.status_code == 422
+    assert "cannot be planned for fleet-node env" in gcs_key.json()["detail"]
+    assert unknown.status_code == 422
+    assert "not registered" in unknown.json()["detail"]
 
 
 def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypatch, tmp_path):

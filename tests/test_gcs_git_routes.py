@@ -94,6 +94,49 @@ def test_git_router_get_gcs_status_uses_live_dependency_after_router_creation():
     assert response.json()["gcs_status"]["branch"] == "release"
 
 
+def test_git_status_exposes_read_only_node_env_posture():
+    deps = _make_deps()
+    deps.git_status_data_all_drones = {
+        "1": {
+            "status": "clean",
+            "branch": "main-candidate",
+            "commit": "abc12345",
+            "uncommitted_changes": [],
+            "env_runtime": {
+                "status_source": "registry",
+                "registry_version": 1,
+                "registry_hash": "abc123",
+                "local_env_path": "/etc/mds/local.env",
+                "local_env_present": True,
+                "node_identity_path": "/etc/mds/node_identity.json",
+                "node_identity_present": True,
+                "runtime_mode": "real",
+                "runtime_mode_source": "env:MDS_MODE",
+                "hw_id": 1,
+                "hw_id_source": "env:MDS_HW_ID",
+                "configured_key_count": 7,
+                "configured_node_key_count": 5,
+                "registered_node_key_count": 20,
+                "unknown_keys": ["OLD_KEY"],
+                "deprecated_keys": [],
+                "warnings": ["Node local.env contains unregistered keys."],
+            },
+        },
+    }
+
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/git/status")
+
+    assert response.status_code == 200
+    env_runtime = response.json()["git_status"]["1"]["env_runtime"]
+    assert env_runtime["registry_hash"] == "abc123"
+    assert env_runtime["runtime_mode"] == "real"
+    assert env_runtime["unknown_keys"] == ["OLD_KEY"]
+
+
 def test_git_status_keeps_stale_offline_drift_out_of_global_sync_warning():
     deps = _make_deps()
     deps.Params.TELEMETRY_POLLING_TIMEOUT = 5

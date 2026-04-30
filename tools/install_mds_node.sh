@@ -10,7 +10,7 @@
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_companion.sh | sudo bash
-#   # compatibility alias:
+#   # alternate entrypoint:
 #   curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/tools/install_mds_node.sh | sudo bash
 #
 #   Or with options:
@@ -54,7 +54,6 @@ BRANCH="${MDS_BRANCH:-${DEFAULT_BRANCH}}"
 MDS_USER="${MDS_USER:-droneshow}"
 INSTALL_DIR="${MDS_INSTALL_DIR:-/home/${MDS_USER}/${DEFAULT_PROJECT_NAME}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 DEFAULT_SSH_KEY_PATH="/home/${MDS_USER}/.ssh/id_rsa_git_deploy"
@@ -133,7 +132,7 @@ is_github_https_repo_url() {
 }
 
 wrapper_git_auth_enabled() {
-    [[ -n "${GIT_AUTH_TOKEN_FILE:-}" && -r "${GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${GIT_AUTH_TOKEN:-}" ]]
+    [[ -n "${GIT_AUTH_TOKEN_FILE:-}" && -r "${GIT_AUTH_TOKEN_FILE}" ]]
 }
 
 wrapper_mds_user_home() {
@@ -178,7 +177,7 @@ if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ];
     tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
     exit 0
 fi
-printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+exit 1
 EOF
 
     chmod 700 "$askpass_path"
@@ -425,7 +424,7 @@ ensure_wrapper_repo_access() {
             prepare_wrapper_git_askpass
             log_success "Bootstrap HTTPS git auth configured"
         else
-            log_warn "No git auth token configured. Public HTTPS repos will work, but private HTTPS repos require MDS_GIT_AUTH_TOKEN_FILE or MDS_GIT_AUTH_TOKEN."
+            log_warn "No git auth token file configured. Public HTTPS repos will work, but private HTTPS repos require MDS_GIT_AUTH_TOKEN_FILE."
         fi
         return 0
     fi
@@ -480,7 +479,6 @@ run_git_as_mds_user() {
             GIT_ASKPASS="$(wrapper_git_askpass_path)" \
             MDS_GIT_AUTH_USERNAME="${GIT_AUTH_USERNAME}" \
             MDS_GIT_AUTH_TOKEN_FILE="${GIT_AUTH_TOKEN_FILE:-}" \
-            MDS_GIT_AUTH_TOKEN="${GIT_AUTH_TOKEN:-}" \
             git -c credential.username="${GIT_AUTH_USERNAME}" "$@"
     else
         sudo -u "${MDS_USER}" git "$@"
@@ -786,9 +784,6 @@ main() {
     passthrough_args+=("--repo-url" "$config_repo_url")
     if [[ -n "${GIT_AUTH_TOKEN_FILE:-}" ]]; then
         export MDS_GIT_AUTH_TOKEN_FILE="$GIT_AUTH_TOKEN_FILE"
-    fi
-    if [[ -n "${GIT_AUTH_TOKEN:-}" ]]; then
-        export MDS_GIT_AUTH_TOKEN="$GIT_AUTH_TOKEN"
     fi
     if [[ -n "${GIT_SSH_KEY_FILE:-}" ]]; then
         export MDS_GIT_SSH_KEY_FILE="$GIT_SSH_KEY_FILE"

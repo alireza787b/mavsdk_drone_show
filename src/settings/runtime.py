@@ -7,6 +7,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from src.settings.env_files import read_env_assignments
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_LOCAL_ENV_PATH = Path("/etc/mds/local.env")
@@ -43,17 +45,10 @@ def preload_local_env(log: logging.Logger | None = None) -> Path:
 
     if env_path.exists():
         try:
-            with env_path.open(encoding="utf-8") as handle:
-                for raw_line in handle:
-                    line = raw_line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    key, value = line.split("=", 1)
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    if key not in os.environ:
-                        os.environ[key] = value
-                        _LOCAL_ENV_INJECTED_VALUES[key] = value
+            for key, value in read_env_assignments(env_path).items():
+                if key not in os.environ:
+                    os.environ[key] = value
+                    _LOCAL_ENV_INJECTED_VALUES[key] = value
             target_logger.debug("Loaded local config from %s", env_path)
         except Exception as exc:  # pragma: no cover - defensive log path
             target_logger.warning("Failed to load local config from %s: %s", env_path, exc)
@@ -95,9 +90,9 @@ def _normalize_runtime_mode(value: str | None) -> str | None:
         return None
 
     normalized = value.strip().lower()
-    if normalized in {"real", "hardware", "production"}:
+    if normalized == "real":
         return "real"
-    if normalized in {"sitl", "sim", "simulation", "simulated"}:
+    if normalized == "sitl":
         return "sitl"
     return None
 

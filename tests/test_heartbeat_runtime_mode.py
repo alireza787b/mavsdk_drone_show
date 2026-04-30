@@ -6,7 +6,7 @@ import heartbeat as heartbeat_module
 def _reset_heartbeat_state():
     heartbeat_module.last_heartbeats.clear()
     heartbeat_module.network_info_from_heartbeats.clear()
-    heartbeat_module._legacy_runtime_mode_notice_keys.clear()
+    heartbeat_module._missing_runtime_mode_notice_keys.clear()
     heartbeat_module._runtime_mode_mismatch_notice_keys.clear()
 
 
@@ -53,7 +53,7 @@ def test_handle_heartbeat_post_ignores_mismatched_runtime_mode(monkeypatch):
     assert heartbeat_module.last_heartbeats == {}
 
 
-def test_handle_heartbeat_post_keeps_legacy_nodes_accepted(monkeypatch):
+def test_handle_heartbeat_post_rejects_missing_runtime_mode(monkeypatch):
     _reset_heartbeat_state()
     monkeypatch.setattr(
         heartbeat_module,
@@ -69,5 +69,5 @@ def test_handle_heartbeat_post_keeps_legacy_nodes_accepted(monkeypatch):
         runtime_mode=None,
     )
 
-    assert result["accepted"] is True
-    assert heartbeat_module.last_heartbeats["202"]["runtime_mode"] is None
+    assert result["accepted"] is False
+    assert heartbeat_module.last_heartbeats == {}

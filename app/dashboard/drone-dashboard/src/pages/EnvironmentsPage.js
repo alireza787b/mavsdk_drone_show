@@ -1,0 +1,746 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  FaCheckCircle,
+  FaDownload,
+  FaExclamationTriangle,
+  FaFilter,
+  FaRedoAlt,
+  FaSave,
+  FaSearch,
+  FaShieldAlt,
+  FaSlidersH,
+  FaUpload,
+} from 'react-icons/fa';
+
+import {
+  ActionIconButton,
+  DocsLink,
+  EmptyState,
+  MetricStrip,
+  OperatorCard,
+  OperatorNotice,
+  PageShell,
+  StatusBadge,
+} from '../components/ui';
+import {
+  applyGcsEnvResponse,
+  getEnvRegistryResponse,
+  getGcsEnvResponse,
+  getUnifiedGitStatusResponse,
+  updateGcsEnvResponse,
+} from '../services/gcsApiService';
+import '../styles/EnvironmentsPage.css';
+
+const DOMAIN_LABELS = {
+  auth: 'Auth',
+  connectivity: 'Connectivity',
+  frontend: 'Frontend',
+  git: 'Git',
+  logging: 'Logging',
+  mavlink: 'MAVLink',
+  px4: 'PX4',
+  runtime: 'Runtime',
+  sitl: 'SITL',
+  system: 'System',
+};
+
+function compactHash(value) {
+  const text = String(value || '');
+  return text.length > 12 ? text.slice(0, 12) : text || 'none';
+}
+
+function boolLabel(value) {
+  const text = String(value).toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(text)) {
+    return 'Enabled';
+  }
+  if (['false', '0', 'no', 'off'].includes(text)) {
+    return 'Disabled';
+  }
+  return value === null || value === undefined || value === '' ? 'Default' : String(value);
+}
+
+function displayValue(entry) {
+  if (entry.secret) {
+    return entry.secret_configured ? 'Configured' : 'Unset';
+  }
+  if (!entry.value_present || entry.value === null || entry.value === undefined || entry.value === '') {
+    return entry.default === null || entry.default === undefined || entry.default === '' ? 'Unset' : `Default: ${boolLabel(entry.default)}`;
+  }
+  return entry.value_type === 'boolean' ? boolLabel(entry.value) : String(entry.value);
+}
+
+function valueTone(entry) {
+  if (entry.deprecated) {
+    return 'warning';
+  }
+  if (entry.secret && entry.secret_configured) {
+    return 'success';
+  }
+  if (!entry.value_present) {
+    return 'muted';
+  }
+  return 'neutral';
+}
+
+function restartTone(restartRequired) {
+  if (restartRequired === 'gcs') {
+    return 'warning';
+  }
+  if (restartRequired === 'none') {
+    return 'success';
+  }
+  return 'info';
+}
+
+function normalizeError(error, fallback) {
+  return error?.response?.data?.detail || error?.message || fallback;
+}
+
+function downloadJson(filename, payload) {
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function buildGcsEnvProfile(values) {
+  const entries = {};
+  values.forEach((entry) => {
+    if (!entry.editable || entry.secret || !entry.value_present) {
+      return;
+    }
+    entries[entry.name] = entry.value === null || entry.value === undefined ? '' : String(entry.value);
+  });
+
+  return {
+    version: 1,
+    kind: 'mds-env-profile',
+    scope: 'gcs',
+    exported_at: new Date().toISOString(),
+    entries,
+  };
+}
+
+function parseGcsEnvProfile(rawText) {
+  const payload = JSON.parse(rawText);
+  if (!payload || payload.kind !== 'mds-env-profile') {
+    throw new Error('Profile kind must be mds-env-profile.');
+  }
+  if (payload.scope !== 'gcs') {
+    throw new Error('Only GCS env profiles can be imported here.');
+  }
+  if (!payload.entries || typeof payload.entries !== 'object' || Array.isArray(payload.entries)) {
+    throw new Error('Profile entries must be an object.');
+  }
+  return Object.fromEntries(
+    Object.entries(payload.entries)
+      .filter(([key]) => typeof key === 'string' && key.trim())
+      .map(([key, value]) => [key.trim(), value])
+  );
+}
+
+function buildInitialDraft(entry) {
+  if (entry.value_present && entry.value !== null && entry.value !== undefined) {
+    return String(entry.value);
+  }
+  if (entry.default !== null && entry.default !== undefined) {
+    return String(entry.default);
+  }
+  return '';
+}
+
+function EnvEditDialog({ entry, busy, onSave, onClose }) {
+  const [draft, setDraft] = useState(() => buildInitialDraft(entry));
+
+  useEffect(() => {
+    setDraft(buildInitialDraft(entry));
+  }, [entry]);
+
+  const allowedValues = Array.isArray(entry.allowed_values) ? entry.allowed_values : [];
+  const inputId = `env-edit-${entry.name}`;
+
+  return (
+    <div
+      className="environments-page__dialog"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) {
+          onClose();
+        }
+      }}
+    >
+      <form
+        className="environments-page__dialog-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Edit ${entry.name}`}
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSave(entry, draft);
+        }}
+      >
+        <header>
+          <span><FaSlidersH aria-hidden="true" /></span>
+          <div>
+            <strong>{entry.title}</strong>
+            <code>{entry.name}</code>
+          </div>
+          <button type="button" onClick={onClose} disabled={busy} aria-label="Close environment editor">×</button>
+        </header>
+        <label htmlFor={inputId}>
+          <span>Value</span>
+          {entry.value_type === 'boolean' ? (
+            <select id={inputId} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus>
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          ) : allowedValues.length ? (
+            <select id={inputId} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus>
+              {allowedValues.map((value) => (
+                <option key={String(value)} value={String(value)}>{String(value)}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id={inputId}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={entry.default !== null && entry.default !== undefined ? `Default: ${entry.default}` : 'Set value'}
+              autoFocus
+            />
+          )}
+        </label>
+        <dl>
+          <div>
+            <dt>Type</dt>
+            <dd>{entry.value_type}</dd>
+          </div>
+          <div>
+            <dt>Apply</dt>
+            <dd>{entry.apply_action}</dd>
+          </div>
+          <div>
+            <dt>Docs</dt>
+            <dd><DocsLink doc={{ label: 'Guide', docPath: entry.docs }} compact /></dd>
+          </div>
+        </dl>
+        {entry.notes ? <p>{entry.notes}</p> : null}
+        <footer>
+          <button type="button" className="operator-button operator-button--ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="submit" className="operator-button operator-button--primary" disabled={busy}>
+            {busy ? 'Saving...' : 'Save'}
+          </button>
+        </footer>
+      </form>
+    </div>
+  );
+}
+
+function EnvImportDialog({ plan, busy, onConfirm, onClose }) {
+  return (
+    <div
+      className="environments-page__dialog"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        className="environments-page__dialog-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Import GCS environment profile"
+      >
+        <header>
+          <span><FaUpload aria-hidden="true" /></span>
+          <div>
+            <strong>Import GCS Profile</strong>
+            <code>{plan.updatedKeys.length} registry-approved key(s)</code>
+          </div>
+          <button type="button" onClick={onClose} disabled={busy} aria-label="Close import profile dialog">×</button>
+        </header>
+        <p>
+          Dry-run validation passed. Confirming writes these values through the
+          registry-controlled GCS env API; secrets and node-only keys remain blocked.
+        </p>
+        <div className="environments-page__profile-key-list" aria-label="Imported environment keys">
+          {plan.updatedKeys.map((key) => (
+            <StatusBadge key={key} tone="info">{key}</StatusBadge>
+          ))}
+        </div>
+        {plan.restartRequired ? (
+          <OperatorNotice tone="warning" title="Restart required" icon={<FaRedoAlt />}>
+            Apply the GCS env restart after import so restart-sensitive values take effect.
+          </OperatorNotice>
+        ) : null}
+        {plan.warnings?.length ? (
+          <OperatorNotice tone="warning" title="Import warnings" icon={<FaExclamationTriangle />}>
+            {plan.warnings.join(' ')}
+          </OperatorNotice>
+        ) : null}
+        <footer>
+          <button type="button" className="operator-button operator-button--ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" className="operator-button operator-button--primary" onClick={onConfirm} disabled={busy}>
+            {busy ? 'Importing...' : 'Import'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+export default function EnvironmentsPage() {
+  const importInputRef = useRef(null);
+  const [registry, setRegistry] = useState(null);
+  const [gcsEnv, setGcsEnv] = useState(null);
+  const [fleetStatus, setFleetStatus] = useState(null);
+  const [query, setQuery] = useState('');
+  const [domain, setDomain] = useState('all');
+  const [scope, setScope] = useState('gcs');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [importPlan, setImportPlan] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async ({ preserveNotice = false } = {}) => {
+    setLoading(true);
+    try {
+      const [registryResponse, envResponse] = await Promise.all([
+        getEnvRegistryResponse(),
+        getGcsEnvResponse(),
+      ]);
+      getUnifiedGitStatusResponse()
+        .then((response) => setFleetStatus(response?.data || null))
+        .catch(() => setFleetStatus(null));
+      setRegistry(registryResponse?.data || null);
+      setGcsEnv(envResponse?.data || null);
+      if (!preserveNotice) {
+        setNotice(null);
+      }
+    } catch (error) {
+      setNotice({ tone: 'danger', title: 'Environment registry unavailable', detail: normalizeError(error, 'Could not load MDS environment metadata.') });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const values = useMemo(() => Array.isArray(gcsEnv?.values) ? gcsEnv.values : [], [gcsEnv]);
+  const nodeRows = useMemo(() => {
+    const statusById = fleetStatus?.git_status || {};
+    return Object.entries(statusById).map(([key, value]) => ({
+      key,
+      ...value,
+      env_runtime: value?.env_runtime || null,
+    })).sort((a, b) => Number(a.pos_id || a.key) - Number(b.pos_id || b.key));
+  }, [fleetStatus]);
+  const domains = useMemo(() => {
+    const domainSet = new Set(values.map((entry) => entry.domain).filter(Boolean));
+    return ['all', ...Array.from(domainSet).sort()];
+  }, [values]);
+
+  const filteredValues = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return values.filter((entry) => {
+      if (!showAdvanced && ['advanced', 'diagnostic', 'hidden'].includes(entry.ui_visibility)) {
+        return false;
+      }
+      if (domain !== 'all' && entry.domain !== domain) {
+        return false;
+      }
+      if (!normalizedQuery) {
+        return true;
+      }
+      return [
+        entry.name,
+        entry.title,
+        entry.domain,
+        entry.value_type,
+        entry.notes,
+        entry.docs,
+        displayValue(entry),
+      ].join(' ').toLowerCase().includes(normalizedQuery);
+    });
+  }, [domain, query, showAdvanced, values]);
+
+  const filteredNodeRows = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return nodeRows;
+    }
+    return nodeRows.filter((row) => [
+      row.pos_id,
+      row.hw_id,
+      row.ip,
+      row.env_runtime?.runtime_mode,
+      row.env_runtime?.runtime_mode_source,
+      row.env_runtime?.registry_hash,
+      row.env_runtime?.local_env_path,
+      row.env_runtime?.node_identity_path,
+      ...(row.env_runtime?.unknown_keys || []),
+      ...(row.env_runtime?.deprecated_keys || []),
+    ].join(' ').toLowerCase().includes(normalizedQuery));
+  }, [nodeRows, query]);
+
+  const groupedValues = useMemo(() => filteredValues.reduce((groups, entry) => {
+    const key = entry.domain || 'system';
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(entry);
+    return groups;
+  }, {}), [filteredValues]);
+
+  const restartSensitiveCount = values.filter((entry) => entry.restart_required === 'gcs' && entry.editable).length;
+  const editableCount = values.filter((entry) => entry.editable && !entry.secret).length;
+  const unknownCount = Array.isArray(gcsEnv?.unknown_keys) ? gcsEnv.unknown_keys.length : 0;
+  const deprecatedCount = Array.isArray(gcsEnv?.deprecated_keys) ? gcsEnv.deprecated_keys.length : 0;
+  const registryHash = registry?.registry_hash || gcsEnv?.registry_hash || '';
+  const nodeDriftCount = nodeRows.filter((row) => {
+    const envRuntime = row.env_runtime || {};
+    return (envRuntime.unknown_keys || []).length
+      || (envRuntime.deprecated_keys || []).length
+      || (envRuntime.registry_hash && registryHash && envRuntime.registry_hash !== registryHash);
+  }).length;
+  const configPath = gcsEnv?.config_path || 'GCS env file';
+
+  const summaryItems = [
+    {
+      key: 'registry',
+      label: 'Registry',
+      value: compactHash(registryHash),
+      detail: `v${registry?.version || gcsEnv?.registry_version || '?'}`,
+      icon: <FaShieldAlt />,
+      tone: 'info',
+    },
+    {
+      key: 'editable',
+      label: 'Editable',
+      value: editableCount,
+      detail: 'GCS host keys',
+      icon: <FaSlidersH />,
+      tone: editableCount ? 'success' : 'muted',
+    },
+    {
+      key: 'restart',
+      label: 'Restart',
+      value: restartSensitiveCount,
+      detail: 'restart-sensitive',
+      icon: <FaRedoAlt />,
+      tone: restartSensitiveCount ? 'warning' : 'success',
+    },
+    {
+      key: 'drift',
+      label: 'Drift',
+      value: scope === 'nodes' ? nodeDriftCount : unknownCount + deprecatedCount,
+      detail: scope === 'nodes' ? `${nodeRows.length} reported nodes` : `${unknownCount} unknown · ${deprecatedCount} retired`,
+      icon: <FaExclamationTriangle />,
+      tone: (scope === 'nodes' ? nodeDriftCount : unknownCount || deprecatedCount) ? 'warning' : 'success',
+    },
+  ];
+
+  const saveEntry = async (entry, value) => {
+    setBusy(true);
+    try {
+      const response = await updateGcsEnvResponse({ updates: { [entry.name]: value } });
+      const data = response?.data || {};
+      setEditingEntry(null);
+      setNotice({
+        tone: data.restart_required ? 'warning' : 'success',
+        title: data.restart_required ? 'Saved. Restart pending.' : 'Environment saved',
+        detail: data.changed_keys?.length
+          ? `${data.changed_keys.join(', ')} updated in ${data.config_path}.`
+          : 'No file change was required.',
+      });
+      await refresh({ preserveNotice: true });
+    } catch (error) {
+      setNotice({ tone: 'danger', title: 'Save failed', detail: normalizeError(error, `Could not update ${entry.name}.`) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyEnv = async () => {
+    setBusy(true);
+    try {
+      const response = await applyGcsEnvResponse();
+      const data = response?.data || {};
+      setNotice({
+        tone: data.status === 'scheduled' ? 'success' : 'info',
+        title: data.message || 'Environment apply completed',
+        detail: data.scheduled ? `Restart scheduled in ${data.restart_delay_ms || 0} ms.` : 'No restart was scheduled.',
+      });
+    } catch (error) {
+      setNotice({ tone: 'danger', title: 'Apply failed', detail: normalizeError(error, 'Could not schedule the GCS restart.') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const exportGcsProfile = () => {
+    const profile = buildGcsEnvProfile(values);
+    downloadJson('mds-gcs-env-profile.json', profile);
+    setNotice({
+      tone: 'success',
+      title: 'GCS env profile exported',
+      detail: `${Object.keys(profile.entries).length} editable non-secret value(s) exported.`,
+    });
+  };
+
+  const handleImportFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setBusy(true);
+      try {
+        const updates = parseGcsEnvProfile(String(reader.result || ''));
+        const response = await updateGcsEnvResponse({ updates, dry_run: true });
+        const data = response?.data || {};
+        setImportPlan({
+          updates,
+          updatedKeys: data.updated_keys || Object.keys(updates),
+          restartRequired: Boolean(data.restart_required),
+          warnings: data.warnings || [],
+        });
+        setNotice(null);
+      } catch (error) {
+        setNotice({ tone: 'danger', title: 'Profile import rejected', detail: normalizeError(error, error.message || 'Could not read the selected profile.') });
+      } finally {
+        setBusy(false);
+      }
+    };
+    reader.onerror = () => {
+      setNotice({ tone: 'danger', title: 'Profile import failed', detail: 'Could not read the selected file.' });
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmImportProfile = async () => {
+    if (!importPlan) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const response = await updateGcsEnvResponse({ updates: importPlan.updates });
+      const data = response?.data || {};
+      setImportPlan(null);
+      setNotice({
+        tone: data.restart_required ? 'warning' : 'success',
+        title: data.restart_required ? 'Profile imported. Restart pending.' : 'Profile imported',
+        detail: data.changed_keys?.length
+          ? `${data.changed_keys.join(', ')} updated in ${data.config_path}.`
+          : 'Profile already matched the persisted GCS env file.',
+      });
+      await refresh({ preserveNotice: true });
+    } catch (error) {
+      setNotice({ tone: 'danger', title: 'Profile import failed', detail: normalizeError(error, 'Could not import the selected profile.') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <PageShell
+      className="environments-page"
+      eyebrow="Configuration Control"
+      title="Environments"
+      subtitle="Registry-backed GCS host variables. Fleet-node apply stays disabled until identity-safe node apply APIs exist."
+      icon={<FaSlidersH />}
+      docsRoute="/environments"
+      status={(
+        <div className="environments-page__status">
+          <StatusBadge tone={gcsEnv?.config_present ? 'success' : 'warning'}>{gcsEnv?.config_present ? 'env file' : 'missing file'}</StatusBadge>
+          <StatusBadge tone="muted">{configPath}</StatusBadge>
+        </div>
+      )}
+      actions={(
+        <div className="environments-page__actions">
+          <ActionIconButton icon={<FaRedoAlt />} label="Refresh environments" onClick={refresh} disabled={busy || loading} />
+          <ActionIconButton icon={<FaUpload />} label="Import GCS env profile" onClick={() => importInputRef.current?.click()} disabled={busy || loading}>
+            Import
+          </ActionIconButton>
+          <ActionIconButton icon={<FaDownload />} label="Export GCS env profile" onClick={exportGcsProfile} disabled={busy || loading || !values.length}>
+            Export
+          </ActionIconButton>
+          <ActionIconButton icon={<FaSave />} label="Apply GCS environment restart" tone="warning" onClick={applyEnv} disabled={busy || loading}>
+            Apply
+          </ActionIconButton>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="environments-page__file-input"
+            onChange={handleImportFile}
+            aria-label="Import GCS env profile file"
+          />
+        </div>
+      )}
+    >
+      {notice ? (
+        <OperatorNotice tone={notice.tone} title={notice.title} icon={notice.tone === 'danger' ? <FaExclamationTriangle /> : <FaCheckCircle />}>
+          {notice.detail}
+        </OperatorNotice>
+      ) : null}
+
+      {gcsEnv?.warnings?.length ? (
+        <OperatorNotice tone="warning" title="Registry warnings" icon={<FaExclamationTriangle />}>
+          {gcsEnv.warnings.join(' ')}
+        </OperatorNotice>
+      ) : null}
+
+      <MetricStrip items={summaryItems} label="Environment registry summary" />
+
+      <section className="environments-page__toolbar" aria-label="Environment filters">
+        <div className="environments-page__scope-tabs" aria-label="Environment scopes">
+          <button type="button" className={scope === 'gcs' ? 'is-active' : ''} onClick={() => setScope('gcs')}>
+            GCS Host
+          </button>
+          <button type="button" className={scope === 'nodes' ? 'is-active' : ''} onClick={() => setScope('nodes')}>
+            Fleet Nodes
+          </button>
+        </div>
+        <label>
+          <span><FaSearch aria-hidden="true" /> Search</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="MDS_MODE, auth, port..." />
+        </label>
+        <label className={scope === 'gcs' ? '' : 'is-hidden'}>
+          <span><FaFilter aria-hidden="true" /> Domain</span>
+          <select value={domain} onChange={(event) => setDomain(event.target.value)}>
+            {domains.map((item) => (
+              <option key={item} value={item}>{item === 'all' ? 'All domains' : DOMAIN_LABELS[item] || item}</option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className={`operator-button operator-button--ghost ${scope === 'gcs' ? '' : 'is-hidden'}`} onClick={() => setShowAdvanced((current) => !current)}>
+          {showAdvanced ? 'Operator view' : 'Advanced'}
+        </button>
+      </section>
+
+      {loading && scope === 'gcs' ? (
+        <EmptyState icon={<FaSlidersH />} title="Loading environments" detail="Reading the registry and GCS host env file." />
+      ) : null}
+
+      {!loading && scope === 'gcs' && filteredValues.length === 0 ? (
+        <EmptyState icon={<FaSearch />} title="No matching variables" detail="Change the search, domain, or advanced filter." />
+      ) : null}
+
+      {!loading && scope === 'gcs' && filteredValues.length ? (
+        <div className="environments-page__groups">
+          {Object.entries(groupedValues).map(([groupDomain, entries]) => (
+            <section key={groupDomain} className="environments-page__group" aria-label={`${DOMAIN_LABELS[groupDomain] || groupDomain} environment variables`}>
+              <header>
+                <h2>{DOMAIN_LABELS[groupDomain] || groupDomain}</h2>
+                <StatusBadge tone="muted">{entries.length}</StatusBadge>
+              </header>
+              <div className="environments-page__grid">
+                {entries.map((entry) => (
+                  <OperatorCard key={entry.name} compact className="environments-page__entry">
+                    <div className="environments-page__entry-main">
+                      <span className="environments-page__entry-title">{entry.title}</span>
+                      <code>{entry.name}</code>
+                    </div>
+                    <div className="environments-page__entry-value">
+                      <StatusBadge tone={valueTone(entry)}>{displayValue(entry)}</StatusBadge>
+                      <StatusBadge tone={restartTone(entry.restart_required)}>{entry.restart_required}</StatusBadge>
+                    </div>
+                    <div className="environments-page__entry-actions">
+                      <span aria-label={entry.notes || `${entry.name} value type`}>{entry.value_type}</span>
+                      <ActionIconButton
+                        icon={<FaSlidersH />}
+                        label={`Edit ${entry.name}`}
+                        size="sm"
+                        onClick={() => setEditingEntry(entry)}
+                        disabled={!entry.editable || entry.secret || busy}
+                      />
+                    </div>
+                  </OperatorCard>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
+
+      {!loading && scope === 'nodes' && filteredNodeRows.length === 0 ? (
+        <EmptyState icon={<FaSearch />} title="No node env reports" detail="Fleet-node env posture appears after drone git-status polling returns." />
+      ) : null}
+
+      {!loading && scope === 'nodes' && filteredNodeRows.length ? (
+        <section className="environments-page__node-grid" aria-label="Fleet node environment posture">
+          {filteredNodeRows.map((row) => {
+            const envRuntime = row.env_runtime || {};
+            const hashMismatch = Boolean(envRuntime.registry_hash && registryHash && envRuntime.registry_hash !== registryHash);
+            const drift = hashMismatch || (envRuntime.unknown_keys || []).length || (envRuntime.deprecated_keys || []).length;
+            return (
+              <OperatorCard key={row.key} compact className="environments-page__node-card" tone={drift ? 'warning' : 'neutral'}>
+                <header>
+                  <div>
+                    <span>Drone {row.pos_id || row.key}</span>
+                    <strong>HW {row.hw_id || row.key}</strong>
+                  </div>
+                  <StatusBadge tone={drift ? 'warning' : 'success'}>{drift ? 'Check' : 'Clean'}</StatusBadge>
+                </header>
+                <dl>
+                  <div>
+                    <dt>Mode</dt>
+                    <dd>{envRuntime.runtime_mode || 'unknown'}</dd>
+                  </div>
+                  <div>
+                    <dt>Registry</dt>
+                    <dd>{compactHash(envRuntime.registry_hash)}</dd>
+                  </div>
+                  <div>
+                    <dt>Keys</dt>
+                    <dd>{envRuntime.configured_node_key_count ?? 0}/{envRuntime.registered_node_key_count ?? 0}</dd>
+                  </div>
+                  <div>
+                    <dt>Drift</dt>
+                    <dd>{(envRuntime.unknown_keys || []).length + (envRuntime.deprecated_keys || []).length + (hashMismatch ? 1 : 0)}</dd>
+                  </div>
+                </dl>
+                <p aria-label="Node environment details">
+                  {envRuntime.local_env_present ? envRuntime.local_env_path : 'local.env missing'} · {envRuntime.node_identity_present ? 'identity ok' : 'identity missing'}
+                </p>
+              </OperatorCard>
+            );
+          })}
+        </section>
+      ) : null}
+
+      {editingEntry ? (
+        <EnvEditDialog entry={editingEntry} busy={busy} onSave={saveEntry} onClose={() => setEditingEntry(null)} />
+      ) : null}
+
+      {importPlan ? (
+        <EnvImportDialog
+          plan={importPlan}
+          busy={busy}
+          onConfirm={confirmImportProfile}
+          onClose={() => setImportPlan(null)}
+        />
+      ) : null}
+    </PageShell>
+  );
+}

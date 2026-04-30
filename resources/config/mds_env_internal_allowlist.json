@@ -1,0 +1,560 @@
+{
+  "version": 1,
+  "description": "Process-only MDS_* variables that are intentionally not operator-editable registry entries.",
+  "rules": [
+    {
+      "pattern": "MDS_ASKPASS_*",
+      "domain": "git",
+      "scope": "process",
+      "reason": "Temporary child-process Git askpass transport; never store or edit through operator UI."
+    },
+    {
+      "pattern": "MDS_GIT_SYNC_*",
+      "domain": "git",
+      "scope": "process",
+      "reason": "Transient git-sync runtime state and re-exec guard variables."
+    },
+    {
+      "pattern": "MDS_IMAGE_*",
+      "domain": "sitl",
+      "scope": "build",
+      "reason": "Generated SITL image-build metadata; not a runtime operator setting."
+    },
+    {
+      "pattern": "MDS_SITL_*",
+      "domain": "sitl",
+      "scope": "launcher",
+      "reason": "Expert SITL launcher/image controls. Keep documented in SITL guides, not editable from the GCS env UI."
+    },
+    {
+      "pattern": "MDS_PROD_*",
+      "domain": "frontend",
+      "scope": "launcher",
+      "reason": "Dashboard production server process tuning; launcher-only."
+    },
+    {
+      "pattern": "MDS_ULOG_*",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "ULog staging/downloader internals; not operator env profile data."
+    },
+    {
+      "pattern": "MDS_VERSION_*",
+      "domain": "system",
+      "scope": "process",
+      "reason": "Version override/test variables for deterministic build/version reporting."
+    }
+  ],
+  "keys": [
+    {
+      "name": "MDS_ALLOW_NPM_INSTALL_FALLBACK",
+      "domain": "frontend",
+      "scope": "launcher",
+      "reason": "Dashboard launcher fallback guard; not persisted operator config."
+    },
+    {
+      "name": "MDS_BACKUP_COUNT",
+      "domain": "logging",
+      "scope": "documentation",
+      "reason": "Commented example only; canonical logging key is MDS_LOG_BACKUP_COUNT."
+    },
+    {
+      "name": "MDS_BANNER_PATH",
+      "domain": "frontend",
+      "scope": "launcher",
+      "reason": "Optional launcher banner path."
+    },
+    {
+      "name": "MDS_BANNER_VERSION",
+      "domain": "frontend",
+      "scope": "launcher",
+      "reason": "Optional launcher banner version string."
+    },
+    {
+      "name": "MDS_BASE_DIR",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Container/process runtime root injected by launchers."
+    },
+    {
+      "name": "MDS_COMMIT",
+      "domain": "system",
+      "scope": "process",
+      "reason": "Build/version metadata override."
+    },
+    {
+      "name": "MDS_COMMON_PARAMS_FILE",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "PX4 parameter helper input path; managed by parameter workflow docs."
+    },
+    {
+      "name": "MDS_CONFIG_DIR",
+      "domain": "runtime",
+      "scope": "bootstrap",
+      "reason": "Bootstrap library constant for /etc/mds."
+    },
+    {
+      "name": "MDS_CONFIG_URL",
+      "domain": "runtime",
+      "scope": "advanced",
+      "reason": "Optional external config publisher endpoint; local config remains default."
+    },
+    {
+      "name": "MDS_CONNECTIVITY_STATE_DIR",
+      "domain": "connectivity",
+      "scope": "process",
+      "reason": "Connectivity reconcile state directory."
+    },
+    {
+      "name": "MDS_COORDINATOR_RESTART_FALLBACK_ENABLED",
+      "domain": "system",
+      "scope": "node_service",
+      "reason": "Node service restart fallback control."
+    },
+    {
+      "name": "MDS_COORDINATOR_RESTART_FALLBACK_SIGNAL",
+      "domain": "system",
+      "scope": "node_service",
+      "reason": "Node service restart fallback signal."
+    },
+    {
+      "name": "MDS_COORDINATOR_SERVICE_NAME",
+      "domain": "system",
+      "scope": "node_service",
+      "reason": "Systemd unit name override for controlled service reconciliation."
+    },
+    {
+      "name": "MDS_CORS_ALLOW_ORIGIN_REGEX",
+      "domain": "auth",
+      "scope": "server",
+      "reason": "Advanced CORS server setting; not exposed as operator env profile."
+    },
+    {
+      "name": "MDS_DEFAULT_ENDPOINTS",
+      "domain": "mavlink",
+      "scope": "mavlink-anywhere",
+      "reason": "MAVLink Anywhere managed-runtime endpoint seed."
+    },
+    {
+      "name": "MDS_DEFAULT_REPO_OWNER",
+      "domain": "git",
+      "scope": "deployment",
+      "reason": "Derived helper value; canonical deployment key is MDS_DEFAULT_REPO_SLUG."
+    },
+    {
+      "name": "MDS_DEPLOYMENT_PROFILE_LOADER",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Script-local path to deployment profile loader."
+    },
+    {
+      "name": "MDS_DOCKER_IMAGE",
+      "domain": "sitl",
+      "scope": "launcher",
+      "reason": "Host-local Docker image override for SITL launcher."
+    },
+    {
+      "name": "MDS_ENV_REGISTRY_FILE",
+      "domain": "runtime",
+      "scope": "test",
+      "reason": "Registry file override for tests and advanced diagnostics."
+    },
+    {
+      "name": "MDS_GCS_ACCESS_LOGS",
+      "domain": "logging",
+      "scope": "launcher",
+      "reason": "GCS launcher access-log toggle."
+    },
+    {
+      "name": "MDS_GCS_BACKEND_RELOAD",
+      "domain": "frontend",
+      "scope": "launcher",
+      "reason": "Development backend reload toggle."
+    },
+    {
+      "name": "MDS_GCS_CONSOLE_LOG_LEVEL",
+      "domain": "logging",
+      "scope": "launcher",
+      "reason": "Launcher-level console log override that maps to MDS_LOG_LEVEL."
+    },
+    {
+      "name": "MDS_GCS_ENV_FILE",
+      "domain": "runtime",
+      "scope": "test",
+      "reason": "Alternate GCS env-file path for tests and controlled diagnostics."
+    },
+    {
+      "name": "MDS_GCS_RESTART_LOG",
+      "domain": "logging",
+      "scope": "launcher",
+      "reason": "GCS restart scheduler log path."
+    },
+    {
+      "name": "MDS_GCS_RUNTIME_HOME",
+      "domain": "system",
+      "scope": "launcher",
+      "reason": "GCS service runtime home override."
+    },
+    {
+      "name": "MDS_GCS_RUNTIME_USER",
+      "domain": "system",
+      "scope": "launcher",
+      "reason": "GCS service runtime user override."
+    },
+    {
+      "name": "MDS_GCS_UPDATE_LOG",
+      "domain": "logging",
+      "scope": "launcher",
+      "reason": "GCS self-update log path."
+    },
+    {
+      "name": "MDS_GCS_UPDATE_RESTART_DELAY_SECONDS",
+      "domain": "runtime",
+      "scope": "launcher",
+      "reason": "GCS self-update delayed restart tuning."
+    },
+    {
+      "name": "MDS_GIT_ACCESS_CHECK_MODE",
+      "domain": "git",
+      "scope": "process",
+      "reason": "Git access preflight mode override."
+    },
+    {
+      "name": "MDS_GIT_AUTH_DOCS_PATH",
+      "domain": "git",
+      "scope": "process",
+      "reason": "Git preflight documentation-link override."
+    },
+    {
+      "name": "MDS_GIT_KNOWN_HOSTS_FILE",
+      "domain": "git",
+      "scope": "process",
+      "reason": "SSH known-hosts path used by git preflight."
+    },
+    {
+      "name": "MDS_GZ_PARTITION",
+      "domain": "sitl",
+      "scope": "launcher",
+      "reason": "Gazebo transport partition override."
+    },
+    {
+      "name": "MDS_GZ_PARTITION_PREFIX",
+      "domain": "sitl",
+      "scope": "launcher",
+      "reason": "Gazebo transport partition prefix."
+    },
+    {
+      "name": "MDS_HOME",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap/runtime home path derived from MDS_USER."
+    },
+    {
+      "name": "MDS_INIT_LIB_DIR",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap script library path."
+    },
+    {
+      "name": "MDS_KILL_CMD",
+      "domain": "system",
+      "scope": "test",
+      "reason": "SITL/service test hook for process termination."
+    },
+    {
+      "name": "MDS_LOCAL_CONFIG_MODE",
+      "domain": "runtime",
+      "scope": "advanced",
+      "reason": "Advanced external-config escape hatch; local config is the default."
+    },
+    {
+      "name": "MDS_LOCAL_ENV",
+      "domain": "runtime",
+      "scope": "bootstrap",
+      "reason": "Bootstrap library path alias for /etc/mds/local.env; canonical runtime override is MDS_LOCAL_ENV_FILE."
+    },
+    {
+      "name": "MDS_LOCAL_SWARM_MODE",
+      "domain": "runtime",
+      "scope": "advanced",
+      "reason": "Advanced external-swarm escape hatch; local swarm file is the default."
+    },
+    {
+      "name": "MDS_LOG_BACKGROUND_PULL",
+      "domain": "logging",
+      "scope": "server",
+      "reason": "Optional background log puller toggle."
+    },
+    {
+      "name": "MDS_LOG_CONSOLE_FORMAT",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Logging subsystem console formatter selection."
+    },
+    {
+      "name": "MDS_LOG_DIR",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Logging subsystem session directory."
+    },
+    {
+      "name": "MDS_LOG_FILE",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Script-level log file path."
+    },
+    {
+      "name": "MDS_LOG_FILE_LEVEL",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Logging subsystem file handler level."
+    },
+    {
+      "name": "MDS_LOG_FLUSH",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Logging subsystem flush policy."
+    },
+    {
+      "name": "MDS_LOG_MAX_SESSIONS",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Logging subsystem session retention count."
+    },
+    {
+      "name": "MDS_LOG_PULL_INTERVAL_SEC",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Background log puller polling interval."
+    },
+    {
+      "name": "MDS_LOG_PULL_LEVEL",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Background log puller minimum severity."
+    },
+    {
+      "name": "MDS_LOG_PULL_MAX_DRONES",
+      "domain": "logging",
+      "scope": "process",
+      "reason": "Background log puller fanout limit."
+    },
+    {
+      "name": "MDS_MAVLINK_STATE_DIR",
+      "domain": "mavlink",
+      "scope": "process",
+      "reason": "MAVLink runtime reconcile state directory."
+    },
+    {
+      "name": "MDS_MAVSDK_URL",
+      "domain": "system",
+      "scope": "launcher",
+      "reason": "MAVSDK server binary download override."
+    },
+    {
+      "name": "MDS_MAVSDK_VERSION",
+      "domain": "system",
+      "scope": "launcher",
+      "reason": "MAVSDK server binary version override."
+    },
+    {
+      "name": "MDS_OPTIONAL_PACKAGES",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap package list."
+    },
+    {
+      "name": "MDS_POLKIT_FILE",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap polkit file path override."
+    },
+    {
+      "name": "MDS_PORTS",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "GCS firewall summary helper."
+    },
+    {
+      "name": "MDS_PROFILE",
+      "domain": "system",
+      "scope": "process",
+      "reason": "Runtime profile label used by version/status helpers."
+    },
+    {
+      "name": "MDS_PX4_DIR",
+      "domain": "px4",
+      "scope": "launcher",
+      "reason": "PX4 source tree path for SITL launcher."
+    },
+    {
+      "name": "MDS_PX4_GCS_PORT",
+      "domain": "px4",
+      "scope": "launcher",
+      "reason": "PX4 SITL GCS port override for advanced routing diagnostics."
+    },
+    {
+      "name": "MDS_PX4_GZ_TARGET",
+      "domain": "px4",
+      "scope": "launcher",
+      "reason": "PX4 Gazebo target override for SITL experts."
+    },
+    {
+      "name": "MDS_PX4_PARAMETER_PROFILE_DIR",
+      "domain": "px4",
+      "scope": "process",
+      "reason": "PX4 parameter profile directory."
+    },
+    {
+      "name": "MDS_QT_QPA_PLATFORM",
+      "domain": "sitl",
+      "scope": "launcher",
+      "reason": "Headless Qt platform override for PX4/Gazebo."
+    },
+    {
+      "name": "MDS_QUICKSCOUT_DB_PATH",
+      "domain": "runtime",
+      "scope": "server",
+      "reason": "QuickScout SQLite DB path."
+    },
+    {
+      "name": "MDS_REACT_BUILD_MAX_OLD_SPACE_SIZE",
+      "domain": "frontend",
+      "scope": "launcher",
+      "reason": "Node build memory cap for dashboard production builds."
+    },
+    {
+      "name": "MDS_REPO_ROOT",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Process-local repository root used by launchers and tests."
+    },
+    {
+      "name": "MDS_REQUIRED_PACKAGES",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap package list."
+    },
+    {
+      "name": "MDS_RESTART_COORDINATOR_ON_REPO_UPDATE",
+      "domain": "system",
+      "scope": "node_service",
+      "reason": "Git-sync post-update coordinator restart policy."
+    },
+    {
+      "name": "MDS_ROLE_HINT",
+      "domain": "runtime",
+      "scope": "node",
+      "reason": "Optional node role hint surfaced through identity/enrollment paths."
+    },
+    {
+      "name": "MDS_RUNTIME_HOME",
+      "domain": "system",
+      "scope": "process",
+      "reason": "Recovery/service runtime home override."
+    },
+    {
+      "name": "MDS_RUNTIME_USER",
+      "domain": "system",
+      "scope": "process",
+      "reason": "Recovery/service runtime user override."
+    },
+    {
+      "name": "MDS_SKIP_GCS_SYSTEM_CONFIG",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Headless/test skip for system-level GCS configuration."
+    },
+    {
+      "name": "MDS_SKIP_GIT_ACCESS_PREFLIGHT",
+      "domain": "git",
+      "scope": "bootstrap",
+      "reason": "Explicit bootstrap escape hatch for git-access preflight."
+    },
+    {
+      "name": "MDS_SKIP_SYSTEMD_RECONCILE",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Explicit bootstrap/test skip for systemd reconciliation."
+    },
+    {
+      "name": "MDS_SMART_WIFI_MANAGER_CONFIG_FILE",
+      "domain": "connectivity",
+      "scope": "sidecar",
+      "reason": "Smart Wi-Fi Manager local config path."
+    },
+    {
+      "name": "MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD",
+      "domain": "connectivity",
+      "scope": "sidecar",
+      "reason": "Smart Wi-Fi Manager dashboard installation toggle."
+    },
+    {
+      "name": "MDS_STATE_DIR",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap state directory."
+    },
+    {
+      "name": "MDS_STATE_FILE",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap state file."
+    },
+    {
+      "name": "MDS_SUDOERS_FILE",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Controlled sudoers file path."
+    },
+    {
+      "name": "MDS_SWARM_RUNTIME_ASSIGNMENT_PATH",
+      "domain": "runtime",
+      "scope": "process",
+      "reason": "Swarm runtime assignment state path."
+    },
+    {
+      "name": "MDS_SWARM_URL",
+      "domain": "runtime",
+      "scope": "advanced",
+      "reason": "Optional external swarm publisher endpoint."
+    },
+    {
+      "name": "MDS_SYSTEMCTL_CMD",
+      "domain": "system",
+      "scope": "test",
+      "reason": "Test hook for systemctl path."
+    },
+    {
+      "name": "MDS_SYSTEMD_DIR",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Systemd unit installation directory."
+    },
+    {
+      "name": "MDS_TOTAL_PHASES",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Bootstrap progress-display count."
+    },
+    {
+      "name": "MDS_USER",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Runtime Linux user selected during bootstrap."
+    },
+    {
+      "name": "MDS_USER_ENV_FILE",
+      "domain": "system",
+      "scope": "bootstrap",
+      "reason": "Per-user runtime env-file path used by service setup."
+    },
+    {
+      "name": "MDS_VERSION",
+      "domain": "system",
+      "scope": "process",
+      "reason": "Build/version metadata value."
+    }
+  ]
+}

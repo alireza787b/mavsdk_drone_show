@@ -58,9 +58,9 @@ Result:
   - Preserves the real PX4 git/submodule metadata and writes PX4 provenance into image metadata files
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you want to
     pin the baked mavsdk_server binary for this release
-  - For a private GitHub repo, prefer MDS_GIT_AUTH_TOKEN_FILE so image
+  - For a private GitHub repo, set MDS_GIT_AUTH_TOKEN_FILE so image
     preparation can clone through authenticated HTTPS without exposing the
-    token in process arguments. MDS_GIT_AUTH_TOKEN remains a legacy fallback.
+    token in process arguments.
   - MDS_GIT_SSH_KEY_FILE is also supported as a read-only SSH fallback. The
     release helper stages it only during image prep and removes it before
     flattening the final image.
@@ -136,7 +136,6 @@ docker_sitl_check_image_exists "$BASE_IMAGE"
 
 if [[ "${MDS_SKIP_GIT_ACCESS_PREFLIGHT:-false}" != "true" ]]; then
     MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-        MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
         MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-}" \
         MDS_GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}" \
         MDS_GIT_KNOWN_HOSTS_FILE="${MDS_GIT_KNOWN_HOSTS_FILE:-}" \

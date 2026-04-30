@@ -316,8 +316,7 @@ bash tools/mds_git_access_check.sh \
 This preflight also runs automatically from `multiple_sitl/create_dockers.sh` while `MDS_SITL_GIT_SYNC=true`. If it fails, fix the read credential before creating containers.
 
 Legacy fallback:
-- `MDS_GIT_AUTH_TOKEN` still works if you already have automation built around it
-- `MDS_GIT_AUTH_TOKEN_FILE` is now preferred because the launcher/builder can pass only a mounted secret file path into containers instead of placing the raw token in process arguments
+- `MDS_GIT_AUTH_TOKEN_FILE` is required for HTTPS token auth because the launcher/builder can pass only a mounted secret file path into containers instead of placing the raw token in process arguments
 
 For a pinned validated customer image:
 

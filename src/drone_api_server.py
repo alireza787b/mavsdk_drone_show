@@ -93,6 +93,7 @@ from src.managed_runtime_status import (
     build_mavlink_runtime_summary,
     read_git_sync_runtime_summary,
 )
+from src.settings.env_status import build_node_env_summary_safe
 from src.mission_startup import probe_offboard_armability
 from src.px4_param_models import (
     Px4ParamPatchApplyRequest,
@@ -312,6 +313,26 @@ class DroneGitSyncRuntimeResponse(BaseModel):
     requirements_update_status: str = "unknown"
 
 
+class DroneEnvRuntimeResponse(BaseModel):
+    status_source: str = "unknown"
+    registry_version: int = 0
+    registry_hash: str = ""
+    local_env_path: str = ""
+    local_env_present: bool = False
+    node_identity_path: str = ""
+    node_identity_present: bool = False
+    runtime_mode: str = "unknown"
+    runtime_mode_source: str = "unknown"
+    hw_id: Optional[int] = None
+    hw_id_source: str = "unknown"
+    configured_key_count: int = 0
+    configured_node_key_count: int = 0
+    registered_node_key_count: int = 0
+    unknown_keys: List[str] = Field(default_factory=list)
+    deprecated_keys: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
 class HomePositionResponse(BaseModel):
     latitude: float
     longitude: float
@@ -347,6 +368,7 @@ class DroneGitStatusResponse(BaseModel):
     mavlink_runtime: Optional[DroneManagedMavlinkRuntimeResponse] = None
     connectivity_runtime: Optional[DroneManagedConnectivityRuntimeResponse] = None
     git_sync_runtime: Optional[DroneGitSyncRuntimeResponse] = None
+    env_runtime: Optional[DroneEnvRuntimeResponse] = None
 
 
 class PositionDeviationResponse(BaseModel):
@@ -1078,6 +1100,7 @@ class DroneAPIServer:
                 'mavlink_runtime': build_mavlink_runtime_summary(Path(BASE_DIR)),
                 'connectivity_runtime': build_connectivity_runtime_summary(Path(BASE_DIR)),
                 'git_sync_runtime': read_git_sync_runtime_summary(),
+                'env_runtime': build_node_env_summary_safe(),
             }
 
         @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)

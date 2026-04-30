@@ -16,7 +16,7 @@ User=__MDS_USER__
 Group=__MDS_USER__
 TimeoutStartSec=600
 
-# Source repo configuration (prefer MDS_REPO_URL / MDS_BRANCH; keep legacy fallbacks compatible)
+# Source repo configuration. Canonical keys live in /etc/mds/*.env.
 # These files are optional (-) — service works with defaults if they don't exist
 EnvironmentFile=-/etc/mds/gcs.env
 EnvironmentFile=-/etc/mds/local.env

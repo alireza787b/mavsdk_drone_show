@@ -50,6 +50,11 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/candidates/{candidate_id}",
         "/api/v1/fleet/network-status",
         "/api/v1/fleet/network-details",
+        "/api/v1/fleet/sidecars/connectivity/profile",
+        "/api/v1/auth/status",
+        "/api/v1/auth/me",
+        "/api/v1/auth/users",
+        "/api/v1/auth/tokens",
         "/api/v1/config/fleet",
         "/api/v1/config/fleet/trajectory-start-positions",
         "/api/v1/config/fleet/trajectory-start-positions/{pos_id}",
@@ -84,6 +89,8 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/commands/{command_id}",
         "/api/v1/system/gcs-config",
         "/api/v1/system/runtime-status",
+        "/api/v1/system/env/registry",
+        "/api/v1/system/env/gcs",
         "/api/v1/system/sitl/policy",
         "/api/v1/system/sitl/host",
         "/api/v1/system/sitl/images",
@@ -119,6 +126,11 @@ GCS_EXPECTED_HTTP = {
     "POST": {
         "/api/v1/fleet/heartbeats",
         "/api/v1/fleet/candidates/announce",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/users",
+        "/api/v1/auth/tokens",
+        "/api/v1/auth/tokens/{token_id}/revoke",
         "/api/v1/config/fleet/validation",
         "/api/v1/commands",
         "/api/v1/command-reports/execution-result",
@@ -141,6 +153,8 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/swarm-trajectories/clear-drone/{drone_id}",
         "/api/v1/swarm-trajectories/commit",
         "/api/v1/system/gcs-config/apply",
+        "/api/v1/system/env/gcs/apply",
+        "/api/v1/system/env/fleet/plan",
         "/api/v1/system/runtime-update",
         "/api/v1/system/sitl/reconcile",
         "/api/v1/system/sitl/instances",
@@ -169,6 +183,8 @@ GCS_EXPECTED_HTTP = {
     },
     "PATCH": {
         "/api/v1/config/swarm/assignments/{hw_id}",
+        "/api/v1/auth/me/password",
+        "/api/v1/auth/users/{username}",
         "/api/sar/findings/{finding_id}",
     },
     "DELETE": {
@@ -180,8 +196,10 @@ GCS_EXPECTED_HTTP = {
     "PUT": {
         "/api/v1/config/fleet",
         "/api/v1/config/swarm",
+        "/api/v1/fleet/sidecars/connectivity/profile",
         "/api/v1/origin",
         "/api/v1/system/gcs-config",
+        "/api/v1/system/env/gcs",
     },
 }
 

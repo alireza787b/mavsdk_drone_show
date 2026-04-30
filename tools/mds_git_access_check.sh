@@ -32,8 +32,7 @@ Modes:
   gcs-write   Validate GCS repo reachability before write-capable setup
 
 Auth inputs:
-  MDS_GIT_AUTH_TOKEN_FILE  Preferred read-only HTTPS token file
-  MDS_GIT_AUTH_TOKEN       Legacy token fallback
+  MDS_GIT_AUTH_TOKEN_FILE  HTTPS token file
   MDS_GIT_AUTH_USERNAME    HTTPS username for token auth, default x-access-token
   MDS_GIT_SSH_KEY_FILE     Optional SSH private key for git@github.com URLs
 
@@ -154,13 +153,9 @@ if should_use_ssh; then
     export GIT_SSH_COMMAND="ssh -i $MDS_GIT_SSH_KEY_FILE -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${MDS_GIT_KNOWN_HOSTS_FILE:-$HOME/.ssh/known_hosts}"
     export GIT_TERMINAL_PROMPT=0
     AUTH_MODE="ssh-key-file"
-elif [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" || -n "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
-    if [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then
-        [[ -r "$MDS_GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is not readable: $MDS_GIT_AUTH_TOKEN_FILE"
-        AUTH_MODE="https-token-file"
-    else
-        AUTH_MODE="https-token-env-legacy"
-    fi
+elif [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then
+    [[ -r "$MDS_GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is not readable: $MDS_GIT_AUTH_TOKEN_FILE"
+    AUTH_MODE="https-token-file"
 
     if ! EFFECTIVE_REPO_URL="$(github_https_repo_url "$REPO_URL")"; then
         fail "Token auth supports GitHub HTTPS or git@github.com URLs only: $(printf '%s' "$REPO_URL" | redact_url)"
@@ -173,11 +168,7 @@ elif [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" || -n "${MDS_GIT_AUTH_TOKEN:-}" ]]; th
 case "$1" in
     *Username*) printf '%s\n' "${MDS_ASKPASS_USERNAME:-x-access-token}" ;;
     *Password*)
-        if [ -n "${MDS_ASKPASS_TOKEN_FILE:-}" ]; then
-            tr -d '\r\n' < "$MDS_ASKPASS_TOKEN_FILE"
-        else
-            printf '%s\n' "${MDS_ASKPASS_TOKEN_VALUE:-}"
-        fi
+        tr -d '\r\n' < "$MDS_ASKPASS_TOKEN_FILE"
         ;;
     *) printf '\n' ;;
 esac
@@ -186,11 +177,7 @@ EOS
     export GIT_ASKPASS="$ASKPASS"
     export GIT_TERMINAL_PROMPT=0
     export MDS_ASKPASS_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
-    if [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ]]; then
-        export MDS_ASKPASS_TOKEN_FILE="$MDS_GIT_AUTH_TOKEN_FILE"
-    else
-        export MDS_ASKPASS_TOKEN_VALUE="$MDS_GIT_AUTH_TOKEN"
-    fi
+    export MDS_ASKPASS_TOKEN_FILE="$MDS_GIT_AUTH_TOKEN_FILE"
 elif fallback_url="$(github_https_fallback_url "$REPO_URL")"; then
     EFFECTIVE_REPO_URL="$fallback_url"
 fi

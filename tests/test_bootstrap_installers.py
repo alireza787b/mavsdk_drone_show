@@ -2529,8 +2529,6 @@ def test_configure_gcs_env_rewrites_stale_ports():
         tmpdir="$(mktemp -d)"
         GCS_CONFIG_FILE="$tmpdir/gcs.env"
         cat > "$GCS_CONFIG_FILE" <<'EOF'
-GCS_PORT=5000
-GCS_BACKEND=fastapi
 MDS_MODE=real
 MDS_REPO_URL=git@github.com:example-org/private-mds.git
 MDS_BRANCH=customer-demo
@@ -2538,7 +2536,6 @@ MDS_GIT_AUTO_PUSH=true
 MDS_GIT_AUTH_TOKEN_FILE=
 MDS_GIT_SSH_KEY_FILE=/root/.ssh/customer_gcs_write_key
 MDS_INSTALL_DIR=/opt/mds
-DASHBOARD_PORT=3030
 VENV_PATH=/opt/mds/venv
 EOF
         GCS_INSTALL_DIR="/opt/mds"
@@ -2565,10 +2562,11 @@ EOF
         source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
         source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
         configure_gcs_env
-        grep -q '^GCS_PORT=5030$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_GCS_API_PORT=5030$' "$GCS_CONFIG_FILE"
-        grep -q '^DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        ! grep -q '^GCS_PORT=' "$GCS_CONFIG_FILE"
+        ! grep -q '^DASHBOARD_PORT=' "$GCS_CONFIG_FILE"
+        ! grep -q '^GCS_BACKEND=' "$GCS_CONFIG_FILE"
         """
     )
 
@@ -2657,8 +2655,36 @@ EOF
         grep -q '^PORT=3030$' "$ENV_FILE_PATH"
         grep -q '^GENERATE_SOURCEMAP=false$' "$ENV_FILE_PATH"
         grep -q '^SKIP_PREFLIGHT_CHECK=true$' "$ENV_FILE_PATH"
-        grep -q '^REACT_APP_SERVER_URL=http://example.invalid$' "$ENV_FILE_PATH"
+        grep -q '^REACT_APP_MDS_SERVER_URL=http://example.invalid$' "$ENV_FILE_PATH"
+        ! grep -q '^REACT_APP_SERVER_URL=' "$ENV_FILE_PATH"
         grep -q '^# REACT_APP_GCS_PORT=5030$' "$ENV_FILE_PATH"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gcs_env_config_migrates_obsolete_dashboard_server_url():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        mkdir -p "$tmpdir/app/dashboard/drone-dashboard"
+        cat > "$tmpdir/app/dashboard/drone-dashboard/.env" <<'EOF'
+REACT_APP_SERVER_URL=http://example.invalid
+# REACT_APP_SERVER_URL=http://old-comment.invalid
+EOF
+        GCS_INSTALL_DIR="$tmpdir"
+        log_step() {{ :; }}
+        log_info() {{ :; }}
+        log_warn() {{ :; }}
+        is_dry_run() {{ return 1; }}
+        get_dashboard_path() {{ echo "$GCS_INSTALL_DIR/app/dashboard/drone-dashboard"; }}
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_common.sh'}"
+        source "{REPO_ROOT / 'tools' / 'mds_gcs_init_lib' / 'gcs_env_config.sh'}"
+        cleanup_dashboard_env
+        grep -q '^REACT_APP_MDS_SERVER_URL=http://example.invalid$' "$tmpdir/app/dashboard/drone-dashboard/.env"
+        ! grep -q '^REACT_APP_SERVER_URL=' "$tmpdir/app/dashboard/drone-dashboard/.env"
+        ! grep -q '^# REACT_APP_SERVER_URL=' "$tmpdir/app/dashboard/drone-dashboard/.env"
         """
     )
 
@@ -2863,8 +2889,9 @@ def test_sitl_launchers_use_canonical_mds_hw_id_without_runtime_hwid_files():
     assert "resolve_host_startup_script_mode()" in create_text
     assert 'DOCKER_ENV_ARGS+=(-e "MDS_SITL_USE_HOST_STARTUP_SCRIPT=${USE_HOST_STARTUP_SCRIPT}")' in create_text
     assert 'USE_HOST_STARTUP_SCRIPT_SOURCE="auto:mutable_git_sync"' in create_text
-    assert "resolve_runtime_hwid()" in startup_text
+    assert "resolve_runtime_hw_id()" in startup_text
     assert "MDS_HW_ID is required for SITL container startup." in startup_text
+    assert "MDS_HWID" not in startup_text
     assert "HWID_DIR" not in startup_text
     assert "wait_for_hwid()" not in startup_text
     assert "cp '$RUNTIME_FILES_CONTAINER'/*.hwID" not in create_text

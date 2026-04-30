@@ -22,16 +22,53 @@ handled separately from normal desired state, see
 | Repo-owned deployment defaults | `deployment/defaults.env` | Git-tracked repo/branch/GCS-address fallback layer |
 | Runtime mode | `MDS_MODE=real|sitl` | Canonical mode selector for both GCS and nodes |
 | GCS API port | `MDS_GCS_API_PORT` | Defaults to `5030` from `deployment/defaults.env` |
-| Dashboard port | `MDS_DASHBOARD_PORT` / `DASHBOARD_PORT` | Defaults to `3030` |
+| Dashboard port | `MDS_DASHBOARD_PORT` | Defaults to `3030` |
 | Drone API port | `MDS_DRONE_API_PORT` | Defaults to `7070` |
 | SITL Docker image | `MDS_DOCKER_IMAGE` or `MDS_DEFAULT_DOCKER_IMAGE` | Host override first; otherwise git-tracked deployment default |
 | SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
 | SITL swarm topology | `swarm_sitl.json` | Selected when `MDS_MODE=sitl` |
 | GCS host runtime overrides | `/etc/mds/gcs.env` | Repo/branch/auth/launcher behavior for the GCS host |
 | GCS dashboard/API auth | `/etc/mds/gcs.env` + `/etc/mds/auth/*` | Config flags in env; user/token/session secrets in root-owned local files |
+| Dashboard build/runtime hints | `app/dashboard/drone-dashboard/.env` | Mapbox token, React dev port, and optional `REACT_APP_MDS_SERVER_URL` for split-host deployments |
 | Node runtime overrides | `/etc/mds/local.env` | `MDS_HW_ID`, `MDS_MODE`, GCS routing, repo/branch/auth/connectivity overrides for that node |
 | Node identity metadata | `/etc/mds/node_identity.json` | Canonical structured node identity/reporting metadata |
 | Fallback runtime policy | `src/params.py` | Runtime policy and final code defaults only |
+
+## Canonical Environment Registry
+
+The machine-readable registry is now the authoritative vocabulary for active
+MDS env keys:
+
+- registry file: `resources/config/mds_env_registry.json`
+- schema file: `resources/config/mds_env_registry.schema.json`
+- Python loader: `src/settings/env_registry.py`
+- shared env-file parser/writer: `src/settings/env_files.py`
+
+Every active `MDS_*` key that appears in `deployment/defaults.env` or
+`tools/local.env.template` must be registered. The registry records scope,
+domain, default, editability, restart requirement, docs path, and secret
+handling policy.
+
+Deprecated aliases such as `GCS_PORT` and `DASHBOARD_PORT` are not active
+operator settings. Use `MDS_GCS_API_PORT` and `MDS_DASHBOARD_PORT`.
+Raw token environment variables are also not active operator settings. Use
+file-based secret references such as `MDS_GIT_AUTH_TOKEN_FILE` and
+`MDS_GCS_API_TOKEN_FILE`.
+The dashboard no longer consumes `REACT_APP_SERVER_URL`; use browser
+auto-detection or the explicit advanced override `REACT_APP_MDS_SERVER_URL`.
+
+Dashboard control:
+
+- `GCS Runtime` is for host runtime mode, controlled GCS update, and restart
+  actions.
+- `Environments` is for registry-backed env inspection and approved GCS-local
+  edits.
+- `Environments > Fleet Nodes` shows each node's registry hash, local env
+  presence, identity presence, runtime mode, and drift counts without exposing
+  env values.
+- `POST /api/v1/system/env/fleet/plan` provides a dry-run plan for node-scoped
+  updates. Direct fleet-node env mutation remains blocked until identity-safe
+  node apply APIs exist.
 
 ## Effective Precedence
 
@@ -68,12 +105,9 @@ intentional:
 - cheap enough to send on every heartbeat
 - operator-visible in heartbeat status and GCS Runtime diagnostics
 
-Compatibility note:
-
-- legacy nodes that do not yet send `runtime_mode` are still accepted during
-  rollout
-- full mixed-mode protection is strongest once every node runtime has been
-  updated to declare its mode explicitly
+Heartbeats that omit `runtime_mode` or use non-canonical aliases are rejected.
+This is intentional: it prevents SITL/REAL command and telemetry mixing from
+being silently accepted.
 
 ### Connectivity backend resolution
 

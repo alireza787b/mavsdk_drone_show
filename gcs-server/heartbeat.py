@@ -14,7 +14,7 @@ last_heartbeats_lock = Lock()
 network_info_from_heartbeats = {}  # { hw_id: network_info_dict }
 network_info_lock = Lock()
 _runtime_mode_notice_lock = Lock()
-_legacy_runtime_mode_notice_keys = set()
+_missing_runtime_mode_notice_keys = set()
 _runtime_mode_mismatch_notice_keys = set()
 
 
@@ -23,9 +23,9 @@ def _normalize_runtime_mode(value):
         return None
 
     normalized = str(value).strip().lower()
-    if normalized in {"real", "hardware", "production"}:
+    if normalized == "real":
         return "real"
-    if normalized in {"sitl", "sim", "simulation", "simulated"}:
+    if normalized == "sitl":
         return "sitl"
     return None
 
@@ -37,14 +37,14 @@ def _resolve_current_runtime_mode():
         return "sitl"
 
 
-def _log_legacy_runtime_mode_once(hw_id):
+def _log_missing_runtime_mode_once(hw_id):
     with _runtime_mode_notice_lock:
-        if hw_id in _legacy_runtime_mode_notice_keys:
+        if hw_id in _missing_runtime_mode_notice_keys:
             return
-        _legacy_runtime_mode_notice_keys.add(hw_id)
+        _missing_runtime_mode_notice_keys.add(hw_id)
 
     logger.warning(
-        "Heartbeat from drone %s did not declare runtime_mode; mixed-mode protection requires synced nodes.",
+        "Ignoring heartbeat from drone %s because runtime_mode is missing or invalid.",
         hw_id,
     )
 
@@ -81,7 +81,7 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
                 "ethernet": {"interface": "eth0", "connection_name": "..."},
                 "timestamp": 1234567890
             }
-        runtime_mode: Canonical runtime mode declared by the node (optional)
+        runtime_mode: Canonical runtime mode declared by the node: real or sitl
 
     Returns:
         dict: Response data
@@ -97,8 +97,15 @@ def handle_heartbeat_post(pos_id, hw_id, detected_pos_id=None, ip=None, timestam
     declared_runtime_mode = _normalize_runtime_mode(runtime_mode)
 
     if declared_runtime_mode is None:
-        _log_legacy_runtime_mode_once(hw_id)
-    elif declared_runtime_mode != current_runtime_mode:
+        _log_missing_runtime_mode_once(hw_id)
+        return {
+            "message": "Heartbeat ignored because runtime_mode is missing or invalid",
+            "accepted": False,
+            "runtime_mode": None,
+            "current_mode": current_runtime_mode,
+        }
+
+    if declared_runtime_mode != current_runtime_mode:
         _log_runtime_mode_mismatch_once(hw_id, declared_runtime_mode, current_runtime_mode)
         return {
             "message": f"Heartbeat ignored for runtime mode {declared_runtime_mode}",

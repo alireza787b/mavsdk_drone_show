@@ -42,9 +42,9 @@ Notes:
     a clean image.
   - Export MDS_MAVSDK_VERSION or MDS_MAVSDK_URL before running if you need
     the image to bake in a specific MAVSDK server binary.
-  - For a private GitHub repo, prefer MDS_GIT_AUTH_TOKEN_FILE so the builder
+  - For a private GitHub repo, set MDS_GIT_AUTH_TOKEN_FILE so the builder
     can clone through authenticated HTTPS without exposing the token in
-    process arguments. MDS_GIT_AUTH_TOKEN remains a legacy fallback.
+    process arguments.
   - MDS_GIT_SSH_KEY_FILE is also supported as a read-only SSH fallback for
     private GitHub repos. The key is staged only during image preparation and
     removed before flattening.
@@ -88,7 +88,6 @@ main() {
 
     if [[ "${MDS_SKIP_GIT_ACCESS_PREFLIGHT:-false}" != "true" ]]; then
         MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
             MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-}" \
             MDS_GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}" \
             MDS_GIT_KNOWN_HOSTS_FILE="${MDS_GIT_KNOWN_HOSTS_FILE:-}" \

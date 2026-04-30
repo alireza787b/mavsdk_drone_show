@@ -1,5 +1,10 @@
 # Hardware ID & Position ID: Deep Research Report
 
+> Archived historical research. The active runtime identity source is now
+> `MDS_HW_ID` in `/etc/mds/local.env` plus `/etc/mds/node_identity.json`; the
+> old file-marker model described below is intentionally not part of the active
+> product docs.
+
 **Date:** 2026-03-05
 **Status:** Implementation Complete (2026-03-05) — see resolved markers below
 **Scope:** All MDS modules — drone show, smart swarm, search & rescue, leader-follower

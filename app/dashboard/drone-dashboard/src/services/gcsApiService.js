@@ -49,6 +49,10 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   desiredLaunchPositions: 'desiredLaunchPositions',
   gcsConfig: 'gcsConfig',
   gcsConfigApply: 'gcsConfigApply',
+  envRegistry: 'envRegistry',
+  gcsEnv: 'gcsEnv',
+  gcsEnvApply: 'gcsEnvApply',
+  fleetEnvPlan: 'fleetEnvPlan',
   systemRuntimeUpdate: 'systemRuntimeUpdate',
   systemRuntimeStatus: 'systemRuntimeStatus',
   sitlControlPolicy: 'sitlControlPolicy',
@@ -124,6 +128,10 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.desiredLaunchPositions]: '/api/v1/origin/launch-positions',
   [GCS_ROUTE_KEYS.gcsConfig]: '/api/v1/system/gcs-config',
   [GCS_ROUTE_KEYS.gcsConfigApply]: '/api/v1/system/gcs-config/apply',
+  [GCS_ROUTE_KEYS.envRegistry]: '/api/v1/system/env/registry',
+  [GCS_ROUTE_KEYS.gcsEnv]: '/api/v1/system/env/gcs',
+  [GCS_ROUTE_KEYS.gcsEnvApply]: '/api/v1/system/env/gcs/apply',
+  [GCS_ROUTE_KEYS.fleetEnvPlan]: '/api/v1/system/env/fleet/plan',
   [GCS_ROUTE_KEYS.systemRuntimeUpdate]: '/api/v1/system/runtime-update',
   [GCS_ROUTE_KEYS.systemRuntimeStatus]: '/api/v1/system/runtime-status',
   [GCS_ROUTE_KEYS.sitlControlPolicy]: '/api/v1/system/sitl/policy',
@@ -202,6 +210,10 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/origin/launch-positions': GCS_ROUTE_KEYS.desiredLaunchPositions,
   '/api/v1/system/gcs-config': GCS_ROUTE_KEYS.gcsConfig,
   '/api/v1/system/gcs-config/apply': GCS_ROUTE_KEYS.gcsConfigApply,
+  '/api/v1/system/env/registry': GCS_ROUTE_KEYS.envRegistry,
+  '/api/v1/system/env/gcs': GCS_ROUTE_KEYS.gcsEnv,
+  '/api/v1/system/env/gcs/apply': GCS_ROUTE_KEYS.gcsEnvApply,
+  '/api/v1/system/env/fleet/plan': GCS_ROUTE_KEYS.fleetEnvPlan,
   '/api/v1/system/runtime-update': GCS_ROUTE_KEYS.systemRuntimeUpdate,
   '/api/v1/system/runtime-status': GCS_ROUTE_KEYS.systemRuntimeStatus,
   '/api/v1/system/sitl/policy': GCS_ROUTE_KEYS.sitlControlPolicy,
@@ -593,6 +605,26 @@ export async function saveGcsConfigResponse(payload, config = {}) {
 
 export async function applyGcsConfigResponse(config = {}) {
   return postGcsResource(GCS_ROUTE_KEYS.gcsConfigApply, {}, config);
+}
+
+export async function getEnvRegistryResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.envRegistry, config);
+}
+
+export async function getGcsEnvResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.gcsEnv, config);
+}
+
+export async function updateGcsEnvResponse(payload = {}, config = {}) {
+  return putGcsResource(GCS_ROUTE_KEYS.gcsEnv, payload, config);
+}
+
+export async function applyGcsEnvResponse(config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.gcsEnvApply, {}, config);
+}
+
+export async function planFleetEnvResponse(payload = {}, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.fleetEnvPlan, payload, config);
 }
 
 export async function applyRuntimeUpdateResponse(config = {}) {

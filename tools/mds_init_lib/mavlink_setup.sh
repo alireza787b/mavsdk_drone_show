@@ -1087,8 +1087,3 @@ run_mavlink_setup_phase() {
             ;;
     esac
 }
-
-# Alias for backward compatibility
-run_mavlink_guidance_phase() {
-    run_mavlink_setup_phase
-}

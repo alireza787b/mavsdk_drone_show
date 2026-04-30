@@ -14,9 +14,12 @@ import {
   GCS_ROUTE_KEYS,
   GCS_WS_ROUTES,
   applyGcsConfigResponse,
+  applyGcsEnvResponse,
   applyRuntimeUpdateResponse,
   changeOwnPasswordResponse,
+  getEnvRegistryResponse,
   getGcsConfigResponse,
+  getGcsEnvResponse,
   getConnectivityProfileResponse,
   getNetworkInfoResponse,
   getCommandStatusResponse,
@@ -27,11 +30,13 @@ import {
   getRuntimeStatusResponse,
   importCustomShowResponse,
   importShowResponse,
+  planFleetEnvResponse,
   saveGcsConfigResponse,
   saveFleetConfigResponse,
   submitCommandResponse,
   setOriginResponse,
   syncReposResponse,
+  updateGcsEnvResponse,
   updateConnectivityProfileResponse,
   resolveGcsRoute,
   resolveGcsRouteKey,
@@ -107,6 +112,10 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/commands')).toBe(GCS_ROUTE_KEYS.commandSubmit);
     expect(resolveGcsRouteKey('/api/v1/commands/policy/precision-move')).toBe(GCS_ROUTE_KEYS.precisionMovePolicy);
     expect(resolveGcsRouteKey('/api/v1/commands/recent')).toBe(GCS_ROUTE_KEYS.recentCommands);
+    expect(resolveGcsRouteKey('/api/v1/system/env/registry')).toBe(GCS_ROUTE_KEYS.envRegistry);
+    expect(resolveGcsRouteKey('/api/v1/system/env/gcs')).toBe(GCS_ROUTE_KEYS.gcsEnv);
+    expect(resolveGcsRouteKey('/api/v1/system/env/gcs/apply')).toBe(GCS_ROUTE_KEYS.gcsEnvApply);
+    expect(resolveGcsRouteKey('/api/v1/system/env/fleet/plan')).toBe(GCS_ROUTE_KEYS.fleetEnvPlan);
     expect(resolveGcsRouteKey('/api/v1/system/runtime-status')).toBe(GCS_ROUTE_KEYS.systemRuntimeStatus);
     expect(resolveGcsRouteKey('/api/v1/system/runtime-update')).toBe(GCS_ROUTE_KEYS.systemRuntimeUpdate);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
@@ -485,6 +494,45 @@ describe('gcsApiService', () => {
       'http://gcs.test:5030/api/v1/system/gcs-config/apply',
       {},
       authConfig({ timeout: 900 })
+    );
+  });
+
+  it('uses registry-backed env routes for GCS changes and fleet dry-run planning', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+    axios.put.mockResolvedValue({ data: { changed_keys: ['MDS_MODE'] } });
+    axios.post.mockResolvedValue({ data: { status: 'scheduled' } });
+
+    await getEnvRegistryResponse({ timeout: 700 });
+    await getGcsEnvResponse({ timeout: 800 });
+    await updateGcsEnvResponse({ dry_run: true, updates: { MDS_MODE: 'real' } }, { timeout: 900 });
+    await applyGcsEnvResponse({ timeout: 1000 });
+    await planFleetEnvResponse(
+      { updates: { MDS_GCS_API_TOKEN_FILE: '/etc/mds/secrets/gcs-api.token' }, target_hw_ids: [1] },
+      { timeout: 1100 }
+    );
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/registry',
+      authConfig({ timeout: 700 })
+    );
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/gcs',
+      authConfig({ timeout: 800 })
+    );
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/gcs',
+      { dry_run: true, updates: { MDS_MODE: 'real' } },
+      authConfig({ timeout: 900 })
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/gcs/apply',
+      {},
+      authConfig({ timeout: 1000 })
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/fleet/plan',
+      { updates: { MDS_GCS_API_TOKEN_FILE: '/etc/mds/secrets/gcs-api.token' }, target_hw_ids: [1] },
+      authConfig({ timeout: 1100 })
     );
   });
 

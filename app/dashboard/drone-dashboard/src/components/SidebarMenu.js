@@ -186,6 +186,7 @@ const SidebarMenu = ({
           attention: runtimeStatus.restartRequired ? 'Apply' : '',
           attentionTone: runtimeStatus.restartRequired ? 'warning' : 'neutral',
         },
+        { to: '/environments', icon: FaSlidersH, label: 'Environments' },
         { to: '/sitl-control', icon: FaDocker, label: 'SITL Control' },
         { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
       ],

@@ -873,7 +873,29 @@ class TestGitStatus:
                 'requirements_update_status': 'unchanged',
             },
         )
-
+        monkeypatch.setattr(
+            drone_api_server,
+            'build_node_env_summary_safe',
+            lambda: {
+                'status_source': 'registry',
+                'registry_version': 1,
+                'registry_hash': 'abc123',
+                'local_env_path': '/etc/mds/local.env',
+                'local_env_present': True,
+                'node_identity_path': '/etc/mds/node_identity.json',
+                'node_identity_present': True,
+                'runtime_mode': 'real',
+                'runtime_mode_source': 'env:MDS_MODE',
+                'hw_id': 1,
+                'hw_id_source': 'env:MDS_HW_ID',
+                'configured_key_count': 7,
+                'configured_node_key_count': 5,
+                'registered_node_key_count': 20,
+                'unknown_keys': [],
+                'deprecated_keys': [],
+                'warnings': [],
+            },
+        )
         response = test_client.get("/api/v1/git/status")
 
         assert response.status_code == 200
@@ -890,6 +912,8 @@ class TestGitStatus:
         assert data['git_sync_runtime']['service_reload_status'] == 'updated'
         assert data['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_sync_runtime']['coordinator_restart_scheduled'] is True
+        assert data['env_runtime']['registry_hash'] == 'abc123'
+        assert data['env_runtime']['configured_node_key_count'] == 5
 
     def test_get_git_status_resolves_detached_head(self, test_client, monkeypatch):
         """Drone git status should expose a usable branch name from detached worktrees."""
@@ -915,6 +939,7 @@ class TestGitStatus:
         monkeypatch.setattr(drone_api_server, 'build_mavlink_runtime_summary', lambda repo_root: None)
         monkeypatch.setattr(drone_api_server, 'build_connectivity_runtime_summary', lambda repo_root: None)
         monkeypatch.setattr(drone_api_server, 'read_git_sync_runtime_summary', lambda: None)
+        monkeypatch.setattr(drone_api_server, 'build_node_env_summary_safe', lambda: None)
 
         response = test_client.get("/api/v1/git/status")
 
@@ -943,6 +968,10 @@ class TestGitStatus:
                 'commits_behind': 0,
             },
         )
+        monkeypatch.setattr(drone_api_server, 'build_mavlink_runtime_summary', lambda repo_root: None)
+        monkeypatch.setattr(drone_api_server, 'build_connectivity_runtime_summary', lambda repo_root: None)
+        monkeypatch.setattr(drone_api_server, 'read_git_sync_runtime_summary', lambda: None)
+        monkeypatch.setattr(drone_api_server, 'build_node_env_summary_safe', lambda: None)
 
         response = test_client.get("/api/v1/git/status")
 

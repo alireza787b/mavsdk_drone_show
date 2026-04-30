@@ -22,7 +22,9 @@ Use the bootstrap scripts this way:
 - `mds_node_announce.sh` when bootstrap already succeeded but GCS discovery must
   be retried
 
-`install_mds_node.sh` remains supported as a compatibility alias for existing automation.
+`install_companion.sh` is the public hardware-bootstrap entrypoint.
+`install_mds_node.sh` remains an equivalent packaged entrypoint for automation
+that intentionally references the node-specific filename.
 
 For GCS-side automation, `mds_gcs_init.sh` can also enable optional dashboard
 login without an interactive prompt:
@@ -55,9 +57,8 @@ sudo ./tools/mds_node_init.sh \
   -y
 ```
 
-For one-shot provisioning systems that inject secrets securely, `--gcs-api-token`
-writes the token into the standard root-only file and records only
-`MDS_GCS_API_TOKEN_FILE` in `/etc/mds/local.env`.
+For one-shot provisioning systems that inject secrets securely, write the token
+to a root-only file first and pass that path with `--gcs-api-token-file`.
 
 ## Non-Interactive Mode
 

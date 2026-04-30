@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mds.local/schemas/mds_env_registry.schema.json",
+  "title": "MDS Environment Registry",
+  "type": "object",
+  "required": ["version", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "scope",
+          "domain",
+          "source_of_truth",
+          "value_type",
+          "default",
+          "secret",
+          "editable",
+          "ui_visibility",
+          "restart_required",
+          "docs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "title": { "type": "string", "minLength": 1 },
+          "scope": {
+            "type": "string",
+            "enum": ["deployment", "gcs", "node", "frontend", "bootstrap", "agent"]
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "auth",
+              "connectivity",
+              "frontend",
+              "git",
+              "logging",
+              "mavlink",
+              "px4",
+              "runtime",
+              "sitl",
+              "system"
+            ]
+          },
+          "source_of_truth": { "type": "string", "minLength": 1 },
+          "value_type": {
+            "type": "string",
+            "enum": ["boolean", "csv", "duration_hours", "float", "integer", "path", "string", "url"]
+          },
+          "default": {},
+          "secret": { "type": "boolean" },
+          "editable": { "type": "boolean" },
+          "ui_visibility": {
+            "type": "string",
+            "enum": ["operator", "advanced", "diagnostic", "hidden"]
+          },
+          "restart_required": {
+            "type": "string",
+            "enum": ["none", "gcs", "node_service", "sidecar_reconcile", "frontend_rebuild", "manual"]
+          },
+          "apply_action": {
+            "type": "string",
+            "enum": ["none", "restart_gcs", "restart_node_service", "reconcile_sidecar", "rebuild_frontend", "manual"]
+          },
+          "allowed_values": {
+            "type": "array"
+          },
+          "aliases": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "deprecated": { "type": "boolean" },
+          "replacement": { "type": ["string", "null"] },
+          "docs": { "type": "string", "minLength": 1 },
+          "consumers": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "notes": { "type": "string" },
+          "owner": { "type": "string" }
+        }
+      }
+    }
+  }
+}

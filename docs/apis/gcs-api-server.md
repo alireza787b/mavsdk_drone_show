@@ -62,10 +62,10 @@ If you only want the backend service without the React dashboard:
 cd gcs-server
 
 # Development backend only
-./start_gcs_server.sh development fastapi 5030
+./start_gcs_server.sh development 5030
 
 # Production backend only
-./start_gcs_server.sh production fastapi 5030
+./start_gcs_server.sh production 5030
 ```
 
 Notes:

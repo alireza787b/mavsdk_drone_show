@@ -93,10 +93,10 @@ level (not INFO) suggests `NAV_DLL_ACT > 0` at runtime, which **blocks arming**.
 
 The sections below explain why the old rcS-mutation theory looked plausible at the time. They are retained for context only. The active fix path is **not** build-`rcS` mutation anymore; it is launch-time `PX4_PARAM_*` overrides plus ensuring `mavsdk_server` is present in the image/runtime.
 
-### Approach 1: rcS Override Block (via `configure_px4_sitl_rcs.py`)
+### Approach 1: rcS Override Block
 
-Our script `multiple_sitl/configure_px4_sitl_rcs.py` injects a managed block into the
-BUILD rcS at `build/px4_sitl_default/etc/init.d-posix/rcS`:
+The retired helper previously injected a managed block into the BUILD rcS at
+`build/px4_sitl_default/etc/init.d-posix/rcS`:
 
 ```bash
 # BEGIN MDS SITL OVERRIDES
@@ -227,7 +227,6 @@ At the time, the working theories were:
 | File | Purpose |
 |------|---------|
 | `multiple_sitl/startup_sitl.sh` | Main SITL startup script (lines 725-765, 870-898) |
-| `multiple_sitl/configure_px4_sitl_rcs.py` | Legacy rcS mutation helper retained for compatibility |
 | `multiple_sitl/create_dockers.sh` | Creates Docker containers from template |
 | `PX4: src/modules/commander/HealthAndArmingChecks/checks/rcAndDataLinkCheck.cpp` | The preflight check |
 | `PX4: src/modules/commander/Commander.cpp` | Sets `gcs_connection_lost` flag |

@@ -127,8 +127,7 @@ This avoids one remote git fetch per container and gives every container the sam
 | `MDS_REPO_URL` | GCS, drones, SITL, image prep | Repo URL to clone/fetch |
 | `MDS_BRANCH` | GCS, drones, SITL, image prep | Branch to follow |
 | `MDS_GIT_AUTO_PUSH` | GCS | Whether dashboard git save/import can push |
-| `MDS_GIT_AUTH_TOKEN_FILE` | SITL/image prep/GCS HTTPS read setups | Preferred read-only token file |
-| `MDS_GIT_AUTH_TOKEN` | legacy | Raw token fallback; avoid for new setups |
+| `MDS_GIT_AUTH_TOKEN_FILE` | SITL/image prep/GCS HTTPS read setups | Required read-only token file for HTTPS token auth |
 | `MDS_GIT_AUTH_USERNAME` | HTTPS token auth | Usually `x-access-token` |
 | `MDS_GIT_SSH_KEY_FILE` | SITL/image prep SSH read setups | Read-only SSH key file |
 | `MDS_SITL_GIT_SYNC` | SITL containers | Runtime fetch/reset on container boot |
@@ -173,7 +172,6 @@ For public repos, use HTTPS and no credential:
 export MDS_REPO_URL="https://github.com/alireza787b/mavsdk_drone_show.git"
 export MDS_BRANCH="main"
 unset MDS_GIT_AUTH_TOKEN_FILE
-unset MDS_GIT_AUTH_TOKEN
 unset MDS_GIT_SSH_KEY_FILE
 ```
 
@@ -204,7 +202,7 @@ Before changing a custom/private setup:
 - Confirm whether GCS should be write-capable or read-only.
 - Never put credentials in `MDS_REPO_URL`.
 - Never copy a GCS write key into SITL containers.
-- Prefer `MDS_GIT_AUTH_TOKEN_FILE` over `MDS_GIT_AUTH_TOKEN`.
+- Use `MDS_GIT_AUTH_TOKEN_FILE`; raw token environment variables are intentionally unsupported.
 - Run `tools/mds_git_access_check.sh` before launching containers or image prep.
 - Check `MDS_SITL_GIT_SYNC=false` for pinned release images and large fleets.
 - Do not commit credential files, `.ssh` keys, or token paths that contain customer identity.

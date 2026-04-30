@@ -18,7 +18,7 @@ PX4_DIR="${MDS_PX4_DIR:-/root/PX4-Autopilot}"
 REPO_URL="${1:-${MDS_REPO_URL:-$DEFAULT_REPO_URL}}"
 BRANCH="${2:-${MDS_BRANCH:-$DEFAULT_BRANCH}}"
 GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}"
+GIT_AUTH_TOKEN_VALUE=""
 GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}"
 GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}"
 VENV_DIR="$BASE_DIR/venv"
@@ -46,7 +46,9 @@ require_cmd() {
 load_git_auth_token() {
     if [[ -n "$GIT_AUTH_TOKEN_FILE" ]]; then
         [[ -r "$GIT_AUTH_TOKEN_FILE" ]] || fail "MDS_GIT_AUTH_TOKEN_FILE is not readable: $GIT_AUTH_TOKEN_FILE"
-        GIT_AUTH_TOKEN="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
+        GIT_AUTH_TOKEN_VALUE="$(tr -d '\r\n' < "$GIT_AUTH_TOKEN_FILE")"
+    else
+        GIT_AUTH_TOKEN_VALUE=""
     fi
 }
 
@@ -125,12 +127,12 @@ github_authenticated_https_url() {
     local repo_url="$1"
     local repo_path=""
 
-    [[ -n "$GIT_AUTH_TOKEN" ]] || return 1
+    [[ -n "$GIT_AUTH_TOKEN_VALUE" ]] || return 1
     repo_path=$(github_repo_path "$repo_url") || return 1
 
     local encoded_username encoded_token
     encoded_username=$(urlencode_value "$GIT_AUTH_USERNAME")
-    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN")
+    encoded_token=$(urlencode_value "$GIT_AUTH_TOKEN_VALUE")
     printf 'https://%s:%s@github.com/%s\n' "$encoded_username" "$encoded_token" "$repo_path"
 }
 

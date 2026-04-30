@@ -107,7 +107,9 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/
   -d 1 -y
 ```
 
-`install_mds_node.sh` remains supported as a compatibility alias. `install_companion.sh` is the clearer public entrypoint for fresh hardware.
+`install_companion.sh` is the public entrypoint for fresh hardware.
+`install_mds_node.sh` remains an equivalent packaged entrypoint for automation
+that already references the node-specific filename.
 
 ### Option 2: Manual Installation
 

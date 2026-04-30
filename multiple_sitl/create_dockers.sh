@@ -65,12 +65,12 @@ echo "==============================================================="
 echo
 
 # =============================================================================
-# DOCKER CONFIGURATION: Environment Variable Support (MDS v3.1+)
+# DOCKER CONFIGURATION: Environment Variable Support
 # =============================================================================
 # This script now supports custom Docker images and repository configuration
-# via environment variables while maintaining full backward compatibility.
+# through canonical MDS_* environment variables.
 #
-# FOR NORMAL USERS (99%):
+# FOR NORMAL USERS:
 #   - No action required - uses the deployment profile default image
 #   - Uses the deployment profile repo and branch, currently main
 #   - Simply run: bash create_dockers.sh <number_of_drones>
@@ -111,9 +111,9 @@ HOST_RUNTIME_ROOT="${MDS_SITL_HOST_RUNTIME_ROOT:-$HOME/.local/share/mavsdk_drone
 HOST_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_HOST_SWARM_TRAJECTORY_DIR:-$REPO_ROOT/shapes_sitl/swarm_trajectory}"
 CONTAINER_SHARED_SWARM_TRAJECTORY_DIR="${MDS_SITL_SHARED_SWARM_TRAJECTORY_DIR:-/tmp/mds_shared_swarm_trajectory}"
 SHARE_HOST_SWARM_TRAJECTORY="${MDS_SITL_SHARE_SWARM_TRAJECTORY:-true}"
-HWID_CONTAINER_DIR="/root/mavsdk_drone_show"
-STARTUP_SCRIPT_IMAGE="${HWID_CONTAINER_DIR}/multiple_sitl/startup_sitl.sh"
-STARTUP_LOG_CONTAINER="${HWID_CONTAINER_DIR}/logs/startup_sitl.log"
+RUNTIME_CONTAINER_DIR="/root/mavsdk_drone_show"
+STARTUP_SCRIPT_IMAGE="${RUNTIME_CONTAINER_DIR}/multiple_sitl/startup_sitl.sh"
+STARTUP_LOG_CONTAINER="${RUNTIME_CONTAINER_DIR}/logs/startup_sitl.log"
 TEMPLATE_IMAGE="${MDS_DOCKER_IMAGE:-${MDS_DEFAULT_DOCKER_IMAGE:-mavsdk-drone-show-sitl:latest}}"
 USE_HOST_STARTUP_SCRIPT="${MDS_SITL_USE_HOST_STARTUP_SCRIPT:-}"
 USE_HOST_STARTUP_SCRIPT_SOURCE="unset"
@@ -156,7 +156,7 @@ collect_mds_env_args() {
     local env_name
     while IFS='=' read -r env_name _; do
         case "$env_name" in
-            MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID|MDS_GIT_AUTH_TOKEN|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
+            MDS_BASE_DIR|MDS_INSTALL_DIR|MDS_REPO_ROOT|MDS_DEPLOYMENT_PROFILE_FILE|MDS_HW_ID|MDS_GIT_AUTH_TOKEN_FILE|MDS_GIT_SSH_KEY_FILE)
                 continue
                 ;;
         esac
@@ -189,31 +189,15 @@ resolve_host_startup_script_mode() {
 
 prepare_git_auth_secret_args() {
     local host_secret_file="${MDS_GIT_AUTH_TOKEN_FILE:-}"
-    local generated_secret_file=""
-    local secret_dir=""
     local container_secret_file="/run/secrets/mds_git_auth_token"
 
-    if [[ -z "$host_secret_file" && -z "${MDS_GIT_AUTH_TOKEN:-}" ]]; then
+    if [[ -z "$host_secret_file" ]]; then
         return 0
     fi
 
-    if [[ -n "$host_secret_file" ]]; then
-        if [[ ! -r "$host_secret_file" ]]; then
-            printf "Error: MDS_GIT_AUTH_TOKEN_FILE is not readable: %s\n" "$host_secret_file" >&2
-            exit 1
-        fi
-    else
-        secret_dir="${HOST_RUNTIME_ROOT}/_secrets"
-        mkdir -p "$secret_dir"
-        chmod 700 "$secret_dir"
-        generated_secret_file="${secret_dir}/mds_git_auth_token"
-        local old_umask
-        old_umask=$(umask)
-        umask 077
-        printf '%s' "$MDS_GIT_AUTH_TOKEN" > "$generated_secret_file"
-        umask "$old_umask"
-        chmod 600 "$generated_secret_file"
-        host_secret_file="$generated_secret_file"
+    if [[ ! -r "$host_secret_file" ]]; then
+        printf "Error: MDS_GIT_AUTH_TOKEN_FILE is not readable: %s\n" "$host_secret_file" >&2
+        exit 1
     fi
 
     DOCKER_SECRET_ARGS+=(-v "${host_secret_file}:${container_secret_file}:ro")
@@ -357,7 +341,6 @@ run_git_access_preflight() {
 
     echo "Git Access     : validating ${repo_url}@${branch} before launching containers"
     if ! MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-        MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
         MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-}" \
         MDS_GIT_SSH_KEY_FILE="${MDS_GIT_SSH_KEY_FILE:-}" \
         MDS_GIT_KNOWN_HOSTS_FILE="${MDS_GIT_KNOWN_HOSTS_FILE:-}" \
@@ -539,7 +522,7 @@ create_instance() {
         docker_run_args+=(-v "${STARTUP_SCRIPT_HOST}:${STARTUP_SCRIPT_CONTAINER}:ro")
     fi
 
-    startup_bootstrap="mkdir -p '$HWID_CONTAINER_DIR/logs' && exec bash '$startup_script_container'"
+    startup_bootstrap="mkdir -p '$RUNTIME_CONTAINER_DIR/logs' && exec bash '$startup_script_container'"
     detached_command="${startup_bootstrap} >> '$STARTUP_LOG_CONTAINER' 2>&1"
 
     # If verbose mode is enabled, run attached mode for debugging purposes
@@ -588,11 +571,11 @@ print_container_failure_logs() {
         echo '--- startup_sitl.log ---'
         tail -n 60 '$STARTUP_LOG_CONTAINER' 2>/dev/null || true
         echo '--- mavlink_router.log ---'
-        tail -n 40 '$HWID_CONTAINER_DIR/logs/mavlink_router.log' 2>/dev/null || true
+        tail -n 40 '$RUNTIME_CONTAINER_DIR/logs/mavlink_router.log' 2>/dev/null || true
         echo '--- coordinator.log ---'
-        tail -n 40 '$HWID_CONTAINER_DIR/logs/coordinator.log' 2>/dev/null || true
+        tail -n 40 '$RUNTIME_CONTAINER_DIR/logs/coordinator.log' 2>/dev/null || true
         echo '--- sitl_simulation.log ---'
-        tail -n 40 '$HWID_CONTAINER_DIR/logs/sitl_simulation.log' 2>/dev/null || true
+        tail -n 40 '$RUNTIME_CONTAINER_DIR/logs/sitl_simulation.log' 2>/dev/null || true
     " >&2 || true
 }
 

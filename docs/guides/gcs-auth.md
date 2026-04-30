@@ -41,6 +41,15 @@ creation time.
 
 Do not commit `/etc/mds/auth/*` or raw passwords/tokens to git.
 
+Auth env keys are also registered in the canonical environment registry:
+
+- registry: `resources/config/mds_env_registry.json`
+- reference: [MDS Environment Registry](../reference/mds-environment-registry.md)
+
+The registry records which auth keys are editable, which require GCS restart,
+and which values are secrets. Raw token/password values must not be exposed
+through the dashboard, API payloads, Docker images, or git-tracked files.
+
 ## Bootstrap
 
 Interactive GCS setup asks whether to enable dashboard login and, if enabled,
@@ -201,25 +210,14 @@ Authorization: Bearer mds_...
 
 ### New Drone Bootstrap
 
-For a new drone in a full-API-auth deployment, provide the token during
-bootstrap. The preferred option is a root-readable token file:
+For a new drone in a full-API-auth deployment, provide the token as a
+root-readable file during bootstrap:
 
 ```bash
 sudo ./tools/mds_node_init.sh \
   -d 5 \
   --gcs-api-url http://GCS_HOST:5030 \
   --gcs-api-token-file /root/.mds/keys/gcs_api_token \
-  -y
-```
-
-For one-time headless provisioning, `--gcs-api-token` writes the token into the
-standard root-only file and stores only the file path in `/etc/mds/local.env`:
-
-```bash
-sudo ./tools/mds_node_init.sh \
-  -d 5 \
-  --gcs-api-url http://GCS_HOST:5030 \
-  --gcs-api-token mds_REPLACE_WITH_TOKEN \
   -y
 ```
 
@@ -240,8 +238,8 @@ sudo ./tools/mds_node_announce.sh \
 
 Keep API auth disabled for ordinary public-demo SITL. For private locked-down
 SITL, pass a read-only machine token into the container runtime as
-`MDS_GCS_API_TOKEN_FILE` or `MDS_GCS_API_TOKEN`, and do not bake raw tokens into
-the image. Rotate/revoke SITL tokens after customer demos.
+`MDS_GCS_API_TOKEN_FILE`, and do not bake raw tokens into the image.
+Rotate/revoke SITL tokens after customer demos.
 
 ### Enabling Or Disabling API Auth
 

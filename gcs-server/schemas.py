@@ -546,9 +546,9 @@ class HeartbeatRequest(BaseModel):
         value = str(value).strip().lower()
         if not value:
             return None
-        if value in {"real", "hardware", "production"}:
+        if value == "real":
             return "real"
-        if value in {"sitl", "sim", "simulation", "simulated"}:
+        if value == "sitl":
             return "sitl"
         raise ValueError("runtime_mode must be either 'real' or 'sitl'")
 
@@ -622,6 +622,28 @@ class DroneGitSyncRuntimeStatus(BaseModel):
     requirements_update_status: str = Field("unknown", description="Latest Python requirements update result")
 
 
+class DroneEnvRuntimeStatus(BaseModel):
+    """Compact node-local MDS env posture without exposing values."""
+
+    status_source: str = Field("unknown", description="How the node env posture was resolved")
+    registry_version: int = Field(0, ge=0, description="Loaded MDS env registry version on the node")
+    registry_hash: str = Field("", description="Loaded MDS env registry hash on the node")
+    local_env_path: str = Field("", description="Node local env file path")
+    local_env_present: bool = Field(False, description="Whether node local.env exists")
+    node_identity_path: str = Field("", description="Node identity manifest path")
+    node_identity_present: bool = Field(False, description="Whether node identity manifest exists")
+    runtime_mode: str = Field("unknown", description="Resolved node runtime mode")
+    runtime_mode_source: str = Field("unknown", description="Runtime mode source")
+    hw_id: Optional[int] = Field(None, description="Resolved node hardware ID")
+    hw_id_source: str = Field("unknown", description="Hardware ID source")
+    configured_key_count: int = Field(0, ge=0, description="Registered keys configured in local.env")
+    configured_node_key_count: int = Field(0, ge=0, description="Node-scoped keys configured in local.env")
+    registered_node_key_count: int = Field(0, ge=0, description="Total node-scoped registry keys")
+    unknown_keys: List[str] = Field(default_factory=list, description="Unregistered local.env keys")
+    deprecated_keys: List[str] = Field(default_factory=list, description="Deprecated local.env keys")
+    warnings: List[str] = Field(default_factory=list, description="Node env posture warnings")
+
+
 class DroneGitStatus(BaseModel):
     """Git status for individual drone.
 
@@ -653,6 +675,7 @@ class DroneGitStatus(BaseModel):
     mavlink_runtime: Optional["DroneMavlinkRuntimeStatus"] = Field(None, description="Node-local managed mavlink-anywhere posture")
     connectivity_runtime: Optional["DroneConnectivityRuntimeStatus"] = Field(None, description="Node-local connectivity backend posture")
     git_sync_runtime: Optional["DroneGitSyncRuntimeStatus"] = Field(None, description="Latest node-local sync/reconcile runtime summary")
+    env_runtime: Optional["DroneEnvRuntimeStatus"] = Field(None, description="Node-local MDS env posture summary")
 
     # Timestamps
     last_check: int = Field(..., description="Last status check timestamp (Unix ms)")
@@ -1253,6 +1276,154 @@ class GCSRuntimeUpdateResponse(BaseModel):
     scheduled: bool = Field(..., description="Whether a fast-forward update and restart were scheduled")
     restart_delay_ms: int = Field(0, ge=0, description="Delay before the scheduled update launcher starts")
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings for the operator")
+
+
+class EnvRegistryEntryResponse(BaseModel):
+    """Public metadata for one MDS environment variable."""
+
+    name: str = Field(..., description="Canonical environment variable name")
+    title: str = Field(..., description="Short operator-facing label")
+    scope: str = Field(..., description="Owning scope such as gcs, node, or deployment")
+    domain: str = Field(..., description="Functional domain such as auth, git, or mavlink")
+    source_of_truth: str = Field(..., description="Authoritative config layer for this key")
+    value_type: str = Field(..., description="Typed value kind used for validation")
+    default: Optional[Any] = Field(None, description="Redacted default value")
+    secret: bool = Field(..., description="Whether the key stores raw secret material")
+    editable: bool = Field(..., description="Whether operator APIs may mutate this key")
+    ui_visibility: str = Field(..., description="Suggested UI visibility tier")
+    restart_required: str = Field(..., description="Required runtime action after change")
+    apply_action: str = Field(..., description="Concrete apply action for automation")
+    allowed_values: List[Any] = Field(default_factory=list, description="Allowed values when constrained")
+    aliases: List[str] = Field(default_factory=list, description="Historical aliases, diagnostics only")
+    deprecated: bool = Field(False, description="Whether this key is deprecated")
+    replacement: Optional[str] = Field(None, description="Replacement key when deprecated")
+    docs: str = Field(..., description="Relative documentation path")
+    consumers: List[str] = Field(default_factory=list, description="Known code/script consumers")
+    notes: str = Field("", description="Operational notes")
+    owner: str = Field("platform", description="Owning subsystem")
+
+
+class EnvRegistryResponse(BaseModel):
+    """Canonical environment registry payload."""
+
+    version: int = Field(..., ge=1, description="Registry version")
+    registry_hash: str = Field(..., description="SHA-256 hash of the registry file")
+    path: str = Field(..., description="Loaded registry file path")
+    entries: List[EnvRegistryEntryResponse] = Field(default_factory=list, description="Registered env entries")
+
+
+class GCSRuntimeEnvEntryResponse(BaseModel):
+    """Current GCS env value paired with registry metadata."""
+
+    name: str = Field(..., description="Canonical env key")
+    title: str = Field(..., description="Short label")
+    scope: str = Field(..., description="Registry scope")
+    domain: str = Field(..., description="Registry domain")
+    value_type: str = Field(..., description="Registry value type")
+    value: Optional[Any] = Field(None, description="Current redacted value")
+    value_present: bool = Field(..., description="Whether the key exists in the env file")
+    secret: bool = Field(..., description="Whether the value is raw secret material")
+    secret_configured: bool = Field(False, description="Whether a secret value is configured without exposing it")
+    default: Optional[Any] = Field(None, description="Redacted default value")
+    editable: bool = Field(..., description="Whether this key can be changed through the env API")
+    ui_visibility: str = Field(..., description="Suggested UI visibility")
+    restart_required: str = Field(..., description="Runtime action required after change")
+    apply_action: str = Field(..., description="Automation action required after change")
+    allowed_values: List[Any] = Field(default_factory=list, description="Allowed values when constrained")
+    docs: str = Field(..., description="Relative docs path")
+    deprecated: bool = Field(False, description="Whether the key is deprecated")
+    replacement: Optional[str] = Field(None, description="Replacement key when deprecated")
+    notes: str = Field("", description="Operational notes")
+
+
+class GCSRuntimeEnvResponse(BaseModel):
+    """GCS host-local env posture."""
+
+    config_path: str = Field(..., description="GCS env file path")
+    config_present: bool = Field(..., description="Whether the env file exists")
+    registry_version: int = Field(..., ge=1, description="Registry version")
+    registry_hash: str = Field(..., description="Registry hash")
+    values: List[GCSRuntimeEnvEntryResponse] = Field(default_factory=list, description="Registered GCS env entries")
+    unknown_keys: List[str] = Field(default_factory=list, description="Keys present in the file but not registered")
+    deprecated_keys: List[str] = Field(default_factory=list, description="Registered deprecated keys present in the file")
+    warnings: List[str] = Field(default_factory=list, description="Operator warnings")
+
+
+class GCSRuntimeEnvUpdateRequest(BaseModel):
+    """GCS env update request constrained by the registry."""
+
+    updates: Dict[str, Any] = Field(default_factory=dict, description="Registry-approved key/value updates")
+    dry_run: bool = Field(False, description="Validate and plan without writing")
+
+
+class GCSRuntimeEnvUpdateResponse(BaseModel):
+    """Result of a registry-constrained GCS env update."""
+
+    success: bool = Field(..., description="Whether the update was accepted")
+    dry_run: bool = Field(..., description="Whether the update was validation-only")
+    config_path: str = Field(..., description="GCS env file path")
+    updated_keys: List[str] = Field(default_factory=list, description="Requested update keys after validation")
+    changed_keys: List[str] = Field(default_factory=list, description="Keys actually changed on disk")
+    restart_required: bool = Field(..., description="Whether a GCS restart is required")
+    apply_actions: List[str] = Field(default_factory=list, description="Required apply actions")
+    warnings: List[str] = Field(default_factory=list, description="Operator warnings")
+
+
+class FleetRuntimeEnvPlanRequest(BaseModel):
+    """Dry-run plan request for future fleet-node env mutation."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    updates: Dict[str, Any] = Field(default_factory=dict, description="Registry-approved node key/value updates")
+    target_hw_ids: List[Union[int, str]] = Field(
+        default_factory=list,
+        description="Optional target hardware IDs; empty means all configured/reporting nodes",
+    )
+
+
+class FleetRuntimeEnvNodePlan(BaseModel):
+    """Per-node dry-run result for fleet env planning."""
+
+    hw_id: str = Field(..., description="Target node hardware ID")
+    status: str = Field(..., description="planned, blocked, or unavailable")
+    env_report_present: bool = Field(..., description="Whether the node reported env runtime posture")
+    local_env_present: bool = Field(False, description="Whether /etc/mds/local.env is present on the node")
+    registry_hash: str = Field("", description="Node-reported registry hash")
+    registry_hash_match: bool = Field(False, description="Whether node registry hash matches the GCS registry")
+    validated_keys: List[str] = Field(default_factory=list, description="Validated keys for this node")
+    apply_actions: List[str] = Field(default_factory=list, description="Runtime actions that would be required")
+    restart_required: bool = Field(False, description="Whether node service restart/reconcile would be required")
+    blocked_reasons: List[str] = Field(default_factory=list, description="Reasons this node cannot currently be safely mutated")
+    warnings: List[str] = Field(default_factory=list, description="Non-blocking operator warnings")
+
+
+class FleetRuntimeEnvPlanResponse(BaseModel):
+    """Safe dry-run response for fleet-node env changes."""
+
+    success: bool = Field(..., description="Whether the dry-run request was accepted")
+    dry_run: bool = Field(True, description="Always true; this endpoint never writes node env files")
+    mutation_enabled: bool = Field(False, description="Whether node mutation is enabled in this API")
+    mutation_policy: str = Field(..., description="Operator-facing mutation policy summary")
+    registry_version: int = Field(..., ge=1, description="GCS registry version used for validation")
+    registry_hash: str = Field(..., description="GCS registry hash used for validation")
+    validated_keys: List[str] = Field(default_factory=list, description="Validated update keys")
+    apply_actions: List[str] = Field(default_factory=list, description="Required actions if mutation is later enabled")
+    target_count: int = Field(0, ge=0, description="Number of planned target nodes")
+    blocked_count: int = Field(0, ge=0, description="Number of blocked or unavailable targets")
+    node_plans: List[FleetRuntimeEnvNodePlan] = Field(default_factory=list, description="Per-node dry-run plans")
+    warnings: List[str] = Field(default_factory=list, description="Request-level warnings")
+
+
+class GCSRuntimeEnvApplyResponse(BaseModel):
+    """Apply persisted GCS env changes."""
+
+    success: bool = Field(..., description="Whether the apply request was accepted")
+    status: str = Field(..., description="Apply status")
+    message: str = Field(..., description="Operator-facing result summary")
+    restart_required: bool = Field(..., description="Whether a restart was required")
+    scheduled: bool = Field(..., description="Whether a restart was scheduled")
+    restart_delay_ms: int = Field(0, ge=0, description="Delay before scheduled restart starts")
+    warnings: List[str] = Field(default_factory=list, description="Operator warnings")
 
 
 class RuntimeDocsResponse(BaseModel):

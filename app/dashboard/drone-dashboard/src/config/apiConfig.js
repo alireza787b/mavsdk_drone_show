@@ -1,5 +1,5 @@
 // src/config/apiConfig.js
-// Centralized API configuration with auto-detection and environment override
+// Centralized API configuration with auto-detection and one explicit override.
 
 /**
  * API Configuration Module
@@ -8,7 +8,7 @@
  * This makes the app portable without requiring .env changes or rebuilds.
  *
  * Priority order:
- * 1. Environment variable override (REACT_APP_SERVER_URL) - for advanced setups
+ * 1. Environment variable override (REACT_APP_MDS_SERVER_URL) - for advanced setups
  * 2. Auto-detect from window.location - works automatically everywhere
  *
  * This approach works for:
@@ -28,8 +28,8 @@ const DEFAULT_DRONE_PORT = process.env.REACT_APP_DRONE_PORT || '7070';
  * @returns {string} Base server URL (protocol + hostname, no port)
  */
 function getBaseServerURL() {
-  // Check for explicit environment override first
-  const envURL = process.env.REACT_APP_SERVER_URL;
+  // Check for explicit environment override first.
+  const envURL = process.env.REACT_APP_MDS_SERVER_URL;
   if (envURL && envURL.trim() !== '') {
     return envURL.replace(/\/$/, ''); // Remove trailing slash if present
   }
@@ -87,7 +87,7 @@ export const config = {
   get dronePort() { return getDronePort(); },
   get gcsURL() { return getBackendURL(); },
   get droneURL() { return getDroneServiceURL(); },
-  isAutoDetected: !process.env.REACT_APP_SERVER_URL,
+  isAutoDetected: !process.env.REACT_APP_MDS_SERVER_URL,
 };
 
 const apiConfigModule = {

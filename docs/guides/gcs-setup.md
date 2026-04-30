@@ -281,9 +281,7 @@ sudo ./tools/mds_gcs_init.sh \
 
 ```bash
 # MDS GCS Configuration
-GCS_PORT=5030
 MDS_GCS_API_PORT=5030
-GCS_BACKEND=fastapi
 
 # Repository Settings
 MDS_REPO_URL=git@github.com:yourorg/customer-mds.git
@@ -292,7 +290,6 @@ MDS_GIT_AUTO_PUSH=true
 MDS_INSTALL_DIR=~/mavsdk_drone_show
 
 # Dashboard Settings
-DASHBOARD_PORT=3030
 MDS_DASHBOARD_PORT=3030
 
 # Optional Dashboard/API Auth

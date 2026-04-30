@@ -127,7 +127,7 @@ gcs_should_use_https_access() {
 }
 
 gcs_git_auth_enabled() {
-    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]] || [[ -n "${MDS_GIT_AUTH_TOKEN:-}" ]]
+    [[ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" && -r "${MDS_GIT_AUTH_TOKEN_FILE}" ]]
 }
 
 gcs_runtime_home() {
@@ -164,7 +164,7 @@ if [ -n "${MDS_GIT_AUTH_TOKEN_FILE:-}" ] && [ -r "${MDS_GIT_AUTH_TOKEN_FILE}" ];
     tr -d '\r\n' < "${MDS_GIT_AUTH_TOKEN_FILE}"
     exit 0
 fi
-printf '%s\n' "${MDS_GIT_AUTH_TOKEN:-}"
+exit 1
 EOF
 
     chmod 700 "$askpass_path"
@@ -184,7 +184,6 @@ run_gcs_git_command() {
             GIT_ASKPASS="$(gcs_git_askpass_path)" \
             MDS_GIT_AUTH_USERNAME="${MDS_GIT_AUTH_USERNAME:-x-access-token}" \
             MDS_GIT_AUTH_TOKEN_FILE="${MDS_GIT_AUTH_TOKEN_FILE:-}" \
-            MDS_GIT_AUTH_TOKEN="${MDS_GIT_AUTH_TOKEN:-}" \
             git -c credential.username="${MDS_GIT_AUTH_USERNAME:-x-access-token}" "$@"
     else
         git "$@"

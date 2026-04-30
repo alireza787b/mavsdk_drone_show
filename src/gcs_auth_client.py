@@ -16,15 +16,11 @@ _TOKEN_READ_ERROR_LOGGED = False
 def read_gcs_api_token() -> str | None:
     """Return the configured GCS API bearer token, if one is available.
 
-    Prefer ``MDS_GCS_API_TOKEN_FILE`` so raw tokens are not placed in process
-    arguments, shell history, or git-tracked files. ``MDS_GCS_API_TOKEN`` is
-    accepted for short-lived automation/test environments.
+    MDS supports file-based bearer tokens only. Raw secret environment
+    variables are intentionally not accepted because they leak too easily
+    through process listings, shell history, and diagnostics.
     """
     global _TOKEN_READ_ERROR_LOGGED
-
-    direct_token = os.environ.get("MDS_GCS_API_TOKEN", "").strip()
-    if direct_token:
-        return direct_token
 
     token_file = os.environ.get("MDS_GCS_API_TOKEN_FILE", "").strip()
     if not token_file:

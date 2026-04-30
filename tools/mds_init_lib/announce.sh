@@ -115,11 +115,6 @@ read_gcs_api_token() {
     local token_file=""
     local token=""
 
-    if [[ -n "${MDS_GCS_API_TOKEN:-}" ]]; then
-        printf '%s\n' "${MDS_GCS_API_TOKEN}"
-        return 0
-    fi
-
     if [[ -n "${MDS_GCS_API_TOKEN_FILE:-}" ]]; then
         token_file="${MDS_GCS_API_TOKEN_FILE}"
     else

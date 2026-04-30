@@ -17,7 +17,6 @@ Some older items originated in the hw_id/pos_id cleanup (2026-03-05), but this f
 **Files to modify:**
 - `actions.py` — `init_sysid()` function (currently sets `MAV_SYS_ID = HW_ID`)
 - `multiple_sitl/startup_sitl.sh` — `MAV_SYS_ID` env variable
-- `multiple_sitl/set_sys_id.py` — PX4 rcS modification
 - `gcs-server/config.py` — add `mav_sys_id` to drone schema
 - `src/drone_config/config_loader.py` — load mav_sys_id from config.json
 - `tools/mds_init_lib/common.sh` — `validate_drone_id()` upper bound (currently 999)

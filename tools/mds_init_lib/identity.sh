@@ -150,7 +150,6 @@ setup_local_env() {
     local git_auth_token_file="${GIT_AUTH_TOKEN_FILE:-${MDS_GIT_AUTH_TOKEN_FILE:-}}"
     local git_ssh_key_file="${GIT_SSH_KEY_FILE:-${MDS_GIT_SSH_KEY_FILE:-}}"
     local gcs_api_token_file="${GCS_API_TOKEN_FILE:-${MDS_GCS_API_TOKEN_FILE:-}}"
-    local gcs_api_token="${GCS_API_TOKEN:-${MDS_GCS_API_TOKEN:-}}"
     local mavlink_management_mode="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}}"
     local mavlink_install_dir="${MAVLINK_ANYWHERE_DIR:-${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}}"
     local mavlink_dashboard_listen="${MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}}"

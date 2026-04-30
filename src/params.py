@@ -93,7 +93,7 @@ class Params:
     mode_source = runtime_mode_info.source
     sim_mode = runtime_mode_info.sim_mode
 
-    # Optional legacy online configuration endpoints.
+    # Optional online configuration endpoints.
     # Production hardware now defaults to local file mode via /etc/mds/local.env
     # and explicit repo sync. Leave these unset unless you are deliberately
     # using an external configuration publisher.
@@ -102,10 +102,9 @@ class Params:
 
     # Git Configuration
     # ===================================================================================
-    # REPOSITORY CONFIGURATION: Environment Variable Support (MDS v3.1+)
+    # REPOSITORY CONFIGURATION: Environment Variable Support
     # ===================================================================================
-    # These settings now support environment variable override for advanced deployments
-    # while maintaining 100% backward compatibility for normal users.
+    # These settings use canonical MDS_* variables for advanced deployments.
     #
     # Git-tracked repo defaults now come from deployment/defaults.env.
     # Host-local runtime env files still override them when present.
@@ -237,12 +236,6 @@ class Params:
     get_drone_gps_origin_URI = DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE.lstrip('/')  # Canonical drone origin route
     get_live_armability_URI = DRONE_LIVE_ARMABILITY_ROUTE.lstrip('/')  # Canonical drone live-armability route
     get_drone_local_position_URI = DRONE_LOCAL_POSITION_ROUTE.lstrip('/')  # Canonical LOCAL_POSITION_NED route
-
-    # GCS Server Port Configuration (Legacy Aliases)
-    GCS_PORT = gcs_api_port                 # DEPRECATED: Use gcs_api_port instead
-    gcs_server_port = gcs_api_port          # DEPRECATED: Use gcs_api_port instead
-    flask_telem_socket_port = gcs_api_port  # DEPRECATED: Use gcs_api_port instead
-    GCS_FLASK_PORT = gcs_api_port           # DEPRECATED: Use gcs_api_port instead
 
     get_position_deviation_URI = DRONE_POSITION_DEVIATION_ROUTE.lstrip('/')
     acceptable_deviation = 3.0              # Acceptable deviation in meters
