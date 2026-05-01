@@ -1904,6 +1904,35 @@ intentionally auditing another domain. Bootstrap announce payloads should includ
 `runtime_mode`; `tools/mds_node_announce.sh` derives it from
 `/etc/mds/node_identity.json`.
 
+### Environment Control Plane
+
+The environment control plane is registry-backed. It is intended for typed
+inspection and small repairs, not as a replacement for repo/bootstrap desired
+state.
+
+GCS host routes:
+
+- `GET /api/v1/system/env/registry`
+- `GET /api/v1/system/env/gcs`
+- `PUT /api/v1/system/env/gcs`
+- `POST /api/v1/system/env/gcs/apply`
+
+Fleet-node routes through the GCS proxy:
+
+- `POST /api/v1/system/env/fleet/plan`
+- `GET /api/v1/system/env/fleet/nodes/{hw_id}`
+- `PUT /api/v1/system/env/fleet/nodes/{hw_id}`
+
+Policy:
+
+- raw secret values are redacted and cannot be edited through env APIs
+- GCS edits only accept registry-approved GCS keys
+- single-node edits only accept registry-approved node keys
+- fleet-wide env mutation remains dry-run only; promote stable changes into the
+  repo/bootstrap source of truth and let nodes sync/reconcile
+- node proxy calls require the drone API to be reachable from the GCS on the
+  configured `MDS_DRONE_API_PORT`
+
 ---
 
 ## Error Handling

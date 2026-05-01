@@ -1349,6 +1349,7 @@ class GCSRuntimeEnvEntryResponse(BaseModel):
     title: str = Field(..., description="Short label")
     scope: str = Field(..., description="Registry scope")
     domain: str = Field(..., description="Registry domain")
+    source_of_truth: str = Field(..., description="Authoritative config layer for this key")
     value_type: str = Field(..., description="Registry value type")
     value: Optional[Any] = Field(None, description="Current redacted value")
     value_present: bool = Field(..., description="Whether the key exists in the env file")
@@ -1442,6 +1443,38 @@ class FleetRuntimeEnvPlanResponse(BaseModel):
     blocked_count: int = Field(0, ge=0, description="Number of blocked or unavailable targets")
     node_plans: List[FleetRuntimeEnvNodePlan] = Field(default_factory=list, description="Per-node dry-run plans")
     warnings: List[str] = Field(default_factory=list, description="Request-level warnings")
+
+
+class FleetRuntimeEnvNodeResponse(BaseModel):
+    """Single fleet-node env payload proxied through the GCS."""
+
+    hw_id: str = Field(..., description="Target node hardware ID")
+    endpoint: str = Field(..., description="Resolved node env API endpoint")
+    reachable: bool = Field(..., description="Whether the node env API was reachable")
+    config_path: str = Field("", description="Node local env file path")
+    config_present: bool = Field(False, description="Whether the node local env file exists")
+    registry_version: int = Field(0, description="Node registry version")
+    registry_hash: str = Field("", description="Node registry hash")
+    values: List[GCSRuntimeEnvEntryResponse] = Field(default_factory=list, description="Registered node env entries")
+    unknown_keys: List[str] = Field(default_factory=list, description="Unregistered keys present on the node")
+    deprecated_keys: List[str] = Field(default_factory=list, description="Deprecated keys present on the node")
+    summary: Dict[str, Any] = Field(default_factory=dict, description="Safe node env posture summary")
+    warnings: List[str] = Field(default_factory=list, description="Operator warnings")
+
+
+class FleetRuntimeEnvNodeUpdateResponse(BaseModel):
+    """Single fleet-node env update response proxied through the GCS."""
+
+    success: bool = Field(..., description="Whether the update was accepted")
+    hw_id: str = Field(..., description="Target node hardware ID")
+    endpoint: str = Field(..., description="Resolved node env API endpoint")
+    dry_run: bool = Field(..., description="Whether the update was validation-only")
+    config_path: str = Field("", description="Node local env file path")
+    updated_keys: List[str] = Field(default_factory=list, description="Validated update keys")
+    changed_keys: List[str] = Field(default_factory=list, description="Keys changed on disk")
+    restart_required: bool = Field(False, description="Whether a node service restart or reconcile is required")
+    apply_actions: List[str] = Field(default_factory=list, description="Required apply actions")
+    warnings: List[str] = Field(default_factory=list, description="Operator warnings")
 
 
 class GCSRuntimeEnvApplyResponse(BaseModel):

@@ -41,10 +41,82 @@ def test_management_router_registers_expected_routes():
     assert "/api/v1/system/env/registry" in routes
     assert "/api/v1/system/env/gcs" in routes
     assert "/api/v1/system/env/fleet/plan" in routes
+    assert "/api/v1/system/env/fleet/nodes/{hw_id}" in routes
     assert "/api/v1/system/env/gcs/apply" in routes
     assert "/api/v1/system/gcs-config/apply" in routes
     assert "/api/v1/system/runtime-update" in routes
     assert "/api/v1/fleet/network-details" in routes
+
+
+def test_management_router_proxies_single_node_env(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+
+    async def fake_proxy(proxy_deps, hw_id, *, method, payload=None, include_hidden=False):
+        assert proxy_deps is deps
+        assert hw_id == "2"
+        assert method == "GET"
+        assert include_hidden is True
+        return "http://100.64.1.20:7070/api/v1/system/env", {
+            "config_path": "/etc/mds/local.env",
+            "config_present": True,
+            "registry_version": 1,
+            "registry_hash": "abc",
+            "values": [],
+            "unknown_keys": [],
+            "deprecated_keys": [],
+            "summary": {"status_source": "registry"},
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(management_module, "_proxy_node_env_request", fake_proxy)
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/system/env/fleet/nodes/2?include_hidden=true")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hw_id"] == "2"
+    assert data["reachable"] is True
+    assert data["endpoint"].endswith("/api/v1/system/env")
+    assert data["config_present"] is True
+
+
+def test_management_router_proxies_single_node_env_update(monkeypatch):
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_management_router(deps))
+
+    async def fake_proxy(proxy_deps, hw_id, *, method, payload=None, include_hidden=False):
+        assert proxy_deps is deps
+        assert hw_id == "2"
+        assert method == "PUT"
+        assert payload == {"updates": {"MDS_CONNECTIVITY_BACKEND": "none"}, "dry_run": False}
+        return "http://100.64.1.20:7070/api/v1/system/env", {
+            "success": True,
+            "dry_run": False,
+            "config_path": "/etc/mds/local.env",
+            "updated_keys": ["MDS_CONNECTIVITY_BACKEND"],
+            "changed_keys": ["MDS_CONNECTIVITY_BACKEND"],
+            "restart_required": True,
+            "apply_actions": ["restart_node_service"],
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(management_module, "_proxy_node_env_request", fake_proxy)
+
+    with TestClient(app) as client:
+        response = client.put(
+            "/api/v1/system/env/fleet/nodes/2",
+            json={"updates": {"MDS_CONNECTIVITY_BACKEND": "none"}},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["hw_id"] == "2"
+    assert data["changed_keys"] == ["MDS_CONNECTIVITY_BACKEND"]
+    assert data["restart_required"] is True
 
 
 def test_management_router_get_gcs_config_uses_live_params_after_router_creation(monkeypatch, tmp_path):

@@ -320,7 +320,41 @@ Notes:
 
 ---
 
-### 6. Health
+### 6. Node Environment
+
+#### `GET /api/v1/system/env`
+
+Inspect registry-backed `/etc/mds/local.env` values on the local node. Secret
+values are redacted, and the response includes registry metadata, unknown keys,
+deprecated keys, and the compact env posture summary also reported in
+`GET /api/v1/git/status`.
+
+#### `PUT /api/v1/system/env`
+
+Persist one or more registry-approved node-local env values.
+
+**Request:**
+```json
+{
+  "updates": {
+    "MDS_CONNECTIVITY_BACKEND": "smart-wifi-manager"
+  },
+  "dry_run": false
+}
+```
+
+Policy:
+- only registered node-scope keys are accepted
+- raw secrets are never accepted through this API
+- `dry_run=true` validates without writing
+- the response reports `restart_required` and `apply_actions`; operators should
+  restart/reconcile the relevant node service when required
+- the normal dashboard path is through the GCS proxy:
+  `GET/PUT /api/v1/system/env/fleet/nodes/{hw_id}`
+
+---
+
+### 7. Health
 
 **Primary Endpoint:** `GET /api/v1/system/health`
 

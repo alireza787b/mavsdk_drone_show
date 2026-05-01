@@ -317,3 +317,34 @@ This is post-v1 hardening, not missing core functionality.
 - optional tagging/release guidance if real changes are made there
 
 ---
+
+## TODO 14: Optional sidecar dashboard/API auth and subnet policy
+
+**Priority:** Medium
+**Status:** Deferred — MDS GCS auth is available; sidecar dashboards remain trusted-network tools for now
+
+**Problem:** `mavlink-anywhere` and `smart-wifi-manager` expose lightweight
+operator dashboards on companion nodes. In the current MDS deployment model,
+they are reachable only on trusted private networks such as NetBird/local LANs.
+For stricter deployments, those sidecars should have their own optional
+dashboard/API auth and subnet allowlist so an exposed node-side utility cannot
+become the weak link.
+
+**Solution:** Add this as a deliberate sidecar hardening slice, not as hidden
+MDS glue:
+
+- define a common optional auth/subnet model for both public sidecar repos
+- support bearer token or basic session auth without breaking headless mode
+- support `allow_cidrs` for GCS/NetBird/admin subnets
+- add MDS proxy-token guidance if the GCS should manage sidecar profiles later
+- document recovery if a sidecar auth config locks out the operator
+
+**Files/repos to revisit:**
+- `mavlink-anywhere`
+- `smart-wifi-manager`
+- `docs/guides/mavlink-routing-setup.md`
+- `docs/guides/connectivity-runtime.md`
+- `docs/guides/gcs-auth.md`
+- MDS Fleet Ops sidecar proxy/API surfaces if direct sidecar editing expands
+
+---

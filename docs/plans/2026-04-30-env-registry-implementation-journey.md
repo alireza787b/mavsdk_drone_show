@@ -191,3 +191,49 @@ npm test -- --runInBand --watchAll=false \
 
 - Sync the official release state into the client repo after local focused
   validation passes.
+
+## 2026-05-01 Slice: Single-Node Fleet Env Repair
+
+The Fleet Nodes tab is no longer only a posture summary. Selecting a reachable
+node now opens a GCS-proxied, PX4-parameter-style local env inspector/editor.
+
+Implemented:
+
+- drone API `GET /api/v1/system/env`
+- drone API `PUT /api/v1/system/env`
+- GCS proxy `GET /api/v1/system/env/fleet/nodes/{hw_id}`
+- GCS proxy `PUT /api/v1/system/env/fleet/nodes/{hw_id}`
+- selected-node env list/edit/import/export in `/environments`
+- docs updates for runtime config, GCS API, drone API, and registry reference
+- deferred sidecar auth/subnet TODO for `mavlink-anywhere` and
+  `smart-wifi-manager`
+
+Policy retained:
+
+- raw secret env values stay redacted and non-editable
+- single-node edits are for field repair/staging
+- bulk fleet env mutation stays dry-run only; durable changes belong in the
+  repo/bootstrap source of truth
+
+Focused validation:
+
+```bash
+python3 -m py_compile \
+  src/settings/env_status.py \
+  src/drone_api_server.py \
+  gcs-server/api_routes/management.py \
+  gcs-server/schemas.py
+
+python3 -m pytest \
+  tests/test_env_status.py \
+  tests/test_drone_api_http.py::TestNodeEnvironment \
+  tests/test_gcs_management_routes.py::test_management_router_registers_expected_routes \
+  tests/test_gcs_management_routes.py::test_management_router_proxies_single_node_env \
+  tests/test_gcs_management_routes.py::test_management_router_proxies_single_node_env_update -q
+
+git diff --check
+```
+
+Result: focused backend/env tests passed. Frontend Jest could not run in this
+checkout because `react-scripts` is not installed; validate on Hetzner before
+release sync.

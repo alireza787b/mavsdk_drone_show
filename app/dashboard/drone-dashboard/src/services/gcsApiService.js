@@ -53,6 +53,7 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   gcsEnv: 'gcsEnv',
   gcsEnvApply: 'gcsEnvApply',
   fleetEnvPlan: 'fleetEnvPlan',
+  fleetNodeEnv: 'fleetNodeEnv',
   systemRuntimeUpdate: 'systemRuntimeUpdate',
   systemRuntimeStatus: 'systemRuntimeStatus',
   sitlControlPolicy: 'sitlControlPolicy',
@@ -132,6 +133,7 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.gcsEnv]: '/api/v1/system/env/gcs',
   [GCS_ROUTE_KEYS.gcsEnvApply]: '/api/v1/system/env/gcs/apply',
   [GCS_ROUTE_KEYS.fleetEnvPlan]: '/api/v1/system/env/fleet/plan',
+  [GCS_ROUTE_KEYS.fleetNodeEnv]: '/api/v1/system/env/fleet/nodes',
   [GCS_ROUTE_KEYS.systemRuntimeUpdate]: '/api/v1/system/runtime-update',
   [GCS_ROUTE_KEYS.systemRuntimeStatus]: '/api/v1/system/runtime-status',
   [GCS_ROUTE_KEYS.sitlControlPolicy]: '/api/v1/system/sitl/policy',
@@ -214,6 +216,7 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/system/env/gcs': GCS_ROUTE_KEYS.gcsEnv,
   '/api/v1/system/env/gcs/apply': GCS_ROUTE_KEYS.gcsEnvApply,
   '/api/v1/system/env/fleet/plan': GCS_ROUTE_KEYS.fleetEnvPlan,
+  '/api/v1/system/env/fleet/nodes': GCS_ROUTE_KEYS.fleetNodeEnv,
   '/api/v1/system/runtime-update': GCS_ROUTE_KEYS.systemRuntimeUpdate,
   '/api/v1/system/runtime-status': GCS_ROUTE_KEYS.systemRuntimeStatus,
   '/api/v1/system/sitl/policy': GCS_ROUTE_KEYS.sitlControlPolicy,
@@ -625,6 +628,14 @@ export async function applyGcsEnvResponse(config = {}) {
 
 export async function planFleetEnvResponse(payload = {}, config = {}) {
   return postGcsResource(GCS_ROUTE_KEYS.fleetEnvPlan, payload, config);
+}
+
+export async function getFleetNodeEnvResponse(hwId, config = {}) {
+  return fetchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetNodeEnv]}/${encodeURIComponent(hwId)}`, config);
+}
+
+export async function updateFleetNodeEnvResponse(hwId, payload = {}, config = {}) {
+  return putGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetNodeEnv]}/${encodeURIComponent(hwId)}`, payload, config);
 }
 
 export async function applyRuntimeUpdateResponse(config = {}) {

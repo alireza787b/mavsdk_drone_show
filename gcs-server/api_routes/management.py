@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -19,6 +20,8 @@ from schemas import (
     GCSConfigUpdateRequest,
     EnvRegistryResponse,
     FleetRuntimeEnvNodePlan,
+    FleetRuntimeEnvNodeResponse,
+    FleetRuntimeEnvNodeUpdateResponse,
     FleetRuntimeEnvPlanRequest,
     FleetRuntimeEnvPlanResponse,
     GCSRuntimeEnvApplyResponse,
@@ -34,6 +37,7 @@ from schemas import (
     RuntimeRepoSyncStatusResponse,
     RuntimeStatusResponse,
 )
+from src.drone_api_routes import DRONE_ENV_ROUTE
 from src.settings.env_files import persist_env_updates, read_env_assignments
 from src.settings.env_registry import EnvRegistryEntry, EnvRegistryError, coerce_value, load_env_registry, redact_value
 from src.managed_runtime_status import (
@@ -106,6 +110,7 @@ def _build_gcs_env_entry_response(entry: EnvRegistryEntry, values: dict[str, str
         title=entry.title,
         scope=entry.scope,
         domain=entry.domain,
+        source_of_truth=entry.source_of_truth,
         value_type=entry.value_type,
         value=value,
         value_present=value_present,
@@ -265,6 +270,106 @@ def _snapshot_git_status_env_reports(deps: Any) -> dict[str, dict[str, Any]]:
         return {}
 
 
+def _normalize_hw_id(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _drone_api_port(deps: Any) -> int:
+    raw_value = getattr(getattr(deps, "Params", object()), "drone_api_port", None)
+    if raw_value is None:
+        raw_value = os.environ.get("MDS_DRONE_API_PORT", os.environ.get("MDS_DEFAULT_DRONE_API_PORT", "7070"))
+    try:
+        return int(raw_value)
+    except (TypeError, ValueError):
+        return 7070
+
+
+def _extract_node_host(row: dict[str, Any] | None) -> str | None:
+    if not isinstance(row, dict):
+        return None
+    for key in ("ip", "drone_ip", "node_ip", "netbird_ip", "host"):
+        value = str(row.get(key) or "").strip()
+        if value:
+            return value.rstrip("/")
+    return None
+
+
+def _resolve_node_record(deps: Any, hw_id: str) -> dict[str, Any] | None:
+    target = _normalize_hw_id(hw_id)
+    if not target:
+        return None
+
+    try:
+        with deps.data_lock_git_status:
+            git_status = dict(getattr(deps, "git_status_data_all_drones", {}) or {})
+        for key, value in git_status.items():
+            row = dict(value or {})
+            row_hw_id = _normalize_hw_id(row.get("hw_id") or key)
+            if row_hw_id == target or _normalize_hw_id(row.get("pos_id")) == target:
+                return row
+    except Exception:
+        pass
+
+    try:
+        for raw_row in deps.load_config() or []:
+            row = dict(raw_row or {})
+            if _normalize_hw_id(row.get("hw_id")) == target or _normalize_hw_id(row.get("pos_id")) == target:
+                return row
+    except Exception:
+        return None
+
+    return None
+
+
+def _build_node_env_url(deps: Any, host: str) -> str:
+    normalized_host = str(host or "").strip().rstrip("/")
+    if normalized_host.startswith(("http://", "https://")):
+        return f"{normalized_host}{DRONE_ENV_ROUTE}"
+    return f"http://{normalized_host}:{_drone_api_port(deps)}{DRONE_ENV_ROUTE}"
+
+
+def _extract_proxy_error(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+        if isinstance(payload, dict):
+            detail = payload.get("detail")
+            if isinstance(detail, str) and detail.strip():
+                return detail
+    except Exception:
+        pass
+    return (response.text or "").strip() or f"node env API returned HTTP {response.status_code}"
+
+
+async def _proxy_node_env_request(
+    deps: Any,
+    hw_id: str,
+    *,
+    method: str,
+    payload: dict[str, Any] | None = None,
+    include_hidden: bool = False,
+) -> tuple[str, dict[str, Any]]:
+    record = _resolve_node_record(deps, hw_id)
+    host = _extract_node_host(record)
+    if not host:
+        raise HTTPException(status_code=404, detail=f"No reachable node host is configured or reported for HW {hw_id}")
+
+    endpoint = _build_node_env_url(deps, host)
+    params = {"include_hidden": "true"} if include_hidden and method.upper() == "GET" else None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.request(method.upper(), endpoint, params=params, json=payload)
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=504, detail=f"Node env API for HW {hw_id} is unreachable: {exc}") from exc
+
+    if response.status_code >= 400:
+        raise HTTPException(status_code=502, detail=_extract_proxy_error(response))
+
+    try:
+        return endpoint, response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=f"Node env API for HW {hw_id} did not return JSON") from exc
+
+
 def _build_fleet_env_plan_response(deps: Any, payload: FleetRuntimeEnvPlanRequest) -> FleetRuntimeEnvPlanResponse:
     registry = load_env_registry()
     updates = payload.updates or {}
@@ -326,7 +431,7 @@ def _build_fleet_env_plan_response(deps: Any, payload: FleetRuntimeEnvPlanReques
         success=True,
         dry_run=True,
         mutation_enabled=False,
-        mutation_policy="Fleet-node env mutation is intentionally disabled until node-side dry-run/apply APIs exist; this endpoint validates and plans only.",
+        mutation_policy="Fleet-wide env mutation is dry-run only. Use single-node env inspection/editing for field repair, then promote stable changes into the fleet source of truth.",
         registry_version=registry.version,
         registry_hash=registry.content_hash,
         validated_keys=list(validated),
@@ -846,6 +951,47 @@ def create_management_router(deps: Any) -> APIRouter:
             raise
         except EnvRegistryError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.get("/api/v1/system/env/fleet/nodes/{hw_id}", response_model=FleetRuntimeEnvNodeResponse, tags=["GCS Management"])
+    async def get_fleet_node_env(hw_id: str, include_hidden: bool = False):
+        """Proxy one reachable node's registry-backed env values through the GCS."""
+        try:
+            endpoint, payload = await _proxy_node_env_request(
+                deps,
+                hw_id,
+                method="GET",
+                include_hidden=include_hidden,
+            )
+            return FleetRuntimeEnvNodeResponse(
+                hw_id=str(hw_id),
+                endpoint=endpoint,
+                reachable=True,
+                **payload,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @router.put("/api/v1/system/env/fleet/nodes/{hw_id}", response_model=FleetRuntimeEnvNodeUpdateResponse, tags=["GCS Management"])
+    async def update_fleet_node_env(hw_id: str, payload: GCSRuntimeEnvUpdateRequest):
+        """Proxy registry-approved single-node env edits through the GCS."""
+        try:
+            endpoint, node_payload = await _proxy_node_env_request(
+                deps,
+                hw_id,
+                method="PUT",
+                payload=payload.model_dump(),
+            )
+            return FleetRuntimeEnvNodeUpdateResponse(
+                hw_id=str(hw_id),
+                endpoint=endpoint,
+                **node_payload,
+            )
+        except HTTPException:
+            raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 

@@ -18,6 +18,7 @@ import {
   applyRuntimeUpdateResponse,
   changeOwnPasswordResponse,
   getEnvRegistryResponse,
+  getFleetNodeEnvResponse,
   getGcsConfigResponse,
   getGcsEnvResponse,
   getConnectivityProfileResponse,
@@ -37,6 +38,7 @@ import {
   setOriginResponse,
   syncReposResponse,
   updateGcsEnvResponse,
+  updateFleetNodeEnvResponse,
   updateConnectivityProfileResponse,
   resolveGcsRoute,
   resolveGcsRouteKey,
@@ -116,6 +118,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/system/env/gcs')).toBe(GCS_ROUTE_KEYS.gcsEnv);
     expect(resolveGcsRouteKey('/api/v1/system/env/gcs/apply')).toBe(GCS_ROUTE_KEYS.gcsEnvApply);
     expect(resolveGcsRouteKey('/api/v1/system/env/fleet/plan')).toBe(GCS_ROUTE_KEYS.fleetEnvPlan);
+    expect(resolveGcsRouteKey('/api/v1/system/env/fleet/nodes')).toBe(GCS_ROUTE_KEYS.fleetNodeEnv);
     expect(resolveGcsRouteKey('/api/v1/system/runtime-status')).toBe(GCS_ROUTE_KEYS.systemRuntimeStatus);
     expect(resolveGcsRouteKey('/api/v1/system/runtime-update')).toBe(GCS_ROUTE_KEYS.systemRuntimeUpdate);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
@@ -510,6 +513,8 @@ describe('gcsApiService', () => {
       { updates: { MDS_GCS_API_TOKEN_FILE: '/etc/mds/secrets/gcs-api.token' }, target_hw_ids: [1] },
       { timeout: 1100 }
     );
+    await getFleetNodeEnvResponse('2', { timeout: 1200 });
+    await updateFleetNodeEnvResponse('2', { updates: { MDS_CONNECTIVITY_BACKEND: 'none' } }, { timeout: 1300 });
 
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/env/registry',
@@ -533,6 +538,15 @@ describe('gcsApiService', () => {
       'http://gcs.test:5030/api/v1/system/env/fleet/plan',
       { updates: { MDS_GCS_API_TOKEN_FILE: '/etc/mds/secrets/gcs-api.token' }, target_hw_ids: [1] },
       authConfig({ timeout: 1100 })
+    );
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/fleet/nodes/2',
+      authConfig({ timeout: 1200 })
+    );
+    expect(axios.put).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/system/env/fleet/nodes/2',
+      { updates: { MDS_CONNECTIVITY_BACKEND: 'none' } },
+      authConfig({ timeout: 1300 })
     );
   });
 

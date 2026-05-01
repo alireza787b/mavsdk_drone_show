@@ -25,6 +25,60 @@ class TestHealthCheck:
         assert response.json() == {"status": "ok"}
 
 
+class TestNodeEnvironment:
+    """Test node-local env inspection and mutation endpoints."""
+
+    def test_get_node_env_uses_registry_metadata(self, test_client, monkeypatch, tmp_path):
+        local_env = tmp_path / "local.env"
+        identity_file = tmp_path / "node_identity.json"
+        local_env.write_text("MDS_MODE=real\nMDS_CONNECTIVITY_BACKEND=smart-wifi-manager\n", encoding="utf-8")
+        identity_file.write_text('{"hw_id": 1, "runtime_mode": "real"}\n', encoding="utf-8")
+        monkeypatch.setenv("MDS_LOCAL_ENV_FILE", str(local_env))
+        monkeypatch.setenv("MDS_NODE_IDENTITY_FILE", str(identity_file))
+
+        response = test_client.get("/api/v1/system/env")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["config_path"] == str(local_env)
+        assert data["config_present"] is True
+        assert data["summary"]["runtime_mode"] == "real"
+        connectivity = next(item for item in data["values"] if item["name"] == "MDS_CONNECTIVITY_BACKEND")
+        assert connectivity["value"] == "smart-wifi-manager"
+        assert connectivity["editable"] is True
+        assert connectivity["source_of_truth"] == "/etc/mds/local.env"
+
+    def test_update_node_env_persists_registry_approved_value(self, test_client, monkeypatch, tmp_path):
+        local_env = tmp_path / "local.env"
+        local_env.write_text("MDS_CONNECTIVITY_BACKEND=smart-wifi-manager\n", encoding="utf-8")
+        monkeypatch.setenv("MDS_LOCAL_ENV_FILE", str(local_env))
+
+        response = test_client.request(
+            "PUT",
+            "/api/v1/system/env",
+            json={"updates": {"MDS_CONNECTIVITY_BACKEND": "none"}},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["changed_keys"] == ["MDS_CONNECTIVITY_BACKEND"]
+        assert data["restart_required"] is True
+        assert "MDS_CONNECTIVITY_BACKEND=none" in local_env.read_text(encoding="utf-8")
+
+    def test_update_node_env_rejects_wrong_scope(self, test_client, monkeypatch, tmp_path):
+        local_env = tmp_path / "local.env"
+        monkeypatch.setenv("MDS_LOCAL_ENV_FILE", str(local_env))
+
+        response = test_client.request(
+            "PUT",
+            "/api/v1/system/env",
+            json={"updates": {"MDS_MODE": "real"}},
+        )
+
+        assert response.status_code == 422
+        assert "cannot be written to node" in response.json()["detail"]
+
+
 class TestDroneState:
     """Test drone state endpoint"""
 

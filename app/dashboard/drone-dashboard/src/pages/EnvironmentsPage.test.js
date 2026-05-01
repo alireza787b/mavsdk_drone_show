@@ -5,14 +5,18 @@ import { MemoryRouter } from 'react-router-dom';
 const mockGetEnvRegistryResponse = jest.fn();
 const mockGetGcsEnvResponse = jest.fn();
 const mockGetUnifiedGitStatusResponse = jest.fn();
+const mockGetFleetNodeEnvResponse = jest.fn();
 const mockUpdateGcsEnvResponse = jest.fn();
+const mockUpdateFleetNodeEnvResponse = jest.fn();
 const mockApplyGcsEnvResponse = jest.fn();
 
 jest.mock('../services/gcsApiService', () => ({
   getEnvRegistryResponse: (...args) => mockGetEnvRegistryResponse(...args),
   getGcsEnvResponse: (...args) => mockGetGcsEnvResponse(...args),
   getUnifiedGitStatusResponse: (...args) => mockGetUnifiedGitStatusResponse(...args),
+  getFleetNodeEnvResponse: (...args) => mockGetFleetNodeEnvResponse(...args),
   updateGcsEnvResponse: (...args) => mockUpdateGcsEnvResponse(...args),
+  updateFleetNodeEnvResponse: (...args) => mockUpdateFleetNodeEnvResponse(...args),
   applyGcsEnvResponse: (...args) => mockApplyGcsEnvResponse(...args),
 }));
 
@@ -132,6 +136,44 @@ const fleetPayload = {
   },
 };
 
+const nodeEnvPayload = {
+  hw_id: '1',
+  endpoint: 'http://100.64.1.10:7070/api/v1/system/env',
+  reachable: true,
+  config_path: '/etc/mds/local.env',
+  config_present: true,
+  registry_version: 1,
+  registry_hash: 'abc123456789def',
+  unknown_keys: [],
+  deprecated_keys: [],
+  summary: fleetPayload.git_status[1].env_runtime,
+  warnings: [],
+  values: [
+    {
+      name: 'MDS_CONNECTIVITY_BACKEND',
+      title: 'Connectivity backend',
+      scope: 'node',
+      domain: 'connectivity',
+      source_of_truth: '/etc/mds/local.env',
+      value_type: 'string',
+      value: 'smart-wifi-manager',
+      value_present: true,
+      secret: false,
+      secret_configured: false,
+      default: 'none',
+      editable: true,
+      ui_visibility: 'operator',
+      restart_required: 'node_service',
+      apply_action: 'restart_node_service',
+      allowed_values: ['none', 'smart-wifi-manager'],
+      docs: 'docs/guides/connectivity-runtime.md',
+      deprecated: false,
+      replacement: null,
+      notes: 'Optional connectivity sidecar.',
+    },
+  ],
+};
+
 function renderPage() {
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
@@ -149,12 +191,21 @@ describe('EnvironmentsPage', () => {
     mockGetEnvRegistryResponse.mockResolvedValue({ data: registryPayload });
     mockGetGcsEnvResponse.mockResolvedValue({ data: envPayload });
     mockGetUnifiedGitStatusResponse.mockResolvedValue({ data: fleetPayload });
+    mockGetFleetNodeEnvResponse.mockResolvedValue({ data: nodeEnvPayload });
     mockUpdateGcsEnvResponse.mockResolvedValue({
       data: {
         success: true,
         changed_keys: ['MDS_MODE'],
         restart_required: true,
         config_path: '/etc/mds/gcs.env',
+      },
+    });
+    mockUpdateFleetNodeEnvResponse.mockResolvedValue({
+      data: {
+        success: true,
+        changed_keys: ['MDS_CONNECTIVITY_BACKEND'],
+        restart_required: true,
+        config_path: '/etc/mds/local.env',
       },
     });
     mockApplyGcsEnvResponse.mockResolvedValue({
@@ -254,7 +305,7 @@ describe('EnvironmentsPage', () => {
     });
   });
 
-  test('shows read-only fleet node env posture', async () => {
+  test('shows and edits selected fleet node env values', async () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: /fleet nodes/i }));
@@ -263,5 +314,16 @@ describe('EnvironmentsPage', () => {
     expect(screen.getByText('real')).toBeInTheDocument();
     expect(screen.getByText('5/20')).toBeInTheDocument();
     expect(screen.getByText(/identity ok/i)).toBeInTheDocument();
+    expect(await screen.findByText('Connectivity backend')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /edit mds_connectivity_backend/i }));
+    fireEvent.change(screen.getByRole('combobox', { name: /^value$/i }), { target: { value: 'none' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => {
+      expect(mockUpdateFleetNodeEnvResponse).toHaveBeenCalledWith('1', {
+        updates: { MDS_CONNECTIVITY_BACKEND: 'none' },
+      });
+    });
   });
 });

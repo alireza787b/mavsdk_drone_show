@@ -63,6 +63,7 @@ from src.drone_api_routes import (
     DRONE_LOCAL_POSITION_ROUTE,
     DRONE_NAVIGATION_GLOBAL_ORIGIN_ROUTE,
     DRONE_NAVIGATION_HOME_ROUTE,
+    DRONE_ENV_ROUTE,
     DRONE_NETWORK_STATUS_ROUTE,
     DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE,
     DRONE_PX4_PARAMS_POLICY_ROUTE,
@@ -93,7 +94,14 @@ from src.managed_runtime_status import (
     build_mavlink_runtime_summary,
     read_git_sync_runtime_summary,
 )
-from src.settings.env_status import build_node_env_summary_safe
+from src.settings.env_files import persist_env_updates
+from src.settings.env_registry import EnvRegistryError
+from src.settings.env_status import (
+    build_node_env_response,
+    build_node_env_summary_safe,
+    validate_node_env_updates,
+)
+from src.settings.runtime import get_local_env_path
 from src.mission_startup import probe_offboard_armability
 from src.px4_param_models import (
     Px4ParamPatchApplyRequest,
@@ -330,6 +338,59 @@ class DroneEnvRuntimeResponse(BaseModel):
     registered_node_key_count: int = 0
     unknown_keys: List[str] = Field(default_factory=list)
     deprecated_keys: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class DroneEnvEntryResponse(BaseModel):
+    name: str
+    title: str
+    scope: str
+    domain: str
+    source_of_truth: str
+    value_type: str
+    value: Optional[Any] = None
+    value_present: bool
+    secret: bool
+    secret_configured: bool = False
+    default: Optional[Any] = None
+    editable: bool
+    ui_visibility: str
+    restart_required: str
+    apply_action: str
+    allowed_values: List[Any] = Field(default_factory=list)
+    docs: str
+    deprecated: bool = False
+    replacement: Optional[str] = None
+    notes: str = ""
+
+
+class DroneEnvResponse(BaseModel):
+    config_path: str
+    config_present: bool
+    registry_version: int
+    registry_hash: str
+    values: List[DroneEnvEntryResponse] = Field(default_factory=list)
+    unknown_keys: List[str] = Field(default_factory=list)
+    deprecated_keys: List[str] = Field(default_factory=list)
+    summary: DroneEnvRuntimeResponse
+    warnings: List[str] = Field(default_factory=list)
+
+
+class DroneEnvUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    updates: Dict[str, Any] = Field(default_factory=dict)
+    dry_run: bool = False
+
+
+class DroneEnvUpdateResponse(BaseModel):
+    success: bool
+    dry_run: bool
+    config_path: str
+    updated_keys: List[str] = Field(default_factory=list)
+    changed_keys: List[str] = Field(default_factory=list)
+    restart_required: bool
+    apply_actions: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 
 
@@ -1107,6 +1168,42 @@ class DroneAPIServer:
         async def ping_v1():
             """Canonical v1 health endpoint with timestamp and version metadata."""
             return DroneHealthResponse(status="ok", version=MDS_VERSION)
+
+        @self.app.get(DRONE_ENV_ROUTE, response_model=DroneEnvResponse)
+        async def get_node_env(include_hidden: bool = False):
+            """Return node-local env values with registry metadata and safe redaction."""
+            try:
+                return build_node_env_response(include_hidden=include_hidden)
+            except EnvRegistryError as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"error_in_get_node_env: {exc}") from exc
+
+        @self.app.put(DRONE_ENV_ROUTE, response_model=DroneEnvUpdateResponse)
+        async def update_node_env(payload: DroneEnvUpdateRequest):
+            """Persist registry-approved node-local env keys without exposing secrets."""
+            try:
+                updates = payload.updates or {}
+                validated, warnings, apply_actions, restart_required = validate_node_env_updates(updates)
+                config_path = get_local_env_path()
+                changed_keys: list[str] = []
+                if not payload.dry_run and validated:
+                    changed_keys = list(persist_env_updates(config_path, validated).changed_keys)
+
+                return DroneEnvUpdateResponse(
+                    success=True,
+                    dry_run=bool(payload.dry_run),
+                    config_path=str(config_path),
+                    updated_keys=list(validated),
+                    changed_keys=changed_keys,
+                    restart_required=bool(restart_required and (payload.dry_run or changed_keys)),
+                    apply_actions=apply_actions,
+                    warnings=warnings,
+                )
+            except EnvRegistryError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"error_in_update_node_env: {exc}") from exc
 
         @self.app.get('/ping')
         async def ping():

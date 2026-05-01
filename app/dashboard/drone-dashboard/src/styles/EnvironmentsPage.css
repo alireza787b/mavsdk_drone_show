@@ -111,6 +111,10 @@
   gap: var(--spacing-lg);
 }
 
+.environments-page__groups--embedded {
+  gap: var(--spacing-base);
+}
+
 .environments-page__group {
   display: flex;
   flex-direction: column;
@@ -137,16 +141,74 @@
   grid-template-columns: repeat(auto-fit, var(--env-card-min));
 }
 
+.environments-page__grid--node {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
 .environments-page__node-grid {
   display: grid;
   gap: var(--spacing-base);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
 }
 
+.environments-page__node-workbench {
+  display: grid;
+  gap: var(--spacing-lg);
+  grid-template-columns: minmax(16rem, 0.34fr) minmax(0, 1fr);
+}
+
 .environments-page__node-card {
+  appearance: none;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  text-align: left;
+  width: 100%;
+}
+
+.environments-page__node-card:hover {
+  transform: translateY(-1px);
+}
+
+.environments-page__node-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-base);
+  min-width: 0;
+}
+
+.environments-page__node-editor-header {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--spacing-base);
+  justify-content: space-between;
+}
+
+.environments-page__node-editor-header > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.environments-page__node-editor-header > div:first-child {
+  align-items: flex-start;
+  display: grid;
+}
+
+.environments-page__node-editor-header span {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.environments-page__node-editor-header strong {
+  color: var(--color-text-primary);
+  font-family: var(--font-family-display);
 }
 
 .environments-page__node-card header {
@@ -459,6 +521,15 @@
 @media (max-width: 760px) {
   .environments-page__toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .environments-page__node-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .environments-page__node-editor-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .environments-page__entry {

@@ -59,13 +59,18 @@ The GCS exposes registry-backed inspection endpoints:
 | `PUT` | `/api/v1/system/env/gcs` | Persist registry-approved GCS env updates |
 | `POST` | `/api/v1/system/env/gcs/apply` | Restart the GCS when persisted env changes require it |
 | `POST` | `/api/v1/system/env/fleet/plan` | Dry-run node-scoped env rollout plan without mutating drones |
+| `GET` | `/api/v1/system/env/fleet/nodes/{hw_id}` | Inspect one reachable node's registry-backed local env through the GCS |
+| `PUT` | `/api/v1/system/env/fleet/nodes/{hw_id}` | Persist one registry-approved, non-secret node env edit through the GCS |
+| `GET` | drone `/api/v1/system/env` | Inspect the local node env directly on a trusted network |
+| `PUT` | drone `/api/v1/system/env` | Persist registry-approved local node env updates |
 
-Mutation is intentionally limited to GCS-local keys. Fleet nodes report env
-posture through their canonical `GET /api/v1/git/status` payload, which the GCS
-already polls for Fleet Ops. `POST /api/v1/system/env/fleet/plan` validates
-node-scoped updates against the same registry and returns a per-node dry-run
-plan. Actual node mutation remains blocked until node-side identity-safe apply
-APIs exist.
+GCS-local mutation and single-node field repair are supported. Fleet nodes still
+report compact env posture through their canonical `GET /api/v1/git/status`
+payload, which the GCS already polls for Fleet Ops. `POST
+/api/v1/system/env/fleet/plan` validates node-scoped updates against the same
+registry and returns a per-node dry-run plan. Bulk node mutation remains blocked:
+for hundreds of drones, promote stable desired state into the repo/bootstrap
+source of truth and use sync/reconcile rather than ad hoc browser fanout.
 
 ## Dashboard
 
@@ -75,17 +80,20 @@ The dashboard exposes the same GCS-local control surface at:
 /environments
 ```
 
-Use this page for host-local, registry-approved GCS variables and read-only
-fleet-node env posture. The GCS Host tab shows the loaded registry hash, env
+Use this page for host-local, registry-approved GCS variables and reachable
+single-node field repair. The GCS Host tab shows the loaded registry hash, env
 file path, unknown or retired keys, and restart-sensitive values. The Fleet
 Nodes tab shows registry hash, local env presence, identity presence, runtime
-mode, and key-count/drift summaries without exposing values.
+mode, and key-count/drift summaries; selecting a node opens the safe value list
+and edit dialog for non-secret, registry-approved node keys.
 
 Operator rules:
 
 - Use `GCS Runtime` for mode switching and controlled runtime updates.
 - Use `Environments` for typed GCS env inspection and small approved edits.
 - Use `Fleet Ops` for drone-node sync, git posture, and sidecar posture.
+- Use single-node env edits for repair/staging. Use repo/bootstrap profiles for
+  fleet-wide desired-state changes.
 - Do not put raw secrets in env values; reference secret files instead.
 
 ## Recovery

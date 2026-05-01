@@ -66,11 +66,17 @@ Dashboard control:
 - `Environments` is for registry-backed env inspection and approved GCS-local
   edits.
 - `Environments > Fleet Nodes` shows each node's registry hash, local env
-  presence, identity presence, runtime mode, and drift counts without exposing
-  env values.
-- `POST /api/v1/system/env/fleet/plan` provides a dry-run plan for node-scoped
-  updates. Direct fleet-node env mutation remains blocked until identity-safe
-  node apply APIs exist.
+  presence, identity presence, runtime mode, and drift counts. Selecting one
+  reachable node opens a PX4-parameter-style env inspector/editor through the
+  GCS proxy.
+- `GET /api/v1/system/env/fleet/nodes/{hw_id}` and
+  `PUT /api/v1/system/env/fleet/nodes/{hw_id}` are for single-node field repair
+  only. They never expose raw secret values and only accept registry-approved,
+  editable node keys.
+- `POST /api/v1/system/env/fleet/plan` provides a dry-run plan for future
+  fleet-wide node-scoped rollout. Bulk mutation remains intentionally dry-run;
+  promote stable fleet-wide changes into the repo/bootstrap source of truth
+  instead of patching hundreds of nodes ad hoc.
 
 ## Effective Precedence
 
