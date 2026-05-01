@@ -1,4 +1,8 @@
-from src.managed_runtime_status import read_git_sync_runtime_summary, resolve_dashboard_access
+from src.managed_runtime_status import (
+    build_connectivity_runtime_summary,
+    read_git_sync_runtime_summary,
+    resolve_dashboard_access,
+)
 
 
 def test_read_git_sync_runtime_summary_defaults_to_home_state_path(monkeypatch, tmp_path):
@@ -40,6 +44,23 @@ def test_resolve_dashboard_access_for_explicit_remote_host_keeps_host():
         "dashboard_access_mode": "direct",
         "dashboard_url": "http://100.82.7.9:9070",
     }
+
+
+def test_build_connectivity_runtime_summary_prefers_reconcile_dashboard_listen(monkeypatch, tmp_path):
+    monkeypatch.delenv("MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN", raising=False)
+    monkeypatch.setattr(
+        "src.managed_runtime_status.read_reconcile_status",
+        lambda repo_root, script_relative_path: {
+            "status_source": "script",
+            "backend": "smart-wifi-manager",
+            "dashboard_listen": "0.0.0.0:9080",
+            "service_status": "active",
+        },
+    )
+
+    result = build_connectivity_runtime_summary(tmp_path)
+
+    assert result["dashboard_listen"] == "0.0.0.0:9080"
 
 
 def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):

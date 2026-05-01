@@ -163,7 +163,9 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         "profile_path": profile_path,
         "profile_present": bool(profile_path and Path(profile_path).is_file()),
         "profile_hash": status.get("profile_hash") or file_sha256(profile_path),
-        "dashboard_listen": os.environ.get("MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN") or deployment_profile.smart_wifi_manager_dashboard_listen,
+        "dashboard_listen": status.get("dashboard_listen")
+        or os.environ.get("MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN")
+        or deployment_profile.smart_wifi_manager_dashboard_listen,
         "service_status": status.get("service_status", "unknown"),
         "desired_config_hash": status.get("desired_config_hash") or None,
         "applied_config_hash": status.get("applied_config_hash") or None,
