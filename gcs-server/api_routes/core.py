@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebS
 from fastapi.responses import JSONResponse
 
 from auth_runtime import authorize_websocket
+from presence import build_presence_snapshot, resolve_presence_thresholds
 from schemas import (
     HealthCheckResponse,
     HeartbeatData,
@@ -53,28 +54,41 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
     heartbeats_dict = deps.get_all_heartbeats()
     drones_config = deps.load_config()
     config_lookup = {str(drone["hw_id"]): drone for drone in drones_config}
+    config_hw_ids = set(config_lookup)
 
     current_time = time.time()
-    heartbeat_timeout = deps.Params.TELEMETRY_POLLING_TIMEOUT
+    thresholds = resolve_presence_thresholds(deps.Params)
     heartbeats_list = []
+    state_counts: dict[str, int] = {}
 
-    for hw_id, hb_data in heartbeats_dict.items():
+    data_lock = getattr(deps, "data_lock", None)
+    telemetry_rows = getattr(deps, "telemetry_data_all_drones", {}) or {}
+    telemetry_success_times = getattr(deps, "last_telemetry_time", {}) or {}
+    if data_lock is not None:
+        with data_lock:
+            telemetry_rows = {str(key): dict(value or {}) for key, value in telemetry_rows.items()}
+            telemetry_success_times = {str(key): value for key, value in telemetry_success_times.items()}
+    else:
+        telemetry_rows = {str(key): dict(value or {}) for key, value in telemetry_rows.items()}
+        telemetry_success_times = {str(key): value for key, value in telemetry_success_times.items()}
+
+    all_hw_ids = sorted(config_hw_ids | {str(key) for key in heartbeats_dict} | set(telemetry_rows))
+    for hw_id in all_hw_ids:
+        hb_data = heartbeats_dict.get(str(hw_id), {}) if isinstance(heartbeats_dict.get(str(hw_id)), dict) else {}
         last_timestamp = hb_data.get("timestamp", 0)
-        heartbeat_age_sec = None
-        if last_timestamp:
-            heartbeat_age_sec = max(0.0, current_time - (last_timestamp / 1000.0))
-            is_online = heartbeat_age_sec < heartbeat_timeout
-        else:
-            is_online = False
-
-        if is_online:
-            presence_state = "live"
-        elif last_timestamp and heartbeat_age_sec is not None and heartbeat_age_sec <= max(30.0, heartbeat_timeout):
-            presence_state = "recently_lost"
-        elif last_timestamp:
-            presence_state = "offline"
-        else:
-            presence_state = "never_seen"
+        presence = build_presence_snapshot(
+            hw_id=hw_id,
+            heartbeat=hb_data,
+            telemetry=telemetry_rows.get(str(hw_id), {}),
+            telemetry_success_time=telemetry_success_times.get(str(hw_id)),
+            configured=str(hw_id) in config_hw_ids,
+            now=current_time,
+            thresholds=thresholds,
+        )
+        is_online = bool(presence["fresh"])
+        presence_state = str(presence["state"])
+        heartbeat_age_sec = presence.get("heartbeat_age_sec")
+        state_counts[presence_state] = state_counts.get(presence_state, 0) + 1
 
         ip_value = hb_data.get("ip")
         if ip_value is not None:
@@ -92,6 +106,7 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
             online=is_online,
             heartbeat_age_sec=heartbeat_age_sec,
             presence_state=presence_state,
+            presence=presence,
         )
         heartbeats_list.append(heartbeat_obj)
 
@@ -100,6 +115,7 @@ def _build_heartbeat_response(deps: Any) -> HeartbeatResponse:
         heartbeats=heartbeats_list,
         total_drones=len(heartbeats_list),
         online_count=online_count,
+        state_counts=state_counts,
         timestamp=int(time.time() * 1000),
     )
 

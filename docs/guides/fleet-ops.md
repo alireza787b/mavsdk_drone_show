@@ -43,10 +43,26 @@ The git-status payload already includes per-node:
 
 ## Status Meaning
 
-### Online
+### Presence
 
-Comes from the heartbeat feed. Offline means the last node heartbeat is stale or
-not accepted by the active GCS mode fence.
+Fleet Ops uses the canonical GCS presence contract from
+`GET /api/v1/fleet/heartbeats`. Do not infer liveness from old git status
+records; those are diagnostic records and can outlive a disconnected node.
+
+Presence states:
+
+- `never_seen`: configured/reporting identity exists, but this GCS runtime has no accepted heartbeat or telemetry evidence.
+- `live`: heartbeat or telemetry is fresh enough for operator action.
+- `recently_lost`: link dropped inside the short grace window; monitor for recovery.
+- `stale`: link is older than the recent-loss window but not yet long-offline.
+- `offline`: link has exceeded the stale threshold.
+- `blocked`: link is live, but readiness/preflight blocks operation.
+
+The thresholds are registry-backed GCS env keys:
+
+- `MDS_PRESENCE_RECENT_LOSS_SEC`
+- `MDS_PRESENCE_STALE_SEC`
+- `MDS_PRESENCE_LONG_OFFLINE_SEC`
 
 ### Synced
 

@@ -115,3 +115,27 @@ def test_core_router_typed_telemetry_sets_server_time_header():
     assert response.status_code == 200
     assert response.headers["X-MDS-Server-Time"].isdigit()
     assert response.json()["total_drones"] == 1
+
+
+def test_core_router_heartbeats_include_configured_never_seen_nodes():
+    deps = _make_deps()
+    deps.get_all_heartbeats = lambda: {}
+    deps.telemetry_data_all_drones = {}
+    deps.last_telemetry_time = {}
+    deps.load_config = lambda: [
+        {"hw_id": "1", "pos_id": 1, "ip": "10.0.0.1"},
+        {"hw_id": "2", "pos_id": 2, "ip": "10.0.0.2"},
+    ]
+    app = FastAPI()
+    app.include_router(create_core_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/fleet/heartbeats")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["online_count"] == 0
+    assert data["state_counts"]["never_seen"] == 2
+    rows = {item["hw_id"]: item for item in data["heartbeats"]}
+    assert rows["1"]["presence_state"] == "never_seen"
+    assert rows["1"]["presence"]["configured"] is True

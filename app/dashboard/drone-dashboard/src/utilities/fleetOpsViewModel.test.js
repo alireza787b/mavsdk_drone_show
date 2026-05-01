@@ -69,6 +69,8 @@ describe('fleetOpsViewModel', () => {
     expect(viewModel.summary).toMatchObject({
       total: 2,
       online: 1,
+      stale: 0,
+      offline: 1,
       synced: 1,
       authHealthy: 1,
       mavlinkHealthy: 1,
@@ -183,7 +185,7 @@ describe('fleetOpsViewModel', () => {
       .toBeNull();
   });
 
-  test('separates never-seen, recently-lost, and offline node presence', () => {
+  test('separates never-seen, recent-loss, stale, and offline node presence', () => {
     expect(classifyNodePresence(null, 100000)).toMatchObject({
       state: 'never_seen',
       tone: 'muted',
@@ -192,9 +194,31 @@ describe('fleetOpsViewModel', () => {
       state: 'recently_lost',
       tone: 'warning',
     });
+    expect(classifyNodePresence({ online: false, runtime_mode: 'real', last_heartbeat: 50000 }, 100000)).toMatchObject({
+      state: 'stale',
+      tone: 'warning',
+    });
     expect(classifyNodePresence({ online: false, runtime_mode: 'real', last_heartbeat: 1000 }, 100000)).toMatchObject({
       state: 'offline',
       tone: 'danger',
+    });
+  });
+
+  test('uses canonical backend presence snapshots when available', () => {
+    expect(classifyNodePresence({
+      online: false,
+      presence_state: 'stale',
+      presence: {
+        state: 'stale',
+        source: 'heartbeat',
+        age_sec: 44.2,
+        detail: 'Link stale for 44.2s.',
+      },
+    }, 100000)).toMatchObject({
+      state: 'stale',
+      label: 'Stale',
+      tone: 'warning',
+      source: 'heartbeat',
     });
   });
 });

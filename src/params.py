@@ -242,6 +242,9 @@ class Params:
 
     TELEMETRY_POLLING_TIMEOUT = 10  # Threshold in seconds to check for telemetry timeout
     HTTP_REQUEST_TIMEOUT = 5        # Timeout in seconds for HTTP requests
+    PRESENCE_RECENT_LOSS_SEC = _safe_float(os.getenv('MDS_PRESENCE_RECENT_LOSS_SEC', '30'), 30.0)
+    PRESENCE_STALE_SEC = _safe_float(os.getenv('MDS_PRESENCE_STALE_SEC', '60'), 60.0)
+    PRESENCE_LONG_OFFLINE_SEC = _safe_float(os.getenv('MDS_PRESENCE_LONG_OFFLINE_SEC', '300'), 300.0)
 
     enable_default_subscriptions = True  # All drones subscribe to each other for continuous polling
     

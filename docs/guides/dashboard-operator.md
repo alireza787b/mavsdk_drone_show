@@ -33,10 +33,12 @@ visible` is selected again.
 
 Drone cards distinguish:
 
-- online: fresh trusted telemetry
-- degraded: telemetry is delayed but still recently known
-- lost/offline: telemetry is stale or unavailable
-- never seen: configured but no live heartbeat has been observed in this GCS session
+- live: fresh trusted heartbeat or telemetry
+- recently lost: short grace window after a dropped link
+- stale: link evidence is old and should not count as live
+- offline: stale threshold exceeded
+- never seen: configured but no accepted heartbeat or telemetry has been observed in this GCS runtime
+- blocked: link is live but preflight/readiness blocks operation
 
 The dashboard should make these states visible without forcing the operator to
 open every card.
@@ -62,4 +64,3 @@ Before sending commands, verify:
 - [Smart Swarm](../features/smart-swarm.md)
 - [Drone Show](../features/drone-show.md)
 - [Swarm Trajectory](../features/swarm-trajectory.md)
-

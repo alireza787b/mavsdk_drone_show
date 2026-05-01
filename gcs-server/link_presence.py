@@ -3,32 +3,13 @@ from typing import Any, Dict, Iterable
 
 from heartbeat import get_all_heartbeats
 from params import Params
+from presence import build_presence_snapshot, resolve_presence_thresholds
 from telemetry import data_lock as telemetry_lock
 from telemetry import last_telemetry_time, telemetry_data_all_drones
 
 
 def _normalize_hw_id(value: Any) -> str:
     return str(value).strip()
-
-
-def _safe_age_seconds_from_ms(timestamp_ms: Any, now: float) -> float | None:
-    if not timestamp_ms:
-        return None
-
-    try:
-        return now - (float(timestamp_ms) / 1000.0)
-    except (TypeError, ValueError):
-        return None
-
-
-def _safe_age_seconds_from_seconds(timestamp_seconds: Any, now: float) -> float | None:
-    if not timestamp_seconds:
-        return None
-
-    try:
-        return now - float(timestamp_seconds)
-    except (TypeError, ValueError):
-        return None
 
 
 def get_recent_link_presence(
@@ -68,37 +49,26 @@ def get_recent_link_presence(
     }
     all_hw_ids = requested_ids | set(heartbeats.keys()) | set(telemetry_rows.keys())
 
-    heartbeat_grace_seconds = max(Params.TELEMETRY_POLLING_TIMEOUT, Params.heartbeat_interval * 2)
-    telemetry_grace_seconds = max(
-        Params.TELEMETRY_POLLING_TIMEOUT,
-        Params.HTTP_REQUEST_TIMEOUT * 3,
-        Params.telem_poll_interval * 3,
-    )
+    thresholds = resolve_presence_thresholds(Params)
 
     snapshots: Dict[str, Dict[str, Any]] = {}
     for hw_id in sorted(all_hw_ids):
         heartbeat = heartbeats.get(hw_id) if isinstance(heartbeats.get(hw_id), dict) else None
-        heartbeat_age_seconds = _safe_age_seconds_from_ms(
-            heartbeat.get("timestamp") if heartbeat else None,
-            now,
-        )
-        heartbeat_recent = (
-            heartbeat_age_seconds is not None and heartbeat_age_seconds <= heartbeat_grace_seconds
-        )
-
         telemetry_row = telemetry_rows.get(hw_id) or {}
-        telemetry_available = bool(telemetry_row.get("telemetry_available"))
-        telemetry_age_seconds = _safe_age_seconds_from_seconds(
-            telemetry_success_times.get(hw_id),
-            now,
+        snapshot = build_presence_snapshot(
+            hw_id=hw_id,
+            heartbeat=heartbeat,
+            telemetry=telemetry_row,
+            telemetry_success_time=telemetry_success_times.get(hw_id),
+            now=now,
+            thresholds=thresholds,
         )
-        telemetry_recent = (
-            telemetry_available
-            and telemetry_age_seconds is not None
-            and telemetry_age_seconds <= telemetry_grace_seconds
-        )
-
-        online_recent = heartbeat_recent or telemetry_recent
+        heartbeat_age_seconds = snapshot.get("heartbeat_age_sec")
+        heartbeat_recent = bool(snapshot.get("heartbeat_recent"))
+        telemetry_age_seconds = snapshot.get("telemetry_age_sec")
+        telemetry_recent = bool(snapshot.get("telemetry_recent"))
+        telemetry_available = bool(snapshot.get("telemetry_available"))
+        online_recent = bool(snapshot.get("fresh"))
 
         if online_recent:
             if heartbeat_recent and telemetry_recent:
@@ -125,6 +95,9 @@ def get_recent_link_presence(
 
         snapshots[hw_id] = {
             "hw_id": hw_id,
+            "presence_state": snapshot.get("state", "unknown"),
+            "last_seen_ms": snapshot.get("last_seen_ms"),
+            "long_offline": bool(snapshot.get("long_offline")),
             "online_recent": online_recent,
             "reason": reason,
             "source": source,

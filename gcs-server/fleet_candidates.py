@@ -12,6 +12,7 @@ from typing import Any, Optional
 
 from functions.file_utils import load_json, save_json
 from mds_logging import get_logger
+from presence import resolve_presence_thresholds
 from schemas import (
     FleetCandidateAcceptRequest,
     FleetCandidateAnnounceRequest,
@@ -275,11 +276,12 @@ class FleetCandidateRegistry:
         last_heartbeat = record.get("last_heartbeat")
         heartbeat_age_sec = None
         heartbeat_status = "unknown"
+        thresholds = resolve_presence_thresholds()
         if last_heartbeat:
             heartbeat_age_sec = max(0, int((now_ms - int(last_heartbeat)) / 1000))
-            if heartbeat_age_sec < 20:
+            if heartbeat_age_sec <= thresholds.live_sec:
                 heartbeat_status = "online"
-            elif heartbeat_age_sec < 60:
+            elif heartbeat_age_sec <= thresholds.stale_sec:
                 heartbeat_status = "stale"
             else:
                 heartbeat_status = "offline"

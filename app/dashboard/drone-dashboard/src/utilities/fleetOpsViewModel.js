@@ -121,6 +121,36 @@ export function classifyNodePresence(heartbeat, payloadTimestamp) {
     };
   }
 
+  if (heartbeat.presence && typeof heartbeat.presence === 'object') {
+    const state = String(heartbeat.presence.state || heartbeat.presence_state || 'unknown');
+    const longOffline = Boolean(heartbeat.presence.long_offline);
+    const labels = {
+      live: 'Live',
+      blocked: 'Live blocked',
+      recently_lost: 'Recent loss',
+      stale: 'Stale',
+      offline: longOffline ? 'Long offline' : 'Offline',
+      never_seen: 'Never seen',
+    };
+    const tones = {
+      live: 'good',
+      blocked: 'warning',
+      recently_lost: 'warning',
+      stale: 'warning',
+      offline: 'danger',
+      never_seen: 'muted',
+    };
+    return {
+      state,
+      label: labels[state] || state.replace(/^./, (value) => value.toUpperCase()),
+      tone: tones[state] || 'warning',
+      detail: heartbeat.presence.detail || heartbeat.presence.label || 'Presence evidence is incomplete.',
+      ageSec: heartbeat.presence.age_sec ?? heartbeat.heartbeat_age_sec ?? null,
+      source: heartbeat.presence.source || 'unknown',
+      longOffline,
+    };
+  }
+
   const nowMs = Number(payloadTimestamp || Date.now());
   const lastHeartbeatMs = Number(heartbeat.last_heartbeat || heartbeat.timestamp || 0);
   const ageSec = lastHeartbeatMs > 0 && Number.isFinite(nowMs)
@@ -130,7 +160,7 @@ export function classifyNodePresence(heartbeat, payloadTimestamp) {
 
   if (heartbeat.online) {
     return {
-      state: 'ready',
+      state: 'live',
       label: 'Live',
       tone: 'good',
       detail: ageSec === null ? 'Heartbeat is active.' : `Heartbeat age ${ageSec}s.`,
@@ -143,6 +173,15 @@ export function classifyNodePresence(heartbeat, payloadTimestamp) {
       label: 'Recent loss',
       tone: 'warning',
       detail: `Last heartbeat ${ageSec}s ago; monitor for recovery or flapping.`,
+    };
+  }
+
+  if (lastHeartbeatMs > 0 && ageSec !== null && ageSec <= 60) {
+    return {
+      state: 'stale',
+      label: 'Stale',
+      tone: 'warning',
+      detail: `Last heartbeat ${ageSec}s ago; link is stale.`,
     };
   }
 
@@ -350,6 +389,7 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
 
 function rowNeedsAttention(row) {
   return !row.online
+    || isAttentionTone(row.presence.tone)
     || isAttentionTone(row.sync.tone)
     || isAttentionTone(row.auth.tone)
     || isAttentionTone(row.nodeSyncRuntime.tone)
@@ -462,6 +502,10 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
   const summary = {
     total: rows.length,
     online: countBy((row) => row.online),
+    recentLoss: countBy((row) => row.presence.state === 'recently_lost'),
+    stale: countBy((row) => row.presence.state === 'stale'),
+    offline: countBy((row) => row.presence.state === 'offline'),
+    neverSeen: countBy((row) => row.presence.state === 'never_seen'),
     synced: countBy((row) => row.sync.state === 'synced'),
     authHealthy: countBy((row) => row.auth.tone === 'good'),
     mavlinkHealthy: countBy((row) => row.mavlink.tone === 'good'),

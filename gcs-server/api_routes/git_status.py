@@ -8,6 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from auth_runtime import authorize_websocket
 from git_status import commits_match
+from presence import build_presence_snapshot, resolve_presence_thresholds
 from schemas import (
     DroneConnectivityRuntimeStatus,
     DroneEnvRuntimeStatus,
@@ -245,19 +246,20 @@ def _resolve_actionable_online_hw_ids(deps: Any) -> set[str] | None:
     if not heartbeats:
         return set()
 
-    timeout = float(getattr(deps.Params, "TELEMETRY_POLLING_TIMEOUT", 30.0) or 30.0)
     now = time.time()
+    thresholds = resolve_presence_thresholds(deps.Params)
     online_hw_ids: set[str] = set()
 
     for hw_id, heartbeat in heartbeats.items():
         if not isinstance(heartbeat, dict):
             continue
-        timestamp = heartbeat.get("timestamp")
-        try:
-            heartbeat_age_sec = now - (float(timestamp) / 1000.0)
-        except (TypeError, ValueError):
-            continue
-        if 0 <= heartbeat_age_sec < timeout:
+        snapshot = build_presence_snapshot(
+            hw_id=hw_id,
+            heartbeat=heartbeat,
+            now=now,
+            thresholds=thresholds,
+        )
+        if snapshot.get("fresh"):
             online_hw_ids.add(str(hw_id))
 
     return online_hw_ids

@@ -489,7 +489,8 @@ class HeartbeatData(BaseModel):
     last_heartbeat: Optional[int] = Field(None, description="Last heartbeat timestamp (Unix ms)")
     online: bool = Field(..., description="Online status")
     heartbeat_age_sec: Optional[float] = Field(None, ge=0, description="Age of the last accepted heartbeat in seconds")
-    presence_state: str = Field("unknown", description="Operator presence state: live, recently_lost, offline, never_seen, or unknown")
+    presence_state: str = Field("unknown", description="Operator presence state: live, recently_lost, stale, offline, never_seen, blocked, or unknown")
+    presence: Dict[str, Any] = Field(default_factory=dict, description="Canonical GCS presence snapshot with freshness thresholds and source evidence")
 
 
 class HeartbeatResponse(BaseModel):
@@ -497,6 +498,7 @@ class HeartbeatResponse(BaseModel):
     heartbeats: List[HeartbeatData] = Field(..., description="Heartbeat data for all drones")
     total_drones: int = Field(..., ge=0, description="Total drones")
     online_count: int = Field(..., ge=0, description="Online drones")
+    state_counts: Dict[str, int] = Field(default_factory=dict, description="Heartbeat rows counted by canonical presence_state")
     timestamp: int = Field(..., description="Server timestamp (Unix ms)")
 
 
