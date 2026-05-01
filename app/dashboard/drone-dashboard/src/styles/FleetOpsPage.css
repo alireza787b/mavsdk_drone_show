@@ -310,6 +310,7 @@
 
 .fleet-ops-node-card__quick-links a,
 .fleet-ops-node-card__quick-links span {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -320,6 +321,39 @@
   background: var(--color-surface-inset);
   color: var(--color-text-secondary);
   text-decoration: none;
+}
+
+.fleet-ops-node-card__quick-links a::after,
+.fleet-ops-node-card__quick-links span::after {
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 0.45rem);
+  z-index: var(--z-tooltip);
+  width: max-content;
+  max-width: 14rem;
+  padding: 0.38rem 0.55rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-base);
+  content: attr(data-tooltip);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transform: translateX(50%) translateY(0.2rem);
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.fleet-ops-node-card__quick-links a:hover::after,
+.fleet-ops-node-card__quick-links a:focus-visible::after,
+.fleet-ops-node-card__quick-links span:hover::after,
+.fleet-ops-node-card__quick-links span:focus-visible::after {
+  opacity: 1;
+  transform: translateX(50%) translateY(0);
 }
 
 .fleet-ops-node-card__quick-links span.is-disabled {

@@ -134,19 +134,27 @@ function DashboardQuickLinks({ row }) {
           ? `${link.label} is local-only; use SSH tunneling or enable direct dashboard listen on the node.`
           : `${link.label} unavailable; dashboard is disabled or not installed.`;
         return link.href ? (
-        <a key={link.key} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
-          {link.icon}
-        </a>
-      ) : (
-        <span
-          key={link.key}
-          className="is-disabled"
-          aria-label={reason}
-          title={reason}
-        >
-          {link.icon}
-        </span>
-      );
+          <a
+            key={link.key}
+            href={link.href}
+            target="_blank"
+            rel="noreferrer"
+            aria-label={link.label}
+            data-tooltip={link.label}
+          >
+            {link.icon}
+          </a>
+        ) : (
+          <span
+            key={link.key}
+            className="is-disabled"
+            aria-label={reason}
+            data-tooltip={reason}
+            tabIndex={0}
+          >
+            {link.icon}
+          </span>
+        );
       })}
     </div>
   );
