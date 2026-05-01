@@ -15,6 +15,7 @@ def write_identity_file(path: Path) -> None:
         json.dumps(
             {
                 "node_uuid": "node-abc",
+                "runtime_mode": "real",
                 "hw_id": 12,
                 "hostname": "mds-drone-012",
                 "role_hint": "spare",
@@ -117,6 +118,7 @@ def test_node_announce_dry_run_writes_report_and_derives_payload(tmp_path):
     assert report["gcs_api_url"] == "http://127.0.0.1:5030"
     assert report["endpoint"].endswith("/api/v1/fleet/candidates/announce")
     assert report["payload"]["node_uuid"] == "node-abc"
+    assert report["payload"]["runtime_mode"] == "real"
     assert report["payload"]["hw_id"] == 12
     assert "timestamp" in report["payload"]
 
@@ -140,6 +142,7 @@ def test_node_announce_posts_to_gcs_and_records_response(tmp_path):
         assert len(server.calls) == 1
         assert server.calls[0]["path"] == "/api/v1/fleet/candidates/announce"
         assert server.calls[0]["body"]["hw_id"] == 12
+        assert server.calls[0]["body"]["runtime_mode"] == "real"
 
         report = json.loads(report_file.read_text(encoding="utf-8"))
         assert report["status"] == "ok"

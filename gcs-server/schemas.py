@@ -203,6 +203,7 @@ class FleetCandidateRecord(BaseModel):
     model_config = ConfigDict(extra='ignore')
 
     candidate_id: str = Field(..., description="Stable candidate identifier")
+    runtime_mode: Optional[str] = Field(None, description="Runtime domain this candidate belongs to: real or sitl")
     node_uuid: Optional[str] = Field(None, description="Node-local bootstrap UUID if reported")
     hw_id: Optional[str] = Field(None, description="Candidate hardware ID")
     hostname: Optional[str] = Field(None, description="Candidate hostname")
@@ -235,12 +236,26 @@ class FleetCandidateRecord(BaseModel):
     replacement_target_pos_id: Optional[str] = Field(None, description="Existing fleet pos_id preserved by a replacement action")
     notes: Optional[str] = Field(None, description="Operator or automation notes")
 
+    @field_validator("runtime_mode", mode="before")
+    @classmethod
+    def normalize_candidate_runtime_mode(cls, value):
+        if value is None:
+            return None
+        value = str(value).strip().lower()
+        if not value:
+            return None
+        if value in {"real", "sitl"}:
+            return value
+        raise ValueError("runtime_mode must be either 'real' or 'sitl'")
+
 
 class FleetCandidateListResponse(BaseModel):
     """Response for listing fleet enrollment candidates."""
     candidates: List[FleetCandidateRecord] = Field(..., description="Candidate records")
     total_candidates: int = Field(..., ge=0, description="Number of returned candidate records")
     state_counts: Dict[str, int] = Field(default_factory=dict, description="Counts grouped by registration_state")
+    runtime_mode_filter: str = Field("current", description="Runtime domain filter used for the response")
+    runtime_mode_counts: Dict[str, int] = Field(default_factory=dict, description="Returned candidate counts grouped by runtime_mode")
     timestamp: int = Field(..., ge=0, description="Response timestamp (Unix ms)")
 
 
@@ -249,6 +264,7 @@ class FleetCandidateAnnounceRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     node_uuid: Optional[str] = Field(None, description="Node-local bootstrap UUID")
+    runtime_mode: Optional[str] = Field(None, description="Runtime domain this candidate belongs to: real or sitl")
     hw_id: Optional[Union[int, str]] = Field(None, description="Candidate hardware ID")
     hostname: Optional[str] = Field(None, description="Companion hostname")
     role_hint: Optional[str] = Field(None, description="Optional node role hint")
@@ -272,6 +288,18 @@ class FleetCandidateAnnounceRequest(BaseModel):
         if isinstance(value, str):
             value = value.strip()
         return str(value) if value not in {"", None} else None
+
+    @field_validator("runtime_mode", mode="before")
+    @classmethod
+    def normalize_candidate_announce_runtime_mode(cls, value):
+        if value is None:
+            return None
+        value = str(value).strip().lower()
+        if not value:
+            return None
+        if value in {"real", "sitl"}:
+            return value
+        raise ValueError("runtime_mode must be either 'real' or 'sitl'")
 
 
 class FleetCandidateActionRequest(BaseModel):

@@ -11,6 +11,7 @@ from schemas import FleetCandidateRecord, FleetCandidateState
 def _candidate_record(**overrides):
     payload = {
         "candidate_id": "hw-101",
+        "runtime_mode": "real",
         "node_uuid": None,
         "hw_id": "101",
         "hostname": "drone101",
@@ -53,7 +54,7 @@ def _make_deps():
         BASE_DIR="/tmp/mds",
         git_operations=lambda *args, **kwargs: {"status": "skipped"},
         reconcile_background_services=AsyncMock(),
-        list_fleet_candidates=lambda include_inactive=False: [_candidate_record()] if not include_inactive else [_candidate_record()],
+        list_fleet_candidates=lambda include_inactive=False, runtime_mode=None: [_candidate_record(runtime_mode=runtime_mode or "real")] if not include_inactive else [_candidate_record(runtime_mode=runtime_mode or "real")],
         get_fleet_candidate=lambda candidate_id: _candidate_record(candidate_id=candidate_id),
         announce_fleet_candidate=lambda payload: _candidate_record(node_uuid=payload.node_uuid or "node-101"),
         accept_fleet_candidate=lambda candidate_id, payload: (
@@ -96,13 +97,15 @@ def test_fleet_candidates_router_lists_candidates():
     app.include_router(create_fleet_candidates_router(deps))
 
     with TestClient(app) as client:
-        response = client.get("/api/v1/fleet/candidates")
+        response = client.get("/api/v1/fleet/candidates?runtime_mode=real")
 
     assert response.status_code == 200
     body = response.json()
     assert body["total_candidates"] == 1
     assert body["candidates"][0]["candidate_id"] == "hw-101"
+    assert body["runtime_mode_filter"] == "real"
     assert body["state_counts"]["pending_operator_review"] == 1
+    assert body["runtime_mode_counts"]["real"] == 1
 
 
 def test_fleet_candidates_router_accepts_candidate():

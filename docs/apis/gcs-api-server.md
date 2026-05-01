@@ -488,10 +488,8 @@ Receive heartbeat from drone (fire-and-forget).
 Mode-fencing notes:
 
 - Nodes should declare `runtime_mode` as `real` or `sitl`.
-- GCS normalizes common aliases and rejects mode-mismatched heartbeats at
+- GCS rejects missing, invalid, or mode-mismatched heartbeats at
   intake so SITL and real nodes do not contaminate each other's live state.
-- Legacy nodes that omit `runtime_mode` are still accepted during rollout, but
-  they weaken mixed-mode protection until the node runtime is updated.
 - A rejected heartbeat still returns `success: true` because the transport
   request itself succeeded; the operator-facing `message` explains that the
   heartbeat was ignored due to runtime-mode mismatch.
@@ -1896,6 +1894,15 @@ remain open on the trusted network:
 
 See [GCS Auth Guide](../guides/gcs-auth.md) for bootstrap flags, roles, token
 rotation, SSH recovery, and API-auth rollout guidance.
+
+### Fleet Enrollment Runtime Domains
+
+`GET /api/v1/fleet/candidates` defaults to the current GCS runtime mode so SITL
+and REAL candidates do not appear in the same operator queue. Use
+`runtime_mode=real`, `runtime_mode=sitl`, or `runtime_mode=all` only when
+intentionally auditing another domain. Bootstrap announce payloads should include
+`runtime_mode`; `tools/mds_node_announce.sh` derives it from
+`/etc/mds/node_identity.json`.
 
 ---
 

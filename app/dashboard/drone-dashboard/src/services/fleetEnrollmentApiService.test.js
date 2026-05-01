@@ -41,7 +41,7 @@ describe('fleetEnrollmentApiService', () => {
     expect(axios.get).toHaveBeenNthCalledWith(
       1,
       'http://gcs.test:5030/api/v1/fleet/candidates',
-      { params: { include_inactive: 'true' } },
+      { params: { include_inactive: 'true', runtime_mode: 'current' } },
     );
     expect(axios.get).toHaveBeenNthCalledWith(
       2,

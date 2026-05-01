@@ -160,6 +160,7 @@ build_candidate_announce_payload() {
     local jq_filter
     jq_filter='{
         node_uuid,
+        runtime_mode: (.runtime_mode // .mode),
         hw_id,
         hostname,
         role_hint,

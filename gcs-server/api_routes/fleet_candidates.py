@@ -7,6 +7,7 @@ import time
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+from src.settings.runtime import resolve_runtime_mode
 
 from fleet_candidates import (
     FleetCandidateConflictError,
@@ -47,17 +48,34 @@ def _translate_candidate_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=500, detail=str(exc))
 
 
-def _build_list_response(candidates: list[FleetCandidateRecord]) -> FleetCandidateListResponse:
+def _build_list_response(candidates: list[FleetCandidateRecord], *, runtime_mode_filter: str) -> FleetCandidateListResponse:
     state_counts: dict[str, int] = {}
+    runtime_mode_counts: dict[str, int] = {}
     for candidate in candidates:
         state = candidate.registration_state.value
         state_counts[state] = state_counts.get(state, 0) + 1
+        mode = candidate.runtime_mode or "unknown"
+        runtime_mode_counts[mode] = runtime_mode_counts.get(mode, 0) + 1
     return FleetCandidateListResponse(
         candidates=candidates,
         total_candidates=len(candidates),
         state_counts=state_counts,
+        runtime_mode_filter=runtime_mode_filter,
+        runtime_mode_counts=runtime_mode_counts,
         timestamp=int(time.time() * 1000),
     )
+
+
+def _resolve_candidate_runtime_filter(runtime_mode: str | None) -> tuple[str | None, str]:
+    normalized = (runtime_mode or "current").strip().lower()
+    if normalized == "current":
+        current_mode = resolve_runtime_mode().mode
+        return current_mode, current_mode
+    if normalized in {"real", "sitl"}:
+        return normalized, normalized
+    if normalized == "all":
+        return None, "all"
+    raise HTTPException(status_code=422, detail="runtime_mode must be current, real, sitl, or all")
 
 
 def _build_post_sync_plan(
@@ -155,10 +173,22 @@ def create_fleet_candidates_router(deps: Any) -> APIRouter:
             warnings.append(f"Runtime fleet reconciliation warning: {exc}")
 
     @router.get(GCS_FLEET_CANDIDATES_ROUTE, response_model=FleetCandidateListResponse, tags=["Fleet Enrollment"])
-    async def list_fleet_candidates(include_inactive: bool = Query(False, description="Include resolved candidates")):
+    async def list_fleet_candidates(
+        include_inactive: bool = Query(False, description="Include resolved candidates"),
+        runtime_mode: str | None = Query(
+            "current",
+            description="Runtime domain to list: current, real, sitl, or all",
+        ),
+    ):
         try:
-            candidates = deps.list_fleet_candidates(include_inactive=include_inactive)
-            return _build_list_response(candidates)
+            runtime_filter, runtime_label = _resolve_candidate_runtime_filter(runtime_mode)
+            candidates = deps.list_fleet_candidates(
+                include_inactive=include_inactive,
+                runtime_mode=runtime_filter,
+            )
+            return _build_list_response(candidates, runtime_mode_filter=runtime_label)
+        except HTTPException:
+            raise
         except Exception as exc:
             raise _translate_candidate_error(exc) from exc
 

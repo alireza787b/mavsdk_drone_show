@@ -79,6 +79,17 @@ function formatCandidateStateTone(state) {
   }
 }
 
+function formatRuntimeModeLabel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'real') {
+    return 'REAL';
+  }
+  if (normalized === 'sitl') {
+    return 'SITL';
+  }
+  return 'Unknown';
+}
+
 function formatConflictReason(reason) {
   switch (reason) {
     case 'hw_id_already_in_fleet':
@@ -117,6 +128,7 @@ function buildCandidateSearchBlob(candidate) {
     ...(candidate.ip_addresses || []),
     candidate.reported_pos_id,
     candidate.detected_pos_id,
+    candidate.runtime_mode,
     candidate.registration_state,
     ...(candidate.conflict_reasons || []),
   ]
@@ -224,6 +236,7 @@ function FleetEnrollmentPage() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [stateFilter, setStateFilter] = useState('active');
+  const [runtimeFilter, setRuntimeFilter] = useState('current');
   const [selectedCandidateId, setSelectedCandidateId] = useState(null);
   const [dialogMode, setDialogMode] = useState(null);
   const [dialogState, setDialogState] = useState({});
@@ -234,8 +247,8 @@ function FleetEnrollmentPage() {
   const requestedReplaceTarget = normalizeComparableId(searchParams.get('replace'));
 
   const candidateEndpoint = useMemo(
-    () => `${GCS_ROUTE_KEYS.fleetCandidates}?include_inactive=true&_=${refreshTick}`,
-    [refreshTick]
+    () => `${GCS_ROUTE_KEYS.fleetCandidates}?include_inactive=true&runtime_mode=${encodeURIComponent(runtimeFilter)}&_=${refreshTick}`,
+    [refreshTick, runtimeFilter]
   );
   const { data: candidateResponse, loading: candidateLoading, error: candidateError } = useFetch(candidateEndpoint, 5000);
   const { data: fleetConfigResponse } = useFetch(GCS_ROUTE_KEYS.fleetConfig, 10000);
@@ -575,6 +588,15 @@ function FleetEnrollmentPage() {
             <option value="all">All candidates</option>
           </select>
         </label>
+        <label className="fleet-enrollment-toolbar__filter">
+          <span>Runtime</span>
+          <select value={runtimeFilter} onChange={(event) => setRuntimeFilter(event.target.value)}>
+            <option value="current">Current mode</option>
+            <option value="real">REAL only</option>
+            <option value="sitl">SITL only</option>
+            <option value="all">All modes</option>
+          </select>
+        </label>
       </section>
 
       <div className="fleet-enrollment-layout">
@@ -619,7 +641,12 @@ function FleetEnrollmentPage() {
                       <strong>{formatDroneLabel(candidate.hw_id || '—')}</strong>
                       <span>{candidate.hostname || candidate.candidate_id}</span>
                     </div>
-                    <CandidateStatePill state={candidate.registration_state} />
+                    <div className="fleet-enrollment-candidate-card__pills">
+                      <StatusBadge tone={candidate.runtime_mode === 'real' ? 'info' : candidate.runtime_mode === 'sitl' ? 'neutral' : 'muted'}>
+                        {formatRuntimeModeLabel(candidate.runtime_mode)}
+                      </StatusBadge>
+                      <CandidateStatePill state={candidate.registration_state} />
+                    </div>
                   </div>
                   <div className="fleet-enrollment-candidate-card__meta">
                     <span>{slotHint}</span>
@@ -655,6 +682,7 @@ function FleetEnrollmentPage() {
                   <h3>Identity</h3>
                   <dl>
                     <div><dt>Candidate ID</dt><dd>{selectedCandidate.candidate_id}</dd></div>
+                    <div><dt>Runtime</dt><dd>{formatRuntimeModeLabel(selectedCandidate.runtime_mode)}</dd></div>
                     <div><dt>Node UUID</dt><dd>{selectedCandidate.node_uuid || '—'}</dd></div>
                     <div><dt>Hardware ID</dt><dd>{selectedCandidate.hw_id || '—'}</dd></div>
                     <div><dt>Slot hint</dt><dd>{selectedCandidate.reported_pos_id ? formatShowSlotLabel(selectedCandidate.reported_pos_id) : selectedCandidate.detected_pos_id ? `${formatShowSlotLabel(selectedCandidate.detected_pos_id)} detected` : '—'}</dd></div>

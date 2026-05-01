@@ -43,12 +43,14 @@ def test_observe_heartbeat_creates_pending_candidate_for_unknown_hw_id(tmp_path:
             "detected_pos_id": 12,
             "ip": "10.0.0.101",
             "timestamp": 1_700_000_000_000,
+            "runtime_mode": "real",
         },
         load_config=lambda: [{"hw_id": 12, "pos_id": 12, "ip": "10.0.0.12"}],
     )
 
     assert candidate is not None
-    assert candidate.candidate_id == "hw-101"
+    assert candidate.candidate_id == "real:hw-101"
+    assert candidate.runtime_mode == "real"
     assert candidate.registration_state == FleetCandidateState.PENDING_OPERATOR_REVIEW
     assert candidate.detected_pos_id == "12"
     assert candidate.primary_control_ip == "10.0.0.101"
@@ -68,6 +70,29 @@ def test_registry_creates_empty_state_file_on_first_boot(tmp_path: Path):
     assert '"candidates": []' in state_path.read_text(encoding="utf-8")
 
 
+def test_registry_keeps_sitl_and_real_candidates_in_separate_domains(tmp_path: Path):
+    registry = FleetCandidateRegistry(
+        state_path=str(tmp_path / "fleet_candidates.json"),
+        events_path=str(tmp_path / "fleet_candidate_events.jsonl"),
+    )
+
+    sitl = registry.observe_heartbeat(
+        {"hw_id": "5", "ip": "172.18.0.5", "timestamp": 1_700_000_000_000, "runtime_mode": "sitl"},
+        load_config=lambda: [],
+    )
+    real = registry.observe_heartbeat(
+        {"hw_id": "5", "ip": "100.82.47.7", "timestamp": 1_700_000_000_100, "runtime_mode": "real"},
+        load_config=lambda: [],
+    )
+
+    assert sitl is not None
+    assert real is not None
+    assert sitl.candidate_id == "sitl:hw-5"
+    assert real.candidate_id == "real:hw-5"
+    assert [candidate.candidate_id for candidate in registry.list_candidates(load_config=lambda: [], runtime_mode="real")] == ["real:hw-5"]
+    assert [candidate.candidate_id for candidate in registry.list_candidates(load_config=lambda: [], runtime_mode="sitl")] == ["sitl:hw-5"]
+
+
 def test_announce_marks_conflict_when_hw_id_matches_existing_fleet_member(tmp_path: Path):
     registry = FleetCandidateRegistry(
         state_path=str(tmp_path / "fleet_candidates.json"),
@@ -81,6 +106,7 @@ def test_announce_marks_conflict_when_hw_id_matches_existing_fleet_member(tmp_pa
             hostname="drone12b",
             primary_control_ip="10.0.0.112",
             branch="main-candidate",
+            runtime_mode="real",
         ),
         load_config=lambda: [{"hw_id": 12, "pos_id": 12, "ip": "10.0.0.12"}],
     )
@@ -98,7 +124,7 @@ def test_accept_candidate_appends_new_fleet_member(tmp_path: Path):
     saved_config = []
 
     registry.observe_heartbeat(
-        {"hw_id": "101", "ip": "10.0.0.101", "timestamp": 1_700_000_000_000},
+        {"hw_id": "101", "ip": "10.0.0.101", "timestamp": 1_700_000_000_000, "runtime_mode": "real"},
         load_config=lambda: [],
     )
 
@@ -106,7 +132,7 @@ def test_accept_candidate_appends_new_fleet_member(tmp_path: Path):
         saved_config[:] = updated
 
     candidate, warnings = registry.accept_candidate(
-        "hw-101",
+        "real:hw-101",
         FleetCandidateAcceptRequest(
             pos_id=12,
             mavlink_port=14550,
@@ -151,12 +177,12 @@ def test_replace_candidate_rewrites_config_and_swarm_follow_references(tmp_path:
     ]
 
     registry.observe_heartbeat(
-        {"hw_id": "101", "ip": "10.0.0.101", "timestamp": 1_700_000_000_000},
+        {"hw_id": "101", "ip": "10.0.0.101", "timestamp": 1_700_000_000_000, "runtime_mode": "real"},
         load_config=lambda: list(config_rows),
     )
 
     candidate, warnings = registry.replace_candidate(
-        "hw-101",
+        "real:hw-101",
         FleetCandidateReplaceRequest(target_hw_id=12, notes="Field spare swap"),
         load_config=lambda: list(config_rows),
         save_config=lambda updated: config_rows.__setitem__(slice(None), updated),
@@ -192,12 +218,13 @@ def test_recover_candidate_updates_existing_config_for_same_hw_id(tmp_path: Path
             hw_id="12",
             hostname="drone12b",
             primary_control_ip="10.0.0.212",
+            runtime_mode="real",
         ),
         load_config=lambda: list(config_rows),
     )
 
     candidate, warnings = registry.recover_candidate(
-        "node-12b",
+        "real:node-12b",
         FleetCandidateRecoverRequest(
             mavlink_port=14620,
             notes="Recovered same airframe with new companion",

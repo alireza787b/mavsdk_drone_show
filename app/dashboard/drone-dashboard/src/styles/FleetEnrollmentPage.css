@@ -54,7 +54,7 @@
 .fleet-enrollment-toolbar {
   padding: var(--spacing-base);
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.7fr);
+  grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(160px, 0.6fr));
   gap: var(--spacing-base);
 }
 
@@ -150,6 +150,13 @@
 .fleet-enrollment-candidate-card__warnings {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
+}
+
+.fleet-enrollment-candidate-card__pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
 }
 
 .fleet-enrollment-candidate-card__meta {

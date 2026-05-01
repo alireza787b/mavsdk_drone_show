@@ -11,9 +11,12 @@ export function buildFleetCandidateUrl(candidateId = '', suffix = '') {
   );
 }
 
-export async function listFleetCandidates({ includeInactive = false } = {}) {
+export async function listFleetCandidates({ includeInactive = false, runtimeMode = 'current' } = {}) {
   return axios.get(buildGcsUrl(GCS_ROUTE_KEYS.fleetCandidates), {
-    params: includeInactive ? { include_inactive: 'true' } : {},
+    params: {
+      ...(includeInactive ? { include_inactive: 'true' } : {}),
+      runtime_mode: runtimeMode,
+    },
   });
 }
 

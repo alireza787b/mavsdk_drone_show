@@ -150,7 +150,7 @@ const MissionConfig = () => {
   const { data: gitStatusDataFetched } = useNormalizedTelemetry(GCS_ROUTE_KEYS.gitStatus, 20000);
   const { data: networkInfoFetched } = useFetch(GCS_ROUTE_KEYS.networkInfo, 10000);
   const { data: heartbeatsFetched } = useFetch(GCS_ROUTE_KEYS.fleetHeartbeats, 5000);
-  const { data: fleetCandidatesFetched } = useFetch(GCS_ROUTE_KEYS.fleetCandidates, 5000);
+  const { data: fleetCandidatesFetched } = useFetch(`${GCS_ROUTE_KEYS.fleetCandidates}?runtime_mode=current`, 5000);
   const { data: savedDronePositionsFetched } = useFetch(GCS_ROUTE_KEYS.dronePositions, 10000);
   const { data: swarmDataFetched } = useFetch(GCS_ROUTE_KEYS.swarmConfig);
 

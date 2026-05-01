@@ -524,7 +524,7 @@ write_node_identity_manifest() {
         '{
             node_uuid: $node_uuid,
             hw_id: $hw_id,
-            mode: $runtime_mode,
+            runtime_mode: $runtime_mode,
             connectivity_backend: $connectivity_backend,
             smart_wifi_manager_mode: (if $smart_wifi_manager_mode == "" then null else $smart_wifi_manager_mode end),
             smart_wifi_manager_repo_url: (if $smart_wifi_manager_repo_url == "" then null else $smart_wifi_manager_repo_url end),

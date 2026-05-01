@@ -510,11 +510,12 @@ def observe_fleet_candidate_heartbeat(heartbeat: dict[str, Any]):
     return fleet_candidate_registry.observe_heartbeat(heartbeat, load_config=load_config)
 
 
-def list_fleet_candidates(*, include_inactive: bool = False):
+def list_fleet_candidates(*, include_inactive: bool = False, runtime_mode: str | None = None):
     """List durable fleet-candidate records."""
     return fleet_candidate_registry.list_candidates(
         load_config=load_config,
         include_inactive=include_inactive,
+        runtime_mode=runtime_mode,
     )
 
 

@@ -323,6 +323,11 @@ sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
 sudo ./tools/mds_node_announce.sh --dry-run --report-json -
 ```
 
+The announce helper sends the node `runtime_mode` from
+`/etc/mds/node_identity.json`. The GCS Fleet Enrollment page lists only the
+current runtime domain by default; use the page runtime filter only for
+intentional cross-domain audits.
+
 URL resolution order:
 
 1. `--gcs-api-url`

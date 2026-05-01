@@ -320,6 +320,9 @@ systemctl status git_sync_mds
 ## Enrollment Follow-Up
 
 Bootstrap and candidate announce do not finish fleet enrollment on their own.
+The announce payload includes the node's canonical `runtime_mode` from
+`/etc/mds/node_identity.json`, so a SITL node cannot pollute the REAL enrollment
+queue and a REAL node cannot pollute the SITL queue.
 
 After the node appears in **Fleet Enrollment**:
 

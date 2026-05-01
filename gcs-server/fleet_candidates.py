@@ -81,6 +81,16 @@ def _normalize_ip(value: Any) -> Optional[str]:
     return normalized
 
 
+def _normalize_runtime_mode(value: Any) -> Optional[str]:
+    normalized = _normalize_string(value)
+    if normalized is None:
+        return None
+    normalized = normalized.lower()
+    if normalized in {"real", "sitl"}:
+        return normalized
+    return None
+
+
 def _normalize_timestamp_ms(value: Any, fallback_ms: Optional[int] = None) -> int:
     if value is None:
         return fallback_ms or _now_ms()
@@ -186,14 +196,31 @@ class FleetCandidateRegistry:
             stream.write(json.dumps(event, sort_keys=True))
             stream.write("\n")
 
-    def _find_candidate_key_locked(self, *, node_uuid: Optional[str], hw_id: Optional[str]) -> Optional[str]:
+    def _candidate_key_seed(self, *, runtime_mode: Optional[str], node_uuid: Optional[str], hw_id: Optional[str]) -> str:
+        base_id = node_uuid or (f"hw-{hw_id}" if hw_id else None) or f"candidate-{uuid.uuid4().hex[:8]}"
+        if runtime_mode:
+            return f"{runtime_mode}:{base_id}"
+        return base_id
+
+    def _candidate_runtime_matches(self, raw: dict[str, Any], runtime_mode: Optional[str]) -> bool:
+        if runtime_mode is None:
+            return True
+        return _normalize_runtime_mode(raw.get("runtime_mode")) == runtime_mode
+
+    def _find_candidate_key_locked(
+        self,
+        *,
+        node_uuid: Optional[str],
+        hw_id: Optional[str],
+        runtime_mode: Optional[str] = None,
+    ) -> Optional[str]:
         if node_uuid:
             for candidate_id, raw in self._candidates.items():
-                if _normalize_string(raw.get("node_uuid")) == node_uuid:
+                if self._candidate_runtime_matches(raw, runtime_mode) and _normalize_string(raw.get("node_uuid")) == node_uuid:
                     return candidate_id
         if hw_id:
             for candidate_id, raw in self._candidates.items():
-                if _normalize_string(raw.get("hw_id")) == hw_id:
+                if self._candidate_runtime_matches(raw, runtime_mode) and _normalize_string(raw.get("hw_id")) == hw_id:
                     return candidate_id
         return None
 
@@ -201,12 +228,14 @@ class FleetCandidateRegistry:
         self,
         *,
         candidate_id: str,
+        runtime_mode: Optional[str],
         hw_id: Optional[str],
         node_uuid: Optional[str],
         first_seen: int,
     ) -> dict[str, Any]:
         return FleetCandidateRecord(
             candidate_id=candidate_id,
+            runtime_mode=runtime_mode,
             node_uuid=node_uuid,
             hw_id=hw_id,
             first_seen=first_seen,
@@ -240,6 +269,7 @@ class FleetCandidateRegistry:
         conflict_reasons: list[str] = []
 
         hw_id = _normalize_string(record.get("hw_id"))
+        runtime_mode = _normalize_runtime_mode(record.get("runtime_mode"))
         if not hw_id and not _normalize_string(record.get("node_uuid")):
             conflict_reasons.append("missing_identity")
 
@@ -262,6 +292,7 @@ class FleetCandidateRegistry:
                     for candidate_id, other in self._candidates.items()
                     if candidate_id != record["candidate_id"]
                     and _normalize_string(other.get("hw_id")) == hw_id
+                    and _normalize_runtime_mode(other.get("runtime_mode")) == runtime_mode
                     and _normalize_string(other.get("registration_state")) not in _RESOLVED_STATES
                 ]
                 if duplicate_candidates:
@@ -287,13 +318,21 @@ class FleetCandidateRegistry:
                 heartbeat_status = "offline"
 
         record["registration_state"] = state
+        record["runtime_mode"] = runtime_mode
         record["conflict_reasons"] = sorted(set(conflict_reasons))
         record["heartbeat_age_sec"] = heartbeat_age_sec
         record["heartbeat_status"] = heartbeat_status
         record["ip_addresses"] = sorted({_normalize_ip(ip) for ip in record.get("ip_addresses") or [] if _normalize_ip(ip)})
         return FleetCandidateRecord.model_validate(record)
 
-    def list_candidates(self, *, load_config, include_inactive: bool = False) -> list[FleetCandidateRecord]:
+    def list_candidates(
+        self,
+        *,
+        load_config,
+        include_inactive: bool = False,
+        runtime_mode: Optional[str] = None,
+    ) -> list[FleetCandidateRecord]:
+        normalized_runtime_mode = _normalize_runtime_mode(runtime_mode)
         with self._lock:
             config_entries = load_config()
             now_ms = _now_ms()
@@ -302,6 +341,8 @@ class FleetCandidateRegistry:
                 raw_record = self._candidates[candidate_id]
                 record = self._refresh_candidate_state_locked(raw_record, config_entries=config_entries, now_ms=now_ms)
                 self._candidates[candidate_id] = record.model_dump(mode="json")
+                if normalized_runtime_mode and record.runtime_mode != normalized_runtime_mode:
+                    continue
                 if include_inactive or record.registration_state.value not in _RESOLVED_STATES:
                     results.append(record)
             self._persist_state_locked()
@@ -325,19 +366,21 @@ class FleetCandidateRegistry:
 
         timestamp_ms = _normalize_timestamp_ms(heartbeat.get("timestamp"))
         heartbeat_ip = _normalize_ip(heartbeat.get("ip"))
+        runtime_mode = _normalize_runtime_mode(heartbeat.get("runtime_mode"))
 
         with self._lock:
             config_entries = load_config()
             configured_hw_ids, _configured_ips = self._configured_maps(config_entries)
-            candidate_key = self._find_candidate_key_locked(node_uuid=None, hw_id=hw_id)
+            candidate_key = self._find_candidate_key_locked(node_uuid=None, hw_id=hw_id, runtime_mode=runtime_mode)
             is_new_candidate = False
 
             if candidate_key is None:
                 if hw_id in configured_hw_ids:
                     return None
-                candidate_key = f"hw-{hw_id}"
+                candidate_key = self._candidate_key_seed(runtime_mode=runtime_mode, node_uuid=None, hw_id=hw_id)
                 self._candidates[candidate_key] = self._build_candidate_locked(
                     candidate_id=candidate_key,
+                    runtime_mode=runtime_mode,
                     hw_id=hw_id,
                     node_uuid=None,
                     first_seen=timestamp_ms,
@@ -347,6 +390,7 @@ class FleetCandidateRegistry:
             record = dict(self._candidates[candidate_key])
             previous_state = _normalize_string(record.get("registration_state")) or FleetCandidateState.PENDING_OPERATOR_REVIEW.value
             record["hw_id"] = hw_id
+            record["runtime_mode"] = runtime_mode or record.get("runtime_mode")
             record["last_seen"] = timestamp_ms
             record["last_heartbeat"] = timestamp_ms
 
@@ -386,15 +430,21 @@ class FleetCandidateRegistry:
         hw_id = _normalize_string(request.hw_id)
         node_uuid = _normalize_string(request.node_uuid)
         hostname = _normalize_string(request.hostname)
-        candidate_key_seed = node_uuid or (f"hw-{hw_id}" if hw_id else None) or f"candidate-{uuid.uuid4().hex[:8]}"
+        runtime_mode = _normalize_runtime_mode(request.runtime_mode)
+        candidate_key_seed = self._candidate_key_seed(runtime_mode=runtime_mode, node_uuid=node_uuid, hw_id=hw_id)
 
         with self._lock:
             config_entries = load_config()
-            candidate_key = self._find_candidate_key_locked(node_uuid=node_uuid, hw_id=hw_id) or candidate_key_seed
+            candidate_key = self._find_candidate_key_locked(
+                node_uuid=node_uuid,
+                hw_id=hw_id,
+                runtime_mode=runtime_mode,
+            ) or candidate_key_seed
             record = dict(
                 self._candidates.get(candidate_key)
                 or self._build_candidate_locked(
                     candidate_id=candidate_key,
+                    runtime_mode=runtime_mode,
                     hw_id=hw_id,
                     node_uuid=node_uuid,
                     first_seen=timestamp_ms,
@@ -405,6 +455,7 @@ class FleetCandidateRegistry:
             record.update(
                 {
                     "node_uuid": node_uuid or record.get("node_uuid"),
+                    "runtime_mode": runtime_mode or record.get("runtime_mode"),
                     "hw_id": hw_id or record.get("hw_id"),
                     "hostname": hostname or record.get("hostname"),
                     "role_hint": _normalize_string(request.role_hint) or record.get("role_hint"),
