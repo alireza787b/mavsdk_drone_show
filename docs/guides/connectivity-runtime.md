@@ -70,6 +70,24 @@ keep the backend as `none` or use placeholder profiles.
 5. Confirm Fleet Ops shows matching desired/applied profile hashes and healthy
    sidecar status.
 
+For an existing field node, enable Smart Wi-Fi Manager only while a known-good
+management path is still available, such as Ethernet or a stable NetBird route.
+Start with `MDS_SMART_WIFI_MANAGER_MODE=observe` when you only need the
+dashboard and status. Move to `manage` after the profile is verified so a bad
+SSID/password cannot strand the node.
+
+To make the node dashboard reachable from a NetBird-connected operator
+machine, use a non-loopback listen address:
+
+```bash
+MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
+MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
+```
+
+If Fleet Ops shows the dashboard icon as local-only, the node is probably still
+reporting `127.0.0.1:9080`; use SSH tunneling or change the listen address
+through the node-local env workflow.
+
 ## Failure Handling
 
 - `none` plus no Smart Wi-Fi service is healthy.

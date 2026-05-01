@@ -2536,7 +2536,7 @@ MDS_GIT_AUTO_PUSH=true
 MDS_GIT_AUTH_TOKEN_FILE=
 MDS_GIT_SSH_KEY_FILE=/root/.ssh/customer_gcs_write_key
 MDS_INSTALL_DIR=/opt/mds
-VENV_PATH=/opt/mds/venv
+MDS_VENV_PATH=/opt/mds/venv
 EOF
         GCS_INSTALL_DIR="/opt/mds"
         GCS_DEFAULT_REPO_SSH="git@github.com:example-org/private-mds.git"
@@ -2564,9 +2564,11 @@ EOF
         configure_gcs_env
         grep -q '^MDS_GCS_API_PORT=5030$' "$GCS_CONFIG_FILE"
         grep -q '^MDS_DASHBOARD_PORT=3030$' "$GCS_CONFIG_FILE"
+        grep -q '^MDS_VENV_PATH=/opt/mds/venv$' "$GCS_CONFIG_FILE"
         ! grep -q '^GCS_PORT=' "$GCS_CONFIG_FILE"
         ! grep -q '^DASHBOARD_PORT=' "$GCS_CONFIG_FILE"
         ! grep -q '^GCS_BACKEND=' "$GCS_CONFIG_FILE"
+        ! grep -q '^VENV_PATH=' "$GCS_CONFIG_FILE"
         """
     )
 

@@ -38,6 +38,8 @@ variable metadata.
 The key table is generated from `resources/config/mds_env_registry.json`:
 
 - [Generated MDS Environment Registry](mds-environment-registry.generated.md)
+- Raw machine-readable manifest:
+  `resources/config/mds_env_registry.json`
 
 Regenerate or check it during review:
 

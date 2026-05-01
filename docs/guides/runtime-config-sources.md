@@ -23,6 +23,7 @@ handled separately from normal desired state, see
 | Runtime mode | `MDS_MODE=real|sitl` | Canonical mode selector for both GCS and nodes |
 | GCS API port | `MDS_GCS_API_PORT` | Defaults to `5030` from `deployment/defaults.env` |
 | Dashboard port | `MDS_DASHBOARD_PORT` | Defaults to `3030` |
+| Python virtualenv | `MDS_VENV_PATH` | Written by GCS bootstrap; do not use retired `VENV_PATH` |
 | Drone API port | `MDS_DRONE_API_PORT` | Defaults to `7070` |
 | SITL Docker image | `MDS_DOCKER_IMAGE` or `MDS_DEFAULT_DOCKER_IMAGE` | Host override first; otherwise git-tracked deployment default |
 | SITL fleet membership | `config_sitl.json` | Selected when `MDS_MODE=sitl` |
@@ -49,8 +50,9 @@ Every active `MDS_*` key that appears in `deployment/defaults.env` or
 domain, default, editability, restart requirement, docs path, and secret
 handling policy.
 
-Deprecated aliases such as `GCS_PORT` and `DASHBOARD_PORT` are not active
-operator settings. Use `MDS_GCS_API_PORT` and `MDS_DASHBOARD_PORT`.
+Deprecated aliases such as `GCS_PORT`, `DASHBOARD_PORT`, `GCS_BACKEND`, and
+`VENV_PATH` are not active operator settings. Use `MDS_GCS_API_PORT`,
+`MDS_DASHBOARD_PORT`, and `MDS_VENV_PATH`.
 Raw token environment variables are also not active operator settings. Use
 file-based secret references such as `MDS_GIT_AUTH_TOKEN_FILE` and
 `MDS_GCS_API_TOKEN_FILE`.

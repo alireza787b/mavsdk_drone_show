@@ -127,11 +127,13 @@ load_gcs_system_config() {
         set +a
 
         PORT="${MDS_GCS_API_PORT:-$PORT}"
+        VENV_PATH="${MDS_VENV_PATH:-${VENV_PATH}}"
         export \
             MDS_REPO_URL \
             MDS_BRANCH \
             MDS_MODE \
             MDS_INSTALL_DIR \
+            MDS_VENV_PATH \
             MDS_GIT_AUTO_PUSH \
             MDS_GIT_AUTH_TOKEN_FILE \
             MDS_GIT_AUTH_USERNAME \

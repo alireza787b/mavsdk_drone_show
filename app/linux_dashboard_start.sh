@@ -156,7 +156,9 @@ load_gcs_system_config() {
         set +a
 
         # Apply config values (respect CLI overrides)
-        [[ -z "${VENV_PATH_OVERRIDE:-}" ]] && [[ -n "${VENV_PATH:-}" ]] && VENV_PATH="$VENV_PATH"
+        if [[ -z "${VENV_PATH_OVERRIDE:-}" && -n "${MDS_VENV_PATH:-${VENV_PATH:-}}" ]]; then
+            VENV_PATH="${MDS_VENV_PATH:-$VENV_PATH}"
+        fi
         [[ -z "${BRANCH_OVERRIDE:-}" ]] && [[ -n "${MDS_BRANCH:-}" ]] && BRANCH_NAME="$MDS_BRANCH"
         if [[ -n "${MDS_GCS_API_PORT:-}" ]]; then
             DEV_GCS_PORT="$MDS_GCS_API_PORT"
@@ -176,6 +178,7 @@ load_gcs_system_config() {
             MDS_GIT_AUTH_USERNAME \
             MDS_GIT_SSH_KEY_FILE \
             MDS_GIT_KNOWN_HOSTS_FILE \
+            MDS_VENV_PATH \
             MDS_DOCKER_IMAGE \
             MDS_SITL_GIT_SYNC \
             MDS_SITL_GIT_SYNC_PREFLIGHT \
@@ -1204,6 +1207,7 @@ TMUX_RUNTIME_ENV_VARS=(
     MDS_GIT_AUTH_TOKEN_FILE
     MDS_GIT_AUTH_USERNAME
     MDS_GIT_SSH_KEY_FILE
+    MDS_VENV_PATH
     MDS_DOCKER_IMAGE
     MDS_SITL_GIT_SYNC
     MDS_SITL_REQUIREMENTS_SYNC

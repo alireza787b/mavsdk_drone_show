@@ -307,9 +307,14 @@ configure_gcs_env() {
     local existing_api_tokens_file=""
     local existing_auth_session_ttl_hours=""
     local existing_auth_secure_cookies=""
+    local existing_venv_path=""
+    local retired_keys_present="false"
     local config_matches="false"
 
     if [[ -f "$GCS_CONFIG_FILE" ]]; then
+        if grep -Eq '^(GCS_PORT|DASHBOARD_PORT|GCS_BACKEND|VENV_PATH)=' "$GCS_CONFIG_FILE"; then
+            retired_keys_present="true"
+        fi
         existing_repo_url=$(get_existing_gcs_env_value "MDS_REPO_URL" "$GCS_CONFIG_FILE" || true)
         existing_repo_branch=$(get_existing_gcs_env_value "MDS_BRANCH" "$GCS_CONFIG_FILE" || true)
         existing_git_auto_push=$(get_existing_gcs_env_value "MDS_GIT_AUTO_PUSH" "$GCS_CONFIG_FILE" || true)
@@ -325,6 +330,7 @@ configure_gcs_env() {
         existing_api_tokens_file=$(get_existing_gcs_env_value "MDS_API_TOKENS_FILE" "$GCS_CONFIG_FILE" || true)
         existing_auth_session_ttl_hours=$(get_existing_gcs_env_value "MDS_AUTH_SESSION_TTL_HOURS" "$GCS_CONFIG_FILE" || true)
         existing_auth_secure_cookies=$(get_existing_gcs_env_value "MDS_AUTH_SECURE_COOKIES" "$GCS_CONFIG_FILE" || true)
+        existing_venv_path=$(get_existing_gcs_env_value "MDS_VENV_PATH" "$GCS_CONFIG_FILE" || true)
 
         if [[ "$existing_repo_url" == "$repo_url" ]] && \
            [[ "$existing_repo_branch" == "$repo_branch" ]] && \
@@ -334,6 +340,8 @@ configure_gcs_env() {
            [[ "$existing_install_dir" == "$install_dir" ]] && \
            [[ "$existing_gcs_api_port" == "$gcs_api_port" ]] && \
            [[ "$existing_dashboard_port" == "$dashboard_port" ]] && \
+           [[ "${existing_venv_path:-${install_dir}/venv}" == "${install_dir}/venv" ]] && \
+           [[ "$retired_keys_present" == "false" ]] && \
            [[ "$existing_mode" == "real" ]] && \
            [[ "$(normalize_env_bool "$existing_auth_enabled" "false")" == "$auth_enabled" ]] && \
            [[ "$(normalize_env_bool "$existing_api_auth_enabled" "false")" == "$api_auth_enabled" ]] && \
@@ -399,7 +407,7 @@ MDS_AUTH_ALLOWED_CIDRS=${auth_allowed_cidrs}
 MDS_AUTH_TRUSTED_PROXY_CIDRS=${auth_trusted_proxy_cidrs}
 
 # Virtual Environment
-VENV_PATH=${install_dir}/venv
+MDS_VENV_PATH=${install_dir}/venv
 EOF
 
     chmod 644 "$GCS_CONFIG_FILE"

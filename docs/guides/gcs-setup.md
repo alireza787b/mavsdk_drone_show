@@ -306,7 +306,7 @@ MDS_AUTH_ALLOWED_CIDRS=
 MDS_AUTH_TRUSTED_PROXY_CIDRS=
 
 # Virtual Environment
-VENV_PATH=~/mavsdk_drone_show/venv
+MDS_VENV_PATH=~/mavsdk_drone_show/venv
 ```
 
 Use [Runtime Config Sources](runtime-config-sources.md) as the source of truth

@@ -18,6 +18,7 @@ Fleet Ops is actionable, but guarded:
 - repo-owned Smart Wi-Fi fleet-profile import is allowed;
 - sidecar reconcile is performed through the node sync runtime;
 - direct dashboard links are shown only when the node reports a reachable URL;
+- local-only sidecar dashboards remain visible as disabled diagnostic icons;
 - raw tokens, private keys, and secret file contents are never shown in browser UI.
 
 ## Data Sources
@@ -114,6 +115,25 @@ yet. MAVLink input sources often differ by board, serial path, Ethernet
 topology, or local safety policy, so Fleet Ops currently shows MAVLink status,
 hash drift, and dashboard links while leaving profile authoring to the node or
 deployment profile workflow.
+
+## Dashboard Links
+
+Fleet Ops only opens a node sidecar dashboard when the node reports a direct
+URL or a non-loopback listen address such as `0.0.0.0:9070` or
+`0.0.0.0:9080`. A listen address such as `127.0.0.1:9070` is treated as
+local-only and appears as a disabled icon with a tooltip. This avoids giving
+operators broken NetBird links while still showing that the sidecar exists.
+
+For a one-off diagnostic session, use SSH port forwarding or temporarily set a
+node-local dashboard listen value, then run node sync/reconcile:
+
+```bash
+MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=0.0.0.0:9070
+MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
+```
+
+Do not expose sidecar dashboards on untrusted networks. Prefer NetBird, a local
+field LAN, or a future GCS proxy surface.
 
 ## Current Boundaries
 

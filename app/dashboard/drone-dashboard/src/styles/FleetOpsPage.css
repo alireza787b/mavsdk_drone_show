@@ -308,7 +308,8 @@
   gap: 0.4rem;
 }
 
-.fleet-ops-node-card__quick-links a {
+.fleet-ops-node-card__quick-links a,
+.fleet-ops-node-card__quick-links span {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -319,6 +320,11 @@
   background: var(--color-surface-inset);
   color: var(--color-text-secondary);
   text-decoration: none;
+}
+
+.fleet-ops-node-card__quick-links span.is-disabled {
+  cursor: help;
+  opacity: 0.52;
 }
 
 .fleet-ops-node-card__quick-links a:hover,

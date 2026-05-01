@@ -70,8 +70,8 @@ def test_env_registry_classifies_unknown_keys():
     )
 
     assert result["known"] == ["MDS_AUTH_ENABLED"]
-    assert result["deprecated"] == []
-    assert result["unknown"] == ["GCS_PORT", "MDS_GCS_API_TOKEN"]
+    assert "GCS_PORT" in result["deprecated"]
+    assert result["unknown"] == ["MDS_GCS_API_TOKEN"]
 
 
 def test_env_registry_coerces_and_validates_values():

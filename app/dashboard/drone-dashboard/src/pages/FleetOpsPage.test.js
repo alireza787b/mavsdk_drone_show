@@ -220,8 +220,12 @@ describe('FleetOpsPage', () => {
     expect(screen.getByRole('heading', { name: /hw 3/i })).toBeInTheDocument();
   });
 
-  test('shows sidecar detail and builds node dashboard links from reported ports', () => {
-    renderFleetOps();
+  test('shows sidecar detail and only links direct dashboard listeners', () => {
+    const directGitPayload = clonePayload(gitPayload);
+    directGitPayload.git_status[1].mavlink_runtime.dashboard_access_mode = 'direct';
+    directGitPayload.git_status[1].mavlink_runtime.dashboard_listen = '0.0.0.0:9070';
+
+    renderFleetOps({ gitStatusOverride: directGitPayload, heartbeatOverride: heartbeatPayload });
 
     expect(screen.getByRole('link', { name: /open mavlink dashboard/i })).toHaveAttribute(
       'href',
@@ -230,11 +234,18 @@ describe('FleetOpsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));
 
-    expect(screen.getByText(/ref v3.0.8; router active; dashboard local_only; hash abcdef123456/i)).toBeInTheDocument();
+    expect(screen.getByText(/ref v3.0.8; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
     expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing; hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
+  });
+
+  test('keeps local-only sidecar dashboards visible but disabled', () => {
+    renderFleetOps();
+
+    expect(screen.queryByRole('link', { name: /open mavlink dashboard/i })).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText(/open mavlink dashboard is local-only/i).length).toBeGreaterThan(0);
   });
 
   test('sync action targets selected nodes and reports result', async () => {

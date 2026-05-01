@@ -19,7 +19,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/load_deployment_profile.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/load_deployment_profile.sh"
+      ],
       "notes": "Process-only override used by tests and custom deployments.",
       "owner": "platform"
     },
@@ -41,7 +44,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/deployment_profile.py"],
+      "consumers": [
+        "src/settings/deployment_profile.py"
+      ],
       "notes": "Git-tracked fleet default; change through deployment/defaults.env.",
       "owner": "platform"
     },
@@ -63,7 +68,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/load_deployment_profile.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/load_deployment_profile.sh"
+      ],
       "notes": "Default repo owner/name used to derive documentation and GitHub URLs.",
       "owner": "platform"
     },
@@ -85,7 +93,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/settings/deployment_profile.py"],
+      "consumers": [
+        "src/settings/deployment_profile.py"
+      ],
       "notes": "Public/read-only default repo URL.",
       "owner": "platform"
     },
@@ -107,7 +117,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/settings/deployment_profile.py"],
+      "consumers": [
+        "src/settings/deployment_profile.py"
+      ],
       "notes": "Write-capable GCS deployments usually use SSH with a scoped deploy key.",
       "owner": "platform"
     },
@@ -129,7 +141,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/load_deployment_profile.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/load_deployment_profile.sh"
+      ],
       "notes": "Fleet default branch for new hosts and containers.",
       "owner": "platform"
     },
@@ -151,7 +166,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/deployment_profile.py", "src/params.py"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "src/params.py"
+      ],
       "notes": "Default GCS address for real hardware when a node does not override MDS_GCS_IP.",
       "owner": "platform"
     },
@@ -173,7 +191,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/sitl-control.md",
-      "consumers": ["src/settings/deployment_profile.py", "src/params.py"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "src/params.py"
+      ],
       "notes": "Docker gateway used by SITL containers.",
       "owner": "platform"
     },
@@ -195,7 +216,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/mds_gcs_init_lib/gcs_env_config.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/mds_gcs_init_lib/gcs_env_config.sh"
+      ],
       "notes": "Fleet default. Host-local applied value is MDS_GCS_API_PORT.",
       "owner": "platform"
     },
@@ -217,7 +241,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/mds_gcs_init_lib/gcs_env_config.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/mds_gcs_init_lib/gcs_env_config.sh"
+      ],
       "notes": "Fleet default. Host-local applied value is MDS_DASHBOARD_PORT.",
       "owner": "frontend"
     },
@@ -239,7 +266,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/deployment_profile.py", "src/params.py"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "src/params.py"
+      ],
       "notes": "Fleet default. Node-local applied value is MDS_DRONE_API_PORT.",
       "owner": "platform"
     },
@@ -261,7 +291,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/sitl-control.md",
-      "consumers": ["src/settings/deployment_profile.py", "multiple_sitl/create_instance.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "multiple_sitl/create_instance.sh"
+      ],
       "notes": "Git-tracked SITL image default.",
       "owner": "sitl"
     },
@@ -278,12 +311,18 @@
       "ui_visibility": "operator",
       "restart_required": "manual",
       "apply_action": "manual",
-      "allowed_values": ["none", "smart-wifi-manager"],
+      "allowed_values": [
+        "none",
+        "smart-wifi-manager"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Default optional connectivity sidecar policy for new nodes.",
       "owner": "connectivity"
     },
@@ -305,7 +344,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/load_deployment_profile.sh"],
+      "consumers": [
+        "tools/load_deployment_profile.sh"
+      ],
       "notes": "Documentation/display slug for Smart Wi-Fi Manager.",
       "owner": "connectivity"
     },
@@ -327,7 +368,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Default Smart Wi-Fi runtime source.",
       "owner": "connectivity"
     },
@@ -349,7 +393,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Pinned Smart Wi-Fi Manager version/ref.",
       "owner": "connectivity"
     },
@@ -366,12 +413,18 @@
       "ui_visibility": "operator",
       "restart_required": "manual",
       "apply_action": "manual",
-      "allowed_values": ["observe", "manage"],
+      "allowed_values": [
+        "observe",
+        "manage"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Default sidecar mode for new nodes.",
       "owner": "connectivity"
     },
@@ -388,12 +441,18 @@
       "ui_visibility": "advanced",
       "restart_required": "manual",
       "apply_action": "manual",
-      "allowed_values": ["replace", "merge"],
+      "allowed_values": [
+        "replace",
+        "merge"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Controls how fleet profile is applied by reconcile script.",
       "owner": "connectivity"
     },
@@ -415,7 +474,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Node-local default install path for the optional connectivity runtime.",
       "owner": "connectivity"
     },
@@ -437,7 +499,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Default dashboard bind address for Smart Wi-Fi Manager.",
       "owner": "connectivity"
     },
@@ -459,7 +524,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Git-tracked fleet Wi-Fi profile path.",
       "owner": "connectivity"
     },
@@ -476,12 +544,18 @@
       "ui_visibility": "operator",
       "restart_required": "manual",
       "apply_action": "manual",
-      "allowed_values": ["managed", "manual"],
+      "allowed_values": [
+        "managed",
+        "manual"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Default mavlink-anywhere ownership mode for real nodes.",
       "owner": "mavlink"
     },
@@ -503,7 +577,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/load_deployment_profile.sh"],
+      "consumers": [
+        "tools/load_deployment_profile.sh"
+      ],
       "notes": "Documentation/display slug for mavlink-anywhere.",
       "owner": "mavlink"
     },
@@ -525,7 +601,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Default MAVLink sidecar source.",
       "owner": "mavlink"
     },
@@ -547,7 +626,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Pinned mavlink-anywhere version/ref.",
       "owner": "mavlink"
     },
@@ -569,7 +651,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Node-local default install path for mavlink-anywhere.",
       "owner": "mavlink"
     },
@@ -591,7 +676,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Default dashboard bind address for mavlink-anywhere.",
       "owner": "mavlink"
     },
@@ -608,12 +696,18 @@
       "ui_visibility": "advanced",
       "restart_required": "manual",
       "apply_action": "manual",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/settings/deployment_profile.py", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/deployment_profile.py",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Disables mavlink-anywhere dashboard on constrained nodes.",
       "owner": "mavlink"
     },
@@ -635,7 +729,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["gcs-server/api_routes/management.py", "tools/mds_auth_admin.py"],
+      "consumers": [
+        "gcs-server/api_routes/management.py",
+        "tools/mds_auth_admin.py"
+      ],
       "notes": "Process-only pointer to the host-local GCS env file.",
       "owner": "platform"
     },
@@ -652,12 +749,19 @@
       "ui_visibility": "operator",
       "restart_required": "gcs",
       "apply_action": "restart_gcs",
-      "allowed_values": ["real", "sitl"],
+      "allowed_values": [
+        "real",
+        "sitl"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/runtime.py", "src/params.py", "app/linux_dashboard_start.sh"],
+      "consumers": [
+        "src/settings/runtime.py",
+        "src/params.py",
+        "app/linux_dashboard_start.sh"
+      ],
       "notes": "Canonical mode switch. GCS and nodes interpret it in their own local scope.",
       "owner": "platform"
     },
@@ -679,7 +783,11 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/params.py", "gcs-server/start_gcs_server.sh", "app/linux_dashboard_start.sh"],
+      "consumers": [
+        "src/params.py",
+        "gcs-server/start_gcs_server.sh",
+        "app/linux_dashboard_start.sh"
+      ],
       "notes": "Canonical GCS backend API port. Deprecated GCS_PORT is not a canonical alias.",
       "owner": "platform"
     },
@@ -701,7 +809,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["app/linux_dashboard_start.sh"],
+      "consumers": [
+        "app/linux_dashboard_start.sh"
+      ],
       "notes": "Canonical dashboard HTTP port. Deprecated DASHBOARD_PORT is not a canonical alias.",
       "owner": "frontend"
     },
@@ -723,7 +833,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/params.py", "tools/update_repo_ssh.sh"],
+      "consumers": [
+        "src/params.py",
+        "tools/update_repo_ssh.sh"
+      ],
       "notes": "Dangerous to edit from generic UI because repo access and deploy keys must match.",
       "owner": "platform"
     },
@@ -745,7 +858,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/params.py", "tools/update_repo_ssh.sh"],
+      "consumers": [
+        "src/params.py",
+        "tools/update_repo_ssh.sh"
+      ],
       "notes": "Change through setup/sync workflows until fleet dry-run apply exists.",
       "owner": "platform"
     },
@@ -762,12 +878,18 @@
       "ui_visibility": "operator",
       "restart_required": "gcs",
       "apply_action": "restart_gcs",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["src/params.py", "gcs-server/api_routes/management.py"],
+      "consumers": [
+        "src/params.py",
+        "gcs-server/api_routes/management.py"
+      ],
       "notes": "GCS write-back policy. Drones should normally remain read-only.",
       "owner": "platform"
     },
@@ -789,7 +911,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["tools/update_repo_ssh.sh", "gcs-server/api_routes/management.py"],
+      "consumers": [
+        "tools/update_repo_ssh.sh",
+        "gcs-server/api_routes/management.py"
+      ],
       "notes": "Path only. The token content must stay outside git and browser payloads.",
       "owner": "security"
     },
@@ -811,7 +936,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["tools/update_repo_ssh.sh"],
+      "consumers": [
+        "tools/update_repo_ssh.sh"
+      ],
       "notes": "Only needed for unusual HTTPS auth flows.",
       "owner": "security"
     },
@@ -833,7 +960,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/fleet-sync-and-secrets.md",
-      "consumers": ["tools/update_repo_ssh.sh", "gcs-server/api_routes/management.py"],
+      "consumers": [
+        "tools/update_repo_ssh.sh",
+        "gcs-server/api_routes/management.py"
+      ],
       "notes": "Path only. Private key contents are never exposed through API/UI.",
       "owner": "security"
     },
@@ -855,8 +985,36 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["tools/mds_gcs_init_lib/gcs_env_config.sh", "app/linux_dashboard_start.sh"],
+      "consumers": [
+        "tools/mds_gcs_init_lib/gcs_env_config.sh",
+        "app/linux_dashboard_start.sh"
+      ],
       "notes": "Created by bootstrap; changing it means moving the checkout.",
+      "owner": "platform"
+    },
+    {
+      "name": "MDS_VENV_PATH",
+      "title": "Python virtualenv path",
+      "scope": "gcs",
+      "domain": "system",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "/opt/mavsdk_drone_show/venv",
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "diagnostic",
+      "restart_required": "manual",
+      "apply_action": "manual",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [
+        "app/linux_dashboard_start.sh",
+        "gcs-server/start_gcs_server.sh"
+      ],
+      "notes": "Canonical GCS virtualenv path. Created by bootstrap; changing it requires moving or rebuilding the Python environment.",
       "owner": "platform"
     },
     {
@@ -872,12 +1030,18 @@
       "ui_visibility": "operator",
       "restart_required": "gcs",
       "apply_action": "restart_gcs",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py", "gcs-server/auth_runtime.py"],
+      "consumers": [
+        "src/security/auth.py",
+        "gcs-server/auth_runtime.py"
+      ],
       "notes": "Enables browser login sessions. API bearer tokens are controlled separately.",
       "owner": "security"
     },
@@ -894,12 +1058,18 @@
       "ui_visibility": "operator",
       "restart_required": "gcs",
       "apply_action": "restart_gcs",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py", "gcs-server/auth_runtime.py"],
+      "consumers": [
+        "src/security/auth.py",
+        "gcs-server/auth_runtime.py"
+      ],
       "notes": "Requires provisioning bearer tokens for drones, agents, and field scripts.",
       "owner": "security"
     },
@@ -921,7 +1091,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Path to hashed dashboard users.",
       "owner": "security"
     },
@@ -943,7 +1115,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Path to hashed bearer token records.",
       "owner": "security"
     },
@@ -965,7 +1139,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Path to local session signing secret. Contents are never returned by APIs.",
       "owner": "security"
     },
@@ -987,7 +1163,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Path to local CSRF signing secret. Contents are never returned by APIs.",
       "owner": "security"
     },
@@ -1009,7 +1187,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Clamped by auth runtime to a safe operational range.",
       "owner": "security"
     },
@@ -1026,12 +1206,17 @@
       "ui_visibility": "operator",
       "restart_required": "gcs",
       "apply_action": "restart_gcs",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Enable when the dashboard is served over HTTPS.",
       "owner": "security"
     },
@@ -1048,12 +1233,17 @@
       "ui_visibility": "operator",
       "restart_required": "gcs",
       "apply_action": "restart_gcs",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Browser mutations should keep this enabled when dashboard login is enabled.",
       "owner": "security"
     },
@@ -1075,7 +1265,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Optional network allowlist. Empty means no MDS-level CIDR allowlist.",
       "owner": "security"
     },
@@ -1097,7 +1289,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/security/auth.py"],
+      "consumers": [
+        "src/security/auth.py"
+      ],
       "notes": "Only use with a trusted reverse proxy.",
       "owner": "security"
     },
@@ -1119,7 +1313,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["tools/mds_gcs_init_lib/gcs_env_config.sh"],
+      "consumers": [
+        "tools/mds_gcs_init_lib/gcs_env_config.sh"
+      ],
       "notes": "Bootstrap-only convenience value; persisted users live in MDS_AUTH_USERS_FILE.",
       "owner": "security"
     },
@@ -1141,7 +1337,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["tools/mds_gcs_init_lib/gcs_env_config.sh"],
+      "consumers": [
+        "tools/mds_gcs_init_lib/gcs_env_config.sh"
+      ],
       "notes": "Bootstrap-only file path. Password contents are never registry values.",
       "owner": "security"
     },
@@ -1163,7 +1361,11 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/runtime.py", "tools/reconcile_connectivity.sh", "tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "src/settings/runtime.py",
+        "tools/reconcile_connectivity.sh",
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Process-only override for tests and custom node env-file location.",
       "owner": "platform"
     },
@@ -1185,7 +1387,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/identity.py"],
+      "consumers": [
+        "src/settings/identity.py"
+      ],
       "notes": "Machine identity manifest location. Do not batch-overwrite identities.",
       "owner": "platform"
     },
@@ -1207,7 +1411,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/settings/identity.py", "src/params.py"],
+      "consumers": [
+        "src/settings/identity.py",
+        "src/params.py"
+      ],
       "notes": "Never batch-apply this key; it is unique per node.",
       "owner": "platform"
     },
@@ -1229,7 +1436,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/params.py", "tools/mds_init_lib/announce.sh"],
+      "consumers": [
+        "src/params.py",
+        "tools/mds_init_lib/announce.sh"
+      ],
       "notes": "Node-specific override for the GCS address.",
       "owner": "platform"
     },
@@ -1251,7 +1461,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["tools/mds_init_lib/announce.sh"],
+      "consumers": [
+        "tools/mds_init_lib/announce.sh"
+      ],
       "notes": "Overrides host/port assembly for node announce and automation.",
       "owner": "platform"
     },
@@ -1273,7 +1485,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/gcs-auth.md",
-      "consumers": ["src/gcs_auth_client.py", "tools/mds_init_lib/announce.sh"],
+      "consumers": [
+        "src/gcs_auth_client.py",
+        "tools/mds_init_lib/announce.sh"
+      ],
       "notes": "Path only. The token content is stored in a root-readable file.",
       "owner": "security"
     },
@@ -1295,7 +1510,10 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/runtime-config-sources.md",
-      "consumers": ["src/params.py", "src/drone_api_server.py"],
+      "consumers": [
+        "src/params.py",
+        "src/drone_api_server.py"
+      ],
       "notes": "Node-local drone API port.",
       "owner": "platform"
     },
@@ -1317,7 +1535,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Defaults to resolved GCS IP.",
       "owner": "connectivity"
     },
@@ -1339,7 +1559,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Defaults to resolved GCS API port.",
       "owner": "connectivity"
     },
@@ -1356,12 +1578,18 @@
       "ui_visibility": "operator",
       "restart_required": "sidecar_reconcile",
       "apply_action": "reconcile_sidecar",
-      "allowed_values": ["none", "smart-wifi-manager"],
+      "allowed_values": [
+        "none",
+        "smart-wifi-manager"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh", "src/managed_runtime_status.py"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh",
+        "src/managed_runtime_status.py"
+      ],
       "notes": "Optional node-local connectivity runtime.",
       "owner": "connectivity"
     },
@@ -1378,12 +1606,17 @@
       "ui_visibility": "operator",
       "restart_required": "sidecar_reconcile",
       "apply_action": "reconcile_sidecar",
-      "allowed_values": ["observe", "manage"],
+      "allowed_values": [
+        "observe",
+        "manage"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Node-local Smart Wi-Fi posture.",
       "owner": "connectivity"
     },
@@ -1400,12 +1633,17 @@
       "ui_visibility": "advanced",
       "restart_required": "sidecar_reconcile",
       "apply_action": "reconcile_sidecar",
-      "allowed_values": ["replace", "merge"],
+      "allowed_values": [
+        "replace",
+        "merge"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Controls Smart Wi-Fi profile application behavior.",
       "owner": "connectivity"
     },
@@ -1427,7 +1665,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Node-local override for the Smart Wi-Fi runtime source.",
       "owner": "connectivity"
     },
@@ -1449,7 +1689,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Node-local Smart Wi-Fi runtime version/ref.",
       "owner": "connectivity"
     },
@@ -1471,7 +1713,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Node-local Smart Wi-Fi install path.",
       "owner": "connectivity"
     },
@@ -1493,7 +1737,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Node-local Smart Wi-Fi dashboard bind address.",
       "owner": "connectivity"
     },
@@ -1515,7 +1761,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/connectivity-runtime.md",
-      "consumers": ["tools/reconcile_connectivity.sh"],
+      "consumers": [
+        "tools/reconcile_connectivity.sh"
+      ],
       "notes": "Use repo: for fleet-synced profile or file: for node-local profile.",
       "owner": "connectivity"
     },
@@ -1532,12 +1780,17 @@
       "ui_visibility": "operator",
       "restart_required": "sidecar_reconcile",
       "apply_action": "reconcile_sidecar",
-      "allowed_values": ["managed", "manual"],
+      "allowed_values": [
+        "managed",
+        "manual"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Controls whether MDS owns mavlink-anywhere on this node.",
       "owner": "mavlink"
     },
@@ -1559,7 +1812,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Node-local mavlink-anywhere source override.",
       "owner": "mavlink"
     },
@@ -1581,7 +1836,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Node-local mavlink-anywhere version/ref.",
       "owner": "mavlink"
     },
@@ -1603,7 +1860,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Node-local mavlink-anywhere install path.",
       "owner": "mavlink"
     },
@@ -1625,7 +1884,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Node-local mavlink-anywhere dashboard bind address.",
       "owner": "mavlink"
     },
@@ -1642,12 +1903,17 @@
       "ui_visibility": "advanced",
       "restart_required": "sidecar_reconcile",
       "apply_action": "reconcile_sidecar",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["tools/reconcile_mavlink_runtime.sh"],
+      "consumers": [
+        "tools/reconcile_mavlink_runtime.sh"
+      ],
       "notes": "Node-local dashboard disable flag for constrained hardware.",
       "owner": "mavlink"
     },
@@ -1669,7 +1935,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/mavlink-routing-setup.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Advanced override. Prefer mavlink-anywhere profiles for routing changes.",
       "owner": "mavlink"
     },
@@ -1686,12 +1954,19 @@
       "ui_visibility": "operator",
       "restart_required": "node_service",
       "apply_action": "restart_node_service",
-      "allowed_values": ["DEBUG", "INFO", "WARNING", "ERROR"],
+      "allowed_values": [
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR"
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/logging-system.md",
-      "consumers": ["mds_logging"],
+      "consumers": [
+        "mds_logging"
+      ],
       "notes": "Node-local logging verbosity.",
       "owner": "logging"
     },
@@ -1713,7 +1988,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/logging-system.md",
-      "consumers": ["mds_logging"],
+      "consumers": [
+        "mds_logging"
+      ],
       "notes": "Per-log-file rotation threshold.",
       "owner": "logging"
     },
@@ -1735,7 +2012,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/guides/logging-system.md",
-      "consumers": ["mds_logging"],
+      "consumers": [
+        "mds_logging"
+      ],
       "notes": "Number of rotated files to keep.",
       "owner": "logging"
     },
@@ -1757,7 +2036,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/px4-parameters.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Optional local PX4 parameter metadata catalogs.",
       "owner": "px4"
     },
@@ -1774,12 +2055,17 @@
       "ui_visibility": "operator",
       "restart_required": "node_service",
       "apply_action": "restart_node_service",
-      "allowed_values": [true, false],
+      "allowed_values": [
+        true,
+        false
+      ],
       "aliases": [],
       "deprecated": false,
       "replacement": null,
       "docs": "docs/px4-parameters.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Allows bounded PX4 docs metadata cache for labels/groups/docs.",
       "owner": "px4"
     },
@@ -1801,7 +2087,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/px4-parameters.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Bounded cache; pruning must prevent stale catalog accumulation.",
       "owner": "px4"
     },
@@ -1823,7 +2111,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/px4-parameters.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Reference metadata cache TTL.",
       "owner": "px4"
     },
@@ -1845,7 +2135,9 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/px4-parameters.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Short timeout keeps dashboard responsive on poor links.",
       "owner": "px4"
     },
@@ -1867,9 +2159,99 @@
       "deprecated": false,
       "replacement": null,
       "docs": "docs/px4-parameters.md",
-      "consumers": ["src/params.py"],
+      "consumers": [
+        "src/params.py"
+      ],
       "notes": "Prevents stale/unused metadata cache growth.",
       "owner": "px4"
+    },
+    {
+      "name": "GCS_PORT",
+      "title": "Retired GCS port alias",
+      "scope": "gcs",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 5030,
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "hidden",
+      "restart_required": "none",
+      "apply_action": "none",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": true,
+      "replacement": "MDS_GCS_API_PORT",
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [],
+      "notes": "Use MDS_GCS_API_PORT.",
+      "owner": "platform"
+    },
+    {
+      "name": "DASHBOARD_PORT",
+      "title": "Retired dashboard port alias",
+      "scope": "gcs",
+      "domain": "frontend",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 3030,
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "hidden",
+      "restart_required": "none",
+      "apply_action": "none",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": true,
+      "replacement": "MDS_DASHBOARD_PORT",
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [],
+      "notes": "Use MDS_DASHBOARD_PORT.",
+      "owner": "platform"
+    },
+    {
+      "name": "GCS_BACKEND",
+      "title": "Retired backend selector",
+      "scope": "gcs",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "string",
+      "default": "fastapi",
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "hidden",
+      "restart_required": "none",
+      "apply_action": "none",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": true,
+      "replacement": null,
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [],
+      "notes": "FastAPI is the only active backend.",
+      "owner": "platform"
+    },
+    {
+      "name": "VENV_PATH",
+      "title": "Retired virtualenv path alias",
+      "scope": "gcs",
+      "domain": "system",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "",
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "hidden",
+      "restart_required": "none",
+      "apply_action": "none",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": true,
+      "replacement": "MDS_VENV_PATH",
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [],
+      "notes": "Use MDS_VENV_PATH.",
+      "owner": "platform"
     }
   ]
 }

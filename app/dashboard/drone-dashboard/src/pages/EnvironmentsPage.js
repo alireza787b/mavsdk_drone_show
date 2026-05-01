@@ -4,6 +4,7 @@ import {
   FaDownload,
   FaExclamationTriangle,
   FaFilter,
+  FaInfoCircle,
   FaRedoAlt,
   FaSave,
   FaSearch,
@@ -27,6 +28,7 @@ import {
   getEnvRegistryResponse,
   getGcsEnvResponse,
   getUnifiedGitStatusResponse,
+  planFleetEnvResponse,
   updateGcsEnvResponse,
 } from '../services/gcsApiService';
 import '../styles/EnvironmentsPage.css';
@@ -155,7 +157,7 @@ function buildInitialDraft(entry) {
   return '';
 }
 
-function EnvEditDialog({ entry, busy, onSave, onClose }) {
+function EnvEntryDialog({ entry, busy, onSave, onClose }) {
   const [draft, setDraft] = useState(() => buildInitialDraft(entry));
 
   useEffect(() => {
@@ -164,6 +166,14 @@ function EnvEditDialog({ entry, busy, onSave, onClose }) {
 
   const allowedValues = Array.isArray(entry.allowed_values) ? entry.allowed_values : [];
   const inputId = `env-edit-${entry.name}`;
+  const canEdit = Boolean(entry.editable && !entry.secret && !entry.deprecated);
+  const reason = entry.deprecated
+    ? `Retired${entry.replacement ? `; use ${entry.replacement}` : ''}.`
+    : entry.secret
+      ? 'Secret values are file-backed and are not edited in the browser.'
+      : !entry.editable
+        ? 'This value is controlled by bootstrap, deployment defaults, or a dedicated workflow.'
+        : '';
 
   return (
     <div
@@ -179,47 +189,61 @@ function EnvEditDialog({ entry, busy, onSave, onClose }) {
         className="environments-page__dialog-panel"
         role="dialog"
         aria-modal="true"
-        aria-label={`Edit ${entry.name}`}
+        aria-label={`${canEdit ? 'Edit' : 'View'} ${entry.name}`}
         onSubmit={(event) => {
           event.preventDefault();
-          onSave(entry, draft);
+          if (canEdit) {
+            onSave(entry, draft);
+          }
         }}
       >
         <header>
-          <span><FaSlidersH aria-hidden="true" /></span>
+          <span>{canEdit ? <FaSlidersH aria-hidden="true" /> : <FaInfoCircle aria-hidden="true" />}</span>
           <div>
             <strong>{entry.title}</strong>
             <code>{entry.name}</code>
           </div>
           <button type="button" onClick={onClose} disabled={busy} aria-label="Close environment editor">×</button>
         </header>
-        <label htmlFor={inputId}>
-          <span>Value</span>
-          {entry.value_type === 'boolean' ? (
-            <select id={inputId} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus>
-              <option value="true">Enabled</option>
-              <option value="false">Disabled</option>
-            </select>
-          ) : allowedValues.length ? (
-            <select id={inputId} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus>
-              {allowedValues.map((value) => (
-                <option key={String(value)} value={String(value)}>{String(value)}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              id={inputId}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={entry.default !== null && entry.default !== undefined ? `Default: ${entry.default}` : 'Set value'}
-              autoFocus
-            />
-          )}
-        </label>
+        {canEdit ? (
+          <label htmlFor={inputId}>
+            <span>Value</span>
+            {entry.value_type === 'boolean' ? (
+              <select id={inputId} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus>
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+            ) : allowedValues.length ? (
+              <select id={inputId} value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus>
+                {allowedValues.map((value) => (
+                  <option key={String(value)} value={String(value)}>{String(value)}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={inputId}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder={entry.default !== null && entry.default !== undefined ? `Default: ${entry.default}` : 'Set value'}
+                autoFocus
+              />
+            )}
+          </label>
+        ) : (
+          <div className="environments-page__readonly-value">
+            <span>Current</span>
+            <strong>{displayValue(entry)}</strong>
+            {reason ? <small>{reason}</small> : null}
+          </div>
+        )}
         <dl>
           <div>
             <dt>Type</dt>
             <dd>{entry.value_type}</dd>
+          </div>
+          <div>
+            <dt>Source</dt>
+            <dd>{entry.source_of_truth}</dd>
           </div>
           <div>
             <dt>Apply</dt>
@@ -233,14 +257,157 @@ function EnvEditDialog({ entry, busy, onSave, onClose }) {
         {entry.notes ? <p>{entry.notes}</p> : null}
         <footer>
           <button type="button" className="operator-button operator-button--ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {canEdit ? 'Cancel' : 'Close'}
           </button>
-          <button type="submit" className="operator-button operator-button--primary" disabled={busy}>
-            {busy ? 'Saving...' : 'Save'}
-          </button>
+          {canEdit ? (
+            <button type="submit" className="operator-button operator-button--primary" disabled={busy}>
+              {busy ? 'Saving...' : 'Save'}
+            </button>
+          ) : null}
         </footer>
       </form>
     </div>
+  );
+}
+
+function buildNodePlanDraft(entry) {
+  if (!entry) {
+    return '';
+  }
+  if (entry.default !== null && entry.default !== undefined && entry.default !== '') {
+    return String(entry.default);
+  }
+  if (entry.value_type === 'boolean') {
+    return 'true';
+  }
+  return '';
+}
+
+function NodeEnvPlanner({
+  entries,
+  rows,
+  query,
+  busy,
+  setBusy,
+  setNotice,
+}) {
+  const [keyName, setKeyName] = useState('');
+  const [draft, setDraft] = useState('');
+  const [targetMode, setTargetMode] = useState('all');
+  const [plan, setPlan] = useState(null);
+
+  const selectedEntry = useMemo(
+    () => entries.find((entry) => entry.name === keyName) || entries[0] || null,
+    [entries, keyName],
+  );
+
+  useEffect(() => {
+    if (!selectedEntry) {
+      setKeyName('');
+      setDraft('');
+      return;
+    }
+    if (keyName !== selectedEntry.name) {
+      setKeyName(selectedEntry.name);
+    }
+    setDraft(buildNodePlanDraft(selectedEntry));
+  }, [keyName, selectedEntry]);
+
+  if (!entries.length) {
+    return null;
+  }
+
+  const allowedValues = Array.isArray(selectedEntry?.allowed_values) ? selectedEntry.allowed_values : [];
+  const targetRows = targetMode === 'visible' ? rows : [];
+  const targetHwIds = targetRows
+    .map((row) => row.hw_id || row.key)
+    .filter((value) => value !== undefined && value !== null && String(value).trim());
+  const targetLabel = targetMode === 'visible'
+    ? `${targetHwIds.length} visible/reporting node(s)`
+    : 'all configured/reporting nodes';
+
+  const runPlan = async () => {
+    if (!selectedEntry) {
+      return;
+    }
+    setBusy(true);
+    setPlan(null);
+    try {
+      const payload = {
+        updates: { [selectedEntry.name]: draft },
+        target_hw_ids: targetMode === 'visible' ? targetHwIds : [],
+      };
+      const response = await planFleetEnvResponse(payload);
+      const data = response?.data || {};
+      setPlan(data);
+      setNotice({
+        tone: data.blocked_count ? 'warning' : 'info',
+        title: 'Fleet env dry-run complete',
+        detail: `${data.target_count || 0} target(s), ${data.blocked_count || 0} blocked. Mutation is intentionally disabled in this release.`,
+      });
+    } catch (error) {
+      setNotice({ tone: 'danger', title: 'Fleet env plan failed', detail: normalizeError(error, 'Could not validate fleet-node env plan.') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <OperatorCard compact className="environments-page__node-planner" tone="info">
+      <div className="environments-page__node-planner-main">
+        <span><FaShieldAlt aria-hidden="true" /> Fleet env planner</span>
+        <strong>Dry-run only</strong>
+        <p>Validate node-side env changes before rollout. Apply stays blocked until identity-safe node mutation APIs are enabled.</p>
+      </div>
+      <div className="environments-page__node-planner-controls">
+        <label>
+          <span>Variable</span>
+          <select value={selectedEntry?.name || ''} onChange={(event) => setKeyName(event.target.value)}>
+            {entries.map((entry) => (
+              <option key={entry.name} value={entry.name}>{entry.title} ({entry.name})</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Value</span>
+          {selectedEntry?.value_type === 'boolean' ? (
+            <select value={draft} onChange={(event) => setDraft(event.target.value)}>
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          ) : allowedValues.length ? (
+            <select value={draft} onChange={(event) => setDraft(event.target.value)}>
+              {allowedValues.map((value) => (
+                <option key={String(value)} value={String(value)}>{String(value)}</option>
+              ))}
+            </select>
+          ) : (
+            <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Planned value" />
+          )}
+        </label>
+        <label>
+          <span>Targets</span>
+          <select value={targetMode} onChange={(event) => setTargetMode(event.target.value)}>
+            <option value="all">All reported</option>
+            <option value="visible">Visible filter</option>
+          </select>
+        </label>
+        <button type="button" className="operator-button operator-button--primary" onClick={runPlan} disabled={busy || (targetMode === 'visible' && !targetHwIds.length)}>
+          Plan
+        </button>
+      </div>
+      <small>
+        Target: {targetLabel}{query ? ` · filter "${query}"` : ''}
+      </small>
+      {plan ? (
+        <div className="environments-page__node-plan-result">
+          <StatusBadge tone={plan.blocked_count ? 'warning' : 'success'}>
+            {plan.target_count} target(s)
+          </StatusBadge>
+          <StatusBadge tone="muted">{plan.mutation_policy}</StatusBadge>
+        </div>
+      ) : null}
+    </OperatorCard>
   );
 }
 
@@ -355,6 +522,15 @@ export default function EnvironmentsPage() {
     const domainSet = new Set(values.map((entry) => entry.domain).filter(Boolean));
     return ['all', ...Array.from(domainSet).sort()];
   }, [values]);
+  const nodeEditableEntries = useMemo(() => {
+    const registryEntries = Array.isArray(registry?.entries) ? registry.entries : [];
+    return registryEntries
+      .filter((entry) => entry.scope === 'node' && entry.editable && !entry.secret && !entry.deprecated)
+      .sort((left, right) => {
+        const domainCompare = String(left.domain || '').localeCompare(String(right.domain || ''));
+        return domainCompare || String(left.title || left.name).localeCompare(String(right.title || right.name));
+      });
+  }, [registry]);
 
   const filteredValues = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -577,6 +753,14 @@ export default function EnvironmentsPage() {
       )}
       actions={(
         <div className="environments-page__actions">
+          <DocsLink
+            doc={{ label: 'Registry', docPath: 'docs/reference/mds-environment-registry.md' }}
+            compact
+          />
+          <DocsLink
+            doc={{ label: 'Table', docPath: 'docs/reference/mds-environment-registry.generated.md' }}
+            compact
+          />
           <ActionIconButton icon={<FaRedoAlt />} label="Refresh environments" onClick={refresh} disabled={busy || loading} />
           <ActionIconButton icon={<FaUpload />} label="Import GCS env profile" onClick={() => importInputRef.current?.click()} disabled={busy || loading}>
             Import
@@ -606,7 +790,13 @@ export default function EnvironmentsPage() {
 
       {gcsEnv?.warnings?.length ? (
         <OperatorNotice tone="warning" title="Registry warnings" icon={<FaExclamationTriangle />}>
-          {gcsEnv.warnings.join(' ')}
+          <span>{gcsEnv.warnings.join(' ')}</span>
+          {gcsEnv.unknown_keys?.length || gcsEnv.deprecated_keys?.length ? (
+            <span className="environments-page__warning-keys">
+              {(gcsEnv.unknown_keys || []).map((key) => <StatusBadge key={`unknown-${key}`} tone="warning">{key}</StatusBadge>)}
+              {(gcsEnv.deprecated_keys || []).map((key) => <StatusBadge key={`retired-${key}`} tone="muted">{key} retired</StatusBadge>)}
+            </span>
+          ) : null}
         </OperatorNotice>
       ) : null}
 
@@ -668,11 +858,11 @@ export default function EnvironmentsPage() {
                     <div className="environments-page__entry-actions">
                       <span aria-label={entry.notes || `${entry.name} value type`}>{entry.value_type}</span>
                       <ActionIconButton
-                        icon={<FaSlidersH />}
-                        label={`Edit ${entry.name}`}
+                        icon={entry.editable && !entry.secret && !entry.deprecated ? <FaSlidersH /> : <FaInfoCircle />}
+                        label={`${entry.editable && !entry.secret && !entry.deprecated ? 'Edit' : 'View'} ${entry.name}`}
                         size="sm"
                         onClick={() => setEditingEntry(entry)}
-                        disabled={!entry.editable || entry.secret || busy}
+                        disabled={busy}
                       />
                     </div>
                   </OperatorCard>
@@ -681,6 +871,17 @@ export default function EnvironmentsPage() {
             </section>
           ))}
         </div>
+      ) : null}
+
+      {!loading && scope === 'nodes' ? (
+        <NodeEnvPlanner
+          entries={nodeEditableEntries}
+          rows={filteredNodeRows}
+          query={query}
+          busy={busy}
+          setBusy={setBusy}
+          setNotice={setNotice}
+        />
       ) : null}
 
       {!loading && scope === 'nodes' && filteredNodeRows.length === 0 ? (
@@ -730,7 +931,7 @@ export default function EnvironmentsPage() {
       ) : null}
 
       {editingEntry ? (
-        <EnvEditDialog entry={editingEntry} busy={busy} onSave={saveEntry} onClose={() => setEditingEntry(null)} />
+        <EnvEntryDialog entry={editingEntry} busy={busy} onSave={saveEntry} onClose={() => setEditingEntry(null)} />
       ) : null}
 
       {importPlan ? (

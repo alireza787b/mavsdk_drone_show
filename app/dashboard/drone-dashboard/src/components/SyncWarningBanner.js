@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FaExclamationTriangle, FaSyncAlt, FaTimes } from 'react-icons/fa';
 import '../styles/SyncWarningBanner.css';
 import { useSyncDrones } from '../hooks/useSyncDrones';
 import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
@@ -59,7 +60,7 @@ const SyncWarningBanner = () => {
   return (
     <div className="sync-warning-banner" role="alert">
       <div className="sync-warning-content">
-        <span className="sync-warning-icon" aria-hidden="true">!</span>
+        <span className="sync-warning-icon" aria-hidden="true"><FaExclamationTriangle /></span>
         <span className="sync-warning-text">
           {syncData.needs_sync_count} of {syncData.total_drones} drone{syncData.total_drones !== 1 ? 's' : ''} out of sync with GCS
         </span>
@@ -68,14 +69,15 @@ const SyncWarningBanner = () => {
           onClick={handleSync}
           disabled={syncing || syncData.sync_in_progress}
         >
-          {syncing || syncData.sync_in_progress ? 'Syncing...' : 'Sync Now'}
+          <FaSyncAlt aria-hidden="true" />
+          <span>{syncing || syncData.sync_in_progress ? 'Syncing' : 'Sync'}</span>
         </button>
         <button
           className="sync-warning-dismiss"
           onClick={() => setDismissed(true)}
           aria-label="Dismiss sync warning"
         >
-          &times;
+          <FaTimes aria-hidden="true" />
         </button>
       </div>
     </div>

@@ -322,7 +322,7 @@ def test_management_router_env_registry_and_gcs_env(monkeypatch, tmp_path):
     app = FastAPI()
     app.include_router(create_management_router(deps))
     gcs_env = tmp_path / "gcs.env"
-    gcs_env.write_text("MDS_MODE=real\nGCS_PORT=5030\nMDS_AUTH_ENABLED=false\n", encoding="utf-8")
+    gcs_env.write_text("MDS_MODE=real\nGCS_PORT=5030\nMDS_AUTH_ENABLED=false\nMDS_GCS_API_TOKEN=legacy\n", encoding="utf-8")
     monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(gcs_env))
 
     with TestClient(app) as client:
@@ -337,7 +337,8 @@ def test_management_router_env_registry_and_gcs_env(monkeypatch, tmp_path):
     assert env_response.status_code == 200
     env_data = env_response.json()
     assert env_data["config_path"] == str(gcs_env)
-    assert "GCS_PORT" in env_data["unknown_keys"]
+    assert "MDS_GCS_API_TOKEN" in env_data["unknown_keys"]
+    assert "GCS_PORT" in env_data["deprecated_keys"]
     mode_entry = next(entry for entry in env_data["values"] if entry["name"] == "MDS_MODE")
     assert mode_entry["value"] == "real"
     assert mode_entry["editable"] is True
@@ -386,7 +387,8 @@ def test_management_router_gcs_env_update_rejects_unknown_or_unsafe(monkeypatch,
         node_key = client.put("/api/v1/system/env/gcs", json={"updates": {"MDS_HW_ID": 2}})
 
     assert unknown.status_code == 422
-    assert "not registered" in unknown.json()["detail"]
+    assert "deprecated" in unknown.json()["detail"]
+    assert "MDS_GCS_API_PORT" in unknown.json()["detail"]
     assert raw_secret.status_code == 422
     assert "not registered" in raw_secret.json()["detail"]
     assert node_key.status_code == 422

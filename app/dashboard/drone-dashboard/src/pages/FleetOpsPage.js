@@ -94,6 +94,9 @@ function resolveDashboardHref(runtime, nodeIp) {
   if (runtime.dashboard_url) {
     return runtime.dashboard_url;
   }
+  if (runtime.dashboard_access_mode === 'local_only') {
+    return null;
+  }
   const port = dashboardPortFromRuntime(runtime);
   const host = formatDashboardHost(nodeIp);
   if (!port || !host) {
@@ -109,26 +112,42 @@ function DashboardQuickLinks({ row }) {
       label: 'Open MAVLink dashboard',
       icon: <FaSatelliteDish aria-hidden="true" />,
       href: resolveDashboardHref(row.mavlinkRuntime, row.ip),
+      runtime: row.mavlinkRuntime,
     },
     {
       key: 'wifi',
       label: 'Open Smart Wi-Fi dashboard',
       icon: <FaWifi aria-hidden="true" />,
       href: resolveDashboardHref(row.connectivityRuntime, row.ip),
+      runtime: row.connectivityRuntime,
     },
-  ].filter((link) => link.href);
+  ];
 
-  if (!links.length) {
+  if (!row.mavlinkRuntime && !row.connectivityRuntime) {
     return null;
   }
 
   return (
     <div className="fleet-ops-node-card__quick-links" aria-label={`Drone ${row.posId} sidecar dashboard links`}>
-      {links.map((link) => (
-        <a key={link.key} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label}>
+      {links.map((link) => {
+        const reason = link.runtime?.dashboard_access_mode === 'local_only'
+          ? `${link.label} is local-only; use SSH tunneling or enable direct dashboard listen on the node.`
+          : `${link.label} unavailable; dashboard is disabled or not installed.`;
+        return link.href ? (
+        <a key={link.key} href={link.href} target="_blank" rel="noreferrer" aria-label={link.label} title={link.label}>
           {link.icon}
         </a>
-      ))}
+      ) : (
+        <span
+          key={link.key}
+          className="is-disabled"
+          aria-label={reason}
+          title={reason}
+        >
+          {link.icon}
+        </span>
+      );
+      })}
     </div>
   );
 }
