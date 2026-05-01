@@ -1819,6 +1819,34 @@
       "owner": "connectivity"
     },
     {
+      "name": "MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD",
+      "title": "Smart Wi-Fi skip dashboard",
+      "scope": "node",
+      "domain": "connectivity",
+      "source_of_truth": "/etc/mds/local.env",
+      "value_type": "boolean",
+      "default": false,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "sidecar_reconcile",
+      "apply_action": "reconcile_sidecar",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/connectivity-runtime.md",
+      "consumers": [
+        "tools/mds_init_lib/connectivity.sh",
+        "tools/reconcile_connectivity.sh"
+      ],
+      "notes": "Node-local Smart Wi-Fi dashboard disable flag for constrained hardware.",
+      "owner": "connectivity"
+    },
+    {
       "name": "MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE",
       "title": "Smart Wi-Fi profile source",
       "scope": "node",
