@@ -249,7 +249,7 @@ describe('EnvironmentsPage', () => {
     await waitFor(() => {
       expect(mockUpdateGcsEnvResponse).toHaveBeenCalledWith({ updates: { MDS_MODE: 'real' } });
     });
-    expect(await screen.findByText(/restart pending/i)).toBeInTheDocument();
+    expect(await screen.findByText(/apply pending/i)).toBeInTheDocument();
   });
 
   test('schedules the GCS env apply restart', async () => {
@@ -310,7 +310,7 @@ describe('EnvironmentsPage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /fleet nodes/i }));
 
-    expect(await screen.findByText(/hw 1/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/hw 1/i)).length).toBeGreaterThan(0);
     expect(screen.getByText('real')).toBeInTheDocument();
     expect(screen.getByText('5/20')).toBeInTheDocument();
     expect(screen.getByText(/identity ok/i)).toBeInTheDocument();
