@@ -234,6 +234,15 @@ python3 -m pytest \
 git diff --check
 ```
 
-Result: focused backend/env tests passed. Frontend Jest could not run in this
-checkout because `react-scripts` is not installed; validate on Hetzner before
-release sync.
+Result: focused backend/env tests passed. Frontend validation passed on Hetzner:
+
+```bash
+cd /root/mds_validation_env_20260501/app/dashboard/drone-dashboard
+CI=true npm test -- --runInBand --watchAll=false \
+  src/services/gcsApiService.test.js \
+  src/pages/EnvironmentsPage.test.js
+npm run build
+```
+
+Result: `39 passed`; production build completed. The CRA bundle-size warning
+remains known dashboard maintenance debt, not a regression from this slice.
