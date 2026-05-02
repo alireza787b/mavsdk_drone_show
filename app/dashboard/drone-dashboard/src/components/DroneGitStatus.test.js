@@ -28,7 +28,7 @@ describe('DroneGitStatus', () => {
         backend: 'smart-wifi-manager',
         mode: 'observe',
         service_status: 'active',
-        repo_web_url: 'https://github.com/demo/smart-wifi-manager/tree/v2.1.0',
+        repo_web_url: 'https://github.com/demo/smart-wifi-manager/tree/v2.1.3',
         dashboard_access_mode: 'local_only',
         dashboard_url: null,
       },

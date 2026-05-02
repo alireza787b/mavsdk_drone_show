@@ -302,7 +302,7 @@ Notes:
   },
   "connectivity_runtime": {
     "backend": "none",
-    "ref": "v2.1.0",
+    "ref": "v2.1.3",
     "profile_hash": null,
     "config_hash_match": null
   }

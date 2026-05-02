@@ -25,18 +25,43 @@ device can reach the node over the local network or VPN.
 
 1. Keep a known-good access path active first, such as Ethernet, NetBird, or the
    current Wi-Fi link.
-2. In **Known Profiles**, click **Add Profile**.
-3. Fill:
+2. Click **Trigger Scan**.
+3. If the target SSID appears under **Available Networks**, click **Add** or
+   **Add top**. If it does not appear, use **Add Profile** under **Known
+   Profiles** and type the SSID manually.
+4. Fill or review:
    - `ID`: short stable name, for example `field-router`
    - `SSID`: exact Wi-Fi network name
-   - `Priority`: higher wins, for example `100` for primary
-   - `Password`: leave blank for open or existing stored password; enter a new
-     password only when you intend to store it on this node
+   - `Priority`: higher wins; **Add top** and **Prefer** raise priority above
+     the current maximum
+   - `Password`: leave blank for open networks or existing stored passwords;
+     enter a new password only when you intend to store it on this node
    - `Password File`: preferred production option when secrets are managed as
      local files
-4. Click **Save Config**.
-5. Click **Trigger Scan**.
-6. Confirm **Live Status** shows the expected current SSID or a clear warning.
+5. Click **Save Config**.
+6. Click **Trigger Scan**.
+7. Confirm **Live Status** shows the expected current SSID or a clear warning.
+
+The dashboard separates scanned networks from known profiles:
+
+- **Available Networks** are discovery results from the latest scan.
+- **Known Profiles** are the only networks the service may join.
+
+This keeps Wi-Fi changes auditable and prevents one-off manual connections that
+do not survive reboot or fleet sync.
+
+## Manual Profile Details
+
+If adding manually from **Known Profiles**, fill:
+
+1. `ID`: short stable name, for example `field-router`
+2. `SSID`: exact Wi-Fi network name
+3. `Priority`: higher wins, for example `100` for primary
+4. `Password`: leave blank for open or existing stored password; enter a new
+   password only when you intend to store it on this node
+5. `Password File`: preferred production option when secrets are managed as
+   local files
+6. Click **Save Config**.
 
 Blank password fields preserve an already stored inline password for existing
 profiles. Use **Remove Profile** only after confirming the node has another
@@ -44,11 +69,33 @@ reachable management path.
 
 ## Change Priority Or Remove A Profile
 
-- To prioritize a network, raise its `Priority` number and click **Save Config**.
-  Higher priority wins; signal strength is used when priorities are equal.
+- To prioritize a network, click **Up**, click **Down**, or edit the `Priority`
+  number and click **Save Config**.
+- To raise a scanned network above all others, click **Prefer** or **Add top**,
+  save, then trigger a scan.
 - To disable a network without deleting it, check `Disabled` and save.
 - To remove a network, click **Remove Profile**, save, then trigger a scan.
   Remove only after confirming another management path is active.
+
+In `observe` mode Smart Wi-Fi reports and updates policy but does not switch.
+In `manage` mode it may switch to the highest-priority reachable known profile.
+
+## Legacy Manual Flow
+
+If the node is running an older dashboard without scan-table actions:
+
+1. In **Known Profiles**, click **Add Profile**.
+2. Fill:
+   - `ID`: short stable name, for example `field-router`
+   - `SSID`: exact Wi-Fi network name
+   - `Priority`: higher wins, for example `100` for primary
+   - `Password`: leave blank for open or existing stored password; enter a new
+     password only when you intend to store it on this node
+   - `Password File`: preferred production option when secrets are managed as
+     local files
+3. Click **Save Config**.
+4. Click **Trigger Scan**.
+5. Confirm **Live Status** shows the expected current SSID or a clear warning.
 
 The dashboard status panel should not be empty on a healthy install. It should
 show the current SSID, scan age, selected target, mode, and known profile list.
