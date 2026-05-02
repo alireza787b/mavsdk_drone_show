@@ -76,22 +76,29 @@ const renderMissionConfig = () => render(
   </MemoryRouter>
 );
 
-const buildFetchResponseMap = (originResponse, overrides = {}) => ({
-  fleetConfig: {
-    data: [],
-    loading: false,
-    error: null,
-  },
-  origin: originResponse,
-  positionDeviations: { data: {}, loading: false, error: null },
-  fleetTelemetry: { data: {}, loading: false, error: null },
-  networkInfo: { data: [], loading: false, error: null },
-  fleetHeartbeats: { data: { heartbeats: [] }, loading: false, error: null },
-  fleetCandidates: { data: { candidates: [] }, loading: false, error: null },
-  dronePositions: { data: [], loading: false, error: null },
-  swarmConfig: { data: [], loading: false, error: null },
-  ...overrides,
-});
+const buildFetchResponseMap = (originResponse, overrides = {}) => {
+  const base = {
+    fleetConfig: {
+      data: [],
+      loading: false,
+      error: null,
+    },
+    origin: originResponse,
+    positionDeviations: { data: {}, loading: false, error: null },
+    fleetTelemetry: { data: {}, loading: false, error: null },
+    networkInfo: { data: [], loading: false, error: null },
+    fleetHeartbeats: { data: { heartbeats: [] }, loading: false, error: null },
+    fleetCandidates: { data: { candidates: [] }, loading: false, error: null },
+    dronePositions: { data: [], loading: false, error: null },
+    swarmConfig: { data: [], loading: false, error: null },
+  };
+  const merged = {
+    ...base,
+    ...overrides,
+  };
+  merged['fleetCandidates?runtime_mode=current'] = merged.fleetCandidates;
+  return merged;
+};
 
 describe('MissionConfig origin review surface', () => {
   const originalScrollIntoView = Element.prototype.scrollIntoView;
