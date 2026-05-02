@@ -1,4 +1,3 @@
-jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
   buildGcsUrl: jest.fn((routeOrPath) => {
     const routeMap = {
@@ -10,6 +9,8 @@ jest.mock('./gcsApiService', () => ({
     const resolved = routeMap[routeOrPath] || routeOrPath;
     return `http://gcs.test:5030${resolved}`;
   }),
+  fetchGcsResource: jest.fn(),
+  postGcsResource: jest.fn(),
   GCS_ROUTE_KEYS: {
       px4ParamsBase: 'px4ParamsBase',
       px4ParamsPolicy: 'px4ParamsPolicy',
@@ -28,11 +29,11 @@ jest.mock('./gcsApiService', () => ({
 
 describe('px4ParamsApiService', () => {
   let service;
-  let axios;
+  let gcsApi;
 
   beforeEach(() => {
     jest.resetModules();
-    axios = require('axios');
+    gcsApi = require('./gcsApiService');
     jest.clearAllMocks();
     service = require('./px4ParamsApiService');
   });
@@ -42,48 +43,48 @@ describe('px4ParamsApiService', () => {
   });
 
   it('loads the px4 params policy from the canonical route', async () => {
-    axios.get.mockResolvedValue({ data: { subsystem: 'px4_params' } });
+    gcsApi.fetchGcsResource.mockResolvedValue({ data: { subsystem: 'px4_params' } });
 
     await service.getPx4ParamPolicy();
 
-    expect(axios.get).toHaveBeenCalledWith('http://gcs.test:5030/api/v1/px4-params/policy');
+    expect(gcsApi.fetchGcsResource).toHaveBeenCalledWith('px4ParamsPolicy');
   });
 
   it('loads repo-backed profile resources from canonical routes', async () => {
-    axios.get.mockResolvedValue({ data: { profiles: [] } });
+    gcsApi.fetchGcsResource.mockResolvedValue({ data: { profiles: [] } });
 
     await service.listPx4ParamProfiles();
     await service.getPx4ParamProfile('fleet/guard');
 
-    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/profiles');
-    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/profiles/fleet%2Fguard');
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(1, 'px4ParamsProfiles');
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/profiles/fleet%2Fguard');
   });
 
   it('refreshes snapshots for explicit hw ids', async () => {
-    axios.post.mockResolvedValue({ data: { snapshots: [] } });
+    gcsApi.postGcsResource.mockResolvedValue({ data: { snapshots: [] } });
 
     await service.refreshPx4ParamSnapshots({ hwIds: ['1', '3'], componentId: 1 });
 
-    expect(axios.post).toHaveBeenCalledWith(
-      'http://gcs.test:5030/api/v1/px4-params/snapshots',
+    expect(gcsApi.postGcsResource).toHaveBeenCalledWith(
+      'px4ParamsSnapshots',
       { hw_ids: ['1', '3'], component_id: 1 }
     );
   });
 
   it('loads snapshot resources through the shared px4 params base url', async () => {
-    axios.get.mockResolvedValue({ data: { snapshot: { snapshot_id: 'snap-1' } } });
+    gcsApi.fetchGcsResource.mockResolvedValue({ data: { snapshot: { snapshot_id: 'snap-1' } } });
 
     await service.getPx4ParamSnapshot('snap/1');
     await service.getPx4ParamSnapshotRows('snap/1');
     await service.getPx4ParamPatchJob('job/1');
 
-    expect(axios.get).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/snapshots/snap%2F1');
-    expect(axios.get).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/snapshots/snap%2F1/rows');
-    expect(axios.get).toHaveBeenNthCalledWith(3, 'http://gcs.test:5030/api/v1/px4-params/patch-jobs/job%2F1');
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/snapshots/snap%2F1');
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/snapshots/snap%2F1/rows');
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(3, 'http://gcs.test:5030/api/v1/px4-params/patch-jobs/job%2F1');
   });
 
   it('creates patch jobs with canonical snake_case payloads', async () => {
-    axios.post.mockResolvedValue({ data: { job_id: 'job-1' } });
+    gcsApi.postGcsResource.mockResolvedValue({ data: { job_id: 'job-1' } });
 
     await service.createPx4ParamPatchJob({
       hwIds: ['7'],
@@ -99,8 +100,8 @@ describe('px4ParamsApiService', () => {
       ],
     });
 
-    expect(axios.post).toHaveBeenCalledWith(
-      'http://gcs.test:5030/api/v1/px4-params/patch-jobs',
+    expect(gcsApi.postGcsResource).toHaveBeenCalledWith(
+      'px4ParamsPatchJobs',
       {
         hw_ids: ['7'],
         source: 'manual',
@@ -118,7 +119,7 @@ describe('px4ParamsApiService', () => {
   });
 
   it('parses imports and diff requests through canonical px4 params routes', async () => {
-    axios.post.mockResolvedValue({ data: {} });
+    gcsApi.postGcsResource.mockResolvedValue({ data: {} });
 
     await service.importQgcParameterFile('# QGC');
     await service.importMdsPatch('{"entries":[]}');
@@ -135,9 +136,9 @@ describe('px4ParamsApiService', () => {
       includeUnchanged: true,
     });
 
-    expect(axios.post).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/imports/qgc', { content: '# QGC' });
-    expect(axios.post).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/imports/mds', { content: '{"entries":[]}' });
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(1, 'http://gcs.test:5030/api/v1/px4-params/imports/qgc', { content: '# QGC' });
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(2, 'http://gcs.test:5030/api/v1/px4-params/imports/mds', { content: '{"entries":[]}' });
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       3,
       'http://gcs.test:5030/api/v1/px4-params/diff',
       {

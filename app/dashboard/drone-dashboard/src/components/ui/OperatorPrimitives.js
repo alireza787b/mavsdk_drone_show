@@ -164,6 +164,7 @@ export function DocsLink({
   label = '',
   compact = false,
   className = '',
+  onClick = undefined,
 }) {
   const resolvedDoc = doc || getRouteDoc(route);
   const href = buildDocsUrl(resolvedDoc, { repoUrl, repoWebUrl, branch });
@@ -179,6 +180,7 @@ export function DocsLink({
       className={['operator-docs-link', compact ? 'operator-docs-link--compact' : '', className].filter(Boolean).join(' ')}
       href={href}
       aria-label={resolvedLabel}
+      onClick={onClick}
       target={href.startsWith('http') ? '_blank' : undefined}
       rel={href.startsWith('http') ? 'noreferrer' : undefined}
     >
@@ -200,6 +202,7 @@ DocsLink.propTypes = {
   label: PropTypes.string,
   compact: PropTypes.bool,
   className: PropTypes.string,
+  onClick: PropTypes.func,
 };
 
 export function PageActionBar({

@@ -7,97 +7,1625 @@ Registry hash: `cdd9b116c83259e049f161f10dbdb7902473b683767f86d591072d314c5d017f
 
 | Key | Scope | Domain | Type | Default | Editable | Restart | Source | Docs |
 |---|---|---|---|---|---|---|---|---|
-| `MDS_AUTH_ADMIN_PASSWORD_FILE` | bootstrap | auth | path | - | no | none | process env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_ADMIN_USER` | bootstrap | auth | string | `admin` | no | none | process env | [guide](../guides/gcs-auth.md) |
-| `MDS_DEFAULT_CONNECTIVITY_BACKEND` | deployment | connectivity | string | `none` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` | deployment | connectivity | string | `127.0.0.1:9080` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE` | deployment | connectivity | string | `replace` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR` | deployment | connectivity | path | `/opt/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_MODE` | deployment | connectivity | string | `observe` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH` | deployment | connectivity | path | `deployment/connectivity/smart-wifi-manager/profile.json` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_REF` | deployment | connectivity | string | `v2.1.3` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG` | deployment | connectivity | string | `alireza787b/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS` | deployment | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_DEFAULT_DASHBOARD_PORT` | deployment | frontend | integer | `3030` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DEFAULT_BRANCH` | deployment | git | string | `main` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_DEFAULT_REPO_SLUG` | deployment | git | string | `alireza787b/mavsdk_drone_show` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_DEFAULT_REPO_URL_HTTPS` | deployment | git | url | `https://github.com/alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_DEFAULT_REPO_URL_SSH` | deployment | git | string | `git@github.com:alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN` | deployment | mavlink | string | `127.0.0.1:9070` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR` | deployment | mavlink | path | `/opt/mavlink-anywhere` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_MAVLINK_ANYWHERE_REF` | deployment | mavlink | string | `v3.0.8` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG` | deployment | mavlink | string | `alireza787b/mavlink-anywhere` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS` | deployment | mavlink | url | `https://github.com/alireza787b/mavlink-anywhere.git` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD` | deployment | mavlink | boolean | `False` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE` | deployment | mavlink | string | `managed` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_DEFAULT_DRONE_API_PORT` | deployment | runtime | integer | `7070` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DEFAULT_GCS_API_PORT` | deployment | runtime | integer | `5030` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DEFAULT_PROFILE_ID` | deployment | runtime | string | `official-default` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DEFAULT_REAL_GCS_IP` | deployment | runtime | string | `100.96.32.75` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DEPLOYMENT_PROFILE_FILE` | deployment | runtime | path | `deployment/defaults.env` | no | gcs | process env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DEFAULT_DOCKER_IMAGE` | deployment | sitl | string | `mavsdk-drone-show-sitl:latest` | no | manual | deployment/defaults.env | [guide](../guides/sitl-control.md) |
-| `MDS_DEFAULT_SITL_GCS_IP` | deployment | sitl | string | `172.18.0.1` | no | manual | deployment/defaults.env | [guide](../guides/sitl-control.md) |
-| `MDS_API_AUTH_ENABLED` | gcs | auth | boolean | `False` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_API_TOKENS_FILE` | gcs | auth | path | `/etc/mds/auth/api_tokens.json` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_ALLOWED_CIDRS` | gcs | auth | csv | - | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_CSRF_ENABLED` | gcs | auth | boolean | `True` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_CSRF_SECRET_FILE` | gcs | auth | path | `/etc/mds/auth/csrf_secret` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_ENABLED` | gcs | auth | boolean | `False` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_SECURE_COOKIES` | gcs | auth | boolean | `False` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_SESSION_SECRET_FILE` | gcs | auth | path | `/etc/mds/auth/session_secret` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_SESSION_TTL_HOURS` | gcs | auth | duration_hours | `12` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_TRUSTED_PROXY_CIDRS` | gcs | auth | csv | - | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `MDS_AUTH_USERS_FILE` | gcs | auth | path | `/etc/mds/auth/users.json` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
-| `DASHBOARD_PORT` | gcs | frontend | integer | `3030` | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_DASHBOARD_PORT` | gcs | frontend | integer | `3030` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_BRANCH` | gcs | git | string | `main` | no | manual | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_GIT_AUTH_TOKEN_FILE` | gcs | git | path | - | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_GIT_AUTO_PUSH` | gcs | git | boolean | `True` | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_GIT_SSH_KEY_FILE` | gcs | git | path | - | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_REPO_URL` | gcs | git | string | - | no | manual | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `GCS_BACKEND` | gcs | runtime | string | `fastapi` | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `GCS_PORT` | gcs | runtime | integer | `5030` | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_GCS_API_PORT` | gcs | runtime | integer | `5030` | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_GCS_SYSTEM_CONFIG` | gcs | runtime | path | `/etc/mds/gcs.env` | no | gcs | process env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_MODE` | gcs | runtime | string | `sitl` | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_PRESENCE_LONG_OFFLINE_SEC` | gcs | runtime | float | `300` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_PRESENCE_RECENT_LOSS_SEC` | gcs | runtime | float | `30` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_PRESENCE_STALE_SEC` | gcs | runtime | float | `60` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_INSTALL_DIR` | gcs | system | path | `/opt/mavsdk_drone_show` | no | manual | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_VENV_PATH` | gcs | system | path | `/opt/mavsdk_drone_show/venv` | no | manual | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `VENV_PATH` | gcs | system | path | - | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_GCS_API_TOKEN_FILE` | node | auth | path | - | yes | node_service | /etc/mds/local.env | [guide](../guides/gcs-auth.md) |
-| `MDS_CONNECTIVITY_BACKEND` | node | connectivity | string | `none` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_CONNECTIVITY_IP` | node | connectivity | string | - | yes | node_service | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_CONNECTIVITY_PORT` | node | connectivity | integer | `5030` | yes | node_service | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` | node | connectivity | string | `127.0.0.1:9080` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_IMPORT_MODE` | node | connectivity | string | `replace` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_INSTALL_DIR` | node | connectivity | path | `/opt/smart-wifi-manager` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_MODE` | node | connectivity | string | `observe` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE` | node | connectivity | string | `repo:deployment/connectivity/smart-wifi-manager/profile.json` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_REF` | node | connectivity | string | `v2.1.3` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_REPO_URL` | node | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD` | node | connectivity | boolean | `False` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
-| `MDS_GIT_AUTH_USERNAME` | node | git | string | `x-access-token` | no | manual | process env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
-| `MDS_LOG_BACKUP_COUNT` | node | logging | integer | `20` | yes | node_service | /etc/mds/local.env | [guide](../guides/logging-system.md) |
-| `MDS_LOG_LEVEL` | node | logging | string | `INFO` | yes | node_service | /etc/mds/local.env | [guide](../guides/logging-system.md) |
-| `MDS_LOG_MAX_SIZE_MB` | node | logging | integer | `100` | yes | node_service | /etc/mds/local.env | [guide](../guides/logging-system.md) |
-| `MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN` | node | mavlink | string | `127.0.0.1:9070` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_MAVLINK_ANYWHERE_INSTALL_DIR` | node | mavlink | path | `/opt/mavlink-anywhere` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_MAVLINK_ANYWHERE_REF` | node | mavlink | string | `v3.0.8` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_MAVLINK_ANYWHERE_REPO_URL` | node | mavlink | url | `https://github.com/alireza787b/mavlink-anywhere.git` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD` | node | mavlink | boolean | `False` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_MAVLINK_MANAGEMENT_MODE` | node | mavlink | string | `managed` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_MAVLINK_PORT` | node | mavlink | integer | `14540` | yes | node_service | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
-| `MDS_PX4_PARAMETER_METADATA_CACHE_DIR` | node | px4 | path | `/var/cache/mds/px4-param-docs` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
-| `MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES` | node | px4 | integer | `4` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
-| `MDS_PX4_PARAMETER_METADATA_CACHE_TTL_DAYS` | node | px4 | float | `14` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
-| `MDS_PX4_PARAMETER_METADATA_CATALOG_PATHS` | node | px4 | csv | - | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
-| `MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC` | node | px4 | float | `2.5` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
-| `MDS_PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED` | node | px4 | boolean | `True` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
-| `MDS_DRONE_API_PORT` | node | runtime | integer | `7070` | yes | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_GCS_API_BASE_URL` | node | runtime | url | - | yes | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_GCS_IP` | node | runtime | string | - | yes | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_HW_ID` | node | runtime | integer | - | no | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_LOCAL_ENV_FILE` | node | runtime | path | `/etc/mds/local.env` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |
-| `MDS_NODE_IDENTITY_FILE` | node | runtime | path | `/etc/mds/node_identity.json` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_AUTH_ADMIN_PASSWORD_FILE`](#env-mds-auth-admin-password-file) | bootstrap | auth | path | - | no | none | process env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_ADMIN_USER`](#env-mds-auth-admin-user) | bootstrap | auth | string | `admin` | no | none | process env | [guide](../guides/gcs-auth.md) |
+| [`MDS_DEFAULT_CONNECTIVITY_BACKEND`](#env-mds-default-connectivity-backend) | deployment | connectivity | string | `none` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`](#env-mds-default-smart-wifi-manager-dashboard-listen) | deployment | connectivity | string | `127.0.0.1:9080` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE`](#env-mds-default-smart-wifi-manager-import-mode) | deployment | connectivity | string | `replace` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR`](#env-mds-default-smart-wifi-manager-install-dir) | deployment | connectivity | path | `/opt/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_MODE`](#env-mds-default-smart-wifi-manager-mode) | deployment | connectivity | string | `observe` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH`](#env-mds-default-smart-wifi-manager-profile-path) | deployment | connectivity | path | `deployment/connectivity/smart-wifi-manager/profile.json` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REF`](#env-mds-default-smart-wifi-manager-ref) | deployment | connectivity | string | `v2.1.3` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG`](#env-mds-default-smart-wifi-manager-repo-slug) | deployment | connectivity | string | `alireza787b/smart-wifi-manager` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS`](#env-mds-default-smart-wifi-manager-repo-url-https) | deployment | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | no | manual | deployment/defaults.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_DEFAULT_DASHBOARD_PORT`](#env-mds-default-dashboard-port) | deployment | frontend | integer | `3030` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DEFAULT_BRANCH`](#env-mds-default-branch) | deployment | git | string | `main` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_DEFAULT_REPO_SLUG`](#env-mds-default-repo-slug) | deployment | git | string | `alireza787b/mavsdk_drone_show` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_DEFAULT_REPO_URL_HTTPS`](#env-mds-default-repo-url-https) | deployment | git | url | `https://github.com/alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_DEFAULT_REPO_URL_SSH`](#env-mds-default-repo-url-ssh) | deployment | git | string | `git@github.com:alireza787b/mavsdk_drone_show.git` | no | manual | deployment/defaults.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`](#env-mds-default-mavlink-anywhere-dashboard-listen) | deployment | mavlink | string | `127.0.0.1:9070` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR`](#env-mds-default-mavlink-anywhere-install-dir) | deployment | mavlink | path | `/opt/mavlink-anywhere` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_MAVLINK_ANYWHERE_REF`](#env-mds-default-mavlink-anywhere-ref) | deployment | mavlink | string | `v3.0.8` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG`](#env-mds-default-mavlink-anywhere-repo-slug) | deployment | mavlink | string | `alireza787b/mavlink-anywhere` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS`](#env-mds-default-mavlink-anywhere-repo-url-https) | deployment | mavlink | url | `https://github.com/alireza787b/mavlink-anywhere.git` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD`](#env-mds-default-mavlink-anywhere-skip-dashboard) | deployment | mavlink | boolean | `False` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE`](#env-mds-default-mavlink-management-mode) | deployment | mavlink | string | `managed` | no | manual | deployment/defaults.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_DEFAULT_DRONE_API_PORT`](#env-mds-default-drone-api-port) | deployment | runtime | integer | `7070` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DEFAULT_GCS_API_PORT`](#env-mds-default-gcs-api-port) | deployment | runtime | integer | `5030` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DEFAULT_PROFILE_ID`](#env-mds-default-profile-id) | deployment | runtime | string | `official-default` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DEFAULT_REAL_GCS_IP`](#env-mds-default-real-gcs-ip) | deployment | runtime | string | `100.96.32.75` | no | manual | deployment/defaults.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DEPLOYMENT_PROFILE_FILE`](#env-mds-deployment-profile-file) | deployment | runtime | path | `deployment/defaults.env` | no | gcs | process env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DEFAULT_DOCKER_IMAGE`](#env-mds-default-docker-image) | deployment | sitl | string | `mavsdk-drone-show-sitl:latest` | no | manual | deployment/defaults.env | [guide](../guides/sitl-control.md) |
+| [`MDS_DEFAULT_SITL_GCS_IP`](#env-mds-default-sitl-gcs-ip) | deployment | sitl | string | `172.18.0.1` | no | manual | deployment/defaults.env | [guide](../guides/sitl-control.md) |
+| [`MDS_API_AUTH_ENABLED`](#env-mds-api-auth-enabled) | gcs | auth | boolean | `False` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_API_TOKENS_FILE`](#env-mds-api-tokens-file) | gcs | auth | path | `/etc/mds/auth/api_tokens.json` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_ALLOWED_CIDRS`](#env-mds-auth-allowed-cidrs) | gcs | auth | csv | - | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_CSRF_ENABLED`](#env-mds-auth-csrf-enabled) | gcs | auth | boolean | `True` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_CSRF_SECRET_FILE`](#env-mds-auth-csrf-secret-file) | gcs | auth | path | `/etc/mds/auth/csrf_secret` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_ENABLED`](#env-mds-auth-enabled) | gcs | auth | boolean | `False` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_SECURE_COOKIES`](#env-mds-auth-secure-cookies) | gcs | auth | boolean | `False` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_SESSION_SECRET_FILE`](#env-mds-auth-session-secret-file) | gcs | auth | path | `/etc/mds/auth/session_secret` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_SESSION_TTL_HOURS`](#env-mds-auth-session-ttl-hours) | gcs | auth | duration_hours | `12` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_TRUSTED_PROXY_CIDRS`](#env-mds-auth-trusted-proxy-cidrs) | gcs | auth | csv | - | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_AUTH_USERS_FILE`](#env-mds-auth-users-file) | gcs | auth | path | `/etc/mds/auth/users.json` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/gcs-auth.md) |
+| [`DASHBOARD_PORT`](#env-dashboard-port) | gcs | frontend | integer | `3030` | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_DASHBOARD_PORT`](#env-mds-dashboard-port) | gcs | frontend | integer | `3030` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_BRANCH`](#env-mds-branch) | gcs | git | string | `main` | no | manual | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_GIT_AUTH_TOKEN_FILE`](#env-mds-git-auth-token-file) | gcs | git | path | - | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_GIT_AUTO_PUSH`](#env-mds-git-auto-push) | gcs | git | boolean | `True` | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_GIT_SSH_KEY_FILE`](#env-mds-git-ssh-key-file) | gcs | git | path | - | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_REPO_URL`](#env-mds-repo-url) | gcs | git | string | - | no | manual | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`GCS_BACKEND`](#env-gcs-backend) | gcs | runtime | string | `fastapi` | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`GCS_PORT`](#env-gcs-port) | gcs | runtime | integer | `5030` | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_GCS_API_PORT`](#env-mds-gcs-api-port) | gcs | runtime | integer | `5030` | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_GCS_SYSTEM_CONFIG`](#env-mds-gcs-system-config) | gcs | runtime | path | `/etc/mds/gcs.env` | no | gcs | process env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_MODE`](#env-mds-mode) | gcs | runtime | string | `sitl` | yes | gcs | /etc/mds/gcs.env or /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_PRESENCE_LONG_OFFLINE_SEC`](#env-mds-presence-long-offline-sec) | gcs | runtime | float | `300` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_PRESENCE_RECENT_LOSS_SEC`](#env-mds-presence-recent-loss-sec) | gcs | runtime | float | `30` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_PRESENCE_STALE_SEC`](#env-mds-presence-stale-sec) | gcs | runtime | float | `60` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_INSTALL_DIR`](#env-mds-install-dir) | gcs | system | path | `/opt/mavsdk_drone_show` | no | manual | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_VENV_PATH`](#env-mds-venv-path) | gcs | system | path | `/opt/mavsdk_drone_show/venv` | no | manual | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`VENV_PATH`](#env-venv-path) | gcs | system | path | - | no | none | /etc/mds/gcs.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_GCS_API_TOKEN_FILE`](#env-mds-gcs-api-token-file) | node | auth | path | - | yes | node_service | /etc/mds/local.env | [guide](../guides/gcs-auth.md) |
+| [`MDS_CONNECTIVITY_BACKEND`](#env-mds-connectivity-backend) | node | connectivity | string | `none` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_CONNECTIVITY_IP`](#env-mds-connectivity-ip) | node | connectivity | string | - | yes | node_service | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_CONNECTIVITY_PORT`](#env-mds-connectivity-port) | node | connectivity | integer | `5030` | yes | node_service | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`](#env-mds-smart-wifi-manager-dashboard-listen) | node | connectivity | string | `127.0.0.1:9080` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_IMPORT_MODE`](#env-mds-smart-wifi-manager-import-mode) | node | connectivity | string | `replace` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_INSTALL_DIR`](#env-mds-smart-wifi-manager-install-dir) | node | connectivity | path | `/opt/smart-wifi-manager` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_MODE`](#env-mds-smart-wifi-manager-mode) | node | connectivity | string | `observe` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE`](#env-mds-smart-wifi-manager-profile-source) | node | connectivity | string | `repo:deployment/connectivity/smart-wifi-manager/profile.json` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_REF`](#env-mds-smart-wifi-manager-ref) | node | connectivity | string | `v2.1.3` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_REPO_URL`](#env-mds-smart-wifi-manager-repo-url) | node | connectivity | url | `https://github.com/alireza787b/smart-wifi-manager.git` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD`](#env-mds-smart-wifi-manager-skip-dashboard) | node | connectivity | boolean | `False` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/connectivity-runtime.md) |
+| [`MDS_GIT_AUTH_USERNAME`](#env-mds-git-auth-username) | node | git | string | `x-access-token` | no | manual | process env or /etc/mds/local.env | [guide](../guides/fleet-sync-and-secrets.md) |
+| [`MDS_LOG_BACKUP_COUNT`](#env-mds-log-backup-count) | node | logging | integer | `20` | yes | node_service | /etc/mds/local.env | [guide](../guides/logging-system.md) |
+| [`MDS_LOG_LEVEL`](#env-mds-log-level) | node | logging | string | `INFO` | yes | node_service | /etc/mds/local.env | [guide](../guides/logging-system.md) |
+| [`MDS_LOG_MAX_SIZE_MB`](#env-mds-log-max-size-mb) | node | logging | integer | `100` | yes | node_service | /etc/mds/local.env | [guide](../guides/logging-system.md) |
+| [`MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`](#env-mds-mavlink-anywhere-dashboard-listen) | node | mavlink | string | `127.0.0.1:9070` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_MAVLINK_ANYWHERE_INSTALL_DIR`](#env-mds-mavlink-anywhere-install-dir) | node | mavlink | path | `/opt/mavlink-anywhere` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_MAVLINK_ANYWHERE_REF`](#env-mds-mavlink-anywhere-ref) | node | mavlink | string | `v3.0.8` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_MAVLINK_ANYWHERE_REPO_URL`](#env-mds-mavlink-anywhere-repo-url) | node | mavlink | url | `https://github.com/alireza787b/mavlink-anywhere.git` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD`](#env-mds-mavlink-anywhere-skip-dashboard) | node | mavlink | boolean | `False` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_MAVLINK_MANAGEMENT_MODE`](#env-mds-mavlink-management-mode) | node | mavlink | string | `managed` | yes | sidecar_reconcile | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_MAVLINK_PORT`](#env-mds-mavlink-port) | node | mavlink | integer | `14540` | yes | node_service | /etc/mds/local.env | [guide](../guides/mavlink-routing-setup.md) |
+| [`MDS_PX4_PARAMETER_METADATA_CACHE_DIR`](#env-mds-px4-parameter-metadata-cache-dir) | node | px4 | path | `/var/cache/mds/px4-param-docs` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
+| [`MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES`](#env-mds-px4-parameter-metadata-cache-max-entries) | node | px4 | integer | `4` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
+| [`MDS_PX4_PARAMETER_METADATA_CACHE_TTL_DAYS`](#env-mds-px4-parameter-metadata-cache-ttl-days) | node | px4 | float | `14` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
+| [`MDS_PX4_PARAMETER_METADATA_CATALOG_PATHS`](#env-mds-px4-parameter-metadata-catalog-paths) | node | px4 | csv | - | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
+| [`MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC`](#env-mds-px4-parameter-metadata-fetch-timeout-sec) | node | px4 | float | `2.5` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
+| [`MDS_PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED`](#env-mds-px4-parameter-online-docs-metadata-enabled) | node | px4 | boolean | `True` | yes | node_service | /etc/mds/local.env | [guide](../px4-parameters.md) |
+| [`MDS_DRONE_API_PORT`](#env-mds-drone-api-port) | node | runtime | integer | `7070` | yes | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_GCS_API_BASE_URL`](#env-mds-gcs-api-base-url) | node | runtime | url | - | yes | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_GCS_IP`](#env-mds-gcs-ip) | node | runtime | string | - | yes | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_HW_ID`](#env-mds-hw-id) | node | runtime | integer | - | no | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_LOCAL_ENV_FILE`](#env-mds-local-env-file) | node | runtime | path | `/etc/mds/local.env` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |
+| [`MDS_NODE_IDENTITY_FILE`](#env-mds-node-identity-file) | node | runtime | path | `/etc/mds/node_identity.json` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |
+
+## Variable Details
+
+<a id="env-mds-auth-admin-password-file"></a>
+
+### `MDS_AUTH_ADMIN_PASSWORD_FILE`
+
+- Title: Bootstrap auth admin password file
+- Scope: `bootstrap`
+- Domain: `auth`
+- Type: `path`
+- Default: `-`
+- Editable: no
+- Restart: `none`
+- Source of truth: `process env`
+- Apply action: `none`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Bootstrap-only file path. Password contents are never registry values.
+
+<a id="env-mds-auth-admin-user"></a>
+
+### `MDS_AUTH_ADMIN_USER`
+
+- Title: Bootstrap auth admin user
+- Scope: `bootstrap`
+- Domain: `auth`
+- Type: `string`
+- Default: `admin`
+- Editable: no
+- Restart: `none`
+- Source of truth: `process env`
+- Apply action: `none`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Bootstrap-only convenience value; persisted users live in MDS_AUTH_USERS_FILE.
+
+<a id="env-mds-default-connectivity-backend"></a>
+
+### `MDS_DEFAULT_CONNECTIVITY_BACKEND`
+
+- Title: Default connectivity backend
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `none`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `none, smart-wifi-manager`
+- Notes: Default optional connectivity sidecar policy for new nodes.
+
+<a id="env-mds-default-smart-wifi-manager-dashboard-listen"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`
+
+- Title: Default Smart Wi-Fi dashboard listen
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `127.0.0.1:9080`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Default dashboard bind address for Smart Wi-Fi Manager.
+
+<a id="env-mds-default-smart-wifi-manager-import-mode"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE`
+
+- Title: Default Smart Wi-Fi import mode
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `replace`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `replace, merge`
+- Notes: Controls how fleet profile is applied by reconcile script.
+
+<a id="env-mds-default-smart-wifi-manager-install-dir"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR`
+
+- Title: Default Smart Wi-Fi install dir
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `path`
+- Default: `/opt/smart-wifi-manager`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Node-local default install path for the optional connectivity runtime.
+
+<a id="env-mds-default-smart-wifi-manager-mode"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_MODE`
+
+- Title: Default Smart Wi-Fi mode
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `observe`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `observe, manage`
+- Notes: Default sidecar mode for new nodes.
+
+<a id="env-mds-default-smart-wifi-manager-profile-path"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH`
+
+- Title: Default Smart Wi-Fi profile path
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `path`
+- Default: `deployment/connectivity/smart-wifi-manager/profile.json`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Git-tracked fleet Wi-Fi profile path.
+
+<a id="env-mds-default-smart-wifi-manager-ref"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_REF`
+
+- Title: Default Smart Wi-Fi ref
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `v2.1.3`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Pinned Smart Wi-Fi Manager version/ref.
+
+<a id="env-mds-default-smart-wifi-manager-repo-slug"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG`
+
+- Title: Default Smart Wi-Fi repo slug
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `alireza787b/smart-wifi-manager`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Documentation/display slug for Smart Wi-Fi Manager.
+
+<a id="env-mds-default-smart-wifi-manager-repo-url-https"></a>
+
+### `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS`
+
+- Title: Default Smart Wi-Fi repo URL
+- Scope: `deployment`
+- Domain: `connectivity`
+- Type: `url`
+- Default: `https://github.com/alireza787b/smart-wifi-manager.git`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Default Smart Wi-Fi runtime source.
+
+<a id="env-mds-default-dashboard-port"></a>
+
+### `MDS_DEFAULT_DASHBOARD_PORT`
+
+- Title: Default dashboard port
+- Scope: `deployment`
+- Domain: `frontend`
+- Type: `integer`
+- Default: `3030`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Fleet default. Host-local applied value is MDS_DASHBOARD_PORT.
+
+<a id="env-mds-default-branch"></a>
+
+### `MDS_DEFAULT_BRANCH`
+
+- Title: Default git branch
+- Scope: `deployment`
+- Domain: `git`
+- Type: `string`
+- Default: `main`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Fleet default branch for new hosts and containers.
+
+<a id="env-mds-default-repo-slug"></a>
+
+### `MDS_DEFAULT_REPO_SLUG`
+
+- Title: Default repo slug
+- Scope: `deployment`
+- Domain: `git`
+- Type: `string`
+- Default: `alireza787b/mavsdk_drone_show`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Default repo owner/name used to derive documentation and GitHub URLs.
+
+<a id="env-mds-default-repo-url-https"></a>
+
+### `MDS_DEFAULT_REPO_URL_HTTPS`
+
+- Title: Default HTTPS repo URL
+- Scope: `deployment`
+- Domain: `git`
+- Type: `url`
+- Default: `https://github.com/alireza787b/mavsdk_drone_show.git`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Public/read-only default repo URL.
+
+<a id="env-mds-default-repo-url-ssh"></a>
+
+### `MDS_DEFAULT_REPO_URL_SSH`
+
+- Title: Default SSH repo URL
+- Scope: `deployment`
+- Domain: `git`
+- Type: `string`
+- Default: `git@github.com:alireza787b/mavsdk_drone_show.git`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Write-capable GCS deployments usually use SSH with a scoped deploy key.
+
+<a id="env-mds-default-mavlink-anywhere-dashboard-listen"></a>
+
+### `MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`
+
+- Title: Default MAVLink Anywhere dashboard listen
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `127.0.0.1:9070`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Default dashboard bind address for mavlink-anywhere.
+
+<a id="env-mds-default-mavlink-anywhere-install-dir"></a>
+
+### `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR`
+
+- Title: Default MAVLink Anywhere install dir
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `path`
+- Default: `/opt/mavlink-anywhere`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Node-local default install path for mavlink-anywhere.
+
+<a id="env-mds-default-mavlink-anywhere-ref"></a>
+
+### `MDS_DEFAULT_MAVLINK_ANYWHERE_REF`
+
+- Title: Default MAVLink Anywhere ref
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `v3.0.8`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Pinned mavlink-anywhere version/ref.
+
+<a id="env-mds-default-mavlink-anywhere-repo-slug"></a>
+
+### `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG`
+
+- Title: Default MAVLink Anywhere repo slug
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `alireza787b/mavlink-anywhere`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Documentation/display slug for mavlink-anywhere.
+
+<a id="env-mds-default-mavlink-anywhere-repo-url-https"></a>
+
+### `MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS`
+
+- Title: Default MAVLink Anywhere repo URL
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `url`
+- Default: `https://github.com/alireza787b/mavlink-anywhere.git`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Default MAVLink sidecar source.
+
+<a id="env-mds-default-mavlink-anywhere-skip-dashboard"></a>
+
+### `MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD`
+
+- Title: Default MAVLink Anywhere skip dashboard
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `boolean`
+- Default: `False`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Allowed values: `True, False`
+- Notes: Disables mavlink-anywhere dashboard on constrained nodes.
+
+<a id="env-mds-default-mavlink-management-mode"></a>
+
+### `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE`
+
+- Title: Default MAVLink management mode
+- Scope: `deployment`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `managed`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Allowed values: `managed, manual`
+- Notes: Default mavlink-anywhere ownership mode for real nodes.
+
+<a id="env-mds-default-drone-api-port"></a>
+
+### `MDS_DEFAULT_DRONE_API_PORT`
+
+- Title: Default drone API port
+- Scope: `deployment`
+- Domain: `runtime`
+- Type: `integer`
+- Default: `7070`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Fleet default. Node-local applied value is MDS_DRONE_API_PORT.
+
+<a id="env-mds-default-gcs-api-port"></a>
+
+### `MDS_DEFAULT_GCS_API_PORT`
+
+- Title: Default GCS API port
+- Scope: `deployment`
+- Domain: `runtime`
+- Type: `integer`
+- Default: `5030`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Fleet default. Host-local applied value is MDS_GCS_API_PORT.
+
+<a id="env-mds-default-profile-id"></a>
+
+### `MDS_DEFAULT_PROFILE_ID`
+
+- Title: Deployment profile id
+- Scope: `deployment`
+- Domain: `runtime`
+- Type: `string`
+- Default: `official-default`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Git-tracked fleet default; change through deployment/defaults.env.
+
+<a id="env-mds-default-real-gcs-ip"></a>
+
+### `MDS_DEFAULT_REAL_GCS_IP`
+
+- Title: Default real-mode GCS IP
+- Scope: `deployment`
+- Domain: `runtime`
+- Type: `string`
+- Default: `100.96.32.75`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Default GCS address for real hardware when a node does not override MDS_GCS_IP.
+
+<a id="env-mds-deployment-profile-file"></a>
+
+### `MDS_DEPLOYMENT_PROFILE_FILE`
+
+- Title: Deployment profile file
+- Scope: `deployment`
+- Domain: `runtime`
+- Type: `path`
+- Default: `deployment/defaults.env`
+- Editable: no
+- Restart: `gcs`
+- Source of truth: `process env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Process-only override used by tests and custom deployments.
+
+<a id="env-mds-default-docker-image"></a>
+
+### `MDS_DEFAULT_DOCKER_IMAGE`
+
+- Title: Default SITL Docker image
+- Scope: `deployment`
+- Domain: `sitl`
+- Type: `string`
+- Default: `mavsdk-drone-show-sitl:latest`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/sitl-control.md)
+- Notes: Git-tracked SITL image default.
+
+<a id="env-mds-default-sitl-gcs-ip"></a>
+
+### `MDS_DEFAULT_SITL_GCS_IP`
+
+- Title: Default SITL GCS IP
+- Scope: `deployment`
+- Domain: `sitl`
+- Type: `string`
+- Default: `172.18.0.1`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `deployment/defaults.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/sitl-control.md)
+- Notes: Docker gateway used by SITL containers.
+
+<a id="env-mds-api-auth-enabled"></a>
+
+### `MDS_API_AUTH_ENABLED`
+
+- Title: Machine API auth enabled
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `boolean`
+- Default: `False`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Allowed values: `True, False`
+- Notes: Requires provisioning bearer tokens for drones, agents, and field scripts.
+
+<a id="env-mds-api-tokens-file"></a>
+
+### `MDS_API_TOKENS_FILE`
+
+- Title: API tokens file
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `path`
+- Default: `/etc/mds/auth/api_tokens.json`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Path to hashed bearer token records.
+
+<a id="env-mds-auth-allowed-cidrs"></a>
+
+### `MDS_AUTH_ALLOWED_CIDRS`
+
+- Title: Auth allowed CIDRs
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `csv`
+- Default: `-`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Optional network allowlist. Empty means no MDS-level CIDR allowlist.
+
+<a id="env-mds-auth-csrf-enabled"></a>
+
+### `MDS_AUTH_CSRF_ENABLED`
+
+- Title: CSRF protection enabled
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `boolean`
+- Default: `True`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Allowed values: `True, False`
+- Notes: Browser mutations should keep this enabled when dashboard login is enabled.
+
+<a id="env-mds-auth-csrf-secret-file"></a>
+
+### `MDS_AUTH_CSRF_SECRET_FILE`
+
+- Title: CSRF secret file
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `path`
+- Default: `/etc/mds/auth/csrf_secret`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Path to local CSRF signing secret. Contents are never returned by APIs.
+
+<a id="env-mds-auth-enabled"></a>
+
+### `MDS_AUTH_ENABLED`
+
+- Title: Dashboard login enabled
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `boolean`
+- Default: `False`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Allowed values: `True, False`
+- Notes: Enables browser login sessions. API bearer tokens are controlled separately.
+
+<a id="env-mds-auth-secure-cookies"></a>
+
+### `MDS_AUTH_SECURE_COOKIES`
+
+- Title: Secure cookies
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `boolean`
+- Default: `False`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Allowed values: `True, False`
+- Notes: Enable when the dashboard is served over HTTPS.
+
+<a id="env-mds-auth-session-secret-file"></a>
+
+### `MDS_AUTH_SESSION_SECRET_FILE`
+
+- Title: Session secret file
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `path`
+- Default: `/etc/mds/auth/session_secret`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Path to local session signing secret. Contents are never returned by APIs.
+
+<a id="env-mds-auth-session-ttl-hours"></a>
+
+### `MDS_AUTH_SESSION_TTL_HOURS`
+
+- Title: Session TTL hours
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `duration_hours`
+- Default: `12`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Clamped by auth runtime to a safe operational range.
+
+<a id="env-mds-auth-trusted-proxy-cidrs"></a>
+
+### `MDS_AUTH_TRUSTED_PROXY_CIDRS`
+
+- Title: Trusted proxy CIDRs
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `csv`
+- Default: `-`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Only use with a trusted reverse proxy.
+
+<a id="env-mds-auth-users-file"></a>
+
+### `MDS_AUTH_USERS_FILE`
+
+- Title: Auth users file
+- Scope: `gcs`
+- Domain: `auth`
+- Type: `path`
+- Default: `/etc/mds/auth/users.json`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Path to hashed dashboard users.
+
+<a id="env-dashboard-port"></a>
+
+### `DASHBOARD_PORT`
+
+- Title: Retired dashboard port alias
+- Scope: `gcs`
+- Domain: `frontend`
+- Type: `integer`
+- Default: `3030`
+- Editable: no
+- Restart: `none`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `none`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Use MDS_DASHBOARD_PORT.
+- Replacement: `MDS_DASHBOARD_PORT`
+
+<a id="env-mds-dashboard-port"></a>
+
+### `MDS_DASHBOARD_PORT`
+
+- Title: Dashboard port
+- Scope: `gcs`
+- Domain: `frontend`
+- Type: `integer`
+- Default: `3030`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Canonical dashboard HTTP port. Deprecated DASHBOARD_PORT is not a canonical alias.
+
+<a id="env-mds-branch"></a>
+
+### `MDS_BRANCH`
+
+- Title: Runtime git branch
+- Scope: `gcs`
+- Domain: `git`
+- Type: `string`
+- Default: `main`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Change through setup/sync workflows until fleet dry-run apply exists.
+
+<a id="env-mds-git-auth-token-file"></a>
+
+### `MDS_GIT_AUTH_TOKEN_FILE`
+
+- Title: Git HTTPS token file
+- Scope: `gcs`
+- Domain: `git`
+- Type: `path`
+- Default: `-`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Path only. The token content must stay outside git and browser payloads.
+
+<a id="env-mds-git-auto-push"></a>
+
+### `MDS_GIT_AUTO_PUSH`
+
+- Title: Git auto-push enabled
+- Scope: `gcs`
+- Domain: `git`
+- Type: `boolean`
+- Default: `True`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Allowed values: `True, False`
+- Notes: GCS write-back policy. Drones should normally remain read-only.
+
+<a id="env-mds-git-ssh-key-file"></a>
+
+### `MDS_GIT_SSH_KEY_FILE`
+
+- Title: Git SSH private key file
+- Scope: `gcs`
+- Domain: `git`
+- Type: `path`
+- Default: `-`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Path only. Private key contents are never exposed through API/UI.
+
+<a id="env-mds-repo-url"></a>
+
+### `MDS_REPO_URL`
+
+- Title: Runtime repo URL
+- Scope: `gcs`
+- Domain: `git`
+- Type: `string`
+- Default: `-`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Dangerous to edit from generic UI because repo access and deploy keys must match.
+
+<a id="env-gcs-backend"></a>
+
+### `GCS_BACKEND`
+
+- Title: Retired backend selector
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `string`
+- Default: `fastapi`
+- Editable: no
+- Restart: `none`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `none`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: FastAPI is the only active backend.
+
+<a id="env-gcs-port"></a>
+
+### `GCS_PORT`
+
+- Title: Retired GCS port alias
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `integer`
+- Default: `5030`
+- Editable: no
+- Restart: `none`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `none`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Use MDS_GCS_API_PORT.
+- Replacement: `MDS_GCS_API_PORT`
+
+<a id="env-mds-gcs-api-port"></a>
+
+### `MDS_GCS_API_PORT`
+
+- Title: GCS API port
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `integer`
+- Default: `5030`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Canonical GCS backend API port. Deprecated GCS_PORT is not a canonical alias.
+
+<a id="env-mds-gcs-system-config"></a>
+
+### `MDS_GCS_SYSTEM_CONFIG`
+
+- Title: GCS system env file
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `path`
+- Default: `/etc/mds/gcs.env`
+- Editable: no
+- Restart: `gcs`
+- Source of truth: `process env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Process-only pointer to the host-local GCS env file.
+
+<a id="env-mds-mode"></a>
+
+### `MDS_MODE`
+
+- Title: Runtime mode
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `string`
+- Default: `sitl`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env or /etc/mds/local.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Allowed values: `real, sitl`
+- Notes: Canonical mode switch. GCS and nodes interpret it in their own local scope.
+
+<a id="env-mds-presence-long-offline-sec"></a>
+
+### `MDS_PRESENCE_LONG_OFFLINE_SEC`
+
+- Title: Presence long-offline threshold
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `float`
+- Default: `300`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Seconds after last link evidence before offline state is flagged as long-offline in API details.
+
+<a id="env-mds-presence-recent-loss-sec"></a>
+
+### `MDS_PRESENCE_RECENT_LOSS_SEC`
+
+- Title: Presence recent-loss threshold
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `float`
+- Default: `30`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Seconds after last fresh link before a node leaves recent-loss state.
+
+<a id="env-mds-presence-stale-sec"></a>
+
+### `MDS_PRESENCE_STALE_SEC`
+
+- Title: Presence stale threshold
+- Scope: `gcs`
+- Domain: `runtime`
+- Type: `float`
+- Default: `60`
+- Editable: yes
+- Restart: `gcs`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `restart_gcs`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Seconds after last fresh link before a node is treated as offline instead of stale.
+
+<a id="env-mds-install-dir"></a>
+
+### `MDS_INSTALL_DIR`
+
+- Title: Install directory
+- Scope: `gcs`
+- Domain: `system`
+- Type: `path`
+- Default: `/opt/mavsdk_drone_show`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Created by bootstrap; changing it means moving the checkout.
+
+<a id="env-mds-venv-path"></a>
+
+### `MDS_VENV_PATH`
+
+- Title: Python virtualenv path
+- Scope: `gcs`
+- Domain: `system`
+- Type: `path`
+- Default: `/opt/mavsdk_drone_show/venv`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Canonical GCS virtualenv path. Created by bootstrap; changing it requires moving or rebuilding the Python environment.
+
+<a id="env-venv-path"></a>
+
+### `VENV_PATH`
+
+- Title: Retired virtualenv path alias
+- Scope: `gcs`
+- Domain: `system`
+- Type: `path`
+- Default: `-`
+- Editable: no
+- Restart: `none`
+- Source of truth: `/etc/mds/gcs.env`
+- Apply action: `none`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Use MDS_VENV_PATH.
+- Replacement: `MDS_VENV_PATH`
+
+<a id="env-mds-gcs-api-token-file"></a>
+
+### `MDS_GCS_API_TOKEN_FILE`
+
+- Title: GCS API bearer token file
+- Scope: `node`
+- Domain: `auth`
+- Type: `path`
+- Default: `-`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/gcs-auth.md)
+- Notes: Path only. The token content is stored in a root-readable file.
+
+<a id="env-mds-connectivity-backend"></a>
+
+### `MDS_CONNECTIVITY_BACKEND`
+
+- Title: Node connectivity backend
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `none`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `none, smart-wifi-manager`
+- Notes: Optional node-local connectivity runtime.
+
+<a id="env-mds-connectivity-ip"></a>
+
+### `MDS_CONNECTIVITY_IP`
+
+- Title: Connectivity check IP
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `-`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Defaults to resolved GCS IP.
+
+<a id="env-mds-connectivity-port"></a>
+
+### `MDS_CONNECTIVITY_PORT`
+
+- Title: Connectivity check port
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `integer`
+- Default: `5030`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Defaults to resolved GCS API port.
+
+<a id="env-mds-smart-wifi-manager-dashboard-listen"></a>
+
+### `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN`
+
+- Title: Smart Wi-Fi dashboard listen
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `127.0.0.1:9080`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Node-local Smart Wi-Fi dashboard bind address.
+
+<a id="env-mds-smart-wifi-manager-import-mode"></a>
+
+### `MDS_SMART_WIFI_MANAGER_IMPORT_MODE`
+
+- Title: Smart Wi-Fi import mode
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `replace`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `replace, merge`
+- Notes: Controls Smart Wi-Fi profile application behavior.
+
+<a id="env-mds-smart-wifi-manager-install-dir"></a>
+
+### `MDS_SMART_WIFI_MANAGER_INSTALL_DIR`
+
+- Title: Smart Wi-Fi install dir
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `path`
+- Default: `/opt/smart-wifi-manager`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Node-local Smart Wi-Fi install path.
+
+<a id="env-mds-smart-wifi-manager-mode"></a>
+
+### `MDS_SMART_WIFI_MANAGER_MODE`
+
+- Title: Smart Wi-Fi mode
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `observe`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `observe, manage`
+- Notes: Node-local Smart Wi-Fi posture.
+
+<a id="env-mds-smart-wifi-manager-profile-source"></a>
+
+### `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE`
+
+- Title: Smart Wi-Fi profile source
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `repo:deployment/connectivity/smart-wifi-manager/profile.json`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Use repo: for fleet-synced profile or file: for node-local profile.
+
+<a id="env-mds-smart-wifi-manager-ref"></a>
+
+### `MDS_SMART_WIFI_MANAGER_REF`
+
+- Title: Smart Wi-Fi ref
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `string`
+- Default: `v2.1.3`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Node-local Smart Wi-Fi runtime version/ref.
+
+<a id="env-mds-smart-wifi-manager-repo-url"></a>
+
+### `MDS_SMART_WIFI_MANAGER_REPO_URL`
+
+- Title: Smart Wi-Fi repo URL
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `url`
+- Default: `https://github.com/alireza787b/smart-wifi-manager.git`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Notes: Node-local override for the Smart Wi-Fi runtime source.
+
+<a id="env-mds-smart-wifi-manager-skip-dashboard"></a>
+
+### `MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD`
+
+- Title: Smart Wi-Fi skip dashboard
+- Scope: `node`
+- Domain: `connectivity`
+- Type: `boolean`
+- Default: `False`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/connectivity-runtime.md)
+- Allowed values: `True, False`
+- Notes: Node-local Smart Wi-Fi dashboard disable flag for constrained hardware.
+
+<a id="env-mds-git-auth-username"></a>
+
+### `MDS_GIT_AUTH_USERNAME`
+
+- Title: Git HTTPS username
+- Scope: `node`
+- Domain: `git`
+- Type: `string`
+- Default: `x-access-token`
+- Editable: no
+- Restart: `manual`
+- Source of truth: `process env or /etc/mds/local.env`
+- Apply action: `manual`
+- Docs: [guide](../guides/fleet-sync-and-secrets.md)
+- Notes: Only needed for unusual HTTPS auth flows.
+
+<a id="env-mds-log-backup-count"></a>
+
+### `MDS_LOG_BACKUP_COUNT`
+
+- Title: Log backup count
+- Scope: `node`
+- Domain: `logging`
+- Type: `integer`
+- Default: `20`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/logging-system.md)
+- Notes: Number of rotated files to keep.
+
+<a id="env-mds-log-level"></a>
+
+### `MDS_LOG_LEVEL`
+
+- Title: Log level
+- Scope: `node`
+- Domain: `logging`
+- Type: `string`
+- Default: `INFO`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/logging-system.md)
+- Allowed values: `DEBUG, INFO, WARNING, ERROR`
+- Notes: Node-local logging verbosity.
+
+<a id="env-mds-log-max-size-mb"></a>
+
+### `MDS_LOG_MAX_SIZE_MB`
+
+- Title: Log max size MB
+- Scope: `node`
+- Domain: `logging`
+- Type: `integer`
+- Default: `100`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/logging-system.md)
+- Notes: Per-log-file rotation threshold.
+
+<a id="env-mds-mavlink-anywhere-dashboard-listen"></a>
+
+### `MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN`
+
+- Title: MAVLink Anywhere dashboard listen
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `127.0.0.1:9070`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Node-local mavlink-anywhere dashboard bind address.
+
+<a id="env-mds-mavlink-anywhere-install-dir"></a>
+
+### `MDS_MAVLINK_ANYWHERE_INSTALL_DIR`
+
+- Title: MAVLink Anywhere install dir
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `path`
+- Default: `/opt/mavlink-anywhere`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Node-local mavlink-anywhere install path.
+
+<a id="env-mds-mavlink-anywhere-ref"></a>
+
+### `MDS_MAVLINK_ANYWHERE_REF`
+
+- Title: MAVLink Anywhere ref
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `v3.0.8`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Node-local mavlink-anywhere version/ref.
+
+<a id="env-mds-mavlink-anywhere-repo-url"></a>
+
+### `MDS_MAVLINK_ANYWHERE_REPO_URL`
+
+- Title: MAVLink Anywhere repo URL
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `url`
+- Default: `https://github.com/alireza787b/mavlink-anywhere.git`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Node-local mavlink-anywhere source override.
+
+<a id="env-mds-mavlink-anywhere-skip-dashboard"></a>
+
+### `MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD`
+
+- Title: MAVLink Anywhere skip dashboard
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `boolean`
+- Default: `False`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Allowed values: `True, False`
+- Notes: Node-local dashboard disable flag for constrained hardware.
+
+<a id="env-mds-mavlink-management-mode"></a>
+
+### `MDS_MAVLINK_MANAGEMENT_MODE`
+
+- Title: MAVLink management mode
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `string`
+- Default: `managed`
+- Editable: yes
+- Restart: `sidecar_reconcile`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `reconcile_sidecar`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Allowed values: `managed, manual`
+- Notes: Controls whether MDS owns mavlink-anywhere on this node.
+
+<a id="env-mds-mavlink-port"></a>
+
+### `MDS_MAVLINK_PORT`
+
+- Title: Custom MAVLink port
+- Scope: `node`
+- Domain: `mavlink`
+- Type: `integer`
+- Default: `14540`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/mavlink-routing-setup.md)
+- Notes: Advanced override. Prefer mavlink-anywhere profiles for routing changes.
+
+<a id="env-mds-px4-parameter-metadata-cache-dir"></a>
+
+### `MDS_PX4_PARAMETER_METADATA_CACHE_DIR`
+
+- Title: PX4 metadata cache dir
+- Scope: `node`
+- Domain: `px4`
+- Type: `path`
+- Default: `/var/cache/mds/px4-param-docs`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../px4-parameters.md)
+- Notes: Bounded cache; pruning must prevent stale catalog accumulation.
+
+<a id="env-mds-px4-parameter-metadata-cache-max-entries"></a>
+
+### `MDS_PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES`
+
+- Title: PX4 metadata cache max entries
+- Scope: `node`
+- Domain: `px4`
+- Type: `integer`
+- Default: `4`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../px4-parameters.md)
+- Notes: Prevents stale/unused metadata cache growth.
+
+<a id="env-mds-px4-parameter-metadata-cache-ttl-days"></a>
+
+### `MDS_PX4_PARAMETER_METADATA_CACHE_TTL_DAYS`
+
+- Title: PX4 metadata cache TTL days
+- Scope: `node`
+- Domain: `px4`
+- Type: `float`
+- Default: `14`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../px4-parameters.md)
+- Notes: Reference metadata cache TTL.
+
+<a id="env-mds-px4-parameter-metadata-catalog-paths"></a>
+
+### `MDS_PX4_PARAMETER_METADATA_CATALOG_PATHS`
+
+- Title: PX4 parameter catalog paths
+- Scope: `node`
+- Domain: `px4`
+- Type: `csv`
+- Default: `-`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../px4-parameters.md)
+- Notes: Optional local PX4 parameter metadata catalogs.
+
+<a id="env-mds-px4-parameter-metadata-fetch-timeout-sec"></a>
+
+### `MDS_PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC`
+
+- Title: PX4 metadata fetch timeout seconds
+- Scope: `node`
+- Domain: `px4`
+- Type: `float`
+- Default: `2.5`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../px4-parameters.md)
+- Notes: Short timeout keeps dashboard responsive on poor links.
+
+<a id="env-mds-px4-parameter-online-docs-metadata-enabled"></a>
+
+### `MDS_PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED`
+
+- Title: PX4 online docs metadata enabled
+- Scope: `node`
+- Domain: `px4`
+- Type: `boolean`
+- Default: `True`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../px4-parameters.md)
+- Allowed values: `True, False`
+- Notes: Allows bounded PX4 docs metadata cache for labels/groups/docs.
+
+<a id="env-mds-drone-api-port"></a>
+
+### `MDS_DRONE_API_PORT`
+
+- Title: Drone API port
+- Scope: `node`
+- Domain: `runtime`
+- Type: `integer`
+- Default: `7070`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Node-local drone API port.
+
+<a id="env-mds-gcs-api-base-url"></a>
+
+### `MDS_GCS_API_BASE_URL`
+
+- Title: GCS API base URL
+- Scope: `node`
+- Domain: `runtime`
+- Type: `url`
+- Default: `-`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Overrides host/port assembly for node announce and automation.
+
+<a id="env-mds-gcs-ip"></a>
+
+### `MDS_GCS_IP`
+
+- Title: Node GCS IP override
+- Scope: `node`
+- Domain: `runtime`
+- Type: `string`
+- Default: `-`
+- Editable: yes
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Node-specific override for the GCS address.
+
+<a id="env-mds-hw-id"></a>
+
+### `MDS_HW_ID`
+
+- Title: Hardware id
+- Scope: `node`
+- Domain: `runtime`
+- Type: `integer`
+- Default: `-`
+- Editable: no
+- Restart: `node_service`
+- Source of truth: `/etc/mds/local.env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Never batch-apply this key; it is unique per node.
+
+<a id="env-mds-local-env-file"></a>
+
+### `MDS_LOCAL_ENV_FILE`
+
+- Title: Node local env file
+- Scope: `node`
+- Domain: `runtime`
+- Type: `path`
+- Default: `/etc/mds/local.env`
+- Editable: no
+- Restart: `node_service`
+- Source of truth: `process env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Process-only override for tests and custom node env-file location.
+
+<a id="env-mds-node-identity-file"></a>
+
+### `MDS_NODE_IDENTITY_FILE`
+
+- Title: Node identity manifest
+- Scope: `node`
+- Domain: `runtime`
+- Type: `path`
+- Default: `/etc/mds/node_identity.json`
+- Editable: no
+- Restart: `node_service`
+- Source of truth: `process env`
+- Apply action: `restart_node_service`
+- Docs: [guide](../guides/runtime-config-sources.md)
+- Notes: Machine identity manifest location. Do not batch-overwrite identities.

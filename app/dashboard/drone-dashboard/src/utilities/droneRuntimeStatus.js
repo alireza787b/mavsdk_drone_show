@@ -52,23 +52,15 @@ export function getDroneReferenceNowMs(drone, nowMs = Date.now()) {
     return nowMs;
   }
 
-  const referenceNowMs = Number(runtimeClock.referenceNowMs);
-  const receivedAtMs = Number(runtimeClock.receivedAtMs);
+  const referenceNowMs = runtimeClock.referenceNowMs === null || runtimeClock.referenceNowMs === undefined || runtimeClock.referenceNowMs === ''
+    ? NaN
+    : Number(runtimeClock.referenceNowMs);
+  const receivedAtMs = runtimeClock.receivedAtMs === null || runtimeClock.receivedAtMs === undefined || runtimeClock.receivedAtMs === ''
+    ? NaN
+    : Number(runtimeClock.receivedAtMs);
   if (Number.isFinite(referenceNowMs) && Number.isFinite(receivedAtMs)) {
     const elapsedMs = Math.max(0, nowMs - receivedAtMs);
     return referenceNowMs + elapsedMs;
-  }
-
-  const referenceTimestampMs = Number(runtimeClock.referenceTimestampMs);
-  if (!Number.isFinite(referenceTimestampMs) || !Number.isFinite(receivedAtMs)) {
-    return nowMs;
-  }
-
-  const elapsedMs = Math.max(0, nowMs - receivedAtMs);
-  const calibratedNowMs = referenceTimestampMs + elapsedMs;
-
-  if (Math.abs(nowMs - calibratedNowMs) > CLIENT_CLOCK_SKEW_TOLERANCE_MS) {
-    return calibratedNowMs;
   }
 
   return nowMs;

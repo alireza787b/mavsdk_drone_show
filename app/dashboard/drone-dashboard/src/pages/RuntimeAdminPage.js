@@ -32,6 +32,8 @@ import {
   createAuthUserResponse,
   listAuthTokensResponse,
   listAuthUsersResponse,
+  fetchGcsResource,
+  GCS_ROUTE_KEYS,
   revokeAuthTokenResponse,
   saveGcsConfigResponse,
   updateAuthUserResponse,
@@ -162,6 +164,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [restartWatch, setRestartWatch] = useState(null);
   const [authUsers, setAuthUsers] = useState([]);
   const [authTokens, setAuthTokens] = useState([]);
   const [authNotice, setAuthNotice] = useState(null);
@@ -281,7 +284,49 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       restartRequired,
     });
     setDraftDirty(false);
-    return { payload, restartRequired };
+    return { payload, restartRequired, configuredMode };
+  };
+
+  const beginRestartWatch = (payload = {}, targetMode = effectiveConfiguredMode) => {
+    if (!payload.scheduled || typeof window === 'undefined') {
+      return;
+    }
+
+    const startedAt = Date.now();
+    const initialDelayMs = Math.max(Number(payload.restart_delay_ms || 0), 2000) + 2500;
+    const normalizedTargetMode = String(targetMode || effectiveConfiguredMode || '').trim().toLowerCase();
+    setNotice(null);
+    setRestartWatch({
+      targetMode: normalizedTargetMode,
+      message: payload.message || 'GCS restart scheduled. Waiting for the launcher to return healthy.',
+    });
+
+    const poll = async () => {
+      try {
+        const response = await fetchGcsResource(GCS_ROUTE_KEYS.systemRuntimeStatus, { timeout: 4500 });
+        const runningMode = String(response?.data?.mode || '').trim().toLowerCase();
+        if (!normalizedTargetMode || runningMode === normalizedTargetMode) {
+          if (typeof window.location?.reload === 'function') {
+            window.location.reload();
+          }
+          return;
+        }
+      } catch (error) {
+        // Expected while the launcher recycles the API process.
+      }
+
+      if (Date.now() - startedAt < 120000) {
+        window.setTimeout(poll, 2500);
+        return;
+      }
+
+      setRestartWatch((current) => current ? {
+        ...current,
+        message: 'GCS restart is taking longer than expected. Keep this page open or refresh after backend health returns.',
+      } : current);
+    };
+
+    window.setTimeout(poll, initialDelayMs);
   };
 
   const handleSave = async () => {
@@ -311,13 +356,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       const response = await applyGcsConfigResponse();
       const payload = response?.data || {};
       setNotice(buildNotice(payload, payload.scheduled ? 'success' : 'warning'));
-      if (payload.scheduled && typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
-        window.setTimeout(() => {
-          if (typeof window.location?.reload === 'function') {
-            window.location.reload();
-          }
-        }, Math.max(Number(payload.restart_delay_ms || 0), 2000) + 3000);
-      }
+      beginRestartWatch(payload, draftMode || effectiveConfiguredMode);
     } catch (error) {
       const message = error?.response?.data?.detail || error?.message || 'Failed to schedule a clean GCS restart.';
       setNotice({ tone: 'danger', message, warnings: [] });
@@ -332,13 +371,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       const response = await applyRuntimeUpdateResponse();
       const payload = response?.data || {};
       setNotice(buildNotice(payload, payload.scheduled ? 'success' : 'warning'));
-      if (payload.scheduled && typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
-        window.setTimeout(() => {
-          if (typeof window.location?.reload === 'function') {
-            window.location.reload();
-          }
-        }, Math.max(Number(payload.restart_delay_ms || 0), 2000) + 3000);
-      }
+      beginRestartWatch(payload, effectiveConfiguredMode);
     } catch (error) {
       const message = error?.response?.data?.detail || error?.message || 'Failed to schedule a controlled GCS update.';
       setNotice({ tone: 'danger', message, warnings: [] });
@@ -482,6 +515,12 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       {effectiveRestartRequired ? (
         <OperatorNotice tone="warning" title="Restart required">
           Running GCS runtime and persisted host config do not match. Save final changes, then apply a clean restart.
+        </OperatorNotice>
+      ) : null}
+
+      {restartWatch ? (
+        <OperatorNotice tone="info" title="GCS reconnecting" icon={<FaRedoAlt />}>
+          {restartWatch.message} Target mode: {restartWatch.targetMode?.toUpperCase() || 'current'}.
         </OperatorNotice>
       ) : null}
 
@@ -638,7 +677,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   className={`runtime-admin-page__segmented-btn ${draftMode === 'real' ? 'is-active is-real' : ''}`}
                   onClick={() => setModeDraft('real')}
                   aria-label="Set runtime mode to REAL"
-                  disabled={saving || applying}
+                  disabled={saving || applying || Boolean(restartWatch)}
                 >
                   REAL
                 </button>
@@ -647,7 +686,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   className={`runtime-admin-page__segmented-btn ${draftMode === 'sitl' ? 'is-active is-sitl' : ''}`}
                   onClick={() => setModeDraft('sitl')}
                   aria-label="Set runtime mode to SITL"
-                  disabled={saving || applying}
+                  disabled={saving || applying || Boolean(restartWatch)}
                 >
                   SITL
                 </button>
@@ -662,7 +701,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   className={`runtime-admin-page__segmented-btn ${draftGitAutoPush ? 'is-active is-good' : ''}`}
                   onClick={() => setGitAutoPushDraft(true)}
                   aria-label="Enable git auto-push"
-                  disabled={saving || applying}
+                  disabled={saving || applying || Boolean(restartWatch)}
                 >
                   ON
                 </button>
@@ -671,7 +710,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   className={`runtime-admin-page__segmented-btn ${!draftGitAutoPush ? 'is-active is-warning' : ''}`}
                   onClick={() => setGitAutoPushDraft(false)}
                   aria-label="Disable git auto-push"
-                  disabled={saving || applying}
+                  disabled={saving || applying || Boolean(restartWatch)}
                 >
                   OFF
                 </button>
@@ -683,7 +722,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                 type="button"
                 className="runtime-admin-page__action-btn runtime-admin-page__action-btn--primary"
                 onClick={handleSave}
-                disabled={!hasDraftChanges || saving || applying}
+                disabled={!hasDraftChanges || saving || applying || Boolean(restartWatch)}
                 aria-label="Save runtime settings"
               >
                 <FaSave />
@@ -693,7 +732,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                 type="button"
                 className="runtime-admin-page__action-btn"
                 onClick={handleApply}
-                disabled={(!effectiveRestartRequired && !hasDraftChanges) || saving || applying}
+                disabled={(!effectiveRestartRequired && !hasDraftChanges) || saving || applying || Boolean(restartWatch)}
                 aria-label={hasDraftChanges ? 'Apply runtime changes and restart GCS' : 'Apply persisted runtime settings with restart'}
               >
                 <FaRedoAlt />

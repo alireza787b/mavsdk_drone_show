@@ -112,6 +112,7 @@ const snapshotPayload = {
 describe('Px4ParametersPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    const nowSec = Math.floor(Date.now() / 1000);
     window.innerWidth = 1280;
     window.matchMedia = jest.fn().mockImplementation((query) => ({
       matches: false,
@@ -128,12 +129,12 @@ describe('Px4ParametersPage', () => {
     });
     gcsApi.getFleetTelemetryResponse.mockResolvedValue({
       data: {
-        1: { hw_id: '1', pos_id: 1, is_armed: false },
+        1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
       },
       headers: {},
     });
     gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
-      1: { hw_id: '1', pos_id: 1, is_armed: false },
+      1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
     });
     gcsApi.getSwarmConfigResponse.mockResolvedValue({ data: [] });
     px4ParamsApi.getPx4ParamPolicy.mockResolvedValue({
@@ -247,6 +248,33 @@ describe('Px4ParametersPage', () => {
     expect(screen.getByRole('button', { name: 'MPC_XY_VEL_MAX' })).toBeInTheDocument();
   });
 
+  it('prefers a live drone over stale configured drones for the initial target', async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
+    gcsApi.getFleetConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
+        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
+      ],
+    });
+    gcsApi.getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec - 3600, heartbeat_last_seen: nowSec - 3600 },
+        2: { hw_id: '2', pos_id: 2, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
+      },
+      headers: {},
+    });
+    gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
+      1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec - 3600, heartbeat_last_seen: nowSec - 3600 },
+      2: { hw_id: '2', pos_id: 2, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
+    });
+
+    render(<Px4ParametersPage />);
+
+    await waitFor(() => {
+      expect(px4ParamsApi.refreshPx4ParamSnapshots).toHaveBeenCalledWith({ hwIds: ['2'], componentId: 1 });
+    });
+  });
+
   it('shows concise PX4 metadata guidance with a guide link when metadata is partial', async () => {
     px4ParamsApi.refreshPx4ParamSnapshots.mockResolvedValue({
       data: {
@@ -268,7 +296,7 @@ describe('Px4ParametersPage', () => {
     expect(screen.getByText('Live values available; reference metadata is partial.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /px4 parameters guide/i })).toHaveAttribute(
       'href',
-      'docs/px4-parameters.md',
+      expect.stringContaining('docs/px4-parameters.md'),
     );
   });
 
@@ -305,6 +333,7 @@ describe('Px4ParametersPage', () => {
   });
 
   it('applies a batch patch to all configured drones from the batch workspace', async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
     gcsApi.getFleetConfigResponse.mockResolvedValue({
       data: [
         { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
@@ -313,14 +342,14 @@ describe('Px4ParametersPage', () => {
     });
     gcsApi.getFleetTelemetryResponse.mockResolvedValue({
       data: {
-        1: { hw_id: '1', pos_id: 1, is_armed: false },
-        2: { hw_id: '2', pos_id: 2, is_armed: false },
+        1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
+        2: { hw_id: '2', pos_id: 2, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
       },
       headers: {},
     });
     gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
-      1: { hw_id: '1', pos_id: 1, is_armed: false },
-      2: { hw_id: '2', pos_id: 2, is_armed: false },
+      1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
+      2: { hw_id: '2', pos_id: 2, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
     });
 
     render(<Px4ParametersPage />);
@@ -355,6 +384,7 @@ describe('Px4ParametersPage', () => {
   });
 
   it('loads repo-backed profiles and applies a saved profile to a selected batch scope', async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
     gcsApi.getFleetConfigResponse.mockResolvedValue({
       data: [
         { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
@@ -363,14 +393,14 @@ describe('Px4ParametersPage', () => {
     });
     gcsApi.getFleetTelemetryResponse.mockResolvedValue({
       data: {
-        1: { hw_id: '1', pos_id: 1, is_armed: false },
-        2: { hw_id: '2', pos_id: 2, is_armed: false },
+        1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
+        2: { hw_id: '2', pos_id: 2, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
       },
       headers: {},
     });
     gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
-      1: { hw_id: '1', pos_id: 1, is_armed: false },
-      2: { hw_id: '2', pos_id: 2, is_armed: false },
+      1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
+      2: { hw_id: '2', pos_id: 2, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
     });
 
     render(<Px4ParametersPage />);
@@ -473,6 +503,7 @@ describe('Px4ParametersPage', () => {
   });
 
   it('allows batch profile apply to online drones only when some targets are offline', async () => {
+    const nowSec = Math.floor(Date.now() / 1000);
     gcsApi.getFleetConfigResponse.mockResolvedValue({
       data: [
         { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
@@ -481,12 +512,12 @@ describe('Px4ParametersPage', () => {
     });
     gcsApi.getFleetTelemetryResponse.mockResolvedValue({
       data: {
-        1: { hw_id: '1', pos_id: 1, is_armed: false },
+        1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
       },
       headers: {},
     });
     gcsApi.unwrapFleetTelemetryPayload.mockReturnValue({
-      1: { hw_id: '1', pos_id: 1, is_armed: false },
+      1: { hw_id: '1', pos_id: 1, is_armed: false, update_time: nowSec, heartbeat_last_seen: nowSec },
     });
 
     render(<Px4ParametersPage />);

@@ -100,14 +100,20 @@ const Overview = ({ setSelectedDrone }) => {
           unwrapFleetTelemetryPayload(response.data),
           clockMeta
         );
-        const dronesArray = Object.keys(normalizedTelemetry).map((hw_ID) => {
+        const droneIds = Array.from(new Set([
+          ...Object.keys(configByHwId || {}),
+          ...Object.keys(normalizedTelemetry || {}).map((hwId) => normalizeComparableId(hwId)).filter(Boolean),
+        ]));
+        const dronesArray = droneIds.map((hw_ID) => {
+          const normalizedHwId = normalizeComparableId(hw_ID);
+          const telemetry = normalizedTelemetry[hw_ID] || normalizedTelemetry[normalizedHwId] || {};
           const mergedDrone = {
-            ...(configByHwId[normalizeComparableId(hw_ID)] || {}),
-            hw_ID,
-            [FIELD_NAMES.HW_ID]: hw_ID,
-            ...normalizedTelemetry[hw_ID],
+            ...(configByHwId[normalizedHwId] || {}),
+            hw_ID: normalizedHwId || hw_ID,
+            [FIELD_NAMES.HW_ID]: normalizedHwId || hw_ID,
+            ...telemetry,
           };
-          const runtimeClock = normalizedTelemetry[hw_ID]?.[DRONE_RUNTIME_CLOCK_PROP];
+          const runtimeClock = telemetry?.[DRONE_RUNTIME_CLOCK_PROP];
           if (runtimeClock) {
             Object.defineProperty(mergedDrone, DRONE_RUNTIME_CLOCK_PROP, {
               value: runtimeClock,
@@ -132,12 +138,12 @@ const Overview = ({ setSelectedDrone }) => {
           (drone) => !validDrones.includes(drone)
         );
 
-        setDrones(validDrones);
+        setDrones(dronesArray);
         setError(null);
         setNotification(null);
 
         if (invalidDrones.length > 0) {
-          setNotification(`${invalidDrones.length} drones have incomplete data.`);
+          setNotification(`${invalidDrones.length} drones have incomplete live telemetry. Use All to inspect offline or never-seen configured nodes.`);
         }
       } catch (error) {
         setError('Failed to fetch data from the backend.');

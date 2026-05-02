@@ -1,5 +1,10 @@
-import axios from 'axios';
-import { buildGcsUrl, GCS_ROUTE_KEYS, GCS_ROUTES } from './gcsApiService';
+import {
+  buildGcsUrl,
+  fetchGcsResource,
+  GCS_ROUTE_KEYS,
+  GCS_ROUTES,
+  postGcsResource,
+} from './gcsApiService';
 
 export function buildFleetCandidateUrl(candidateId = '', suffix = '') {
   const baseRoute = GCS_ROUTES[GCS_ROUTE_KEYS.fleetCandidates];
@@ -12,7 +17,7 @@ export function buildFleetCandidateUrl(candidateId = '', suffix = '') {
 }
 
 export async function listFleetCandidates({ includeInactive = false, runtimeMode = 'current' } = {}) {
-  return axios.get(buildGcsUrl(GCS_ROUTE_KEYS.fleetCandidates), {
+  return fetchGcsResource(GCS_ROUTE_KEYS.fleetCandidates, {
     params: {
       ...(includeInactive ? { include_inactive: 'true' } : {}),
       runtime_mode: runtimeMode,
@@ -21,35 +26,35 @@ export async function listFleetCandidates({ includeInactive = false, runtimeMode
 }
 
 export async function getFleetCandidate(candidateId) {
-  return axios.get(buildFleetCandidateUrl(candidateId));
+  return fetchGcsResource(buildFleetCandidateUrl(candidateId));
 }
 
 export async function announceFleetCandidate(payload) {
-  return axios.post(buildFleetCandidateUrl('', '/announce'), payload);
+  return postGcsResource(buildFleetCandidateUrl('', '/announce'), payload);
 }
 
 export async function acceptFleetCandidate(candidateId, payload, { commit = true } = {}) {
-  return axios.post(buildFleetCandidateUrl(candidateId, '/accept'), payload, {
+  return postGcsResource(buildFleetCandidateUrl(candidateId, '/accept'), payload, {
     params: { commit: commit ? 'true' : 'false' },
   });
 }
 
 export async function replaceFleetCandidate(candidateId, payload, { commit = true } = {}) {
-  return axios.post(buildFleetCandidateUrl(candidateId, '/replace'), payload, {
+  return postGcsResource(buildFleetCandidateUrl(candidateId, '/replace'), payload, {
     params: { commit: commit ? 'true' : 'false' },
   });
 }
 
 export async function recoverFleetCandidate(candidateId, payload, { commit = true } = {}) {
-  return axios.post(buildFleetCandidateUrl(candidateId, '/recover'), payload, {
+  return postGcsResource(buildFleetCandidateUrl(candidateId, '/recover'), payload, {
     params: { commit: commit ? 'true' : 'false' },
   });
 }
 
 export async function rejectFleetCandidate(candidateId, payload = {}) {
-  return axios.post(buildFleetCandidateUrl(candidateId, '/reject'), payload);
+  return postGcsResource(buildFleetCandidateUrl(candidateId, '/reject'), payload);
 }
 
 export async function ignoreFleetCandidate(candidateId, payload = {}) {
-  return axios.post(buildFleetCandidateUrl(candidateId, '/ignore'), payload);
+  return postGcsResource(buildFleetCandidateUrl(candidateId, '/ignore'), payload);
 }

@@ -42,7 +42,7 @@ describe('droneRuntimeStatus', () => {
     expect(status.label).toBe('Never seen');
   });
 
-  test('uses the runtime clock hint when the client clock is badly skewed', () => {
+  test('does not trust a packet timestamp alone as a runtime clock', () => {
     const telemetryTimestamp = 1_700_000_000_000;
     const receivedAtMs = 1_800_000_000_000;
     const drone = {
@@ -59,8 +59,29 @@ describe('droneRuntimeStatus', () => {
     });
 
     const status = getDroneRuntimeStatus(drone, receivedAtMs);
-    expect(status.level).toBe('online');
-    expect(status.label).toBe('Live telemetry');
+    expect(status.level).toBe('offline');
+    expect(status.label).toBe('Offline');
+  });
+
+  test('does not coerce a missing server-now hint to epoch zero', () => {
+    const nowMs = 1_700_000_000_000;
+    const drone = {
+      timestamp: nowMs - 40_000,
+      heartbeat_last_seen: nowMs - 40_000,
+    };
+
+    Object.defineProperty(drone, DRONE_RUNTIME_CLOCK_PROP, {
+      value: {
+        referenceTimestampMs: nowMs - 40_000,
+        referenceNowMs: null,
+        receivedAtMs: nowMs,
+      },
+      enumerable: false,
+    });
+
+    const status = getDroneRuntimeStatus(drone, nowMs);
+    expect(status.level).toBe('offline');
+    expect(status.label).toBe('Link lost');
   });
 
   test('uses server now hint even when browser skew is moderate', () => {
@@ -97,6 +118,7 @@ describe('droneRuntimeStatus', () => {
     Object.defineProperty(drone, DRONE_RUNTIME_CLOCK_PROP, {
       value: {
         referenceTimestampMs: telemetryTimestamp,
+        referenceNowMs: telemetryTimestamp,
         receivedAtMs,
       },
       enumerable: false,

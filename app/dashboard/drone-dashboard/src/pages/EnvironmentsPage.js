@@ -213,6 +213,70 @@ function buildInitialDraft(entry) {
   return '';
 }
 
+function buildEnvEntryDocPath(entry) {
+  const key = String(entry?.name || '').trim().toLowerCase().replace(/_/g, '-');
+  return key ? `docs/reference/mds-environment-registry.generated.md#env-${key}` : 'docs/reference/mds-environment-registry.generated.md';
+}
+
+function EnvEntryCard({
+  entry,
+  targetScope,
+  busy,
+  selectedNodeKey = '',
+  onOpen,
+  onKeyDown,
+}) {
+  const canEdit = Boolean(entry.editable && !entry.secret && !entry.deprecated);
+  const disabled = Boolean(busy || (targetScope === 'node' && !selectedNodeKey));
+  const open = () => onOpen(targetScope, entry);
+
+  return (
+    <OperatorCard
+      compact
+      className="environments-page__entry environments-page__entry--interactive"
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      onClick={open}
+      onKeyDown={(event) => onKeyDown(event, targetScope, entry)}
+    >
+      <div className="environments-page__entry-main">
+        <div className="environments-page__entry-heading">
+          <span className="environments-page__entry-title">{entry.title}</span>
+          <span className="environments-page__entry-domain">{DOMAIN_LABELS[entry.domain] || entry.domain || 'System'}</span>
+        </div>
+        <code>{entry.name}</code>
+      </div>
+      <div className="environments-page__entry-value-block" aria-label={`${entry.name} current value`}>
+        <span>Value</span>
+        <strong className={`environments-page__entry-current-value environments-page__entry-current-value--${valueTone(entry)}`}>
+          {displayValue(entry)}
+        </strong>
+      </div>
+      <div className="environments-page__entry-meta">
+        <StatusBadge tone={restartTone(entry.restart_required)}>{restartLabel(entry.restart_required)}</StatusBadge>
+        <StatusBadge tone="muted">{entry.value_type}</StatusBadge>
+      </div>
+      <div className="environments-page__entry-actions">
+        <DocsLink
+          doc={{ label: 'Docs', docPath: buildEnvEntryDocPath(entry) }}
+          compact
+          onClick={(event) => event.stopPropagation()}
+        />
+        <ActionIconButton
+          icon={canEdit ? <FaSlidersH /> : <FaInfoCircle />}
+          label={`${canEdit ? 'Edit' : 'View'} ${entry.name}`}
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            open();
+          }}
+          disabled={disabled}
+        />
+      </div>
+    </OperatorCard>
+  );
+}
+
 function EnvEntryDialog({ entry, busy, onSave, onClose }) {
   const [draft, setDraft] = useState(() => buildInitialDraft(entry));
 
@@ -307,7 +371,10 @@ function EnvEntryDialog({ entry, busy, onSave, onClose }) {
           </div>
           <div>
             <dt>Docs</dt>
-            <dd><DocsLink doc={{ label: 'Guide', docPath: entry.docs }} compact /></dd>
+            <dd className="environments-page__dialog-docs">
+              <DocsLink doc={{ label: 'Registry', docPath: buildEnvEntryDocPath(entry) }} compact />
+              <DocsLink doc={{ label: 'Guide', docPath: entry.docs }} compact />
+            </dd>
           </div>
         </dl>
         {entry.notes ? <p>{entry.notes}</p> : null}
@@ -770,11 +837,11 @@ export default function EnvironmentsPage() {
     },
     {
       key: 'restart',
-      label: 'Restart keys',
+      label: 'Restart-aware',
       value: restartSensitiveCount,
-      detail: 'requires apply',
+      detail: 'safe after Apply',
       icon: <FaRedoAlt />,
-      tone: restartSensitiveCount ? 'info' : 'muted',
+      tone: 'muted',
     },
     {
       key: 'drift',
@@ -1117,37 +1184,14 @@ export default function EnvironmentsPage() {
               </header>
               <div className="environments-page__grid">
                 {entries.map((entry) => (
-                  <OperatorCard
+                  <EnvEntryCard
                     key={entry.name}
-                    compact
-                    className="environments-page__entry environments-page__entry--interactive"
-                    role="button"
-                    tabIndex={busy ? -1 : 0}
-                    onClick={() => openEntryEditor('gcs', entry)}
-                    onKeyDown={(event) => handleEntryKeyDown(event, 'gcs', entry)}
-                  >
-                    <div className="environments-page__entry-main">
-                      <span className="environments-page__entry-title">{entry.title}</span>
-                      <code>{entry.name}</code>
-                    </div>
-                    <div className="environments-page__entry-value">
-                      <StatusBadge tone={valueTone(entry)}>{displayValue(entry)}</StatusBadge>
-                      <StatusBadge tone={restartTone(entry.restart_required)}>{restartLabel(entry.restart_required)}</StatusBadge>
-                    </div>
-                    <div className="environments-page__entry-actions">
-                      <span aria-label={entry.notes || `${entry.name} value type`}>{entry.value_type}</span>
-                      <ActionIconButton
-                        icon={entry.editable && !entry.secret && !entry.deprecated ? <FaSlidersH /> : <FaInfoCircle />}
-                        label={`${entry.editable && !entry.secret && !entry.deprecated ? 'Edit' : 'View'} ${entry.name}`}
-                        size="sm"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openEntryEditor('gcs', entry);
-                        }}
-                        disabled={busy}
-                      />
-                    </div>
-                  </OperatorCard>
+                    entry={entry}
+                    targetScope="gcs"
+                    busy={busy}
+                    onOpen={openEntryEditor}
+                    onKeyDown={handleEntryKeyDown}
+                  />
                 ))}
               </div>
             </section>
@@ -1276,37 +1320,15 @@ export default function EnvironmentsPage() {
                     </header>
                     <div className="environments-page__grid environments-page__grid--node">
                       {entries.map((entry) => (
-                        <OperatorCard
+                        <EnvEntryCard
                           key={entry.name}
-                          compact
-                          className="environments-page__entry environments-page__entry--interactive"
-                          role="button"
-                          tabIndex={busy || !selectedNodeKey ? -1 : 0}
-                          onClick={() => openEntryEditor('node', entry)}
-                          onKeyDown={(event) => handleEntryKeyDown(event, 'node', entry)}
-                        >
-                          <div className="environments-page__entry-main">
-                            <span className="environments-page__entry-title">{entry.title}</span>
-                            <code>{entry.name}</code>
-                          </div>
-                          <div className="environments-page__entry-value">
-                            <StatusBadge tone={valueTone(entry)}>{displayValue(entry)}</StatusBadge>
-                            <StatusBadge tone={restartTone(entry.restart_required)}>{restartLabel(entry.restart_required)}</StatusBadge>
-                          </div>
-                          <div className="environments-page__entry-actions">
-                            <span aria-label={entry.notes || `${entry.name} value type`}>{entry.value_type}</span>
-                            <ActionIconButton
-                              icon={entry.editable && !entry.secret && !entry.deprecated ? <FaSlidersH /> : <FaInfoCircle />}
-                              label={`${entry.editable && !entry.secret && !entry.deprecated ? 'Edit' : 'View'} ${entry.name}`}
-                              size="sm"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openEntryEditor('node', entry);
-                              }}
-                              disabled={busy || !selectedNodeKey}
-                            />
-                          </div>
-                        </OperatorCard>
+                          entry={entry}
+                          targetScope="node"
+                          busy={busy}
+                          selectedNodeKey={selectedNodeKey}
+                          onOpen={openEntryEditor}
+                          onKeyDown={handleEntryKeyDown}
+                        />
                       ))}
                     </div>
                   </section>

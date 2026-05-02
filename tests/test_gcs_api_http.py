@@ -1739,12 +1739,14 @@ class TestGitStatusEndpoints:
         '1': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []},
         '2': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []}
     })
+    @patch('app_fastapi.get_all_heartbeats')
     @patch('app_fastapi.get_gcs_git_report')
     @patch('app_fastapi.load_config')
     def test_get_git_status_counts_out_of_sync_with_gcs(
         self,
         mock_load_config,
         mock_gcs_git_report,
+        mock_get_all_heartbeats,
         test_client,
     ):
         """GET /api/v1/git/status should flag clean-but-behind drones as out of sync with GCS."""
@@ -1753,6 +1755,11 @@ class TestGitStatusEndpoints:
             {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
         ]
         mock_gcs_git_report.return_value = {'branch': 'main-candidate', 'commit': 'new67890'}
+        now = time.time()
+        mock_get_all_heartbeats.return_value = {
+            '1': {'hw_id': '1', 'timestamp': now, 'runtime_mode': 'real'},
+            '2': {'hw_id': '2', 'timestamp': now, 'runtime_mode': 'real'},
+        }
 
         response = test_client.get("/api/v1/git/status")
 
@@ -1780,12 +1787,14 @@ class TestGitStatusEndpoints:
             'uncommitted_changes': [],
         },
     })
+    @patch('app_fastapi.get_all_heartbeats')
     @patch('app_fastapi.get_gcs_git_report')
     @patch('app_fastapi.load_config')
     def test_get_git_status_counts_same_commit_ahead_drones_as_synced_with_gcs(
         self,
         mock_load_config,
         mock_gcs_git_report,
+        mock_get_all_heartbeats,
         test_client,
     ):
         """GET /api/v1/git/status should treat same-commit local-ahead repos as synced with GCS."""
@@ -1794,6 +1803,11 @@ class TestGitStatusEndpoints:
             {'hw_id': 2, 'pos_id': 2, 'ip': '10.0.0.2'},
         ]
         mock_gcs_git_report.return_value = {'branch': 'main-candidate', 'commit': 'new67890'}
+        now = time.time()
+        mock_get_all_heartbeats.return_value = {
+            '1': {'hw_id': '1', 'timestamp': now, 'runtime_mode': 'real'},
+            '2': {'hw_id': '2', 'timestamp': now, 'runtime_mode': 'real'},
+        }
 
         response = test_client.get("/api/v1/git/status")
 
@@ -1803,6 +1817,35 @@ class TestGitStatusEndpoints:
         assert data['needs_sync_count'] == 0
         assert data['git_status']['1']['status'] == 'ahead'
         assert data['git_status']['1']['in_sync_with_gcs'] is True
+
+    @patch('app_fastapi.git_status_data_all_drones', {
+        '1': {'status': 'clean', 'branch': 'main-candidate', 'commit': 'old12345', 'uncommitted_changes': []},
+    })
+    @patch('app_fastapi.get_all_heartbeats')
+    @patch('app_fastapi.get_gcs_git_report')
+    @patch('app_fastapi.load_config')
+    def test_get_git_status_keeps_offline_records_out_of_actionable_counts(
+        self,
+        mock_load_config,
+        mock_gcs_git_report,
+        mock_get_all_heartbeats,
+        test_client,
+    ):
+        """Offline historical git records stay inspectable without raising false sync warnings."""
+        mock_load_config.return_value = [
+            {'hw_id': 1, 'pos_id': 1, 'ip': '10.0.0.1'},
+        ]
+        mock_gcs_git_report.return_value = {'branch': 'main-candidate', 'commit': 'new67890'}
+        mock_get_all_heartbeats.return_value = {}
+
+        response = test_client.get("/api/v1/git/status")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['total_drones'] == 1
+        assert data['synced_count'] == 0
+        assert data['needs_sync_count'] == 0
+        assert data['git_status']['1']['in_sync_with_gcs'] is False
 
     @patch('app_fastapi._verify_sync_targets')
     @patch('app_fastapi.send_commands_to_all')

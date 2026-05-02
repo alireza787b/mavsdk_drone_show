@@ -34,6 +34,7 @@ import {
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
 import { normalizeTelemetryResponse, FIELD_NAMES } from '../constants/fieldMappings';
 import { DRONE_ACTION_TYPES } from '../constants/droneConstants';
+import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import ClusterScopeBar from '../components/ClusterScopeBar';
 import {
   buildClusterScopeOptions,
@@ -49,6 +50,7 @@ import '../styles/Px4ParametersPage.css';
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
 const COMPACT_BREAKPOINT = 1120;
 const TOUCH_COMPACT_BREAKPOINT = 1400;
+const PARAMETER_LINK_ACTIVE_LEVELS = new Set(['online', 'degraded']);
 
 function isTouchViewport() {
   if (typeof window === 'undefined') {
@@ -393,10 +395,12 @@ function downloadTextFile(filename, text) {
 const Px4ParametersPage = () => {
   const [configDrones, setConfigDrones] = useState([]);
   const [telemetryByHwId, setTelemetryByHwId] = useState({});
+  const [telemetryLoaded, setTelemetryLoaded] = useState(false);
   const [policy, setPolicy] = useState(null);
   const [droneQuery, setDroneQuery] = useState('');
   const [workspaceMode, setWorkspaceMode] = useState('single');
   const [selectedHwId, setSelectedHwId] = useState('');
+  const [selectedHwIdTouched, setSelectedHwIdTouched] = useState(false);
   const [swarmAssignments, setSwarmAssignments] = useState([]);
   const [snapshotResponse, setSnapshotResponse] = useState(null);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
@@ -557,6 +561,10 @@ const Px4ParametersPage = () => {
         setTelemetryByHwId(normalized || {});
       } catch (error) {
         console.warn('Failed to load fleet telemetry for PX4 parameter management:', error);
+      } finally {
+        if (active) {
+          setTelemetryLoaded(true);
+        }
       }
     }
 
@@ -572,23 +580,34 @@ const Px4ParametersPage = () => {
     const configMap = new Map(
       (configDrones || []).map((entry) => [String(entry.hw_id), entry]),
     );
+    const nowMs = Date.now();
+    const buildTelemetryState = (telemetry) => {
+      const runtimeStatus = getDroneRuntimeStatus(telemetry, nowMs);
+      return {
+        runtimeStatus,
+        online: PARAMETER_LINK_ACTIVE_LEVELS.has(runtimeStatus.level),
+      };
+    };
     const merged = (configDrones || []).map((entry) => {
       const hwId = String(entry.hw_id);
+      const telemetry = telemetryByHwId[hwId] || null;
+      const telemetryState = buildTelemetryState(telemetry);
       return {
         ...entry,
-        ...(telemetryByHwId[hwId] || {}),
+        ...(telemetry || {}),
         hw_id: hwId,
-        online: Boolean(telemetryByHwId[hwId]),
+        ...telemetryState,
       };
     });
 
     Object.entries(telemetryByHwId || {}).forEach(([hwId, telemetry]) => {
       if (!configMap.has(hwId)) {
+        const telemetryState = buildTelemetryState(telemetry);
         merged.push({
           ...telemetry,
           hw_id: hwId,
           pos_id: telemetry?.pos_id || '',
-          online: true,
+          ...telemetryState,
         });
       }
     });
@@ -625,10 +644,19 @@ const Px4ParametersPage = () => {
     if (!filteredDrones.length) {
       return;
     }
+    const preferred = filteredDrones.find((drone) => drone.online) || null;
     if (!selectedHwId) {
-      setSelectedHwId(String(filteredDrones[0].hw_id));
+      if (!telemetryLoaded) {
+        return;
+      }
+      setSelectedHwId(String((preferred || filteredDrones[0]).hw_id));
+      return;
     }
-  }, [filteredDrones, selectedHwId]);
+    const selected = filteredDrones.find((drone) => String(drone.hw_id) === String(selectedHwId)) || null;
+    if (preferred && (!selected || !selected.online) && !selectedHwIdTouched) {
+      setSelectedHwId(String(preferred.hw_id));
+    }
+  }, [filteredDrones, selectedHwId, selectedHwIdTouched, telemetryLoaded]);
 
   useEffect(() => {
     if (!profileSummaries.length) {
@@ -1399,14 +1427,17 @@ const Px4ParametersPage = () => {
               <select
                 className="px4-page-input"
                 value={selectedHwId}
-                onChange={(event) => setSelectedHwId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedHwIdTouched(true);
+                  setSelectedHwId(event.target.value);
+                }}
                 aria-label="Filtered target drone"
               >
                 {filteredDrones.map((drone) => {
                   const identity = getDroneDisplayIdentity(drone);
                   return (
                     <option key={drone.hw_id} value={String(drone.hw_id)}>
-                      {identity.primary} · {drone.online ? 'Online' : 'Offline'}
+                      {identity.primary} · {drone.runtimeStatus?.label || (drone.online ? 'Online' : 'Offline')}
                     </option>
                   );
                 })}
@@ -1419,7 +1450,7 @@ const Px4ParametersPage = () => {
                   <span>{selectedIdentity.secondary}</span>
                 </div>
                 <span className={`px4-drone-option__status ${selectedDrone?.online ? 'online' : 'offline'}`}>
-                  {selectedDrone?.online ? 'Online' : 'Offline'}
+                  {selectedDrone?.runtimeStatus?.label || (selectedDrone?.online ? 'Online' : 'Offline')}
                 </span>
               </div>
             ) : null}
@@ -1433,14 +1464,17 @@ const Px4ParametersPage = () => {
                       key={drone.hw_id}
                       type="button"
                       className={`px4-drone-option ${active ? 'active' : ''}`}
-                      onClick={() => setSelectedHwId(String(drone.hw_id))}
+                      onClick={() => {
+                        setSelectedHwIdTouched(true);
+                        setSelectedHwId(String(drone.hw_id));
+                      }}
                     >
                       <div>
                         <strong>{identity.primary}</strong>
                         <span>{identity.secondary}</span>
                       </div>
                       <span className={`px4-drone-option__status ${drone.online ? 'online' : 'offline'}`}>
-                        {drone.online ? 'Online' : 'Offline'}
+                        {drone.runtimeStatus?.label || (drone.online ? 'Online' : 'Offline')}
                       </span>
                     </button>
                   );
@@ -1718,7 +1752,7 @@ const Px4ParametersPage = () => {
                             <span>{identity.secondary}</span>
                           </div>
                           <span className={`px4-drone-option__status ${drone.online ? 'online' : 'offline'}`}>
-                            {selected ? 'Selected' : (drone.online ? 'Online' : 'Offline')}
+                            {selected ? 'Selected' : (drone.runtimeStatus?.label || (drone.online ? 'Online' : 'Offline'))}
                           </span>
                         </button>
                       );

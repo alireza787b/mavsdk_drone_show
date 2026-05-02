@@ -31,6 +31,10 @@ jest.mock('../services/gcsApiService', () => ({
   saveGcsConfigResponse: (...args) => mockSaveGcsConfigResponse(...args),
   applyGcsConfigResponse: (...args) => mockApplyGcsConfigResponse(...args),
   applyRuntimeUpdateResponse: (...args) => mockApplyRuntimeUpdateResponse(...args),
+  fetchGcsResource: jest.fn().mockResolvedValue({ data: { mode: 'real' } }),
+  GCS_ROUTE_KEYS: {
+    systemRuntimeStatus: 'systemRuntimeStatus',
+  },
   listAuthUsersResponse: jest.fn().mockResolvedValue({ data: { users: [] } }),
   listAuthTokensResponse: jest.fn().mockResolvedValue({ data: { tokens: [] } }),
   createAuthUserResponse: jest.fn(),

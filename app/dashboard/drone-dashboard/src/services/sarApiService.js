@@ -4,8 +4,13 @@
  * All API calls for SAR mission planning, execution, and monitoring.
  */
 
-import axios from 'axios';
-import { buildSarUrl } from './gcsApiService';
+import {
+  buildSarUrl,
+  deleteGcsResource,
+  fetchGcsResource,
+  patchGcsResource,
+  postGcsResource,
+} from './gcsApiService';
 
 function buildQueryString(params = {}) {
   const query = new URLSearchParams();
@@ -28,55 +33,55 @@ function buildQueryString(params = {}) {
 }
 
 export const computePlan = async (missionRequest) => {
-  const response = await axios.post(buildSarUrl('/mission/plan'), missionRequest, {
+  const response = await postGcsResource(buildSarUrl('/mission/plan'), missionRequest, {
     timeout: 30000,
   });
   return response.data;
 };
 
 export const listMissions = async (params = {}) => {
-  const response = await axios.get(buildSarUrl(`/missions${buildQueryString(params)}`));
+  const response = await fetchGcsResource(buildSarUrl(`/missions${buildQueryString(params)}`));
   return response.data;
 };
 
 export const launchMission = async (missionId) => {
-  const response = await axios.post(
+  const response = await postGcsResource(
     buildSarUrl(`/mission/launch${buildQueryString({ mission_id: missionId })}`)
   );
   return response.data;
 };
 
 export const getMissionWorkspace = async (missionId) => {
-  const response = await axios.get(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/workspace`));
+  const response = await fetchGcsResource(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/workspace`));
   return response.data;
 };
 
 export const getMissionStatus = async (missionId) => {
-  const response = await axios.get(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/status`));
+  const response = await fetchGcsResource(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/status`));
   return response.data;
 };
 
 export const getMissionHandoff = async (missionId) => {
-  const response = await axios.get(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/handoff`));
+  const response = await fetchGcsResource(buildSarUrl(`/mission/${encodeURIComponent(missionId)}/handoff`));
   return response.data;
 };
 
 export const pauseMission = async (missionId, posIds = null) => {
-  const response = await axios.post(
+  const response = await postGcsResource(
     buildSarUrl(`/mission/${encodeURIComponent(missionId)}/pause${buildQueryString({ pos_ids: posIds })}`)
   );
   return response.data;
 };
 
 export const resumeMission = async (missionId, posIds = null) => {
-  const response = await axios.post(
+  const response = await postGcsResource(
     buildSarUrl(`/mission/${encodeURIComponent(missionId)}/resume${buildQueryString({ pos_ids: posIds })}`)
   );
   return response.data;
 };
 
 export const abortMission = async (missionId, posIds = null, returnBehavior = 'return_home') => {
-  const response = await axios.post(
+  const response = await postGcsResource(
     buildSarUrl(
       `/mission/${encodeURIComponent(missionId)}/abort${buildQueryString({
         return_behavior: returnBehavior,
@@ -88,7 +93,7 @@ export const abortMission = async (missionId, posIds = null, returnBehavior = 'r
 };
 
 export const createFinding = async (missionId, finding) => {
-  const response = await axios.post(
+  const response = await postGcsResource(
     buildSarUrl(`/findings${buildQueryString({ mission_id: missionId })}`),
     finding
   );
@@ -96,21 +101,21 @@ export const createFinding = async (missionId, finding) => {
 };
 
 export const getFindings = async (missionId) => {
-  const response = await axios.get(buildSarUrl(`/findings${buildQueryString({ mission_id: missionId })}`));
+  const response = await fetchGcsResource(buildSarUrl(`/findings${buildQueryString({ mission_id: missionId })}`));
   return response.data;
 };
 
 export const updateFinding = async (findingId, updates) => {
-  const response = await axios.patch(buildSarUrl(`/findings/${encodeURIComponent(findingId)}`), updates);
+  const response = await patchGcsResource(buildSarUrl(`/findings/${encodeURIComponent(findingId)}`), updates);
   return response.data;
 };
 
 export const deleteFinding = async (findingId) => {
-  const response = await axios.delete(buildSarUrl(`/findings/${encodeURIComponent(findingId)}`));
+  const response = await deleteGcsResource(buildSarUrl(`/findings/${encodeURIComponent(findingId)}`));
   return response.data;
 };
 
 export const batchElevation = async (points) => {
-  const response = await axios.post(buildSarUrl('/elevation/batch'), points);
+  const response = await postGcsResource(buildSarUrl('/elevation/batch'), points);
   return response.data;
 };

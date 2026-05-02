@@ -1,4 +1,3 @@
-jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
   buildGcsUrl: jest.fn((routeOrPath) => {
     const routeMap = {
@@ -7,6 +6,8 @@ jest.mock('./gcsApiService', () => ({
     const resolved = routeMap[routeOrPath] || routeOrPath;
     return `http://gcs.test:5030${resolved}`;
   }),
+  fetchGcsResource: jest.fn(),
+  postGcsResource: jest.fn(),
   GCS_ROUTE_KEYS: {
     fleetCandidates: 'fleetCandidates',
   },
@@ -17,11 +18,11 @@ jest.mock('./gcsApiService', () => ({
 
 describe('fleetEnrollmentApiService', () => {
   let service;
-  let axios;
+  let gcsApi;
 
   beforeEach(() => {
     jest.resetModules();
-    axios = require('axios');
+    gcsApi = require('./gcsApiService');
     jest.clearAllMocks();
     service = require('./fleetEnrollmentApiService');
   });
@@ -33,42 +34,42 @@ describe('fleetEnrollmentApiService', () => {
   });
 
   it('lists and fetches candidates through the canonical registry routes', async () => {
-    axios.get.mockResolvedValue({ data: { candidates: [] } });
+    gcsApi.fetchGcsResource.mockResolvedValue({ data: { candidates: [] } });
 
     await service.listFleetCandidates({ includeInactive: true });
     await service.getFleetCandidate('hw-101');
 
-    expect(axios.get).toHaveBeenNthCalledWith(
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5030/api/v1/fleet/candidates',
+      'fleetCandidates',
       { params: { include_inactive: 'true', runtime_mode: 'current' } },
     );
-    expect(axios.get).toHaveBeenNthCalledWith(
+    expect(gcsApi.fetchGcsResource).toHaveBeenNthCalledWith(
       2,
       'http://gcs.test:5030/api/v1/fleet/candidates/hw-101',
     );
   });
 
   it('posts accept, replace, and recover mutations with explicit commit policy', async () => {
-    axios.post.mockResolvedValue({ data: { status: 'success' } });
+    gcsApi.postGcsResource.mockResolvedValue({ data: { status: 'success' } });
 
     await service.acceptFleetCandidate('hw-101', { pos_id: 12, mavlink_port: 14550 }, { commit: true });
     await service.replaceFleetCandidate('hw-101', { target_hw_id: 12 }, { commit: false });
     await service.recoverFleetCandidate('node-12b', { mavlink_port: 14620 }, { commit: true });
 
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       1,
       'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/accept',
       { pos_id: 12, mavlink_port: 14550 },
       { params: { commit: 'true' } },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       2,
       'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/replace',
       { target_hw_id: 12 },
       { params: { commit: 'false' } },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       3,
       'http://gcs.test:5030/api/v1/fleet/candidates/node-12b/recover',
       { mavlink_port: 14620 },
@@ -77,23 +78,23 @@ describe('fleetEnrollmentApiService', () => {
   });
 
   it('posts announce, reject, and ignore mutations through canonical routes', async () => {
-    axios.post.mockResolvedValue({ data: { status: 'success' } });
+    gcsApi.postGcsResource.mockResolvedValue({ data: { status: 'success' } });
 
     await service.announceFleetCandidate({ hw_id: '101' });
     await service.rejectFleetCandidate('hw-101', { reason: 'duplicate' });
     await service.ignoreFleetCandidate('hw-101', { reason: 'bench spare' });
 
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       1,
       'http://gcs.test:5030/api/v1/fleet/candidates/announce',
       { hw_id: '101' },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       2,
       'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/reject',
       { reason: 'duplicate' },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(gcsApi.postGcsResource).toHaveBeenNthCalledWith(
       3,
       'http://gcs.test:5030/api/v1/fleet/candidates/hw-101/ignore',
       { reason: 'bench spare' },

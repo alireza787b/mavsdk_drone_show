@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
   createSitlInstance,
   getSitlControlHost,
@@ -14,12 +13,18 @@ import {
   restartSitlInstance,
   runSitlInstanceAction,
 } from './sitlControlService';
-import { buildGcsUrl, GCS_ROUTE_KEYS } from './gcsApiService';
+import {
+  deleteGcsResource,
+  fetchGcsResource,
+  GCS_ROUTE_KEYS,
+  postGcsResource,
+} from './gcsApiService';
 
-jest.mock('axios');
 jest.mock('./gcsApiService', () => ({
-  buildGcsUrl: jest.fn((path) => `http://gcs.test:5030${path}`),
   COMMAND_SUBMIT_TIMEOUT_MS: 12000,
+  deleteGcsResource: jest.fn(),
+  fetchGcsResource: jest.fn(),
+  postGcsResource: jest.fn(),
   GCS_ROUTES: {
     '/api/v1/system/sitl/instances': '/api/v1/system/sitl/instances',
     '/api/v1/system/sitl/operations': '/api/v1/system/sitl/operations',
@@ -39,26 +44,24 @@ jest.mock('./gcsApiService', () => ({
 describe('sitlControlService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    buildGcsUrl.mockImplementation((path) => `http://gcs.test:5030${path}`);
   });
 
   test('requests SITL policy through the canonical GCS route', async () => {
-    axios.get.mockResolvedValue({ data: { sim_mode: true } });
+    fetchGcsResource.mockResolvedValue({ data: { sim_mode: true } });
 
     const result = await getSitlControlPolicy();
 
-    expect(buildGcsUrl).toHaveBeenCalledWith(GCS_ROUTE_KEYS.sitlControlPolicy);
-    expect(axios.get).toHaveBeenCalledWith(
-      'http://gcs.test:5030/api/v1/system/sitl/policy',
+    expect(fetchGcsResource).toHaveBeenCalledWith(
+      GCS_ROUTE_KEYS.sitlControlPolicy,
       { timeout: 10000 },
     );
     expect(result.sim_mode).toBe(true);
   });
 
   test('requests SITL host, image, and instance inventories', async () => {
-    axios.get.mockResolvedValueOnce({ data: { host: { hostname: 'hetzner' } } });
-    axios.get.mockResolvedValueOnce({ data: { images: [{ image_id: 'sha256:1' }] } });
-    axios.get.mockResolvedValueOnce({ data: { instances: [{ name: 'drone-1' }] } });
+    fetchGcsResource.mockResolvedValueOnce({ data: { host: { hostname: 'hetzner' } } });
+    fetchGcsResource.mockResolvedValueOnce({ data: { images: [{ image_id: 'sha256:1' }] } });
+    fetchGcsResource.mockResolvedValueOnce({ data: { instances: [{ name: 'drone-1' }] } });
 
     const host = await getSitlControlHost();
     const images = await getSitlControlImages();
@@ -70,13 +73,12 @@ describe('sitlControlService', () => {
   });
 
   test('encodes container name and tail when requesting instance logs', async () => {
-    axios.get.mockResolvedValue({ data: { lines: ['boot', 'ready'] } });
+    fetchGcsResource.mockResolvedValue({ data: { lines: ['boot', 'ready'] } });
 
     const result = await getSitlControlInstanceLogs('drone/1', { tail: 80 });
 
-    expect(buildGcsUrl).toHaveBeenCalledWith('/api/v1/system/sitl/instances/drone%2F1/logs');
-    expect(axios.get).toHaveBeenCalledWith(
-      'http://gcs.test:5030/api/v1/system/sitl/instances/drone%2F1/logs',
+    expect(fetchGcsResource).toHaveBeenCalledWith(
+      '/api/v1/system/sitl/instances/drone%2F1/logs',
       expect.objectContaining({
         timeout: 10000,
         params: { tail: 80 },
@@ -86,14 +88,14 @@ describe('sitlControlService', () => {
   });
 
   test('posts reconcile payload and encodes instance lifecycle routes', async () => {
-    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
-    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-create' } });
-    axios.get.mockResolvedValueOnce({ data: { operations: [] } });
-    axios.get.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
-    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-2' } });
-    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-4' } });
-    axios.post.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-5' } });
-    axios.delete.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-3' } });
+    postGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
+    postGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-create' } });
+    fetchGcsResource.mockResolvedValueOnce({ data: { operations: [] } });
+    fetchGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-1' } });
+    postGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-2' } });
+    postGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-4' } });
+    postGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-5' } });
+    deleteGcsResource.mockResolvedValueOnce({ data: { operation_id: 'sitl-op-3' } });
 
     const reconcile = await reconcileSitlFleet({ target_count: 3 });
     const create = await createSitlInstance({ instance_id: 6 });
@@ -104,48 +106,48 @@ describe('sitlControlService', () => {
     const release = await releaseSitlImage({ image_repo: 'mavsdk-drone-show-sitl', version_tag: 'release-demo' });
     const remove = await removeSitlInstance('drone/1');
 
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(postGcsResource).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5030/api/v1/system/sitl/reconcile',
+      GCS_ROUTE_KEYS.sitlControlReconcile,
       { target_count: 3 },
       { timeout: 30000 },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(postGcsResource).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5030/api/v1/system/sitl/instances',
+      GCS_ROUTE_KEYS.sitlControlInstances,
       { instance_id: 6 },
       { timeout: 30000 },
     );
-    expect(axios.get).toHaveBeenNthCalledWith(
+    expect(fetchGcsResource).toHaveBeenNthCalledWith(
       1,
-      'http://gcs.test:5030/api/v1/system/sitl/operations',
+      GCS_ROUTE_KEYS.sitlControlOperations,
       expect.objectContaining({ params: { limit: 5 } }),
     );
-    expect(axios.get).toHaveBeenNthCalledWith(
+    expect(fetchGcsResource).toHaveBeenNthCalledWith(
       2,
-      'http://gcs.test:5030/api/v1/system/sitl/operations/sitl%2Fop',
+      '/api/v1/system/sitl/operations/sitl%2Fop',
       { timeout: 12000 },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(postGcsResource).toHaveBeenNthCalledWith(
       3,
-      'http://gcs.test:5030/api/v1/system/sitl/instances/drone%2F1/restart',
+      '/api/v1/system/sitl/instances/drone%2F1/restart',
       {},
       { timeout: 30000 },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(postGcsResource).toHaveBeenNthCalledWith(
       4,
-      'http://gcs.test:5030/api/v1/system/sitl/instances/actions',
+      GCS_ROUTE_KEYS.sitlControlInstanceActions,
       { action: 'restart', instance_names: ['drone-1'] },
       { timeout: 30000 },
     );
-    expect(axios.post).toHaveBeenNthCalledWith(
+    expect(postGcsResource).toHaveBeenNthCalledWith(
       5,
-      'http://gcs.test:5030/api/v1/system/sitl/images/release',
+      GCS_ROUTE_KEYS.sitlControlImageRelease,
       { image_repo: 'mavsdk-drone-show-sitl', version_tag: 'release-demo' },
       { timeout: 30000 },
     );
-    expect(axios.delete).toHaveBeenCalledWith(
-      'http://gcs.test:5030/api/v1/system/sitl/instances/drone%2F1',
+    expect(deleteGcsResource).toHaveBeenCalledWith(
+      '/api/v1/system/sitl/instances/drone%2F1',
       { timeout: 30000 },
     );
     expect(reconcile.operation_id).toBe('sitl-op-1');

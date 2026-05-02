@@ -40,8 +40,41 @@ def _docs_link(entry: EnvRegistryEntry) -> str:
     return f"[guide]({target.as_posix()})"
 
 
+def _entry_anchor(entry: EnvRegistryEntry) -> str:
+    return "env-" + entry.name.lower().replace("_", "-")
+
+
+def _entry_detail_lines(entry: EnvRegistryEntry) -> list[str]:
+    default_value = redact_value(entry, entry.default)
+    lines = [
+        f'<a id="{_entry_anchor(entry)}"></a>',
+        "",
+        f"### `{entry.name}`",
+        "",
+        f"- Title: {_escape_cell(entry.title)}",
+        f"- Scope: `{_escape_cell(entry.scope)}`",
+        f"- Domain: `{_escape_cell(entry.domain)}`",
+        f"- Type: `{_escape_cell(entry.value_type)}`",
+        f"- Default: `{_escape_cell(default_value)}`",
+        f"- Editable: {'yes' if entry.editable else 'no'}",
+        f"- Restart: `{_escape_cell(entry.restart_required)}`",
+        f"- Source of truth: `{_escape_cell(entry.source_of_truth)}`",
+        f"- Apply action: `{_escape_cell(entry.apply_action)}`",
+        f"- Docs: {_docs_link(entry)}",
+    ]
+    if entry.allowed_values:
+        lines.append(f"- Allowed values: `{_escape_cell(', '.join(map(str, entry.allowed_values)))}`")
+    if entry.notes:
+        lines.append(f"- Notes: {_escape_cell(entry.notes)}")
+    if entry.replacement:
+        lines.append(f"- Replacement: `{_escape_cell(entry.replacement)}`")
+    lines.append("")
+    return lines
+
+
 def build_env_reference_markdown(registry: EnvRegistry | None = None) -> str:
     registry = registry or load_env_registry()
+    entries = registry.list_entries(include_hidden=True, include_deprecated=True)
     lines = [
         "# Generated MDS Environment Registry",
         "",
@@ -54,14 +87,14 @@ def build_env_reference_markdown(registry: EnvRegistry | None = None) -> str:
         "|---|---|---|---|---|---|---|---|---|",
     ]
 
-    for entry in registry.list_entries(include_hidden=True, include_deprecated=True):
+    for entry in entries:
         default_value = redact_value(entry, entry.default)
         editable = "yes" if entry.editable else "no"
         lines.append(
             "| "
             + " | ".join(
                 [
-                    _code_cell(entry.name),
+                    f"[`{_escape_cell(entry.name)}`](#{_entry_anchor(entry)})",
                     _escape_cell(entry.scope),
                     _escape_cell(entry.domain),
                     _escape_cell(entry.value_type),
@@ -75,8 +108,11 @@ def build_env_reference_markdown(registry: EnvRegistry | None = None) -> str:
             + " |"
         )
 
-    lines.append("")
-    return "\n".join(lines)
+    lines.extend(["", "## Variable Details", ""])
+    for entry in entries:
+        lines.extend(_entry_detail_lines(entry))
+
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:

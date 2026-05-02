@@ -36,6 +36,7 @@ import {
   MetricStrip,
   OperatorCard,
   OperatorNotice,
+  PageActionBar,
   PageShell,
   StatusBadge,
 } from '../components/ui/OperatorPrimitives';
@@ -504,18 +505,22 @@ function FleetEnrollmentPage() {
       docsRoute="/fleet-enrollment"
       status={<StatusBadge tone={pageStatusTone}>{candidateCounts.active} active</StatusBadge>}
       actions={(
-        <>
-          <ActionIconButton
-            icon={<FaSyncAlt />}
-            label="Refresh enrollment queue"
-            onClick={() => setRefreshTick((value) => value + 1)}
-          >
-            Refresh
-          </ActionIconButton>
-          <Link className="fleet-enrollment-link-action" to="/mission-config">
-            Mission Config
-          </Link>
-        </>
+        <PageActionBar
+          primary={(
+            <ActionIconButton
+              icon={<FaSyncAlt />}
+              label="Refresh enrollment queue"
+              onClick={() => setRefreshTick((value) => value + 1)}
+            >
+              Refresh
+            </ActionIconButton>
+          )}
+          secondary={(
+            <Link className="operator-button operator-button--ghost" to="/mission-config">
+              Mission Config
+            </Link>
+          )}
+        />
       )}
     >
 

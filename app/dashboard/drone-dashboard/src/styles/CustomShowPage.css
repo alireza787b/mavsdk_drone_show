@@ -28,7 +28,17 @@
     color: var(--color-text-secondary) !important;
 }
 
+.custom-show-card .MuiTypography-root {
+    color: var(--color-text-primary);
+}
+
+.custom-show-card .MuiTypography-body2,
+.custom-show-card .MuiTypography-colorTextSecondary {
+    color: var(--color-text-secondary) !important;
+}
+
 .custom-show-page .MuiPaper-root {
+    background: transparent;
     color: var(--color-text-primary);
 }
 
