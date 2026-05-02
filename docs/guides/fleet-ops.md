@@ -169,5 +169,6 @@ GCS auth health.
 
 - [Fleet Sync And Secrets](fleet-sync-and-secrets.md)
 - [Runtime Config Sources](runtime-config-sources.md)
+- [Smart Wi-Fi Manager Dashboard](smart-wifi-manager-dashboard.md)
 - [MAVLink Routing Setup](mavlink-routing-setup.md)
 - [SITL Control](sitl-control.md)

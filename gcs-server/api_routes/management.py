@@ -287,10 +287,51 @@ def _drone_api_port(deps: Any) -> int:
 def _extract_node_host(row: dict[str, Any] | None) -> str | None:
     if not isinstance(row, dict):
         return None
-    for key in ("ip", "drone_ip", "node_ip", "netbird_ip", "host"):
+    for key in (
+        "ip",
+        "drone_ip",
+        "node_ip",
+        "netbird_ip",
+        "primary_control_ip",
+        "control_ip",
+        "reported_ip",
+        "observed_ip",
+        "local_ip",
+        "vpn_ip",
+        "host",
+    ):
         value = str(row.get(key) or "").strip()
         if value:
             return value.rstrip("/")
+    return None
+
+
+def _node_record_matches(row: dict[str, Any], key: Any, target: str) -> bool:
+    row_hw_id = _normalize_hw_id(row.get("hw_id") or key)
+    row_pos_id = _normalize_hw_id(row.get("pos_id"))
+    return row_hw_id == target or row_pos_id == target
+
+
+def _merge_node_records(config_row: dict[str, Any] | None, reported_row: dict[str, Any] | None) -> dict[str, Any]:
+    """Keep fleet-config reachability data while preserving live node posture."""
+    merged: dict[str, Any] = dict(config_row or {})
+    for key, value in dict(reported_row or {}).items():
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        merged[key] = value
+    return merged
+
+
+def _resolve_config_node_record(deps: Any, target: str) -> dict[str, Any] | None:
+    try:
+        for raw_row in deps.load_config() or []:
+            row = dict(raw_row or {})
+            if _node_record_matches(row, row.get("hw_id"), target):
+                return row
+    except Exception:
+        return None
     return None
 
 
@@ -299,26 +340,19 @@ def _resolve_node_record(deps: Any, hw_id: str) -> dict[str, Any] | None:
     if not target:
         return None
 
+    config_row = _resolve_config_node_record(deps, target)
+
     try:
         with deps.data_lock_git_status:
             git_status = dict(getattr(deps, "git_status_data_all_drones", {}) or {})
         for key, value in git_status.items():
             row = dict(value or {})
-            row_hw_id = _normalize_hw_id(row.get("hw_id") or key)
-            if row_hw_id == target or _normalize_hw_id(row.get("pos_id")) == target:
-                return row
+            if _node_record_matches(row, key, target):
+                return _merge_node_records(config_row, row)
     except Exception:
         pass
 
-    try:
-        for raw_row in deps.load_config() or []:
-            row = dict(raw_row or {})
-            if _normalize_hw_id(row.get("hw_id")) == target or _normalize_hw_id(row.get("pos_id")) == target:
-                return row
-    except Exception:
-        return None
-
-    return None
+    return config_row
 
 
 def _build_node_env_url(deps: Any, host: str) -> str:

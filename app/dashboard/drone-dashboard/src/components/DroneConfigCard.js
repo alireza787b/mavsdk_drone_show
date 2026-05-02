@@ -132,6 +132,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   ipMismatch,
   heartbeatData,
   heartbeatStatus,
+  heartbeatStatusClass,
   heartbeatAgeSec,
   heartbeatIP,
   networkInfo,
@@ -151,38 +152,37 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
    * Returns the correct heartbeat status icon based on `heartbeatStatus`.
    */
   const getHeartbeatIcon = () => {
-    switch (heartbeatStatus) {
-      case 'Online (Recent)':
+    switch (heartbeatStatusClass) {
+      case 'online':
         return (
           <FaCircle
             className="status-icon online"
-            data-help="Online (Recent): Drone is actively sending heartbeat"
-            aria-label="Online (Recent)"
+            data-help={`${heartbeatStatus}: drone is actively reporting to the GCS`}
+            aria-label={heartbeatStatus}
           />
         );
-      case 'Stale (>20s)':
+      case 'stale':
         return (
           <FaExclamationTriangle
             className="status-icon stale"
-            data-help="Stale (>20s): Heartbeat hasn't been received recently"
-            aria-label="Stale (>20s)"
+            data-help={`${heartbeatStatus}: link evidence is delayed and needs operator attention`}
+            aria-label={heartbeatStatus}
           />
         );
-      case 'Offline (>60s)':
+      case 'offline':
         return (
           <FaTimesCircle
             className="status-icon offline"
-            data-help="Offline (>60s): Drone hasn't sent heartbeat in a long time"
-            aria-label="Offline (>60s)"
+            data-help={`${heartbeatStatus}: no recent heartbeat or telemetry evidence`}
+            aria-label={heartbeatStatus}
           />
         );
       default:
-        // "No heartbeat"
         return (
           <FaCircle
             className="status-icon no-heartbeat"
-            data-help="No Heartbeat: Drone is not connected or not sending heartbeat"
-            aria-label="No Heartbeat"
+            data-help={`${heartbeatStatus}: no heartbeat evidence is available yet`}
+            aria-label={heartbeatStatus}
           />
         );
     }
@@ -630,7 +630,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           </div>
         </div>
         <div className="card-actions">
-          <div className={`status-badge ${heartbeatStatus.toLowerCase().replace(/[^a-z]/g, '')}`}>
+          <div className={`status-badge ${heartbeatStatusClass}`}>
             {getHeartbeatIcon()}
             <span className="status-text">{heartbeatStatus}</span>
             {heartbeatAgeSec !== null && <span className="status-time">({heartbeatAgeSec}s)</span>}
@@ -686,7 +686,7 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
         >
           <FaEdit /> Edit
         </button>
-        {(heartbeatStatus === 'Offline (>60s)' || heartbeatStatus === 'No heartbeat') && onReplace && (
+        {(['offline', 'unknown'].includes(heartbeatStatusClass)) && onReplace && (
           <button
             className="action-button replace"
             onClick={onReplace}
@@ -708,6 +708,43 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
     </>
   );
 });
+
+function buildHeartbeatPresencePresentation(heartbeatData, heartbeatAgeSec) {
+  const presence = heartbeatData?.presence && typeof heartbeatData.presence === 'object'
+    ? heartbeatData.presence
+    : null;
+  const presenceState = String(presence?.state || heartbeatData?.presence_state || '').trim().toLowerCase();
+  const ageSec = Number.isFinite(Number(presence?.heartbeat_age_sec ?? heartbeatData?.heartbeat_age_sec))
+    ? Number(presence?.heartbeat_age_sec ?? heartbeatData?.heartbeat_age_sec)
+    : heartbeatAgeSec;
+
+  const longOffline = Boolean(presence?.long_offline);
+  const byState = {
+    live: { label: 'Live', statusClass: 'online', cardClass: 'status-online' },
+    blocked: { label: 'Live blocked', statusClass: 'stale', cardClass: 'status-stale' },
+    recently_lost: { label: 'Recent loss', statusClass: 'stale', cardClass: 'status-stale' },
+    stale: { label: 'Stale', statusClass: 'stale', cardClass: 'status-stale' },
+    offline: { label: longOffline ? 'Long offline' : 'Offline', statusClass: 'offline', cardClass: 'status-offline' },
+    never_seen: { label: 'Never seen', statusClass: 'unknown', cardClass: 'status-unknown' },
+  };
+  if (byState[presenceState]) {
+    return {
+      ...byState[presenceState],
+      ageSec,
+    };
+  }
+
+  if (ageSec === null || ageSec === undefined) {
+    return { label: 'Never seen', statusClass: 'unknown', cardClass: 'status-unknown', ageSec: null };
+  }
+  if (ageSec < 20) {
+    return { label: 'Live', statusClass: 'online', cardClass: 'status-online', ageSec };
+  }
+  if (ageSec < 60) {
+    return { label: 'Stale', statusClass: 'stale', cardClass: 'status-stale', ageSec };
+  }
+  return { label: 'Offline', statusClass: 'offline', cardClass: 'status-offline', ageSec };
+}
 
 /**
  * Edit form: Allows user to modify hardware ID, IP, pos_id, etc.
@@ -1451,18 +1488,14 @@ export default function DroneConfigCard({
   const configuredIp = normalizeRuntimeIp(drone.ip);
   const timestampVal = getHeartbeatTimestamp(safeHb);
   const now = Date.now();
-  const heartbeatAgeSec =
+  const fallbackHeartbeatAgeSec =
     timestampVal !== null
       ? Math.floor((now - timestampVal) / 1000)
       : null;
-
-  // Determine textual heartbeat status
-  let heartbeatStatus = 'No heartbeat';
-  if (heartbeatAgeSec !== null) {
-    if (heartbeatAgeSec < 20) heartbeatStatus = 'Online (Recent)';
-    else if (heartbeatAgeSec < 60) heartbeatStatus = 'Stale (>20s)';
-    else heartbeatStatus = 'Offline (>60s)';
-  }
+  const heartbeatPresentation = buildHeartbeatPresencePresentation(safeHb, fallbackHeartbeatAgeSec);
+  const heartbeatStatus = heartbeatPresentation.label;
+  const heartbeatStatusClass = heartbeatPresentation.statusClass;
+  const heartbeatAgeSec = heartbeatPresentation.ageSec;
 
   // Mismatch checks for IP
   const ipMismatch = Boolean(heartbeatIp && configuredIp && heartbeatIp !== configuredIp);
@@ -1478,10 +1511,7 @@ export default function DroneConfigCard({
   // Status class for visual distinction
   const getStatusClass = () => {
     if (hasAnyMismatch) return ' mismatch-drone';
-    if (heartbeatStatus === 'Online (Recent)') return ' status-online';
-    if (heartbeatStatus === 'Stale (>20s)') return ' status-stale';
-    if (heartbeatStatus === 'Offline (>60s)') return ' status-offline';
-    return ' status-unknown';
+    return ` ${heartbeatPresentation.cardClass}`;
   };
 
   const cardExtraClass = getStatusClass();
@@ -1654,6 +1684,7 @@ export default function DroneConfigCard({
           ipMismatch={ipMismatch}
           heartbeatData={heartbeatData}
           heartbeatStatus={heartbeatStatus}
+          heartbeatStatusClass={heartbeatStatusClass}
           heartbeatAgeSec={heartbeatAgeSec}
           heartbeatIP={heartbeatIp}
           networkInfo={networkInfo}

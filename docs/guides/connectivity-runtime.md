@@ -99,5 +99,6 @@ through the node-local env workflow.
 Related guides:
 
 - [Fleet Ops](fleet-ops.md)
+- [Smart Wi-Fi Manager Dashboard](smart-wifi-manager-dashboard.md)
 - [Fleet Sync And Secrets](fleet-sync-and-secrets.md)
 - [Runtime Config Sources](runtime-config-sources.md)

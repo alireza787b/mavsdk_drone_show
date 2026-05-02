@@ -101,6 +101,26 @@ function normalizeError(error, fallback) {
   return error?.response?.data?.detail || error?.message || fallback;
 }
 
+function resolveNodeHost(row) {
+  if (!row || typeof row !== 'object') {
+    return '';
+  }
+  const candidate = [
+    row.ip,
+    row.drone_ip,
+    row.node_ip,
+    row.netbird_ip,
+    row.primary_control_ip,
+    row.control_ip,
+    row.reported_ip,
+    row.observed_ip,
+    row.local_ip,
+    row.vpn_ip,
+    row.host,
+  ].find((value) => String(value || '').trim());
+  return String(candidate || '').trim().replace(/\/+$/, '');
+}
+
 function downloadJson(filename, payload) {
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -775,6 +795,17 @@ export default function EnvironmentsPage() {
     }
   };
 
+  const openEntryEditor = (targetScope, entry) => {
+    setEditingEntry({ scope: targetScope, entry });
+  };
+
+  const handleEntryKeyDown = (event, targetScope, entry) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openEntryEditor(targetScope, entry);
+    }
+  };
+
   const applyEnv = async () => {
     setBusy(true);
     try {
@@ -931,37 +962,41 @@ export default function EnvironmentsPage() {
       )}
       actions={(
         <div className="environments-page__actions">
-          <DocsLink
-            doc={{ label: 'Registry', docPath: 'docs/reference/mds-environment-registry.md' }}
-            compact
-          />
-          <DocsLink
-            doc={{ label: 'Table', docPath: 'docs/reference/mds-environment-registry.generated.md' }}
-            compact
-          />
-          <ActionIconButton icon={<FaRedoAlt />} label="Refresh environments" onClick={refresh} disabled={busy || loading} />
-          {scope === 'gcs' ? (
-            <>
-              <ActionIconButton icon={<FaUpload />} label="Import GCS env profile" onClick={() => importInputRef.current?.click()} disabled={busy || loading}>
-                Import
-              </ActionIconButton>
-              <ActionIconButton icon={<FaDownload />} label="Export GCS env profile" onClick={exportGcsProfile} disabled={busy || loading || !values.length}>
-                Export
-              </ActionIconButton>
-              <ActionIconButton icon={<FaSave />} label="Apply GCS environment restart" tone="warning" onClick={applyEnv} disabled={busy || loading}>
-                Apply
-              </ActionIconButton>
-            </>
-          ) : (
-            <>
-              <ActionIconButton icon={<FaUpload />} label="Import selected drone env profile" onClick={() => nodeImportInputRef.current?.click()} disabled={busy || nodeEnvLoading || !selectedNodeKey}>
-                Import
-              </ActionIconButton>
-              <ActionIconButton icon={<FaDownload />} label="Export selected drone env profile" onClick={exportNodeProfile} disabled={busy || nodeEnvLoading || !selectedNodeValues.length}>
-                Export
-              </ActionIconButton>
-            </>
-          )}
+          <div className="environments-page__action-group" aria-label="Environment documentation">
+            <DocsLink
+              doc={{ label: 'Registry', docPath: 'docs/reference/mds-environment-registry.md' }}
+              compact
+            />
+            <DocsLink
+              doc={{ label: 'Table', docPath: 'docs/reference/mds-environment-registry.generated.md' }}
+              compact
+            />
+          </div>
+          <div className="environments-page__action-group" aria-label="Environment actions">
+            <ActionIconButton icon={<FaRedoAlt />} label="Refresh environments" onClick={refresh} disabled={busy || loading} />
+            {scope === 'gcs' ? (
+              <>
+                <ActionIconButton icon={<FaUpload />} label="Import GCS env profile" onClick={() => importInputRef.current?.click()} disabled={busy || loading}>
+                  Import
+                </ActionIconButton>
+                <ActionIconButton icon={<FaDownload />} label="Export GCS env profile" onClick={exportGcsProfile} disabled={busy || loading || !values.length}>
+                  Export
+                </ActionIconButton>
+                <ActionIconButton icon={<FaSave />} label="Apply GCS environment restart" tone="warning" onClick={applyEnv} disabled={busy || loading}>
+                  Apply
+                </ActionIconButton>
+              </>
+            ) : (
+              <>
+                <ActionIconButton icon={<FaUpload />} label="Import selected drone env profile" onClick={() => nodeImportInputRef.current?.click()} disabled={busy || nodeEnvLoading || !selectedNodeKey}>
+                  Import
+                </ActionIconButton>
+                <ActionIconButton icon={<FaDownload />} label="Export selected drone env profile" onClick={exportNodeProfile} disabled={busy || nodeEnvLoading || !selectedNodeValues.length}>
+                  Export
+                </ActionIconButton>
+              </>
+            )}
+          </div>
           <input
             ref={importInputRef}
             type="file"
@@ -1045,7 +1080,15 @@ export default function EnvironmentsPage() {
               </header>
               <div className="environments-page__grid">
                 {entries.map((entry) => (
-                  <OperatorCard key={entry.name} compact className="environments-page__entry">
+                  <OperatorCard
+                    key={entry.name}
+                    compact
+                    className="environments-page__entry environments-page__entry--interactive"
+                    role="button"
+                    tabIndex={busy ? -1 : 0}
+                    onClick={() => openEntryEditor('gcs', entry)}
+                    onKeyDown={(event) => handleEntryKeyDown(event, 'gcs', entry)}
+                  >
                     <div className="environments-page__entry-main">
                       <span className="environments-page__entry-title">{entry.title}</span>
                       <code>{entry.name}</code>
@@ -1060,7 +1103,10 @@ export default function EnvironmentsPage() {
                         icon={entry.editable && !entry.secret && !entry.deprecated ? <FaSlidersH /> : <FaInfoCircle />}
                         label={`${entry.editable && !entry.secret && !entry.deprecated ? 'Edit' : 'View'} ${entry.name}`}
                         size="sm"
-                        onClick={() => setEditingEntry({ scope: 'gcs', entry })}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEntryEditor('gcs', entry);
+                        }}
                         disabled={busy}
                       />
                     </div>
@@ -1093,6 +1139,7 @@ export default function EnvironmentsPage() {
             {filteredNodeRows.map((row) => {
               const envRuntime = row.env_runtime || {};
               const nodeKey = String(row.hw_id || row.key || '').trim();
+              const nodeHost = resolveNodeHost(row);
               const hashMismatch = Boolean(envRuntime.registry_hash && registryHash && envRuntime.registry_hash !== registryHash);
               const drift = hashMismatch || (envRuntime.unknown_keys || []).length || (envRuntime.deprecated_keys || []).length;
               return (
@@ -1111,7 +1158,10 @@ export default function EnvironmentsPage() {
                       <span>Drone {row.pos_id || row.key}</span>
                       <strong>HW {row.hw_id || row.key}</strong>
                     </div>
-                    <StatusBadge tone={drift ? 'warning' : 'success'}>{drift ? 'Drift' : 'Clean'}</StatusBadge>
+                    <span className="environments-page__node-card-badges">
+                      <StatusBadge tone={drift ? 'warning' : 'success'}>{drift ? 'Drift' : 'Clean'}</StatusBadge>
+                      <span className="environments-page__node-open" aria-hidden="true"><FaSlidersH /></span>
+                    </span>
                   </header>
                   <dl>
                     <div>
@@ -1132,7 +1182,7 @@ export default function EnvironmentsPage() {
                     </div>
                   </dl>
                   <p aria-label="Node environment details">
-                    {envRuntime.local_env_present ? envRuntime.local_env_path : 'local.env missing'} · {envRuntime.node_identity_present ? 'identity ok' : 'identity missing'}
+                    {nodeHost || 'host missing'} · {envRuntime.local_env_present ? envRuntime.local_env_path : 'local.env missing'} · {envRuntime.node_identity_present ? 'identity ok' : 'identity missing'}
                   </p>
                 </OperatorCard>
               );
@@ -1150,12 +1200,23 @@ export default function EnvironmentsPage() {
                   {selectedNodeEnv?.config_present ? 'local.env' : 'missing'}
                 </StatusBadge>
                 <StatusBadge tone="muted">{compactHash(selectedNodeEnv?.registry_hash)}</StatusBadge>
+                {selectedNode ? <StatusBadge tone={resolveNodeHost(selectedNode) ? 'info' : 'warning'}>{resolveNodeHost(selectedNode) || 'no host'}</StatusBadge> : null}
                 <ActionIconButton icon={<FaRedoAlt />} label="Reload selected drone env" size="sm" onClick={() => loadNodeEnv(selectedNodeKey)} disabled={!selectedNodeKey || nodeEnvLoading} />
               </div>
             </header>
 
             {nodeEnvLoading ? (
               <EmptyState icon={<FaSlidersH />} title="Loading node env" detail="Reading the selected drone through the GCS proxy." />
+            ) : null}
+
+            {!nodeEnvLoading && selectedNodeKey && !selectedNodeEnv ? (
+              <EmptyState
+                icon={<FaExclamationTriangle />}
+                title="Node env not loaded"
+                detail={resolveNodeHost(selectedNode)
+                  ? 'The GCS has a host for this node, but the drone env API did not return yet. Retry after the node service is healthy.'
+                  : 'This node report has no reachable host. Check fleet config IP, NetBird address, or node heartbeat posture.'}
+              />
             ) : null}
 
             {!nodeEnvLoading && selectedNodeEnv?.warnings?.length ? (
@@ -1178,7 +1239,15 @@ export default function EnvironmentsPage() {
                     </header>
                     <div className="environments-page__grid environments-page__grid--node">
                       {entries.map((entry) => (
-                        <OperatorCard key={entry.name} compact className="environments-page__entry">
+                        <OperatorCard
+                          key={entry.name}
+                          compact
+                          className="environments-page__entry environments-page__entry--interactive"
+                          role="button"
+                          tabIndex={busy || !selectedNodeKey ? -1 : 0}
+                          onClick={() => openEntryEditor('node', entry)}
+                          onKeyDown={(event) => handleEntryKeyDown(event, 'node', entry)}
+                        >
                           <div className="environments-page__entry-main">
                             <span className="environments-page__entry-title">{entry.title}</span>
                             <code>{entry.name}</code>
@@ -1193,7 +1262,10 @@ export default function EnvironmentsPage() {
                               icon={entry.editable && !entry.secret && !entry.deprecated ? <FaSlidersH /> : <FaInfoCircle />}
                               label={`${entry.editable && !entry.secret && !entry.deprecated ? 'Edit' : 'View'} ${entry.name}`}
                               size="sm"
-                              onClick={() => setEditingEntry({ scope: 'node', entry })}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openEntryEditor('node', entry);
+                              }}
                               disabled={busy || !selectedNodeKey}
                             />
                           </div>

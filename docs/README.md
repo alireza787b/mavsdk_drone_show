@@ -23,6 +23,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | understand what should sync fleet-wide versus stay local/secret | [Fleet Sync And Secrets](guides/fleet-sync-and-secrets.md) |
 | inspect per-drone sync/auth/MAVLink/Smart-Wi-Fi posture | [Fleet Ops](guides/fleet-ops.md) |
+| add or repair Wi-Fi profiles on a companion node | [Smart Wi-Fi Manager Dashboard](guides/smart-wifi-manager-dashboard.md) |
 | enable optional dashboard login/API tokens | [GCS Auth Guide](guides/gcs-auth.md) |
 | configure private SITL/container repo auth | [Custom SITL Auth Guide](guides/custom-sitl-auth.md) |
 | install a GCS | [GCS Setup Guide](guides/gcs-setup.md) |
@@ -69,6 +70,7 @@ Welcome to the MAVSDK Drone Show documentation! This index will help you find th
 - **[Advanced SITL Guide](guides/advanced-sitl.md)** - custom runtime env vars, debug-oriented SITL tuning, and mutable boot-sync behavior
 - **[Dashboard Operator Guide](guides/dashboard-operator.md)** - main dashboard status model, dispatch scope behavior, and SITL/REAL safety reminders
 - **[Custom SITL Auth Guide](guides/custom-sitl-auth.md)** - official/public/private repo auth split for GCS write access, SITL read access, and image-prep credentials
+- **[Smart Wi-Fi Manager Dashboard](guides/smart-wifi-manager-dashboard.md)** - node-local Wi-Fi profile add/edit/remove workflow and field-safe recovery guidance
 - **[SITL Control Guide](guides/sitl-control.md)** - dashboard-based local SITL lifecycle control, image save flow, and operator-focused container management
 - **[Mapbox Setup](guides/mapbox-setup.md)** - optional Mapbox token setup and fallback behavior for map views
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts

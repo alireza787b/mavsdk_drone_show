@@ -590,11 +590,14 @@ const MissionConfig = () => {
     const configPosId = normalizeComparableId(drone.pos_id, drone.hw_id);
     const heartbeatData = heartbeats[hwId] || null;
     const heartbeatAgeSec = getHeartbeatAgeSec(heartbeatData);
+    const presenceState = String(heartbeatData?.presence?.state || heartbeatData?.presence_state || '').trim().toLowerCase();
     const assignedPosId = normalizeComparableId(heartbeatData?.pos_id);
     const autoPosId = normalizeComparableId(heartbeatData?.detected_pos_id);
     const slotPresentation = buildMissionSlotStatusPresentation(configPosId, assignedPosId, autoPosId);
     const isRoleSwap = Boolean(hwId && configPosId && hwId !== configPosId);
-    const isOffline = heartbeatAgeSec !== null && heartbeatAgeSec >= 60;
+    const isOffline = ['offline', 'never_seen'].includes(presenceState)
+      || (!presenceState && heartbeatAgeSec !== null && heartbeatAgeSec >= 60);
+    const linkNeedsReview = ['blocked', 'recently_lost', 'stale'].includes(presenceState);
     const isDraft = Boolean(drone.isNew);
     const needsAttention = (
       duplicateHwIdSet.has(hwId)
@@ -602,6 +605,7 @@ const MissionConfig = () => {
       || isRoleSwap
       || isDraft
       || isOffline
+      || linkNeedsReview
       || slotPresentation.tone === 'review'
     );
 
@@ -609,6 +613,7 @@ const MissionConfig = () => {
       isDraft,
       isRoleSwap,
       isOffline,
+      linkNeedsReview,
       needsAttention,
     };
   };
