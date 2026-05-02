@@ -129,6 +129,7 @@ COMBINED_VIEW=true
 USE_SITL=false
 USE_REAL=false
 STATUS_ONLY=false
+STOP_ONLY=false
 OVERWRITE_IP=""
 SKIP_DEPENDENCY_CHECK=false
 # Repository Configuration: Environment Variable Support (MDS v3.1+)
@@ -684,6 +685,7 @@ SERVICE OPTIONS:
   -u                    : Do NOT run GUI React App (default: enabled)
   -n                    : Do NOT use tmux (default: uses tmux)
   -s                    : Run components in separate windows (default: combined)
+  --stop                : Stop the managed tmux session and any listeners on configured GCS/dashboard ports
 
 DIAGNOSTICS:
   --check               : Check configuration and dependencies without starting
@@ -717,6 +719,7 @@ parse_arguments() {
             --skip-deps) SKIP_DEPENDENCY_CHECK=true; shift ;;
             --check) CHECK_ONLY=true; shift ;;
             --status) STATUS_ONLY=true; shift ;;
+            --stop) STOP_ONLY=true; shift ;;
             --sitl)
                 if [[ "$USE_REAL" == "true" ]]; then
                     log_error "Cannot use --sitl and --real simultaneously."
@@ -749,6 +752,38 @@ parse_arguments() {
             *) log_error "Unknown option: $1"; display_usage; exit 1 ;;
         esac
     done
+}
+
+stop_services() {
+    local stopped=false
+    local port=""
+    local pids=""
+
+    if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+        log_info "Stopping tmux session: $SESSION_NAME"
+        tmux kill-session -t "$SESSION_NAME"
+        stopped=true
+    else
+        log_info "No tmux session named $SESSION_NAME is running."
+    fi
+
+    if command -v lsof >/dev/null 2>&1; then
+        for port in "$DEV_GCS_PORT" "$DEV_REACT_PORT"; do
+            pids="$(lsof -ti "tcp:${port}" 2>/dev/null || true)"
+            if [[ -n "$pids" ]]; then
+                log_info "Stopping process(es) on port $port: $pids"
+                # shellcheck disable=SC2086
+                kill $pids 2>/dev/null || true
+                stopped=true
+            fi
+        done
+    fi
+
+    if [[ "$stopped" == "true" ]]; then
+        log_success "GCS services stopped."
+    else
+        log_success "No managed GCS services were running."
+    fi
 }
 
 check_command_installed() {
@@ -1577,6 +1612,11 @@ load_gcs_system_config 2>/dev/null || true
 
 if [[ "$STATUS_ONLY" == "true" ]]; then
     show_current_status
+    exit 0
+fi
+
+if [[ "$STOP_ONLY" == "true" ]]; then
+    stop_services
     exit 0
 fi
 
