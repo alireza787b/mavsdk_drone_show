@@ -40,6 +40,7 @@ jest.mock('../services/gcsApiService', () => ({
 }));
 
 const RuntimeAdminPage = require('./RuntimeAdminPage').default;
+const routerFuture = { v7_relativeSplatPath: true, v7_startTransition: true };
 
 const baseGitInfo = {
   repo: 'demo/customer-mds',
@@ -140,7 +141,7 @@ describe('RuntimeAdminPage', () => {
 
   test('renders live runtime posture and doc links', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
@@ -196,7 +197,7 @@ describe('RuntimeAdminPage', () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
@@ -254,7 +255,7 @@ describe('RuntimeAdminPage', () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
@@ -292,7 +293,7 @@ describe('RuntimeAdminPage', () => {
     });
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
       </MemoryRouter>
     );
@@ -310,7 +311,7 @@ describe('RuntimeAdminPage', () => {
 
   test('warns when switching toward REAL while local SITL containers still exist', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <RuntimeAdminPage
           runtimeOverride={{
             ...baseRuntimeStatus,
@@ -332,7 +333,7 @@ describe('RuntimeAdminPage', () => {
 
   test('disables constrained update when a restart is already pending', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={routerFuture}>
         <RuntimeAdminPage
           runtimeOverride={{
             ...baseRuntimeStatus,

@@ -53,6 +53,10 @@ import {
 } from '../utilities/swarmDesignUtils';
 import { toast } from 'react-toastify';
 import {
+  toastErrorThrottled,
+  toastWarningThrottled,
+} from '../utilities/toastFeedback';
+import {
   GCS_ROUTE_KEYS,
   getPositionDeviationsResponse,
   getTrajectoryFirstRowResponse,
@@ -419,7 +423,7 @@ const MissionConfig = () => {
       })
       .catch((error) => {
         console.error('Error saving origin to backend:', error);
-        toast.error('Failed to save origin to server.');
+        toastErrorThrottled('mission-config-origin-save', 'Failed to save origin to server.');
       });
   };
 
@@ -428,7 +432,11 @@ const MissionConfig = () => {
   // -----------------------------------------------------
   const handleManualRefresh = () => {
     if (!originAvailable) {
-      toast.warning('Origin must be set before fetching position deviations.');
+      toastWarningThrottled(
+        'mission-config-origin-required',
+        'Set origin before refreshing deviations.',
+        { cooldownMs: 30000 }
+      );
       return;
     }
 
@@ -438,7 +446,7 @@ const MissionConfig = () => {
       })
       .catch((error) => {
         console.error('Error fetching position deviations:', error);
-        toast.error('Failed to refresh position data.');
+        toastErrorThrottled('mission-config-deviation-refresh', 'Failed to refresh position data.');
       });
   };
 

@@ -83,9 +83,13 @@ The dashboard exposes the same GCS-local control surface at:
 Use this page for host-local, registry-approved GCS variables and reachable
 single-node field repair. The GCS Host tab shows the loaded registry hash, env
 file path, unknown or retired keys, and restart-sensitive values. The Fleet
-Nodes tab shows registry hash, local env presence, identity presence, runtime
-mode, and key-count/drift summaries; selecting a node opens the safe value list
-and edit dialog for non-secret, registry-approved node keys.
+Nodes tab has two modes:
+
+- **Single:** choose one reported drone, inspect its current local env values,
+  and edit non-secret, registry-approved node keys through a dialog.
+- **Batch:** dry-run one planned node override against all or filtered reported
+  nodes. Batch writes stay blocked until the identity-safe mutation plane is
+  explicitly enabled.
 
 Operator rules:
 

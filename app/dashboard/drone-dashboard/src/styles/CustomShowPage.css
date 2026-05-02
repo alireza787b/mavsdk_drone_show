@@ -81,6 +81,12 @@
     color: inherit;
 }
 
+.custom-show-page .MuiAlert-message,
+.custom-show-page .MuiAlert-message p,
+.custom-show-page .MuiAlert-message span {
+    color: var(--color-text-primary) !important;
+}
+
 .custom-show-page .MuiChip-root {
     border-color: var(--color-border-primary) !important;
     background: var(--color-bg-primary);

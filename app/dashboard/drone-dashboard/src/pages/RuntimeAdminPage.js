@@ -7,11 +7,13 @@ import {
   FaExclamationTriangle,
   FaKey,
   FaNetworkWired,
+  FaPlus,
   FaRedoAlt,
   FaSatelliteDish,
   FaSave,
   FaServer,
   FaSignOutAlt,
+  FaUserEdit,
   FaUserShield,
 } from 'react-icons/fa';
 
@@ -163,8 +165,10 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const [authUsers, setAuthUsers] = useState([]);
   const [authTokens, setAuthTokens] = useState([]);
   const [authNotice, setAuthNotice] = useState(null);
-  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'operator' });
-  const [newToken, setNewToken] = useState({ name: '', scopes: 'operator', ttl_hours: 4 });
+  const [userDialog, setUserDialog] = useState(null);
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+  const [userDraft, setUserDraft] = useState({ username: '', password: '', role: 'operator', disabled: false });
+  const [tokenDraft, setTokenDraft] = useState({ name: '', scopes: 'operator', ttl_hours: 4 });
   const [revealedToken, setRevealedToken] = useState(null);
 
   const effectiveConfiguredMode = optimisticConfig?.configuredMode || runtime.configuredMode || runtime.mode || 'sitl';
@@ -343,12 +347,43 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     }
   };
 
-  const handleCreateUser = async (event) => {
+  const openUserDialog = (user = null) => {
+    setAuthNotice(null);
+    setUserDialog(user ? { mode: 'edit', username: user.username } : { mode: 'create', username: '' });
+    setUserDraft({
+      username: user?.username || '',
+      password: '',
+      role: user?.role || 'operator',
+      disabled: Boolean(user?.disabled),
+    });
+  };
+
+  const closeUserDialog = () => {
+    setUserDialog(null);
+    setUserDraft({ username: '', password: '', role: 'operator', disabled: false });
+  };
+
+  const handleSaveUser = async (event) => {
     event.preventDefault();
     setAuthNotice(null);
     try {
-      await createAuthUserResponse(newUser);
-      setNewUser({ username: '', password: '', role: 'operator' });
+      if (userDialog?.mode === 'edit') {
+        await updateAuthUserResponse(userDialog.username, {
+          role: userDraft.role,
+          disabled: Boolean(userDraft.disabled),
+        });
+        if (userDraft.password) {
+          await updateAuthUserResponse(userDialog.username, { password: userDraft.password });
+        }
+      } else {
+        await createAuthUserResponse({
+          username: userDraft.username,
+          password: userDraft.password,
+          role: userDraft.role,
+          disabled: Boolean(userDraft.disabled),
+        });
+      }
+      closeUserDialog();
       await refreshSecurityLists();
       setAuthNotice({ tone: 'success', message: 'User saved.' });
     } catch (error) {
@@ -372,17 +407,18 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     setAuthNotice(null);
     setRevealedToken(null);
     try {
-      const scopes = String(newToken.scopes || '')
+      const scopes = String(tokenDraft.scopes || '')
         .split(',')
         .map((scope) => scope.trim())
         .filter(Boolean);
       const response = await createAuthTokenResponse({
-        name: newToken.name,
+        name: tokenDraft.name,
         scopes,
-        ttl_hours: Number(newToken.ttl_hours) || undefined,
+        ttl_hours: Number(tokenDraft.ttl_hours) || undefined,
       });
       setRevealedToken(response?.data?.token || null);
-      setNewToken({ name: '', scopes: 'operator', ttl_hours: 4 });
+      setTokenDraft({ name: '', scopes: 'operator', ttl_hours: 4 });
+      setTokenDialogOpen(false);
       await refreshSecurityLists();
       setAuthNotice({ tone: 'success', message: 'Token created. Copy it now; it will not be shown again.' });
     } catch (error) {
@@ -523,71 +559,40 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
             </p>
           ) : (
             <div className="runtime-admin-page__security-grid">
-              <form className="runtime-admin-page__security-form" onSubmit={handleCreateUser}>
-                <h3>Users</h3>
-                <div className="runtime-admin-page__inline-fields">
-                  <input
-                    placeholder="username"
-                    value={newUser.username}
-                    onChange={(event) => setNewUser((current) => ({ ...current, username: event.target.value }))}
-                    required
-                  />
-                  <input
-                    placeholder="password"
-                    type="password"
-                    value={newUser.password}
-                    onChange={(event) => setNewUser((current) => ({ ...current, password: event.target.value }))}
-                    required
-                  />
-                  <select
-                    value={newUser.role}
-                    onChange={(event) => setNewUser((current) => ({ ...current, role: event.target.value }))}
-                  >
-                    <option value="admin">admin</option>
-                    <option value="operator">operator</option>
-                    <option value="viewer">viewer</option>
-                  </select>
-                  <button type="submit" className="runtime-admin-page__action-btn">
-                    Save user
+              <section className="runtime-admin-page__security-panel">
+                <div className="runtime-admin-page__security-panel-header">
+                  <h3>Users</h3>
+                  <button type="button" className="runtime-admin-page__action-btn" onClick={() => openUserDialog()}>
+                    <FaPlus aria-hidden="true" />
+                    <span>Add</span>
                   </button>
                 </div>
                 <div className="runtime-admin-page__mini-table">
                   {authUsers.map((user) => (
                     <div key={user.username} className="runtime-admin-page__mini-row">
                       <span>{user.username}</span>
-                      <StatusPill>{user.role}</StatusPill>
-                      <button type="button" onClick={() => handleDisableUser(user.username, !user.disabled)}>
-                        {user.disabled ? 'Enable' : 'Disable'}
-                      </button>
+                      <StatusPill tone={user.disabled ? 'warning' : 'neutral'}>{user.disabled ? 'disabled' : user.role}</StatusPill>
+                      <span className="runtime-admin-page__mini-actions">
+                        <button type="button" onClick={() => openUserDialog(user)} aria-label={`Edit ${user.username}`}>
+                          <FaUserEdit aria-hidden="true" />
+                          <span>Edit</span>
+                        </button>
+                        <button type="button" onClick={() => handleDisableUser(user.username, !user.disabled)}>
+                          {user.disabled ? 'Enable' : 'Disable'}
+                        </button>
+                      </span>
                     </div>
                   ))}
+                  {!authUsers.length ? <p className="runtime-admin-page__empty">No users reported.</p> : null}
                 </div>
-              </form>
+              </section>
 
-              <form className="runtime-admin-page__security-form" onSubmit={handleCreateToken}>
-                <h3>Tokens</h3>
-                <div className="runtime-admin-page__inline-fields">
-                  <input
-                    placeholder="purpose"
-                    value={newToken.name}
-                    onChange={(event) => setNewToken((current) => ({ ...current, name: event.target.value }))}
-                    required
-                  />
-                  <input
-                    placeholder="scopes"
-                    value={newToken.scopes}
-                    onChange={(event) => setNewToken((current) => ({ ...current, scopes: event.target.value }))}
-                  />
-                  <input
-                    aria-label="Token TTL hours"
-                    type="number"
-                    min="1"
-                    max="8760"
-                    value={newToken.ttl_hours}
-                    onChange={(event) => setNewToken((current) => ({ ...current, ttl_hours: event.target.value }))}
-                  />
-                  <button type="submit" className="runtime-admin-page__action-btn">
-                    Create token
+              <section className="runtime-admin-page__security-panel">
+                <div className="runtime-admin-page__security-panel-header">
+                  <h3>Tokens</h3>
+                  <button type="button" className="runtime-admin-page__action-btn" onClick={() => setTokenDialogOpen(true)}>
+                    <FaPlus aria-hidden="true" />
+                    <span>Create</span>
                   </button>
                 </div>
                 {revealedToken?.token ? (
@@ -608,8 +613,9 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                       </button>
                     </div>
                   ))}
+                  {!authTokens.length ? <p className="runtime-admin-page__empty">No API tokens reported.</p> : null}
                 </div>
-              </form>
+              </section>
             </div>
           )}
         </article>
@@ -910,6 +916,136 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
           </ul>
         </article>
       </section>
+
+      {userDialog ? (
+        <div
+          className="runtime-admin-page__dialog"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeUserDialog();
+            }
+          }}
+        >
+          <form className="runtime-admin-page__dialog-panel" role="dialog" aria-modal="true" aria-label="User security editor" onSubmit={handleSaveUser}>
+            <header>
+              <span><FaUserShield aria-hidden="true" /></span>
+              <div>
+                <strong>{userDialog.mode === 'edit' ? 'Edit user' : 'Add user'}</strong>
+                <small>{userDialog.mode === 'edit' ? userDialog.username : 'Create a dashboard login'}</small>
+              </div>
+              <button type="button" onClick={closeUserDialog} aria-label="Close user editor">×</button>
+            </header>
+            <label>
+              <span>Username</span>
+              <input
+                placeholder="operator name"
+                value={userDraft.username}
+                onChange={(event) => setUserDraft((current) => ({ ...current, username: event.target.value }))}
+                disabled={userDialog.mode === 'edit'}
+                required
+              />
+            </label>
+            <label>
+              <span>{userDialog.mode === 'edit' ? 'New password' : 'Password'}</span>
+              <input
+                placeholder={userDialog.mode === 'edit' ? 'leave unchanged' : 'temporary password'}
+                type="password"
+                value={userDraft.password}
+                onChange={(event) => setUserDraft((current) => ({ ...current, password: event.target.value }))}
+                required={userDialog.mode !== 'edit'}
+              />
+            </label>
+            <label>
+              <span>Role</span>
+              <select
+                value={userDraft.role}
+                onChange={(event) => setUserDraft((current) => ({ ...current, role: event.target.value }))}
+              >
+                <option value="admin">admin</option>
+                <option value="operator">operator</option>
+                <option value="viewer">viewer</option>
+              </select>
+            </label>
+            <label className="runtime-admin-page__checkbox-row">
+              <input
+                type="checkbox"
+                checked={userDraft.disabled}
+                onChange={(event) => setUserDraft((current) => ({ ...current, disabled: event.target.checked }))}
+              />
+              <span>Disable this login</span>
+            </label>
+            <footer>
+              <button type="button" className="runtime-admin-page__action-btn" onClick={closeUserDialog}>
+                Cancel
+              </button>
+              <button type="submit" className="runtime-admin-page__action-btn runtime-admin-page__action-btn--primary">
+                Save user
+              </button>
+            </footer>
+          </form>
+        </div>
+      ) : null}
+
+      {tokenDialogOpen ? (
+        <div
+          className="runtime-admin-page__dialog"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setTokenDialogOpen(false);
+            }
+          }}
+        >
+          <form className="runtime-admin-page__dialog-panel" role="dialog" aria-modal="true" aria-label="Create API token" onSubmit={handleCreateToken}>
+            <header>
+              <span><FaKey aria-hidden="true" /></span>
+              <div>
+                <strong>Create API token</strong>
+                <small>For scripted tools or field diagnostics</small>
+              </div>
+              <button type="button" onClick={() => setTokenDialogOpen(false)} aria-label="Close token editor">×</button>
+            </header>
+            <label>
+              <span>Purpose</span>
+              <input
+                placeholder="field debug token"
+                value={tokenDraft.name}
+                onChange={(event) => setTokenDraft((current) => ({ ...current, name: event.target.value }))}
+                required
+              />
+            </label>
+            <label>
+              <span>Scopes</span>
+              <input
+                placeholder="operator,readonly"
+                value={tokenDraft.scopes}
+                onChange={(event) => setTokenDraft((current) => ({ ...current, scopes: event.target.value }))}
+              />
+            </label>
+            <label>
+              <span>TTL hours</span>
+              <input
+                aria-label="Token TTL hours"
+                placeholder="4"
+                type="number"
+                min="1"
+                max="8760"
+                value={tokenDraft.ttl_hours}
+                onChange={(event) => setTokenDraft((current) => ({ ...current, ttl_hours: event.target.value }))}
+              />
+            </label>
+            <footer>
+              <button type="button" className="runtime-admin-page__action-btn" onClick={() => setTokenDialogOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="runtime-admin-page__action-btn runtime-admin-page__action-btn--primary">
+                Create token
+              </button>
+            </footer>
+          </form>
+        </div>
+      ) : null}
     </PageShell>
   );
 }

@@ -42,6 +42,19 @@ Blank password fields preserve an already stored inline password for existing
 profiles. Use **Remove Profile** only after confirming the node has another
 reachable management path.
 
+## Change Priority Or Remove A Profile
+
+- To prioritize a network, raise its `Priority` number and click **Save Config**.
+  Higher priority wins; signal strength is used when priorities are equal.
+- To disable a network without deleting it, check `Disabled` and save.
+- To remove a network, click **Remove Profile**, save, then trigger a scan.
+  Remove only after confirming another management path is active.
+
+The dashboard status panel should not be empty on a healthy install. It should
+show the current SSID, scan age, selected target, mode, and known profile list.
+If those are blank, restart `smart-wifi-manager.service` and
+`smart-wifi-manager-dashboard.service`, then re-open the node URL.
+
 ## Fleet Rollout
 
 For many drones, prefer the MDS fleet profile workflow:

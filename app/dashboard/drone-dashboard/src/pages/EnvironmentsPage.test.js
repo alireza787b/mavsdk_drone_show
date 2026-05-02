@@ -268,7 +268,8 @@ describe('EnvironmentsPage', () => {
     renderPage();
 
     await screen.findByText('Runtime mode');
-    fireEvent.click(await screen.findByRole('button', { name: /export gcs env profile/i }));
+    const exportButtons = await screen.findAllByRole('button', { name: /export gcs env profile/i });
+    fireEvent.click(exportButtons[0]);
 
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/gcs env profile exported/i)).toBeInTheDocument();

@@ -44,6 +44,7 @@
 .runtime-admin-page__pill {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   padding: 0.45rem 0.8rem;
   border-radius: 999px;
   border: 1px solid var(--color-border-primary);
@@ -53,6 +54,16 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.runtime-admin-page .operator-status-badge {
+  max-width: 100%;
+}
+
+.runtime-admin-page .operator-status-badge__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .runtime-admin-page__pill--real {
@@ -101,6 +112,7 @@
   border: 1px solid var(--color-border-secondary);
   background: linear-gradient(180deg, var(--color-bg-secondary), var(--color-bg-primary));
   box-shadow: var(--shadow-md);
+  min-width: 0;
 }
 
 .runtime-admin-page__card--wide {
@@ -246,6 +258,7 @@
   border-radius: var(--border-radius-lg);
   background: var(--color-surface-inset);
   border: 1px solid var(--color-border-primary);
+  min-width: 0;
 }
 
 .runtime-admin-page__facts--compact {
@@ -316,7 +329,7 @@
   gap: 0.9rem;
 }
 
-.runtime-admin-page__security-form {
+.runtime-admin-page__security-panel {
   display: grid;
   gap: 0.75rem;
   padding: 0.9rem;
@@ -325,7 +338,14 @@
   background: var(--color-surface-inset);
 }
 
-.runtime-admin-page__security-form h3 {
+.runtime-admin-page__security-panel-header {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.runtime-admin-page__security-panel h3 {
   margin: 0;
   font-size: 0.9rem;
   letter-spacing: 0.08em;
@@ -375,8 +395,19 @@
   font-weight: 700;
 }
 
+.runtime-admin-page__mini-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
 .runtime-admin-page__mini-row button,
 .runtime-admin-page__icon-action {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  justify-content: center;
   min-height: 32px;
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-base);
@@ -418,6 +449,115 @@
 .runtime-admin-page__token-reveal code {
   overflow-x: auto;
   color: var(--color-text-primary);
+}
+
+.runtime-admin-page__dialog {
+  align-items: center;
+  background: var(--modal-backdrop-color);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--spacing-base);
+  position: fixed;
+  z-index: var(--z-index-modal, 4000);
+}
+
+.runtime-admin-page__dialog-panel {
+  background: var(--color-bg-primary);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-xl);
+  box-shadow: var(--shadow-xl);
+  color: var(--color-text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-base);
+  max-width: min(100%, 30rem);
+  padding: var(--spacing-lg);
+  width: 100%;
+}
+
+.runtime-admin-page__dialog-panel header,
+.runtime-admin-page__dialog-panel footer {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: space-between;
+}
+
+.runtime-admin-page__dialog-panel header > span {
+  align-items: center;
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-lg);
+  color: var(--color-primary);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: var(--button-icon-size-base);
+  justify-content: center;
+  width: var(--button-icon-size-base);
+}
+
+.runtime-admin-page__dialog-panel header > div {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.runtime-admin-page__dialog-panel header small {
+  color: var(--color-text-secondary);
+}
+
+.runtime-admin-page__dialog-panel header button {
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-full);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  height: var(--button-icon-size-sm);
+  width: var(--button-icon-size-sm);
+}
+
+.runtime-admin-page__dialog-panel label {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.runtime-admin-page__dialog-panel label > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.runtime-admin-page__dialog-panel input,
+.runtime-admin-page__dialog-panel select {
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-lg);
+  color: var(--color-text-primary);
+  min-height: var(--button-height-base);
+  padding: 0 var(--spacing-base);
+  width: 100%;
+}
+
+.runtime-admin-page__dialog-panel input:focus,
+.runtime-admin-page__dialog-panel select:focus {
+  box-shadow: var(--operator-focus-ring);
+  outline: none;
+}
+
+.runtime-admin-page__checkbox-row {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+  gap: var(--spacing-sm);
+}
+
+.runtime-admin-page__checkbox-row input {
+  min-height: auto;
+  width: auto;
 }
 
 .runtime-admin-page__link-row {
@@ -510,10 +650,11 @@
   }
 
   .runtime-admin-page__mini-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 
+  .runtime-admin-page__mini-actions,
   .runtime-admin-page__mini-row button {
-    grid-column: span 2;
+    justify-content: flex-start;
   }
 }

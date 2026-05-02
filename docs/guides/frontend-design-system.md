@@ -30,6 +30,18 @@ Top-level pages should use the shared operator primitives:
 Mobile and tablet layouts are first-class. Primary actions remain visible;
 secondary actions collapse into an overflow menu.
 
+## Action Bar Standard
+
+Use `PageActionBar` for page-level actions instead of page-specific button
+clusters. Primary actions are the one or two operations the operator may need
+immediately, such as `Refresh`, `Save`, or `Apply`. Secondary actions are
+imports, exports, reference links, and diagnostics; these collapse behind the
+overflow control on mobile.
+
+Do not create separate pill/button systems for each page. If a page needs a new
+layout pattern, extend the shared primitive first and keep page CSS limited to
+local spacing.
+
 ## Copy Standard
 
 - Page subtitles should be one short sentence.
@@ -37,6 +49,13 @@ secondary actions collapse into an overflow menu.
 - Badges should be noun/adjective states: `Ready`, `Blocked`, `SITL`, `REAL`.
 - Avoid repeated paragraphs across page shell, cards, and notices.
 - Put advanced explanations in the route guide linked by the page docs button.
+
+## Toast Standard
+
+Toasts are transient acknowledgements, not persistent system state. Pages that
+poll, auto-refresh, or remount after app switching must use throttled toast
+helpers or inline notices so the screen never fills with repeated warnings.
+Persistent issues belong in `OperatorNotice` or the page state card.
 
 ## Visual Standard
 

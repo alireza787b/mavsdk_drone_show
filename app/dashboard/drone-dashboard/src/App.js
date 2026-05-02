@@ -256,6 +256,7 @@ const AppShell = () => {
                 hideProgressBar={false}
                 newestOnTop={false}
                 closeOnClick
+                limit={3}
                 rtl={false}
                 pauseOnFocusLoss
                 draggable

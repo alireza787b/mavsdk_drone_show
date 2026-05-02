@@ -43,6 +43,7 @@ import {
 import Px4ParamInspector from '../components/px4/Px4ParamInspector';
 import Px4ParamProfilePanel from '../components/px4/Px4ParamProfilePanel';
 import { DocsLink } from '../components/ui';
+import { toastErrorThrottled } from '../utilities/toastFeedback';
 import '../styles/Px4ParametersPage.css';
 
 const SNAPSHOT_REFRESH_INTERVAL_MS = 15000;
@@ -707,7 +708,7 @@ const Px4ParametersPage = () => {
     [selectedDrone],
   );
 
-  const refreshSnapshot = React.useCallback(async () => {
+  const refreshSnapshot = React.useCallback(async ({ silent = false } = {}) => {
     if (!selectedHwId) {
       return;
     }
@@ -723,7 +724,9 @@ const Px4ParametersPage = () => {
       const error = response.data?.errors?.[0] || null;
 
       if (error && !snapshot) {
-        toast.error(error.error || 'Failed to refresh PX4 parameter snapshot.');
+        if (!silent) {
+          toastErrorThrottled('px4-snapshot-refresh', error.error || 'Failed to refresh PX4 parameter snapshot.');
+        }
         setSnapshotResponse(null);
         setSingleNotice(buildNotice('danger', 'Snapshot refresh failed', error.error || 'No snapshot was returned.'));
         return;
@@ -741,7 +744,13 @@ const Px4ParametersPage = () => {
         ));
       }
     } catch (error) {
-      toast.error(error?.response?.data?.detail || 'Failed to refresh PX4 parameter snapshot.');
+      if (!silent) {
+        toastErrorThrottled(
+          'px4-snapshot-refresh',
+          error?.response?.data?.detail || 'Failed to refresh PX4 parameter snapshot.',
+          { cooldownMs: 30000 }
+        );
+      }
       setSingleNotice(buildNotice(
         'danger',
         'Snapshot refresh failed',
@@ -756,7 +765,7 @@ const Px4ParametersPage = () => {
     if (!selectedHwId) {
       return;
     }
-    refreshSnapshot();
+    refreshSnapshot({ silent: true });
   }, [refreshSnapshot, selectedHwId]);
 
   const selectedRow = useMemo(

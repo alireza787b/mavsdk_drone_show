@@ -5,6 +5,7 @@ import {
   FaExclamationTriangle,
   FaFilter,
   FaInfoCircle,
+  FaLayerGroup,
   FaRedoAlt,
   FaSave,
   FaSearch,
@@ -20,6 +21,7 @@ import {
   MetricStrip,
   OperatorCard,
   OperatorNotice,
+  PageActionBar,
   PageShell,
   StatusBadge,
 } from '../components/ui';
@@ -89,12 +91,28 @@ function valueTone(entry) {
 
 function restartTone(restartRequired) {
   if (restartRequired === 'gcs') {
-    return 'warning';
+    return 'info';
+  }
+  if (restartRequired === 'node' || restartRequired === 'node_service') {
+    return 'info';
   }
   if (restartRequired === 'none') {
-    return 'success';
+    return 'muted';
   }
-  return 'info';
+  return 'neutral';
+}
+
+function restartLabel(restartRequired) {
+  if (restartRequired === 'gcs') {
+    return 'Restart key';
+  }
+  if (restartRequired === 'node' || restartRequired === 'node_service') {
+    return 'Node restart';
+  }
+  if (restartRequired === 'none') {
+    return 'Live';
+  }
+  return restartRequired || 'Apply';
 }
 
 function normalizeError(error, fallback) {
@@ -393,9 +411,9 @@ function NodeEnvPlanner({
   return (
     <OperatorCard compact className="environments-page__node-planner" tone="info">
       <div className="environments-page__node-planner-main">
-        <span><FaShieldAlt aria-hidden="true" /> Fleet env planner</span>
-        <strong>Dry-run only</strong>
-        <p>Validate node-side env changes before rollout. Apply stays blocked until identity-safe node mutation APIs are enabled.</p>
+        <span><FaLayerGroup aria-hidden="true" /> Batch planner</span>
+        <strong>Validate only</strong>
+        <p>Preview one node-side env override across selected drones. Writes stay blocked until identity-safe fleet mutation is enabled.</p>
       </div>
       <div className="environments-page__node-planner-controls">
         <label>
@@ -521,6 +539,7 @@ export default function EnvironmentsPage() {
   const [query, setQuery] = useState('');
   const [domain, setDomain] = useState('all');
   const [scope, setScope] = useState('gcs');
+  const [nodeWorkflow, setNodeWorkflow] = useState('single');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [importPlan, setImportPlan] = useState(null);
@@ -751,11 +770,11 @@ export default function EnvironmentsPage() {
     },
     {
       key: 'restart',
-      label: 'Restart',
+      label: 'Restart keys',
       value: restartSensitiveCount,
-      detail: 'restart-sensitive',
+      detail: 'requires apply',
       icon: <FaRedoAlt />,
-      tone: restartSensitiveCount ? 'warning' : 'success',
+      tone: restartSensitiveCount ? 'info' : 'muted',
     },
     {
       key: 'drift',
@@ -961,8 +980,21 @@ export default function EnvironmentsPage() {
         </div>
       )}
       actions={(
-        <div className="environments-page__actions">
-          <div className="environments-page__action-group" aria-label="Environment documentation">
+        <PageActionBar
+          primary={(
+            <>
+              <ActionIconButton icon={<FaRedoAlt />} label="Refresh environments" onClick={refresh} disabled={busy || loading}>
+                Refresh
+              </ActionIconButton>
+              {scope === 'gcs' ? (
+                <ActionIconButton icon={<FaSave />} label="Apply GCS environment restart" tone="warning" onClick={applyEnv} disabled={busy || loading}>
+                  Apply
+                </ActionIconButton>
+              ) : null}
+            </>
+          )}
+          secondary={(
+            <>
             <DocsLink
               doc={{ label: 'Registry', docPath: 'docs/reference/mds-environment-registry.md' }}
               compact
@@ -971,9 +1003,6 @@ export default function EnvironmentsPage() {
               doc={{ label: 'Table', docPath: 'docs/reference/mds-environment-registry.generated.md' }}
               compact
             />
-          </div>
-          <div className="environments-page__action-group" aria-label="Environment actions">
-            <ActionIconButton icon={<FaRedoAlt />} label="Refresh environments" onClick={refresh} disabled={busy || loading} />
             {scope === 'gcs' ? (
               <>
                 <ActionIconButton icon={<FaUpload />} label="Import GCS env profile" onClick={() => importInputRef.current?.click()} disabled={busy || loading}>
@@ -981,9 +1010,6 @@ export default function EnvironmentsPage() {
                 </ActionIconButton>
                 <ActionIconButton icon={<FaDownload />} label="Export GCS env profile" onClick={exportGcsProfile} disabled={busy || loading || !values.length}>
                   Export
-                </ActionIconButton>
-                <ActionIconButton icon={<FaSave />} label="Apply GCS environment restart" tone="warning" onClick={applyEnv} disabled={busy || loading}>
-                  Apply
                 </ActionIconButton>
               </>
             ) : (
@@ -996,26 +1022,27 @@ export default function EnvironmentsPage() {
                 </ActionIconButton>
               </>
             )}
-          </div>
-          <input
-            ref={importInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="environments-page__file-input"
-            onChange={handleImportFile}
-            aria-label="Import GCS env profile file"
-          />
-          <input
-            ref={nodeImportInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="environments-page__file-input"
-            onChange={handleNodeImportFile}
-            aria-label="Import selected drone env profile file"
-          />
-        </div>
+            </>
+          )}
+        />
       )}
     >
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="environments-page__file-input"
+        onChange={handleImportFile}
+        aria-label="Import GCS env profile file"
+      />
+      <input
+        ref={nodeImportInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="environments-page__file-input"
+        onChange={handleNodeImportFile}
+        aria-label="Import selected drone env profile file"
+      />
       {notice ? (
         <OperatorNotice tone={notice.tone} title={notice.title} icon={notice.tone === 'danger' ? <FaExclamationTriangle /> : <FaCheckCircle />}>
           {notice.detail}
@@ -1045,6 +1072,16 @@ export default function EnvironmentsPage() {
             Fleet Nodes
           </button>
         </div>
+        {scope === 'nodes' ? (
+          <div className="environments-page__scope-tabs environments-page__scope-tabs--sub" aria-label="Fleet node environment mode">
+            <button type="button" className={nodeWorkflow === 'single' ? 'is-active' : ''} onClick={() => setNodeWorkflow('single')}>
+              Single
+            </button>
+            <button type="button" className={nodeWorkflow === 'batch' ? 'is-active' : ''} onClick={() => setNodeWorkflow('batch')}>
+              Batch
+            </button>
+          </div>
+        ) : null}
         <label>
           <span><FaSearch aria-hidden="true" /> Search</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="MDS_MODE, auth, port..." />
@@ -1095,7 +1132,7 @@ export default function EnvironmentsPage() {
                     </div>
                     <div className="environments-page__entry-value">
                       <StatusBadge tone={valueTone(entry)}>{displayValue(entry)}</StatusBadge>
-                      <StatusBadge tone={restartTone(entry.restart_required)}>{entry.restart_required}</StatusBadge>
+                      <StatusBadge tone={restartTone(entry.restart_required)}>{restartLabel(entry.restart_required)}</StatusBadge>
                     </div>
                     <div className="environments-page__entry-actions">
                       <span aria-label={entry.notes || `${entry.name} value type`}>{entry.value_type}</span>
@@ -1118,7 +1155,7 @@ export default function EnvironmentsPage() {
         </div>
       ) : null}
 
-      {!loading && scope === 'nodes' ? (
+      {!loading && scope === 'nodes' && nodeWorkflow === 'batch' ? (
         <NodeEnvPlanner
           entries={nodeEditableEntries}
           rows={filteredNodeRows}
@@ -1133,7 +1170,7 @@ export default function EnvironmentsPage() {
         <EmptyState icon={<FaSearch />} title="No node env reports" detail="Fleet-node env posture appears after drone git-status polling returns." />
       ) : null}
 
-      {!loading && scope === 'nodes' && filteredNodeRows.length ? (
+      {!loading && scope === 'nodes' && nodeWorkflow === 'single' && filteredNodeRows.length ? (
         <section className="environments-page__node-workbench" aria-label="Fleet node environment editor">
           <div className="environments-page__node-grid" aria-label="Fleet node environment posture">
             {filteredNodeRows.map((row) => {
@@ -1254,7 +1291,7 @@ export default function EnvironmentsPage() {
                           </div>
                           <div className="environments-page__entry-value">
                             <StatusBadge tone={valueTone(entry)}>{displayValue(entry)}</StatusBadge>
-                            <StatusBadge tone={restartTone(entry.restart_required)}>{entry.restart_required}</StatusBadge>
+                            <StatusBadge tone={restartTone(entry.restart_required)}>{restartLabel(entry.restart_required)}</StatusBadge>
                           </div>
                           <div className="environments-page__entry-actions">
                             <span aria-label={entry.notes || `${entry.name} value type`}>{entry.value_type}</span>

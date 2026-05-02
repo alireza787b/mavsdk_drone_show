@@ -4,24 +4,12 @@
   --env-card-min: minmax(min(100%, 21rem), 1fr);
 }
 
-.environments-page__status,
-.environments-page__actions {
+.environments-page__status {
   align-items: center;
   display: inline-flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
   justify-content: flex-end;
-}
-
-.environments-page__action-group {
-  align-items: center;
-  background: var(--color-surface-inset);
-  border: var(--operator-control-border);
-  border-radius: var(--border-radius-full);
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs);
 }
 
 .environments-page__file-input {
@@ -36,7 +24,7 @@
   box-shadow: var(--operator-card-shadow);
   display: grid;
   gap: var(--spacing-base);
-  grid-template-columns: auto minmax(16rem, 1fr) minmax(12rem, 0.45fr) auto;
+  grid-template-columns: auto auto minmax(16rem, 1fr) minmax(12rem, 0.45fr) auto;
   margin: var(--spacing-lg) 0;
   padding: var(--operator-card-padding);
 }
@@ -69,6 +57,10 @@
 .environments-page__scope-tabs button.is-active {
   background: var(--operator-control-background-hover);
   color: var(--color-primary);
+}
+
+.environments-page__scope-tabs--sub {
+  background: transparent;
 }
 
 .environments-page__toolbar .is-hidden {
@@ -227,6 +219,7 @@
   display: flex;
   justify-content: space-between;
   gap: var(--spacing-sm);
+  min-width: 0;
 }
 
 .environments-page__node-card header span {
@@ -249,6 +242,7 @@
   display: inline-flex;
   flex: 0 0 auto;
   gap: var(--spacing-xs);
+  justify-content: flex-end;
 }
 
 .environments-page__node-open {
@@ -300,7 +294,8 @@
 .environments-page__entry {
   display: grid;
   gap: var(--spacing-sm);
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
 }
 
 .environments-page__entry--interactive {
@@ -347,12 +342,25 @@
   display: inline-flex;
   flex-wrap: wrap;
   gap: var(--spacing-xs);
-  justify-content: flex-end;
+  justify-content: flex-start;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .environments-page__entry-actions {
   grid-column: 1 / -1;
   justify-content: space-between;
+}
+
+.environments-page__entry .operator-status-badge {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.environments-page__entry .operator-status-badge__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .environments-page__entry-actions > span {
@@ -563,17 +571,6 @@
 }
 
 @media (max-width: 760px) {
-  .environments-page__actions {
-    justify-content: stretch;
-    width: 100%;
-  }
-
-  .environments-page__action-group {
-    border-radius: var(--border-radius-lg);
-    flex: 1 1 100%;
-    justify-content: flex-start;
-  }
-
   .environments-page__toolbar {
     grid-template-columns: 1fr;
   }
@@ -589,11 +586,6 @@
 
   .environments-page__entry {
     grid-template-columns: 1fr;
-  }
-
-  .environments-page__entry-value,
-  .environments-page__entry-actions {
-    justify-content: flex-start;
   }
 
   .environments-page__dialog-panel dl,

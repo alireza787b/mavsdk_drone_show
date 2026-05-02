@@ -1,30 +1,47 @@
 import { toast } from 'react-toastify';
 
-const throttledErrorState = new Map();
+const throttledToastState = new Map();
 
-export function toastErrorThrottled(key, message, options = {}) {
+export function toastThrottled(level, key, message, options = {}) {
+  const normalizedLevel = typeof toast[level] === 'function' ? level : 'info';
   const normalizedKey = String(key || 'default');
   const normalizedMessage = String(message || 'Unexpected error');
   const cooldownMs = Number(options.cooldownMs || 12000);
   const now = Date.now();
-  const previous = throttledErrorState.get(normalizedKey);
+  const stateKey = `${normalizedLevel}:${normalizedKey}`;
+  const previous = throttledToastState.get(stateKey);
 
   if (previous && previous.message === normalizedMessage && now - previous.timestamp < cooldownMs) {
     return false;
   }
 
-  throttledErrorState.set(normalizedKey, {
+  throttledToastState.set(stateKey, {
     message: normalizedMessage,
     timestamp: now,
   });
 
-  toast.error(normalizedMessage, {
-    toastId: options.toastId || normalizedKey,
+  toast[normalizedLevel](normalizedMessage, {
+    toastId: options.toastId || stateKey,
     ...options,
   });
   return true;
 }
 
+export function toastErrorThrottled(key, message, options = {}) {
+  return toastThrottled('error', key, message, options);
+}
+
+export function toastWarningThrottled(key, message, options = {}) {
+  return toastThrottled('warning', key, message, options);
+}
+
+export function toastInfoThrottled(key, message, options = {}) {
+  return toastThrottled('info', key, message, options);
+}
+
 export function clearThrottledToast(key) {
-  throttledErrorState.delete(String(key || 'default'));
+  const normalizedKey = String(key || 'default');
+  ['error', 'warning', 'info', 'success'].forEach((level) => {
+    throttledToastState.delete(`${level}:${normalizedKey}`);
+  });
 }
