@@ -1,4 +1,5 @@
 import React, { useEffect, useId } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { FaBookOpen, FaEllipsisH, FaExclamationTriangle, FaInfoCircle, FaTimes } from 'react-icons/fa';
 
@@ -398,7 +399,7 @@ export function ConfirmDialog({
     return null;
   }
 
-  return (
+  return ReactDOM.createPortal(
     <div
       className="operator-confirm-dialog"
       role="presentation"
@@ -441,7 +442,8 @@ export function ConfirmDialog({
           </button>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

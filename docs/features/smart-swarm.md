@@ -107,13 +107,15 @@ These runtime commands now publish into the same shared command lifecycle stream
 
 Mixed-mission leader rule:
 
-- start Smart Swarm on the follower set, not on a leader that you intend to fly
-  with another mission, manual/jog control, or a custom show
-- a drone already executing Smart Swarm will reject `CUSTOM_CSV_DRONE_SHOW`
-  with `E203` until Smart Swarm is explicitly stopped or overridden on that
-  drone
-- followers may keep running Smart Swarm while their leader flies another
-  mission, as long as the leader continues publishing usable telemetry
+- a Smart Swarm leader can be selected alone and reassigned into Standard Drone
+  Show or Custom CSV Drone Show without cancelling Smart Swarm on unrelated
+  followers
+- the addressed leader interrupts its own Smart Swarm runtime script before the
+  new show mission starts; follower drones keep their current Smart Swarm
+  mission and continue tracking the leader as long as usable leader telemetry is
+  still published
+- use `Cancel Mission`, `Hold`, `RTL`, or `Land` on the addressed drone when you
+  want to explicitly stop or recover the leader-side mission
 - if the leader changes, update the saved/runtime follow chain deliberately in
   Swarm Design instead of relying on implicit mission side effects
 

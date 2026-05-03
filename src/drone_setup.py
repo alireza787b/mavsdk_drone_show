@@ -1007,6 +1007,10 @@ class DroneSetup:
             logger.debug("Conditions NOT met for Standard Drone Show.")
             return (False, "Conditions not met for Standard Drone Show.")
 
+        if self.running_processes:
+            logger.info("Standard Drone Show requested while another mission is running. Interrupting active mission scripts.")
+            await self.terminate_all_running_processes(reset_state=False)
+
         real_trigger_time = self._prepare_mission_start("Standard Drone Show")
 
         main_offboard_executer = getattr(self.params, 'main_offboard_executer', None)
@@ -1023,6 +1027,10 @@ class DroneSetup:
         if not self._check_mission_conditions(current_time, earlier_trigger_time):
             logger.debug("Conditions NOT met for Custom CSV Drone Show.")
             return (False, "Conditions not met for Custom CSV Drone Show.")
+
+        if self.running_processes:
+            logger.info("Custom Drone Show requested while another mission is running. Interrupting active mission scripts.")
+            await self.terminate_all_running_processes(reset_state=False)
 
         real_trigger_time = self._prepare_mission_start("Custom Drone Show")
 

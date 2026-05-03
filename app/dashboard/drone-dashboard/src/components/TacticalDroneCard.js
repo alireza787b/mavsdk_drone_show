@@ -17,7 +17,9 @@ import { getFlightModeTitle } from '../utilities/flightModeUtils';
 import { getMissionDisplayContext } from '../utilities/missionUtils';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
-import { buildActionCommand, sendDroneCommand } from '../services/droneApiService';
+import { buildActionCommand } from '../services/droneApiService';
+import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import '../styles/TacticalDroneCard.css';
 
@@ -88,6 +90,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const [pendingAction, setPendingAction] = useState(null);
   const [precisionMoveOpen, setPrecisionMoveOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const { commandLifecycleCallbacks } = useCommandActivity();
   const hwId = String(drone?.[FIELD_NAMES.HW_ID] ?? drone?.hw_id ?? '');
   const posId = drone?.[FIELD_NAMES.POS_ID] ?? drone?.pos_id;
   const identity = formatCompactDroneIdentity(posId, hwId, `H${hwId || '?'}`);
@@ -123,8 +126,9 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
 
     try {
       setSubmitting(true);
-      await sendDroneCommand(commandData);
-      toast.success(`${action.label} sent to ${actionTargetLabel}.`);
+      await submitCommandWithLifecycleFeedback(commandData, {
+        ...commandLifecycleCallbacks,
+      });
     } catch (error) {
       console.error(`Failed to send ${action.label} from tactical card`, error);
       toast.error(`Failed to send ${action.label} to ${actionTargetLabel}.`);
@@ -137,7 +141,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const submitPrecisionMove = async (commandData, options = {}) => {
     try {
       setSubmitting(true);
-      const response = await sendDroneCommand({
+      const response = await submitCommandWithLifecycleFeedback({
         ...commandData,
         target_drones: [hwId],
         uiMeta: {
@@ -145,11 +149,10 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
           targetLabel: actionTargetLabel,
           targetDescriptor: actionTargetDescriptor,
         },
+      }, {
+        ...commandLifecycleCallbacks,
       });
       const didSend = response?.success !== false;
-      if (didSend) {
-        toast.success(`${commandData?.uiMeta?.operatorLabel || 'Precision Move'} sent to ${actionTargetLabel}.`);
-      }
       if (didSend && options.closeOnSuccess !== false) {
         setPrecisionMoveOpen(false);
       }

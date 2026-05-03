@@ -410,11 +410,16 @@ const CommandSender = ({
       }))),
     ];
 
-    return detailRows.map((detail) => (
-      <p key={`${detail.label}-${detail.value}`}>
-        <strong>{detail.label}:</strong> {detail.value}
-      </p>
-    ));
+    return (
+      <dl className="command-confirmation-detail-grid">
+        {detailRows.map((detail) => (
+          <div key={`${detail.label}-${detail.value}`}>
+            <dt>{detail.label}</dt>
+            <dd>{detail.value}</dd>
+          </div>
+        ))}
+      </dl>
+    );
   };
 
   const renderConfirmationMessage = () => (
@@ -597,16 +602,29 @@ const CommandSender = ({
 
   // Drone selection functions
   const toggleDroneSelection = (droneId) => {
+    const normalizedDroneId = String(droneId ?? '').trim();
+    if (!normalizedDroneId) {
+      return;
+    }
     setSelectedDrones((prev) =>
-      prev.includes(droneId)
-        ? prev.filter((id) => id !== droneId)
-        : [...prev, droneId]
+      prev.includes(normalizedDroneId)
+        ? prev.filter((id) => id !== normalizedDroneId)
+        : [...prev, normalizedDroneId]
     );
   };
 
   const selectVisibleDrones = () => {
-    const visibleDroneIds = visibleSelectionDrones.map((drone) => drone[FIELD_NAMES.HW_ID]);
+    const visibleDroneIds = visibleSelectionDrones
+      .map((drone) => String(drone[FIELD_NAMES.HW_ID] ?? '').trim())
+      .filter(Boolean);
     setSelectedDrones((prev) => Array.from(new Set([...prev, ...visibleDroneIds])));
+  };
+
+  const selectAllDrones = () => {
+    const allDroneIds = drones
+      .map((drone) => String(drone[FIELD_NAMES.HW_ID] ?? '').trim())
+      .filter(Boolean);
+    setSelectedDrones(Array.from(new Set(allDroneIds)));
   };
 
   const deselectAllDrones = () => {
@@ -673,23 +691,28 @@ const CommandSender = ({
                   />
                 </label>
                 <div className="selection-buttons">
-                  <button type="button" onClick={selectVisibleDrones}>Select matches</button>
-                  <button type="button" onClick={deselectAllDrones}>Clear</button>
+                  <button type="button" onClick={selectAllDrones}>All</button>
+                  <button type="button" onClick={selectVisibleDrones}>Visible</button>
+                  <button type="button" onClick={deselectAllDrones}>None</button>
                 </div>
               </div>
               <div className="drone-grid">
                 {visibleSelectionDrones.map((drone) => {
                   const identity = getDroneDisplayIdentity(drone);
+                  const droneId = String(drone[FIELD_NAMES.HW_ID] ?? '').trim();
+                  const selected = selectedLookup.has(droneId);
 
                   return (
                     <button
                       type="button"
-                      key={drone[FIELD_NAMES.HW_ID]}
-                      className={`command-drone-target ${
-                        selectedDrones.includes(drone[FIELD_NAMES.HW_ID]) ? 'selected' : ''
-                      }`}
-                      onClick={() => toggleDroneSelection(drone[FIELD_NAMES.HW_ID])}
+                      key={droneId}
+                      className={`command-drone-target ${selected ? 'selected' : 'not-selected'}`}
+                      onClick={() => toggleDroneSelection(droneId)}
+                      aria-pressed={selected}
                     >
+                      <span className="command-drone-target__check" aria-hidden="true">
+                        {selected ? '✓' : '○'}
+                      </span>
                       <strong>{identity.primary}</strong>
                       {identity.secondary && <small>{identity.secondary}</small>}
                     </button>

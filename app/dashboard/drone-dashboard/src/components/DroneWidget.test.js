@@ -4,10 +4,20 @@ import { MemoryRouter } from 'react-router-dom';
 
 import DroneWidget from './DroneWidget';
 import { CommandActivityProvider } from '../contexts/CommandActivityContext';
+import { getActiveCommands, getRecentCommands } from '../services/droneApiService';
 
 jest.mock('react-tooltip', () => ({
   Tooltip: () => null,
 }));
+
+jest.mock('../services/droneApiService', () => {
+  const actual = jest.requireActual('../services/droneApiService');
+  return {
+    ...actual,
+    getActiveCommands: jest.fn(),
+    getRecentCommands: jest.fn(),
+  };
+});
 
 const baseDrone = {
   hw_id: '1',
@@ -26,7 +36,7 @@ const baseDrone = {
 
 const renderWidget = (props = {}) => render(
   <CommandActivityProvider>
-    <MemoryRouter>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <DroneWidget
         drone={baseDrone}
         toggleDroneDetails={jest.fn()}
@@ -39,12 +49,19 @@ const renderWidget = (props = {}) => render(
 );
 
 describe('DroneWidget command scope state', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    getActiveCommands.mockResolvedValue({ commands: [] });
+    getRecentCommands.mockResolvedValue({ commands: [] });
+  });
+
   test('marks out-of-scope drones with a distinct card state', () => {
     const { container } = renderWidget({ commandScopeState: 'out' });
 
     const widget = container.querySelector('.drone-widget');
     expect(widget).toHaveClass('command-scope-out');
     expect(widget).toHaveAttribute('data-command-scope', 'out');
+    expect(screen.getAllByText('Out').length).toBeGreaterThan(0);
   });
 
   test('marks any active command scope and emits toggle requests', () => {
@@ -57,6 +74,7 @@ describe('DroneWidget command scope state', () => {
     const widget = container.querySelector('.drone-widget');
     expect(widget).toHaveClass('command-scope-active');
     expect(widget).toHaveAttribute('data-command-scope', 'all');
+    expect(screen.getByText('In')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /all-drones command scope/i }));
 

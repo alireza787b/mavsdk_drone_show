@@ -1846,6 +1846,8 @@ class DroneAPIServer:
         """Commands that are allowed to replace a queued or executing mission."""
         return {
             Mission.NONE.value,
+            Mission.DRONE_SHOW_FROM_CSV.value,
+            Mission.CUSTOM_CSV_DRONE_SHOW.value,
             Mission.KILL_TERMINATE.value,
             Mission.LAND.value,
             Mission.HOLD.value,

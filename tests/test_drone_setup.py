@@ -839,6 +839,51 @@ class TestActionMissionHandlerRouting:
         setup.terminate_all_running_processes.assert_awaited_once_with(reset_state=False)
 
     @pytest.mark.asyncio
+    async def test_standard_show_interrupts_smart_swarm_leader_runtime(self):
+        from src.drone_setup import DroneSetup
+        from src.enums import Mission, State
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.main_offboard_executer = "offboard_executer.py"
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.mission = Mission.DRONE_SHOW_FROM_CSV.value
+        drone_config.trigger_time = 10
+
+        setup = DroneSetup(params, drone_config)
+        setup.running_processes["smart_swarm.py:cmd-1"] = Mock()
+        setup.terminate_all_running_processes = AsyncMock()
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))):
+            await setup._execute_standard_drone_show(current_time=100, earlier_trigger_time=0)
+
+        setup.terminate_all_running_processes.assert_awaited_once_with(reset_state=False)
+
+    @pytest.mark.asyncio
+    async def test_custom_show_interrupts_smart_swarm_leader_runtime(self):
+        from src.drone_setup import DroneSetup
+        from src.enums import Mission, State
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.main_offboard_executer = "offboard_executer.py"
+        params.custom_csv_file_name = "active.csv"
+        drone_config = create_mock_drone_config()
+        drone_config.state = State.MISSION_READY.value
+        drone_config.mission = Mission.CUSTOM_CSV_DRONE_SHOW.value
+        drone_config.trigger_time = 10
+
+        setup = DroneSetup(params, drone_config)
+        setup.running_processes["smart_swarm.py:cmd-1"] = Mock()
+        setup.terminate_all_running_processes = AsyncMock()
+
+        with patch.object(setup, 'execute_mission_script', AsyncMock(return_value=(True, "started"))):
+            await setup._execute_custom_drone_show(current_time=100, earlier_trigger_time=0)
+
+        setup.terminate_all_running_processes.assert_awaited_once_with(reset_state=False)
+
+    @pytest.mark.asyncio
     async def test_terminate_all_running_processes_can_preserve_staged_mission(self):
         from src.drone_setup import DroneSetup
 

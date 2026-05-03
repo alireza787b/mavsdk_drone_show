@@ -81,7 +81,7 @@ describe('DronePositionMap', () => {
     expect(screen.getByText('Launch Layout Map')).toBeInTheDocument();
     expect(screen.getByText('1 expected')).toBeInTheDocument();
     expect(mockLeafletMapBase.mock.calls[0][0]).toEqual(expect.objectContaining({
-      defaultLayer: 'googleSatellite',
+      defaultLayer: 'esriSatellite',
       zoom: 18,
     }));
   });
@@ -124,7 +124,7 @@ describe('DronePositionMap', () => {
     expect(screen.getByText('1 live')).toBeInTheDocument();
     expect(screen.getByText('1 warn')).toBeInTheDocument();
     expect(mockLeafletMapBase.mock.calls[0][0]).toEqual(expect.objectContaining({
-      defaultLayer: 'googleSatellite',
+      defaultLayer: 'esriSatellite',
     }));
   });
 });

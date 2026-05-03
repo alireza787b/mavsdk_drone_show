@@ -448,7 +448,7 @@ const DronePositionMap = ({
         <LeafletMapBase
           center={[parsedOriginLat, parsedOriginLon]}
           zoom={18}
-          defaultLayer="googleSatellite"
+          defaultLayer="esriSatellite"
           showLayerControl={true}
           style={{ width: '100%', height: '100%' }}
         >

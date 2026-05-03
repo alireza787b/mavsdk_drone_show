@@ -437,20 +437,22 @@
 .operator-confirm-dialog {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal);
+  z-index: calc(var(--z-tooltip) + 40);
   display: grid;
   place-items: center;
-  padding: var(--spacing-base);
+  padding: max(var(--spacing-base), env(safe-area-inset-top)) max(var(--spacing-base), env(safe-area-inset-right)) max(var(--spacing-base), env(safe-area-inset-bottom)) max(var(--spacing-base), env(safe-area-inset-left));
   background: var(--modal-backdrop-color);
 }
 
 .operator-confirm-dialog__panel {
   width: min(100%, var(--modal-max-width));
+  max-height: min(88dvh, 720px);
   border: var(--operator-card-border);
   border-radius: var(--modal-border-radius);
   background: var(--color-bg-primary);
   box-shadow: var(--shadow-2xl);
-  overflow: hidden;
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .operator-confirm-dialog__panel--danger {
@@ -499,6 +501,7 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  overflow-wrap: anywhere;
 }
 
 .operator-confirm-dialog__actions {

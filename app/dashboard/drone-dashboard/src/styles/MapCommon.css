@@ -158,6 +158,22 @@
   color: var(--color-text-primary);
 }
 
+.mds-tile-fallback-notice {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-width: min(32rem, calc(100% - 24px));
+  padding: 7px 10px;
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--color-warning-border);
+  background: color-mix(in srgb, var(--color-warning-light) 84%, var(--color-bg-primary));
+  color: var(--color-warning-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-base);
+  backdrop-filter: blur(10px);
+}
+
 /* Leaflet-specific overrides to fix white-on-zoom-out */
 .mds-map-container .leaflet-tile-pane {
   background: var(--color-bg-secondary);

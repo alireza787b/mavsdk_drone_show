@@ -76,12 +76,14 @@
     border-color: rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.34);
     border-style: dashed;
     filter: saturate(0.72);
-    opacity: 0.72;
-    --widget-scope-ring: inset 0 0 0 1px rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.12);
+    opacity: 0.62;
+    --widget-scope-ring:
+        inset 0 0 0 1px rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.16),
+        inset 0 0 0 999px rgba(var(--color-bg-primary-rgb, 15, 23, 42), 0.06);
 }
 
 .drone-widget.command-scope-out:hover {
-    opacity: 0.9;
+    opacity: 0.82;
 }
 
 .drone-widget.runtime-offline,
@@ -119,6 +121,28 @@
 .drone-widget__link-overlay svg {
     color: var(--color-text-muted);
     font-size: 1.35rem;
+}
+
+.drone-widget__scope-ribbon {
+    align-items: center;
+    background:
+        linear-gradient(135deg, rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.2), rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.08)),
+        var(--color-surface-inset);
+    border: 1px solid rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.38);
+    border-radius: 0 0 0 var(--border-radius-base);
+    color: var(--color-text-tertiary);
+    display: inline-flex;
+    font-size: 0.58rem;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.1em;
+    line-height: 1;
+    padding: 0.34rem 0.46rem;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+    text-transform: uppercase;
+    top: 0;
+    z-index: 1;
 }
 
 .drone-widget.disarmed {
@@ -269,15 +293,31 @@
     background: var(--color-bg-quaternary);
 }
 
+.drone-header__action--scope {
+    gap: 0.34rem;
+    min-width: 58px;
+    width: auto;
+    padding: 0 0.62rem;
+}
+
 .drone-header__action--scope.is-active {
     color: var(--color-primary);
     border-color: var(--color-primary-border);
     background: rgba(var(--color-primary-rgb), 0.12);
+    box-shadow: 0 0 0 1px rgba(var(--color-primary-rgb), 0.12);
 }
 
 .drone-widget.command-scope-out .drone-header__action--scope {
     border-style: dashed;
-    background: rgba(var(--color-surface-raised-rgb, 15, 23, 42), 0.42);
+    background:
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 7px,
+            rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.08) 7px,
+            rgba(var(--color-text-tertiary-rgb, 148, 163, 184), 0.08) 9px
+        ),
+        rgba(var(--color-surface-raised-rgb, 15, 23, 42), 0.42);
     color: var(--color-text-tertiary);
 }
 
@@ -287,6 +327,14 @@
 
 .drone-header__action svg {
     font-size: 0.9rem;
+}
+
+.drone-header__scope-state {
+    color: currentColor;
+    font-size: 0.66rem;
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 /* Enhanced Connection Status Indicator for Field Operations */

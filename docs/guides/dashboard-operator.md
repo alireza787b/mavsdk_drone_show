@@ -22,7 +22,8 @@ The dashboard uses a compact command model:
 - visible card wall = what the operator is currently reviewing
 - dispatch scope = what command actions will target
 - `Use visible` = copy the currently visible commandable drones into dispatch scope
-- selected card styling = whether a drone is included in dispatch scope
+- selected card styling = whether a drone is included in dispatch scope; cards
+  outside dispatch are muted and show an `Out` scope control/ribbon
 - preflight summary = readiness blockers before command dispatch
 
 By default, dispatch tracks visible online/degraded drones. If the operator
@@ -53,8 +54,8 @@ Before sending commands, verify:
 
 - the sidebar mode is correct
 - the dispatch scope count matches the intended aircraft set
-- preflight has no unresolved blockers
-- selected/unselected cards match the operational intent
+- selected cards show `In` and intentionally excluded cards show `Out`
+- preflight has no unresolved blockers for the current target scope
 
 ## Related Guides
 

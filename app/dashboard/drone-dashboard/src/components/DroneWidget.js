@@ -206,6 +206,11 @@ const DroneWidget = ({
       data-command-scope={commandScopeState}
       data-runtime-state={runtimeStatus.indicatorClass}
     >
+      {commandScopeState === 'out' && (
+        <div className="drone-widget__scope-ribbon" aria-hidden="true">
+          Out
+        </div>
+      )}
       {showLinkOverlay && (
         <div className="drone-widget__link-overlay" aria-hidden="true" data-help={runtimeStatus.tooltip}>
           <FaBroadcastTower />
@@ -253,7 +258,9 @@ const DroneWidget = ({
             aria-label={scopeToggleTitle}
           >
             {commandScopeState !== 'out' ? <FaCheckCircle aria-hidden="true" /> : <FaRegCircle aria-hidden="true" />}
-            <span className="drone-header__action-label">Scope</span>
+            <span className="drone-header__scope-state">
+              {commandScopeState !== 'out' ? 'In' : 'Out'}
+            </span>
           </button>
           <button
             type="button"

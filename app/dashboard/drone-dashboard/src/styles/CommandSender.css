@@ -388,18 +388,18 @@
 }
 
 .selection-buttons {
-    margin-bottom: var(--spacing-base);
     display: flex;
     gap: var(--spacing-sm);
     flex-wrap: wrap;
 }
 
 .selection-buttons button {
-    padding: var(--spacing-sm) var(--spacing-base);
+    min-height: var(--button-height-sm);
+    padding: var(--spacing-xs) var(--spacing-base);
     border: 1px solid var(--color-border-primary);
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
-    border-radius: var(--border-radius-base);
+    border-radius: var(--border-radius-full);
     cursor: pointer;
     font-weight: var(--font-weight-semibold);
     font-size: var(--font-size-sm);
@@ -426,8 +426,10 @@
 
 .command-drone-target {
     display: grid;
-    gap: 0.3rem;
-    align-content: start;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.55rem;
+    align-content: center;
+    align-items: center;
     padding: var(--spacing-base);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
@@ -439,17 +441,48 @@
     transition: var(--transition-all);
     position: relative;
     overflow: hidden;
+    min-height: 4.25rem;
+}
+
+.command-drone-target.not-selected {
+    opacity: 0.58;
+    background:
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 8px,
+            color-mix(in srgb, var(--color-text-muted) 8%, transparent) 8px,
+            color-mix(in srgb, var(--color-text-muted) 8%, transparent) 10px
+        ),
+        var(--color-bg-primary);
 }
 
 .command-drone-target strong {
     font-size: var(--font-size-sm);
     line-height: var(--line-height-normal);
+    min-width: 0;
 }
 
 .command-drone-target small {
+    grid-column: 2;
     color: var(--color-text-secondary);
     font-size: var(--font-size-xs);
     line-height: var(--line-height-normal);
+    min-width: 0;
+}
+
+.command-drone-target__check {
+    grid-row: 1 / span 2;
+    display: inline-grid;
+    place-items: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    font-weight: var(--font-weight-bold);
 }
 
 .command-drone-target::before {
@@ -480,12 +513,19 @@
     border-color: var(--color-primary);
     box-shadow: inset 0 0 0 1px rgba(var(--color-primary-rgb), 0.12);
     font-weight: var(--font-weight-bold);
+    opacity: 1;
 }
 
 .command-drone-target.selected::before {
     opacity: 1;
     height: 3px;
-    background: linear-gradient(90deg, var(--color-border-secondary), var(--color-border-light));
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-border));
+}
+
+.command-drone-target.selected .command-drone-target__check {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-primary-text);
 }
 
 .selected-count {
@@ -1151,18 +1191,41 @@
 .command-confirmation-details {
     text-align: left;
     margin: 0;
-    padding: var(--spacing-base);
+    padding: var(--spacing-sm);
     border: 1px solid var(--color-border-primary);
     border-radius: var(--border-radius-base);
     background: var(--color-bg-primary);
 }
 
-.command-confirmation-details p {
-    margin: 0 0 var(--spacing-sm);
+.command-confirmation-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-sm);
+    margin: 0;
 }
 
-.command-confirmation-details p:last-child {
-    margin-bottom: 0;
+.command-confirmation-detail-grid div {
+    min-width: 0;
+    padding: var(--spacing-sm);
+    border-radius: var(--border-radius-base);
+    background: var(--color-surface-muted);
+}
+
+.command-confirmation-detail-grid dt {
+    margin: 0 0 0.2rem;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.command-confirmation-detail-grid dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+    overflow-wrap: anywhere;
 }
 
 .command-confirmation-target-note {

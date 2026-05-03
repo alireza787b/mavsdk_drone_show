@@ -28,9 +28,11 @@ const LeafletMapBase = ({
   const [activeLayerKey, setActiveLayerKey] = useState(() =>
     resolveTileLayerKey(defaultLayer || getUserTilePreference())
   );
+  const [tileFallbackNotice, setTileFallbackNotice] = useState('');
 
   useEffect(() => {
     setActiveLayerKey(resolveTileLayerKey(defaultLayer || getUserTilePreference()));
+    setTileFallbackNotice('');
   }, [defaultLayer]);
 
   const resolvedActiveLayer = getLeafletTileLayerConfig(activeLayerKey);
@@ -38,7 +40,16 @@ const LeafletMapBase = ({
   const handleLayerChange = (event) => {
     const nextKey = resolveTileLayerKey(event.target.value);
     setActiveLayerKey(nextKey);
+    setTileFallbackNotice('');
     setUserTilePreference(nextKey);
+  };
+
+  const handleTileError = () => {
+    if (resolvedActiveLayer.key === 'osm') {
+      return;
+    }
+    setActiveLayerKey('osm');
+    setTileFallbackNotice(`${resolvedActiveLayer.name} tiles are unavailable. Showing OpenStreetMap fallback.`);
   };
 
   return (
@@ -57,6 +68,11 @@ const LeafletMapBase = ({
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {tileFallbackNotice && (
+        <div className="mds-map-overlay mds-tile-fallback-notice" role="status">
+          {tileFallbackNotice}
         </div>
       )}
 
@@ -80,6 +96,7 @@ const LeafletMapBase = ({
           maxNativeZoom={resolvedActiveLayer.maxNativeZoom}
           maxZoom={LEAFLET_DEFAULTS.maxZoom}
           noWrap={true}
+          eventHandlers={{ tileerror: handleTileError }}
         />
 
         {children}

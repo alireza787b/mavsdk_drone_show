@@ -30,6 +30,9 @@ same value and writes `REACT_APP_MAPBOX_ACCESS_TOKEN` into the dashboard
 - Use a token scoped to public styles/tiles, not a broad account token.
 - The UI falls back to Leaflet automatically if the token is missing or
   unreachable.
+- Leaflet map views default to the Esri satellite layer. If that tile provider
+  fails at runtime, the shared map wrapper automatically switches to
+  OpenStreetMap instead of leaving a blank map.
 - A missing-token warning in the map view is not a flight blocker; it only
   means Mapbox-specific map features are unavailable.
 
@@ -41,9 +44,9 @@ scene, Mapbox map, and Leaflet fallback map:
 - live drone markers use the `marker_color` value from Mission Config when it
   is set;
 - clicking a marker, or a drone chip above the view, opens a compact tactical
-  card with altitude, battery, GPS, mission, follow mode, coordinates, and quick
-  links to Mission Config, Swarm Design, PX4 Parameters, and the operations
-  overview;
+  card with altitude, distance home, battery, GPS, mission/follow state, and
+  icon-only quick controls for takeoff/RTL/precision jog where the drone state
+  permits those actions;
 - the page prefers the canonical `/ws/telemetry` WebSocket stream and falls
   back to HTTP polling if WebSocket transport is unavailable;
 - update cadence is adaptive: small active fleets stay near 1 Hz, larger fleets

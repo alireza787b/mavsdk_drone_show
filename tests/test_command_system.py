@@ -1037,17 +1037,25 @@ class TestCommandValidation:
         result = api_server._check_state_preconditions(mission_type=Mission.SWARM_TRAJECTORY.value)
         assert result['valid']
 
-    def test_custom_show_rejected_while_smart_swarm_active(self, api_server):
-        from src.enums import CommandErrorCode, Mission, State
+    def test_custom_show_allowed_to_replace_smart_swarm_leader(self, api_server):
+        from src.enums import Mission, State
 
         api_server.drone_config.state = State.MISSION_EXECUTING.value
         api_server.drone_config.mission = Mission.SMART_SWARM.value
 
         result = api_server._check_state_preconditions(mission_type=Mission.CUSTOM_CSV_DRONE_SHOW.value)
 
-        assert not result['valid']
-        assert result['error_code'] == CommandErrorCode.ALREADY_EXECUTING.value
-        assert 'mission' in result['detail']
+        assert result['valid']
+
+    def test_standard_show_allowed_to_replace_smart_swarm_leader(self, api_server):
+        from src.enums import Mission, State
+
+        api_server.drone_config.state = State.MISSION_EXECUTING.value
+        api_server.drone_config.mission = Mission.SMART_SWARM.value
+
+        result = api_server._check_state_preconditions(mission_type=Mission.DRONE_SHOW_FROM_CSV.value)
+
+        assert result['valid']
 
     def test_check_state_not_ready_to_arm(self, api_server):
         """Test state check fails when not ready to arm"""

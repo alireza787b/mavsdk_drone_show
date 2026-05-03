@@ -3,11 +3,11 @@
 .precision-move-dialog__overlay {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal);
+  z-index: calc(var(--z-tooltip) + 30);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-lg);
+  padding: max(var(--spacing-lg), env(safe-area-inset-top)) max(var(--spacing-lg), env(safe-area-inset-right)) max(var(--spacing-lg), env(safe-area-inset-bottom)) max(var(--spacing-lg), env(safe-area-inset-left));
   background: var(--color-overlay);
   backdrop-filter: blur(6px);
 }

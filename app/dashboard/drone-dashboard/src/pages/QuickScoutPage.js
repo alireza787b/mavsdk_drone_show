@@ -1156,7 +1156,7 @@ const QuickScoutPage = () => {
             <LeafletMapBase
               center={[viewport.latitude || 0, viewport.longitude || 0]}
               zoom={viewport.zoom || 3}
-              defaultLayer="googleSatellite"
+              defaultLayer="esriSatellite"
               style={{ width: '100%', height: '100%' }}
             >
               <LeafletFlyTo target={flyToTarget} />
