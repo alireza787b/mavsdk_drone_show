@@ -171,6 +171,35 @@ If you also want an explicit push endpoint to a remote VPN GCS, add it as an ext
 
 Add `GCS_IP:24550` only when you intentionally want device-side push to a known remote GCS.
 
+### RTK / QGroundControl Multi-Vehicle Notes
+
+PX4 RTK corrections are transported over MAVLink as `GPS_RTCM_DATA`.
+QGroundControl reads the base-station RTCM stream and sends those messages over
+the active vehicle link. PX4 then forwards the RTCM payload to the rover GPS
+over the existing GPS data path; no dedicated RTCM serial channel is required on
+the autopilot side once `GPS_RTCM_DATA` reaches PX4.
+
+For a two-drone hardware test:
+
+- each flight controller must have a unique `MAV_SYS_ID` (`1` for HW1, `2` for
+  HW2 is the simple MDS-aligned convention)
+- `MAV_SYS_ID` is reboot-required in PX4, so apply it before field testing
+- use MAVLink 2 end-to-end where possible; PX4 documentation notes RTK uplink
+  is roughly 300 B/s with MAVLink 2 and higher with MAVLink 1
+- server-mode `14550` is enough when QGroundControl connects to each node IP
+  and sends first
+- add explicit `GCS_IP:24550` push endpoints only when you want each node to
+  push to a known GCS IP; do not add duplicate push endpoints blindly
+- if RTK does not converge, verify that QGC sees both vehicles as distinct
+  system IDs and that RTCM traffic is visible on the MAVLink route
+
+References:
+
+- PX4 RTK GNSS/GPS integration:
+  https://docs.px4.io/v1.15/en/advanced/rtk_gps.html
+- PX4 `MAV_SYS_ID` parameter:
+  https://docs.px4.io/v1.15/en/advanced_config/parameter_reference.html#MAV_SYS_ID
+
 #### Holybro Pixhawk RPi CM4 Baseboard Note
 
 For the Holybro Pixhawk RPi CM4 baseboard, official Holybro/PX4 docs state that the CM4 is internally connected to the flight controller through **TELEM2**, and PX4 should use:
