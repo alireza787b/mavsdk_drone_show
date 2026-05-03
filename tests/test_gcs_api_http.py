@@ -1663,8 +1663,8 @@ class TestGitStatusEndpoints:
             'connectivity_runtime': {
                 'status_source': 'script',
                 'backend': 'smart-wifi-manager',
-                'ref': 'v2.1.3',
-                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.3',
+                'ref': 'v2.1.4',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.4',
                 'install_dir_present': True,
                 'mode': 'observe',
                 'import_mode': 'replace',

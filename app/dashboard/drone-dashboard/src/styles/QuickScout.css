@@ -130,12 +130,15 @@
 .qs-main-layout {
     display: flex;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
 }
 
 .qs-map-container {
     flex: 1;
     position: relative;
+    min-width: 0;
+    min-height: clamp(360px, 62vh, 860px);
 }
 
 .qs-map-container .mapboxgl-map {

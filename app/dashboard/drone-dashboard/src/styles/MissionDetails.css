@@ -2,24 +2,16 @@
 
 /* Professional Theme-Aware Mission Details Styles */
 .mission-details {
-    padding: var(--spacing-base);
+    padding: 0;
     border-radius: var(--border-radius-lg);
-    background: var(--color-surface-muted);
-    border: 1px solid var(--color-border-secondary);
-    box-shadow: var(--shadow-sm);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
     position: relative;
-    backdrop-filter: blur(8px);
 }
 
 .mission-details::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--color-primary), var(--brand-secondary));
-    border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+    content: none;
 }
 
 .selected-mission-card {
@@ -30,7 +22,7 @@
     gap: 0.65rem;
     background: var(--color-bg-primary);
     border-radius: var(--border-radius-md);
-    border: 1px solid var(--color-border-secondary);
+    border: 1px solid var(--color-border-primary);
     box-shadow: none;
 }
 
@@ -103,7 +95,7 @@
     text-align: left;
     margin-bottom: var(--spacing-base);
     padding: var(--spacing-base);
-    background: var(--color-bg-primary);
+    background: var(--color-surface-inset);
     border-radius: var(--border-radius-md);
     border: 1px solid var(--color-border-primary);
 }
@@ -153,8 +145,8 @@
     justify-content: center;
     gap: var(--spacing-lg);
     margin-bottom: var(--spacing-xl);
-    padding: var(--spacing-lg);
-    background: var(--color-bg-tertiary);
+    padding: var(--spacing-base);
+    background: var(--color-surface-inset);
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
 }
@@ -182,8 +174,8 @@
 .time-delay-slider,
 .time-picker {
     margin-bottom: var(--spacing-xl);
-    padding: var(--spacing-lg);
-    background: var(--color-bg-tertiary);
+    padding: var(--spacing-base);
+    background: var(--color-surface-inset);
     border-radius: var(--border-radius-base);
     border: 1px solid var(--color-border-primary);
     text-align: center;
