@@ -246,9 +246,26 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const ethernetInterface = typeof networkInfo?.ethernet?.interface === 'string'
     ? networkInfo.ethernet.interface.trim()
     : '';
+  const usbModemInterface = typeof networkInfo?.usb_modem?.interface === 'string'
+    ? networkInfo.usb_modem.interface.trim()
+    : '';
+  const cellularInterface = typeof networkInfo?.cellular?.interface === 'string'
+    ? networkInfo.cellular.interface.trim()
+    : '';
+  const primaryLink = networkInfo?.primary_link && typeof networkInfo.primary_link === 'object'
+    ? networkInfo.primary_link
+    : null;
+  const primaryLinkLabel = typeof primaryLink?.label === 'string' ? primaryLink.label.trim() : '';
+  const primaryLinkInterface = typeof primaryLink?.interface === 'string' ? primaryLink.interface.trim() : '';
+  const primaryLinkName = typeof primaryLink?.ssid === 'string' && primaryLink.ssid.trim()
+    ? primaryLink.ssid.trim()
+    : typeof primaryLink?.connection_name === 'string' && primaryLink.connection_name.trim()
+      ? primaryLink.connection_name.trim()
+      : primaryLinkInterface;
+  const internetReachable = networkInfo?.internet?.reachable;
   const wifiSignalStrength = Number(networkInfo?.wifi?.signal_strength_percent);
   const hasWifiSignal = Number.isFinite(wifiSignalStrength);
-  const hasRuntimeConnectivity = Boolean(wifiSsid || ethernetInterface || hasWifiSignal);
+  const hasRuntimeConnectivity = Boolean(wifiSsid || ethernetInterface || usbModemInterface || cellularInterface || primaryLinkInterface || hasWifiSignal);
   const isSitlProfile = !drone.serial_port && ['', '0'].includes(String(drone.baudrate ?? '0'));
   const inferredSitlMode = isSitlProfile && !hasRuntimeConnectivity;
   const declaredRuntimeMode = normalizeRuntimeModeValue(heartbeatStatus !== 'No Heartbeat' ? heartbeatData?.runtime_mode : null);
@@ -267,8 +284,14 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const runtimePathLabel = normalizedHeartbeatIp || drone.ip || 'Pending';
   const runtimeLinkLabel = showSimulatedNetworkFallback
     ? 'SITL / simulated'
-    : wifiSsid
+    : primaryLinkLabel
+      ? `${primaryLinkLabel}${primaryLinkName ? ` ${primaryLinkName}` : ''}`
+      : wifiSsid
       ? `Wi-Fi ${wifiSsid}`
+      : usbModemInterface
+        ? `4G USB ${usbModemInterface}`
+        : cellularInterface
+          ? `Cellular ${cellularInterface}`
       : ethernetInterface
         ? `Ethernet ${ethernetInterface}`
         : hasWifiSignal
@@ -305,20 +328,32 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
   const runtimeBadgeTone = effectiveRuntimeMode === 'sitl' ? 'simulated' : 'hardware';
   const linkIndicatorValue = showSimulatedNetworkFallback
     ? 'Simulated'
-    : wifiSsid
+    : primaryLinkLabel
+      ? primaryLinkLabel
+      : wifiSsid
       ? 'Wi-Fi'
+      : usbModemInterface
+        ? '4G USB'
+        : cellularInterface
+          ? 'Cellular'
       : ethernetInterface
         ? 'Ethernet'
         : hasWifiSignal
           ? 'Wi-Fi'
           : 'Review';
-  const linkIndicatorTone = showSimulatedNetworkFallback || wifiSsid || ethernetInterface || hasWifiSignal
+  const linkIndicatorTone = showSimulatedNetworkFallback || primaryLinkLabel || wifiSsid || ethernetInterface || usbModemInterface || cellularInterface || hasWifiSignal
     ? 'good'
     : 'review';
   const linkIndicatorNote = showSimulatedNetworkFallback
     ? runtimePathLabel
-    : wifiSsid
+    : primaryLinkName
+      ? primaryLinkName
+      : wifiSsid
       ? wifiSsid
+      : usbModemInterface
+        ? usbModemInterface
+        : cellularInterface
+          ? cellularInterface
       : ethernetInterface
         ? ethernetInterface
         : runtimePathLabel;
@@ -501,6 +536,24 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
           ) : networkInfo ? (
             <>
               <div className="network-row">
+                <span className="network-label">Primary link</span>
+                <span className="network-value">
+                  {primaryLinkLabel || runtimeLinkLabel}
+                  <span className={`network-status ${primaryLink ? 'connected' : 'unknown'}`}>
+                    {primaryLinkInterface || 'Unknown'}
+                  </span>
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">Internet</span>
+                <span className="network-value">
+                  {networkInfo?.internet?.target || 'N/A'}
+                  <span className={`network-status ${internetReachable === true ? 'connected' : internetReachable === false ? 'disconnected' : 'unknown'}`}>
+                    {internetReachable === true ? 'Reachable' : internetReachable === false ? 'No route' : 'Unknown'}
+                  </span>
+                </span>
+              </div>
+              <div className="network-row">
                 <span className="network-label">Wi-Fi network</span>
                 <span className="network-value">
                   {networkInfo?.wifi?.ssid || 'N/A'}
@@ -514,6 +567,15 @@ const DroneReadOnlyView = memo(function DroneReadOnlyView({
                 <span className="network-value">
                   {networkInfo?.wifi?.signal_strength_percent ?? 'N/A'}%
                   {getWifiIcon(networkInfo?.wifi?.signal_strength_percent)}
+                </span>
+              </div>
+              <div className="network-row">
+                <span className="network-label">USB / 4G</span>
+                <span className="network-value">
+                  {usbModemInterface || cellularInterface || 'N/A'}
+                  <span className={`network-status ${usbModemInterface || cellularInterface ? 'connected' : 'unknown'}`}>
+                    {usbModemInterface || cellularInterface ? 'Active' : 'Unknown'}
+                  </span>
                 </span>
               </div>
               <div className="network-row">

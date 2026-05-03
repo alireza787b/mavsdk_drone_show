@@ -145,4 +145,69 @@ describe('DroneConfigCard', () => {
     expect(screen.getByText('Runtime network telemetry unavailable')).toBeInTheDocument();
     expect(screen.queryByText('SITL / simulated')).not.toBeInTheDocument();
   });
+
+  it('labels USB modem transport and internet status distinctly from Ethernet', () => {
+    render(
+      <DroneConfigCard
+        drone={{
+          hw_id: '1',
+          pos_id: '1',
+          ip: '100.82.72.33',
+          mavlink_port: '14551',
+          serial_port: '/dev/ttyAMA0',
+          baudrate: '921600',
+        }}
+        gitStatus={null}
+        gcsGitStatus={null}
+        configData={[
+          {
+            hw_id: '1',
+            pos_id: '1',
+          },
+        ]}
+        availableHwIds={['1']}
+        editingDroneId={null}
+        setEditingDroneId={jest.fn()}
+        saveChanges={jest.fn()}
+        removeDrone={jest.fn()}
+        networkInfo={{
+          wifi: null,
+          ethernet: null,
+          usb_modem: {
+            interface: 'usb0',
+            connection_name: 'Wired connection 1',
+          },
+          primary_link: {
+            type: 'usb_modem',
+            label: '4G USB',
+            interface: 'usb0',
+            connection_name: 'Wired connection 1',
+            internet_reachable: true,
+          },
+          internet: {
+            enabled: true,
+            reachable: true,
+            target: '1.1.1.1',
+          },
+          timestamp: Date.now(),
+        }}
+        heartbeatData={{
+          timestamp: Date.now(),
+          ip: '100.82.72.33',
+          pos_id: '1',
+          runtime_mode: 'real',
+        }}
+      />
+    );
+
+    const indicators = screen.getByLabelText('Operator card indicators');
+    expect(within(indicators).getByText('4G USB')).toBeInTheDocument();
+
+    fireEvent.click(within(indicators).getByRole('button', { name: /link/i }));
+
+    expect(screen.getByText('Primary link')).toBeInTheDocument();
+    expect(screen.getAllByText('usb0').length).toBeGreaterThan(0);
+    expect(screen.getByText('USB / 4G')).toBeInTheDocument();
+    expect(screen.getByText('Reachable')).toBeInTheDocument();
+  });
 });

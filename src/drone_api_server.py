@@ -94,6 +94,7 @@ from src.managed_runtime_status import (
     build_mavlink_runtime_summary,
     read_git_sync_runtime_summary,
 )
+from src.network_status import build_network_info
 from src.settings.env_files import persist_env_updates
 from src.settings.env_registry import EnvRegistryError
 from src.settings.env_status import (
@@ -449,9 +450,45 @@ class EthernetStatusResponse(BaseModel):
     connection_name: str
 
 
+class UsbModemStatusResponse(BaseModel):
+    interface: str
+    connection_name: str
+
+
+class CellularStatusResponse(BaseModel):
+    interface: str
+    connection_name: str
+
+
+class NetworkLinkResponse(BaseModel):
+    type: str
+    label: str
+    interface: str
+    connection_name: str = ""
+    ssid: Optional[str] = None
+    signal_strength_percent: Optional[Any] = None
+    is_default_route: Optional[bool] = None
+    internet_reachable: Optional[bool] = None
+
+
+class InternetStatusResponse(BaseModel):
+    enabled: bool
+    reachable: Optional[bool] = None
+    method: str
+    target: str
+    checked_at: int
+    error: Optional[str] = None
+
+
 class NetworkStatusResponse(BaseModel):
     wifi: Optional[WifiStatusResponse] = None
     ethernet: Optional[EthernetStatusResponse] = None
+    usb_modem: Optional[UsbModemStatusResponse] = None
+    cellular: Optional[CellularStatusResponse] = None
+    primary_link: Optional[NetworkLinkResponse] = None
+    active_links: List[NetworkLinkResponse] = Field(default_factory=list)
+    default_route_interface: str = ""
+    internet: Optional[InternetStatusResponse] = None
     timestamp: int
 
 
@@ -2045,60 +2082,7 @@ class DroneAPIServer:
         Returns a dictionary containing Wi-Fi and Ethernet information if available.
         """
         try:
-            wifi_info = subprocess.check_output(
-                ["nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi"],
-                universal_newlines=True
-            )
-
-            eth_connection = subprocess.check_output(
-                ["nmcli", "-t", "-f", "device,state,connection", "device", "status"],
-                universal_newlines=True
-            )
-
-            network_info = {
-                "wifi": None,
-                "ethernet": None,
-                "timestamp": int(time.time() * 1000)
-            }
-
-            # Extract Wi-Fi details
-            active_wifi_ssid = None
-            active_wifi_signal = None
-            for line in wifi_info.splitlines():
-                parts = line.split(':')
-                if len(parts) >= 3 and parts[0].lower() == 'yes':
-                    active_wifi_ssid = parts[1]
-                    active_wifi_signal = parts[2]
-                    break
-
-            if active_wifi_ssid:
-                if active_wifi_signal.isdigit():
-                    signal_strength = int(active_wifi_signal)
-                else:
-                    signal_strength = "Unknown"
-
-                network_info["wifi"] = {
-                    "ssid": active_wifi_ssid,
-                    "signal_strength_percent": signal_strength
-                }
-
-            # Extract Ethernet details
-            active_eth_connection = None
-            active_eth_device = None
-            for line in eth_connection.splitlines():
-                parts = line.split(':')
-                if len(parts) >= 3 and parts[1].lower() == 'connected' and 'eth' in parts[0].lower():
-                    active_eth_device = parts[0]
-                    active_eth_connection = parts[2]
-                    break
-
-            if active_eth_device and active_eth_connection:
-                network_info["ethernet"] = {
-                    "interface": active_eth_device,
-                    "connection_name": active_eth_connection
-                }
-
-            return network_info
+            return build_network_info()
 
         except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
             # nmcli not available - expected in SITL/Docker environments

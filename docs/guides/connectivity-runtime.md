@@ -46,6 +46,11 @@ Node-local values live in `/etc/mds/local.env`:
 |---|---|
 | `MDS_CONNECTIVITY_IP` | Optional connectivity-check target IP |
 | `MDS_CONNECTIVITY_PORT` | Optional connectivity-check target port |
+| `MDS_INTERNET_CHECK_ENABLED` | Enable low-rate node internet reachability reporting |
+| `MDS_INTERNET_CHECK_HOST` | Internet reachability target, default `1.1.1.1` |
+| `MDS_INTERNET_CHECK_PORT` | Optional TCP port; keep `0` for ICMP ping |
+| `MDS_INTERNET_CHECK_INTERVAL_SEC` | Minimum seconds between internet probes |
+| `MDS_INTERNET_CHECK_TIMEOUT_SEC` | Per-probe timeout |
 | `MDS_CONNECTIVITY_BACKEND` | Node backend: `none` or `smart-wifi-manager` |
 | `MDS_SMART_WIFI_MANAGER_MODE` | Node Smart Wi-Fi mode |
 | `MDS_SMART_WIFI_MANAGER_IMPORT_MODE` | Node profile import mode |
@@ -55,10 +60,20 @@ Node-local values live in `/etc/mds/local.env`:
 | `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` | Node sidecar dashboard listen address |
 | `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE` | `repo:<path>` or `file:<path>` profile source |
 
-Do not store Wi-Fi passwords in public repositories. For private fleets, a
-repo-owned Smart Wi-Fi profile can be imported from Fleet Ops, committed to the
-private fleet repo, and rolled out through Sync + reconcile. For public demos,
-keep the backend as `none` or use placeholder profiles.
+Do not store Wi-Fi passwords in public repositories. Smart Wi-Fi Manager
+supports inline passwords and password-file references. Recommended policy:
+
+- public repo or public demo: never commit real SSIDs/passwords; use
+  placeholders or node-local profile files.
+- private fleet repo: a repo-owned Smart Wi-Fi profile may contain inline
+  passwords if the repo access policy is acceptable for the operator; roll it
+  out through Fleet Ops + Sync + reconcile.
+- highest-security fleet: commit SSIDs and use node-local password files so the
+  repo does not contain credentials.
+
+Ad-hoc field credentials can also be applied node-local through the Smart Wi-Fi
+dashboard. That is safer while recovering one board, but it is not a fleet-wide
+source of truth until the profile is intentionally committed to the private repo.
 
 ## Rollout Workflow
 
@@ -87,6 +102,25 @@ MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
 If Fleet Ops shows the dashboard icon as local-only, the node is probably still
 reporting `127.0.0.1:9080`; use SSH tunneling or change the listen address
 through the node-local env workflow.
+
+## Transport And Internet Reporting
+
+Heartbeat network metadata distinguishes:
+
+- Wi-Fi (`wlan*`/NetworkManager Wi-Fi)
+- Ethernet (`eth*`, `en*`)
+- USB modem / HiLink 4G (`usb*`)
+- cellular/GSM (`wwan*`, `ppp*`, NetworkManager GSM)
+- VPN/NetBird (`wt*`, `tun*`)
+
+The dashboard uses the default route to label the primary link. For example a
+Huawei E3372 in HiLink mode normally appears as `4G USB` on `usb0`, not
+Ethernet, even though NetworkManager may expose it as a wired connection.
+
+Nodes also report a cached internet probe. Keep the default low-rate ICMP check
+or set `MDS_INTERNET_CHECK_PORT` to use a TCP check against an operator-owned
+endpoint. The internet probe is diagnostic only; GCS reachability and MAVLink
+health remain the flight-control signals.
 
 ## Failure Handling
 
