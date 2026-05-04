@@ -116,7 +116,9 @@ Heartbeat network metadata distinguishes:
 The dashboard uses the default route to label the primary link. Huawei E3372
 HiLink-style dongles normally appear to Linux as USB Ethernet (`usb0` or
 `enx...`) and should be reported as `4G USB`, not as the wired airframe Ethernet
-port.
+port. The dashboard drone card renders this primary link as an icon-only header
+indicator with hover/tap details so transport state does not add noisy text to
+every card.
 
 Use NetworkManager route metrics for transport priority instead of custom
 routing scripts:

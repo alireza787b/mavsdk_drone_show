@@ -4,11 +4,15 @@ import {
   FaCheckCircle,
   FaBroadcastTower,
   FaCog,
+  FaEthernet,
   FaExclamationTriangle,
   FaHome,
   FaInfoCircle,
+  FaMobileAlt,
   FaProjectDiagram,
   FaRegCircle,
+  FaUsb,
+  FaWifi,
 } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
 import { useNavigate } from 'react-router-dom';
@@ -43,6 +47,7 @@ const DroneWidget = ({
   const telemetryTrusted = telemetryAvailable && runtimeStatus.level === 'online';
   const runtimeTooltipId = `runtime-tooltip-${drone[FIELD_NAMES.HW_ID] || drone[FIELD_NAMES.POS_ID] || 'unknown'}`;
   const runtimeTooltipText = `${runtimeStatus.label}. ${runtimeStatus.tooltip}`;
+  const networkTooltipId = `network-tooltip-${drone[FIELD_NAMES.HW_ID] || drone[FIELD_NAMES.POS_ID] || 'unknown'}`;
   const promotedField = getPromotedMissionConfigField(drone);
   const operatorAlias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
     ? promotedField.displayValue
@@ -190,6 +195,59 @@ const DroneWidget = ({
   const telemetryPresentationClass = telemetryTrusted ? '' : 'stale';
   const telemetryUnavailableText = telemetryAvailable ? 'Last known' : 'Unavailable';
   const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
+  const networkInfo = drone[FIELD_NAMES.HEARTBEAT_NETWORK_INFO] || drone.heartbeat_network_info || {};
+  const primaryLink = networkInfo?.primary_link && typeof networkInfo.primary_link === 'object'
+    ? networkInfo.primary_link
+    : null;
+  const activeWifi = networkInfo?.wifi && typeof networkInfo.wifi === 'object' ? networkInfo.wifi : null;
+  const primaryLinkType = String(primaryLink?.type || '').toLowerCase();
+  const primaryLinkLabel = primaryLink?.label || (
+    primaryLinkType === 'wifi'
+      ? 'Wi-Fi'
+      : primaryLinkType === 'usb_modem'
+        ? '4G USB'
+        : primaryLinkType === 'cellular'
+          ? 'Cellular'
+          : primaryLinkType === 'ethernet'
+            ? 'Ethernet'
+            : 'Network'
+  );
+  const primaryLinkName = primaryLink?.ssid
+    || primaryLink?.connection_name
+    || primaryLink?.interface
+    || activeWifi?.ssid
+    || '';
+  const primaryWifiSignal = Number(
+    primaryLinkType === 'wifi'
+      ? (primaryLink?.signal_strength_percent ?? activeWifi?.signal_strength_percent)
+      : activeWifi?.signal_strength_percent
+  );
+  const primaryLinkInternet = primaryLink?.internet_reachable ?? networkInfo?.internet?.reachable;
+  const networkTooltipText = primaryLink
+    ? [
+      `Primary link: ${primaryLinkLabel}${primaryLinkName ? ` (${primaryLinkName})` : ''}`,
+      primaryLinkType === 'wifi' && Number.isFinite(primaryWifiSignal) ? `Signal: ${primaryWifiSignal}%` : null,
+      primaryLink?.interface ? `Interface: ${primaryLink.interface}` : null,
+      primaryLinkInternet === true ? 'Internet: reachable' : primaryLinkInternet === false ? 'Internet: not reachable' : null,
+    ].filter(Boolean).join(' · ')
+    : 'Primary link telemetry is not reported yet.';
+  const NetworkIcon = (() => {
+    if (primaryLinkType === 'wifi') return FaWifi;
+    if (primaryLinkType === 'usb_modem') return FaUsb;
+    if (primaryLinkType === 'cellular') return FaMobileAlt;
+    if (primaryLinkType === 'ethernet') return FaEthernet;
+    return FaBroadcastTower;
+  })();
+  const wifiSignalLevel = Number.isFinite(primaryWifiSignal)
+    ? primaryWifiSignal >= 75 ? 'strong' : primaryWifiSignal >= 45 ? 'medium' : primaryWifiSignal > 0 ? 'weak' : 'none'
+    : 'unknown';
+  const networkIndicatorTone = !primaryLink
+    ? 'unknown'
+    : primaryLinkInternet === false
+      ? 'warning'
+      : primaryLinkType === 'wifi'
+        ? wifiSignalLevel
+        : 'active';
 
   // Get drone IP (use snake_case standard)
   const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
@@ -247,6 +305,22 @@ const DroneWidget = ({
           </div>
         </div>
         <div className="drone-header__actions">
+          <span
+            className={`drone-network-indicator link-${primaryLinkType || 'unknown'} signal-${wifiSignalLevel} tone-${networkIndicatorTone}`}
+            data-help={networkTooltipText}
+            data-tooltip-id={networkTooltipId}
+            data-tooltip-content={networkTooltipText}
+            aria-label={networkTooltipText}
+          >
+            <NetworkIcon aria-hidden="true" />
+            {primaryLinkType === 'wifi' && (
+              <span className="drone-network-indicator__bars" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            )}
+          </span>
           <button
             type="button"
             className={`drone-header__action drone-header__action--scope ${commandScopeState !== 'out' ? 'is-active' : ''}`}
@@ -451,6 +525,7 @@ const DroneWidget = ({
       </div>
 
       <Tooltip id={runtimeTooltipId} place="top" effect="solid" />
+      <Tooltip id={networkTooltipId} place="top" effect="solid" />
 
     </div>
   );

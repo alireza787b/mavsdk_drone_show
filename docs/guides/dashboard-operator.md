@@ -44,6 +44,18 @@ Drone cards distinguish:
 The dashboard should make these states visible without forcing the operator to
 open every card.
 
+Each card header also includes an icon-only primary-link indicator. It follows
+the node-reported default route, not every active interface:
+
+- Ethernet shows a wired-link icon.
+- Wi-Fi shows a Wi-Fi icon plus compact signal bars.
+- USB/HiLink modems show a USB/4G icon.
+- Cellular/GSM links show a mobile-link icon.
+
+Hover or tap the icon for SSID, interface, signal, and internet probe details.
+Keep the visible card text focused on flight state; add new transport details to
+this icon cluster or the drill-down panel unless they are command-critical.
+
 ## SITL And REAL Safety
 
 The sidebar runtime badge shows whether the GCS is running in `SITL` or `REAL`.

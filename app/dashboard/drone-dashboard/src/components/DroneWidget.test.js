@@ -80,4 +80,32 @@ describe('DroneWidget command scope state', () => {
 
     expect(onToggleCommandScope).toHaveBeenCalledWith('1');
   });
+
+  test('shows primary network link as a compact status icon', () => {
+    const { container } = renderWidget({
+      drone: {
+        ...baseDrone,
+        heartbeat_network_info: {
+          primary_link: {
+            type: 'wifi',
+            label: 'Wi-Fi',
+            ssid: 'field-router',
+            interface: 'wlan0',
+            signal_strength_percent: 82,
+            internet_reachable: true,
+          },
+        },
+      },
+    });
+
+    const indicator = container.querySelector('.drone-network-indicator');
+    expect(indicator).toHaveClass('link-wifi');
+    expect(indicator).toHaveClass('signal-strong');
+    expect(indicator).toHaveClass('tone-strong');
+    expect(indicator).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('Primary link: Wi-Fi (field-router)'),
+    );
+    expect(indicator).toHaveAttribute('aria-label', expect.stringContaining('Signal: 82%'));
+  });
 });

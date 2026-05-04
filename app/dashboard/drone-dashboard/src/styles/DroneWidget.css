@@ -268,6 +268,89 @@
     flex: 0 0 auto;
 }
 
+.drone-network-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.44rem;
+    border-radius: var(--border-radius-full);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-surface-inset);
+    color: var(--color-text-secondary);
+    cursor: help;
+    flex: 0 0 auto;
+    transition:
+        background-color 0.18s ease,
+        border-color 0.18s ease,
+        color 0.18s ease,
+        opacity 0.18s ease;
+}
+
+.drone-network-indicator svg {
+    flex: 0 0 auto;
+    font-size: 0.88rem;
+}
+
+.drone-network-indicator.tone-active,
+.drone-network-indicator.tone-strong {
+    color: var(--color-success);
+    border-color: var(--color-success-border);
+    background: var(--color-success-light);
+}
+
+.drone-network-indicator.tone-medium {
+    color: var(--color-warning);
+    border-color: var(--color-warning-border);
+    background: var(--color-warning-light);
+}
+
+.drone-network-indicator.tone-weak,
+.drone-network-indicator.tone-warning {
+    color: var(--color-danger);
+    border-color: var(--color-danger-border);
+    background: var(--color-danger-light);
+}
+
+.drone-network-indicator.tone-unknown {
+    color: var(--color-text-tertiary);
+    opacity: 0.78;
+}
+
+.drone-network-indicator__bars {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+}
+
+.drone-network-indicator__bars span {
+    width: 3px;
+    border-radius: var(--border-radius-full);
+    background: currentColor;
+    opacity: 0.26;
+}
+
+.drone-network-indicator__bars span:nth-child(1) {
+    height: 4px;
+    opacity: 0.9;
+}
+
+.drone-network-indicator__bars span:nth-child(2) {
+    height: 7px;
+}
+
+.drone-network-indicator__bars span:nth-child(3) {
+    height: 10px;
+}
+
+.drone-network-indicator.signal-medium .drone-network-indicator__bars span:nth-child(-n + 2),
+.drone-network-indicator.signal-strong .drone-network-indicator__bars span {
+    opacity: 0.95;
+}
+
 .drone-header__action {
     display: inline-flex;
     align-items: center;
@@ -944,6 +1027,20 @@
         width: 28px;
         height: 28px;
         min-width: 28px;
+    }
+
+    .drone-network-indicator {
+        min-width: 28px;
+        height: 28px;
+        padding: 0 0.34rem;
+    }
+
+    .drone-network-indicator svg {
+        font-size: 0.8rem;
+    }
+
+    .drone-network-indicator__bars {
+        height: 10px;
     }
 
     .data-label {
