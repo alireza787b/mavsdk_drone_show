@@ -302,6 +302,38 @@ class DroneConfig:
         self._state.telemetry_sequence = value
 
     @property
+    def gps_raw_timestamp_ms(self) -> int:
+        return self._state.gps_raw_timestamp_ms
+
+    @gps_raw_timestamp_ms.setter
+    def gps_raw_timestamp_ms(self, value: int):
+        self._state.gps_raw_timestamp_ms = value
+
+    @property
+    def global_position_timestamp_ms(self) -> int:
+        return self._state.global_position_timestamp_ms
+
+    @global_position_timestamp_ms.setter
+    def global_position_timestamp_ms(self, value: int):
+        self._state.global_position_timestamp_ms = value
+
+    @property
+    def global_position_valid(self) -> bool:
+        return self._state.global_position_valid
+
+    @global_position_valid.setter
+    def global_position_valid(self, value: bool):
+        self._state.global_position_valid = value
+
+    @property
+    def position_source(self) -> str:
+        return self._state.position_source
+
+    @position_source.setter
+    def position_source(self, value: str):
+        self._state.position_source = value
+
+    @property
     def battery(self) -> float:
         return self._state.battery
 

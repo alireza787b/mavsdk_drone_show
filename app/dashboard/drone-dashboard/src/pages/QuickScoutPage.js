@@ -118,6 +118,8 @@ const hasFiniteCoordinate = (value) => Number.isFinite(Number(value));
 
 const hasDronePosition = (drone) => (
   hasFiniteCoordinate(drone?.position_lat) && hasFiniteCoordinate(drone?.position_long)
+  && drone?.global_position_valid !== false
+  && (Math.abs(Number(drone.position_lat)) > 0.000001 || Math.abs(Number(drone.position_long)) > 0.000001)
 );
 
 // Create simple drone icon for Leaflet markers

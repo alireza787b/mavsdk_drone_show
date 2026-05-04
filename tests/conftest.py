@@ -263,6 +263,10 @@ def mock_drone_config():
     config.current_command_id = None  # For command tracking
     config.telemetry_timestamp_ms = 1732270245000
     config.telemetry_sequence = 7
+    config.gps_raw_timestamp_ms = 1732270245000
+    config.global_position_timestamp_ms = 1732270245000
+    config.global_position_valid = True
+    config.position_source = "global_position_int"
     config.yaw_rate_deg_s = 0.0
 
     return config
@@ -290,6 +294,9 @@ def mock_drone_communicator():
         "yaw_rate_deg_s": 0.0,
         "telemetry_timestamp_ms": 1732270245000,
         "stream_seq": 7,
+        "global_position_valid": True,
+        "global_position_timestamp_ms": 1732270245000,
+        "position_source": "global_position_int",
         "source_frame": "local_ned",
         "source_time_boot_ms": 12345678,
         "local_position_north": 0.5,

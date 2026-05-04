@@ -99,6 +99,14 @@ const DroneWidget = ({
   const systemStatus = drone[FIELD_NAMES.SYSTEM_STATUS] || 0;
   const gpsFixType = drone[FIELD_NAMES.GPS_FIX_TYPE] || (systemStatus === 4 ? 3 : 0); // SITL = 3D fix when active
   const satellitesVisible = drone[FIELD_NAMES.SATELLITES_VISIBLE] || (systemStatus === 4 ? 12 : 0); // SITL simulation
+  const positionLat = Number(drone[FIELD_NAMES.POSITION_LAT]);
+  const positionLong = Number(drone[FIELD_NAMES.POSITION_LONG]);
+  const hasNonZeroCoordinate = Number.isFinite(positionLat)
+    && Number.isFinite(positionLong)
+    && (Math.abs(positionLat) > 0.000001 || Math.abs(positionLong) > 0.000001);
+  const globalPositionValid = drone[FIELD_NAMES.GLOBAL_POSITION_VALID] !== false && hasNonZeroCoordinate;
+  const gpsRawValid = drone[FIELD_NAMES.GPS_RAW_VALID] === true || Number(gpsFixType) >= 3;
+  const positionUnavailableReason = drone[FIELD_NAMES.POSITION_UNAVAILABLE_REASON] || 'Waiting for valid PX4 global position.';
 
   const getGpsFixName = (fixType) => {
     const fixTypes = {
@@ -192,8 +200,12 @@ const DroneWidget = ({
 
   const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
   const gpsQuality = getGpsQualityStatus(drone[FIELD_NAMES.HDOP], drone[FIELD_NAMES.VDOP]);
+  const hasLastKnownTelemetry = runtimeStatus.level === 'degraded' || runtimeStatus.indicatorClass === 'lost';
+  const telemetryCanShowLastKnown = telemetryTrusted || hasLastKnownTelemetry;
   const telemetryPresentationClass = telemetryTrusted ? '' : 'stale';
-  const telemetryUnavailableText = telemetryAvailable ? 'Last known' : 'Unavailable';
+  const telemetryUnavailableText = telemetryCanShowLastKnown ? 'Last known' : telemetryAvailable ? 'Last known' : 'Unavailable';
+  const mapPositionAvailable = telemetryCanShowLastKnown && globalPositionValid;
+  const mapPositionText = telemetryCanShowLastKnown ? 'Map pending' : telemetryUnavailableText;
   const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
   const networkInfo = drone[FIELD_NAMES.HEARTBEAT_NETWORK_INFO] || drone.heartbeat_network_info || {};
   const primaryLink = networkInfo?.primary_link && typeof networkInfo.primary_link === 'object'
@@ -464,8 +476,11 @@ const DroneWidget = ({
         {/* Altitude */}
         <div className="data-item">
           <span className="data-label">Altitude</span>
-          <span className={`data-value ${telemetryPresentationClass}`}>
-            {telemetryTrusted ? getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT]) : telemetryUnavailableText}
+          <span
+            className={`data-value ${mapPositionAvailable ? telemetryPresentationClass : 'map-waiting'}`}
+            data-help={mapPositionAvailable ? 'Altitude from PX4 global position' : positionUnavailableReason}
+          >
+            {mapPositionAvailable ? getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT]) : mapPositionText}
           </span>
         </div>
 
@@ -473,7 +488,7 @@ const DroneWidget = ({
         <div className="data-item">
           <span className="data-label">Battery</span>
           <span className={`data-value ${telemetryTrusted ? batteryStatus.class : telemetryPresentationClass}`}>
-            {telemetryTrusted ? batteryStatus.text : telemetryUnavailableText}
+            {telemetryCanShowLastKnown ? batteryStatus.text : telemetryUnavailableText}
           </span>
         </div>
 
@@ -482,12 +497,19 @@ const DroneWidget = ({
           <span className="data-label">GPS</span>
           <div className="data-value-stack">
             <div className="gps-status">
-              <span className={`gps-fix-indicator ${telemetryTrusted ? getGpsFixClass(gpsFixType) : 'no-fix'}`}></span>
+              <span className={`gps-fix-indicator ${telemetryCanShowLastKnown ? getGpsFixClass(gpsFixType) : 'no-fix'}`}></span>
               <span className={`data-value ${telemetryPresentationClass}`}>
-                {telemetryTrusted ? getGpsFixName(gpsFixType) : telemetryUnavailableText}
+                {telemetryCanShowLastKnown ? getGpsFixName(gpsFixType) : telemetryUnavailableText}
               </span>
             </div>
-            <span className="data-subvalue">{telemetryTrusted ? `${satellitesVisible} sats · DOP ${gpsQuality.text}` : 'Waiting for telemetry'}</span>
+            <span
+              className={`data-subvalue ${gpsRawValid && !globalPositionValid ? 'map-waiting' : ''}`}
+              data-help={gpsRawValid && !globalPositionValid ? positionUnavailableReason : 'Raw GPS status and DOP'}
+            >
+              {telemetryCanShowLastKnown
+                ? `${satellitesVisible} sats · ${globalPositionValid ? `DOP ${gpsQuality.text}` : 'map pending'}`
+                : 'Waiting for telemetry'}
+            </span>
           </div>
         </div>
 
@@ -496,8 +518,11 @@ const DroneWidget = ({
           <span className="data-label">Home</span>
           <div className="data-value-inline">
             <FaHome className="data-item__icon" aria-hidden="true" />
-            <span className={`data-value ${telemetryTrusted ? '' : telemetryPresentationClass}`}>
-              {telemetryTrusted ? getDistanceToHomeDisplay(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]) : telemetryUnavailableText}
+            <span
+              className={`data-value ${mapPositionAvailable ? telemetryPresentationClass : 'map-waiting'}`}
+              data-help={mapPositionAvailable ? 'Horizontal distance from current global position to cached home' : positionUnavailableReason}
+            >
+              {mapPositionAvailable ? getDistanceToHomeDisplay(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]) : mapPositionText}
             </span>
           </div>
         </div>

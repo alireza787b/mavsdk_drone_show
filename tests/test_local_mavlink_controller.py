@@ -42,6 +42,10 @@ def build_controller(mock_drone_config):
     mock_drone_config.home_position_source = "px4"
     mock_drone_config.telemetry_timestamp_ms = 0
     mock_drone_config.telemetry_sequence = 0
+    mock_drone_config.gps_raw_timestamp_ms = 0
+    mock_drone_config.global_position_timestamp_ms = 0
+    mock_drone_config.global_position_valid = False
+    mock_drone_config.position_source = "unavailable"
     mock_drone_config.yaw_rate_deg_s = 0.0
 
     return controller
@@ -191,6 +195,31 @@ def test_process_global_position_int_sets_fallback_home_without_px4_truth(mock_d
     assert mock_drone_config.home_position_source == "fallback_position"
     assert mock_drone_config.telemetry_timestamp_ms > 0
     assert mock_drone_config.telemetry_sequence == 1
+    assert mock_drone_config.global_position_valid is True
+    assert mock_drone_config.global_position_timestamp_ms > 0
+    assert mock_drone_config.position_source == "global_position_int"
+
+
+def test_process_global_position_int_ignores_zero_zero_without_marking_live(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    mock_drone_config.position = {"lat": 47.0, "long": 8.0, "alt": 500.0}
+    mock_drone_config.global_position_valid = True
+    mock_drone_config.telemetry_timestamp_ms = 0
+    msg = SimpleNamespace(
+        lat=0,
+        lon=0,
+        alt=0,
+        vx=0,
+        vy=0,
+        vz=0,
+    )
+
+    controller.process_global_position_int(msg)
+
+    assert mock_drone_config.position == {"lat": 47.0, "long": 8.0, "alt": 500.0}
+    assert mock_drone_config.global_position_valid is False
+    assert mock_drone_config.telemetry_timestamp_ms == 0
+    assert mock_drone_config.position_source == "invalid_global_position"
 
 
 def test_set_home_position_marks_px4_home_truth(mock_drone_config):

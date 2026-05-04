@@ -313,6 +313,8 @@ class TestBackgroundTelemetryHelpers:
         assert payload['is_ready_to_arm'] is False
         assert payload['readiness_status'] == 'unknown'
         assert payload['preflight_blockers']
+        assert payload['global_position_valid'] is True
+        assert payload['position_unavailable_reason'] is None
 
     def test_build_background_unavailable_record_preserves_identity(self):
         from app_fastapi import _build_background_unavailable_record, last_heartbeats
@@ -354,6 +356,31 @@ class TestBackgroundTelemetryHelpers:
         assert 'Unable to reach' in payload['telemetry_error']
         assert payload['heartbeat_last_seen'] == 1700000000123
         assert payload['heartbeat_network_info'] == {'reachable': True}
+        assert payload['global_position_valid'] is True
+        assert payload['position_unavailable_reason'] is None
+
+    def test_build_background_unavailable_record_does_not_treat_zero_zero_as_map_position(self):
+        from app_fastapi import _build_background_unavailable_record
+
+        payload = _build_background_unavailable_record(
+            hw_id='2',
+            pos_id=2,
+            ip='100.82.47.7',
+            error_message='Unable to reach the drone telemetry endpoint.',
+            existing={
+                'hw_id': '2',
+                'pos_id': 2,
+                'position_lat': 0.0,
+                'position_long': 0.0,
+                'position_alt': 0.0,
+                'gps_fix_type': 3,
+                'satellites_visible': 5,
+            },
+        )
+
+        assert payload['global_position_valid'] is False
+        assert payload['distance_to_home_m'] is None
+        assert 'global position' in payload['position_unavailable_reason'].lower()
 
     def test_background_services_apply_drone_targets_seeds_placeholders_and_prunes_removed(self):
         module_path = Path(__file__).resolve().parents[1] / "gcs-server" / "app_fastapi.py"
@@ -1663,8 +1690,8 @@ class TestGitStatusEndpoints:
             'connectivity_runtime': {
                 'status_source': 'script',
                 'backend': 'smart-wifi-manager',
-                'ref': 'v2.1.4',
-                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.4',
+                'ref': 'v2.1.5',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.5',
                 'install_dir_present': True,
                 'mode': 'observe',
                 'import_mode': 'replace',
@@ -2774,6 +2801,7 @@ class TestAPIV1Aliases:
             "ip": "192.168.1.101",
             "timestamp": 1700000000000,
             "network_info": {},
+            "runtime_mode": "sitl",
         }
 
         response = test_client.post("/api/v1/fleet/heartbeats", json=payload)

@@ -572,10 +572,11 @@ class TestCommands:
         class DummyResponse:
             status_code = 200
 
-        def fake_post(url, json, timeout):
+        def fake_post(url, json, timeout, **kwargs):
             captured['url'] = url
             captured['json'] = json
             captured['timeout'] = timeout
+            captured['headers'] = kwargs.get('headers')
             return DummyResponse()
 
         monkeypatch.setattr("src.drone_api_server.requests.post", fake_post)
@@ -587,6 +588,7 @@ class TestCommands:
         assert captured['json']['command_id'] == "cmd-123"
         assert captured['json']['success'] is False
         assert captured['timeout'] == 5
+        assert captured['headers'] == {}
 
     def test_get_origin_from_gcs_uses_canonical_bootstrap_route(self, api_server, monkeypatch):
         captured = {}
@@ -598,9 +600,10 @@ class TestCommands:
             def json():
                 return {"lat": 35.0, "lon": 51.0, "alt": 1200.0}
 
-        def fake_get(url, timeout):
+        def fake_get(url, timeout, **kwargs):
             captured['url'] = url
             captured['timeout'] = timeout
+            captured['headers'] = kwargs.get('headers')
             return DummyResponse()
 
         monkeypatch.setattr("src.drone_api_server.requests.get", fake_get)
@@ -609,6 +612,7 @@ class TestCommands:
 
         assert captured['url'] == "http://172.18.0.1:5030/api/v1/origin/bootstrap"
         assert captured['timeout'] == 5
+        assert captured['headers'] == {}
         assert origin == {'lat': 35.0, 'lon': 51.0}
 
     def test_send_command_different_mission_types(self, test_client, mock_drone_communicator):
@@ -898,8 +902,8 @@ class TestGitStatus:
                 'status_source': 'script',
                 'backend': 'smart-wifi-manager',
                 'repo_url': 'https://github.com/demo/smart-wifi-manager.git',
-                'ref': 'v2.1.4',
-                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.4',
+                'ref': 'v2.1.5',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.5',
                 'install_dir': '/opt/smart-wifi-manager',
                 'install_dir_present': True,
                 'mode': 'observe',

@@ -36,6 +36,29 @@ describe('globeTelemetryViewModel', () => {
     expect(result[0].speed_mps).toBe(3);
   });
 
+  it('marks GPS-only telemetry without valid global position as no-map-fix', () => {
+    const result = buildGlobeDroneViewModels({
+      1: {
+        hw_id: 1,
+        position_lat: 0,
+        position_long: 0,
+        position_alt: 0,
+        global_position_valid: false,
+        position_unavailable_reason: 'GPS fix present, waiting for valid PX4 global position.',
+        gps_fix_type: 3,
+        satellites_visible: 5,
+      },
+    });
+
+    expect(result[0]).toMatchObject({
+      hw_id: '1',
+      position: [0, 0, 0],
+      noMapFix: true,
+      global_position_valid: false,
+      position_unavailable_reason: 'GPS fix present, waiting for valid PX4 global position.',
+    });
+  });
+
   it('backs off the tactical telemetry interval for hidden tabs, constrained links, and large fleets', () => {
     expect(calculateGlobeTelemetryIntervalMs(4, { hidden: false, connection: {} })).toBe(1000);
     expect(calculateGlobeTelemetryIntervalMs(40, { hidden: false, connection: {} })).toBe(1500);

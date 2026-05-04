@@ -50,7 +50,7 @@ const buildNoFixPosition = (index, total) => {
 };
 
 const buildDisplayPosition = (drone, referencePoint, noFixDrones = []) => {
-  if (!hasUsableGeoPosition(drone.position)) {
+  if (drone.noMapFix || !hasUsableGeoPosition(drone.position)) {
     const noFixIndex = noFixDrones.findIndex((candidate) => (
       String(candidate[FIELD_NAMES.HW_ID]) === String(drone[FIELD_NAMES.HW_ID])
     ));
@@ -344,7 +344,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     setIsLoading(true);
 
     const setReferencePointAsync = async () => {
-      const positionedDrones = drones.filter((drone) => hasUsableGeoPosition(drone.position));
+      const positionedDrones = drones.filter((drone) => !drone.noMapFix && hasUsableGeoPosition(drone.position));
       const referenceDrones = positionedDrones.length > 0 ? positionedDrones : drones;
       const avgLat = referenceDrones.reduce((sum, drone) => sum + drone.position[0], 0) / referenceDrones.length;
       const avgLon = referenceDrones.reduce((sum, drone) => sum + drone.position[1], 0) / referenceDrones.length;
@@ -385,7 +385,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
 
   useEffect(() => {
     if (drones?.length && referencePoint) {
-      const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+      const noFixDrones = drones.filter((drone) => drone.noMapFix || !hasUsableGeoPosition(drone.position));
       const convertedPositions = drones.map((drone) => buildDisplayPosition(drone, referencePoint, noFixDrones));
 
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
@@ -398,7 +398,7 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
 
   const focusOnDrones = useCallback(() => {
     if (drones?.length && referencePoint) {
-      const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+      const noFixDrones = drones.filter((drone) => drone.noMapFix || !hasUsableGeoPosition(drone.position));
       const convertedPositions = drones.map((drone) => buildDisplayPosition(drone, referencePoint, noFixDrones));
       const avgX = convertedPositions.reduce((sum, pos) => sum + pos[0], 0) / convertedPositions.length;
       const avgY = convertedPositions.reduce((sum, pos) => sum + pos[1], 0) / convertedPositions.length;
@@ -468,9 +468,9 @@ export default function Globe({ drones, selectedDroneId, onSelectDrone }) {
     return <LoadingSpinner />;
   }
 
-  const noFixDrones = drones.filter((drone) => !hasUsableGeoPosition(drone.position));
+  const noFixDrones = drones.filter((drone) => drone.noMapFix || !hasUsableGeoPosition(drone.position));
   const convertedDrones = drones.map((drone) => {
-    const noMapFix = !hasUsableGeoPosition(drone.position);
+    const noMapFix = drone.noMapFix || !hasUsableGeoPosition(drone.position);
     const displayPosition = buildDisplayPosition(drone, referencePoint, noFixDrones);
     const hwId = String(drone[FIELD_NAMES.HW_ID]);
     return {

@@ -99,6 +99,38 @@ class DroneCommunicator:
         return 0
 
     @staticmethod
+    def _is_valid_global_position(position: Any) -> bool:
+        if not isinstance(position, dict):
+            return False
+        try:
+            lat = float(position.get("lat"))
+            lon = float(position.get("long", position.get("lon", position.get("lng"))))
+        except (TypeError, ValueError):
+            return False
+        if not all(math.isfinite(value) for value in [lat, lon]):
+            return False
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            return False
+        return abs(lat) > 0.000001 or abs(lon) > 0.000001
+
+    @staticmethod
+    def _age_ms(now_ms: int, timestamp_ms: Any) -> Optional[int]:
+        timestamp = safe_int(timestamp_ms)
+        if timestamp <= 0:
+            return None
+        return max(0, now_ms - timestamp)
+
+    def _position_unavailable_reason(self, global_position_valid: bool) -> Optional[str]:
+        if global_position_valid:
+            return None
+        gps_fix_type = safe_int(getattr(self.drone_config, "gps_fix_type", 0))
+        if gps_fix_type >= 3:
+            return "GPS fix present, waiting for valid PX4 global position."
+        if gps_fix_type > 0:
+            return "GPS fix is not 3D yet."
+        return "No GPS fix reported."
+
+    @staticmethod
     def _distance_to_home_m(position: Any, home_position: Any) -> Optional[float]:
         """Return horizontal great-circle distance to cached home, or None when unavailable."""
         if not isinstance(position, dict) or not isinstance(home_position, dict):
@@ -132,6 +164,10 @@ class DroneCommunicator:
     def _build_swarm_state(self, live_swarm: Dict[str, Any], emitted_at_ms: int) -> Dict[str, Any]:
         local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
         telemetry_timestamp_ms = self._resolve_telemetry_timestamp_ms()
+        global_position_valid = (
+            bool(getattr(self.drone_config, "global_position_valid", False))
+            and self._is_valid_global_position(getattr(self.drone_config, "position", None))
+        )
 
         return {
             "hw_id": safe_int(self.drone_config.hw_id),
@@ -148,6 +184,9 @@ class DroneCommunicator:
             "yaw_rate_deg_s": safe_float(getattr(self.drone_config, "yaw_rate_deg_s", 0.0)),
             "telemetry_timestamp_ms": telemetry_timestamp_ms,
             "stream_seq": safe_int(getattr(self.drone_config, "telemetry_sequence", 0)),
+            "global_position_valid": global_position_valid,
+            "global_position_timestamp_ms": safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0)),
+            "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "source_frame": "local_ned" if safe_int(local_ned.get("time_boot_ms")) > 0 else "global_lla_ned",
             "source_time_boot_ms": safe_int(local_ned.get("time_boot_ms")),
             "local_position_north": safe_float(local_ned.get("x")),
@@ -527,6 +566,13 @@ class DroneCommunicator:
         live_swarm = self._get_live_swarm_assignment()
 
         now_ms = int(time.time() * 1000)
+        global_position_valid = (
+            bool(getattr(self.drone_config, "global_position_valid", False))
+            and self._is_valid_global_position(getattr(self.drone_config, "position", None))
+        )
+        gps_fix_type = safe_int(getattr(self.drone_config, 'gps_fix_type', 0))
+        gps_raw_timestamp_ms = safe_int(getattr(self.drone_config, "gps_raw_timestamp_ms", 0))
+        global_position_timestamp_ms = safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0))
 
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
@@ -556,7 +602,15 @@ class DroneCommunicator:
             "distance_to_home_m": self._distance_to_home_m(
                 getattr(self.drone_config, "position", None),
                 getattr(self.drone_config, "home_position", None),
-            ),
+            ) if global_position_valid else None,
+            "global_position_valid": global_position_valid,
+            "global_position_timestamp_ms": global_position_timestamp_ms,
+            "global_position_age_ms": self._age_ms(now_ms, global_position_timestamp_ms),
+            "gps_raw_valid": gps_fix_type >= 3,
+            "gps_raw_timestamp_ms": gps_raw_timestamp_ms,
+            "gps_raw_age_ms": self._age_ms(now_ms, gps_raw_timestamp_ms),
+            "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
+            "position_unavailable_reason": self._position_unavailable_reason(global_position_valid),
             "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),
             "readiness_summary": str(getattr(self.drone_config, 'readiness_summary', 'Readiness unavailable')),
             "readiness_checks": list(getattr(self.drone_config, 'readiness_checks', []) or []),
@@ -566,7 +620,7 @@ class DroneCommunicator:
             "preflight_last_update": safe_int(getattr(self.drone_config, 'preflight_last_update', 0)),
             "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
             "vdop": safe_float(self.drone_config.vdop),  # Vertical dilution of precision
-            "gps_fix_type": safe_int(getattr(self.drone_config, 'gps_fix_type', 0)),  # GPS fix status
+            "gps_fix_type": gps_fix_type,  # GPS fix status
             "satellites_visible": safe_int(getattr(self.drone_config, 'satellites_visible', 0)),  # Number of satellites
             "ip": self.drone_config.config.get('ip', 'N/A')  # Drone IP address
         }

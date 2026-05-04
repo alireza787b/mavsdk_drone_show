@@ -182,6 +182,14 @@ class DroneStateResponse(BaseModel):
     is_ready_to_arm: bool
     home_position_set: bool = False
     distance_to_home_m: Optional[float] = None
+    global_position_valid: bool = False
+    global_position_timestamp_ms: int = 0
+    global_position_age_ms: Optional[int] = None
+    gps_raw_valid: bool = False
+    gps_raw_timestamp_ms: int = 0
+    gps_raw_age_ms: Optional[int] = None
+    position_source: str = "unavailable"
+    position_unavailable_reason: Optional[str] = None
     readiness_status: str = "unknown"
     readiness_summary: str = "Readiness unavailable"
     readiness_checks: List[ReadinessCheckResponse] = Field(default_factory=list)
@@ -211,6 +219,9 @@ class SwarmStateResponse(BaseModel):
     yaw_rate_deg_s: float = 0.0
     telemetry_timestamp_ms: int = 0
     stream_seq: int = 0
+    global_position_valid: bool = False
+    global_position_timestamp_ms: int = 0
+    position_source: str = "unavailable"
     source_frame: str = "global_lla_ned"
     source_time_boot_ms: int = 0
     local_position_north: float = 0.0

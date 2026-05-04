@@ -83,6 +83,13 @@ After your GCS is connected to NetBird:
 
    Already-registered boards do not need a new setup key unless they lost authentication and must be re-enrolled.
 
+   Field rule: production companion nodes should be enrolled with setup keys,
+   not interactive SSO login. NetBird documents setup keys as the automation
+   path for adding machines at scale, and setup-key expiration or revocation
+   does not disconnect machines that were already enrolled with that key. Avoid
+   ephemeral setup keys for aircraft because NetBird may remove ephemeral peers
+   after they stay offline.
+
 2. **Configure the node runtime to use the GCS overlay IP**:
 
    Preferred source of truth:
@@ -163,6 +170,26 @@ sudo netbird down && sudo netbird up
 ```bash
 netbird status --detail
 ```
+
+### Login Required Appears Again
+
+If a board appears as `Login required`, first identify how it was enrolled:
+
+- interactive SSO login peers can be affected by NetBird peer login expiration
+  settings
+- setup-key peers are not affected by peer login expiration
+- setup-key expiry or revocation only prevents future enrollments; it should
+  not disconnect already registered machines
+
+Recommended recovery:
+
+1. Keep a physical or local recovery path active, such as Ethernet, local Wi-Fi,
+   HDMI/keyboard, or cellular.
+2. In the NetBird web UI, inspect the peer and disable peer login expiration if
+   it was enrolled interactively and must remain unattended.
+3. For aircraft, re-enroll with a non-ephemeral setup key when practical.
+4. If the peer keeps losing identity after reboot, inspect NetBird state files,
+   host clock, disk health, and duplicate cloned images before blaming MDS.
 
 ### Firewall Issues
 

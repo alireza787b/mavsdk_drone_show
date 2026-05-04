@@ -101,9 +101,12 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const missionDisplay = getMissionDisplayContext(drone?.mission, drone?.last_mission);
   const flightMode = getFlightModeTitle(drone?.flight_mode);
   const gpsFix = GPS_FIX_LABELS[Number(drone?.gps_fix_type)] || 'GPS n/a';
-  const distanceToHome = Number.isFinite(Number(drone?.distance_to_home_m))
+  const globalPositionValid = drone?.global_position_valid !== false
+    && (Number.isFinite(Number(drone?.position?.[0])) || Number.isFinite(Number(drone?.geoPosition?.[0])) || Number.isFinite(Number(drone?.altitude)));
+  const positionUnavailableReason = drone?.position_unavailable_reason || 'Waiting for valid PX4 global position';
+  const distanceToHome = globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m))
     ? `${formatNumber(drone.distance_to_home_m)} m`
-    : 'Home n/a';
+    : 'Map n/a';
   const armed = drone?.is_armed === true ? 'Armed' : drone?.is_armed === false ? 'Disarmed' : 'Arm n/a';
   const lastSeen = formatLastUpdate(drone?.last_update);
   const followLabel = Number(drone?.follow_mode) === 0 ? 'Leader' : `H${drone.follow_mode}`;
@@ -218,8 +221,8 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       </div>
 
       <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
-        <TacticalMetric icon={FaCompass} label="Altitude" value={`${formatMetricNumber(drone?.altitude)} m`} />
-        <TacticalMetric icon={FaHome} label="Distance home" value={Number.isFinite(Number(drone?.distance_to_home_m)) ? `${formatMetricNumber(drone.distance_to_home_m)} m` : distanceToHome} help="Horizontal distance to cached home position" />
+        <TacticalMetric icon={FaCompass} label="Altitude" value={globalPositionValid ? `${formatMetricNumber(drone?.altitude)} m` : 'Map n/a'} help={globalPositionValid ? 'Altitude from PX4 global position' : positionUnavailableReason} />
+        <TacticalMetric icon={FaHome} label="Distance home" value={globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m)) ? `${formatMetricNumber(drone.distance_to_home_m)} m` : distanceToHome} help={globalPositionValid ? 'Horizontal distance to cached home position' : positionUnavailableReason} />
         <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
         <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />
       </div>
@@ -314,6 +317,8 @@ TacticalDroneCard.propTypes = {
     mission: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     last_mission: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     distance_to_home_m: PropTypes.number,
+    global_position_valid: PropTypes.bool,
+    position_unavailable_reason: PropTypes.string,
     speed_mps: PropTypes.number,
     last_update: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }).isRequired,

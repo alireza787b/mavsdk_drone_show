@@ -22,6 +22,7 @@ import sys
 import json
 import time
 import asyncio
+import math
 import traceback
 import threading
 from typing import Optional, List, Dict, Any
@@ -606,6 +607,59 @@ def _build_stale_background_blocker(message: str, timestamp_ms: int) -> Dict[str
     }
 
 
+def _has_valid_global_position(record: Dict[str, Any]) -> bool:
+    try:
+        lat = float(record.get("position_lat"))
+        lon = float(record.get("position_long"))
+    except (TypeError, ValueError):
+        return False
+    if not all(math.isfinite(value) for value in [lat, lon]):
+        return False
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return False
+    return abs(lat) > 0.000001 or abs(lon) > 0.000001
+
+
+def _position_unavailable_reason(record: Dict[str, Any]) -> Optional[str]:
+    try:
+        gps_fix_type = int(record.get("gps_fix_type", 0) or 0)
+    except (TypeError, ValueError):
+        gps_fix_type = 0
+    if gps_fix_type >= 3:
+        return "GPS fix present, waiting for valid PX4 global position."
+    if gps_fix_type > 0:
+        return "GPS fix is not 3D yet."
+    return "No GPS fix reported."
+
+
+def _ensure_position_quality_fields(record: Dict[str, Any], now_ms: int) -> Dict[str, Any]:
+    explicit_global_flag = record.get("global_position_valid")
+    valid_global = bool(explicit_global_flag) and _has_valid_global_position(record)
+    if not isinstance(explicit_global_flag, bool):
+        valid_global = _has_valid_global_position(record)
+
+    record["global_position_valid"] = valid_global
+    record.setdefault("global_position_timestamp_ms", record.get("telemetry_timestamp_ms") or 0)
+    global_ts = _normalize_update_time_ms(record.get("global_position_timestamp_ms"))
+    record["global_position_age_ms"] = max(0, now_ms - global_ts) if global_ts is not None else None
+
+    try:
+        gps_fix_type = int(record.get("gps_fix_type", 0) or 0)
+    except (TypeError, ValueError):
+        gps_fix_type = 0
+    record.setdefault("gps_raw_valid", gps_fix_type >= 3)
+    record.setdefault("gps_raw_timestamp_ms", record.get("telemetry_timestamp_ms") or 0)
+    gps_ts = _normalize_update_time_ms(record.get("gps_raw_timestamp_ms"))
+    record["gps_raw_age_ms"] = max(0, now_ms - gps_ts) if gps_ts is not None else None
+    record.setdefault("position_source", "global_position_int" if valid_global else "unavailable")
+    record["position_unavailable_reason"] = None if valid_global else (
+        record.get("position_unavailable_reason") or _position_unavailable_reason(record)
+    )
+    if not valid_global:
+        record["distance_to_home_m"] = None
+    return record
+
+
 def _build_background_unavailable_record(
     hw_id: Any,
     pos_id: Any,
@@ -650,6 +704,14 @@ def _build_background_unavailable_record(
         "is_ready_to_arm": False,
         "home_position_set": bool(existing.get("home_position_set", False)),
         "distance_to_home_m": existing.get("distance_to_home_m"),
+        "global_position_valid": existing.get("global_position_valid"),
+        "global_position_timestamp_ms": existing.get("global_position_timestamp_ms", 0),
+        "global_position_age_ms": existing.get("global_position_age_ms"),
+        "gps_raw_valid": bool(existing.get("gps_raw_valid", False)),
+        "gps_raw_timestamp_ms": existing.get("gps_raw_timestamp_ms", 0),
+        "gps_raw_age_ms": existing.get("gps_raw_age_ms"),
+        "position_source": existing.get("position_source", "unavailable"),
+        "position_unavailable_reason": existing.get("position_unavailable_reason"),
         "readiness_status": "unknown",
         "readiness_summary": error_message,
         "readiness_checks": existing.get("readiness_checks", []),
@@ -675,7 +737,7 @@ def _build_background_unavailable_record(
     if update_time_ms is not None:
         record["telemetry_last_update_age_ms"] = max(0, now_ms - update_time_ms)
 
-    return record
+    return _ensure_position_quality_fields(record, now_ms)
 
 
 def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -702,6 +764,7 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
     telemetry_age_ms = (now_ms - update_time_ms) if update_time_ms is not None else None
     record["telemetry_last_update_age_ms"] = telemetry_age_ms
     record["telemetry_stale_threshold_ms"] = stale_threshold_ms
+    _ensure_position_quality_fields(record, now_ms)
 
     if update_time_ms is None:
         record["telemetry_available"] = False

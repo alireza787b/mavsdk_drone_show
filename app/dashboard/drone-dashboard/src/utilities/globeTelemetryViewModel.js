@@ -15,6 +15,12 @@ function toFiniteNumber(value, fallback = null) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+function hasNonZeroCoordinate(lat, lon) {
+  return Number.isFinite(lat)
+    && Number.isFinite(lon)
+    && (Math.abs(lat) > 0.000001 || Math.abs(lon) > 0.000001);
+}
+
 function getConnectionProfile() {
   if (typeof navigator === 'undefined') {
     return {};
@@ -72,6 +78,12 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
       const operatorAlias = promotedField?.displayValue && promotedField.displayValue !== 'Not set'
         ? promotedField.displayValue
         : '';
+      const latitude = toFiniteNumber(drone[FIELD_NAMES.POSITION_LAT], 0);
+      const longitude = toFiniteNumber(drone[FIELD_NAMES.POSITION_LONG], 0);
+      const altitude = toFiniteNumber(drone[FIELD_NAMES.POSITION_ALT], 0);
+      const globalPositionValid = drone[FIELD_NAMES.GLOBAL_POSITION_VALID] === undefined
+        ? hasNonZeroCoordinate(latitude, longitude)
+        : Boolean(drone[FIELD_NAMES.GLOBAL_POSITION_VALID]) && hasNonZeroCoordinate(latitude, longitude);
 
       return {
         ...drone,
@@ -79,15 +91,16 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         pos_id: config.pos_id ?? drone[FIELD_NAMES.POS_ID] ?? id,
         operator_alias: operatorAlias,
         operator_alias_label: promotedField?.label || null,
-        position: [
-          toFiniteNumber(drone[FIELD_NAMES.POSITION_LAT], 0),
-          toFiniteNumber(drone[FIELD_NAMES.POSITION_LONG], 0),
-          toFiniteNumber(drone[FIELD_NAMES.POSITION_ALT], 0),
-        ],
+        position: [latitude, longitude, altitude],
+        noMapFix: !globalPositionValid,
+        global_position_valid: globalPositionValid,
+        global_position_age_ms: toFiniteNumber(drone[FIELD_NAMES.GLOBAL_POSITION_AGE_MS]),
+        position_source: drone[FIELD_NAMES.POSITION_SOURCE] || 'unavailable',
+        position_unavailable_reason: drone[FIELD_NAMES.POSITION_UNAVAILABLE_REASON] || null,
         state: stateValue,
         stateLabel: stateValue === null ? 'Unknown' : getDroneShowStateName(stateValue),
         follow_mode: toFiniteNumber(drone[FIELD_NAMES.FOLLOW_MODE], 0),
-        altitude: toFiniteNumber(drone[FIELD_NAMES.POSITION_ALT], 0),
+        altitude,
         marker_color: config.marker_color || config.markerColor || drone.marker_color || '',
         battery_voltage: toFiniteNumber(drone[FIELD_NAMES.BATTERY_VOLTAGE]),
         distance_to_home_m: toFiniteNumber(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]),
@@ -96,6 +109,8 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         system_status: drone[FIELD_NAMES.SYSTEM_STATUS] ?? null,
         is_armed: drone[FIELD_NAMES.IS_ARMED] ?? null,
         gps_fix_type: drone[FIELD_NAMES.GPS_FIX_TYPE] ?? null,
+        gps_raw_valid: drone[FIELD_NAMES.GPS_RAW_VALID] ?? null,
+        gps_raw_age_ms: toFiniteNumber(drone[FIELD_NAMES.GPS_RAW_AGE_MS]),
         satellites_visible: drone[FIELD_NAMES.SATELLITES_VISIBLE] ?? null,
         mission: drone[FIELD_NAMES.MISSION] ?? null,
         last_mission: drone[FIELD_NAMES.LAST_MISSION] ?? null,

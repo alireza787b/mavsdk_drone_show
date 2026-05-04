@@ -44,6 +44,17 @@ Drone cards distinguish:
 The dashboard should make these states visible without forcing the operator to
 open every card.
 
+During a brief link loss, cards may keep showing last-known values with muted
+styling. Treat these as situational awareness only; command readiness and
+preflight state must come from fresh telemetry or an explicitly accepted
+heartbeat state.
+
+GPS fix and mappable position are separate signals. A drone can report a raw
+3D GPS fix while PX4 has not yet published a valid `GLOBAL_POSITION_INT`
+coordinate. In that case dashboard cards show GPS quality but mark altitude,
+home distance, and map placement as pending instead of rendering `0,0,0` as a
+real location.
+
 Each card header also includes an icon-only primary-link indicator. It follows
 the node-reported default route, not every active interface:
 

@@ -645,6 +645,17 @@
     line-height: 1.3;
 }
 
+.data-value.map-waiting,
+.data-subvalue.map-waiting {
+    color: var(--color-warning);
+    font-style: normal;
+}
+
+.data-value.map-waiting {
+    font-size: 0.68rem;
+    letter-spacing: -0.01em;
+}
+
 /* Full-width items */
 .data-item.full-width {
     grid-column: 1 / -1;

@@ -27,8 +27,10 @@ device can reach the node over the local network or VPN.
    current Wi-Fi link.
 2. Click **Trigger Scan**.
 3. If the target SSID appears under **Available Networks**, click **Add** or
-   **Add top**. If it does not appear, use **Add Profile** under **Known
-   Profiles** and type the SSID manually.
+   **Add top**. The dashboard opens a profile dialog so you can enter the
+   password before the network becomes a known profile. If the SSID does not
+   appear, use **Add Profile** under **Known Profiles** and type the SSID
+   manually.
 4. Fill or review:
    - `ID`: short stable name, for example `field-router`
    - `SSID`: exact Wi-Fi network name
@@ -38,9 +40,9 @@ device can reach the node over the local network or VPN.
      enter a new password only when you intend to store it on this node
    - `Password File`: preferred production option when secrets are managed as
      local files
-5. Click **Save Config**.
-6. Click **Trigger Scan**.
-7. Confirm **Live Status** shows the expected current SSID or a clear warning.
+5. Click **Save Profile** to store the profile, or **Save & Scan Now** to store
+   it and immediately ask the service to re-evaluate networks.
+6. Confirm **Live Status** shows the expected current SSID or a clear warning.
 
 The dashboard separates scanned networks from known profiles:
 
@@ -93,14 +95,14 @@ If the node is running an older dashboard without scan-table actions:
      password only when you intend to store it on this node
    - `Password File`: preferred production option when secrets are managed as
      local files
-3. Click **Save Config**.
+3. Click **Save Profile**.
 4. Click **Trigger Scan**.
 5. Confirm **Live Status** shows the expected current SSID or a clear warning.
 
 The dashboard status panel should not be empty on a healthy install. It should
-show the current SSID, scan age, selected target, mode, and known profile list.
-If those are blank, restart `smart-wifi-manager.service` and
-`smart-wifi-manager-dashboard.service`, then re-open the node URL.
+show the current SSID, scan age, selected target, mode, visible networks, and
+known profile list. If those are blank, restart `smart-wifi-manager.service`
+and `smart-wifi-manager-dashboard.service`, then re-open the node URL.
 
 ## Fleet Rollout
 

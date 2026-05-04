@@ -172,6 +172,12 @@ class LocalMavlinkController:
         self.drone_config.telemetry_sequence = int(getattr(self.drone_config, 'telemetry_sequence', 0) or 0) + 1
 
     @staticmethod
+    def _is_valid_global_position(lat_deg: float, lon_deg: float) -> bool:
+        if not (-90.0 <= lat_deg <= 90.0 and -180.0 <= lon_deg <= 180.0):
+            return False
+        return abs(lat_deg) > 0.000001 or abs(lon_deg) > 0.000001
+
+    @staticmethod
     def _severity_name(severity: Optional[int]) -> str:
         mapping = {
             0: 'emergency',
@@ -749,6 +755,7 @@ class LocalMavlinkController:
         # GPS fix type: 0=No GPS, 1=No Fix, 2=2D Fix, 3=3D Fix, 4=DGPS, 5=RTK Float, 6=RTK Fixed
         self.drone_config.gps_fix_type = getattr(msg, 'fix_type', 0)
         self.drone_config.satellites_visible = getattr(msg, 'satellites_visible', 0)
+        self.drone_config.gps_raw_timestamp_ms = self._now_ms()
 
         self.log_debug(f"Updated GPS - HDOP: {self.drone_config.hdop}, VDOP: {self.drone_config.vdop}, Fix: {self.drone_config.gps_fix_type}, Sats: {self.drone_config.satellites_visible}")
         self._update_pre_arm_status()
@@ -818,16 +825,34 @@ class LocalMavlinkController:
         """
         if msg.lat is not None and msg.lon is not None and msg.alt is not None:
             now_ms = self._now_ms()
+            lat_deg = msg.lat / 1E7
+            lon_deg = msg.lon / 1E7
+            alt_m = msg.alt / 1E3
+            if not self._is_valid_global_position(lat_deg, lon_deg):
+                self.drone_config.global_position_valid = False
+                self.drone_config.position_source = 'invalid_global_position'
+                logging.warning(
+                    "Ignoring invalid GLOBAL_POSITION_INT for drone %s: lat=%s lon=%s alt=%s",
+                    self.drone_config.hw_id,
+                    lat_deg,
+                    lon_deg,
+                    alt_m,
+                )
+                return
+
             self.drone_config.position = {
-                'lat': msg.lat / 1E7,
-                'long': msg.lon / 1E7,
-                'alt': msg.alt / 1E3
+                'lat': lat_deg,
+                'long': lon_deg,
+                'alt': alt_m
             }
             self.drone_config.velocity = {
                 'north': msg.vx / 1E2,
                 'east': msg.vy / 1E2,
                 'down': msg.vz / 1E2
             }
+            self.drone_config.global_position_valid = True
+            self.drone_config.global_position_timestamp_ms = now_ms
+            self.drone_config.position_source = 'global_position_int'
             self._mark_telemetry_update(now_ms)
 
             if self.drone_config.home_position is None:

@@ -58,7 +58,7 @@ def load_px4_docs_reference_catalog_index(params: Any) -> dict[str, Px4ParamCata
     if not _coerce_bool(getattr(params, "PX4_PARAMETER_ONLINE_DOCS_METADATA_ENABLED", True), default=True):
         return {}
 
-    version = str(getattr(params, "PX4_PARAMETER_DOCS_VERSION", "main") or "main").strip() or "main"
+    version = _safe_docs_version(getattr(params, "PX4_PARAMETER_DOCS_VERSION", "main"))
     base_template = getattr(
         params,
         "PX4_PARAMETER_DOCS_BASE_TEMPLATE",
@@ -68,9 +68,9 @@ def load_px4_docs_reference_catalog_index(params: Any) -> dict[str, Px4ParamCata
         base_template = "https://docs.px4.io/{version}/en/advanced_config/parameter_reference.html"
     url = base_template.format(version=version)
 
-    cache_dir = Path(os.path.expanduser(str(
+    cache_dir = _safe_cache_dir(
         getattr(params, "PX4_PARAMETER_METADATA_CACHE_DIR", "~/.cache/mds/px4-param-docs")
-    )))
+    )
     ttl_days = _coerce_number(getattr(params, "PX4_PARAMETER_METADATA_CACHE_TTL_DAYS", 14)) or 14
     timeout_raw = _coerce_number(getattr(params, "PX4_PARAMETER_METADATA_FETCH_TIMEOUT_SEC", 2.5)) or 2.5
     max_entries_raw = _coerce_int(getattr(params, "PX4_PARAMETER_METADATA_CACHE_MAX_ENTRIES", 4)) or 4
@@ -131,6 +131,23 @@ def _normalize_configured_paths(raw_value: Any) -> list[str]:
     if isinstance(raw_value, (list, tuple, set)):
         return [str(item).strip() for item in raw_value if str(item).strip()]
     return []
+
+
+def _safe_docs_version(raw_value: Any) -> str:
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip()
+        if normalized and not any(char.isspace() for char in normalized):
+            return normalized
+    return "main"
+
+
+def _safe_cache_dir(raw_value: Any) -> Path:
+    default_path = "~/.cache/mds/px4-param-docs"
+    if isinstance(raw_value, (str, os.PathLike)):
+        normalized = str(raw_value).strip()
+        if normalized:
+            return Path(os.path.expanduser(normalized))
+    return Path(os.path.expanduser(default_path))
 
 
 def _default_catalog_patterns() -> list[str]:

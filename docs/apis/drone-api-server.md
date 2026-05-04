@@ -95,6 +95,11 @@ http://drone-ip:7070/openapi.json
   "position_lat": 47.397742,
   "position_long": 8.545594,
   "position_alt": 488.5,
+  "global_position_valid": true,
+  "global_position_timestamp_ms": 1732270245000,
+  "global_position_age_ms": 100,
+  "position_source": "global_position_int",
+  "position_unavailable_reason": null,
   "distance_to_home_m": 18.4,
   "velocity_north": 0.0,
   "velocity_east": 0.0,
@@ -127,6 +132,9 @@ http://drone-ip:7070/openapi.json
   "hdop": 0.8,
   "vdop": 1.2,
   "gps_fix_type": 3,
+  "gps_raw_valid": true,
+  "gps_raw_timestamp_ms": 1732270245000,
+  "gps_raw_age_ms": 100,
   "satellites_visible": 12,
   "ip": "192.168.1.100"
 }
@@ -140,7 +148,9 @@ Readiness fields:
 - `is_ready_to_arm` remains the simple compatibility boolean.
 - `readiness_status` and `readiness_summary` are the operator-facing verdict.
 - `preflight_blockers`, `preflight_warnings`, and `status_messages` surface live PX4 preflight feedback and recent `STATUSTEXT` messages.
-- `distance_to_home_m` is the horizontal great-circle distance from current LLA to cached home position. It is `null` until current position and home position are both available.
+- `gps_raw_valid` is raw GPS evidence from `GPS_RAW_INT`; it does not prove the drone has a usable mappable position.
+- `global_position_valid` is true only after PX4 publishes a finite, non-zero `GLOBAL_POSITION_INT` coordinate. If GPS reports a fix but global position is not valid, keep map placement and `distance_to_home_m` unavailable.
+- `distance_to_home_m` is the horizontal great-circle distance from current valid LLA to cached home position. It is `null` until current position and home position are both available.
 
 ---
 
@@ -302,7 +312,7 @@ Notes:
   },
   "connectivity_runtime": {
     "backend": "none",
-    "ref": "v2.1.4",
+    "ref": "v2.1.5",
     "profile_hash": null,
     "config_hash_match": null
   }

@@ -29,6 +29,10 @@ def create_mock_drone_config():
     drone_config.hw_id = '1'
     drone_config.is_armed = False
     drone_config.is_ready_to_arm = True
+    drone_config.global_position_valid = False
+    drone_config.global_position_timestamp_ms = 0
+    drone_config.gps_raw_timestamp_ms = 0
+    drone_config.position_source = "unavailable"
     return drone_config
 
 

@@ -160,7 +160,7 @@ const GlobeMapView = ({ drones, selectedDroneId, onSelectDrone }) => {
 
   // Compute center and valid drones from average drone position
   const { center, validDrones } = useMemo(() => {
-    const valid = drones.filter(d => d.position[0] !== 0 || d.position[1] !== 0);
+    const valid = drones.filter(d => !d.noMapFix && (d.position[0] !== 0 || d.position[1] !== 0));
     if (valid.length === 0) return { center: { lat: 0, lng: 0 }, validDrones: valid };
     const avgLat = valid.reduce((sum, d) => sum + d.position[0], 0) / valid.length;
     const avgLng = valid.reduce((sum, d) => sum + d.position[1], 0) / valid.length;

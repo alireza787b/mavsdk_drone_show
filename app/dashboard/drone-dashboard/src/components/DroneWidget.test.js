@@ -32,21 +32,29 @@ const baseDrone = {
   battery_voltage: 16.0,
   gps_fix_type: 3,
   satellites_visible: 12,
+  position_lat: 35.1234,
+  position_long: 51.1234,
+  position_alt: 12.4,
+  global_position_valid: true,
+  distance_to_home_m: 8.5,
 };
 
-const renderWidget = (props = {}) => render(
-  <CommandActivityProvider>
-    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <DroneWidget
-        drone={baseDrone}
-        toggleDroneDetails={jest.fn()}
-        setSelectedDrone={jest.fn()}
-        isExpanded={false}
-        {...props}
-      />
-    </MemoryRouter>
-  </CommandActivityProvider>,
-);
+const renderWidget = (props = {}) => {
+  const drone = { ...baseDrone, update_time: Date.now(), ...(props.drone || {}) };
+  return render(
+    <CommandActivityProvider>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <DroneWidget
+          toggleDroneDetails={jest.fn()}
+          setSelectedDrone={jest.fn()}
+          isExpanded={false}
+          {...props}
+          drone={drone}
+        />
+      </MemoryRouter>
+    </CommandActivityProvider>,
+  );
+};
 
 describe('DroneWidget command scope state', () => {
   beforeEach(() => {
@@ -107,5 +115,23 @@ describe('DroneWidget command scope state', () => {
       expect.stringContaining('Primary link: Wi-Fi (field-router)'),
     );
     expect(indicator).toHaveAttribute('aria-label', expect.stringContaining('Signal: 82%'));
+  });
+
+  test('does not present raw GPS fix as a valid map position', () => {
+    renderWidget({
+      drone: {
+        ...baseDrone,
+        position_lat: 0,
+        position_long: 0,
+        position_alt: 0,
+        global_position_valid: false,
+        gps_raw_valid: true,
+        gps_fix_type: 3,
+        position_unavailable_reason: 'GPS fix present, waiting for valid PX4 global position.',
+      },
+    });
+
+    expect(screen.getByText('3D Fix')).toBeInTheDocument();
+    expect(screen.getAllByText('Map pending').length).toBeGreaterThan(0);
   });
 });
