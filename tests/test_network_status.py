@@ -38,6 +38,45 @@ def test_build_network_info_classifies_usb_modem_default_route(monkeypatch):
     assert payload["default_route_interface"] == "usb0"
 
 
+def test_build_network_info_classifies_enx_usb_ethernet_as_usb_modem(monkeypatch):
+    outputs = {
+        ("nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,DEVICE", "dev", "wifi"): "",
+        ("nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi"): "",
+        ("nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"): (
+            "enx0c5b8f279a64:ethernet:connected:Huawei E3372\n"
+            "eth0:ethernet:disconnected:--\n"
+        ),
+        ("ip", "-4", "route", "show", "default"): (
+            "default via 192.168.8.1 dev enx0c5b8f279a64 proto dhcp metric 900\n"
+        ),
+    }
+
+    def fake_check_output(command, universal_newlines=True, timeout=None):
+        key = tuple(command)
+        if key not in outputs:
+            raise AssertionError(command)
+        return outputs[key]
+
+    class Completed:
+        returncode = 0
+
+    monkeypatch.setattr(network_status.subprocess, "check_output", fake_check_output)
+    monkeypatch.setattr(network_status.subprocess, "run", lambda *args, **kwargs: Completed())
+    monkeypatch.setattr(
+        network_status.os.path,
+        "realpath",
+        lambda path: "/sys/devices/platform/soc/usb1/1-1/1-1.2/net/enx0c5b8f279a64",
+    )
+    monkeypatch.setattr(network_status, "_INTERNET_CACHE", {"checked_at": 0, "payload": None})
+
+    payload = network_status.build_network_info()
+
+    assert payload["usb_modem"]["interface"] == "enx0c5b8f279a64"
+    assert payload["ethernet"] is None
+    assert payload["primary_link"]["type"] == "usb_modem"
+    assert payload["primary_link"]["label"] == "4G USB"
+
+
 def test_build_network_info_reports_wifi_and_cached_internet(monkeypatch):
     outputs = {
         ("nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,DEVICE", "dev", "wifi"): "yes:livebox-69C0:79:wlan0\n",

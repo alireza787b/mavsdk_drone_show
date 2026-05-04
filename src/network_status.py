@@ -50,6 +50,16 @@ def _run_text(command: list[str], timeout: float = 2.0) -> str:
     return subprocess.check_output(command, universal_newlines=True, timeout=timeout)
 
 
+def _is_usb_backed_interface(device: str) -> bool:
+    if not device:
+        return False
+    try:
+        sysfs_path = os.path.realpath(os.path.join("/sys/class/net", device, "device"))
+    except (OSError, TypeError, ValueError):
+        return False
+    return "/usb" in sysfs_path.lower()
+
+
 def _default_route_interface() -> str:
     try:
         output = _run_text(["ip", "-4", "route", "show", "default"], timeout=1.0)
@@ -71,7 +81,10 @@ def _classify_device(device: str, nm_type: str) -> str:
         return "wifi"
     if kind in {"gsm", "cdma", "wwan"} or dev.startswith(("wwan", "ppp", "cdc-wdm")):
         return "cellular"
-    if dev.startswith("usb"):
+    if dev.startswith("usb") or (
+        (dev.startswith("enx") or kind in {"ethernet", "802-3-ethernet"})
+        and _is_usb_backed_interface(device)
+    ):
         return "usb_modem"
     if dev.startswith(("eth", "enp", "ens", "eno", "enx")) or kind in {"ethernet", "802-3-ethernet"}:
         return "ethernet"

@@ -109,13 +109,25 @@ Heartbeat network metadata distinguishes:
 
 - Wi-Fi (`wlan*`/NetworkManager Wi-Fi)
 - Ethernet (`eth*`, `en*`)
-- USB modem / HiLink 4G (`usb*`)
+- USB modem / HiLink 4G (`usb*`, or USB-backed `enx*` Ethernet devices)
 - cellular/GSM (`wwan*`, `ppp*`, NetworkManager GSM)
 - VPN/NetBird (`wt*`, `tun*`)
 
-The dashboard uses the default route to label the primary link. For example a
-Huawei E3372 in HiLink mode normally appears as `4G USB` on `usb0`, not
-Ethernet, even though NetworkManager may expose it as a wired connection.
+The dashboard uses the default route to label the primary link. Huawei E3372
+HiLink-style dongles normally appear to Linux as USB Ethernet (`usb0` or
+`enx...`) and should be reported as `4G USB`, not as the wired airframe Ethernet
+port.
+
+Use NetworkManager route metrics for transport priority instead of custom
+routing scripts:
+
+- Ethernet on the bench: lower metric, for example `100`
+- Wi-Fi field router: medium metric, for example `200`
+- USB 4G fallback: higher metric, for example `900`
+
+Smart Wi-Fi Manager decides which Wi-Fi SSID to join. NetworkManager route
+metrics decide which active transport carries traffic when Ethernet, Wi-Fi, and
+4G are all present.
 
 Nodes also report a cached internet probe. Keep the default low-rate ICMP check
 or set `MDS_INTERNET_CHECK_PORT` to use a TCP check against an operator-owned
