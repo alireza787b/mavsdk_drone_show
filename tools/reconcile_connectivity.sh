@@ -97,7 +97,7 @@ resolve_smart_wifi_repo_url() {
 }
 
 resolve_smart_wifi_ref() {
-    printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.5}}"
+    printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.6}}"
 }
 
 smart_wifi_git() {

@@ -1440,7 +1440,7 @@ Get git status from all drones.
       },
       "connectivity_runtime": {
         "backend": "none",
-        "ref": "v2.1.5",
+        "ref": "v2.1.6",
         "profile_hash": null,
         "config_hash_match": null
       },
