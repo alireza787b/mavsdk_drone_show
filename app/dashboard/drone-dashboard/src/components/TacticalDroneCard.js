@@ -19,6 +19,7 @@ import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 import { buildActionCommand } from '../services/droneApiService';
 import { submitCommandWithLifecycleFeedback } from '../utilities/commandLifecycleFeedback';
+import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
 import { useCommandActivity } from '../contexts/CommandActivityContext';
 import { DRONE_ACTION_NAMES, DRONE_ACTION_TYPES } from '../constants/droneConstants';
 import '../styles/TacticalDroneCard.css';
@@ -101,9 +102,20 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const missionDisplay = getMissionDisplayContext(drone?.mission, drone?.last_mission);
   const flightMode = getFlightModeTitle(drone?.flight_mode);
   const gpsFix = GPS_FIX_LABELS[Number(drone?.gps_fix_type)] || 'GPS n/a';
-  const globalPositionValid = drone?.global_position_valid !== false
-    && (Number.isFinite(Number(drone?.position?.[0])) || Number.isFinite(Number(drone?.geoPosition?.[0])) || Number.isFinite(Number(drone?.altitude)));
+  const latitude = Number(drone?.position?.[0] ?? drone?.geoPosition?.[0]);
+  const longitude = Number(drone?.position?.[1] ?? drone?.geoPosition?.[1]);
+  const hasMapCoordinate = Number.isFinite(latitude)
+    && Number.isFinite(longitude)
+    && (Math.abs(latitude) > 0.000001 || Math.abs(longitude) > 0.000001);
+  const globalPositionValid = drone?.global_position_valid !== false && hasMapCoordinate;
+  const altitudeReading = resolveMslAltitude(drone);
+  const altitudeAvailable = altitudeReading.value !== null;
   const positionUnavailableReason = drone?.position_unavailable_reason || 'Waiting for valid PX4 global position';
+  const altitudeHelp = altitudeAvailable
+    ? altitudeReading.source === 'gps_raw'
+      ? 'Raw GPS altitude above MSL from GPS_RAW_INT. Map coordinate is still waiting for valid PX4 global position.'
+      : 'Altitude above MSL from PX4 global position.'
+    : positionUnavailableReason;
   const distanceToHome = globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m))
     ? `${formatNumber(drone.distance_to_home_m)} m`
     : 'Map n/a';
@@ -221,7 +233,7 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
       </div>
 
       <div className="tactical-drone-card__metrics" aria-label="Drone health summary">
-        <TacticalMetric icon={FaCompass} label="Altitude" value={globalPositionValid ? `${formatMetricNumber(drone?.altitude)} m` : 'Map n/a'} help={globalPositionValid ? 'Altitude from PX4 global position' : positionUnavailableReason} />
+        <TacticalMetric icon={FaCompass} label="Altitude" value={altitudeAvailable ? formatAltitudeMeters(altitudeReading.value, altitudeReading.label) : 'Alt n/a'} help={altitudeHelp} />
         <TacticalMetric icon={FaHome} label="Distance home" value={globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m)) ? `${formatMetricNumber(drone.distance_to_home_m)} m` : distanceToHome} help={globalPositionValid ? 'Horizontal distance to cached home position' : positionUnavailableReason} />
         <TacticalMetric icon={FaBatteryHalf} label="Battery" value={drone?.battery_voltage ? `${formatNumber(drone.battery_voltage, 2)} V` : 'Batt n/a'} />
         <TacticalMetric icon={FaSatellite} label="GPS" value={`${gpsFix}${drone?.satellites_visible ? `/${drone.satellites_visible}` : ''}`} />

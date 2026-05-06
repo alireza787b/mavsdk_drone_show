@@ -79,8 +79,8 @@ def test_build_network_info_classifies_enx_usb_ethernet_as_usb_modem(monkeypatch
 
 def test_build_network_info_reports_wifi_and_cached_internet(monkeypatch):
     outputs = {
-        ("nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,DEVICE", "dev", "wifi"): "yes:livebox-69C0:79:wlan0\n",
-        ("nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"): "wlan0:wifi:connected:livebox-69C0\n",
+        ("nmcli", "-t", "-f", "ACTIVE,SSID,SIGNAL,DEVICE", "dev", "wifi"): "yes:FieldNet-Alpha:79:wlan0\n",
+        ("nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"): "wlan0:wifi:connected:FieldNet-Alpha\n",
         ("ip", "-4", "route", "show", "default"): "default via 192.168.1.1 dev wlan0 proto dhcp metric 600\n",
     }
 
@@ -103,7 +103,7 @@ def test_build_network_info_reports_wifi_and_cached_internet(monkeypatch):
     first = network_status.build_network_info()
     second = network_status.build_network_info()
 
-    assert first["wifi"]["ssid"] == "livebox-69C0"
+    assert first["wifi"]["ssid"] == "FieldNet-Alpha"
     assert first["primary_link"]["type"] == "wifi"
     assert second["internet"]["reachable"] is True
     assert calls["run"] == 1

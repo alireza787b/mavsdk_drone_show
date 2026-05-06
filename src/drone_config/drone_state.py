@@ -48,6 +48,7 @@ class DroneState:
         vdop: Vertical dilution of precision
         gps_fix_type: GPS fix status (0-6)
         satellites_visible: Number of visible satellites
+        gps_raw_altitude_m: Raw GPS altitude above MSL from GPS_RAW_INT
         base_mode: MAVLink base mode flags
         custom_mode: PX4-specific flight mode
         system_status: System status code
@@ -117,6 +118,7 @@ class DroneState:
         self.vdop: float = 0
         self.gps_fix_type: int = 0  # 0=No GPS, 1=No Fix, 2=2D, 3=3D, 4=DGPS, 5=RTK Float, 6=RTK Fixed
         self.satellites_visible: int = 0
+        self.gps_raw_altitude_m: Optional[float] = None
 
         # MAVLink HEARTBEAT message fields
         self.base_mode: int = 0

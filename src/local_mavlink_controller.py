@@ -755,9 +755,12 @@ class LocalMavlinkController:
         # GPS fix type: 0=No GPS, 1=No Fix, 2=2D Fix, 3=3D Fix, 4=DGPS, 5=RTK Float, 6=RTK Fixed
         self.drone_config.gps_fix_type = getattr(msg, 'fix_type', 0)
         self.drone_config.satellites_visible = getattr(msg, 'satellites_visible', 0)
+        raw_altitude_mm = getattr(msg, 'alt', None)
+        if raw_altitude_mm is not None and raw_altitude_mm not in (2147483647, -2147483648):
+            self.drone_config.gps_raw_altitude_m = raw_altitude_mm / 1E3
         self.drone_config.gps_raw_timestamp_ms = self._now_ms()
 
-        self.log_debug(f"Updated GPS - HDOP: {self.drone_config.hdop}, VDOP: {self.drone_config.vdop}, Fix: {self.drone_config.gps_fix_type}, Sats: {self.drone_config.satellites_visible}")
+        self.log_debug(f"Updated GPS - HDOP: {self.drone_config.hdop}, VDOP: {self.drone_config.vdop}, Fix: {self.drone_config.gps_fix_type}, Sats: {self.drone_config.satellites_visible}, Raw Alt MSL: {getattr(self.drone_config, 'gps_raw_altitude_m', None)}")
         self._update_pre_arm_status()
 
     def process_attitude(self, msg):

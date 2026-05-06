@@ -449,6 +449,7 @@ Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
       "gps_raw_valid": true,
       "gps_raw_timestamp_ms": 1700000000000,
       "gps_raw_age_ms": 120,
+      "gps_raw_altitude_m": 488.5,
       "satellites_visible": 12,
       "ip": "192.168.1.101",
       "heartbeat_last_seen": 1700000000000,
@@ -467,7 +468,7 @@ The older GCS HTTP telemetry aliases were retired on 2026-04-03. Use the canonic
 
 `readiness_status`, `readiness_summary`, `preflight_blockers`, and `status_messages` are the operator-facing fields the dashboard now uses for "Ready to Fly" and live PX4 preflight feedback.
 
-`gps_raw_valid` describes raw GPS fix evidence. `global_position_valid` describes whether PX4 has published a usable mappable global coordinate. These are intentionally separate: a board can have a 3D GPS fix while `position_lat=0` and `position_long=0` because the estimator has not emitted a valid `GLOBAL_POSITION_INT` yet. Dashboards must not map `0,0,0` as a real aircraft position.
+`gps_raw_valid` describes raw GPS fix evidence. `gps_raw_altitude_m` is raw GPS altitude above MSL from `GPS_RAW_INT`; dashboards may show it as an altitude fallback, but must not use it for map placement. `global_position_valid` describes whether PX4 has published a usable mappable global coordinate. These are intentionally separate: a board can have a 3D GPS fix while `position_lat=0` and `position_long=0` because the estimator has not emitted a valid `GLOBAL_POSITION_INT` yet. Dashboards must not map `0,0,0` as a real aircraft position.
 
 `distance_to_home_m` is a nullable horizontal distance from the drone's current valid global position to cached home position; dashboards should show `n/a` until both endpoints are known.
 
@@ -1440,7 +1441,7 @@ Get git status from all drones.
       },
       "connectivity_runtime": {
         "backend": "none",
-        "ref": "v2.1.7",
+        "ref": "v2.1.8",
         "profile_hash": null,
         "config_hash_match": null
       },

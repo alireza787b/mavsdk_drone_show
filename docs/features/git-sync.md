@@ -268,6 +268,11 @@ Repo-driven rollout for Smart Wi-Fi Manager now covers two separate concerns:
 - tool version/channel intent in `deployment/defaults.env`
 - tool configuration intent in `deployment/connectivity/smart-wifi-manager/profile.json`
 
+Fleet Ops shows `Profile missing` when the node is configured for
+Smart Wi-Fi Manager but the repo-owned profile source is absent. That is not a
+service crash by itself; it means the fleet has not committed/imported the
+profile source that nodes should reconcile.
+
 ## Managed MAVLink Runtime Sync
 
 When a node keeps `MDS_MAVLINK_MANAGEMENT_MODE=managed`, the git sync path also

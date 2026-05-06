@@ -188,6 +188,7 @@ class DroneStateResponse(BaseModel):
     gps_raw_valid: bool = False
     gps_raw_timestamp_ms: int = 0
     gps_raw_age_ms: Optional[int] = None
+    gps_raw_altitude_m: Optional[float] = None
     position_source: str = "unavailable"
     position_unavailable_reason: Optional[str] = None
     readiness_status: str = "unknown"

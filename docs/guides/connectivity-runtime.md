@@ -85,6 +85,12 @@ source of truth until the profile is intentionally committed to the private repo
 5. Confirm Fleet Ops shows matching desired/applied profile hashes and healthy
    sidecar status.
 
+If Fleet Ops reports `Profile missing`, the node does not have the configured
+repo-owned profile file yet. This is expected on public/demo repos that do not
+commit real Wi-Fi credentials. In a private fleet repo, add or import
+`deployment/connectivity/smart-wifi-manager/profile.json`, then run Sync +
+reconcile.
+
 For an existing field node, enable Smart Wi-Fi Manager only while a known-good
 management path is still available, such as Ethernet or a stable NetBird route.
 Start with `MDS_SMART_WIFI_MANAGER_MODE=observe` when you only need the

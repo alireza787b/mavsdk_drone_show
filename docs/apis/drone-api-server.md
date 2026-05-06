@@ -135,6 +135,7 @@ http://drone-ip:7070/openapi.json
   "gps_raw_valid": true,
   "gps_raw_timestamp_ms": 1732270245000,
   "gps_raw_age_ms": 100,
+  "gps_raw_altitude_m": 488.5,
   "satellites_visible": 12,
   "ip": "192.168.1.100"
 }
@@ -149,6 +150,7 @@ Readiness fields:
 - `readiness_status` and `readiness_summary` are the operator-facing verdict.
 - `preflight_blockers`, `preflight_warnings`, and `status_messages` surface live PX4 preflight feedback and recent `STATUSTEXT` messages.
 - `gps_raw_valid` is raw GPS evidence from `GPS_RAW_INT`; it does not prove the drone has a usable mappable position.
+- `gps_raw_altitude_m` is raw GPS altitude above MSL from `GPS_RAW_INT`. It can be shown as an altitude fallback while map placement remains unavailable.
 - `global_position_valid` is true only after PX4 publishes a finite, non-zero `GLOBAL_POSITION_INT` coordinate. If GPS reports a fix but global position is not valid, keep map placement and `distance_to_home_m` unavailable.
 - `distance_to_home_m` is the horizontal great-circle distance from current valid LLA to cached home position. It is `null` until current position and home position are both available.
 
@@ -312,7 +314,7 @@ Notes:
   },
   "connectivity_runtime": {
     "backend": "none",
-    "ref": "v2.1.7",
+    "ref": "v2.1.8",
     "profile_hash": null,
     "config_hash_match": null
   }

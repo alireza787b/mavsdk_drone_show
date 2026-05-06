@@ -573,6 +573,8 @@ class DroneCommunicator:
         gps_fix_type = safe_int(getattr(self.drone_config, 'gps_fix_type', 0))
         gps_raw_timestamp_ms = safe_int(getattr(self.drone_config, "gps_raw_timestamp_ms", 0))
         global_position_timestamp_ms = safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0))
+        gps_raw_altitude_m = getattr(self.drone_config, "gps_raw_altitude_m", None)
+        gps_raw_altitude_m = float(gps_raw_altitude_m) if gps_raw_altitude_m is not None else None
 
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
@@ -609,6 +611,7 @@ class DroneCommunicator:
             "gps_raw_valid": gps_fix_type >= 3,
             "gps_raw_timestamp_ms": gps_raw_timestamp_ms,
             "gps_raw_age_ms": self._age_ms(now_ms, gps_raw_timestamp_ms),
+            "gps_raw_altitude_m": gps_raw_altitude_m,
             "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "position_unavailable_reason": self._position_unavailable_reason(global_position_valid),
             "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),

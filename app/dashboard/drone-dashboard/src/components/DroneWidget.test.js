@@ -134,4 +134,26 @@ describe('DroneWidget command scope state', () => {
     expect(screen.getByText('3D Fix')).toBeInTheDocument();
     expect(screen.getAllByText('Map pending').length).toBeGreaterThan(0);
   });
+
+  test('shows raw GPS MSL altitude while map position is still pending', () => {
+    renderWidget({
+      drone: {
+        ...baseDrone,
+        position_lat: 0,
+        position_long: 0,
+        position_alt: 0,
+        global_position_valid: false,
+        gps_raw_valid: true,
+        gps_fix_type: 3,
+        gps_raw_altitude_m: 1280.4,
+        position_unavailable_reason: 'GPS fix present, waiting for valid PX4 global position.',
+      },
+    });
+
+    expect(screen.getByText('1280 m GPS MSL')).toBeInTheDocument();
+    expect(screen.getByText('1280 m GPS MSL')).toHaveAttribute(
+      'data-help',
+      expect.stringContaining('Raw GPS altitude above MSL'),
+    );
+  });
 });

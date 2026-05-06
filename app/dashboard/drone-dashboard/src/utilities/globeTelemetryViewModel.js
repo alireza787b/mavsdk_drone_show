@@ -3,6 +3,7 @@ import { getDroneShowStateName } from '../constants/droneStates';
 import { getPromotedMissionConfigField } from './missionConfigFields';
 import { normalizeDroneConfigData } from './missionIdentityUtils';
 import { getDroneRuntimeStatus } from './droneRuntimeStatus';
+import { resolveMslAltitude } from './telemetryAltitude';
 
 const LOW_LATENCY_INTERVAL_MS = 1000;
 const MEDIUM_FLEET_INTERVAL_MS = 1500;
@@ -80,7 +81,8 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         : '';
       const latitude = toFiniteNumber(drone[FIELD_NAMES.POSITION_LAT], 0);
       const longitude = toFiniteNumber(drone[FIELD_NAMES.POSITION_LONG], 0);
-      const altitude = toFiniteNumber(drone[FIELD_NAMES.POSITION_ALT], 0);
+      const altitudeReading = resolveMslAltitude(drone);
+      const altitude = altitudeReading.value ?? 0;
       const globalPositionValid = drone[FIELD_NAMES.GLOBAL_POSITION_VALID] === undefined
         ? hasNonZeroCoordinate(latitude, longitude)
         : Boolean(drone[FIELD_NAMES.GLOBAL_POSITION_VALID]) && hasNonZeroCoordinate(latitude, longitude);
@@ -101,6 +103,9 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         stateLabel: stateValue === null ? 'Unknown' : getDroneShowStateName(stateValue),
         follow_mode: toFiniteNumber(drone[FIELD_NAMES.FOLLOW_MODE], 0),
         altitude,
+        altitude_source: altitudeReading.source,
+        altitude_label: altitudeReading.label,
+        altitude_available: altitudeReading.value !== null,
         marker_color: config.marker_color || config.markerColor || drone.marker_color || '',
         battery_voltage: toFiniteNumber(drone[FIELD_NAMES.BATTERY_VOLTAGE]),
         distance_to_home_m: toFiniteNumber(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]),
@@ -111,6 +116,7 @@ export function buildGlobeDroneViewModels(telemetryPayload = {}, configPayload =
         gps_fix_type: drone[FIELD_NAMES.GPS_FIX_TYPE] ?? null,
         gps_raw_valid: drone[FIELD_NAMES.GPS_RAW_VALID] ?? null,
         gps_raw_age_ms: toFiniteNumber(drone[FIELD_NAMES.GPS_RAW_AGE_MS]),
+        gps_raw_altitude_m: toFiniteNumber(drone[FIELD_NAMES.GPS_RAW_ALTITUDE_M]),
         satellites_visible: drone[FIELD_NAMES.SATELLITES_VISIBLE] ?? null,
         mission: drone[FIELD_NAMES.MISSION] ?? null,
         last_mission: drone[FIELD_NAMES.LAST_MISSION] ?? null,

@@ -106,6 +106,14 @@ not expected and missing service state is not a failure. If a Smart Wi-Fi
 backend is configured, service and profile status are shown as node compliance
 signals.
 
+`Profile missing` means the sidecar is installed/reported, but the repo-owned
+fleet profile source configured by `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE` does
+not exist on that node checkout. For private fleets, import the profile in
+Fleet Ops or commit it at
+`deployment/connectivity/smart-wifi-manager/profile.json`, then run **Sync +
+reconcile**. For public demos, either keep the backend `none` or use sanitized
+placeholder profiles only.
+
 When Smart Wi-Fi Manager is configured, Fleet Ops shows the resolved profile
 hash plus desired/applied config hashes. Hashes are shortened in the UI for
 operator readability; raw profile content and secrets are not displayed.

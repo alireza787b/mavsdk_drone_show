@@ -430,6 +430,14 @@ class DroneConfig:
         self._state.satellites_visible = value
 
     @property
+    def gps_raw_altitude_m(self) -> Optional[float]:
+        return self._state.gps_raw_altitude_m
+
+    @gps_raw_altitude_m.setter
+    def gps_raw_altitude_m(self, value: Optional[float]):
+        self._state.gps_raw_altitude_m = value
+
+    @property
     def base_mode(self) -> int:
         return self._state.base_mode
 

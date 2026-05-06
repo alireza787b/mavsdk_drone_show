@@ -86,6 +86,14 @@ function formatHashMatch(runtime) {
     : `hash drift ${compactHash(runtime.applied_config_hash)} -> ${compactHash(runtime.desired_config_hash)}`;
 }
 
+function formatConnectivityProfile(runtime) {
+  if (runtime?.profile_present === false) {
+    return 'fleet profile source missing';
+  }
+  const profileHash = compactHash(runtime?.profile_hash);
+  return profileHash === 'unknown' ? 'profile hash unknown' : `profile ${profileHash}`;
+}
+
 function classifyTone(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (HEALTHY_VALUES.has(normalized)) {
@@ -377,13 +385,23 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
 
   const serviceStatus = runtime.service_status || 'unknown';
   const hashDrift = runtime.config_hash_match === false;
-  const healthy = serviceStatus === 'active' && runtime.profile_present !== false && !hashDrift;
+  const profileMissing = runtime.profile_present === false;
+  const healthy = serviceStatus === 'active' && !profileMissing && !hashDrift;
+
+  if (profileMissing) {
+    return {
+      state: 'profile_missing',
+      label: 'Profile missing',
+      tone: 'warning',
+      detail: `Smart Wi-Fi is ${serviceStatus}; mode ${runtime.mode || 'unknown'}; ${formatConnectivityProfile(runtime)}. Import a private fleet profile, then Sync + reconcile. ${formatHashMatch(runtime)}.`,
+    };
+  }
 
   return {
     state: healthy ? 'healthy' : hashDrift ? 'drifted' : serviceStatus,
     label: healthy ? 'Healthy' : hashDrift ? 'Drift' : serviceStatus.replace(/^./, (value) => value.toUpperCase()),
     tone: healthy ? 'good' : hashDrift ? 'warning' : classifyTone(serviceStatus),
-    detail: `Backend ${runtime.backend || 'unknown'}; mode ${runtime.mode || 'unknown'}; profile ${runtime.profile_present ? compactHash(runtime.profile_hash) : 'missing'}; ${formatHashMatch(runtime)}.`,
+    detail: `Smart Wi-Fi ${serviceStatus}; mode ${runtime.mode || 'unknown'}; ${formatConnectivityProfile(runtime)}; ${formatHashMatch(runtime)}.`,
   };
 }
 

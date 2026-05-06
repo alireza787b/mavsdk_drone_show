@@ -59,6 +59,28 @@ describe('globeTelemetryViewModel', () => {
     });
   });
 
+  it('keeps raw GPS MSL altitude available even when map coordinates are invalid', () => {
+    const result = buildGlobeDroneViewModels({
+      1: {
+        hw_id: 1,
+        position_lat: 0,
+        position_long: 0,
+        position_alt: 0,
+        gps_raw_altitude_m: 1280.4,
+        global_position_valid: false,
+        gps_fix_type: 3,
+      },
+    });
+
+    expect(result[0]).toMatchObject({
+      noMapFix: true,
+      altitude: 1280.4,
+      altitude_source: 'gps_raw',
+      altitude_label: 'GPS MSL',
+      altitude_available: true,
+    });
+  });
+
   it('backs off the tactical telemetry interval for hidden tabs, constrained links, and large fleets', () => {
     expect(calculateGlobeTelemetryIntervalMs(4, { hidden: false, connection: {} })).toBe(1000);
     expect(calculateGlobeTelemetryIntervalMs(40, { hidden: false, connection: {} })).toBe(1500);

@@ -26,6 +26,7 @@ import { getPromotedMissionConfigField } from '../utilities/missionConfigFields'
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
 import '../styles/DroneWidget.css';
 
 /**
@@ -150,11 +151,6 @@ const DroneWidget = ({
     return { class: 'critical', text: `${hdop.toFixed(1)}/${vdop.toFixed(1)}` };
   };
 
-  const getAltitudeDisplay = (alt) => {
-    if (alt === undefined) return 'N/A';
-    return `${alt.toFixed(1)}m`;
-  };
-
   const getDistanceToHomeDisplay = (distance) => {
     const numeric = Number(distance);
     if (!Number.isFinite(numeric)) return 'N/A';
@@ -206,6 +202,13 @@ const DroneWidget = ({
   const telemetryUnavailableText = telemetryCanShowLastKnown ? 'Last known' : telemetryAvailable ? 'Last known' : 'Unavailable';
   const mapPositionAvailable = telemetryCanShowLastKnown && globalPositionValid;
   const mapPositionText = telemetryCanShowLastKnown ? 'Map pending' : telemetryUnavailableText;
+  const altitudeReading = resolveMslAltitude(drone);
+  const altitudeAvailable = telemetryCanShowLastKnown && altitudeReading.value !== null;
+  const altitudeHelp = altitudeAvailable
+    ? altitudeReading.source === 'gps_raw'
+      ? 'Raw GPS altitude above MSL from GPS_RAW_INT. Map coordinate is still waiting for valid PX4 global position.'
+      : 'Altitude above MSL from PX4 global position.'
+    : positionUnavailableReason;
   const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
   const networkInfo = drone[FIELD_NAMES.HEARTBEAT_NETWORK_INFO] || drone.heartbeat_network_info || {};
   const primaryLink = networkInfo?.primary_link && typeof networkInfo.primary_link === 'object'
@@ -477,10 +480,10 @@ const DroneWidget = ({
         <div className="data-item">
           <span className="data-label">Altitude</span>
           <span
-            className={`data-value ${mapPositionAvailable ? telemetryPresentationClass : 'map-waiting'}`}
-            data-help={mapPositionAvailable ? 'Altitude from PX4 global position' : positionUnavailableReason}
+            className={`data-value ${altitudeAvailable ? telemetryPresentationClass : 'map-waiting'}`}
+            data-help={altitudeHelp}
           >
-            {mapPositionAvailable ? getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT]) : mapPositionText}
+            {altitudeAvailable ? formatAltitudeMeters(altitudeReading.value, altitudeReading.label) : mapPositionText}
           </span>
         </div>
 

@@ -43,6 +43,7 @@ def build_controller(mock_drone_config):
     mock_drone_config.telemetry_timestamp_ms = 0
     mock_drone_config.telemetry_sequence = 0
     mock_drone_config.gps_raw_timestamp_ms = 0
+    mock_drone_config.gps_raw_altitude_m = None
     mock_drone_config.global_position_timestamp_ms = 0
     mock_drone_config.global_position_valid = False
     mock_drone_config.position_source = "unavailable"
@@ -220,6 +221,24 @@ def test_process_global_position_int_ignores_zero_zero_without_marking_live(mock
     assert mock_drone_config.global_position_valid is False
     assert mock_drone_config.telemetry_timestamp_ms == 0
     assert mock_drone_config.position_source == "invalid_global_position"
+
+
+def test_process_gps_raw_int_records_raw_msl_altitude(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(
+        eph=80,
+        epv=120,
+        fix_type=3,
+        satellites_visible=14,
+        alt=int(1280.4 * 1E3),
+    )
+
+    controller.process_gps_raw_int(msg)
+
+    assert mock_drone_config.gps_fix_type == 3
+    assert mock_drone_config.satellites_visible == 14
+    assert mock_drone_config.gps_raw_altitude_m == 1280.4
+    assert mock_drone_config.gps_raw_timestamp_ms > 0
 
 
 def test_set_home_position_marks_px4_home_truth(mock_drone_config):

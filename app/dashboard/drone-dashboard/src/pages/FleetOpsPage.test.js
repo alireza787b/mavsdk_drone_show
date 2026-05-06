@@ -236,7 +236,7 @@ describe('FleetOpsPage', () => {
 
     expect(screen.getByText(/ref v3.0.8; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText(/backend smart-wifi-manager; mode manage; profile missing; hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
+    expect(screen.getByText(/smart wi-fi is inactive; mode manage; fleet profile source missing\. import a private fleet profile, then sync \+ reconcile\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
   });
