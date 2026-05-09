@@ -201,7 +201,6 @@ const DroneWidget = ({
   const telemetryPresentationClass = telemetryTrusted ? '' : 'stale';
   const telemetryUnavailableText = telemetryCanShowLastKnown ? 'Last known' : telemetryAvailable ? 'Last known' : 'Unavailable';
   const mapPositionAvailable = telemetryCanShowLastKnown && globalPositionValid;
-  const mapPositionText = telemetryCanShowLastKnown ? 'Map pending' : telemetryUnavailableText;
   const altitudeUnavailableText = telemetryCanShowLastKnown ? 'Alt n/a' : telemetryUnavailableText;
   const homeUnavailableText = telemetryCanShowLastKnown ? 'Home n/a' : telemetryUnavailableText;
   const altitudeReading = resolveMslAltitude(drone);
