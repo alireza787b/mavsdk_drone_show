@@ -34,6 +34,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   that `make` targets are thin wrappers around canonical scripts/APIs.
 - `tools/sitl_stop_all.py`, a small stdlib-only helper used by `make sitl-stop`
   to remove local SITL containers through the supported SITL Control API.
+- Source-aware dashboard altitude policy for global MSL, raw GPS MSL, and
+  local/VIO `LOCAL_POSITION_NED` height, with an operator guide explaining when
+  each source is map-trusted.
 
 ### Changed
 - Fleet Ops node cards now expose compact per-node sidecar dashboard shortcuts
@@ -47,6 +50,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   manual `MDS_DOCKER_IMAGE` overrides.
 - Dashboard drone cards were compacted for mobile/operator use by reducing
   repeated visual weight and keeping telemetry indicators in a denser grid.
+- Drone API and GCS telemetry now carry LOCAL_POSITION_NED fields into the
+  normal telemetry payload so non-GPS/local-position operation can still show
+  a clear local altitude without pretending map/home coordinates are valid.
 
 ### Fixed
 - 3D Globe filter controls now open as a scene-local modal layer above drone
@@ -56,6 +62,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   inside the background download worker before calling `download_log_file`,
   preventing valid listed logs from failing later with MAVSDK
   `INVALID_ARGUMENT` when the worker uses a fresh MAVSDK connection.
+- 3D Globe selected-drone cards no longer layer above the global navigation
+  sidebar.
 
 ---
 

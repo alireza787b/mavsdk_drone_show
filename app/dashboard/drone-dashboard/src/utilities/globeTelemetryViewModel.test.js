@@ -81,6 +81,29 @@ describe('globeTelemetryViewModel', () => {
     });
   });
 
+  it('uses LOCAL_POSITION_NED height when operating without a GPS/global map fix', () => {
+    const result = buildGlobeDroneViewModels({
+      1: {
+        hw_id: 1,
+        position_lat: 0,
+        position_long: 0,
+        position_alt: 0,
+        global_position_valid: false,
+        local_position_ok: true,
+        local_position_down: -4.25,
+        local_position_time_boot_ms: 12345,
+      },
+    });
+
+    expect(result[0]).toMatchObject({
+      noMapFix: true,
+      altitude: 4.25,
+      altitude_source: 'local_position',
+      altitude_label: 'Local',
+      altitude_available: true,
+    });
+  });
+
   it('backs off the tactical telemetry interval for hidden tabs, constrained links, and large fleets', () => {
     expect(calculateGlobeTelemetryIntervalMs(4, { hidden: false, connection: {} })).toBe(1000);
     expect(calculateGlobeTelemetryIntervalMs(40, { hidden: false, connection: {} })).toBe(1500);

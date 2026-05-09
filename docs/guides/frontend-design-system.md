@@ -72,8 +72,23 @@ Persistent issues belong in `OperatorNotice` or the page state card.
 - Touch behavior must match pointer behavior; no hover-only workflows.
 - Selected drone cards should be compact, close on outside click/tap, and avoid
   duplicated close buttons from nested map libraries.
+- Global navigation uses `--z-navigation` and must remain above scene popovers,
+  selected-drone cards, and map/globe controls. Modal dialogs may still dim the
+  page, but non-modal tactical cards must never block the sidebar.
 - Leaflet fallback is operational, not degraded. If Mapbox is unavailable, the
   user should still have satellite/OSM layers, fit-to-fleet, and clear status.
+
+## Telemetry Altitude Standard
+
+- Dashboard and tactical cards show one primary altitude chip, source-labeled:
+  `MSL`, `GPS MSL`, or `Local`.
+- `MSL` comes from valid PX4 global position and can support map/home context.
+- `GPS MSL` comes from `GPS_RAW_INT` when a 3D GPS fix exists, but it is not a
+  map coordinate by itself.
+- `Local` comes from `LOCAL_POSITION_NED` and supports VIO/non-GPS workflows;
+  it must not be called AGL unless a ground/terrain/home reference is known.
+- Home distance and map placement remain unavailable until a valid global
+  coordinate exists.
 
 ## Documentation Links
 

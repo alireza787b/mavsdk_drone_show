@@ -132,7 +132,9 @@ describe('DroneWidget command scope state', () => {
     });
 
     expect(screen.getByText('3D Fix')).toBeInTheDocument();
-    expect(screen.getAllByText('Map pending').length).toBeGreaterThan(0);
+    expect(screen.getByText('Alt n/a')).toBeInTheDocument();
+    expect(screen.getByText('Home n/a')).toBeInTheDocument();
+    expect(screen.getByText(/map pending/i)).toBeInTheDocument();
   });
 
   test('shows raw GPS MSL altitude while map position is still pending', () => {
@@ -155,5 +157,30 @@ describe('DroneWidget command scope state', () => {
       'data-help',
       expect.stringContaining('Raw GPS altitude above MSL'),
     );
+  });
+
+  test('shows local altitude for non-GPS or VIO operation instead of waiting for the map', () => {
+    renderWidget({
+      drone: {
+        ...baseDrone,
+        position_lat: 0,
+        position_long: 0,
+        position_alt: 0,
+        global_position_valid: false,
+        gps_raw_valid: false,
+        gps_fix_type: 0,
+        local_position_ok: true,
+        local_position_down: -3.2,
+        local_position_time_boot_ms: 25000,
+        position_unavailable_reason: 'No GPS fix reported.',
+      },
+    });
+
+    expect(screen.getByText('3.2 m Local')).toBeInTheDocument();
+    expect(screen.getByText('3.2 m Local')).toHaveAttribute(
+      'data-help',
+      expect.stringContaining('LOCAL_POSITION_NED'),
+    );
+    expect(screen.getByText('Home n/a')).toBeInTheDocument();
   });
 });

@@ -467,6 +467,11 @@ class DroneTelemetry(BaseModel):
     gps_raw_valid: bool = Field(False, description="Whether GPS_RAW_INT reports at least a 3D fix")
     gps_raw_timestamp_ms: int = Field(0, description="Last raw GPS quality sample timestamp (Unix ms)")
     gps_raw_age_ms: Optional[int] = Field(None, description="Age of the last raw GPS quality sample")
+    local_position_ok: bool = Field(False, description="Whether LOCAL_POSITION_NED has been observed")
+    local_position_north: Optional[float] = Field(None, description="LOCAL_POSITION_NED north coordinate (m)")
+    local_position_east: Optional[float] = Field(None, description="LOCAL_POSITION_NED east coordinate (m)")
+    local_position_down: Optional[float] = Field(None, description="LOCAL_POSITION_NED down coordinate (m)")
+    local_position_time_boot_ms: int = Field(0, description="LOCAL_POSITION_NED PX4 boot timestamp (ms)")
     position_source: str = Field("unavailable", description="Source of the current position fields")
     position_unavailable_reason: Optional[str] = Field(None, description="Reason no mappable global position is available")
 

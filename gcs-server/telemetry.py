@@ -339,6 +339,11 @@ def poll_telemetry(drone):
                         'vdop': telemetry_data.get('vdop', 99.99),
                         'gps_fix_type': telemetry_data.get('gps_fix_type', 0),  # GPS fix status
                         'satellites_visible': telemetry_data.get('satellites_visible', 0),  # Number of satellites
+                        'local_position_ok': telemetry_data.get('local_position_ok', False),
+                        'local_position_north': telemetry_data.get('local_position_north'),
+                        'local_position_east': telemetry_data.get('local_position_east'),
+                        'local_position_down': telemetry_data.get('local_position_down'),
+                        'local_position_time_boot_ms': telemetry_data.get('local_position_time_boot_ms', 0),
                         'ip': telemetry_data.get('ip', 'N/A'),  # Drone IP address from config
                         # Heartbeat data (kept with prefix for clarity)
                         'heartbeat_last_seen': heartbeat_data.get('timestamp', 0),  # Last heartbeat timestamp

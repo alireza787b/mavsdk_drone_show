@@ -202,12 +202,16 @@ const DroneWidget = ({
   const telemetryUnavailableText = telemetryCanShowLastKnown ? 'Last known' : telemetryAvailable ? 'Last known' : 'Unavailable';
   const mapPositionAvailable = telemetryCanShowLastKnown && globalPositionValid;
   const mapPositionText = telemetryCanShowLastKnown ? 'Map pending' : telemetryUnavailableText;
+  const altitudeUnavailableText = telemetryCanShowLastKnown ? 'Alt n/a' : telemetryUnavailableText;
+  const homeUnavailableText = telemetryCanShowLastKnown ? 'Home n/a' : telemetryUnavailableText;
   const altitudeReading = resolveMslAltitude(drone);
   const altitudeAvailable = telemetryCanShowLastKnown && altitudeReading.value !== null;
   const altitudeHelp = altitudeAvailable
     ? altitudeReading.source === 'gps_raw'
       ? 'Raw GPS altitude above MSL from GPS_RAW_INT. Map coordinate is still waiting for valid PX4 global position.'
-      : 'Altitude above MSL from PX4 global position.'
+      : altitudeReading.source === 'local_position'
+        ? 'Local height from PX4 LOCAL_POSITION_NED. This supports VIO/non-GPS operation but is not a map coordinate.'
+        : 'Altitude above MSL from PX4 global position.'
     : positionUnavailableReason;
   const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
   const networkInfo = drone[FIELD_NAMES.HEARTBEAT_NETWORK_INFO] || drone.heartbeat_network_info || {};
@@ -483,7 +487,7 @@ const DroneWidget = ({
             className={`data-value ${altitudeAvailable ? telemetryPresentationClass : 'map-waiting'}`}
             data-help={altitudeHelp}
           >
-            {altitudeAvailable ? formatAltitudeMeters(altitudeReading.value, altitudeReading.label) : mapPositionText}
+            {altitudeAvailable ? formatAltitudeMeters(altitudeReading.value, altitudeReading.label) : altitudeUnavailableText}
           </span>
         </div>
 
@@ -525,7 +529,7 @@ const DroneWidget = ({
               className={`data-value ${mapPositionAvailable ? telemetryPresentationClass : 'map-waiting'}`}
               data-help={mapPositionAvailable ? 'Horizontal distance from current global position to cached home' : positionUnavailableReason}
             >
-              {mapPositionAvailable ? getDistanceToHomeDisplay(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]) : mapPositionText}
+              {mapPositionAvailable ? getDistanceToHomeDisplay(drone[FIELD_NAMES.DISTANCE_TO_HOME_M]) : homeUnavailableText}
             </span>
           </div>
         </div>

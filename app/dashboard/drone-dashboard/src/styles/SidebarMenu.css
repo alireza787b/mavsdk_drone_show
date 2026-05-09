@@ -12,7 +12,7 @@
   border-right: 1px solid var(--color-border-secondary);
   display: flex;
   flex-direction: column;
-  z-index: var(--z-modal);
+  z-index: var(--z-navigation);
   transition: var(--transition-all);
   box-shadow: var(--shadow-xl);
   backdrop-filter: blur(18px);
@@ -58,7 +58,7 @@
   justify-content: center;
   cursor: pointer;
   transition: var(--transition-all);
-  z-index: calc(var(--z-fixed) + 1);
+  z-index: calc(var(--z-navigation) + 1);
   box-shadow: var(--shadow-sm);
   color: var(--color-text-primary);
   font-size: 14px;
@@ -852,7 +852,7 @@
     max-width: 320px;
     height: 100dvh;
     max-height: 100dvh;
-    z-index: calc(var(--z-tooltip) + 20);
+    z-index: var(--z-navigation);
     transform: translateX(-100%);
     transition: transform var(--transition-all);
     overflow-y: auto;

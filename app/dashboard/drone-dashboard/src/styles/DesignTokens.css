@@ -160,6 +160,7 @@
     --z-map-overlay: var(--z-popover);
     --z-globe-overlay: var(--z-popover);
     --z-command-overlay: var(--z-modal);
+    --z-navigation: calc(var(--z-tooltip) + 40);
     --z-local-base: 1;
     --z-local-raised: 2;
     --z-local-floating: 10;

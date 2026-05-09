@@ -114,7 +114,9 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const altitudeHelp = altitudeAvailable
     ? altitudeReading.source === 'gps_raw'
       ? 'Raw GPS altitude above MSL from GPS_RAW_INT. Map coordinate is still waiting for valid PX4 global position.'
-      : 'Altitude above MSL from PX4 global position.'
+      : altitudeReading.source === 'local_position'
+        ? 'Local height from PX4 LOCAL_POSITION_NED. This supports VIO/non-GPS operation but is not a map coordinate.'
+        : 'Altitude above MSL from PX4 global position.'
     : positionUnavailableReason;
   const distanceToHome = globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m))
     ? `${formatNumber(drone.distance_to_home_m)} m`

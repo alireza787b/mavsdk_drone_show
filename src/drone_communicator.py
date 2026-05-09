@@ -576,6 +576,9 @@ class DroneCommunicator:
         gps_raw_altitude_m = getattr(self.drone_config, "gps_raw_altitude_m", None)
         gps_raw_altitude_m = float(gps_raw_altitude_m) if gps_raw_altitude_m is not None else None
 
+        local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
+        local_time_boot_ms = safe_int(local_ned.get("time_boot_ms"))
+
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
             "pos_id": safe_int(self.drone_config.pos_id),  # Position ID
@@ -612,6 +615,11 @@ class DroneCommunicator:
             "gps_raw_timestamp_ms": gps_raw_timestamp_ms,
             "gps_raw_age_ms": self._age_ms(now_ms, gps_raw_timestamp_ms),
             "gps_raw_altitude_m": gps_raw_altitude_m,
+            "local_position_ok": local_time_boot_ms > 0,
+            "local_position_north": safe_float(local_ned.get("x")),
+            "local_position_east": safe_float(local_ned.get("y")),
+            "local_position_down": safe_float(local_ned.get("z")),
+            "local_position_time_boot_ms": local_time_boot_ms,
             "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "position_unavailable_reason": self._position_unavailable_reason(global_position_valid),
             "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),

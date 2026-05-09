@@ -23,11 +23,24 @@ export function resolveMslAltitude(drone = {}) {
   }
 
   const rawGpsAltitude = toFiniteTelemetryNumber(drone?.[FIELD_NAMES.GPS_RAW_ALTITUDE_M] ?? drone?.gps_raw_altitude_m);
-  if (rawGpsAltitude !== null) {
+  const gpsRawUsable = drone?.[FIELD_NAMES.GPS_RAW_VALID] === true || Number(drone?.[FIELD_NAMES.GPS_FIX_TYPE]) >= 3;
+  if (rawGpsAltitude !== null && gpsRawUsable) {
     return {
       value: rawGpsAltitude,
       source: 'gps_raw',
       label: 'GPS MSL',
+      trustedForMap: false,
+    };
+  }
+
+  const localDown = toFiniteTelemetryNumber(drone?.[FIELD_NAMES.LOCAL_POSITION_DOWN] ?? drone?.local_position_down);
+  const localOk = drone?.[FIELD_NAMES.LOCAL_POSITION_OK] === true
+    || Number(drone?.[FIELD_NAMES.LOCAL_POSITION_TIME_BOOT_MS] ?? drone?.local_position_time_boot_ms) > 0;
+  if (localDown !== null && localOk) {
+    return {
+      value: -localDown,
+      source: 'local_position',
+      label: 'Local',
       trustedForMap: false,
     };
   }
