@@ -152,7 +152,7 @@ class OnboardUlogService:
                         current.progress = 1.0
                         current.updated_at = self._now_ms()
             else:
-                entry = MavsdkLogEntry(job.log_id, job.date_utc or "", job.size_bytes)
+                entry = await self._resolve_download_entry(drone, job)
                 async for progress in drone.log_files.download_log_file(entry, str(stage_path)):
                     async with self._lock:
                         current = self._jobs.get(job_id)
@@ -246,6 +246,66 @@ class OnboardUlogService:
         )
         self._fallback_entries = {}
         return normalized
+
+    async def _resolve_download_entry(self, drone: Any, job: OnboardUlogDownloadJob) -> MavsdkLogEntry:
+        """Return the current MAVSDK entry for a staged job.
+
+        MAVSDK documents onboard-log download as a two-step flow: first ask the
+        vehicle for entries, then pass one of those entries to the download call.
+        In production the download job runs after the HTTP request returns, often
+        through a fresh MAVSDK connection, so reconstructing an Entry only from
+        cached fields can be rejected by PX4/MAVSDK as INVALID_ARGUMENT. Refreshing
+        the live entry at download time keeps the job API asynchronous while using
+        the current vehicle-side log identifier.
+        """
+        try:
+            live_entries = await drone.log_files.get_entries()
+        except Exception:
+            return MavsdkLogEntry(int(job.log_id), job.date_utc or "", int(job.size_bytes))
+
+        log_id = int(job.log_id)
+        exact_id_matches = [
+            entry
+            for entry in live_entries
+            if self._safe_entry_int(entry, "id") == log_id
+        ]
+        for entry in exact_id_matches:
+            if self._entry_matches_job(entry, job):
+                return entry
+        if exact_id_matches:
+            return exact_id_matches[0]
+
+        for entry in live_entries:
+            if self._entry_matches_job(entry, job):
+                return entry
+
+        return MavsdkLogEntry(log_id, job.date_utc or "", int(job.size_bytes))
+
+    @classmethod
+    def _entry_matches_job(cls, entry: Any, job: OnboardUlogDownloadJob) -> bool:
+        entry_size = cls._safe_entry_int(entry, "size_bytes")
+        if entry_size is not None and entry_size != int(job.size_bytes):
+            return False
+
+        job_date = cls._normalize_entry_date(job.date_utc)
+        entry_date = cls._normalize_entry_date(getattr(entry, "date", None))
+        if job_date and entry_date and job_date != entry_date:
+            return False
+        return True
+
+    @staticmethod
+    def _safe_entry_int(entry: Any, attr: str) -> int | None:
+        try:
+            return int(getattr(entry, attr))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _normalize_entry_date(value: Any) -> str:
+        token = str(value or "").strip()
+        if not token:
+            return ""
+        return token.replace("+00:00", "Z").replace(".000000", "")
 
     def _list_filesystem_entries(self) -> list[OnboardUlogEntry] | None:
         candidates: list[tuple[Path, OnboardUlogEntry]] = []

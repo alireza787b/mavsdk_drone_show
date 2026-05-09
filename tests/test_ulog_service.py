@@ -49,6 +49,32 @@ class _BrokenDrone:
         self.log_files = _BrokenLogFiles()
 
 
+class _StrictRefetchLogFiles:
+    def __init__(self):
+        self.calls = 0
+        self.initial_entry = SimpleNamespace(id=9, date="2026-04-11T10:22:33Z", size_bytes=512)
+        self.live_entry = SimpleNamespace(id=9, date="2026-04-11T10:22:33Z", size_bytes=512)
+        self.downloaded_entry = None
+
+    async def get_entries(self):
+        self.calls += 1
+        if self.calls == 1:
+            return [self.initial_entry]
+        return [self.live_entry]
+
+    async def download_log_file(self, entry, path):
+        if entry is not self.live_entry:
+            raise AssertionError("download should use the freshly fetched MAVSDK entry")
+        self.downloaded_entry = entry
+        Path(path).write_bytes(b"fresh-entry-ulog")
+        yield _FakeProgress(1.0)
+
+
+class _StrictRefetchDrone:
+    def __init__(self):
+        self.log_files = _StrictRefetchLogFiles()
+
+
 def _make_params(tmp_path):
     return SimpleNamespace(
         ULOG_DOWNLOAD_REQUIRE_DISARMED=True,
@@ -105,6 +131,25 @@ async def test_create_and_complete_download_job_stages_named_file(tmp_path):
     stage_path, ready_job = await service.get_ready_file(queued.job.job_id)
     assert stage_path.exists()
     assert ready_job.download_filename.endswith(".ulg")
+
+
+@pytest.mark.asyncio
+async def test_download_refetches_live_mavsdk_entry_before_staging(tmp_path):
+    params = _make_params(tmp_path)
+    service = OnboardUlogService(params, hw_id="7", pos_id=3)
+    drone = _StrictRefetchDrone()
+
+    queued = await service.create_download_job(
+        drone,
+        9,
+        SimpleNamespace(pos_id=3),
+    )
+    completed = await service.perform_download(drone, queued.job.job_id)
+
+    assert completed.job.status == "ready"
+    assert drone.log_files.downloaded_entry is drone.log_files.live_entry
+    stage_path, _ = await service.get_ready_file(queued.job.job_id)
+    assert stage_path.read_bytes() == b"fresh-entry-ulog"
 
 
 @pytest.mark.asyncio

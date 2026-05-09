@@ -337,6 +337,10 @@ Operational notes:
   `Erase requires disarmed`
 - download progress is polled and surfaced as a compact job-status card before
   the browser transfer starts
+- staged downloads intentionally re-fetch the current MAVSDK log entry inside
+  the background worker before downloading; this keeps asynchronous browser
+  jobs aligned with MAVSDK's `get_entries` then `download_log_file` flow and
+  avoids stale reconstructed entries being rejected by PX4/MAVSDK
 - download filenames are normalized to include slot when known, hardware id,
   PX4 log timestamp when available, and the PX4/MDS log identifier, for example
   `mds-ulog_P12_H5_20260411T102233Z_L7.ulg`

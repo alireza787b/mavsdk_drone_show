@@ -52,6 +52,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - 3D Globe filter controls now open as a scene-local modal layer above drone
   labels/cards, with click-away dismissal and disabled drone touch targets
   while filters are open.
+- Onboard PX4 ULog staged downloads now re-resolve the live MAVSDK log entry
+  inside the background download worker before calling `download_log_file`,
+  preventing valid listed logs from failing later with MAVSDK
+  `INVALID_ARGUMENT` when the worker uses a fresh MAVSDK connection.
 
 ---
 
