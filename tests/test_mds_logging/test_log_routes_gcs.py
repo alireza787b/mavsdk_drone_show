@@ -7,11 +7,11 @@ import pytest
 # Add gcs-server to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'gcs-server'))
 
-from fastapi.testclient import TestClient
 from fastapi import FastAPI
 
 from mds_logging.watcher import LogWatcher
 from mds_logging.registry import register_component, clear_registry
+from tests.conftest import SyncASGITestClient as TestClient
 
 
 @pytest.fixture(autouse=True)

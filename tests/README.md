@@ -85,7 +85,7 @@ Provides reusable test fixtures:
 - `mock_drone_config` - Mock drone configuration with test data
 - `mock_drone_communicator` - Mock communicator with sample state
 - `api_server` - DroneAPIServer instance with mocked dependencies
-- `test_client` - FastAPI TestClient for HTTP requests
+- `test_client` - `SyncASGITestClient` for HTTP requests; it uses `httpx.ASGITransport` to avoid Starlette `TestClient` deadlocks in this environment
 - `sample_command` - Sample command data
 
 ### `test_drone_api_http.py` - HTTP Tests

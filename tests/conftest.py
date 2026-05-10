@@ -129,6 +129,8 @@ class SyncASGITestClient:
     Starlette TestClient deadlocks in this environment, even for trivial apps.
     """
 
+    __test__ = False
+
     def __init__(self, app):
         self.app = app
         self.base_url = "http://testserver"

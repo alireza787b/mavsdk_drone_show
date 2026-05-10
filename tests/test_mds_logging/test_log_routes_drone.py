@@ -4,10 +4,10 @@ import os
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from fastapi.testclient import TestClient
 
 from mds_logging.session import list_sessions, read_session_lines
 from mds_logging.watcher import LogWatcher
+from tests.conftest import SyncASGITestClient as TestClient
 
 
 def _make_drone_app(log_dir, watcher=None):
