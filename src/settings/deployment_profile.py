@@ -102,7 +102,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS",
         "https://github.com/alireza787b/smart-wifi-manager.git",
     )
-    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.8")
+    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.9")
     smart_wifi_manager_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "observe")
     smart_wifi_manager_import_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE", "replace")
     smart_wifi_manager_install_dir = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR", "/opt/smart-wifi-manager")
