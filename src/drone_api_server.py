@@ -533,6 +533,7 @@ class DroneAPIServer:
     # Class-level flags to prevent log spam for expected SITL failures
     _network_info_error_logged = False
     _origin_fetch_error_logged = False
+    _origin_fetch_last_issue = None
 
     def __init__(self, params: Params, drone_config: DroneConfig):
         """
@@ -2071,14 +2072,35 @@ class DroneAPIServer:
                 if 'lat' in data and 'lon' in data:
                     # Reset error flag on success
                     DroneAPIServer._origin_fetch_error_logged = False
+                    DroneAPIServer._origin_fetch_last_issue = None
                     return {'lat': float(data['lat']), 'lon': float(data['lon'])}
             else:
-                logger.warning(f"GCS responded with status code {response.status_code}")
+                detail = ""
+                try:
+                    payload = response.json()
+                    detail = str(payload.get("detail") or payload.get("error") or "")
+                except ValueError:
+                    response_text = getattr(response, "text", "")
+                    detail = response_text[:200] if response_text else ""
+
+                issue_key = f"http_{response.status_code}:{detail}"
+                if issue_key != DroneAPIServer._origin_fetch_last_issue:
+                    DroneAPIServer._origin_fetch_last_issue = issue_key
+                    DroneAPIServer._origin_fetch_error_logged = True
+                    if response.status_code == 404 and "Origin not set" in detail:
+                        logger.info(
+                            "GCS origin is not set yet; pos_id auto-detection will wait for dashboard origin."
+                        )
+                    else:
+                        suffix = f": {detail}" if detail else ""
+                        logger.warning(f"Origin fetch from GCS returned HTTP {response.status_code}{suffix}")
             return None
         except requests.RequestException as e:
             # Log once to avoid spam - GCS might not be running yet
-            if not DroneAPIServer._origin_fetch_error_logged:
+            issue_key = f"request_exception:{type(e).__name__}:{e}"
+            if issue_key != DroneAPIServer._origin_fetch_last_issue:
                 DroneAPIServer._origin_fetch_error_logged = True
+                DroneAPIServer._origin_fetch_last_issue = issue_key
                 logger.warning(f"Origin fetch from GCS failed (will retry): {e}")
             return None
 

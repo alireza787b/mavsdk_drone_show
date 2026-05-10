@@ -8,6 +8,7 @@ Tests for all HTTP REST endpoints in the Drone API Server.
 import pytest
 import asyncio
 import json
+import logging
 from unittest.mock import AsyncMock, Mock
 from fastapi.testclient import TestClient
 from src.enums import Mission
@@ -614,6 +615,35 @@ class TestCommands:
         assert captured['timeout'] == 5
         assert captured['headers'] == {}
         assert origin == {'lat': 35.0, 'lon': 51.0}
+
+    def test_get_origin_from_gcs_origin_not_set_logs_once(self, api_server, monkeypatch, caplog):
+        from src.drone_api_server import DroneAPIServer
+
+        DroneAPIServer._origin_fetch_error_logged = False
+        DroneAPIServer._origin_fetch_last_issue = None
+
+        class DummyResponse:
+            status_code = 404
+            text = ""
+
+            @staticmethod
+            def json():
+                return {"detail": "Origin not set. Use dashboard to set origin."}
+
+        def fake_get(url, timeout, **kwargs):
+            return DummyResponse()
+
+        monkeypatch.setattr("src.drone_api_server.requests.get", fake_get)
+
+        with caplog.at_level(logging.INFO):
+            assert api_server._get_origin_from_gcs() is None
+            assert api_server._get_origin_from_gcs() is None
+
+        messages = [record.message for record in caplog.records]
+        assert messages.count(
+            "GCS origin is not set yet; pos_id auto-detection will wait for dashboard origin."
+        ) == 1
+        assert all("GCS responded with status code" not in message for message in messages)
 
     def test_send_command_different_mission_types(self, test_client, mock_drone_communicator):
         """Test different mission types with new response format"""
