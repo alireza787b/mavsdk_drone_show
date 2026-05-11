@@ -81,7 +81,7 @@ def test_registry_keeps_sitl_and_real_candidates_in_separate_domains(tmp_path: P
         load_config=lambda: [],
     )
     real = registry.observe_heartbeat(
-        {"hw_id": "5", "ip": "100.82.47.7", "timestamp": 1_700_000_000_100, "runtime_mode": "real"},
+        {"hw_id": "5", "ip": "198.51.100.12", "timestamp": 1_700_000_000_100, "runtime_mode": "real"},
         load_config=lambda: [],
     )
 

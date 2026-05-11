@@ -59,7 +59,7 @@ because the reconcile endpoint models positive fleet sizes only.
 
 ```bash
 make install-gcs ARGS="--help"
-make install-companion ARGS="-d 1 -y --mavlink-auto --gcs-ip 100.82.207.49"
+make install-companion ARGS="-d 1 -y --mavlink-auto --gcs-ip 198.51.100.10"
 make node-init ARGS="-d 1 -y"
 make node-resume
 make git-access-check

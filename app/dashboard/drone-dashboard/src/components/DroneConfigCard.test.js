@@ -152,7 +152,7 @@ describe('DroneConfigCard', () => {
         drone={{
           hw_id: '1',
           pos_id: '1',
-          ip: '100.82.72.33',
+          ip: '198.51.100.11',
           mavlink_port: '14551',
           serial_port: '/dev/ttyAMA0',
           baudrate: '921600',
@@ -193,7 +193,7 @@ describe('DroneConfigCard', () => {
         }}
         heartbeatData={{
           timestamp: Date.now(),
-          ip: '100.82.72.33',
+          ip: '198.51.100.11',
           pos_id: '1',
           runtime_mode: 'real',
         }}

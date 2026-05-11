@@ -19,7 +19,7 @@ describe('fleetOpsViewModel', () => {
         1: {
           pos_id: 1,
           hw_id: '1',
-          ip: '100.82.72.33',
+          ip: '198.51.100.11',
           branch: 'main',
           commit: 'abcdef123456',
           in_sync_with_gcs: true,
@@ -46,7 +46,7 @@ describe('fleetOpsViewModel', () => {
         2: {
           pos_id: 2,
           hw_id: '2',
-          ip: '100.82.47.7',
+          ip: '198.51.100.12',
           branch: 'main',
           commit: '1111111',
           in_sync_with_gcs: false,
@@ -58,8 +58,8 @@ describe('fleetOpsViewModel', () => {
     };
     const heartbeatPayload = {
       heartbeats: [
-        { pos_id: 1, hw_id: '1', ip: '100.82.72.33', online: true, runtime_mode: 'real' },
-        { pos_id: 2, hw_id: '2', ip: '100.82.47.7', online: false, runtime_mode: 'real' },
+        { pos_id: 1, hw_id: '1', ip: '198.51.100.11', online: true, runtime_mode: 'real' },
+        { pos_id: 2, hw_id: '2', ip: '198.51.100.12', online: false, runtime_mode: 'real' },
       ],
     };
 

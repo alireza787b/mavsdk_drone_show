@@ -24,7 +24,7 @@ const gitPayload = {
     1: {
       pos_id: 1,
       hw_id: '1',
-      ip: '100.82.72.33',
+      ip: '198.51.100.11',
       branch: 'main',
       commit: 'abcdef1234567890',
       in_sync_with_gcs: true,
@@ -65,7 +65,7 @@ const gitPayload = {
     2: {
       pos_id: 2,
       hw_id: '2',
-      ip: '100.82.47.7',
+      ip: '198.51.100.12',
       branch: 'main',
       commit: '1111111111111111',
       in_sync_with_gcs: false,
@@ -101,8 +101,8 @@ const gitPayload = {
 const heartbeatPayload = {
   timestamp: 1777049000000,
   heartbeats: [
-    { pos_id: 1, hw_id: '1', ip: '100.82.72.33', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 },
-    { pos_id: 2, hw_id: '2', ip: '100.82.47.7', online: false, runtime_mode: 'real', last_heartbeat: 1777048800000 },
+    { pos_id: 1, hw_id: '1', ip: '198.51.100.11', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 },
+    { pos_id: 2, hw_id: '2', ip: '198.51.100.12', online: false, runtime_mode: 'real', last_heartbeat: 1777048800000 },
   ],
 };
 
@@ -182,7 +182,7 @@ describe('FleetOpsPage', () => {
     driftGitPayload.git_status[3] = {
       pos_id: 3,
       hw_id: '3',
-      ip: '100.82.47.9',
+      ip: '198.51.100.13',
       branch: 'main',
       commit: 'abcdef1234567890',
       in_sync_with_gcs: true,
@@ -209,7 +209,7 @@ describe('FleetOpsPage', () => {
       },
     };
     const driftHeartbeatPayload = clonePayload(heartbeatPayload);
-    driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '100.82.47.9', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 });
+    driftHeartbeatPayload.heartbeats.push({ pos_id: 3, hw_id: '3', ip: '198.51.100.13', online: true, runtime_mode: 'real', last_heartbeat: 1777048999000 });
 
     renderFleetOps({ gitStatusOverride: driftGitPayload, heartbeatOverride: driftHeartbeatPayload });
 
@@ -229,7 +229,7 @@ describe('FleetOpsPage', () => {
 
     expect(screen.getByRole('link', { name: /open mavlink dashboard/i })).toHaveAttribute(
       'href',
-      'http://100.82.72.33:9070',
+      'http://198.51.100.11:9070',
     );
 
     fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));

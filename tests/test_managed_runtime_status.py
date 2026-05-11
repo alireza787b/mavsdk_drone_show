@@ -39,11 +39,11 @@ def test_resolve_dashboard_access_for_loopback_listener_stays_local_only():
 
 
 def test_resolve_dashboard_access_for_explicit_remote_host_keeps_host():
-    result = resolve_dashboard_access("10.0.0.21", "100.82.7.9:9070")
+    result = resolve_dashboard_access("10.0.0.21", "198.51.100.20:9070")
 
     assert result == {
         "dashboard_access_mode": "direct",
-        "dashboard_url": "http://100.82.7.9:9070",
+        "dashboard_url": "http://198.51.100.20:9070",
     }
 
 

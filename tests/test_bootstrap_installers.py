@@ -237,7 +237,7 @@ def test_identity_setup_local_env_persists_node_git_auth_file_paths():
         MDS_LOCAL_ENV="$MDS_CONFIG_DIR/local.env"
         GIT_AUTH_TOKEN_FILE="/home/droneshow/.mds_git_read_token"
         GIT_SSH_KEY_FILE="/home/droneshow/.ssh/customer_read_key"
-        setup_local_env 2 "100.82.207.49" "https://github.com/example-org/private-mds.git" "main" "http://100.82.207.49:5030"
+        setup_local_env 2 "198.51.100.10" "https://github.com/example-org/private-mds.git" "main" "http://198.51.100.10:5030"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/customer_read_key$' "$MDS_LOCAL_ENV"
         """

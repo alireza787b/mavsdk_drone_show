@@ -123,7 +123,7 @@ def test_management_node_env_resolver_keeps_config_ip_when_raw_status_lacks_host
     deps = _make_deps()
     deps.load_config = lambda: [
         {"hw_id": 1, "pos_id": 1, "ip": "100.64.1.10"},
-        {"hw_id": 2, "pos_id": 2, "ip": "100.82.47.7"},
+        {"hw_id": 2, "pos_id": 2, "ip": "198.51.100.12"},
     ]
     deps.git_status_data_all_drones = {
         "2": {
@@ -139,9 +139,9 @@ def test_management_node_env_resolver_keeps_config_ip_when_raw_status_lacks_host
 
     record = management_module._resolve_node_record(deps, "2")
 
-    assert record["ip"] == "100.82.47.7"
+    assert record["ip"] == "198.51.100.12"
     assert record["branch"] == "main"
-    assert management_module._extract_node_host(record) == "100.82.47.7"
+    assert management_module._extract_node_host(record) == "198.51.100.12"
 
 
 def test_management_router_get_gcs_config_uses_live_params_after_router_creation(monkeypatch, tmp_path):

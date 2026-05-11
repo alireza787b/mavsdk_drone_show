@@ -342,14 +342,14 @@ class TestBackgroundTelemetryHelpers:
             payload = _build_background_unavailable_record(
                 hw_id='101',
                 pos_id=101,
-                ip='100.82.72.33',
+                ip='198.51.100.11',
                 error_message='Unable to reach the drone telemetry endpoint.',
                 existing=existing,
             )
 
         assert payload['hw_id'] == '101'
         assert payload['pos_id'] == 101
-        assert payload['ip'] == '100.82.72.33'
+        assert payload['ip'] == '198.51.100.11'
         assert payload['position_lat'] == pytest.approx(48.1234)
         assert payload['battery_voltage'] == pytest.approx(15.2)
         assert payload['telemetry_available'] is False
@@ -365,7 +365,7 @@ class TestBackgroundTelemetryHelpers:
         payload = _build_background_unavailable_record(
             hw_id='2',
             pos_id=2,
-            ip='100.82.47.7',
+            ip='198.51.100.12',
             error_message='Unable to reach the drone telemetry endpoint.',
             existing={
                 'hw_id': '2',
@@ -398,7 +398,7 @@ class TestBackgroundTelemetryHelpers:
         real_app.git_status_data_all_drones['old'] = {'branch': 'main'}
 
         summary = service.apply_drone_targets([
-            {'hw_id': 101, 'pos_id': 101, 'ip': '100.82.72.33'},
+            {'hw_id': 101, 'pos_id': 101, 'ip': '198.51.100.11'},
         ])
 
         assert summary == {'managed': 1, 'added': 1, 'removed': 0}
