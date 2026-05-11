@@ -47,7 +47,11 @@ import json
 from mavsdk.system import System
 
 from mds_logging import get_logger
-from mds_logging.api_schemas import OnboardUlogDownloadRequest, OnboardUlogJobDeleteResponse
+from mds_logging.api_schemas import (
+    OnboardUlogCapability,
+    OnboardUlogDownloadRequest,
+    OnboardUlogJobDeleteResponse,
+)
 
 logger = get_logger("drone_api")
 
@@ -278,13 +282,18 @@ class DroneHealthResponse(BaseModel):
     status: str
     timestamp: int = Field(default_factory=lambda: int(time.time() * 1000))
     version: str
+    ulog_capability: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DroneManagedMavlinkRuntimeResponse(BaseModel):
+    tool: str = "mavlink-anywhere"
     status_source: str
+    mode: Optional[str] = None
     management_mode: str
+    service_state: Optional[str] = None
     repo_url: str
     ref: str
+    installed_ref: Optional[str] = None
     repo_web_url: Optional[str] = None
     install_dir: str
     install_dir_present: bool
@@ -298,13 +307,23 @@ class DroneManagedMavlinkRuntimeResponse(BaseModel):
     desired_config_hash: Optional[str] = None
     applied_config_hash: Optional[str] = None
     config_hash_match: Optional[bool] = None
+    profile_source: Optional[str] = None
+    desired_hash: Optional[str] = None
+    applied_hash: Optional[str] = None
+    local_hash: Optional[str] = None
+    drift_state: Optional[str] = None
+    profile_summary: Dict[str, Any] = Field(default_factory=dict)
+    last_apply_result: Optional[str] = None
 
 
 class DroneManagedConnectivityRuntimeResponse(BaseModel):
+    tool: str = "smart-wifi-manager"
     status_source: str
     backend: str
+    service_state: Optional[str] = None
     repo_url: str
     ref: str
+    installed_ref: Optional[str] = None
     repo_web_url: Optional[str] = None
     install_dir: str
     install_dir_present: bool
@@ -318,6 +337,13 @@ class DroneManagedConnectivityRuntimeResponse(BaseModel):
     desired_config_hash: Optional[str] = None
     applied_config_hash: Optional[str] = None
     config_hash_match: Optional[bool] = None
+    profile_source: Optional[str] = None
+    desired_hash: Optional[str] = None
+    applied_hash: Optional[str] = None
+    local_hash: Optional[str] = None
+    drift_state: Optional[str] = None
+    profile_summary: Dict[str, Any] = Field(default_factory=dict)
+    last_apply_result: Optional[str] = None
 
 
 class DroneGitSyncRuntimeResponse(BaseModel):
@@ -332,6 +358,10 @@ class DroneGitSyncRuntimeResponse(BaseModel):
     connectivity_reconcile_status: str = "unknown"
     mavlink_runtime_reconcile_status: str = "unknown"
     requirements_update_status: str = "unknown"
+    recovery_action: str = "none"
+    recovery_backup_path: Optional[str] = None
+    disk_available_status: str = "unknown"
+    disk_free_kb: Optional[int] = None
 
 
 class DroneEnvRuntimeResponse(BaseModel):
@@ -617,6 +647,110 @@ class DroneAPIServer:
             if candidate and os.path.isfile(candidate):
                 return candidate
         raise FileNotFoundError("mavsdk_server binary not found")
+
+    def _build_ulog_capability(self) -> OnboardUlogCapability:
+        mavsdk_server_path: Optional[str] = None
+        mavsdk_server_present = False
+        mavsdk_server_executable = False
+        missing_dependency: Optional[str] = None
+
+        try:
+            mavsdk_server_path = self._find_mavsdk_server_binary()
+            mavsdk_server_present = True
+            mavsdk_server_executable = os.access(mavsdk_server_path, os.X_OK)
+            if not mavsdk_server_executable:
+                missing_dependency = "mavsdk_server_not_executable"
+        except FileNotFoundError:
+            missing_dependency = "mavsdk_server_missing"
+
+        fallback_paths = [
+            str(path)
+            for path in self._ulog_service.filesystem_fallback_dirs()
+        ]
+        existing_fallback_paths = [
+            path
+            for path in fallback_paths
+            if Path(path).exists()
+        ]
+        filesystem_fallback_configured = bool(fallback_paths)
+        available = mavsdk_server_executable or bool(existing_fallback_paths)
+
+        if available:
+            detail = "ULog access is available through MAVSDK or configured filesystem fallback."
+            if mavsdk_server_present and not mavsdk_server_executable and existing_fallback_paths:
+                detail = "MAVSDK server is not executable; filesystem fallback is available."
+        elif missing_dependency == "mavsdk_server_missing":
+            detail = "mavsdk_server is missing and no configured filesystem fallback path exists on this node."
+        elif missing_dependency == "mavsdk_server_not_executable":
+            detail = "mavsdk_server exists but is not executable and no configured filesystem fallback path exists on this node."
+        else:
+            detail = "ULog capability could not be established."
+
+        return OnboardUlogCapability(
+            available=available,
+            mavsdk_server_present=mavsdk_server_present,
+            mavsdk_server_executable=mavsdk_server_executable,
+            mavsdk_server_path=mavsdk_server_path,
+            filesystem_fallback_configured=filesystem_fallback_configured,
+            filesystem_fallback_paths=fallback_paths,
+            filesystem_fallback_existing_paths=existing_fallback_paths,
+            missing_dependency=missing_dependency if not available else None,
+            detail=detail,
+        )
+
+    @staticmethod
+    def _is_mavsdk_dependency_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return (
+            isinstance(exc, FileNotFoundError)
+            and "mavsdk_server" in message
+        ) or (
+            isinstance(exc, PermissionError)
+            and "mavsdk_server" in message
+        )
+
+    def _ulog_failure_http_exception(self, action: str, exc: Exception) -> HTTPException:
+        capability = self._build_ulog_capability().model_dump()
+        message = str(exc) or exc.__class__.__name__
+        lowered = message.lower()
+
+        if self._is_mavsdk_dependency_error(exc):
+            error = capability.get("missing_dependency") or "mavsdk_server_unavailable"
+            return HTTPException(
+                status_code=424,
+                detail={
+                    "error": error,
+                    "message": message,
+                    "action": action,
+                    "ulog_capability": capability,
+                },
+            )
+
+        if isinstance(exc, (TimeoutError, ConnectionError, RuntimeError)) and (
+            "mavsdk" in lowered
+            or "connection" in lowered
+            or "timed out" in lowered
+            or "probe" in lowered
+        ):
+            return HTTPException(
+                status_code=503,
+                detail={
+                    "error": "ulog_transport_unavailable",
+                    "message": message,
+                    "action": action,
+                    "ulog_capability": capability,
+                },
+            )
+
+        return HTTPException(
+            status_code=500,
+            detail={
+                "error": "ulog_operation_failed",
+                "message": message,
+                "action": action,
+                "ulog_capability": capability,
+            },
+        )
 
     async def _ensure_live_probe_server(self, grpc_port: int, udp_port: int):
         """Start a short-lived mavsdk_server only when the local port is idle."""
@@ -1217,7 +1351,11 @@ class DroneAPIServer:
         @self.app.get(DRONE_SYSTEM_HEALTH_ROUTE, response_model=DroneHealthResponse)
         async def ping_v1():
             """Canonical v1 health endpoint with timestamp and version metadata."""
-            return DroneHealthResponse(status="ok", version=MDS_VERSION)
+            return DroneHealthResponse(
+                status="ok",
+                version=MDS_VERSION,
+                ulog_capability=self._build_ulog_capability().model_dump(),
+            )
 
         @self.app.get(DRONE_ENV_ROUTE, response_model=DroneEnvResponse)
         async def get_node_env(include_hidden: bool = False):
@@ -1474,7 +1612,9 @@ class DroneAPIServer:
         @self.app.get(DRONE_ULOG_POLICY_ROUTE)
         async def get_onboard_ulog_policy():
             """Return the local onboard ULog subsystem policy envelope."""
-            return self._ulog_service.build_policy()
+            return self._ulog_service.build_policy(
+                ulog_capability=self._build_ulog_capability()
+            )
 
         @self.app.get(DRONE_ULOG_FILES_ROUTE)
         async def list_onboard_ulog_files():
@@ -1490,10 +1630,7 @@ class DroneAPIServer:
                 raise
             except Exception as exc:
                 logger.error(f"Error listing onboard ULogs: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to list onboard ULogs: {exc}",
-                ) from exc
+                raise self._ulog_failure_http_exception("list_onboard_ulogs", exc) from exc
 
         @self.app.post(DRONE_ULOG_FILE_DOWNLOAD_ROUTE_TEMPLATE)
         async def create_onboard_ulog_download(
@@ -1514,15 +1651,14 @@ class DroneAPIServer:
                 asyncio.create_task(self._run_ulog_download_job(job_response.job.job_id))
                 return job_response
             except FileNotFoundError as exc:
+                if self._is_mavsdk_dependency_error(exc):
+                    raise self._ulog_failure_http_exception("create_ulog_download", exc) from exc
                 raise HTTPException(status_code=404, detail=str(exc)) from exc
             except HTTPException:
                 raise
             except Exception as exc:
                 logger.error(f"Error creating onboard ULog download job for log {log_id}: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to create onboard ULog download job: {exc}",
-                ) from exc
+                raise self._ulog_failure_http_exception("create_ulog_download", exc) from exc
 
         @self.app.get(DRONE_ULOG_DOWNLOAD_JOB_ROUTE_TEMPLATE)
         async def get_onboard_ulog_download_job(job_id: str):
@@ -1575,10 +1711,7 @@ class DroneAPIServer:
                 raise
             except Exception as exc:
                 logger.error(f"Error erasing onboard ULogs: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to erase onboard ULogs: {exc}",
-                ) from exc
+                raise self._ulog_failure_http_exception("erase_onboard_ulogs", exc) from exc
 
         # ====================================================================
         # WebSocket Endpoint for Real-Time Telemetry Streaming

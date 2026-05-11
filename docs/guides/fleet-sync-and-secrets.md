@@ -240,6 +240,13 @@ Current expectation:
 - fleet git status now also exposes whether systemd unit reload succeeded,
   whether unit changes were rolled back safely, and which unit actions are
   deferred until the next invocation / restart / boot
+- node git-sync reports recovery action, retained backup path, and disk free
+  space posture so operators can distinguish normal sync drift from recovered
+  repository corruption
+- sidecar status uses the same normalized vocabulary for Smart Wi-Fi Manager
+  and MAVLink Anywhere: `tool`, `mode`, `service_state`, installed ref,
+  desired/applied/local hashes, `drift_state`, compact `profile_summary`, and
+  `last_apply_result`
 - direct dashboard links appear only when the node-side listen address is
   actually reachable from the operator network
 - loopback-only dashboards are shown as local-only instead of rendering broken
@@ -256,11 +263,17 @@ Current expectation:
 - optional connectivity-backend foundation in runtime/bootstrap code
 - Fleet Ops Smart Wi-Fi profile import/status using secret-safe hashes
 - node sync/reconcile applies repo-owned Smart Wi-Fi profiles to managed real nodes
+  with merge as the default import behavior, preserving field-added local SSIDs
+  unless an operator explicitly uses replace/reset semantics
+- node git-sync uses a scoped lock, avoids broad deletion of Git lock files,
+  avoids normal `git gc` field repair, and can recover corrupted worktrees by
+  retaining a timestamped backup and recloning cleanly
 
 ### Planned next
 
 - richer fleet-default versus node-override UI
 - future repo-owned MAVLink Anywhere default profile support
+- encrypted fleet Wi-Fi secret material instead of plaintext private profiles
 - long-term GitHub App support for better large-fleet credential management
 
 Do not assume planned support is already operator-ready unless the relevant

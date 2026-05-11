@@ -114,6 +114,9 @@ For many drones, prefer the MDS fleet profile workflow:
 4. Confirm Fleet Ops profile hashes match.
 
 Do not store real customer SSIDs or passwords in public repositories.
+MDS defaults to merge-style Smart Wi-Fi rollout: the private repo profile is the
+fleet baseline, and node-local field networks remain available until an
+operator intentionally resets that node profile set.
 
 ## Troubleshooting
 

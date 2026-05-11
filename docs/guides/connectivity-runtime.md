@@ -30,7 +30,7 @@ Git-tracked defaults live in `deployment/defaults.env`:
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS` | Default Smart Wi-Fi Manager source repo |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_REF` | Pinned Smart Wi-Fi Manager release/tag/branch |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_MODE` | Sidecar operating mode, usually `observe` or `manage` |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE` | Profile import behavior, usually `replace` |
+| `MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE` | Profile import behavior, usually `merge` so field-added SSIDs are preserved |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR` | Sidecar installation directory |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` | Sidecar dashboard listen address |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH` | Repo-owned fleet profile path |
@@ -53,7 +53,7 @@ Node-local values live in `/etc/mds/local.env`:
 | `MDS_INTERNET_CHECK_TIMEOUT_SEC` | Per-probe timeout |
 | `MDS_CONNECTIVITY_BACKEND` | Node backend: `none` or `smart-wifi-manager` |
 | `MDS_SMART_WIFI_MANAGER_MODE` | Node Smart Wi-Fi mode |
-| `MDS_SMART_WIFI_MANAGER_IMPORT_MODE` | Node profile import mode |
+| `MDS_SMART_WIFI_MANAGER_IMPORT_MODE` | Node profile import mode: `merge` by default, `replace` only for explicit reset |
 | `MDS_SMART_WIFI_MANAGER_REPO_URL` | Node sidecar source repo override |
 | `MDS_SMART_WIFI_MANAGER_REF` | Node sidecar release/tag/branch override |
 | `MDS_SMART_WIFI_MANAGER_INSTALL_DIR` | Node sidecar install directory |
@@ -74,13 +74,18 @@ supports inline passwords and password-file references. Recommended policy:
 Ad-hoc field credentials can also be applied node-local through the Smart Wi-Fi
 dashboard. That is safer while recovering one board, but it is not a fleet-wide
 source of truth until the profile is intentionally committed to the private repo.
+The default import mode is `merge`, so node-local field profiles remain in the
+Smart Wi-Fi config and Fleet Ops reports hash drift instead of silently pruning
+the operator's temporary network. Use `replace` only when you intentionally want
+the repo profile to reset the node profile set.
 
 ## Rollout Workflow
 
 1. Set fleet defaults in `deployment/defaults.env`.
 2. Bootstrap or sync real nodes so they receive `/etc/mds/local.env`.
 3. If using Smart Wi-Fi Manager, import or update the private fleet profile in
-   Fleet Ops.
+   Fleet Ops. The default rollout merges the repo baseline into existing node
+   profiles.
 4. Run Sync + reconcile for the target drones.
 5. Confirm Fleet Ops shows matching desired/applied profile hashes and healthy
    sidecar status.

@@ -104,9 +104,13 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     else resolve_dashboard_access(drone_ip, raw_mavlink_runtime.get("dashboard_listen"))
                 )
                 mavlink_runtime = DroneMavlinkRuntimeStatus(
+                    tool=raw_mavlink_runtime.get("tool", "mavlink-anywhere"),
                     status_source=raw_mavlink_runtime.get("status_source", "unknown"),
+                    mode=raw_mavlink_runtime.get("mode"),
                     management_mode=raw_mavlink_runtime.get("management_mode", "unknown"),
+                    service_state=raw_mavlink_runtime.get("service_state"),
                     ref=raw_mavlink_runtime.get("ref", "unknown"),
+                    installed_ref=raw_mavlink_runtime.get("installed_ref"),
                     repo_web_url=raw_mavlink_runtime.get("repo_web_url"),
                     install_dir_present=bool(raw_mavlink_runtime.get("install_dir_present", False)),
                     runtime_present=bool(raw_mavlink_runtime.get("runtime_present", False)),
@@ -120,15 +124,25 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     desired_config_hash=raw_mavlink_runtime.get("desired_config_hash"),
                     applied_config_hash=raw_mavlink_runtime.get("applied_config_hash"),
                     config_hash_match=raw_mavlink_runtime.get("config_hash_match"),
+                    profile_source=raw_mavlink_runtime.get("profile_source"),
+                    desired_hash=raw_mavlink_runtime.get("desired_hash"),
+                    applied_hash=raw_mavlink_runtime.get("applied_hash"),
+                    local_hash=raw_mavlink_runtime.get("local_hash"),
+                    drift_state=raw_mavlink_runtime.get("drift_state"),
+                    profile_summary=raw_mavlink_runtime.get("profile_summary") or {},
+                    last_apply_result=raw_mavlink_runtime.get("last_apply_result"),
                 )
 
             connectivity_runtime = None
             if raw_connectivity_runtime:
                 access = resolve_dashboard_access(drone_ip, raw_connectivity_runtime.get("dashboard_listen"))
                 connectivity_runtime = DroneConnectivityRuntimeStatus(
+                    tool=raw_connectivity_runtime.get("tool", "smart-wifi-manager"),
                     status_source=raw_connectivity_runtime.get("status_source", "unknown"),
                     backend=raw_connectivity_runtime.get("backend", "unknown"),
+                    service_state=raw_connectivity_runtime.get("service_state"),
                     ref=raw_connectivity_runtime.get("ref", "unknown"),
+                    installed_ref=raw_connectivity_runtime.get("installed_ref"),
                     repo_web_url=raw_connectivity_runtime.get("repo_web_url"),
                     install_dir_present=bool(raw_connectivity_runtime.get("install_dir_present", False)),
                     mode=raw_connectivity_runtime.get("mode", "unknown"),
@@ -142,6 +156,13 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     desired_config_hash=raw_connectivity_runtime.get("desired_config_hash"),
                     applied_config_hash=raw_connectivity_runtime.get("applied_config_hash"),
                     config_hash_match=raw_connectivity_runtime.get("config_hash_match"),
+                    profile_source=raw_connectivity_runtime.get("profile_source"),
+                    desired_hash=raw_connectivity_runtime.get("desired_hash"),
+                    applied_hash=raw_connectivity_runtime.get("applied_hash"),
+                    local_hash=raw_connectivity_runtime.get("local_hash"),
+                    drift_state=raw_connectivity_runtime.get("drift_state"),
+                    profile_summary=raw_connectivity_runtime.get("profile_summary") or {},
+                    last_apply_result=raw_connectivity_runtime.get("last_apply_result"),
                 )
 
             git_sync_runtime = None
@@ -158,6 +179,10 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     connectivity_reconcile_status=raw_git_sync_runtime.get("connectivity_reconcile_status", "unknown"),
                     mavlink_runtime_reconcile_status=raw_git_sync_runtime.get("mavlink_runtime_reconcile_status", "unknown"),
                     requirements_update_status=raw_git_sync_runtime.get("requirements_update_status", "unknown"),
+                    recovery_action=raw_git_sync_runtime.get("recovery_action", "none"),
+                    recovery_backup_path=raw_git_sync_runtime.get("recovery_backup_path"),
+                    disk_available_status=raw_git_sync_runtime.get("disk_available_status", "unknown"),
+                    disk_free_kb=raw_git_sync_runtime.get("disk_free_kb"),
                 )
 
             env_runtime = None

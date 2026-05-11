@@ -435,7 +435,7 @@
       "domain": "connectivity",
       "source_of_truth": "deployment/defaults.env",
       "value_type": "string",
-      "default": "replace",
+      "default": "merge",
       "secret": false,
       "editable": false,
       "ui_visibility": "advanced",
@@ -453,7 +453,7 @@
         "src/settings/deployment_profile.py",
         "tools/reconcile_connectivity.sh"
       ],
-      "notes": "Controls how fleet profile is applied by reconcile script.",
+      "notes": "Controls how fleet profile is applied by reconcile script. Default merge preserves field-added SSIDs while reporting drift.",
       "owner": "connectivity"
     },
     {
@@ -1822,7 +1822,7 @@
       "domain": "connectivity",
       "source_of_truth": "/etc/mds/local.env",
       "value_type": "string",
-      "default": "replace",
+      "default": "merge",
       "secret": false,
       "editable": true,
       "ui_visibility": "advanced",
@@ -1839,7 +1839,7 @@
       "consumers": [
         "tools/reconcile_connectivity.sh"
       ],
-      "notes": "Controls Smart Wi-Fi profile application behavior.",
+      "notes": "Controls Smart Wi-Fi profile application behavior. Default merge preserves field-added SSIDs while reporting drift.",
       "owner": "connectivity"
     },
     {

@@ -22,6 +22,7 @@ from mds_logging.api_schemas import (
     OnboardUlogDownloadRequest,
     OnboardUlogEntry,
     OnboardUlogEraseAllResponse,
+    OnboardUlogCapability,
     OnboardUlogListResponse,
     OnboardUlogPolicy,
     OnboardUlogPolicyResponse,
@@ -40,11 +41,16 @@ class OnboardUlogService:
         self._fallback_entries: dict[int, Path] = {}
         self._lock = asyncio.Lock()
 
-    def build_policy(self) -> OnboardUlogPolicyResponse:
+    def build_policy(
+        self,
+        *,
+        ulog_capability: OnboardUlogCapability | dict[str, Any] | None = None,
+    ) -> OnboardUlogPolicyResponse:
         return OnboardUlogPolicyResponse(
             hw_id=self.hw_id,
             pos_id=self.pos_id,
             policy=self._build_policy_payload(),
+            ulog_capability=ulog_capability,
             timestamp=self._now_ms(),
         )
 
@@ -56,6 +62,7 @@ class OnboardUlogService:
             count=len(entries),
             files=entries,
             policy=self._build_policy_payload(),
+            ulog_capability=None,
             timestamp=self._now_ms(),
         )
 
@@ -366,6 +373,9 @@ class OnboardUlogService:
             normalized = str(raw_value or "").replace("\n", ",")
             values = [item.strip() for item in re.split(r"[,:]", normalized) if item.strip()]
         return [Path(value).expanduser() for value in values]
+
+    def filesystem_fallback_dirs(self) -> list[Path]:
+        return self._filesystem_fallback_dirs()
 
     @staticmethod
     def _filesystem_timestamp(path: Path, mtime: float) -> str:

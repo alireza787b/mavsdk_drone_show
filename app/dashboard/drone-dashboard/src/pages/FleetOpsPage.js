@@ -221,6 +221,127 @@ function SidecarHashFacts({ runtime, profile = false }) {
   );
 }
 
+function sidecarDriftState(runtime) {
+  if (!runtime) {
+    return 'unreachable';
+  }
+  if (runtime.drift_state) {
+    return runtime.drift_state;
+  }
+  if (runtime.config_hash_match === true) {
+    return 'in_sync';
+  }
+  if (runtime.config_hash_match === false) {
+    return 'outdated';
+  }
+  return runtime.profile_present === false ? 'missing_fleet_baseline' : 'unmanaged';
+}
+
+function sidecarDriftTone(state) {
+  if (state === 'in_sync') {
+    return 'success';
+  }
+  if (state === 'unmanaged') {
+    return 'muted';
+  }
+  if (state === 'unreachable') {
+    return 'danger';
+  }
+  return 'warning';
+}
+
+function formatDriftState(state) {
+  return String(state || 'unknown').replaceAll('_', ' ');
+}
+
+function SidecarDashboardLink({ runtime, row, label }) {
+  const href = resolveDashboardHref(runtime, row.ip);
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" aria-label={`Open ${label} dashboard for drone ${row.posId}`}>
+        <FaLink aria-hidden="true" />
+        Open
+      </a>
+    );
+  }
+
+  const access = runtime?.dashboard_access_mode || 'unavailable';
+  return (
+    <span className="fleet-ops-sidecar-table__muted" aria-label={`${label} dashboard ${access}`}>
+      <FaShieldAlt aria-hidden="true" />
+      {access === 'local_only' ? 'Local' : 'None'}
+    </span>
+  );
+}
+
+function SidecarTableCell({ runtime, row, label, icon }) {
+  const drift = sidecarDriftState(runtime);
+  const service = runtime?.service_state || runtime?.router_service_status || runtime?.service_status || 'unknown';
+  const mode = runtime?.mode || runtime?.management_mode || runtime?.import_mode || 'unknown';
+  const desiredHash = compactHash(runtime?.desired_hash || runtime?.desired_config_hash);
+  const localHash = compactHash(runtime?.local_hash || runtime?.profile_hash || runtime?.applied_hash || runtime?.applied_config_hash);
+
+  return (
+    <div className="fleet-ops-sidecar-table__sidecar">
+      <div className="fleet-ops-sidecar-table__sidecar-head">
+        {icon}
+        <span>{label}</span>
+        <StatusBadge tone={sidecarDriftTone(drift)}>{formatDriftState(drift)}</StatusBadge>
+      </div>
+      <div className="fleet-ops-sidecar-table__facts" aria-label={`${label} profile facts for drone ${row.posId}`}>
+        <span title={`Service: ${service}`}>Svc {service}</span>
+        <span title={`Mode: ${mode}`}>Mode {mode}</span>
+        <span title={`Desired hash: ${desiredHash}`}>Desired {desiredHash}</span>
+        <span title={`Local/applied hash: ${localHash}`}>Local {localHash}</span>
+      </div>
+      <div className="fleet-ops-sidecar-table__links">
+        <SidecarDashboardLink runtime={runtime} row={row} label={label} />
+      </div>
+    </div>
+  );
+}
+
+function SidecarFleetTable({ rows }) {
+  if (!rows.length) {
+    return null;
+  }
+
+  return (
+    <section className="fleet-ops-sidecar-table" aria-label="Sidecar fleet table">
+      <header>
+        <div>
+          <span className="fleet-ops-sidecar-table__eyebrow">Fleet sidecars</span>
+          <h2>Wi-Fi and MAVLink posture</h2>
+        </div>
+        <span className="fleet-ops-sidecar-table__hint">Read-only status. Mutating profile actions stay behind node sync/reconcile.</span>
+      </header>
+      <div className="fleet-ops-sidecar-table__rows">
+        {rows.map((row) => (
+          <article key={row.key} className="fleet-ops-sidecar-table__row">
+            <div className="fleet-ops-sidecar-table__node">
+              <strong>Drone {row.posId}</strong>
+              <span>HW {row.hwId}</span>
+              <small>{row.ip}</small>
+            </div>
+            <SidecarTableCell
+              runtime={row.mavlinkRuntime}
+              row={row}
+              label="MAVLink"
+              icon={<FaSatelliteDish aria-hidden="true" />}
+            />
+            <SidecarTableCell
+              runtime={row.connectivityRuntime}
+              row={row}
+              label="Smart Wi-Fi"
+              icon={<FaWifi aria-hidden="true" />}
+            />
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function NodeDetails({ row, activeTab }) {
   if (activeTab === 'access') {
     return (
@@ -644,6 +765,10 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
 
       {loading ? (
         <EmptyState icon={<FaNetworkWired />} title="Loading Fleet Ops" detail="Refreshing node sync, access, and sidecar posture." />
+      ) : null}
+
+      {!loading && activeTab === 'sidecars' ? (
+        <SidecarFleetTable rows={visibleRows} />
       ) : null}
 
       {!loading && visibleRows.length === 0 ? (

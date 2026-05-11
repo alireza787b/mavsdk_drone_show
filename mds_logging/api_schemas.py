@@ -61,10 +61,23 @@ class OnboardUlogPolicy(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class OnboardUlogCapability(BaseModel):
+    available: bool = False
+    mavsdk_server_present: bool = False
+    mavsdk_server_executable: bool = False
+    mavsdk_server_path: str | None = None
+    filesystem_fallback_configured: bool = False
+    filesystem_fallback_paths: list[str] = Field(default_factory=list)
+    filesystem_fallback_existing_paths: list[str] = Field(default_factory=list)
+    missing_dependency: str | None = None
+    detail: str = ""
+
+
 class OnboardUlogPolicyResponse(BaseModel):
     hw_id: str
     pos_id: int | None = None
     policy: OnboardUlogPolicy
+    ulog_capability: OnboardUlogCapability | None = None
     timestamp: int
 
 
@@ -80,6 +93,7 @@ class OnboardUlogListResponse(BaseModel):
     count: int
     files: list[OnboardUlogEntry]
     policy: OnboardUlogPolicy
+    ulog_capability: OnboardUlogCapability | None = None
     timestamp: int
 
 

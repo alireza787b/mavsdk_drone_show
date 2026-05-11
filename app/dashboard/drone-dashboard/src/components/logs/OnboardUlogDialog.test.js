@@ -105,4 +105,33 @@ describe('OnboardUlogDialog', () => {
     expect(eraseButton).toBeEnabled();
     expect(eraseAllDroneUlogs).not.toHaveBeenCalled();
   });
+
+  test('renders structured ULog capability errors as readable text', async () => {
+    getDroneUlogFiles.mockRejectedValue({
+      response: {
+        data: {
+          detail: {
+            error: 'mavsdk_server_missing',
+            message: 'mavsdk_server binary not found',
+            ulog_capability: {
+              missing_dependency: 'mavsdk_server_missing',
+              detail: 'Install mavsdk_server or configure a filesystem fallback.',
+            },
+          },
+        },
+      },
+    });
+
+    render(
+      <OnboardUlogDialog
+        open
+        droneId={5}
+        scopeLabel="P12|H5"
+        onClose={jest.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/mavsdk_server binary not found/)).toBeInTheDocument();
+    expect(await screen.findByText(/Missing dependency: mavsdk_server_missing/)).toBeInTheDocument();
+  });
 });

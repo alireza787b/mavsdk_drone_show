@@ -98,6 +98,45 @@ def optional_bool(value: Optional[str]) -> Optional[bool]:
     return None
 
 
+def short_hash(value: Optional[str]) -> Optional[str]:
+    normalized = str(value or "").strip()
+    return normalized[:12] if normalized else None
+
+
+def sidecar_drift_state(
+    *,
+    status_source: str,
+    mode: str,
+    installed: bool,
+    desired_hash: Optional[str],
+    applied_hash: Optional[str],
+    local_hash: Optional[str],
+    hash_match: Optional[bool],
+    missing_baseline: bool = False,
+) -> str:
+    source = str(status_source or "").strip().lower()
+    normalized_mode = str(mode or "").strip().lower()
+    if source in {"timeout", "invoke_error", "script_error"}:
+        return "unreachable"
+    if not installed or normalized_mode in {"", "unknown", "disabled", "observe", "manual"}:
+        return "unmanaged"
+    if missing_baseline:
+        return "missing_fleet_baseline"
+    if hash_match is True:
+        return "in_sync"
+    if hash_match is False:
+        if desired_hash and not applied_hash:
+            return "missing_fleet_baseline"
+        if local_hash and desired_hash and local_hash != desired_hash:
+            return "local_extra"
+        return "outdated"
+    if local_hash and desired_hash and local_hash != desired_hash:
+        return "local_extra"
+    if desired_hash and applied_hash and desired_hash == applied_hash:
+        return "in_sync"
+    return "unmanaged"
+
+
 def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
     deployment_profile = load_deployment_profile()
     status = read_reconcile_status(repo_root, "tools/reconcile_mavlink_runtime.sh")
@@ -111,12 +150,31 @@ def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         status.get("skip_dashboard"),
         default=bool(deployment_profile.mavlink_anywhere_skip_dashboard),
     )
+    desired_hash = status.get("desired_config_hash") or None
+    applied_hash = status.get("applied_config_hash") or None
+    hash_match = optional_bool(status.get("config_hash_match"))
+    management_mode = status.get("mode") or deployment_profile.mavlink_management_mode
+    service_state = status.get("router_service", "unknown")
+    drift_state = sidecar_drift_state(
+        status_source=status.get("status_source", "fallback"),
+        mode=management_mode,
+        installed=runtime_present,
+        desired_hash=desired_hash,
+        applied_hash=applied_hash,
+        local_hash=applied_hash,
+        hash_match=hash_match,
+        missing_baseline=False,
+    )
 
     return {
+        "tool": "mavlink-anywhere",
         "status_source": status.get("status_source", "fallback"),
-        "management_mode": status.get("mode") or deployment_profile.mavlink_management_mode,
+        "mode": management_mode,
+        "management_mode": management_mode,
+        "service_state": service_state,
         "repo_url": repo_url,
         "ref": ref,
+        "installed_ref": ref,
         "repo_web_url": normalize_github_repo_web_url(repo_url, ref),
         "install_dir": install_dir,
         "install_dir_present": install_dir_present,
@@ -127,13 +185,26 @@ def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
             if "router_binary" in status
             else bool(shutil.which("mavlink-routerd"))
         ),
-        "router_service_status": status.get("router_service", "unknown"),
+        "router_service_status": service_state,
         "dashboard_enabled": dashboard_enabled,
         "dashboard_listen": dashboard_listen,
         "dashboard_service_status": status.get("dashboard_service", "unknown"),
-        "desired_config_hash": status.get("desired_config_hash") or None,
-        "applied_config_hash": status.get("applied_config_hash") or None,
-        "config_hash_match": optional_bool(status.get("config_hash_match")),
+        "profile_source": "node-overlay",
+        "desired_hash": desired_hash,
+        "applied_hash": applied_hash,
+        "local_hash": applied_hash,
+        "drift_state": drift_state,
+        "profile_summary": {
+            "mode": management_mode,
+            "desired_hash": short_hash(desired_hash),
+            "applied_hash": short_hash(applied_hash),
+            "router_service": service_state,
+            "dashboard_service": status.get("dashboard_service", "unknown"),
+        },
+        "last_apply_result": status.get("last_apply_result") or status.get("error") or drift_state,
+        "desired_config_hash": desired_hash,
+        "applied_config_hash": applied_hash,
+        "config_hash_match": hash_match,
     }
 
 
@@ -149,27 +220,65 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         if str(deployment_profile.smart_wifi_manager_profile_path or "").startswith("/")
         else (repo_root / deployment_profile.smart_wifi_manager_profile_path).resolve()
     )
+    profile_present = bool(profile_path and Path(profile_path).is_file())
+    desired_hash = status.get("desired_config_hash") or None
+    applied_hash = status.get("applied_config_hash") or None
+    local_hash = status.get("profile_hash") or file_sha256(profile_path)
+    hash_match = optional_bool(status.get("config_hash_match"))
+    mode = status.get("mode") or deployment_profile.smart_wifi_manager_mode
+    service_state = status.get("service_status", "unknown")
+    drift_state = sidecar_drift_state(
+        status_source=status.get("status_source", "fallback"),
+        mode=mode,
+        installed=install_dir_present,
+        desired_hash=desired_hash,
+        applied_hash=applied_hash,
+        local_hash=local_hash,
+        hash_match=hash_match,
+        missing_baseline=(
+            str(status.get("backend") or deployment_profile.connectivity_backend) == "smart-wifi-manager"
+            and str(mode).lower() == "manage"
+            and not profile_present
+        ),
+    )
 
     return {
+        "tool": "smart-wifi-manager",
         "status_source": status.get("status_source", "fallback"),
         "backend": status.get("backend") or deployment_profile.connectivity_backend,
+        "service_state": service_state,
         "repo_url": repo_url,
         "ref": ref,
+        "installed_ref": ref,
         "repo_web_url": normalize_github_repo_web_url(repo_url, ref),
         "install_dir": install_dir,
         "install_dir_present": install_dir_present,
-        "mode": status.get("mode") or deployment_profile.smart_wifi_manager_mode,
+        "mode": mode,
         "import_mode": deployment_profile.smart_wifi_manager_import_mode,
         "profile_path": profile_path,
-        "profile_present": bool(profile_path and Path(profile_path).is_file()),
-        "profile_hash": status.get("profile_hash") or file_sha256(profile_path),
+        "profile_present": profile_present,
+        "profile_source": "fleet-profile" if profile_present else "missing",
+        "profile_hash": local_hash,
+        "desired_hash": desired_hash,
+        "applied_hash": applied_hash,
+        "local_hash": local_hash,
+        "drift_state": drift_state,
+        "profile_summary": {
+            "mode": mode,
+            "import_mode": deployment_profile.smart_wifi_manager_import_mode,
+            "profile_present": profile_present,
+            "profile_hash": short_hash(local_hash),
+            "desired_hash": short_hash(desired_hash),
+            "applied_hash": short_hash(applied_hash),
+        },
+        "last_apply_result": status.get("last_apply_result") or status.get("error") or drift_state,
         "dashboard_listen": status.get("dashboard_listen")
         or os.environ.get("MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN")
         or deployment_profile.smart_wifi_manager_dashboard_listen,
-        "service_status": status.get("service_status", "unknown"),
-        "desired_config_hash": status.get("desired_config_hash") or None,
-        "applied_config_hash": status.get("applied_config_hash") or None,
-        "config_hash_match": optional_bool(status.get("config_hash_match")),
+        "service_status": service_state,
+        "desired_config_hash": desired_hash,
+        "applied_config_hash": applied_hash,
+        "config_hash_match": hash_match,
     }
 
 
@@ -227,6 +336,10 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
             "connectivity_reconcile_status": "unknown",
             "mavlink_runtime_reconcile_status": "unknown",
             "requirements_update_status": "unknown",
+            "recovery_action": "none",
+            "recovery_backup_path": None,
+            "disk_available_status": "unknown",
+            "disk_free_kb": None,
         }
 
     try:
@@ -244,6 +357,10 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
             "connectivity_reconcile_status": "unknown",
             "mavlink_runtime_reconcile_status": "unknown",
             "requirements_update_status": "unknown",
+            "recovery_action": "none",
+            "recovery_backup_path": None,
+            "disk_available_status": "unknown",
+            "disk_free_kb": None,
         }
 
     updated_units = [
@@ -259,6 +376,9 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
     connectivity_status = str(data.get("connectivity_reconcile_status") or "unknown").strip() or "unknown"
     mavlink_status = str(data.get("mavlink_runtime_reconcile_status") or "unknown").strip() or "unknown"
     requirements_status = str(data.get("requirements_update_status") or "unknown").strip() or "unknown"
+    recovery_action = str(data.get("recovery_action") or "none").strip() or "none"
+    recovery_backup_path = str(data.get("recovery_backup_path") or "").strip() or None
+    disk_available_status = str(data.get("disk_available_status") or "unknown").strip() or "unknown"
     coordinator_restart_scheduled = as_bool(data.get("coordinator_restart_scheduled"), default=False)
 
     summary_parts: List[str] = []
@@ -278,11 +398,19 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
         summary_parts.append(f"MAVLink runtime: {mavlink_status}")
     if requirements_status not in {"unknown", "unchanged", "not_required"}:
         summary_parts.append(f"Requirements: {requirements_status}")
+    if recovery_action not in {"", "none"}:
+        summary_parts.append(f"Recovery: {recovery_action}")
+    if disk_available_status not in {"unknown", "ok"}:
+        summary_parts.append(f"Disk: {disk_available_status}")
 
     try:
         last_run_at_ms = int(str(data.get("timestamp_ms") or "").strip()) if data.get("timestamp_ms") else None
     except ValueError:
         last_run_at_ms = None
+    try:
+        disk_free_kb = int(str(data.get("disk_free_kb") or "").strip()) if data.get("disk_free_kb") else None
+    except ValueError:
+        disk_free_kb = None
 
     return {
         "status": status,
@@ -296,4 +424,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
         "connectivity_reconcile_status": connectivity_status,
         "mavlink_runtime_reconcile_status": mavlink_status,
         "requirements_update_status": requirements_status,
+        "recovery_action": recovery_action,
+        "recovery_backup_path": recovery_backup_path,
+        "disk_available_status": disk_available_status,
+        "disk_free_kb": disk_free_kb,
     }

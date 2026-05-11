@@ -98,6 +98,11 @@ containers use embedded `mavlink-routerd`.
 Fleet Ops treats `config_hash_match=false` as sidecar drift even when the
 router service is active. That means the service may be running, but the last
 recorded reconcile does not match the current desired sidecar ownership inputs.
+The node also reports normalized sidecar contract fields when available:
+`tool`, `mode`, `service_state`, `installed_ref`, `desired_hash`,
+`applied_hash`, `local_hash`, `drift_state`, `profile_summary`, and
+`last_apply_result`. These are safe status fields; they do not contain Wi-Fi
+passwords, tokens, serial secrets, or raw profile contents.
 
 ### Connectivity
 
@@ -140,6 +145,10 @@ topology, or local safety policy, so Fleet Ops currently shows MAVLink status,
 hash drift, and dashboard links while leaving profile authoring to the node or
 deployment profile workflow.
 
+Fleet-wide MAVLink profile import/export, “use this node as reference”, and
+strict reset-to-baseline actions are planned profile-control work, not current
+operator-ready controls.
+
 ## Dashboard Links
 
 Fleet Ops only opens a node sidecar dashboard when the node reports a direct
@@ -170,8 +179,9 @@ Fleet Ops owns drone-side action surfaces:
 - git auth posture;
 - MAVLink and Smart Wi-Fi profile drift visibility.
 
-GCS Runtime remains host-local only: mode switch, GCS restart, GCS update, and
-GCS auth health.
+Fleet Ops does not currently own GCS host runtime changes. GCS Runtime remains
+the single source of truth for host mode switching, GCS restart, GCS update,
+GCS auth status, and local sidecar runtime diagnostics.
 
 ## Related Guides
 

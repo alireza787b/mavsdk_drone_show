@@ -508,6 +508,109 @@
   color: var(--color-primary);
 }
 
+.fleet-ops-sidecar-table {
+  display: grid;
+  gap: 0.9rem;
+  margin: 0.85rem 0;
+  padding: 1rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-bg-secondary);
+}
+
+.fleet-ops-sidecar-table > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.fleet-ops-sidecar-table h2 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+
+.fleet-ops-sidecar-table__eyebrow,
+.fleet-ops-sidecar-table__hint {
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+}
+
+.fleet-ops-sidecar-table__rows {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.fleet-ops-sidecar-table__row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.7fr) repeat(2, minmax(13rem, 1fr));
+  gap: 0.7rem;
+  align-items: stretch;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-bg-primary);
+}
+
+.fleet-ops-sidecar-table__node,
+.fleet-ops-sidecar-table__sidecar {
+  min-width: 0;
+}
+
+.fleet-ops-sidecar-table__node {
+  display: grid;
+  gap: 0.15rem;
+  align-content: start;
+}
+
+.fleet-ops-sidecar-table__node span,
+.fleet-ops-sidecar-table__node small,
+.fleet-ops-sidecar-table__muted {
+  color: var(--color-text-secondary);
+}
+
+.fleet-ops-sidecar-table__sidecar {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.fleet-ops-sidecar-table__sidecar-head,
+.fleet-ops-sidecar-table__links a,
+.fleet-ops-sidecar-table__muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fleet-ops-sidecar-table__sidecar-head {
+  justify-content: space-between;
+  font-weight: var(--font-weight-semibold);
+}
+
+.fleet-ops-sidecar-table__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.fleet-ops-sidecar-table__facts span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.26rem 0.45rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: 0.74rem;
+}
+
+.fleet-ops-sidecar-table__links a {
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
 @media (max-width: 1080px) {
   .fleet-ops-node-card__header {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -540,6 +643,15 @@
 
   .fleet-ops-actions__buttons button {
     flex: 1;
+  }
+
+  .fleet-ops-sidecar-table__row {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-ops-sidecar-table > header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

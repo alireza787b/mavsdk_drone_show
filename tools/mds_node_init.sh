@@ -124,7 +124,7 @@ MAVLINK_ANYWHERE_REF_EXPLICIT="false"
 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="false"
 MDS_CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
 SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-observe}}"
-SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-replace}}"
+SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}}"
 SMART_WIFI_MANAGER_PROFILE_SOURCE="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
 SMART_WIFI_MANAGER_CONFIG_FILE="${MDS_SMART_WIFI_MANAGER_CONFIG_FILE:-}"
 SMART_WIFI_MANAGER_INSTALL_DIR="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-${MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}}"
@@ -199,7 +199,7 @@ OPTIONAL COMPONENTS:
     --connectivity-backend NAME Connectivity backend: none|smart-wifi-manager
     --smart-wifi-mode MODE      Smart Wi-Fi Manager mode: manage|observe|disabled
     --smart-wifi-config PATH    Smart Wi-Fi Manager JSON profile to import
-    --smart-wifi-import-mode M  Smart Wi-Fi import mode: replace|merge
+    --smart-wifi-import-mode M  Smart Wi-Fi import mode: merge|replace
     --smart-wifi-dashboard ADDR Smart Wi-Fi dashboard listen address
     --skip-smart-wifi-dashboard Install Smart Wi-Fi Manager without dashboard
 

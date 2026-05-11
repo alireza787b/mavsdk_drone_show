@@ -1,5 +1,6 @@
 from src.managed_runtime_status import (
     build_connectivity_runtime_summary,
+    build_mavlink_runtime_summary,
     read_git_sync_runtime_summary,
     resolve_dashboard_access,
 )
@@ -61,6 +62,32 @@ def test_build_connectivity_runtime_summary_prefers_reconcile_dashboard_listen(m
     result = build_connectivity_runtime_summary(tmp_path)
 
     assert result["dashboard_listen"] == "0.0.0.0:9080"
+    assert result["tool"] == "smart-wifi-manager"
+    assert result["service_state"] == "active"
+    assert result["drift_state"] in {"in_sync", "missing_fleet_baseline", "unmanaged"}
+
+
+def test_build_mavlink_runtime_summary_reports_sidecar_contract(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "src.managed_runtime_status.read_reconcile_status",
+        lambda repo_root, script_relative_path: {
+            "status_source": "script",
+            "mode": "managed",
+            "ref": "v3.0.8",
+            "router_service": "active",
+            "dashboard_service": "active",
+            "desired_config_hash": "abc123",
+            "applied_config_hash": "abc123",
+            "config_hash_match": "true",
+        },
+    )
+
+    result = build_mavlink_runtime_summary(tmp_path)
+
+    assert result["tool"] == "mavlink-anywhere"
+    assert result["mode"] == "managed"
+    assert result["service_state"] == "active"
+    assert result["drift_state"] == "in_sync"
 
 
 def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
@@ -79,6 +106,10 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
                 "connectivity_reconcile_status=success",
                 "mavlink_runtime_reconcile_status=warning",
                 "requirements_update_status=updated",
+                "recovery_action=clean_reclone",
+                f"recovery_backup_path={tmp_path}/backup",
+                "disk_available_status=ok",
+                "disk_free_kb=424242",
             ]
         ),
         encoding="utf-8",
@@ -95,5 +126,10 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
         "git_sync_mds.service:next_invocation",
         "coordinator.service:manual_restart_required",
     ]
+    assert result["recovery_action"] == "clean_reclone"
+    assert result["recovery_backup_path"] == f"{tmp_path}/backup"
+    assert result["disk_available_status"] == "ok"
+    assert result["disk_free_kb"] == 424242
     assert "Coordinator restart scheduled" in result["summary"]
+    assert "Recovery: clean_reclone" in result["summary"]
     assert "Deferred apply: git_sync_mds.service:next_invocation, coordinator.service:manual_restart_required" in result["summary"]

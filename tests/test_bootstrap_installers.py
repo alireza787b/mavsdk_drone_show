@@ -1754,7 +1754,6 @@ EOF
 MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
 MDS_SMART_WIFI_MANAGER_INSTALL_DIR=TMPDIR_REPLACE/swm
 MDS_SMART_WIFI_MANAGER_MODE=manage
-MDS_SMART_WIFI_MANAGER_IMPORT_MODE=replace
 MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
 EOF
         sed -i "s|TMPDIR_REPLACE|$tmpdir|g" "$config_dir/local.env"
@@ -1789,6 +1788,7 @@ EOF
         grep -q -- 'clone --depth 1 --branch v9.9.9 https://github.com/demo/smart-wifi-manager.git' "$tmpdir/git_args.txt"
         grep -q -- '--dashboard-version v9.9.9' "$tmpdir/install_args.txt"
         grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
+        grep -q -- '--import-mode merge' "$tmpdir/configure_args.txt"
         grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
         """
     )

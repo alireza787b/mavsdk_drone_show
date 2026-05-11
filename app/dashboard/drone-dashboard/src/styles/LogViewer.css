@@ -830,6 +830,12 @@
   font-weight: var(--font-weight-medium);
 }
 
+.onboard-ulog-dialog__policy-chip--warning {
+  background: color-mix(in srgb, var(--color-warning) 14%, var(--color-bg-tertiary));
+  border-color: color-mix(in srgb, var(--color-warning) 42%, var(--color-border-primary));
+  color: var(--color-warning);
+}
+
 .onboard-ulog-dialog__notice {
   display: flex;
   align-items: center;

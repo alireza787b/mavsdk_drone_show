@@ -22,7 +22,7 @@ fi
 # ----------------------------------
 # Configuration and Default Settings (Built-in Defaults)
 # ----------------------------------
-readonly SCRIPT_VERSION="2.2.1"
+readonly SCRIPT_VERSION="2.3.0"
 readonly SCRIPT_NAME="git-sync"
 readonly MAX_GIT_SYNC_SELF_REEXECS=1
 
@@ -70,7 +70,7 @@ ENVIRONMENT="${ENVIRONMENT:-production}"
 # Paths and commands
 LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
 LOG_FILE="$RESOLVED_HOME/logs/drone_git_sync.log"
-LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
+LOCK_FILE="${MDS_GIT_SYNC_LOCK_FILE:-/tmp/git_sync_${REPO_USER}.lock}"
 GCS_ENV_FILE="${MDS_GCS_ENV_FILE:-/etc/mds/gcs.env}"
 LOCAL_ENV_FILE="${MDS_LOCAL_ENV_FILE:-/etc/mds/local.env}"
 USER_ENV_FILE="${MDS_USER_ENV_FILE:-$RESOLVED_HOME/.config/mds/env}"
@@ -82,6 +82,9 @@ COORDINATOR_RESTART_FALLBACK_SIGNAL="${MDS_COORDINATOR_RESTART_FALLBACK_SIGNAL:-
 KILL_CMD="${MDS_KILL_CMD:-kill}"
 GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-${RESOLVED_HOME}/.local/state/mds/git-sync}"
 GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
+GIT_SYNC_RECOVERY_BACKUP_DIR="${MDS_GIT_SYNC_RECOVERY_BACKUP_DIR:-${GIT_SYNC_STATE_DIR}/recovered-repos}"
+GIT_STALE_LOCK_MAX_AGE_SECONDS="${MDS_GIT_STALE_LOCK_MAX_AGE_SECONDS:-900}"
+GIT_SYNC_MIN_FREE_KB="${MDS_GIT_SYNC_MIN_FREE_KB:-262144}"
 GIT_SYNC_SELF_REEXEC_COUNT="${MDS_GIT_SYNC_REEXEC_COUNT:-0}"
 
 SERVICE_RELOAD_REQUIRED=false
@@ -92,6 +95,10 @@ COORDINATOR_RESTART_SCHEDULED=false
 CONNECTIVITY_RECONCILE_STATUS="not_required"
 MAVLINK_RUNTIME_RECONCILE_STATUS="not_required"
 REQUIREMENTS_UPDATE_STATUS="unchanged"
+GIT_SYNC_LOCK_MODE="none"
+GIT_SYNC_RECOVERY_ACTION="none"
+GIT_SYNC_RECOVERY_BACKUP_PATH=""
+GIT_LOCKS_PRESENT=false
 declare -a COORDINATOR_RESTART_REASONS=()
 declare -a UPDATED_SYSTEMD_UNITS=()
 declare -a DEFERRED_UNIT_ACTIONS=()
@@ -170,6 +177,8 @@ persist_git_sync_state() {
     local updated_units_csv=""
     local restart_reasons_csv=""
     local deferred_unit_actions_csv=""
+    local disk_free_kb=""
+    local disk_available_status="unknown"
 
     state_dir="$(dirname "${state_file}")"
     mkdir -p "${state_dir}" 2>/dev/null || return 0
@@ -179,6 +188,13 @@ persist_git_sync_state() {
     updated_units_csv=$(join_by_comma "${UPDATED_SYSTEMD_UNITS[@]}")
     restart_reasons_csv=$(join_by_comma "${COORDINATOR_RESTART_REASONS[@]}")
     deferred_unit_actions_csv=$(join_by_comma "${DEFERRED_UNIT_ACTIONS[@]}")
+    disk_free_kb=$(df -Pk "${REPO_DIR}" 2>/dev/null | awk 'NR == 2 {print $4}' || true)
+    if [[ -n "${disk_free_kb}" ]]; then
+        disk_available_status="ok"
+        if [[ "$disk_free_kb" =~ ^[0-9]+$ && "$disk_free_kb" -lt "$GIT_SYNC_MIN_FREE_KB" ]]; then
+            disk_available_status="low"
+        fi
+    fi
 
     {
         printf 'status=%s\n' "$(sanitize_state_value "${sync_status}")"
@@ -195,6 +211,10 @@ persist_git_sync_state() {
         printf 'connectivity_reconcile_status=%s\n' "$(sanitize_state_value "${CONNECTIVITY_RECONCILE_STATUS}")"
         printf 'mavlink_runtime_reconcile_status=%s\n' "$(sanitize_state_value "${MAVLINK_RUNTIME_RECONCILE_STATUS}")"
         printf 'requirements_update_status=%s\n' "$(sanitize_state_value "${REQUIREMENTS_UPDATE_STATUS}")"
+        printf 'recovery_action=%s\n' "$(sanitize_state_value "${GIT_SYNC_RECOVERY_ACTION}")"
+        printf 'recovery_backup_path=%s\n' "$(sanitize_state_value "${GIT_SYNC_RECOVERY_BACKUP_PATH}")"
+        printf 'disk_available_status=%s\n' "$(sanitize_state_value "${disk_available_status}")"
+        printf 'disk_free_kb=%s\n' "$(sanitize_state_value "${disk_free_kb}")"
     } > "${state_tmp}"
 
     mv "${state_tmp}" "${state_file}" 2>/dev/null || rm -f "${state_tmp}"
@@ -242,10 +262,12 @@ refresh_derived_runtime_paths() {
 
     LED_CMD="${REPO_DIR}/venv/bin/python ${REPO_DIR}/led_indicator.py"
     LOG_FILE="${MDS_LOG_FILE:-${RESOLVED_HOME}/logs/drone_git_sync.log}"
-    LOCK_FILE="/tmp/git_sync_${REPO_USER}.lock"
+    LOCK_FILE="${MDS_GIT_SYNC_LOCK_FILE:-/tmp/git_sync_${REPO_USER}.lock}"
     USER_ENV_FILE="${MDS_USER_ENV_FILE:-${RESOLVED_HOME}/.config/mds/env}"
     GIT_SYNC_STATE_DIR="${MDS_GIT_SYNC_STATE_DIR:-${RESOLVED_HOME}/.local/state/mds/git-sync}"
     GIT_SYNC_STATE_FILE="${MDS_GIT_SYNC_STATE_FILE:-${GIT_SYNC_STATE_DIR}/last_result.env}"
+    GIT_SYNC_RECOVERY_BACKUP_DIR="${MDS_GIT_SYNC_RECOVERY_BACKUP_DIR:-${GIT_SYNC_STATE_DIR}/recovered-repos}"
+    GIT_SYNC_MIN_FREE_KB="${MDS_GIT_SYNC_MIN_FREE_KB:-262144}"
 }
 
 # ----------------------------------
@@ -1094,7 +1116,20 @@ check_requirements_update() {
 acquire_lock() {
     local timeout="${1:-60}"
     local count=0
-    
+
+    if command -v flock >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$LOCK_FILE")" 2>/dev/null || true
+        exec 200>"$LOCK_FILE"
+        if ! flock -w "$timeout" 200; then
+            log_error_and_exit "LOCK" "Failed to acquire flock after ${timeout}s"
+        fi
+        printf '%s\n' "$$" 1>&200 || true
+        GIT_SYNC_LOCK_MODE="flock"
+        log_debug "LOCK" "Scoped flock acquired (PID $$)"
+        return 0
+    fi
+
+    GIT_SYNC_LOCK_MODE="fallback"
     while ! (set -C; echo $$ > "$LOCK_FILE") 2>/dev/null; do
         if [[ -f "$LOCK_FILE" ]]; then
             local lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "unknown")
@@ -1122,9 +1157,22 @@ acquire_lock() {
 }
 
 release_lock() {
-    if [[ -f "$LOCK_FILE" ]]; then
-        rm -f "$LOCK_FILE"
-        log_debug "LOCK" "Lock released"
+    if [[ "${GIT_SYNC_LOCK_MODE}" == "flock" ]]; then
+        flock -u 200 2>/dev/null || true
+        exec 200>&- 2>/dev/null || true
+        GIT_SYNC_LOCK_MODE="none"
+        log_debug "LOCK" "Scoped flock released"
+        return 0
+    fi
+
+    if [[ "${GIT_SYNC_LOCK_MODE}" == "fallback" && -f "$LOCK_FILE" ]]; then
+        local lock_pid
+        lock_pid=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+        if [[ "$lock_pid" == "$$" ]]; then
+            rm -f "$LOCK_FILE"
+            log_debug "LOCK" "Fallback lock released"
+        fi
+        GIT_SYNC_LOCK_MODE="none"
     fi
 }
 
@@ -1353,24 +1401,38 @@ cleanup_git_locks() {
     local component="GIT-LOCK"
     local repo_dir="$1"
     local lock_files=(".git/index.lock" ".git/refs/heads/*.lock" ".git/packed-refs.lock")
+    local found_lock=false
     
     for pattern in "${lock_files[@]}"; do
         # Note: glob expansion needs unquoted pattern but quoted base path
         for lock_file in "$repo_dir"/$pattern; do
             if [[ -f "$lock_file" ]]; then
-                # Check if any git processes are running
-                if pgrep -f "git" >/dev/null 2>&1; then
-                    log_warn "$component" "Git process detected, waiting 5s before removing lock: $lock_file"
-                    sleep 5
+                found_lock=true
+                local age_seconds="unknown"
+                local now_ts
+                local lock_ts
+                now_ts=$(date +%s)
+                lock_ts=$(stat -c %Y "$lock_file" 2>/dev/null || echo "")
+                if [[ -n "$lock_ts" ]]; then
+                    age_seconds=$((now_ts - lock_ts))
                 fi
-                
-                if [[ -f "$lock_file" ]]; then
-                    log_info "$component" "Removing stale git lock: $lock_file"
-                    rm -f "$lock_file"
+
+                if pgrep -f "git" >/dev/null 2>&1; then
+                    log_warn "$component" "Git lock present while git process exists; not removing: $lock_file"
+                    continue
+                fi
+
+                if [[ "$age_seconds" != "unknown" && "$age_seconds" -ge "$GIT_STALE_LOCK_MAX_AGE_SECONDS" ]]; then
+                    log_warn "$component" "Stale git lock detected (${age_seconds}s), leaving in place for safe reclone recovery: $lock_file"
+                else
+                    log_warn "$component" "Git lock detected, leaving in place to avoid deleting an active writer lock: $lock_file"
                 fi
             fi
         done
     done
+
+    GIT_LOCKS_PRESENT="$found_lock"
+    return 0
 }
 
 check_git_integrity() {
@@ -1414,7 +1476,8 @@ repair_git_repository() {
         log_info "$component" "Removed corrupted stash reflog"
     fi
     
-    # Run git-repair if available
+    # Run git-repair if available. Do not run git-gc as a normal field repair:
+    # killed or interrupted gc is one of the common sources of object-store damage.
     if command -v git-repair >/dev/null; then
         log_info "$component" "Running git-repair (timeout: ${REPAIR_TIMEOUT}s)..."
         if timeout "$REPAIR_TIMEOUT" git-repair >> "$LOG_FILE" 2>&1; then
@@ -1428,16 +1491,101 @@ repair_git_repository() {
             log_error "$component" "Git repair failed or timed out"
         fi
     else
-        log_warn "$component" "git-repair not available, trying alternative repair..."
-        
-        # Alternative repair approach
-        if git reflog expire --expire=now --all && git gc --prune=now; then
-            log_info "$component" "Alternative repair completed"
-            return 0
-        fi
+        log_warn "$component" "git-repair not available; clean reclone recovery will be attempted"
     fi
     
     return 1
+}
+
+preserve_runtime_artifacts_from_backup() {
+    local component="GIT-RECOVERY"
+    local backup_dir="$1"
+    local target_dir="$2"
+    local artifact
+    local allowlist=(
+        "mavsdk_server"
+        "venv"
+        ".venv"
+        "logs"
+        "runtime_data"
+    )
+
+    for artifact in "${allowlist[@]}"; do
+        if [[ -e "${backup_dir}/${artifact}" && ! -e "${target_dir}/${artifact}" ]]; then
+            cp -a "${backup_dir}/${artifact}" "${target_dir}/${artifact}" 2>/dev/null || {
+                log_warn "$component" "Failed to preserve runtime artifact: ${artifact}"
+                continue
+            }
+            log_info "$component" "Preserved runtime artifact: ${artifact}"
+        fi
+    done
+}
+
+clean_reclone_repository() {
+    local component="GIT-RECOVERY"
+    local git_url="$1"
+    local timestamp
+    local parent_dir
+    local repo_basename
+    local backup_dir
+    local clone_tmp
+
+    timestamp=$(date -u '+%Y%m%dT%H%M%SZ')
+    parent_dir="$(dirname "$REPO_DIR")"
+    repo_basename="$(basename "$REPO_DIR")"
+    backup_dir="${GIT_SYNC_RECOVERY_BACKUP_DIR}/${repo_basename}.${timestamp}"
+    clone_tmp="${parent_dir}/${repo_basename}.reclone.${timestamp}.$$"
+
+    log_warn "$component" "Attempting clean reclone recovery for ${REPO_DIR}"
+    mkdir -p "$GIT_SYNC_RECOVERY_BACKUP_DIR"
+    cd "$parent_dir" || return 1
+
+    if [[ -e "$REPO_DIR" ]]; then
+        if ! mv "$REPO_DIR" "$backup_dir"; then
+            log_error "$component" "Failed to move corrupted repository to backup: $backup_dir"
+            return 1
+        fi
+        GIT_SYNC_RECOVERY_BACKUP_PATH="$backup_dir"
+    fi
+
+    if ! run_git_command "$git_url" clone --branch "$BRANCH_NAME" --single-branch "$git_url" "$clone_tmp"; then
+        log_error "$component" "Clean clone failed; restoring previous repository from backup"
+        rm -rf "$clone_tmp" 2>/dev/null || true
+        if [[ -d "$backup_dir" && ! -e "$REPO_DIR" ]]; then
+            mv "$backup_dir" "$REPO_DIR" 2>/dev/null || true
+        fi
+        GIT_SYNC_RECOVERY_ACTION="reclone_failed_restored_backup"
+        return 1
+    fi
+
+    if ! git -C "$clone_tmp" rev-parse --verify HEAD >/dev/null 2>&1; then
+        log_error "$component" "Fresh clone failed HEAD verification; restoring backup"
+        rm -rf "$clone_tmp" 2>/dev/null || true
+        if [[ -d "$backup_dir" && ! -e "$REPO_DIR" ]]; then
+            mv "$backup_dir" "$REPO_DIR" 2>/dev/null || true
+        fi
+        GIT_SYNC_RECOVERY_ACTION="reclone_failed_restored_backup"
+        return 1
+    fi
+
+    if [[ -d "$backup_dir" ]]; then
+        preserve_runtime_artifacts_from_backup "$backup_dir" "$clone_tmp"
+    fi
+
+    if ! mv "$clone_tmp" "$REPO_DIR"; then
+        log_error "$component" "Failed to move fresh clone into place; restoring backup"
+        rm -rf "$clone_tmp" 2>/dev/null || true
+        if [[ -d "$backup_dir" && ! -e "$REPO_DIR" ]]; then
+            mv "$backup_dir" "$REPO_DIR" 2>/dev/null || true
+        fi
+        GIT_SYNC_RECOVERY_ACTION="reclone_failed_restored_backup"
+        return 1
+    fi
+    cd "$REPO_DIR" || return 1
+    GIT_SYNC_RECOVERY_ACTION="clean_reclone"
+    persist_git_sync_state "recovered" "Repository corruption recovered by clean reclone"
+    log_info "$component" "Clean reclone recovery completed; backup retained at ${backup_dir}"
+    return 0
 }
 
 handle_repository_corruption() {
@@ -1454,15 +1602,14 @@ handle_repository_corruption() {
             # WARNING: Aggressive strategy removed for fleet safety
             # Rebooting 1000s of drones due to git issues could be catastrophic
             # Instead, we log the error and continue with cached code
-            log_error "$component" "Repository corruption could not be repaired"
-            log_warn "$component" "Aggressive reboot disabled for fleet safety - continuing with cached code"
-            log_warn "$component" "Manual intervention may be required on this drone"
+            log_error "$component" "Repository corruption could not be repaired in place"
+            log_warn "$component" "Aggressive reboot disabled for fleet safety; clean reclone recovery is required"
             set_led_status "ERROR_RECOVERABLE"
             return 1
             ;;
         "graceful")
-            log_error "$component" "Repository corruption could not be repaired"
-            log_warn "$component" "Continuing with cached code - manual intervention may be required"
+            log_error "$component" "Repository corruption could not be repaired in place"
+            log_warn "$component" "Clean reclone recovery should be attempted before continuing with cached code"
             return 1
             ;;
         *)
@@ -1545,7 +1692,16 @@ perform_git_fetch() {
     # Check for repository corruption
     if ! check_git_integrity; then
         log_warn "$component" "Repository corruption detected during fetch failure"
-        handle_repository_corruption
+        if handle_repository_corruption; then
+            return 0
+        fi
+        clean_reclone_repository "$git_url"
+        return $?
+    fi
+
+    if [[ "$GIT_LOCKS_PRESENT" == "true" ]]; then
+        log_warn "$component" "Fetch failed while git lock files are present; attempting clean reclone recovery"
+        clean_reclone_repository "$git_url"
         return $?
     fi
 

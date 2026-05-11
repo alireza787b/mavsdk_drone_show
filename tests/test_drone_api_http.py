@@ -401,6 +401,8 @@ class TestDroneState:
         assert data["hw_id"] == "1"
         assert data["policy"]["download_supported"] is True
         assert data["policy"]["single_delete_supported"] is False
+        assert "ulog_capability" in data
+        assert "mavsdk_server_present" in data["ulog_capability"]
 
     def test_list_onboard_ulog_files_success(self, test_client, api_server, monkeypatch):
         async def fake_with_local_system(operation):
@@ -428,6 +430,24 @@ class TestDroneState:
         data = response.json()
         assert data["count"] == 1
         assert data["files"][0]["id"] == 5
+
+    def test_list_onboard_ulog_files_reports_missing_mavsdk_server(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+    ):
+        async def fake_with_local_system(operation):
+            raise FileNotFoundError("mavsdk_server binary not found")
+
+        monkeypatch.setattr(api_server, "_with_local_ulog_system", fake_with_local_system)
+
+        response = test_client.get("/api/v1/ulog/files")
+
+        assert response.status_code == 424
+        detail = response.json()["detail"]
+        assert detail["error"] == "mavsdk_server_missing"
+        assert detail["ulog_capability"]["mavsdk_server_present"] is False
 
     def test_create_onboard_ulog_download_job_success(self, test_client, api_server, monkeypatch):
         scheduled = []
@@ -996,10 +1016,13 @@ class TestGitStatus:
         assert data['repo_access_mode'] == 'https_token_file'
         assert data['git_auth_health_status'] == 'healthy'
         assert data['mavlink_runtime']['router_service_status'] == 'active'
+        assert data['mavlink_runtime']['tool'] == 'mavlink-anywhere'
         assert data['connectivity_runtime']['service_status'] == 'active'
+        assert data['connectivity_runtime']['tool'] == 'smart-wifi-manager'
         assert data['git_sync_runtime']['service_reload_status'] == 'updated'
         assert data['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_sync_runtime']['coordinator_restart_scheduled'] is True
+        assert data['git_sync_runtime']['recovery_action'] == 'none'
         assert data['env_runtime']['registry_hash'] == 'abc123'
         assert data['env_runtime']['configured_node_key_count'] == 5
 
@@ -1165,6 +1188,8 @@ class TestDroneRouteSurface:
         assert data["status"] == "ok"
         assert "timestamp" in data
         assert "version" in data
+        assert "ulog_capability" in data
+        assert "mavsdk_server_present" in data["ulog_capability"]
 
     def test_v1_get_drone_state_success(self, test_client):
         response = test_client.get("/api/v1/drone/state")

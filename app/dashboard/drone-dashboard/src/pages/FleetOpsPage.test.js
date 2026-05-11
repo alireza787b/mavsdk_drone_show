@@ -234,6 +234,10 @@ describe('FleetOpsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /sidecars/i }));
 
+    expect(screen.getByRole('region', { name: /sidecar fleet table/i })).toBeInTheDocument();
+    expect(screen.getByText(/wi-fi and mavlink posture/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/MAVLink/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Smart Wi-Fi/).length).toBeGreaterThan(0);
     expect(screen.getByText(/ref v3.0.8; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
     expect(screen.getByText(/smart wi-fi is inactive; mode manage; fleet profile source missing\. import a private fleet profile, then sync \+ reconcile\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();

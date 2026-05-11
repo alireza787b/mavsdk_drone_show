@@ -43,8 +43,29 @@ const formatUlogTimestamp = (value) => {
   }).format(date) + ' UTC';
 };
 
+const formatDetailMessage = (detail) => {
+  if (!detail) {
+    return null;
+  }
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return formatDetailMessage(detail.find(Boolean));
+  }
+  if (typeof detail === 'object') {
+    const message = detail.message || detail.detail || detail.error;
+    const capability = detail.ulog_capability;
+    const missing = capability?.missing_dependency
+      ? `Missing dependency: ${capability.missing_dependency}.`
+      : '';
+    return [message, missing, capability?.detail].filter(Boolean).join(' ');
+  }
+  return null;
+};
+
 const getErrorMessage = (error, fallback) => (
-  error?.response?.data?.detail
+  formatDetailMessage(error?.response?.data?.detail)
   || error?.message
   || fallback
 );
@@ -58,6 +79,7 @@ const OnboardUlogDialog = ({
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState([]);
   const [policy, setPolicy] = useState(null);
+  const [ulogCapability, setUlogCapability] = useState(null);
   const [statusNotice, setStatusNotice] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
   const [confirmErase, setConfirmErase] = useState(false);
@@ -75,9 +97,18 @@ const OnboardUlogDialog = ({
         getDroneUlogFiles(droneId),
       ]);
       setPolicy(policyResponse.policy || null);
+      const capability = policyResponse.ulog_capability || filesResponse.ulog_capability || null;
+      setUlogCapability(capability);
       setFiles(filesResponse.files || []);
       if (!preserveNotice) {
-        setStatusNotice(null);
+        setStatusNotice(
+          capability?.available === false
+            ? {
+                tone: 'error',
+                text: capability.detail || 'Onboard ULog access is unavailable on this node.',
+              }
+            : null
+        );
       }
     } catch (error) {
       setStatusNotice({
@@ -93,6 +124,7 @@ const OnboardUlogDialog = ({
     if (!open) {
       setFiles([]);
       setPolicy(null);
+      setUlogCapability(null);
       setActiveJob(null);
       setStatusNotice(null);
       setConfirmErase(false);
@@ -275,6 +307,12 @@ const OnboardUlogDialog = ({
                 {chip}
               </span>
             ))}
+            {ulogCapability?.mavsdk_server_present === false ? (
+              <span className="onboard-ulog-dialog__policy-chip onboard-ulog-dialog__policy-chip--warning">
+                <FaExclamationTriangle size={10} />
+                MAVSDK server missing
+              </span>
+            ) : null}
           </div>
 
           {statusNotice && (

@@ -610,9 +610,13 @@ class HeartbeatPostResponse(BaseModel):
 class DroneMavlinkRuntimeStatus(BaseModel):
     """Compact node-local mavlink-anywhere posture for fleet views."""
 
+    tool: str = Field("mavlink-anywhere", description="Sidecar tool identifier")
     status_source: str = Field(..., description="How the node-local runtime status was resolved")
+    mode: Optional[str] = Field(None, description="Canonical sidecar profile/control mode")
     management_mode: str = Field(..., description="Managed/manual posture")
+    service_state: Optional[str] = Field(None, description="Canonical primary service state")
     ref: str = Field(..., description="Resolved runtime ref")
+    installed_ref: Optional[str] = Field(None, description="Installed sidecar ref")
     repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
     install_dir_present: bool = Field(..., description="Whether the install directory exists")
     runtime_present: bool = Field(..., description="Whether a managed runtime checkout exists")
@@ -626,14 +630,24 @@ class DroneMavlinkRuntimeStatus(BaseModel):
     desired_config_hash: Optional[str] = Field(None, description="Hash of the node's desired mavlink-anywhere ownership/config inputs")
     applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after mavlink-anywhere reconcile")
     config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied mavlink-anywhere hashes match")
+    profile_source: Optional[str] = Field(None, description="Where the sidecar profile baseline came from")
+    desired_hash: Optional[str] = Field(None, description="Normalized desired profile/control hash")
+    applied_hash: Optional[str] = Field(None, description="Normalized last-applied profile/control hash")
+    local_hash: Optional[str] = Field(None, description="Normalized node-local profile/control hash")
+    drift_state: Optional[str] = Field(None, description="Normalized sidecar drift state")
+    profile_summary: Dict[str, Any] = Field(default_factory=dict, description="Safe compact profile summary")
+    last_apply_result: Optional[str] = Field(None, description="Last sidecar reconcile/apply result")
 
 
 class DroneConnectivityRuntimeStatus(BaseModel):
     """Compact node-local Smart Wi-Fi Manager posture for fleet views."""
 
+    tool: str = Field("smart-wifi-manager", description="Sidecar tool identifier")
     status_source: str = Field(..., description="How the node-local runtime status was resolved")
     backend: str = Field(..., description="Resolved node connectivity backend")
+    service_state: Optional[str] = Field(None, description="Canonical primary service state")
     ref: str = Field(..., description="Resolved Smart Wi-Fi Manager ref")
+    installed_ref: Optional[str] = Field(None, description="Installed sidecar ref")
     repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
     install_dir_present: bool = Field(..., description="Whether the install directory exists")
     mode: str = Field(..., description="Resolved Smart Wi-Fi Manager operating mode")
@@ -647,6 +661,13 @@ class DroneConnectivityRuntimeStatus(BaseModel):
     desired_config_hash: Optional[str] = Field(None, description="Hash of the node's desired Smart Wi-Fi ownership/config inputs")
     applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after Smart Wi-Fi reconcile")
     config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied Smart Wi-Fi hashes match")
+    profile_source: Optional[str] = Field(None, description="Where the sidecar profile baseline came from")
+    desired_hash: Optional[str] = Field(None, description="Normalized desired profile/control hash")
+    applied_hash: Optional[str] = Field(None, description="Normalized last-applied profile/control hash")
+    local_hash: Optional[str] = Field(None, description="Normalized node-local profile/control hash")
+    drift_state: Optional[str] = Field(None, description="Normalized sidecar drift state")
+    profile_summary: Dict[str, Any] = Field(default_factory=dict, description="Safe compact profile summary")
+    last_apply_result: Optional[str] = Field(None, description="Last sidecar reconcile/apply result")
 
 
 class DroneGitSyncRuntimeStatus(BaseModel):
@@ -663,6 +684,10 @@ class DroneGitSyncRuntimeStatus(BaseModel):
     connectivity_reconcile_status: str = Field("unknown", description="Latest connectivity reconcile result")
     mavlink_runtime_reconcile_status: str = Field("unknown", description="Latest MAVLink runtime reconcile result")
     requirements_update_status: str = Field("unknown", description="Latest Python requirements update result")
+    recovery_action: str = Field("none", description="Latest git recovery action performed by node sync")
+    recovery_backup_path: Optional[str] = Field(None, description="Backup path retained after clean reclone recovery")
+    disk_available_status: str = Field("unknown", description="Disk availability posture captured during node sync")
+    disk_free_kb: Optional[int] = Field(None, description="Free disk space in KiB at node sync time")
 
 
 class DroneEnvRuntimeStatus(BaseModel):
@@ -1559,10 +1584,14 @@ class RuntimeRepoSyncStatusResponse(BaseModel):
 class RuntimeMavlinkRuntimeResponse(BaseModel):
     """Managed mavlink-anywhere runtime status surfaced to GCS Runtime diagnostics."""
 
+    tool: str = Field("mavlink-anywhere", description="Sidecar tool identifier")
     status_source: str = Field(..., description="How the runtime status was resolved")
+    mode: Optional[str] = Field(None, description="Canonical sidecar profile/control mode")
     management_mode: str = Field(..., description="Managed/manual posture for mavlink-anywhere")
+    service_state: Optional[str] = Field(None, description="Canonical primary service state")
     repo_url: str = Field(..., description="Resolved mavlink-anywhere repo URL")
     ref: str = Field(..., description="Resolved mavlink-anywhere git ref")
+    installed_ref: Optional[str] = Field(None, description="Installed sidecar ref")
     repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
     install_dir: str = Field(..., description="Resolved mavlink-anywhere install dir")
     install_dir_present: bool = Field(..., description="Whether the install dir exists")
@@ -1576,15 +1605,25 @@ class RuntimeMavlinkRuntimeResponse(BaseModel):
     desired_config_hash: Optional[str] = Field(None, description="Hash of desired mavlink-anywhere ownership/config inputs")
     applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after mavlink-anywhere reconcile")
     config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied mavlink-anywhere hashes match")
+    profile_source: Optional[str] = Field(None, description="Where the sidecar profile baseline came from")
+    desired_hash: Optional[str] = Field(None, description="Normalized desired profile/control hash")
+    applied_hash: Optional[str] = Field(None, description="Normalized last-applied profile/control hash")
+    local_hash: Optional[str] = Field(None, description="Normalized node-local profile/control hash")
+    drift_state: Optional[str] = Field(None, description="Normalized sidecar drift state")
+    profile_summary: Dict[str, Any] = Field(default_factory=dict, description="Safe compact profile summary")
+    last_apply_result: Optional[str] = Field(None, description="Last sidecar reconcile/apply result")
 
 
 class RuntimeConnectivityRuntimeResponse(BaseModel):
     """Connectivity backend runtime status surfaced to GCS Runtime diagnostics."""
 
+    tool: str = Field("smart-wifi-manager", description="Sidecar tool identifier")
     status_source: str = Field(..., description="How the connectivity status was resolved")
     backend: str = Field(..., description="Resolved connectivity backend")
+    service_state: Optional[str] = Field(None, description="Canonical primary service state")
     repo_url: str = Field(..., description="Resolved Smart Wi-Fi Manager repo URL")
     ref: str = Field(..., description="Resolved Smart Wi-Fi Manager git ref")
+    installed_ref: Optional[str] = Field(None, description="Installed sidecar ref")
     repo_web_url: Optional[str] = Field(None, description="Browsable repository URL")
     install_dir: str = Field(..., description="Resolved Smart Wi-Fi Manager install dir")
     install_dir_present: bool = Field(..., description="Whether the install dir exists")
@@ -1598,6 +1637,13 @@ class RuntimeConnectivityRuntimeResponse(BaseModel):
     desired_config_hash: Optional[str] = Field(None, description="Hash of desired Smart Wi-Fi ownership/config inputs")
     applied_config_hash: Optional[str] = Field(None, description="Hash last recorded after Smart Wi-Fi reconcile")
     config_hash_match: Optional[bool] = Field(None, description="Whether desired and applied Smart Wi-Fi hashes match")
+    profile_source: Optional[str] = Field(None, description="Where the sidecar profile baseline came from")
+    desired_hash: Optional[str] = Field(None, description="Normalized desired profile/control hash")
+    applied_hash: Optional[str] = Field(None, description="Normalized last-applied profile/control hash")
+    local_hash: Optional[str] = Field(None, description="Normalized node-local profile/control hash")
+    drift_state: Optional[str] = Field(None, description="Normalized sidecar drift state")
+    profile_summary: Dict[str, Any] = Field(default_factory=dict, description="Safe compact profile summary")
+    last_apply_result: Optional[str] = Field(None, description="Last sidecar reconcile/apply result")
 
 
 class RuntimeStatusResponse(BaseModel):

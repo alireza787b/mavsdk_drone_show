@@ -104,7 +104,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
     )
     smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.9")
     smart_wifi_manager_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "observe")
-    smart_wifi_manager_import_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE", "replace")
+    smart_wifi_manager_import_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE", "merge")
     smart_wifi_manager_install_dir = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR", "/opt/smart-wifi-manager")
     smart_wifi_manager_dashboard_listen = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN", "127.0.0.1:9080")
     smart_wifi_manager_profile_path = data.get(

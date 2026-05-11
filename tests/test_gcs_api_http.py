@@ -1734,12 +1734,15 @@ class TestGitStatusEndpoints:
         assert data['git_status']['1']['in_sync_with_gcs'] is True
         assert data['git_status']['1']['repo_access_mode'] == 'https_token_file'
         assert data['git_status']['1']['git_auth_health_status'] == 'healthy'
+        assert data['git_status']['1']['mavlink_runtime']['tool'] == 'mavlink-anywhere'
         assert data['git_status']['1']['mavlink_runtime']['dashboard_access_mode'] == 'direct'
         assert data['git_status']['1']['mavlink_runtime']['dashboard_url'] == 'http://10.0.0.1:9070'
+        assert data['git_status']['1']['connectivity_runtime']['tool'] == 'smart-wifi-manager'
         assert data['git_status']['1']['connectivity_runtime']['dashboard_access_mode'] == 'local_only'
         assert data['git_status']['1']['git_sync_runtime']['service_reload_status'] == 'updated'
         assert data['git_status']['1']['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_status']['1']['git_sync_runtime']['coordinator_restart_scheduled'] is True
+        assert data['git_status']['1']['git_sync_runtime']['recovery_action'] == 'none'
         assert data['needs_sync_count'] == 0
 
     @patch('app_fastapi.git_status_data_all_drones', {

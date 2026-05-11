@@ -347,6 +347,12 @@ Operational notes:
 - in SITL or companion deployments where MAVSDK log listing is unavailable but
   PX4 `.ulg` files are locally accessible, MDS may fall back to the configured
   local ULog directories instead of failing the entire workflow
+- drone health and ULog policy responses include `ulog_capability`, including
+  `mavsdk_server_present`, executable/path state, and configured filesystem
+  fallback paths
+- if `mavsdk_server` is missing or not executable and no filesystem fallback is
+  available, ULog list/download/erase routes return an actionable dependency
+  error instead of a generic server failure
 
 ### Error Boundary
 
