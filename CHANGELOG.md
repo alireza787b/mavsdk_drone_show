@@ -71,6 +71,9 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   sidebar.
 - Fleet Ops reconcile cannot run in `observe` or `local` mode, and reconcile /
   policy dry-runs require explicit selected node IDs before any apply.
+- Dashboard lockfile refreshed with non-breaking npm audit fixes, including
+  the current axios/follow-redirects/proxy transitive chain used by the
+  operator dashboard bundle.
 
 ---
 

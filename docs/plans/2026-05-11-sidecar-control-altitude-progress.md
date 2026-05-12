@@ -17,11 +17,11 @@ Logo/rebranding and broad stale-worktree cleanup remain deferred.
 
 | Area | Expected anchor | Observed state | Status |
 | --- | --- | --- | --- |
-| Official MDS worktree `/tmp/mds_official_current_20260510` | `1c9516fd9941982321b77fa35f9a763719e51f07` | `1c9516fd9941982321b77fa35f9a763719e51f07`, branch `release/sidecar-altitude-sanitize-20260512`, tracks `origin/main` | Active official worktree |
+| Official MDS worktree `/tmp/mds_official_current_20260510` | `1c9516fd9941982321b77fa35f9a763719e51f07` | Released `v5.3.61-sidecar-altitude-control` at `01513515`; dashboard lockfile patch in progress on branch `release/sidecar-altitude-sanitize-20260512`, tracks `origin/main` | Active official worktree |
 | User-requested workspace `/opt/mavsdk_drone_show` | Work from path per prompt | Dirty `main-candidate`, behind `origin/main-candidate`, many pre-existing changes/deletions/untracked files | Preserved; not used for implementation |
 | Smart Wi-Fi Manager audit repo `/tmp/audit_smart_wifi_manager_20260510` | `b81937abf10c2cbec050c62337d0f3076e2aad89` / `v2.1.9` | Released `v2.1.10` at `95cc7c2` with dashboard assets | Public sidecar release complete |
 | MAVLink Anywhere audit repo `/tmp/audit_mavlink_anywhere_20260510` | `fd80c48c5e723641360ab11ef2004786a0641111` / `v3.0.8` | Released `v3.0.9` at `35f74ba` with dashboard assets | Public sidecar release complete |
-| Private MDS worktree `/tmp/mds_private_current_20260510` | `c82c325001e23c9860254f197c4bb8e74a37e271` | Not merged in this resume slice | Pending official release first |
+| Private MDS worktree `/tmp/mds_private_current_20260510` | `c82c325001e23c9860254f197c4bb8e74a37e271` | Official release cherry-picked onto private branch `catchadrone-sidecar-altitude-20260512`; private-only operational config preserved | Pending lockfile patch, push, deploy, SITL |
 
 ## Security Rules In Force
 
@@ -36,11 +36,11 @@ Logo/rebranding and broad stale-worktree cleanup remain deferred.
 | Slice | Status | Notes |
 | --- | --- | --- |
 | 1. Contract and API design | Complete | Shared schema, mode names, drift states, hash/redaction semantics, and route map documented in `docs/features/fleet-sidecar-profiles.md`. |
-| 2. Smart Wi-Fi Manager fleet profile control | Sidecar released; MDS release pending | Official MDS now has Fleet Ops sidecar APIs plus Wi-Fi profile control UI with table, baseline/node/promote/job dialogs, dry-run/apply, policy mode changes, token header support, and unreachable-node opt-in. Smart Wi-Fi Manager `v2.1.10` includes command/log redaction and confirmation-token alias fixes. |
-| 3. MAVLink Anywhere profile parity | Sidecar released; MDS release pending | Backend route supports `mavlink-anywhere`; UI page mirrors Wi-Fi controls while preserving hardware-overlay semantics. MAVLink Anywhere `v3.0.9` is released. |
-| 4. Fleet Ops/GCS Runtime cleanup | Complete in working tree; release pending | Direct dashboard UPDATE_CODE controls now route to Fleet Ops dry-run/apply; old direct Smart Wi-Fi profile import and legacy one-click sync UI/helpers were removed. GCS Runtime remains host-only. |
-| 5. Altitude/no-GPS telemetry policy | Complete in working tree; release pending | Source-aware altitude report and dashboard/detail display changes are present. Typed GCS telemetry schema and API/operator docs now preserve/describe `relative_home`, `absolute_msl`, `local_ned`, and `baro` sources. |
-| 6. Tests, docs, releases, deployment, board sync | Pending | Leak scan, full docs pass, official commits/tags/releases, private merge/deploy, Hetzner build, and board sync remain. |
+| 2. Smart Wi-Fi Manager fleet profile control | Public release complete; MDS release complete | Official MDS now has Fleet Ops sidecar APIs plus Wi-Fi profile control UI with table, baseline/node/promote/job dialogs, dry-run/apply, policy mode changes, token header support, and unreachable-node opt-in. Smart Wi-Fi Manager `v2.1.10` includes command/log redaction and confirmation-token alias fixes. |
+| 3. MAVLink Anywhere profile parity | Public release complete; MDS release complete | Backend route supports `mavlink-anywhere`; UI page mirrors Wi-Fi controls while preserving hardware-overlay semantics. MAVLink Anywhere `v3.0.9` is released. |
+| 4. Fleet Ops/GCS Runtime cleanup | Released in official MDS | Direct dashboard UPDATE_CODE controls now route to Fleet Ops dry-run/apply; old direct Smart Wi-Fi profile import and legacy one-click sync UI/helpers were removed. GCS Runtime remains host-only. |
+| 5. Altitude/no-GPS telemetry policy | Released in official MDS | Source-aware altitude report and dashboard/detail display changes are present. Typed GCS telemetry schema and API/operator docs now preserve/describe `relative_home`, `absolute_msl`, `local_ned`, and `baro` sources. |
+| 6. Tests, docs, releases, deployment, board sync | In progress | Public sidecar releases and official MDS release are complete. Private sync/deploy, Hetzner build/SITL, hardware board sync, and final report remain. |
 
 ## Decisions Frozen
 
@@ -157,6 +157,26 @@ Resume validation completed:
 - Reviewer re-checks:
   - MDS reviewer reported no remaining blockers from the previous list and
     cleared the work for Slice 6 gates.
-  - Smart Wi-Fi Manager reviewer reported no remaining blocker for the command
-    argv/log redaction or confirmation-token alias. Non-blocking note:
-    assignment-style argv redaction is not currently used.
+- Smart Wi-Fi Manager reviewer reported no remaining blocker for the command
+  argv/log redaction or confirmation-token alias. Non-blocking note:
+  assignment-style argv redaction is not currently used.
+- Official MDS public release completed:
+  - `v5.3.61-sidecar-altitude-control` at `01513515`
+  - `origin/main` and `origin/main-candidate` updated to the release commit
+  - GitHub release created
+- Private integration started:
+  - Created branch `catchadrone-sidecar-altitude-20260512` from the private
+    anchor.
+  - Cherry-picked the official sidecar/altitude release as `3f88f1b8`.
+  - Resolved only `config.json` and `deployment/defaults.env`, preserving
+    private operational values while updating sidecar defaults to
+    Smart Wi-Fi Manager `v2.1.10`, mode `fleet-merge`, MAVLink Anywhere
+    `v3.0.9`, and MAVLink management mode `local`.
+  - Confirmed private-only Catch-A-Drone assets remained present.
+- Dependency-audit hardening found during private verification:
+  - Ran `npm audit fix` without `--force` in official MDS dashboard.
+  - Dashboard lockfile now uses fixed runtime/transitive packages including
+    axios `1.16.0`, follow-redirects `1.16.0`, proxy-from-env `2.1.0`,
+    lodash `4.18.1`, and postcss `8.5.14`.
+  - Remaining npm audit findings are tied to CRA/react-scripts build/test
+    dependencies and require a separate breaking toolchain migration.
