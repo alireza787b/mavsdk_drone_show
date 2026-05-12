@@ -1,8 +1,16 @@
 @import './DesignTokens.css';
 
+.tactical-drone-card,
+.tactical-drone-card *,
+.tactical-drone-card *::before,
+.tactical-drone-card *::after {
+  box-sizing: border-box;
+}
+
 .tactical-drone-card {
   --mds-tactical-drone-color: var(--color-primary);
   width: min(320px, calc(100vw - 32px));
+  max-width: 100%;
   color: var(--color-text-primary);
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--mds-tactical-drone-color) 18%, transparent), transparent 44%),
@@ -267,7 +275,7 @@
     border-radius: 8px;
     box-shadow: var(--shadow-md);
     padding: 9px;
-    width: min(312px, calc(100vw - 28px));
+    width: min(300px, calc(100vw - 32px));
   }
 
   .tactical-drone-card__header {
