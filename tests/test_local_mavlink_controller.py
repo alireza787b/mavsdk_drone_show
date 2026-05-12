@@ -46,6 +46,9 @@ def build_controller(mock_drone_config):
     mock_drone_config.gps_raw_altitude_m = None
     mock_drone_config.global_position_timestamp_ms = 0
     mock_drone_config.global_position_valid = False
+    mock_drone_config.relative_altitude_m = None
+    mock_drone_config.baro_altitude_m = None
+    mock_drone_config.baro_timestamp_ms = 0
     mock_drone_config.position_source = "unavailable"
     mock_drone_config.yaw_rate_deg_s = 0.0
 
@@ -180,6 +183,7 @@ def test_process_global_position_int_sets_fallback_home_without_px4_truth(mock_d
         lat=int(35.123456 * 1E7),
         lon=int(51.2721 * 1E7),
         alt=int(1278.5 * 1E3),
+        relative_alt=int(12.3 * 1E3),
         vx=0,
         vy=0,
         vz=0,
@@ -198,6 +202,7 @@ def test_process_global_position_int_sets_fallback_home_without_px4_truth(mock_d
     assert mock_drone_config.telemetry_sequence == 1
     assert mock_drone_config.global_position_valid is True
     assert mock_drone_config.global_position_timestamp_ms > 0
+    assert mock_drone_config.relative_altitude_m == 12.3
     assert mock_drone_config.position_source == "global_position_int"
 
 
@@ -277,7 +282,19 @@ def test_process_local_position_ned_marks_high_res_telemetry_update(mock_drone_c
     controller.process_local_position_ned(msg)
 
     assert mock_drone_config.local_position_ned["time_boot_ms"] == 1234
+    assert mock_drone_config.local_position_ned["timestamp_ms"] > 0
     assert mock_drone_config.telemetry_timestamp_ms > 0
+    assert mock_drone_config.telemetry_sequence == 1
+
+
+def test_process_scaled_pressure_records_baro_altitude(mock_drone_config):
+    controller = build_controller(mock_drone_config)
+    msg = SimpleNamespace(press_abs=1013.25)
+
+    controller.process_scaled_pressure(msg)
+
+    assert abs(mock_drone_config.baro_altitude_m) < 0.01
+    assert mock_drone_config.baro_timestamp_ms > 0
     assert mock_drone_config.telemetry_sequence == 1
 
 

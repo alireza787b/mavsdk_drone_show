@@ -5,9 +5,12 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from api_routes.git_status import create_git_router
+import api_routes.git_status as git_routes
+from tests.conftest import SyncASGITestClient
+
+MUTATION_HEADERS = {"x-fleet-ops-token": "test-token"}
 
 
 def _make_deps():
@@ -40,11 +43,17 @@ def test_git_router_registers_expected_routes():
 
     assert "/api/v1/git/status" in routes
     assert "/api/v1/git/sync-operations" in routes
+    assert "/api/v1/fleet/git-sync" in routes
+    assert "/api/v1/fleet/git-sync/dry-run" in routes
+    assert "/api/v1/fleet/git-sync/apply" in routes
     assert "/ws/git-status" in routes
 
 
-def test_git_router_uses_live_verify_dependency_after_router_creation():
+def test_fleet_git_sync_apply_uses_live_verify_dependency_after_router_creation(monkeypatch):
     deps = _make_deps()
+    deps.get_all_heartbeats = lambda: {"1": {"timestamp": int(time.time() * 1000), "hw_id": "1"}}
+    monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
+    git_routes._git_sync_jobs.clear()
     initial_verify = deps._verify_sync_targets
 
     app = FastAPI()
@@ -53,21 +62,47 @@ def test_git_router_uses_live_verify_dependency_after_router_creation():
     replacement_verify = AsyncMock(return_value=([1], []))
     deps._verify_sync_targets = replacement_verify
 
-    with TestClient(app) as client:
-        response = client.post("/api/v1/git/sync-operations", json={})
+    client = SyncASGITestClient(app)
+    dry_run = client.post("/api/v1/fleet/git-sync/dry-run", headers=MUTATION_HEADERS, json={"pos_ids": [1]})
+    assert dry_run.status_code == 200
+    response = client.post(
+        "/api/v1/fleet/git-sync/apply",
+        headers=MUTATION_HEADERS,
+        json={
+            "dry_run_id": dry_run.json()["job_id"],
+            "confirmation": {
+                "acknowledged_risks": True,
+                "confirmation_token": dry_run.json()["confirmation_token"],
+            },
+        },
+    )
 
     assert response.status_code == 200
     initial_verify.assert_not_called()
     replacement_verify.assert_awaited_once()
 
 
-def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload():
+def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload(monkeypatch):
     deps = _make_deps()
+    deps.get_all_heartbeats = lambda: {"1": {"timestamp": int(time.time() * 1000), "hw_id": "1"}}
+    monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
+    git_routes._git_sync_jobs.clear()
     app = FastAPI()
     app.include_router(create_git_router(deps))
 
-    with TestClient(app) as client:
-        response = client.post("/api/v1/git/sync-operations", json={"pos_ids": [1]})
+    client = SyncASGITestClient(app)
+    dry_run = client.post("/api/v1/fleet/git-sync/dry-run", headers=MUTATION_HEADERS, json={"pos_ids": [1]})
+    response = client.post(
+        "/api/v1/fleet/git-sync/apply",
+        headers=MUTATION_HEADERS,
+        json={
+            "dry_run_id": dry_run.json()["job_id"],
+            "confirmation": {
+                "acknowledged_risks": True,
+                "confirmation_token": dry_run.json()["confirmation_token"],
+            },
+        },
+    )
 
     assert response.status_code == 200
     deps.send_commands_to_selected.assert_called_once()
@@ -78,6 +113,33 @@ def test_selected_git_sync_keeps_routing_ids_out_of_drone_command_payload():
     assert "pos_ids" not in command_data
 
 
+def test_deprecated_git_sync_operation_no_longer_dispatches_update_code():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    client = SyncASGITestClient(app)
+    response = client.post("/api/v1/git/sync-operations", json={"pos_ids": [1]})
+
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert "dry-run" in response.json()["message"]
+    deps.send_commands_to_selected.assert_not_called()
+    deps.send_commands_to_all.assert_not_called()
+
+
+def test_fleet_git_sync_dry_run_requires_operator_token(monkeypatch):
+    deps = _make_deps()
+    monkeypatch.setenv("MDS_FLEET_OPS_MUTATION_TOKEN", "test-token")
+    app = FastAPI()
+    app.include_router(create_git_router(deps))
+
+    client = SyncASGITestClient(app)
+    response = client.post("/api/v1/fleet/git-sync/dry-run", json={"pos_ids": [1]})
+
+    assert response.status_code == 403
+
+
 def test_git_router_get_gcs_status_uses_live_dependency_after_router_creation():
     deps = _make_deps()
     app = FastAPI()
@@ -86,8 +148,8 @@ def test_git_router_get_gcs_status_uses_live_dependency_after_router_creation():
     replacement_report = Mock(return_value={"branch": "release", "commit": "def67890"})
     deps.get_gcs_git_report = replacement_report
 
-    with TestClient(app) as client:
-        response = client.get("/api/v1/git/status")
+    client = SyncASGITestClient(app)
+    response = client.get("/api/v1/git/status")
 
     assert response.status_code == 200
     replacement_report.assert_called_once()
@@ -127,8 +189,8 @@ def test_git_status_exposes_read_only_node_env_posture():
     app = FastAPI()
     app.include_router(create_git_router(deps))
 
-    with TestClient(app) as client:
-        response = client.get("/api/v1/git/status")
+    client = SyncASGITestClient(app)
+    response = client.get("/api/v1/git/status")
 
     assert response.status_code == 200
     env_runtime = response.json()["git_status"]["1"]["env_runtime"]
@@ -159,8 +221,8 @@ def test_git_status_keeps_stale_offline_drift_out_of_global_sync_warning():
     app = FastAPI()
     app.include_router(create_git_router(deps))
 
-    with TestClient(app) as client:
-        response = client.get("/api/v1/git/status")
+    client = SyncASGITestClient(app)
+    response = client.get("/api/v1/git/status")
 
     assert response.status_code == 200
     payload = response.json()
@@ -185,8 +247,8 @@ def test_git_status_empty_heartbeat_set_suppresses_global_sync_warning():
     app = FastAPI()
     app.include_router(create_git_router(deps))
 
-    with TestClient(app) as client:
-        response = client.get("/api/v1/git/status")
+    client = SyncASGITestClient(app)
+    response = client.get("/api/v1/git/status")
 
     assert response.status_code == 200
     payload = response.json()

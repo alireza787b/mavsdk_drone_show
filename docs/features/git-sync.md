@@ -82,22 +82,16 @@ What exists today:
   live node runtime (for example runtime code, coordinator unit, or Python
   requirements), instead of restarting all services unconditionally
 
-What is planned next, but not fully operator-complete yet:
-
-- richer fleet-default versus node-override management for connectivity tools
-- first-class Smart Wi-Fi Manager fleet profile rollout
-- fleet-level MAVLink Anywhere router-profile rollout on top of the new runtime ownership model
-- improved dashboard-level rollout visibility for those profile classes
-
-Do not assume that every fleet-wide profile edit already has a complete GCS UI
-just because the runtime foundation exists.
+Fleet Ops now owns the operator mutation path for drone sync and sidecar
+profile reconcile. Git sync, Smart Wi-Fi profile reconcile, and MAVLink endpoint
+policy reconcile all require dry-run first and explicit confirmation second.
 
 ## Sync Trigger Paths
 
 | Trigger | When | What Happens |
 |---------|------|-------------|
 | Boot service | Drone startup | `update_repo_ssh.sh` runs via systemd service |
-| UI "Sync Drones" button | Operator-initiated | `POST /api/v1/git/sync-operations` sends `UPDATE_CODE` (Mission 103) to drones |
+| Fleet Ops sync dry-run/apply | Operator-initiated | `POST /api/v1/fleet/git-sync/dry-run` previews targets, then `POST /api/v1/fleet/git-sync/apply` sends `UPDATE_CODE` (Mission 103) only to confirmed eligible drones |
 | UI "Save & Commit" button | Config/swarm save | `git_operations()` commits + pushes on GCS |
 | UI "Commit Mission Outputs" | Swarm Trajectory review | creates a local git commit, and only pushes when `MDS_GIT_AUTO_PUSH=true` |
 | UPDATE_CODE command | GCS command | Drone runs `actions.py --action=update_code` which calls `update_repo_ssh.sh` |
@@ -266,7 +260,7 @@ inside MDS core services.
 Repo-driven rollout for Smart Wi-Fi Manager now covers two separate concerns:
 
 - tool version/channel intent in `deployment/defaults.env`
-- tool configuration intent in `deployment/connectivity/smart-wifi-manager/profile.json`
+- tool configuration intent in `config/fleet-profiles/smart-wifi-manager/config.json`
 
 Fleet Ops shows `Profile missing` when the node is configured for
 Smart Wi-Fi Manager but the repo-owned profile source is absent. That is not a
@@ -275,9 +269,9 @@ profile source that nodes should reconcile.
 
 ## Managed MAVLink Runtime Sync
 
-When a node keeps `MDS_MAVLINK_MANAGEMENT_MODE=managed`, the git sync path also
-reconciles the external `mavlink-anywhere` runtime after each successful repo
-update.
+When a node uses a Fleet Ops MAVLink policy mode such as `fleet-merge`, the git
+sync path also reconciles the external `mavlink-anywhere` runtime after each
+successful repo update.
 
 Current ownership split:
 
@@ -344,7 +338,8 @@ An amber warning banner appears on all dashboard pages when any drones are out o
 - Auto-dismisses when all drones sync
 - Re-appears if new drones go out of sync
 - Operator can manually dismiss (non-blocking)
-- "Sync Now" button triggers `POST /api/v1/git/sync-operations`
+- "Sync Now" opens Fleet Ops; Fleet Ops uses `/api/v1/fleet/git-sync/dry-run`
+  followed by `/api/v1/fleet/git-sync/apply`
 - the backend now waits for real repo convergence before reporting success, so a green toast means the drone repos actually matched the GCS revision instead of only accepting the command
 - when no explicit target list is provided, the sync path prefers drones with recent heartbeats so an active SITL session does not get polluted by offline config entries from other slots
 
@@ -378,7 +373,10 @@ This is parsed by `actions.py` for logging and status tracking.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/v1/git/status` | GET | Aggregated drone git status + GCS status |
-| `/api/v1/git/sync-operations` | POST | Trigger UPDATE_CODE on drones |
+| `/api/v1/fleet/git-sync` | GET | Fleet Ops sync posture |
+| `/api/v1/fleet/git-sync/dry-run` | POST | Preview selected sync targets without mutation |
+| `/api/v1/fleet/git-sync/apply` | POST | Confirm a dry-run and dispatch UPDATE_CODE to eligible drones |
+| `/api/v1/git/sync-operations` | POST | Deprecated compatibility route; returns failure guidance and does not dispatch UPDATE_CODE |
 | `/ws/git-status` | WebSocket | Real-time git status stream |
 
 ## Files
@@ -402,11 +400,11 @@ This is parsed by `actions.py` for logging and status tracking.
 - `tools/mds_git_access_check.sh` - host-side repo/branch/auth preflight before SITL container launch or image prep
 
 ### Frontend
-- `src/components/SyncWarningBanner.js` - Out-of-sync warning banner
-- `src/components/ControlButtons.js` - "Sync Drones" button
+- `src/components/SyncWarningBanner.js` - Out-of-sync warning banner that links operators to Fleet Ops
+- `src/components/ControlButtons.js` - Fleet Ops sync entry point
 - `src/components/GitInfo.js` - GCS git info display
 - `src/components/DroneGitStatus.js` - Per-drone git status card
-- `src/utilities/utilities.js` - URL helpers (`getSyncReposURL`, `getUnifiedGitStatusURL`)
+- `src/utilities/utilities.js` - shared URL helpers such as `getUnifiedGitStatusURL`
 
 ### Configuration
 - `src/params.py` - fallback runtime policy only
@@ -424,7 +422,7 @@ For custom forks, org repos, or private customer repos, the following override c
 | GCS Python server | `Params.GIT_BRANCH` / `Params.GIT_REPO_URL` / `Params.GIT_AUTO_PUSH` | Set `MDS_BRANCH`/`MDS_REPO_URL`/`MDS_GIT_AUTO_PUSH` in `/etc/mds/gcs.env` |
 | Drone boot sync and `UPDATE_CODE` action | `update_repo_ssh.sh` | Set `MDS_REPO_URL`/`MDS_BRANCH` in `/etc/mds/local.env` |
 | SITL containers | `startup_sitl.sh` defaults | Export `MDS_REPO_URL`/`MDS_BRANCH` and optional read-only `MDS_GIT_AUTH_TOKEN_FILE` or `MDS_GIT_SSH_KEY_FILE` before running `create_dockers.sh` |
-| `/api/v1/git/sync-operations` command | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
+| Fleet Ops git-sync apply | Reads `Params.GIT_BRANCH` | Same as GCS Python server |
 
 The GCS launcher sources `/etc/mds/gcs.env` on startup. Drone boot sync and dashboard-triggered `UPDATE_CODE` both load `/etc/mds/local.env`, so hardware repo/branch selection stays aligned across boot-time and operator-triggered sync.
 

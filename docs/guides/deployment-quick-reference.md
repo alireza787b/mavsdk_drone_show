@@ -41,10 +41,10 @@ python3 test_config_simple.py
 **If you have Raspberry Pi 5 drones, update their entries:**
 ```csv
 # Change from:
-5,5,100.96.177.73,14555,/dev/ttyS0,57600
+5,5,192.0.2.73,14555,/dev/ttyS0,57600
 
 # To:
-5,5,100.96.177.73,14555,/dev/ttyAMA0,57600
+5,5,192.0.2.73,14555,/dev/ttyAMA0,57600
                         ^^^^^^^^^^^^
 ```
 

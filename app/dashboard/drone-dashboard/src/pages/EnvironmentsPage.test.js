@@ -112,7 +112,7 @@ const fleetPayload = {
     1: {
       pos_id: 1,
       hw_id: '1',
-      ip: '100.64.1.10',
+      ip: '192.0.2.10',
       env_runtime: {
         status_source: 'registry',
         registry_version: 1,
@@ -138,7 +138,7 @@ const fleetPayload = {
 
 const nodeEnvPayload = {
   hw_id: '1',
-  endpoint: 'http://100.64.1.10:7070/api/v1/system/env',
+  endpoint: 'http://192.0.2.10:7070/api/v1/system/env',
   reachable: true,
   config_path: '/etc/mds/local.env',
   config_present: true,

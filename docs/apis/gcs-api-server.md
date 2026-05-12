@@ -433,6 +433,22 @@ Canonical fleet telemetry snapshot used by the dashboard and validation tooling.
       "position_lat": 35.123456,
       "position_long": -120.654321,
       "position_alt": 488.5,
+      "altitude_display_m": 18.4,
+      "altitude_source": "relative_home",
+      "relative_altitude_m": 18.4,
+      "baro_altitude_m": 17.9,
+      "altitude_report": {
+        "display_m": 18.4,
+        "source": "relative_home",
+        "label": "REL",
+        "stale": false,
+        "sources": {
+          "relative_home": {"valid": true, "value_m": 18.4, "fresh": true, "label": "REL"},
+          "absolute_msl": {"valid": true, "value_m": 488.5, "fresh": true, "label": "MSL"},
+          "local_ned": {"valid": true, "value_m": 18.2, "fresh": true, "label": "LCL"},
+          "baro": {"valid": true, "value_m": 17.9, "fresh": true, "label": "BARO"}
+        }
+      },
       "global_position_valid": true,
       "global_position_timestamp_ms": 1700000000000,
       "global_position_age_ms": 120,
@@ -1431,7 +1447,7 @@ Get git status from all drones.
       "commits_ahead": 0,
       "commits_behind": 0,
       "mavlink_runtime": {
-        "management_mode": "managed",
+        "management_mode": "local",
         "ref": "v3.0.8",
         "router_service_status": "active",
         "dashboard_access_mode": "local_only",
@@ -1462,7 +1478,8 @@ Get git status from all drones.
 ```
 
 #### `POST /api/v1/git/sync-operations`
-Sync git repositories on target drones.
+Deprecated compatibility route. It no longer dispatches `UPDATE_CODE`.
+Use Fleet Ops dry-run/apply instead.
 
 **Request:**
 ```json
@@ -1476,14 +1493,24 @@ Sync git repositories on target drones.
 ```json
 {
   "success": false,
-  "message": "Sync partially verified: 2 of 3 drones updated; 1 failed or timed out",
-  "synced_drones": [1, 2],
-  "failed_drones": [3],
-  "total_attempted": 3
+  "message": "Direct git sync is disabled. Use Fleet Ops /api/v1/fleet/git-sync/dry-run followed by /api/v1/fleet/git-sync/apply.",
+  "synced_drones": [],
+  "failed_drones": [],
+  "total_attempted": 0
 }
 ```
 
-This route is synchronous from the API caller perspective: it dispatches the repo update, verifies convergence, and then returns the verified result. That is why the canonical path is modeled as a sync operation, not a background job resource.
+#### `GET /api/v1/fleet/git-sync`
+Return Fleet Ops git-sync posture for configured drones.
+
+#### `POST /api/v1/fleet/git-sync/dry-run`
+Preview selected sync targets without mutating drones. Mutation-token headers
+are required when `MDS_FLEET_OPS_MUTATION_TOKEN` is configured.
+
+#### `POST /api/v1/fleet/git-sync/apply`
+Apply a confirmed dry-run by sending `UPDATE_CODE` only to eligible targets.
+The request must include the dry-run id and confirmation token returned by the
+dry-run response.
 
 Sidecar hashes are compact compliance markers. They are intended for drift
 visibility and should not be treated as profile content or credentials.
@@ -1630,82 +1657,80 @@ Example response excerpt:
 }
 ```
 
-#### `GET /api/v1/fleet/sidecars/connectivity/profile`
-Return the secret-safe status of the repo-owned Smart Wi-Fi fleet profile.
+#### `GET /api/v1/fleet/sidecars`
+Return Fleet Ops sidecar contract metadata plus Wi-Fi and MAVLink table data.
 
-The response never includes SSIDs, passwords, token values, or raw profile
-content. Operators get only path, validity, network count, and hash posture.
+#### `GET /api/v1/fleet/sidecars/{sidecar}`
+Return one sidecar table. `{sidecar}` is `smart-wifi-manager` or
+`mavlink-anywhere`.
 
-**Response:**
-```json
-{
-  "profile_present": true,
-  "dashboard_managed": true,
-  "profile_path": "deployment/connectivity/smart-wifi-manager/profile.json",
-  "profile_hash": "2a4db9d21f2c...",
-  "profile_valid": true,
-  "mode": "manage",
-  "network_count": 2,
-  "updated_count": 0,
-  "message": "Smart Wi-Fi fleet profile status loaded.",
-  "git_result": null
-}
-```
+Each row includes:
 
-#### `PUT /api/v1/fleet/sidecars/connectivity/profile`
-Replace the repo-owned Smart Wi-Fi fleet profile. The file is written to
-`deployment/connectivity/smart-wifi-manager/profile.json` or the path configured
-by `MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH` when that path remains inside
-the repository.
+- drone identity and last-known presence
+- service state and installed ref
+- policy mode
+- profile source
+- desired, local, and applied hashes
+- drift state
+- profile/endpoint count
+- dashboard link metadata
+- last apply result
 
-Use this endpoint only for private fleet repositories when profiles include
-customer SSIDs/passwords. Public demo deployments should use example profiles or
-host-local profile sources instead of committing real Wi-Fi credentials.
+#### `GET /api/v1/fleet/sidecars/{sidecar}/baseline`
+Return the redacted repo baseline summary and desired hash. Preferred baseline
+paths are:
 
-After import, use Fleet Ops **Sync + reconcile** to dispatch the normal node
-sync path. Real nodes with `MDS_CONNECTIVITY_BACKEND=smart-wifi-manager` pull the
-profile and apply it through Smart Wi-Fi Manager. SITL nodes and nodes with
-connectivity backend `none` report the profile as not applicable.
+- `config/fleet-profiles/smart-wifi-manager/config.json`
+- `config/fleet-profiles/mavlink-anywhere/profile.json`
+
+Legacy deployment paths may be read for compatibility.
+
+#### `GET /api/v1/fleet/sidecars/{sidecar}/nodes/{hw_id}`
+Return one node-local redacted profile summary and drift posture.
+
+#### `POST /api/v1/fleet/sidecars/{sidecar}/promote-draft`
+Generate a sanitized reference draft from one selected node. This does not
+replace the repo baseline and does not mutate the selected node.
+
+#### `POST /api/v1/fleet/sidecars/{sidecar}/reconcile/dry-run`
+Build a reconcile plan for selected nodes. No mutation.
 
 **Request:**
 ```json
 {
-  "profile": {
-    "mode": "manage",
-    "profiles": [
-      {
-        "id": "field-primary",
-        "ssid": "field-network",
-        "password": "stored-but-not-echoed",
-        "priority": 100
-      }
-    ]
-  },
-  "commit": true
+  "node_ids": ["demo-drone-1"],
+  "mode": "fleet-merge"
 }
 ```
 
-`commit` is optional. When omitted, the GCS follows its configured
-`GIT_AUTO_PUSH` policy.
+#### `POST /api/v1/fleet/sidecars/{sidecar}/reconcile/apply`
+Apply a previously generated dry-run plan. Requires explicit confirmation:
 
-**Response:**
 ```json
 {
-  "profile_present": true,
-  "dashboard_managed": true,
-  "profile_path": "deployment/connectivity/smart-wifi-manager/profile.json",
-  "profile_hash": "2a4db9d21f2c...",
-  "profile_valid": true,
-  "mode": "manage",
-  "network_count": 1,
-  "updated_count": 1,
-  "message": "Smart Wi-Fi fleet profile saved. Run Sync + reconcile to apply it to selected or eligible drones.",
-  "git_result": {
-    "success": true,
-    "pushed": true
+  "dry_run_id": "dryrun-abc123",
+  "confirmation": {
+    "operator": "dashboard",
+    "acknowledged_risks": true,
+    "advanced_strict_ack": false,
+    "confirmation_token": "token-from-dry-run"
   }
 }
 ```
+
+#### `POST /api/v1/fleet/sidecars/{sidecar}/policy/dry-run`
+Preview policy-mode changes for selected nodes.
+
+#### `POST /api/v1/fleet/sidecars/{sidecar}/policy/apply`
+Apply confirmed policy-mode changes. `fleet-strict` requires
+`advanced_strict_ack=true`.
+
+#### `GET /api/v1/fleet/sidecars/jobs/{job_id}`
+Read job results. Job-read responses omit sidecar confirmation tokens.
+
+Mutation routes require dry-run first and explicit confirmation second. When
+`MDS_FLEET_OPS_MUTATION_TOKEN` is configured, callers must send
+`X-Fleet-Ops-Token` or `Authorization: Bearer ...`.
 
 ---
 

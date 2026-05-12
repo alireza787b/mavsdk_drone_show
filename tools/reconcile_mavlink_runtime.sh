@@ -43,12 +43,18 @@ load_runtime_env() {
 }
 
 normalize_management_mode() {
-    case "${1:-managed}" in
-        managed|"")
-            printf 'managed\n'
+    case "${1:-local}" in
+        fleet-merge|fleet-strict|observe|local)
+            printf '%s\n' "$1"
+            ;;
+        managed)
+            printf 'fleet-merge\n'
             ;;
         manual|disabled|skip|none)
-            printf 'manual\n'
+            printf 'local\n'
+            ;;
+        "")
+            printf 'local\n'
             ;;
         *)
             return 1
@@ -72,7 +78,7 @@ resolve_repo_url() {
 }
 
 resolve_repo_ref() {
-    printf '%s\n' "${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.8}}"
+    printf '%s\n' "${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.9}}"
 }
 
 resolve_install_dir() {
@@ -122,7 +128,7 @@ dashboard_ready() {
 
 mavlink_hash_input() {
     local mode repo_url repo_ref install_dir dashboard_listen skip_dashboard
-    mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}" || echo managed)"
+    mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}" || echo local)"
     repo_url="$(resolve_repo_url)"
     repo_ref="$(resolve_repo_ref)"
     install_dir="$(resolve_install_dir)"
@@ -210,10 +216,10 @@ ensure_dashboard_runtime() {
 
 apply_runtime() {
     local mode new_hash old_hash=""
-    mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}" || echo manual)"
+    mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}" || echo local)"
 
-    if [[ "${mode}" != "managed" ]]; then
-        log INFO "MAVLink runtime ownership is manual; nothing to reconcile"
+    if [[ "${mode}" != "fleet-merge" && "${mode}" != "fleet-strict" ]]; then
+        log INFO "MAVLink runtime ownership is ${mode}; nothing to reconcile"
         return 0
     fi
 
@@ -243,7 +249,7 @@ apply_runtime() {
 
 show_status() {
     local mode desired_hash applied_hash=""
-    mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}" || echo unknown)"
+    mode="$(normalize_management_mode "${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}" || echo unknown)"
     desired_hash="$(mavlink_hash_input)"
     if [[ -f "${STATE_FILE}" ]]; then
         applied_hash="$(tr -d '\r\n' < "${STATE_FILE}")"

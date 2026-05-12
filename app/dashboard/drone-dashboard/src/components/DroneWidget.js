@@ -206,11 +206,13 @@ const DroneWidget = ({
   const altitudeReading = resolveMslAltitude(drone);
   const altitudeAvailable = telemetryCanShowLastKnown && altitudeReading.value !== null;
   const altitudeHelp = altitudeAvailable
-    ? altitudeReading.source === 'gps_raw'
-      ? 'Raw GPS altitude above MSL from GPS_RAW_INT. Map coordinate is still waiting for valid PX4 global position.'
-      : altitudeReading.source === 'local_position'
+    ? altitudeReading.source === 'relative_home'
+      ? 'Home-relative altitude from PX4 GLOBAL_POSITION_INT.relative_alt.'
+      : altitudeReading.source === 'local_ned'
         ? 'Local height from PX4 LOCAL_POSITION_NED. This supports VIO/non-GPS operation but is not a map coordinate.'
-        : 'Altitude above MSL from PX4 global position.'
+        : altitudeReading.source === 'baro'
+          ? 'Barometric altitude estimate from SCALED_PRESSURE. Use as source-labeled fallback, not as home-relative height.'
+          : 'Altitude above mean sea level from PX4 global position.'
     : positionUnavailableReason;
   const showLinkOverlay = runtimeStatus.level === 'offline' || runtimeStatus.level === 'unknown';
   const networkInfo = drone[FIELD_NAMES.HEARTBEAT_NETWORK_INFO] || drone.heartbeat_network_info || {};
@@ -486,7 +488,7 @@ const DroneWidget = ({
             className={`data-value ${altitudeAvailable ? telemetryPresentationClass : 'map-waiting'}`}
             data-help={altitudeHelp}
           >
-            {altitudeAvailable ? formatAltitudeMeters(altitudeReading.value, altitudeReading.label) : altitudeUnavailableText}
+            {altitudeAvailable ? `${formatAltitudeMeters(altitudeReading.value, altitudeReading.label)}${altitudeReading.stale ? ' stale' : ''}` : altitudeUnavailableText}
           </span>
         </div>
 

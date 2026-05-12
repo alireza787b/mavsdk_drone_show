@@ -24,7 +24,7 @@ def write_identity_file(path: Path) -> None:
                 "bootstrap_version": "4.5.0",
                 "bootstrap_status": "completed",
                 "network_mode": "netbird",
-                "primary_control_ip": "100.64.0.12",
+                "primary_control_ip": "192.0.2.12",
                 "mavlink_routing_mode": "mavlink_anywhere_managed",
                 "mavlink_input_type": "uart",
                 "mavlink_input_device": "/dev/ttyAMA0",

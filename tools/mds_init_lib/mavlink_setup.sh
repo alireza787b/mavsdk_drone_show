@@ -46,15 +46,45 @@ MAVLINK_BAUD="${MAVLINK_BAUD:-57600}"
 MAVLINK_ENDPOINTS="${MAVLINK_ENDPOINTS:-}"
 MAVLINK_INPUT_TYPE="${MAVLINK_INPUT_TYPE:-uart}"
 MAVLINK_INPUT_PORT="${MAVLINK_INPUT_PORT:-14550}"
-MAVLINK_MANAGEMENT_MODE="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}}"
+MAVLINK_MANAGEMENT_MODE="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}}"
 MAVLINK_ANYWHERE_REPO_URL="${MAVLINK_ANYWHERE_REPO_URL:-${MDS_MAVLINK_ANYWHERE_REPO_URL:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG:-alireza787b/mavlink-anywhere}.git}}}"
-MAVLINK_ANYWHERE_REF="${MAVLINK_ANYWHERE_REF:-${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.8}}}"
+MAVLINK_ANYWHERE_REF="${MAVLINK_ANYWHERE_REF:-${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.9}}}"
 MAVLINK_ANYWHERE_DIR="${MAVLINK_ANYWHERE_DIR:-${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}}"
 MAVLINK_ANYWHERE_DASHBOARD_LISTEN="${MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}}"
 MAVLINK_ANYWHERE_SKIP_DASHBOARD="${MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}}}"
 MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="${MAVLINK_ANYWHERE_REPO_URL_EXPLICIT:-false}"
 MAVLINK_ANYWHERE_REF_EXPLICIT="${MAVLINK_ANYWHERE_REF_EXPLICIT:-false}"
 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="${MAVLINK_MANAGEMENT_SELECTION_EXPLICIT:-false}"
+
+normalize_mavlink_profile_mode() {
+    case "${1:-local}" in
+        observe|local|fleet-merge|fleet-strict)
+            printf '%s\n' "$1"
+            ;;
+        managed)
+            printf 'fleet-merge\n'
+            ;;
+        manual|disabled|skip|none|"")
+            printf 'local\n'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+is_mavlink_fleet_managed_mode() {
+    case "${1:-local}" in
+        fleet-merge|fleet-strict)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+MAVLINK_MANAGEMENT_MODE="$(normalize_mavlink_profile_mode "${MAVLINK_MANAGEMENT_MODE}" || printf 'local\n')"
 
 # =============================================================================
 # MAVLINK-ROUTER STATUS CHECKS
@@ -351,7 +381,7 @@ persist_mavlink_local_env() {
 
     update_local_env_value "MDS_MAVLINK_MANAGEMENT_MODE" "${MAVLINK_MANAGEMENT_MODE}"
 
-    if [[ "${MAVLINK_MANAGEMENT_MODE}" != "managed" ]]; then
+    if ! is_mavlink_fleet_managed_mode "${MAVLINK_MANAGEMENT_MODE}"; then
         remove_local_env_value "MDS_MAVLINK_ANYWHERE_REPO_URL"
         remove_local_env_value "MDS_MAVLINK_ANYWHERE_REF"
         remove_local_env_value "MDS_MAVLINK_ANYWHERE_INSTALL_DIR"
@@ -543,7 +573,7 @@ verify_mavlink_service() {
 
     log_success "mavlink-router service is running"
 
-    if [[ "${MAVLINK_MANAGEMENT_MODE}" == "managed" ]]; then
+    if is_mavlink_fleet_managed_mode "${MAVLINK_MANAGEMENT_MODE}"; then
         ensure_mavlink_dashboard_managed || log_warn "Managed mavlink-anywhere dashboard reconcile did not complete cleanly"
         persist_mavlink_local_env
     fi
@@ -832,7 +862,7 @@ run_mavlink_auto_config() {
     local uart_device baud_rate endpoints
 
     log_step "Starting auto-configuration..."
-    MAVLINK_MANAGEMENT_MODE="managed"
+    MAVLINK_MANAGEMENT_MODE="fleet-merge"
 
     if is_raspberry_pi; then
         if check_serial_console_enabled || ! check_uart_enabled; then
@@ -921,7 +951,7 @@ run_mavlink_setup_phase() {
     # Handle CLI-specified options
     if [[ "${MAVLINK_SKIP:-false}" == "true" ]]; then
         log_info "Skipping mavlink-router setup (--mavlink-skip)"
-        MAVLINK_MANAGEMENT_MODE="manual"
+        MAVLINK_MANAGEMENT_MODE="local"
         persist_mavlink_local_env
         return 0
     fi
@@ -935,7 +965,7 @@ run_mavlink_setup_phase() {
     # Handle headless configuration with CLI options
     if [[ -n "${MAVLINK_UART:-}" ]] || [[ -n "${MAVLINK_ENDPOINTS:-}" ]]; then
         log_info "Running headless configuration with CLI options"
-        MAVLINK_MANAGEMENT_MODE="managed"
+        MAVLINK_MANAGEMENT_MODE="fleet-merge"
 
         local uart_device="${MAVLINK_UART:-$(detect_uart_device)}"
         local baud_rate="${MAVLINK_BAUD:-57600}"
@@ -980,7 +1010,7 @@ run_mavlink_setup_phase() {
         1)
             # Auto-configure
             log_info "Selected: Auto-configure"
-            MAVLINK_MANAGEMENT_MODE="managed"
+            MAVLINK_MANAGEMENT_MODE="fleet-merge"
 
             # Check serial prerequisites first
             if is_raspberry_pi; then
@@ -1023,7 +1053,7 @@ run_mavlink_setup_phase() {
         2)
             # Interactive configuration
             log_info "Selected: Interactive configuration"
-            MAVLINK_MANAGEMENT_MODE="managed"
+            MAVLINK_MANAGEMENT_MODE="fleet-merge"
 
             # Prompt for GCS IP if not set
             if [[ -z "${GCS_IP:-}" ]]; then
@@ -1057,7 +1087,7 @@ run_mavlink_setup_phase() {
         3)
             # Manual setup - show instructions
             log_info "Selected: Manual setup"
-            MAVLINK_MANAGEMENT_MODE="manual"
+            MAVLINK_MANAGEMENT_MODE="local"
             display_mavlink_instructions "${GCS_IP:-}"
 
             if [[ "${VERBOSE:-false}" == "true" ]]; then
@@ -1076,7 +1106,7 @@ run_mavlink_setup_phase() {
         4)
             # Skip
             log_info "Skipping mavlink-router setup"
-            MAVLINK_MANAGEMENT_MODE="manual"
+            MAVLINK_MANAGEMENT_MODE="local"
             persist_mavlink_local_env
             return 0
             ;;

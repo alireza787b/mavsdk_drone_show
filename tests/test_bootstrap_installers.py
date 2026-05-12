@@ -719,10 +719,10 @@ def test_netbird_detail_parsers_extract_primary_identity_fields():
             cat <<'EOF'
 Management: Connected to https://api.netbird.io:443
 FQDN: node-101.netbird.example
-NetBird IP: 100.64.10.101/16
+NetBird IP: 192.0.2.101/16
 EOF
         }}
-        [[ "$(get_netbird_primary_ip)" == "100.64.10.101" ]]
+        [[ "$(get_netbird_primary_ip)" == "192.0.2.101" ]]
         [[ "$(get_netbird_management_url)" == "https://api.netbird.io:443" ]]
         [[ "$(get_netbird_fqdn)" == "node-101.netbird.example" ]]
         """
@@ -788,7 +788,7 @@ def test_mavlink_auto_config_applies_serial_fix_on_raspberry_pi():
         detect_uart_device() {{ echo "/dev/ttyS0"; }}
         run_mavlink_configure_headless() {{ return 0; }}
         verify_mavlink_service() {{ return 0; }}
-        GCS_IP="100.64.20.10"
+        GCS_IP="192.0.2.10"
         run_mavlink_auto_config >/tmp/mavlink_auto_fix_output.txt
         grep -q "serial-fix" /tmp/mavlink_auto_fix_output.txt
         """
@@ -1712,15 +1712,15 @@ def test_setup_local_env_writes_clean_override_lines():
         log_success() {{ :; }}
         is_dry_run() {{ return 1; }}
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
-        setup_local_env 101 100.64.20.10 git@github.com:example-org/private-mds.git main http://100.64.20.10:5030
+        setup_local_env 101 192.0.2.10 git@github.com:example-org/private-mds.git main http://192.0.2.10:5030
         grep -q '^MDS_HW_ID=101$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_CONNECTIVITY_BACKEND=none$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_MAVLINK_MANAGEMENT_MODE=managed$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_MAVLINK_MANAGEMENT_MODE=fleet-merge$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/mavlink-anywhere$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=127.0.0.1:9070$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=false$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_GCS_IP=100.64.20.10$' "$MDS_LOCAL_ENV"
-        grep -q '^MDS_GCS_API_BASE_URL=http://100.64.20.10:5030$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_IP=192.0.2.10$' "$MDS_LOCAL_ENV"
+        grep -q '^MDS_GCS_API_BASE_URL=http://192.0.2.10:5030$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_REPO_URL=git@github.com:example-org/private-mds.git$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_BRANCH=main$' "$MDS_LOCAL_ENV"
         grep -q '^MDS_GIT_AUTH_TOKEN_FILE=/home/droneshow/.mds_git_read_token$' "$MDS_LOCAL_ENV"
@@ -1746,14 +1746,14 @@ MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi
 MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
 EOF
         cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
-{{"mode":"manage","profiles":[]}}
+{{"mode":"fleet-merge","profiles":[]}}
 EOF
         config_dir="$tmpdir/etc-mds"
         mkdir -p "$config_dir"
         cat > "$config_dir/local.env" <<'EOF'
 MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
 MDS_SMART_WIFI_MANAGER_INSTALL_DIR=TMPDIR_REPLACE/swm
-MDS_SMART_WIFI_MANAGER_MODE=manage
+MDS_SMART_WIFI_MANAGER_MODE=fleet-merge
 MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080
 EOF
         sed -i "s|TMPDIR_REPLACE|$tmpdir|g" "$config_dir/local.env"
@@ -1789,7 +1789,7 @@ EOF
         grep -q -- '--dashboard-version v9.9.9' "$tmpdir/install_args.txt"
         grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
         grep -q -- '--import-mode merge' "$tmpdir/configure_args.txt"
-        grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
+        grep -q -- '--mode fleet-merge' "$tmpdir/configure_args.txt"
         """
     )
 
@@ -1810,7 +1810,7 @@ MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi
 MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
 EOF
         cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
-{{"mode":"manage","profiles":[]}}
+{{"mode":"fleet-merge","profiles":[]}}
 EOF
         cat > "$install_dir/install.sh" <<'EOF'
 #!/bin/bash
@@ -1884,7 +1884,7 @@ def test_mavlink_persistence_keeps_repo_ref_in_defaults_layer_unless_explicit():
         source "{MAVLINK_SETUP_LIB}"
         update_local_env_value() {{ printf 'set:%s=%s\\n' "$1" "$2" >> "$tmpdir/out.txt"; }}
         remove_local_env_value() {{ printf 'remove:%s\\n' "$1" >> "$tmpdir/out.txt"; }}
-        MAVLINK_MANAGEMENT_MODE="managed"
+        MAVLINK_MANAGEMENT_MODE="fleet-merge"
         MAVLINK_ANYWHERE_REPO_URL="https://github.com/demo/mavlink-anywhere.git"
         MAVLINK_ANYWHERE_REF="v9.9.9"
         MAVLINK_ANYWHERE_DIR="/opt/demo-mavlink"
@@ -1893,7 +1893,7 @@ def test_mavlink_persistence_keeps_repo_ref_in_defaults_layer_unless_explicit():
         MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="false"
         MAVLINK_ANYWHERE_REF_EXPLICIT="false"
         persist_mavlink_local_env
-        grep -q '^set:MDS_MAVLINK_MANAGEMENT_MODE=managed$' "$tmpdir/out.txt"
+        grep -q '^set:MDS_MAVLINK_MANAGEMENT_MODE=fleet-merge$' "$tmpdir/out.txt"
         grep -q '^remove:MDS_MAVLINK_ANYWHERE_REPO_URL$' "$tmpdir/out.txt"
         grep -q '^remove:MDS_MAVLINK_ANYWHERE_REF$' "$tmpdir/out.txt"
         grep -q '^set:MDS_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/demo-mavlink$' "$tmpdir/out.txt"
@@ -1916,7 +1916,7 @@ def test_reconcile_mavlink_runtime_uses_repo_ref_when_managed():
         cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
         cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
         cat > "$repo_dir/deployment.defaults" <<'EOF'
-MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=fleet-merge
 MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
 MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
 MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=TMPDIR_REPLACE/ma
@@ -1927,7 +1927,7 @@ EOF
         config_dir="$tmpdir/etc-mds"
         mkdir -p "$config_dir"
         cat > "$config_dir/local.env" <<'EOF'
-MDS_MAVLINK_MANAGEMENT_MODE=managed
+MDS_MAVLINK_MANAGEMENT_MODE=fleet-merge
 EOF
         fakebin="$tmpdir/fakebin"
         mkdir -p "$fakebin"
@@ -1992,7 +1992,7 @@ def test_reconcile_mavlink_runtime_updates_existing_runtime_with_safe_directory(
         cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
         cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
         cat > "$repo_dir/deployment.defaults" <<EOF
-MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=fleet-merge
 MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
 MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
 MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=$install_dir
@@ -2002,7 +2002,7 @@ EOF
         config_dir="$tmpdir/etc-mds"
         mkdir -p "$config_dir"
         cat > "$config_dir/local.env" <<'EOF'
-MDS_MAVLINK_MANAGEMENT_MODE=managed
+MDS_MAVLINK_MANAGEMENT_MODE=fleet-merge
 EOF
         cat > "$install_dir/lib/dashboard.sh" <<'EOF'
 #!/bin/bash
@@ -2047,7 +2047,7 @@ def test_reconcile_mavlink_runtime_warns_but_succeeds_without_router_config():
         cp "{RECONCILE_MAVLINK_SCRIPT}" "$repo_dir/tools/reconcile_mavlink_runtime.sh"
         cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
         cat > "$repo_dir/deployment.defaults" <<'EOF'
-MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed
+MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=fleet-merge
 MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS=https://github.com/demo/mavlink-anywhere.git
 MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v9.9.9
 MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=TMPDIR_REPLACE/ma
@@ -2058,7 +2058,7 @@ EOF
         config_dir="$tmpdir/etc-mds"
         mkdir -p "$config_dir"
         cat > "$config_dir/local.env" <<'EOF'
-MDS_MAVLINK_MANAGEMENT_MODE=managed
+MDS_MAVLINK_MANAGEMENT_MODE=fleet-merge
 EOF
         fakebin="$tmpdir/fakebin"
         mkdir -p "$fakebin"
@@ -2120,7 +2120,7 @@ def test_git_sync_accepts_healthy_mavlink_runtime_after_reconcile_warning():
         sudo() {{
             if [[ "$2" == "status" ]]; then
                 cat <<'EOF'
-mode=managed
+mode=fleet-merge
 config_hash_match=true
 runtime_present=true
 router_binary=present
@@ -2148,7 +2148,7 @@ def test_git_sync_status_health_falls_back_to_unprivileged_status():
 #!/bin/bash
 if [[ "$1" == "status" ]]; then
     cat <<'EOS'
-mode=managed
+mode=fleet-merge
 config_hash_match=true
 runtime_present=true
 router_binary=present
@@ -2177,7 +2177,7 @@ def test_git_sync_rejects_unhealthy_mavlink_runtime_after_reconcile_warning():
         sudo() {{
             if [[ "$2" == "status" ]]; then
                 cat <<'EOF'
-mode=managed
+mode=fleet-merge
 config_hash_match=false
 runtime_present=true
 router_binary=present
@@ -2848,11 +2848,11 @@ def test_identity_manifest_uses_live_netbird_probe_when_state_is_empty():
         state_set_value() {{ :; }}
         get_or_create_node_uuid() {{ echo "uuid-101"; }}
         get_local_env_value() {{ echo ""; }}
-        get_netbird_primary_ip() {{ echo "100.64.10.101"; }}
+        get_netbird_primary_ip() {{ echo "192.0.2.101"; }}
         detect_network_interface() {{ echo ""; }}
         source "{REPO_ROOT / 'tools' / 'mds_init_lib' / 'identity.sh'}"
         write_node_identity_manifest 101 identity_configured
-        jq -e '.netbird_enabled == true and .network_mode == "netbird" and .primary_control_ip == "100.64.10.101"' "$MDS_NODE_IDENTITY_FILE" >/dev/null
+        jq -e '.netbird_enabled == true and .network_mode == "netbird" and .primary_control_ip == "192.0.2.101"' "$MDS_NODE_IDENTITY_FILE" >/dev/null
         """
     )
 
@@ -2908,11 +2908,11 @@ def test_verify_netbird_parses_detail_output_and_extracts_primary_ip():
             cat <<'EOF'
 Management: Connected to https://api.netbird.io:443
 FQDN: node-101.netbird.example
-NetBird IP: 100.64.10.101/16
+NetBird IP: 192.0.2.101/16
 EOF
         }}
         verify_netbird
-        [[ "$(verify_get_result netbird)" == "PASS:Connected (100.64.10.101)" ]]
+        [[ "$(verify_get_result netbird)" == "PASS:Connected (192.0.2.101)" ]]
         """
     )
 

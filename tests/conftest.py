@@ -135,6 +135,12 @@ class SyncASGITestClient:
         self.app = app
         self.base_url = "http://testserver"
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
     async def _request(self, method: str, url: str, **kwargs):
         transport = httpx.ASGITransport(app=self.app)
         async with httpx.AsyncClient(transport=transport, base_url=self.base_url) as client:
@@ -148,6 +154,15 @@ class SyncASGITestClient:
 
     def post(self, url: str, **kwargs):
         return self.request("POST", url, **kwargs)
+
+    def put(self, url: str, **kwargs):
+        return self.request("PUT", url, **kwargs)
+
+    def patch(self, url: str, **kwargs):
+        return self.request("PATCH", url, **kwargs)
+
+    def delete(self, url: str, **kwargs):
+        return self.request("DELETE", url, **kwargs)
 
     def websocket_connect(self, url: str, **kwargs):
         """

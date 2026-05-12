@@ -86,7 +86,7 @@ GCS IP is now configured in `src/params.py`:
 # ===================================================================================
 # GCS (Ground Control Station) CONFIGURATION
 # ===================================================================================
-GCS_IP = "100.96.32.75"                # GCS IP address (★ CHANGE THIS FOR YOUR SETUP ★)
+GCS_IP = "192.0.2.75"                # GCS IP address (★ CHANGE THIS FOR YOUR SETUP ★)
 gcs_api_port = 5030                    # GCS API server port
 connectivity_check_ip = GCS_IP         # Use GCS_IP for connectivity checks
 connectivity_check_port = gcs_api_port
@@ -154,15 +154,15 @@ hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 **Before (10 columns):**
 ```csv
 hw_id,pos_id,x,y,ip,mavlink_port,debug_port,gcs_ip,serial_port,baudrate
-1,1,-2.5,10.0,100.96.240.11,14551,13541,100.96.32.75,/dev/ttyS0,57600
-2,2,-2.5,5.0,100.96.28.52,14552,13542,100.96.32.75,/dev/ttyAMA0,57600
+1,1,-2.5,10.0,192.0.2.11,14551,13541,192.0.2.75,/dev/ttyS0,57600
+2,2,-2.5,5.0,192.0.2.52,14552,13542,192.0.2.75,/dev/ttyAMA0,57600
 ```
 
 **After (6 columns):**
 ```csv
 hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-1,1,100.96.240.11,14551,/dev/ttyS0,57600
-2,2,100.96.28.52,14552,/dev/ttyAMA0,57600
+1,1,192.0.2.11,14551,/dev/ttyS0,57600
+2,2,192.0.2.52,14552,/dev/ttyAMA0,57600
 ```
 
 > **Note:** The `x` and `y` position columns have been removed. Drone positions are now sourced exclusively from trajectory CSV files (`shapes/swarm/processed/Drone {pos_id}.csv`). This eliminates the dual-source-of-truth bug where config.csv and trajectory files could have conflicting positions.
@@ -172,7 +172,7 @@ hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
 Edit `src/params.py` and set your GCS IP:
 
 ```python
-GCS_IP = "100.96.32.75"  # ← Update this to your GCS server IP
+GCS_IP = "192.0.2.75"  # ← Update this to your GCS server IP
 ```
 
 Or use the UI after deployment (Configure GCS button).
@@ -208,35 +208,35 @@ sudo systemctl restart gcs-server
 
 ```csv
 hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-1,1,100.96.1.10,14551,/dev/ttyS0,57600
-2,2,100.96.1.11,14552,/dev/ttyS0,57600
-3,3,100.96.1.12,14553,/dev/ttyS0,57600
+1,1,192.0.2.10,14551,/dev/ttyS0,57600
+2,2,192.0.2.11,14552,/dev/ttyS0,57600
+3,3,192.0.2.12,14553,/dev/ttyS0,57600
 ```
 
 ### Example 2: Mixed Fleet (RP4 + RP5)
 
 ```csv
 hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-1,1,100.96.1.10,14551,/dev/ttyS0,57600
-2,2,100.96.1.11,14552,/dev/ttyAMA0,57600
-3,3,100.96.1.12,14553,/dev/ttyS0,57600
-4,4,100.96.1.13,14554,/dev/ttyAMA0,57600
+1,1,192.0.2.10,14551,/dev/ttyS0,57600
+2,2,192.0.2.11,14552,/dev/ttyAMA0,57600
+3,3,192.0.2.12,14553,/dev/ttyS0,57600
+4,4,192.0.2.13,14554,/dev/ttyAMA0,57600
 ```
 
 ### Example 3: High-Performance Setup (Jetson)
 
 ```csv
 hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-1,1,100.96.1.10,14551,/dev/ttyTHS1,921600
-2,2,100.96.1.11,14552,/dev/ttyTHS1,921600
+1,1,192.0.2.10,14551,/dev/ttyTHS1,921600
+2,2,192.0.2.11,14552,/dev/ttyTHS1,921600
 ```
 
 ### Example 4: Custom Serial Configuration
 
 ```csv
 hw_id,pos_id,ip,mavlink_port,serial_port,baudrate
-1,1,100.96.1.10,14551,/dev/ttyUSB0,38400
-2,2,100.96.1.11,14552,/dev/ttyACM0,115200
+1,1,192.0.2.10,14551,/dev/ttyUSB0,38400
+2,2,192.0.2.11,14552,/dev/ttyACM0,115200
 ```
 
 ### Example 5: SITL Configuration

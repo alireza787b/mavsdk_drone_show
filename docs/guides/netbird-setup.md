@@ -125,7 +125,7 @@ After your GCS is connected to NetBird:
 │                                                                             │
 │  ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐      │
 │  │   GCS Server    │     │    Drone 1      │     │    Drone 2      │      │
-│  │  100.64.0.1     │◄───►│  100.64.0.2     │◄───►│  100.64.0.3     │      │
+│  │  192.0.2.1     │◄───►│  192.0.2.2     │◄───►│  192.0.2.3     │      │
 │  │                 │     │                 │     │                 │      │
 │  │  - Dashboard    │     │  - MAVLink      │     │  - MAVLink      │      │
 │  │  - GCS API      │     │  - Telemetry    │     │  - Telemetry    │      │

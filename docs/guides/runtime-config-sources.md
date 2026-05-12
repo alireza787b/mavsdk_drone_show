@@ -223,9 +223,9 @@ Do not expect Fleet Enrollment to rewrite swarm topology automatically.
 3. use Fleet Enrollment to add real nodes into `config.json`
 4. manage swarm relationships through `swarm.json` or the GCS swarm UI/APIs
 5. commit repo-wide repo/branch/network default changes in `deployment/defaults.env`
-6. if you intentionally want repo-driven Wi-Fi rollout, commit
-   `deployment/connectivity/smart-wifi-manager/profile.json` in a private fleet repo
-   or import that profile from Fleet Ops and then run **Sync + reconcile**
+6. if you intentionally want repo-driven Wi-Fi rollout, commit an approved
+   private baseline at `config/fleet-profiles/smart-wifi-manager/config.json`
+   and use Fleet Ops Wi-Fi dry-run/apply for selected drones
 7. keep private read credentials in local secret files; do not put them in git
 
 ### SITL

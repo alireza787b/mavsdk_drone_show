@@ -3,10 +3,10 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 import api_routes.management as management_module
 from api_routes.management import create_management_router
+from tests.conftest import SyncASGITestClient as TestClient
 
 
 def _make_deps():
@@ -58,7 +58,7 @@ def test_management_router_proxies_single_node_env(monkeypatch):
         assert hw_id == "2"
         assert method == "GET"
         assert include_hidden is True
-        return "http://100.64.1.20:7070/api/v1/system/env", {
+        return "http://192.0.2.20:7070/api/v1/system/env", {
             "config_path": "/etc/mds/local.env",
             "config_present": True,
             "registry_version": 1,
@@ -93,7 +93,7 @@ def test_management_router_proxies_single_node_env_update(monkeypatch):
         assert hw_id == "2"
         assert method == "PUT"
         assert payload == {"updates": {"MDS_CONNECTIVITY_BACKEND": "none"}, "dry_run": False}
-        return "http://100.64.1.20:7070/api/v1/system/env", {
+        return "http://192.0.2.20:7070/api/v1/system/env", {
             "success": True,
             "dry_run": False,
             "config_path": "/etc/mds/local.env",
@@ -122,7 +122,7 @@ def test_management_router_proxies_single_node_env_update(monkeypatch):
 def test_management_node_env_resolver_keeps_config_ip_when_raw_status_lacks_host():
     deps = _make_deps()
     deps.load_config = lambda: [
-        {"hw_id": 1, "pos_id": 1, "ip": "100.64.1.10"},
+        {"hw_id": 1, "pos_id": 1, "ip": "192.0.2.10"},
         {"hw_id": 2, "pos_id": 2, "ip": "198.51.100.12"},
     ]
     deps.git_status_data_all_drones = {
@@ -570,12 +570,12 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
             connectivity_backend="smart-wifi-manager",
             smart_wifi_manager_repo_url_https="https://github.com/demo/smart-wifi-manager.git",
             smart_wifi_manager_ref="v1.2.3",
-            smart_wifi_manager_mode="manage",
+            smart_wifi_manager_mode="fleet-merge",
             smart_wifi_manager_import_mode="merge",
             smart_wifi_manager_install_dir="/opt/demo-smartwifi",
             smart_wifi_manager_dashboard_listen="0.0.0.0:9080",
             smart_wifi_manager_profile_path="deployment/connectivity/demo/profile.json",
-            mavlink_management_mode="managed",
+            mavlink_management_mode="fleet-merge",
             mavlink_anywhere_repo_url_https="https://github.com/demo/mavlink-anywhere.git",
             mavlink_anywhere_ref="v9.9.9",
             mavlink_anywhere_install_dir="/opt/demo-mavlink",
@@ -661,7 +661,7 @@ def test_management_router_runtime_status_uses_live_runtime_and_profile(monkeypa
     assert data["repo_sync_status"]["update_readiness"] == "ready_to_fast_forward"
     assert data["repo_sync_status"]["fast_forward_update_available"] is True
     assert data["fleet_defaults"]["connectivity_backend"] == "smart-wifi-manager"
-    assert data["fleet_defaults"]["smart_wifi_manager_mode"] == "manage"
+    assert data["fleet_defaults"]["smart_wifi_manager_mode"] == "fleet-merge"
     assert data["fleet_defaults"]["mavlink_anywhere_ref"] == "v9.9.9"
     assert data["mavlink_runtime"]["router_service_status"] == "active"
     assert data["connectivity_runtime"]["service_status"] == "active"

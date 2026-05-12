@@ -6,6 +6,8 @@ START_FLAGS ?=
 PYTEST_ARGS ?=
 NPM_TEST_ARGS ?= -- --watchAll=false
 ARGS ?=
+FLEET_OPS_TOKEN ?=
+FLEET_OPS_HEADER = $(if $(strip $(FLEET_OPS_TOKEN)),-H "X-Fleet-Ops-Token: $(FLEET_OPS_TOKEN)",)
 
 .DEFAULT_GOAL := help
 
@@ -98,8 +100,13 @@ fleet-git-status: ## Query GCS aggregated fleet git/auth/sidecar status.
 	curl -sS "$(GCS_API)/api/v1/git/status"
 
 .PHONY: fleet-sync
-fleet-sync: ## Trigger the same GCS-managed drone sync operation used by the dashboard.
-	curl -sS -X POST "$(GCS_API)/api/v1/git/sync-operations" -H 'Content-Type: application/json' -d '{}'
+fleet-sync: ## Dry-run the GCS-managed drone sync operation; use Fleet Ops to confirm apply.
+	curl -sS -X POST "$(GCS_API)/api/v1/fleet/git-sync/dry-run" -H 'Content-Type: application/json' $(FLEET_OPS_HEADER) -d '{}'
+
+.PHONY: fleet-sync-apply
+fleet-sync-apply: ## Apply a Fleet Ops sync dry-run. Requires DRY_RUN_ID and CONFIRMATION_TOKEN.
+	test -n "$(DRY_RUN_ID)" && test -n "$(CONFIRMATION_TOKEN)"
+	curl -sS -X POST "$(GCS_API)/api/v1/fleet/git-sync/apply" -H 'Content-Type: application/json' $(FLEET_OPS_HEADER) -d '{"dry_run_id":"$(DRY_RUN_ID)","confirmation":{"acknowledged_risks":true,"confirmation_token":"$(CONFIRMATION_TOKEN)"}}'
 
 .PHONY: sitl-status
 sitl-status: ## List local SITL instances through the GCS API.

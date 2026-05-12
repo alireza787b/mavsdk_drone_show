@@ -375,6 +375,15 @@
     border: 1px solid var(--color-border-primary);
 }
 
+.drone-detail .map-display__empty {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    color: var(--color-text-secondary);
+    background: var(--color-surface-inset);
+    font-weight: 700;
+}
+
 @media (max-width: 900px) {
     .drone-detail .status-dashboard,
     .drone-detail .detail-grid {

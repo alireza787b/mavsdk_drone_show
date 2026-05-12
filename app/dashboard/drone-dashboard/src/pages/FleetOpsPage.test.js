@@ -3,14 +3,15 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import FleetOpsPage from './FleetOpsPage';
 import useFetch from '../hooks/useFetch';
-import { GCS_ROUTE_KEYS, syncReposResponse } from '../services/gcsApiService';
+import { GCS_ROUTE_KEYS, applyFleetGitSyncResponse, dryRunFleetGitSyncResponse } from '../services/gcsApiService';
 
 jest.mock('../hooks/useFetch');
 jest.mock('../services/gcsApiService', () => {
   const actual = jest.requireActual('../services/gcsApiService');
   return {
     ...actual,
-    syncReposResponse: jest.fn(),
+    applyFleetGitSyncResponse: jest.fn(),
+    dryRunFleetGitSyncResponse: jest.fn(),
   };
 });
 
@@ -32,9 +33,9 @@ const gitPayload = {
       git_auth_health_status: 'healthy',
       git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
       mavlink_runtime: {
-        management_mode: 'managed',
-        ref: 'v3.0.8',
-        repo_web_url: 'https://github.com/alireza787b/mavlink-anywhere/tree/v3.0.8',
+        management_mode: 'fleet-merge',
+        ref: 'v3.0.9',
+        repo_web_url: 'https://github.com/alireza787b/mavlink-anywhere/tree/v3.0.9',
         router_service_status: 'active',
         dashboard_enabled: true,
         dashboard_service_status: 'active',
@@ -73,8 +74,8 @@ const gitPayload = {
       git_auth_health_status: 'warning',
       git_auth_health_summary: 'SSH key is missing.',
       mavlink_runtime: {
-        management_mode: 'managed',
-        ref: 'v3.0.8',
+        management_mode: 'fleet-merge',
+        ref: 'v3.0.9',
         router_service_status: 'failed',
         dashboard_enabled: true,
         dashboard_service_status: 'inactive',
@@ -85,7 +86,7 @@ const gitPayload = {
       },
       connectivity_runtime: {
         backend: 'smart-wifi-manager',
-        mode: 'manage',
+        mode: 'fleet-merge',
         service_status: 'inactive',
         profile_present: false,
         dashboard_access_mode: 'disabled',
@@ -133,6 +134,8 @@ function renderFleetOps(props = {}) {
 describe('FleetOpsPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.sessionStorage.clear();
+    window.localStorage.clear();
     mockFleetFeeds();
   });
 
@@ -190,8 +193,8 @@ describe('FleetOpsPage', () => {
       git_auth_health_status: 'healthy',
       git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
       mavlink_runtime: {
-        management_mode: 'managed',
-        ref: 'v3.0.8',
+        management_mode: 'fleet-merge',
+        ref: 'v3.0.9',
         router_service_status: 'active',
         dashboard_enabled: false,
         desired_config_hash: 'aaaaaaaaaaaaaaaa',
@@ -238,9 +241,9 @@ describe('FleetOpsPage', () => {
     expect(screen.getByText(/wi-fi and mavlink posture/i)).toBeInTheDocument();
     expect(screen.getAllByText(/MAVLink/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Smart Wi-Fi/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/ref v3.0.8; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
+    expect(screen.getByText(/ref v3.0.9; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText(/smart wi-fi is inactive; mode manage; fleet profile source missing\. import a private fleet profile, then sync \+ reconcile\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
+    expect(screen.getByText(/smart wi-fi is inactive; mode fleet-merge; fleet profile source missing\. add an approved fleet baseline, then use fleet ops wi-fi dry-run\/apply\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
   });
@@ -252,8 +255,17 @@ describe('FleetOpsPage', () => {
     expect(screen.getAllByLabelText(/open mavlink dashboard is local-only/i).length).toBeGreaterThan(0);
   });
 
-  test('sync action targets selected nodes and reports result', async () => {
-    syncReposResponse.mockResolvedValue({
+  test('sync action dry-runs selected nodes before explicit apply', async () => {
+    dryRunFleetGitSyncResponse.mockResolvedValue({
+      data: {
+        job_id: 'git-sync-1',
+        confirmation_token: 'confirm-1',
+        results: {
+          2: { ok: true, pos_id: 2 },
+        },
+      },
+    });
+    applyFleetGitSyncResponse.mockResolvedValue({
       data: {
         success: true,
         message: 'Sync verified: 1 of 1 drones now match GCS',
@@ -264,11 +276,32 @@ describe('FleetOpsPage', () => {
 
     renderFleetOps();
 
+    fireEvent.change(screen.getByLabelText(/fleet ops mutation token/i), { target: { value: 'operator-token' } });
+    expect(window.sessionStorage.getItem('fleetOpsMutationToken')).toBe('operator-token');
     fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
-    fireEvent.click(screen.getByRole('button', { name: /sync \+ reconcile/i }));
+    fireEvent.click(screen.getByRole('button', { name: /dry-run sync/i }));
 
     await waitFor(() => {
-      expect(syncReposResponse).toHaveBeenCalledWith({ pos_ids: [2] });
+      expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
+    });
+    expect(await screen.findByText(/git sync dry-run ready/i)).toBeInTheDocument();
+    const confirmButton = screen.getByRole('button', { name: /confirm apply/i });
+    expect(confirmButton).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/acknowledge risks/i));
+    fireEvent.change(screen.getByLabelText(/type git sync dry-run confirmation token/i), {
+      target: { value: 'confirm-1' },
+    });
+    expect(confirmButton).not.toBeDisabled();
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(applyFleetGitSyncResponse).toHaveBeenCalledWith({
+        dry_run_id: 'git-sync-1',
+        confirmation: {
+          acknowledged_risks: true,
+          confirmation_token: 'confirm-1',
+        },
+      });
     });
     expect(await screen.findByText(/sync verified: 1 of 1 drones now match gcs/i)).toBeInTheDocument();
   });

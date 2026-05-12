@@ -334,6 +334,30 @@ class DroneConfig:
         self._state.position_source = value
 
     @property
+    def relative_altitude_m(self) -> Optional[float]:
+        return self._state.relative_altitude_m
+
+    @relative_altitude_m.setter
+    def relative_altitude_m(self, value: Optional[float]):
+        self._state.relative_altitude_m = value
+
+    @property
+    def baro_altitude_m(self) -> Optional[float]:
+        return self._state.baro_altitude_m
+
+    @baro_altitude_m.setter
+    def baro_altitude_m(self, value: Optional[float]):
+        self._state.baro_altitude_m = value
+
+    @property
+    def baro_timestamp_ms(self) -> int:
+        return self._state.baro_timestamp_ms
+
+    @baro_timestamp_ms.setter
+    def baro_timestamp_ms(self, value: int):
+        self._state.baro_timestamp_ms = value
+
+    @property
     def battery(self) -> float:
         return self._state.battery
 

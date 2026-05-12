@@ -4,7 +4,7 @@
     {
       "hw_id": 1,
       "pos_id": 1,
-      "ip": "100.96.240.11",
+      "ip": "192.0.2.11",
       "mavlink_port": 14551,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -12,7 +12,7 @@
     {
       "hw_id": 2,
       "pos_id": 2,
-      "ip": "100.96.28.52",
+      "ip": "192.0.2.52",
       "mavlink_port": 14552,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -20,7 +20,7 @@
     {
       "hw_id": 3,
       "pos_id": 3,
-      "ip": "100.96.151.85",
+      "ip": "192.0.2.85",
       "mavlink_port": 14553,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -28,7 +28,7 @@
     {
       "hw_id": 4,
       "pos_id": 4,
-      "ip": "100.96.1.60",
+      "ip": "192.0.2.60",
       "mavlink_port": 14554,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -36,7 +36,7 @@
     {
       "hw_id": 5,
       "pos_id": 5,
-      "ip": "100.96.177.73",
+      "ip": "192.0.2.73",
       "mavlink_port": 14555,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -44,7 +44,7 @@
     {
       "hw_id": 6,
       "pos_id": 6,
-      "ip": "100.96.51.8",
+      "ip": "192.0.2.8",
       "mavlink_port": 14556,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -52,7 +52,7 @@
     {
       "hw_id": 7,
       "pos_id": 7,
-      "ip": "100.96.92.236",
+      "ip": "192.0.2.236",
       "mavlink_port": 14557,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -60,7 +60,7 @@
     {
       "hw_id": 8,
       "pos_id": 8,
-      "ip": "100.96.162.182",
+      "ip": "192.0.2.182",
       "mavlink_port": 14558,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -68,7 +68,7 @@
     {
       "hw_id": 9,
       "pos_id": 9,
-      "ip": "100.96.85.156",
+      "ip": "192.0.2.156",
       "mavlink_port": 14559,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -76,7 +76,7 @@
     {
       "hw_id": 10,
       "pos_id": 10,
-      "ip": "100.96.101.197",
+      "ip": "192.0.2.197",
       "mavlink_port": 14560,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600

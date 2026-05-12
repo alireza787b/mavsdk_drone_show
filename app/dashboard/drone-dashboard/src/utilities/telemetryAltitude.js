@@ -8,6 +8,27 @@ export function toFiniteTelemetryNumber(value) {
 }
 
 export function resolveMslAltitude(drone = {}) {
+  const report = drone?.altitude_report;
+  if (report && typeof report === 'object') {
+    const value = toFiniteTelemetryNumber(report.display_m);
+    const source = String(report.source || 'unavailable');
+    const label = report.label || ({
+      relative_home: 'REL',
+      absolute_msl: 'MSL',
+      local_ned: 'LCL',
+      baro: 'BARO',
+    }[source] || 'ALT');
+    return {
+      value,
+      source,
+      label,
+      trustedForMap: source === 'absolute_msl' && drone?.[FIELD_NAMES.GLOBAL_POSITION_VALID] !== false,
+      stale: Boolean(report.stale),
+      sources: report.sources || {},
+      report,
+    };
+  }
+
   const globalAltitude = toFiniteTelemetryNumber(drone?.[FIELD_NAMES.POSITION_ALT] ?? drone?.altitude);
   const globalPositionValid = drone?.[FIELD_NAMES.GLOBAL_POSITION_VALID] !== false;
   if (
@@ -16,7 +37,7 @@ export function resolveMslAltitude(drone = {}) {
   ) {
     return {
       value: globalAltitude,
-      source: 'global_position',
+      source: 'absolute_msl',
       label: 'MSL',
       trustedForMap: globalPositionValid,
     };
@@ -27,8 +48,8 @@ export function resolveMslAltitude(drone = {}) {
   if (rawGpsAltitude !== null && gpsRawUsable) {
     return {
       value: rawGpsAltitude,
-      source: 'gps_raw',
-      label: 'GPS MSL',
+      source: 'absolute_msl',
+      label: 'MSL',
       trustedForMap: false,
     };
   }
@@ -39,8 +60,8 @@ export function resolveMslAltitude(drone = {}) {
   if (localDown !== null && localOk) {
     return {
       value: -localDown,
-      source: 'local_position',
-      label: 'Local',
+      source: 'local_ned',
+      label: 'LCL',
       trustedForMap: false,
     };
   }

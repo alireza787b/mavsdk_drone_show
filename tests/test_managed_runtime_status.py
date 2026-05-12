@@ -72,8 +72,8 @@ def test_build_mavlink_runtime_summary_reports_sidecar_contract(monkeypatch, tmp
         "src.managed_runtime_status.read_reconcile_status",
         lambda repo_root, script_relative_path: {
             "status_source": "script",
-            "mode": "managed",
-            "ref": "v3.0.8",
+            "mode": "fleet-merge",
+            "ref": "v3.0.9",
             "router_service": "active",
             "dashboard_service": "active",
             "desired_config_hash": "abc123",
@@ -85,7 +85,7 @@ def test_build_mavlink_runtime_summary_reports_sidecar_contract(monkeypatch, tmp
     result = build_mavlink_runtime_summary(tmp_path)
 
     assert result["tool"] == "mavlink-anywhere"
-    assert result["mode"] == "managed"
+    assert result["mode"] == "fleet-merge"
     assert result["service_state"] == "active"
     assert result["drift_state"] == "in_sync"
 

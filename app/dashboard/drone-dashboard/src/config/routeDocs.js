@@ -35,6 +35,18 @@ export const ROUTE_DOCS = Object.freeze([
     feature: 'fleet-ops',
   },
   {
+    path: '/fleet-ops/wifi',
+    label: 'Sidecar profile guide',
+    docPath: 'docs/features/fleet-sidecar-profiles.md',
+    feature: 'fleet-ops-wifi',
+  },
+  {
+    path: '/fleet-ops/mavlink',
+    label: 'Sidecar profile guide',
+    docPath: 'docs/features/fleet-sidecar-profiles.md',
+    feature: 'fleet-ops-mavlink',
+  },
+  {
     path: '/px4-parameters',
     label: 'PX4 parameters guide',
     docPath: 'docs/px4-parameters.md',

@@ -53,8 +53,8 @@ coordinator.service ────────────────────
 - Runs as droneshow user
 - Automatically detects and updates service files after pull
 - Validates rendered service units before installing them
-- Reconciles the managed `mavlink-anywhere` runtime when the node keeps
-  `MDS_MAVLINK_MANAGEMENT_MODE=managed`
+- Reconciles the `mavlink-anywhere` runtime when the node uses a Fleet Ops
+  policy mode such as `fleet-merge`
 - Checks and updates pip requirements if changed
 - Schedules a delayed coordinator restart only when the synced change affects
   the live runtime
@@ -196,9 +196,9 @@ MDS_HW_ID=42
 # Override GCS IP for this drone only
 MDS_GCS_IP=192.168.1.100
 
-# Keep mavlink-anywhere managed, but pin this node to a specific release
-MDS_MAVLINK_MANAGEMENT_MODE=managed
-MDS_MAVLINK_ANYWHERE_REF=v3.0.8
+# Keep mavlink-anywhere node-local, but pin this node to a specific release
+MDS_MAVLINK_MANAGEMENT_MODE=local
+MDS_MAVLINK_ANYWHERE_REF=v3.0.9
 
 # Enable debug logging
 MDS_LOG_LEVEL=DEBUG

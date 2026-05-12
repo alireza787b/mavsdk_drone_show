@@ -21,7 +21,7 @@ def test_handle_heartbeat_post_accepts_matching_runtime_mode(monkeypatch):
     result = heartbeat_module.handle_heartbeat_post(
         pos_id=1,
         hw_id="101",
-        ip="100.64.0.10",
+        ip="192.0.2.10",
         timestamp=1700000000000,
         network_info={"wifi": {"ssid": "demo"}},
         runtime_mode="real",

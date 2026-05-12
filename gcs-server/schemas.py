@@ -177,7 +177,7 @@ class ConnectivityProfileStatusResponse(BaseModel):
     profile_path: str = Field(..., description="Repository-relative Smart Wi-Fi profile path")
     profile_hash: Optional[str] = Field(None, description="SHA-256 hash of canonical profile JSON when readable")
     profile_valid: Optional[bool] = Field(None, description="Whether the current profile is valid JSON object when present")
-    mode: Optional[str] = Field(None, description="Profile mode such as observe/manage when provided")
+    mode: Optional[str] = Field(None, description="Profile mode such as observe, local, fleet-merge, or fleet-strict when provided")
     network_count: Optional[int] = Field(None, ge=0, description="Number of configured network profiles when present")
     updated_count: int = Field(0, ge=0, description="Number of profile resources changed by the request")
     message: str = Field(..., description="Operator-facing status summary")
@@ -438,7 +438,15 @@ class DroneTelemetry(BaseModel):
 
     position_lat: float = Field(..., description="Latitude in degrees")
     position_long: float = Field(..., description="Longitude in degrees")
-    position_alt: float = Field(..., description="Altitude in meters MSL")
+    position_alt: float = Field(..., description="Legacy absolute altitude in meters MSL when a valid global position exists")
+    altitude_report: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Source-aware altitude report with relative_home, absolute_msl, local_ned, and baro entries",
+    )
+    altitude_display_m: Optional[float] = Field(None, description="Operator-facing altitude value selected by the altitude policy")
+    altitude_source: Optional[str] = Field(None, description="Selected altitude source: relative_home, absolute_msl, local_ned, baro, or unavailable")
+    relative_altitude_m: Optional[float] = Field(None, description="Home-relative altitude in meters when available")
+    baro_altitude_m: Optional[float] = Field(None, description="Barometric altitude estimate in meters when available")
     velocity_north: float = Field(..., description="North velocity (m/s)")
     velocity_east: float = Field(..., description="East velocity (m/s)")
     velocity_down: float = Field(..., description="Down velocity (m/s)")
@@ -472,6 +480,7 @@ class DroneTelemetry(BaseModel):
     local_position_east: Optional[float] = Field(None, description="LOCAL_POSITION_NED east coordinate (m)")
     local_position_down: Optional[float] = Field(None, description="LOCAL_POSITION_NED down coordinate (m)")
     local_position_time_boot_ms: int = Field(0, description="LOCAL_POSITION_NED PX4 boot timestamp (ms)")
+    local_position_timestamp_ms: int = Field(0, description="LOCAL_POSITION_NED wall-clock sample timestamp (Unix ms)")
     position_source: str = Field("unavailable", description="Source of the current position fields")
     position_unavailable_reason: Optional[str] = Field(None, description="Reason no mappable global position is available")
 

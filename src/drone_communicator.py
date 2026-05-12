@@ -14,6 +14,7 @@ from functions.data_utils import safe_float, safe_get, safe_int
 from mds_logging import get_logger
 from src.command_contract import PrecisionMoveRequest
 from src.enums import Mission, State
+from src.telemetry_display import build_altitude_report, build_gps_report
 
 logger = get_logger("drone_comm")
 from src.drone_config import DroneConfig
@@ -164,9 +165,20 @@ class DroneCommunicator:
     def _build_swarm_state(self, live_swarm: Dict[str, Any], emitted_at_ms: int) -> Dict[str, Any]:
         local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
         telemetry_timestamp_ms = self._resolve_telemetry_timestamp_ms()
+        global_position_timestamp_ms = safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0))
         global_position_valid = (
             bool(getattr(self.drone_config, "global_position_valid", False))
             and self._is_valid_global_position(getattr(self.drone_config, "position", None))
+        )
+        altitude_report = build_altitude_report(
+            position=getattr(self.drone_config, "position", None),
+            local_position_ned=local_ned,
+            gps_fix_type=getattr(self.drone_config, "gps_fix_type", 0),
+            global_position_timestamp_ms=global_position_timestamp_ms,
+            relative_altitude_m=getattr(self.drone_config, "relative_altitude_m", None),
+            baro_altitude_m=getattr(self.drone_config, "baro_altitude_m", None),
+            baro_timestamp_ms=getattr(self.drone_config, "baro_timestamp_ms", 0),
+            now_ms=emitted_at_ms,
         )
 
         return {
@@ -185,13 +197,19 @@ class DroneCommunicator:
             "telemetry_timestamp_ms": telemetry_timestamp_ms,
             "stream_seq": safe_int(getattr(self.drone_config, "telemetry_sequence", 0)),
             "global_position_valid": global_position_valid,
-            "global_position_timestamp_ms": safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0)),
+            "global_position_timestamp_ms": global_position_timestamp_ms,
             "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "source_frame": "local_ned" if safe_int(local_ned.get("time_boot_ms")) > 0 else "global_lla_ned",
             "source_time_boot_ms": safe_int(local_ned.get("time_boot_ms")),
+            "altitude_report": altitude_report,
+            "altitude_display_m": altitude_report.get("display_m"),
+            "altitude_source": altitude_report.get("source"),
+            "relative_altitude_m": altitude_report.get("relative_home_m"),
+            "baro_altitude_m": altitude_report.get("baro_m"),
             "local_position_north": safe_float(local_ned.get("x")),
             "local_position_east": safe_float(local_ned.get("y")),
             "local_position_down": safe_float(local_ned.get("z")),
+            "local_position_timestamp_ms": safe_int(local_ned.get("timestamp_ms")),
             "local_velocity_north": safe_float(local_ned.get("vx")),
             "local_velocity_east": safe_float(local_ned.get("vy")),
             "local_velocity_down": safe_float(local_ned.get("vz")),
@@ -578,6 +596,22 @@ class DroneCommunicator:
 
         local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
         local_time_boot_ms = safe_int(local_ned.get("time_boot_ms"))
+        altitude_report = build_altitude_report(
+            position=getattr(self.drone_config, "position", None),
+            local_position_ned=local_ned,
+            gps_fix_type=gps_fix_type,
+            global_position_timestamp_ms=global_position_timestamp_ms,
+            relative_altitude_m=getattr(self.drone_config, "relative_altitude_m", None),
+            baro_altitude_m=getattr(self.drone_config, "baro_altitude_m", None),
+            baro_timestamp_ms=getattr(self.drone_config, "baro_timestamp_ms", 0),
+            now_ms=now_ms,
+        )
+        gps_report = build_gps_report(
+            fix_type=gps_fix_type,
+            satellites_visible=getattr(self.drone_config, "satellites_visible", 0),
+            hdop=getattr(self.drone_config, "hdop", None),
+            vdop=getattr(self.drone_config, "vdop", None),
+        )
 
         self.drone_state = {
             "hw_id": safe_int(self.drone_config.hw_id),  # Hardware ID of the drone
@@ -615,11 +649,19 @@ class DroneCommunicator:
             "gps_raw_timestamp_ms": gps_raw_timestamp_ms,
             "gps_raw_age_ms": self._age_ms(now_ms, gps_raw_timestamp_ms),
             "gps_raw_altitude_m": gps_raw_altitude_m,
+            "altitude_report": altitude_report,
+            "altitude_display_m": altitude_report.get("display_m"),
+            "altitude_source": altitude_report.get("source"),
+            "relative_altitude_m": altitude_report.get("relative_home_m"),
+            "baro_altitude_m": altitude_report.get("baro_m"),
+            "baro_timestamp_ms": safe_int(getattr(self.drone_config, "baro_timestamp_ms", 0)),
+            "baro_age_ms": self._age_ms(now_ms, getattr(self.drone_config, "baro_timestamp_ms", 0)),
             "local_position_ok": local_time_boot_ms > 0,
             "local_position_north": safe_float(local_ned.get("x")),
             "local_position_east": safe_float(local_ned.get("y")),
             "local_position_down": safe_float(local_ned.get("z")),
             "local_position_time_boot_ms": local_time_boot_ms,
+            "local_position_timestamp_ms": safe_int(local_ned.get("timestamp_ms")),
             "position_source": str(getattr(self.drone_config, "position_source", "unavailable")),
             "position_unavailable_reason": self._position_unavailable_reason(global_position_valid),
             "readiness_status": str(getattr(self.drone_config, 'readiness_status', 'unknown')),
@@ -632,6 +674,7 @@ class DroneCommunicator:
             "hdop": safe_float(self.drone_config.hdop),  # Horizontal dilution of precision
             "vdop": safe_float(self.drone_config.vdop),  # Vertical dilution of precision
             "gps_fix_type": gps_fix_type,  # GPS fix status
+            "gps_report": gps_report,
             "satellites_visible": safe_int(getattr(self.drone_config, 'satellites_visible', 0)),  # Number of satellites
             "ip": self.drone_config.config.get('ip', 'N/A')  # Drone IP address
         }

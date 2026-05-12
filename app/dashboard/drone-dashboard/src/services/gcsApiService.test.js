@@ -15,6 +15,7 @@ import {
   GCS_WS_ROUTES,
   applyGcsConfigResponse,
   applyGcsEnvResponse,
+  applyFleetGitSyncResponse,
   applyRuntimeUpdateResponse,
   changeOwnPasswordResponse,
   getEnvRegistryResponse,
@@ -22,6 +23,13 @@ import {
   getGcsConfigResponse,
   getGcsEnvResponse,
   getConnectivityProfileResponse,
+  getFleetGitSyncResponse,
+  getFleetSidecarResponse,
+  getFleetSidecarBaselineResponse,
+  promoteFleetSidecarDraftResponse,
+  dryRunFleetSidecarReconcileResponse,
+  applyFleetSidecarReconcileResponse,
+  dryRunFleetGitSyncResponse,
   getNetworkInfoResponse,
   getCommandStatusResponse,
   getPrecisionMovePolicyResponse,
@@ -36,7 +44,6 @@ import {
   saveFleetConfigResponse,
   submitCommandResponse,
   setOriginResponse,
-  syncReposResponse,
   updateGcsEnvResponse,
   updateFleetNodeEnvResponse,
   updateConnectivityProfileResponse,
@@ -66,6 +73,8 @@ const authConfig = (config = {}) => ({
 describe('gcsApiService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.sessionStorage.clear();
+    window.localStorage.clear();
     mockGetBackendURL.mockReturnValue('http://gcs.test:5030');
   });
 
@@ -239,15 +248,83 @@ describe('gcsApiService', () => {
     );
   });
 
-  it('dispatches git sync through the canonical git sync operation route', async () => {
-    axios.post.mockResolvedValue({ data: { success: true } });
+  it('uses Fleet Ops dry-run/apply routes for drone git sync mutations', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+    axios.post.mockResolvedValue({ data: { job_id: 'git-sync-1' } });
 
-    await syncReposResponse({ pos_ids: [1, 2] }, { timeout: 3000 });
+    await getFleetGitSyncResponse({ timeout: 1000 });
+    await dryRunFleetGitSyncResponse({ pos_ids: [2] }, { timeout: 3000 });
+    await applyFleetGitSyncResponse({ dry_run_id: 'git-sync-1' }, { timeout: 4000 });
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/fleet/git-sync',
+      authConfig({ timeout: 1000 })
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/v1/fleet/git-sync/dry-run',
+      { pos_ids: [2] },
+      authConfig({ timeout: 3000 })
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/v1/fleet/git-sync/apply',
+      { dry_run_id: 'git-sync-1' },
+      authConfig({ timeout: 4000 })
+    );
+  });
+
+  it('uses canonical Fleet Ops sidecar routes and mutation token headers', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+    axios.post.mockResolvedValue({ data: { job_id: 'dryrun-1' } });
+    window.sessionStorage.setItem('fleetOpsMutationToken', 'operator-token');
+
+    await getFleetSidecarResponse('smart-wifi-manager', { timeout: 1000 });
+    await getFleetSidecarBaselineResponse('smart-wifi-manager', { timeout: 1100 });
+    await promoteFleetSidecarDraftResponse('smart-wifi-manager', { node_id: '1' }, { timeout: 1200 });
+    await dryRunFleetSidecarReconcileResponse('smart-wifi-manager', { node_ids: ['1'], mode: 'fleet-merge' }, { timeout: 1300 });
+    await applyFleetSidecarReconcileResponse('smart-wifi-manager', { dry_run_id: 'dryrun-1' }, { timeout: 1400 });
+
+    expect(axios.get).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/v1/fleet/sidecars/smart-wifi-manager',
+      authConfig({ timeout: 1000 })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/v1/fleet/sidecars/smart-wifi-manager/baseline',
+      authConfig({ timeout: 1100 })
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/v1/fleet/sidecars/smart-wifi-manager/promote-draft',
+      { node_id: '1' },
+      authConfig({ timeout: 1200, headers: { 'x-fleet-ops-token': 'operator-token' } })
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/v1/fleet/sidecars/smart-wifi-manager/reconcile/dry-run',
+      { node_ids: ['1'], mode: 'fleet-merge' },
+      authConfig({ timeout: 1300, headers: { 'x-fleet-ops-token': 'operator-token' } })
+    );
+    expect(axios.post).toHaveBeenNthCalledWith(
+      3,
+      'http://gcs.test:5030/api/v1/fleet/sidecars/smart-wifi-manager/reconcile/apply',
+      { dry_run_id: 'dryrun-1' },
+      authConfig({ timeout: 1400, headers: { 'x-fleet-ops-token': 'operator-token' } })
+    );
+  });
+
+  it('does not use persistent localStorage for Fleet Ops mutation tokens', async () => {
+    axios.post.mockResolvedValue({ data: { job_id: 'dryrun-1' } });
+    window.localStorage.setItem('fleetOpsMutationToken', 'stale-token');
+
+    await dryRunFleetSidecarReconcileResponse('smart-wifi-manager', { node_ids: ['1'], mode: 'fleet-merge' }, { timeout: 1300 });
 
     expect(axios.post).toHaveBeenCalledWith(
-      'http://gcs.test:5030/api/v1/git/sync-operations',
-      { pos_ids: [1, 2] },
-      authConfig({ timeout: 3000 })
+      'http://gcs.test:5030/api/v1/fleet/sidecars/smart-wifi-manager/reconcile/dry-run',
+      { node_ids: ['1'], mode: 'fleet-merge' },
+      authConfig({ timeout: 1300 })
     );
   });
 

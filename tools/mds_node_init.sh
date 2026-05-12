@@ -113,9 +113,9 @@ MAVLINK_BAUD="57600"
 MAVLINK_ENDPOINTS=""
 MAVLINK_INPUT_TYPE="uart"
 MAVLINK_INPUT_PORT="14550"
-MAVLINK_MANAGEMENT_MODE="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}"
+MAVLINK_MANAGEMENT_MODE="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}"
 MAVLINK_ANYWHERE_REPO_URL="${MDS_MAVLINK_ANYWHERE_REPO_URL:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_SLUG:-alireza787b/mavlink-anywhere}.git}}"
-MAVLINK_ANYWHERE_REF="${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.8}}"
+MAVLINK_ANYWHERE_REF="${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.9}}"
 MAVLINK_ANYWHERE_INSTALL_DIR="${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}"
 MAVLINK_ANYWHERE_DASHBOARD_LISTEN="${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}"
 MAVLINK_ANYWHERE_SKIP_DASHBOARD="${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}"
@@ -123,7 +123,7 @@ MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="false"
 MAVLINK_ANYWHERE_REF_EXPLICIT="false"
 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="false"
 MDS_CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
-SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-observe}}"
+SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-fleet-merge}}"
 SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}}"
 SMART_WIFI_MANAGER_PROFILE_SOURCE="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
 SMART_WIFI_MANAGER_CONFIG_FILE="${MDS_SMART_WIFI_MANAGER_CONFIG_FILE:-}"
@@ -273,13 +273,13 @@ EXAMPLES:
     sudo ./mds_node_init.sh -d 5 --connectivity-backend smart-wifi-manager --smart-wifi-config /tmp/profile.json -y
 
     # Auto-configure mavlink-router with GCS IP (NEW)
-    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 100.96.32.75
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --gcs-ip 192.0.2.75
 
     # Headless UART mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-uart /dev/ttyS0 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569"
 
     # Pin managed mavlink-anywhere to a specific release tag
-    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --mavlink-ref v3.0.8
+    sudo ./mds_node_init.sh -d 1 -y --mavlink-auto --mavlink-ref v3.0.9
 
     # Headless UDP-input mavlink configuration
     sudo ./mds_node_init.sh -d 1 -y --mavlink-input udp --mavlink-input-port 14550 --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,127.0.0.1:12550"
@@ -298,7 +298,7 @@ ENVIRONMENT VARIABLES:
     MDS_GCS_IP                  Override GCS IP address
     MDS_GCS_API_BASE_URL        Override candidate-announce API base URL
     MDS_GCS_API_TOKEN_FILE      Bearer token file for auth-protected GCS APIs
-    MDS_MAVLINK_MANAGEMENT_MODE Managed or manual mavlink-anywhere ownership
+    MDS_MAVLINK_MANAGEMENT_MODE local, fleet-merge, fleet-strict, or observe mavlink-anywhere ownership
     MDS_MAVLINK_ANYWHERE_REPO_URL Managed mavlink-anywhere repo URL override
     MDS_MAVLINK_ANYWHERE_REF    Managed mavlink-anywhere ref/tag override
     MDS_MAVLINK_ANYWHERE_INSTALL_DIR Managed mavlink-anywhere install directory
@@ -497,32 +497,32 @@ parse_args() {
             --mavlink-repo-url)
                 MAVLINK_ANYWHERE_REPO_URL="$2"
                 MAVLINK_ANYWHERE_REPO_URL_EXPLICIT="true"
-                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_MODE="fleet-merge"
                 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
                 shift 2
                 ;;
             --mavlink-ref)
                 MAVLINK_ANYWHERE_REF="$2"
                 MAVLINK_ANYWHERE_REF_EXPLICIT="true"
-                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_MODE="fleet-merge"
                 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
                 shift 2
                 ;;
             --mavlink-install-dir)
                 MAVLINK_ANYWHERE_INSTALL_DIR="$2"
-                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_MODE="fleet-merge"
                 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
                 shift 2
                 ;;
             --mavlink-dashboard)
                 MAVLINK_ANYWHERE_DASHBOARD_LISTEN="$2"
-                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_MODE="fleet-merge"
                 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
                 shift 2
                 ;;
             --skip-mavlink-dashboard)
                 MAVLINK_ANYWHERE_SKIP_DASHBOARD="true"
-                MAVLINK_MANAGEMENT_MODE="managed"
+                MAVLINK_MANAGEMENT_MODE="fleet-merge"
                 MAVLINK_MANAGEMENT_SELECTION_EXPLICIT="true"
                 shift
                 ;;

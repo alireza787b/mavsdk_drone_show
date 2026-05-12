@@ -1009,7 +1009,13 @@ mavlink_runtime_currently_healthy() {
     dashboard_service="$(status_value "${status_text}" "dashboard_service")"
     skip_dashboard="$(status_value "${status_text}" "skip_dashboard")"
 
-    [[ "${mode}" == "managed" ]] || return 1
+    case "${mode}" in
+        fleet-merge|fleet-strict|managed)
+            ;;
+        *)
+            return 1
+            ;;
+    esac
     [[ "${config_match}" == "true" ]] || return 1
     [[ "${runtime_present}" == "true" ]] || return 1
     [[ "${router_binary}" == "present" ]] || return 1
@@ -1024,11 +1030,14 @@ mavlink_runtime_currently_healthy() {
 
 check_mavlink_runtime_updates() {
     local component="MAVLINK-RUNTIME"
-    local management_mode="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}"
+    local management_mode="${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}"
     local reconcile_script="${REPO_DIR}/tools/reconcile_mavlink_runtime.sh"
 
     case "$management_mode" in
-        managed|"")
+        fleet-merge|fleet-strict)
+            ;;
+        managed)
+            management_mode="fleet-merge"
             ;;
         *)
             MAVLINK_RUNTIME_RECONCILE_STATUS="not_required"

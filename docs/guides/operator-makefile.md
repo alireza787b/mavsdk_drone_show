@@ -42,14 +42,17 @@ when operating against a remote GCS.
 ```bash
 make fleet-git-status
 make fleet-sync
+make fleet-sync-apply DRY_RUN_ID=dryrun-... CONFIRMATION_TOKEN=...
 make sitl-status
 make sitl-reconcile SITL_COUNT=4
 make sitl-stop
 ```
 
-`make fleet-sync` calls the same GCS-managed sync operation used by the
-dashboard. It asks eligible drones to run the node-side `UPDATE_CODE` path,
-which pulls the configured repo/branch and reconciles changed runtime services.
+`make fleet-sync` performs only the Fleet Ops dry-run. It does not dispatch
+`UPDATE_CODE`. Confirm the returned dry-run in the Fleet Ops UI, or use
+`make fleet-sync-apply` with the returned dry-run id and confirmation token.
+If the GCS host sets `MDS_FLEET_OPS_MUTATION_TOKEN`, pass it as
+`FLEET_OPS_TOKEN` rather than placing it in the Makefile.
 
 `make sitl-stop` removes all local SITL containers through the supported SITL
 Control batch-action API. It intentionally does not use reconcile-to-zero

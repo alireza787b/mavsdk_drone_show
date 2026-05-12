@@ -38,6 +38,10 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   px4ParamsPatchJobs: 'px4ParamsPatchJobs',
   gitStatus: 'gitStatus',
   syncRepos: 'syncRepos',
+  fleetGitSync: 'fleetGitSync',
+  fleetGitSyncDryRun: 'fleetGitSyncDryRun',
+  fleetGitSyncApply: 'fleetGitSyncApply',
+  fleetSidecars: 'fleetSidecars',
   connectivityProfile: 'connectivityProfile',
   origin: 'origin',
   setOrigin: 'setOrigin',
@@ -118,6 +122,10 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.px4ParamsPatchJobs]: '/api/v1/px4-params/patch-jobs',
   [GCS_ROUTE_KEYS.gitStatus]: '/api/v1/git/status',
   [GCS_ROUTE_KEYS.syncRepos]: '/api/v1/git/sync-operations',
+  [GCS_ROUTE_KEYS.fleetGitSync]: '/api/v1/fleet/git-sync',
+  [GCS_ROUTE_KEYS.fleetGitSyncDryRun]: '/api/v1/fleet/git-sync/dry-run',
+  [GCS_ROUTE_KEYS.fleetGitSyncApply]: '/api/v1/fleet/git-sync/apply',
+  [GCS_ROUTE_KEYS.fleetSidecars]: '/api/v1/fleet/sidecars',
   [GCS_ROUTE_KEYS.connectivityProfile]: '/api/v1/fleet/sidecars/connectivity/profile',
   [GCS_ROUTE_KEYS.origin]: '/api/v1/origin',
   [GCS_ROUTE_KEYS.setOrigin]: '/api/v1/origin',
@@ -202,6 +210,10 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/commands/statistics': GCS_ROUTE_KEYS.commandStatistics,
   '/api/v1/git/status': GCS_ROUTE_KEYS.gitStatus,
   '/api/v1/git/sync-operations': GCS_ROUTE_KEYS.syncRepos,
+  '/api/v1/fleet/git-sync': GCS_ROUTE_KEYS.fleetGitSync,
+  '/api/v1/fleet/git-sync/dry-run': GCS_ROUTE_KEYS.fleetGitSyncDryRun,
+  '/api/v1/fleet/git-sync/apply': GCS_ROUTE_KEYS.fleetGitSyncApply,
+  '/api/v1/fleet/sidecars': GCS_ROUTE_KEYS.fleetSidecars,
   '/api/v1/fleet/sidecars/connectivity/profile': GCS_ROUTE_KEYS.connectivityProfile,
   '/api/v1/origin': GCS_ROUTE_KEYS.origin,
   '/api/v1/navigation/global-origin': GCS_ROUTE_KEYS.globalOrigin,
@@ -326,6 +338,31 @@ function withGcsAuthConfig(config = {}, method = 'GET') {
     authConfig.headers = headers;
   }
   return authConfig;
+}
+
+function readFleetOpsMutationToken() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  try {
+    return window.sessionStorage?.getItem('fleetOpsMutationToken') || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function withFleetOpsMutationToken(config = {}) {
+  const token = readFleetOpsMutationToken();
+  if (!token) {
+    return config;
+  }
+  return {
+    ...config,
+    headers: {
+      ...(config.headers || {}),
+      'x-fleet-ops-token': token,
+    },
+  };
 }
 
 export function buildTelemetryWebSocketUrl() {
@@ -566,8 +603,76 @@ export async function getPrecisionMovePolicyResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.precisionMovePolicy, config);
 }
 
-export async function syncReposResponse(payload = {}, config = {}) {
-  return postGcsResource(GCS_ROUTE_KEYS.syncRepos, payload, config);
+export async function getFleetGitSyncResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.fleetGitSync, config);
+}
+
+export async function dryRunFleetGitSyncResponse(payload = {}, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.fleetGitSyncDryRun, payload, withFleetOpsMutationToken(config));
+}
+
+export async function applyFleetGitSyncResponse(payload = {}, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.fleetGitSyncApply, payload, withFleetOpsMutationToken(config));
+}
+
+export async function getFleetSidecarsResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.fleetSidecars, config);
+}
+
+export async function getFleetSidecarResponse(sidecar, config = {}) {
+  return fetchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}`, config);
+}
+
+export async function getFleetSidecarBaselineResponse(sidecar, config = {}) {
+  return fetchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/baseline`, config);
+}
+
+export async function getFleetSidecarNodeResponse(sidecar, hwId, config = {}) {
+  return fetchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/nodes/${encodeURIComponent(hwId)}`, config);
+}
+
+export async function getFleetSidecarJobResponse(jobId, config = {}) {
+  return fetchGcsResource(`${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/jobs/${encodeURIComponent(jobId)}`, config);
+}
+
+export async function promoteFleetSidecarDraftResponse(sidecar, payload = {}, config = {}) {
+  return postGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/promote-draft`,
+    payload,
+    withFleetOpsMutationToken(config)
+  );
+}
+
+export async function dryRunFleetSidecarPolicyResponse(sidecar, payload = {}, config = {}) {
+  return postGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/policy/dry-run`,
+    payload,
+    withFleetOpsMutationToken(config)
+  );
+}
+
+export async function applyFleetSidecarPolicyResponse(sidecar, payload = {}, config = {}) {
+  return postGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/policy/apply`,
+    payload,
+    withFleetOpsMutationToken(config)
+  );
+}
+
+export async function dryRunFleetSidecarReconcileResponse(sidecar, payload = {}, config = {}) {
+  return postGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/reconcile/dry-run`,
+    payload,
+    withFleetOpsMutationToken(config)
+  );
+}
+
+export async function applyFleetSidecarReconcileResponse(sidecar, payload = {}, config = {}) {
+  return postGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.fleetSidecars]}/${encodeURIComponent(sidecar)}/reconcile/apply`,
+    payload,
+    withFleetOpsMutationToken(config)
+  );
 }
 
 export async function getConnectivityProfileResponse(config = {}) {

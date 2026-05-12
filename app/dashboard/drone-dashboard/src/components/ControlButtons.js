@@ -14,12 +14,12 @@ import {
   FaUpload,
 } from 'react-icons/fa';
 import { CircularProgress } from '@mui/material';
-import { useSyncDrones } from '../hooks/useSyncDrones';
 
 /**
  * ControlButtons
  *
- * Provides top-level actions: Save, Add Drone, Set Origin, Import, Export, Revert, Sync Drones
+ * Provides top-level actions: Save, Add Drone, Set Origin, Import, Export, Revert,
+ * and a Fleet Ops link for node sync.
  * with a consistent UI/UX approach.
  */
 const ControlButtons = ({
@@ -37,7 +37,6 @@ const ControlButtons = ({
   mode = 'full',
 }) => {
   const fileInputRef = useRef(null);
-  const { syncing, syncDrones: handleSyncDrones } = useSyncDrones();
   const showPrimaryActions = mode === 'full';
 
   const triggerFileInput = () => {
@@ -69,24 +68,14 @@ const ControlButtons = ({
             )}
           </button>
 
-          <button
+          <a
             className="sync-drones"
-            onClick={handleSyncDrones}
-            data-help="Trigger git pull on all drones to sync with GCS"
-            disabled={syncing}
+            href="/fleet-ops"
+            data-help="Open Fleet Ops for drone sync dry-run, confirmation, and sidecar reconcile"
           >
-            {syncing ? (
-              <>
-                <CircularProgress size={20} color="inherit" />
-                &nbsp;Syncing...
-              </>
-            ) : (
-              <>
-                <FaCodeBranch aria-hidden="true" />
-                Sync Drones
-              </>
-            )}
-          </button>
+            <FaCodeBranch aria-hidden="true" />
+            Fleet Ops Sync
+          </a>
 
           <button className="add" onClick={addNewDrone} data-help="Add a new drone">
             <FaPlus aria-hidden="true" />

@@ -10,13 +10,15 @@ Use Fleet Ops to answer:
 - which drones have healthy read-only git access?
 - which drones have healthy MAVLink routing sidecars?
 - which drones need connectivity-sidecar attention?
-- which selected drones should sync and reconcile now?
+- which selected drones should dry-run, sync, reconcile, or change sidecar
+  policy now?
 
 Fleet Ops is actionable, but guarded:
 
-- selected-node sync is allowed;
-- repo-owned Smart Wi-Fi fleet-profile import is allowed;
-- sidecar reconcile is performed through the node sync runtime;
+- selected-node sync is dry-run first, then confirmed apply;
+- Smart Wi-Fi and MAVLink profile reconcile are dry-run first, then confirmed
+  apply;
+- sidecar policy mode changes are dry-run first, then confirmed apply;
 - direct dashboard links are shown only when the node reports a reachable URL;
 - local-only sidecar dashboards remain visible as disabled diagnostic icons;
 - raw tokens, private keys, and secret file contents are never shown in browser UI.
@@ -27,8 +29,16 @@ Fleet Ops uses existing GCS APIs:
 
 - `GET /api/v1/git/status`
 - `GET /api/v1/fleet/heartbeats`
-- `GET /api/v1/fleet/sidecars/connectivity/profile`
-- `PUT /api/v1/fleet/sidecars/connectivity/profile`
+- `GET /api/v1/fleet/git-sync`
+- `POST /api/v1/fleet/git-sync/dry-run`
+- `POST /api/v1/fleet/git-sync/apply`
+- `GET /api/v1/fleet/sidecars`
+- `GET /api/v1/fleet/sidecars/{sidecar}`
+- `GET /api/v1/fleet/sidecars/{sidecar}/baseline`
+- `POST /api/v1/fleet/sidecars/{sidecar}/reconcile/dry-run`
+- `POST /api/v1/fleet/sidecars/{sidecar}/reconcile/apply`
+- `POST /api/v1/fleet/sidecars/{sidecar}/policy/dry-run`
+- `POST /api/v1/fleet/sidecars/{sidecar}/policy/apply`
 
 The git-status payload already includes per-node:
 
@@ -112,42 +122,30 @@ backend is configured, service and profile status are shown as node compliance
 signals.
 
 `Profile missing` means the sidecar is installed/reported, but the repo-owned
-fleet profile source configured by `MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE` does
-not exist on that node checkout. For private fleets, import the profile in
-Fleet Ops or commit it at
-`deployment/connectivity/smart-wifi-manager/profile.json`, then run **Sync +
-reconcile**. For public demos, either keep the backend `none` or use sanitized
-placeholder profiles only.
+fleet profile source configured for that node does not exist on the node
+checkout. For private fleets, commit a sanitized or approved private baseline at
+`config/fleet-profiles/smart-wifi-manager/config.json`, then use Fleet Ops
+Wi-Fi profile dry-run/apply. For public demos, keep the backend `none`, use
+sanitized placeholder profiles, or use a host-local profile source outside git.
 
 When Smart Wi-Fi Manager is configured, Fleet Ops shows the resolved profile
 hash plus desired/applied config hashes. Hashes are shortened in the UI for
 operator readability; raw profile content and secrets are not displayed.
 
-Fleet Ops can import a repo-owned Smart Wi-Fi profile JSON into:
+Fleet Ops Wi-Fi profile controls live at `/fleet-ops/wifi`. The table shows
+drone, presence, service state, installed ref, mode, profile source, desired
+hash, local/applied hash, drift state, profile count, dashboard link, and last
+apply result. Baseline, node detail, promote-draft, reconcile, and policy-mode
+changes are all dialog-based.
 
-`deployment/connectivity/smart-wifi-manager/profile.json`
+Fleet Ops MAVLink profile controls live at `/fleet-ops/mavlink` and use the
+same operator model. The fleet baseline owns shared endpoint policy; hardware
+source settings such as UART device, baud, UDP input source, and PX4 port stay
+node-local unless an operator deliberately changes them through node-local
+MAVLink Anywhere tooling.
 
-Only do this for private fleet repositories when the profile includes
-passwords or customer SSIDs. Public demos should either keep
-`MDS_CONNECTIVITY_BACKEND=none`, use placeholder/example profiles, or use a
-host-local Smart Wi-Fi profile source outside git.
-
-The import API returns only status, counts, and hashes. It does not echo SSIDs,
-passwords, token paths, or raw profile content. After import, use **Sync +
-reconcile** to dispatch the normal node git-sync path; real nodes with
-`MDS_CONNECTIVITY_BACKEND=smart-wifi-manager` will pull the updated profile and
-reconcile their Smart Wi-Fi Manager runtime. SITL nodes and nodes with
-connectivity backend `none` report this as not applicable rather than failed.
-
-MAVLink profiles are intentionally not handled as a one-click fleet-wide import
-yet. MAVLink input sources often differ by board, serial path, Ethernet
-topology, or local safety policy, so Fleet Ops currently shows MAVLink status,
-hash drift, and dashboard links while leaving profile authoring to the node or
-deployment profile workflow.
-
-Fleet-wide MAVLink profile import/export, “use this node as reference”, and
-strict reset-to-baseline actions are planned profile-control work, not current
-operator-ready controls.
+Promote Draft generates a sanitized reference draft only. It does not replace a
+repo baseline or alter any node profile.
 
 ## Dashboard Links
 
@@ -174,7 +172,9 @@ Fleet Ops owns drone-side action surfaces:
 
 - selected-node git sync;
 - selected-node post-sync sidecar reconcile;
-- repo-owned Smart Wi-Fi profile import/status;
+- Smart Wi-Fi and MAVLink profile table/status;
+- Smart Wi-Fi and MAVLink profile reconcile dry-run/apply;
+- sidecar policy mode dry-run/apply;
 - dashboard open links when reachable;
 - git auth posture;
 - MAVLink and Smart Wi-Fi profile drift visibility.

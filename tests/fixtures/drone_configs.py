@@ -165,7 +165,7 @@ def single_drone_real() -> DroneConfigData:
     return DroneConfigData(
         hw_id='1',
         pos_id=1,
-        ip='100.96.240.11',
+        ip='192.0.2.11',
         mavlink_port=14550,
         serial_port='/dev/ttyS0',
         baudrate=921600

@@ -95,6 +95,7 @@ from src import __version__ as MDS_VERSION
 
 # Import SAR router
 from api_routes.fleet_candidates import create_fleet_candidates_router
+from api_routes.fleet_sidecars import create_fleet_sidecars_router
 from sar.routes import create_sar_router
 from api_routes.auth import create_auth_router
 from api_routes.commands import create_command_router
@@ -883,6 +884,7 @@ app.include_router(create_command_router(sys.modules[__name__]), responses=DEFAU
 app.include_router(create_core_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_configuration_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_fleet_candidates_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_fleet_sidecars_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_git_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_origin_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)

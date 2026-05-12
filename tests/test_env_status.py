@@ -11,7 +11,7 @@ def test_build_node_env_summary_reports_safe_registry_posture(monkeypatch, tmp_p
         "\n".join([
             "MDS_MODE=real",
             "MDS_HW_ID=7",
-            "MDS_GCS_IP=100.64.1.10",
+            "MDS_GCS_IP=192.0.2.10",
             "MDS_DRONE_API_PORT=7070",
             "OLD_NODE_KEY=value",
         ]),

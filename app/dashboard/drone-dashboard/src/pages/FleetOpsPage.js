@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FaBroadcastTower,
@@ -15,7 +15,6 @@ import {
   FaServer,
   FaShieldAlt,
   FaSyncAlt,
-  FaUpload,
   FaWifi,
 } from 'react-icons/fa';
 import {
@@ -28,7 +27,11 @@ import {
   StatusBadge,
 } from '../components/ui';
 import useFetch from '../hooks/useFetch';
-import { GCS_ROUTE_KEYS, syncReposResponse, updateConnectivityProfileResponse } from '../services/gcsApiService';
+import {
+  GCS_ROUTE_KEYS,
+  applyFleetGitSyncResponse,
+  dryRunFleetGitSyncResponse,
+} from '../services/gcsApiService';
 import { buildFleetOpsViewModel, compactHash } from '../utilities/fleetOpsViewModel';
 import '../styles/FleetOpsPage.css';
 
@@ -501,14 +504,19 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
   const [query, setQuery] = useState('');
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
   const [actionState, setActionState] = useState({ running: false, message: '', tone: 'neutral' });
-  const [connectivityProfileStatus, setConnectivityProfileStatus] = useState(null);
-  const connectivityProfileInputRef = useRef(null);
+  const [pendingGitSync, setPendingGitSync] = useState(null);
+  const [gitSyncAck, setGitSyncAck] = useState(false);
+  const [gitSyncConfirmText, setGitSyncConfirmText] = useState('');
+  const [opsToken, setOpsToken] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.sessionStorage?.getItem('fleetOpsMutationToken') || '';
+  });
   const gitStatusFetch = useFetch(gitStatusOverride ? null : GCS_ROUTE_KEYS.gitStatus, 5000);
   const heartbeatFetch = useFetch(heartbeatOverride ? null : GCS_ROUTE_KEYS.fleetHeartbeats, 3000);
   const connectivityProfileFetch = useFetch(gitStatusOverride ? null : GCS_ROUTE_KEYS.connectivityProfile, 10000);
   const gitStatus = gitStatusOverride || gitStatusFetch.data;
   const heartbeatStatus = heartbeatOverride || heartbeatFetch.data;
-  const connectivityProfile = connectivityProfileStatus || connectivityProfileFetch.data;
+  const connectivityProfile = connectivityProfileFetch.data;
   const loading = !gitStatusOverride && gitStatusFetch.loading && !gitStatus;
   const error = gitStatusFetch.error || heartbeatFetch.error;
 
@@ -551,14 +559,60 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
   }, []);
 
   const runGitSync = useCallback(async () => {
-    setActionState({ running: true, message: `Syncing ${targetLabel} node(s)...`, tone: 'neutral' });
+    setActionState({ running: true, message: `Dry-running sync for ${targetLabel} node(s)...`, tone: 'neutral' });
+    setPendingGitSync(null);
+    setGitSyncAck(false);
+    setGitSyncConfirmText('');
     try {
       const payload = selectedPosIds.length ? { pos_ids: selectedPosIds } : {};
-      const response = await syncReposResponse(payload);
+      const response = await dryRunFleetGitSyncResponse(payload);
+      const data = response?.data || {};
+      const results = data.results || {};
+      const okCount = Object.values(results).filter((result) => result?.ok).length;
+      const blockedCount = Object.values(results).filter((result) => result && !result.ok).length;
+      setPendingGitSync(data);
+      setActionState({
+        running: false,
+        tone: okCount > 0 && blockedCount === 0 ? 'success' : 'warning',
+        message: `Dry-run ready: ${okCount} node(s) eligible${blockedCount ? `, ${blockedCount} blocked` : ''}. Confirm apply to dispatch UPDATE_CODE.`,
+      });
+    } catch (error) {
+      setActionState({
+        running: false,
+        tone: 'danger',
+        message: error?.response?.data?.detail || error?.message || 'Fleet sync dry-run failed.',
+      });
+    }
+  }, [selectedPosIds, targetLabel]);
+
+  const applyGitSync = useCallback(async () => {
+    if (!pendingGitSync?.job_id || !pendingGitSync?.confirmation_token) {
+      return;
+    }
+    if (!gitSyncAck || gitSyncConfirmText !== pendingGitSync.confirmation_token) {
+      setActionState({
+        running: false,
+        tone: 'warning',
+        message: 'Acknowledge risks and type the dry-run confirmation token before applying Fleet Ops sync.',
+      });
+      return;
+    }
+    setActionState({ running: true, message: 'Applying confirmed Fleet Ops sync...', tone: 'neutral' });
+    try {
+      const response = await applyFleetGitSyncResponse({
+        dry_run_id: pendingGitSync.job_id,
+        confirmation: {
+          acknowledged_risks: true,
+          confirmation_token: pendingGitSync.confirmation_token,
+        },
+      });
       const data = response?.data || {};
       const failed = Array.isArray(data.failed_drones) && data.failed_drones.length
         ? ` Failed: ${data.failed_drones.join(', ')}.`
         : '';
+      setPendingGitSync(null);
+      setGitSyncAck(false);
+      setGitSyncConfirmText('');
       setActionState({
         running: false,
         tone: data.success ? 'success' : 'warning',
@@ -568,43 +622,26 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
       setActionState({
         running: false,
         tone: 'danger',
-        message: error?.response?.data?.detail || error?.message || 'Fleet sync failed.',
+        message: error?.response?.data?.detail || error?.message || 'Fleet sync apply failed.',
       });
     }
-  }, [selectedPosIds, targetLabel]);
+  }, [gitSyncAck, gitSyncConfirmText, pendingGitSync]);
 
-  const openConnectivityProfileImport = useCallback(() => {
-    connectivityProfileInputRef.current?.click();
+  const cancelGitSync = useCallback(() => {
+    setPendingGitSync(null);
+    setGitSyncAck(false);
+    setGitSyncConfirmText('');
   }, []);
 
-  const handleConnectivityProfileImport = useCallback(async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) {
-      return;
-    }
-
-    setActionState({ running: true, message: `Importing ${file.name}...`, tone: 'neutral' });
-    try {
-      const text = await file.text();
-      const profile = JSON.parse(text);
-      const response = await updateConnectivityProfileResponse({ profile });
-      const data = response?.data || {};
-      setConnectivityProfileStatus(data);
-      const gitWarning = data.git_result && data.git_result.success === false
-        ? ` Git: ${data.git_result.message || 'commit/push failed.'}`
-        : '';
-      setActionState({
-        running: false,
-        tone: gitWarning ? 'warning' : 'success',
-        message: `${data.message || 'Smart Wi-Fi fleet profile saved.'} Hash ${compactHash(data.profile_hash)}.${gitWarning}`,
-      });
-    } catch (error) {
-      setActionState({
-        running: false,
-        tone: 'danger',
-        message: error?.response?.data?.detail || error?.message || 'Smart Wi-Fi profile import failed.',
-      });
+  const updateOpsToken = useCallback((value) => {
+    setOpsToken(value);
+    if (typeof window !== 'undefined') {
+      if (value) {
+        window.sessionStorage?.setItem('fleetOpsMutationToken', value);
+      } else {
+        window.sessionStorage?.removeItem('fleetOpsMutationToken');
+        window.localStorage?.removeItem('fleetOpsMutationToken');
+      }
     }
   }, []);
 
@@ -733,24 +770,22 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
           <span className="fleet-ops-actions__profile" aria-label={connectivityProfileTitle}>
             <FaWifi aria-hidden="true" /> {connectivityProfileLabel}
           </span>
+          <input
+            className="fleet-ops-actions__token-input"
+            type="password"
+            value={opsToken}
+            onChange={(event) => updateOpsToken(event.target.value)}
+            placeholder="Ops token"
+            aria-label="Fleet Ops mutation token"
+          />
         </div>
         <div className="fleet-ops-actions__buttons">
-          <input
-            ref={connectivityProfileInputRef}
-            className="fleet-ops-file-input"
-            type="file"
-            accept="application/json,.json"
-            onChange={handleConnectivityProfileImport}
-            aria-label="Import Smart Wi-Fi fleet profile"
-          />
-          <ActionIconButton
-            icon={<FaUpload />}
-            label="Import Smart Wi-Fi fleet profile"
-            onClick={openConnectivityProfileImport}
-            disabled={actionState.running}
-          >
-            Wi-Fi profile
-          </ActionIconButton>
+          <Link className="fleet-ops-actions__link" to="/fleet-ops/wifi" aria-label="Open Fleet Ops Wi-Fi profile controls">
+            <FaWifi aria-hidden="true" /> Wi-Fi profiles
+          </Link>
+          <Link className="fleet-ops-actions__link" to="/fleet-ops/mavlink" aria-label="Open Fleet Ops MAVLink profile controls">
+            <FaSatelliteDish aria-hidden="true" /> MAVLink profiles
+          </Link>
           <button type="button" onClick={selectVisible} disabled={!visibleRows.length || actionState.running} aria-label="Select all visible nodes">
             Select view
           </button>
@@ -758,10 +793,46 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
             Clear
           </button>
           <button type="button" className="is-primary" onClick={runGitSync} disabled={actionState.running}>
-            <FaSyncAlt /> {actionState.running ? 'Running' : 'Sync + reconcile'}
+            <FaSyncAlt /> {actionState.running ? 'Running' : 'Dry-run sync'}
           </button>
         </div>
       </section>
+
+      {pendingGitSync ? (
+        <section className="fleet-ops-confirm" aria-label="Confirm Fleet Ops git sync">
+          <div>
+            <strong>Git sync dry-run ready</strong>
+            <span>
+              {Object.values(pendingGitSync.results || {}).filter((result) => result?.ok).length} eligible node(s).
+              Applying dispatches UPDATE_CODE only to the dry-run targets.
+            </span>
+          </div>
+          <label>
+            <input
+              type="checkbox"
+              checked={gitSyncAck}
+              onChange={(event) => setGitSyncAck(event.target.checked)}
+            />
+            Acknowledge risks
+          </label>
+          <input
+            type="text"
+            value={gitSyncConfirmText}
+            onChange={(event) => setGitSyncConfirmText(event.target.value)}
+            placeholder="Dry-run token"
+            aria-label="Type git sync dry-run confirmation token"
+          />
+          <button type="button" onClick={cancelGitSync} disabled={actionState.running}>Cancel</button>
+          <button
+            type="button"
+            className="is-primary"
+            onClick={applyGitSync}
+            disabled={actionState.running || !gitSyncAck || gitSyncConfirmText !== pendingGitSync.confirmation_token}
+          >
+            <FaShieldAlt /> Confirm apply
+          </button>
+        </section>
+      ) : null}
 
       {loading ? (
         <EmptyState icon={<FaNetworkWired />} title="Loading Fleet Ops" detail="Refreshing node sync, access, and sidecar posture." />

@@ -83,4 +83,25 @@ describe('TacticalDroneCard', () => {
     expect(screen.getByRole('heading', { name: 'SCOUT-2' })).toBeInTheDocument();
     expect(screen.getByText('P7|H2')).toBeInTheDocument();
   });
+
+  it('describes source-aware altitude without treating relative altitude as MSL', () => {
+    renderCard(
+      <TacticalDroneCard
+        drone={{
+          hw_id: '3',
+          pos_id: '8',
+          position: [0, 0, 0],
+          altitude_report: {
+            display_m: 8.4,
+            source: 'relative_home',
+            label: 'REL',
+            stale: false,
+          },
+        }}
+      />
+    );
+
+    const altitudeMetric = screen.getByLabelText('Altitude: 8.4 m REL');
+    expect(altitudeMetric).toHaveAttribute('data-help', expect.stringContaining('Home-relative altitude'));
+  });
 });

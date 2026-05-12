@@ -34,9 +34,12 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   that `make` targets are thin wrappers around canonical scripts/APIs.
 - `tools/sitl_stop_all.py`, a small stdlib-only helper used by `make sitl-stop`
   to remove local SITL containers through the supported SITL Control API.
-- Source-aware dashboard altitude policy for global MSL, raw GPS MSL, and
-  local/VIO `LOCAL_POSITION_NED` height, with an operator guide explaining when
-  each source is map-trusted.
+- Shared sidecar profile-control contract and Fleet Ops Wi-Fi/MAVLink tables
+  for redacted repo baselines, node summaries, drift state, promote draft,
+  dry-run/apply reconcile, and selected-node policy mode changes.
+- Source-aware dashboard altitude policy for `relative_home`, `absolute_msl`,
+  `local_ned`, and `baro` altitude, with operator/API docs explaining source
+  validity, freshness, stale last-known behavior, and map-trust boundaries.
 
 ### Changed
 - Fleet Ops node cards now expose compact per-node sidecar dashboard shortcuts
@@ -45,6 +48,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - Active installer, dashboard, docs-link, SITL image, and git-sync defaults now
   use `main` as the canonical deployment branch; feature/client branches remain
   explicit overrides through `MDS_BRANCH`.
+- Managed sidecar defaults now pin Smart Wi-Fi Manager `v2.1.10` and MAVLink
+  Anywhere `v3.0.9`.
 - SITL image selection now has a git-tracked deployment default, so official
   and private deployments can publish/use different validated images without
   manual `MDS_DOCKER_IMAGE` overrides.
@@ -64,6 +69,8 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   `INVALID_ARGUMENT` when the worker uses a fresh MAVSDK connection.
 - 3D Globe selected-drone cards no longer layer above the global navigation
   sidebar.
+- Fleet Ops reconcile cannot run in `observe` or `local` mode, and reconcile /
+  policy dry-runs require explicit selected node IDs before any apply.
 
 ---
 
@@ -1260,7 +1267,7 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ### Fixed
 - GCS configuration dialog showing empty "Current IP" field (nested data structure issue)
-- GCS IP not differentiating between SITL mode (172.18.0.1) and Real mode (100.96.32.75)
+- GCS IP not differentiating between SITL mode (172.18.0.1) and Real mode (192.0.2.75)
 - Confirmation dialogs requiring scroll to see (viewport centering issue)
 - No visual feedback during configuration save/commit operations
 - Origin GPS coordinates overflowing container

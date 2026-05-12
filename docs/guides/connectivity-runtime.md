@@ -29,8 +29,8 @@ Git-tracked defaults live in `deployment/defaults.env`:
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG` | Public repo slug used for docs/bootstrap URLs |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS` | Default Smart Wi-Fi Manager source repo |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_REF` | Pinned Smart Wi-Fi Manager release/tag/branch |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_MODE` | Sidecar operating mode, usually `observe` or `manage` |
-| `MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE` | Profile import behavior, usually `merge` so field-added SSIDs are preserved |
+| `MDS_DEFAULT_SMART_WIFI_MANAGER_MODE` | Sidecar policy mode, default `fleet-merge` |
+| `MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE` | Legacy profile import behavior; new Fleet Ops profile control uses `observe`, `local`, `fleet-merge`, or `fleet-strict` |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR` | Sidecar installation directory |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` | Sidecar dashboard listen address |
 | `MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH` | Repo-owned fleet profile path |
@@ -52,8 +52,8 @@ Node-local values live in `/etc/mds/local.env`:
 | `MDS_INTERNET_CHECK_INTERVAL_SEC` | Minimum seconds between internet probes |
 | `MDS_INTERNET_CHECK_TIMEOUT_SEC` | Per-probe timeout |
 | `MDS_CONNECTIVITY_BACKEND` | Node backend: `none` or `smart-wifi-manager` |
-| `MDS_SMART_WIFI_MANAGER_MODE` | Node Smart Wi-Fi mode |
-| `MDS_SMART_WIFI_MANAGER_IMPORT_MODE` | Node profile import mode: `merge` by default, `replace` only for explicit reset |
+| `MDS_SMART_WIFI_MANAGER_MODE` | Node Smart Wi-Fi policy mode: `observe`, `local`, `fleet-merge`, or `fleet-strict` |
+| `MDS_SMART_WIFI_MANAGER_IMPORT_MODE` | Legacy node profile import mode; keep merge-like behavior unless explicitly resetting through confirmed Fleet Ops policy |
 | `MDS_SMART_WIFI_MANAGER_REPO_URL` | Node sidecar source repo override |
 | `MDS_SMART_WIFI_MANAGER_REF` | Node sidecar release/tag/branch override |
 | `MDS_SMART_WIFI_MANAGER_INSTALL_DIR` | Node sidecar install directory |
@@ -66,41 +66,41 @@ supports inline passwords and password-file references. Recommended policy:
 - public repo or public demo: never commit real SSIDs/passwords; use
   placeholders or node-local profile files.
 - private fleet repo: a repo-owned Smart Wi-Fi profile may contain inline
-  passwords if the repo access policy is acceptable for the operator; roll it
-  out through Fleet Ops + Sync + reconcile.
+  passwords only when the repo access policy is acceptable for the operator;
+  roll it out through Fleet Ops Wi-Fi dry-run/apply.
 - highest-security fleet: commit SSIDs and use node-local password files so the
   repo does not contain credentials.
 
 Ad-hoc field credentials can also be applied node-local through the Smart Wi-Fi
 dashboard. That is safer while recovering one board, but it is not a fleet-wide
 source of truth until the profile is intentionally committed to the private repo.
-The default import mode is `merge`, so node-local field profiles remain in the
-Smart Wi-Fi config and Fleet Ops reports hash drift instead of silently pruning
-the operator's temporary network. Use `replace` only when you intentionally want
-the repo profile to reset the node profile set.
+The default policy mode is `fleet-merge`, so node-local field profiles remain in
+the Smart Wi-Fi config and Fleet Ops reports drift instead of silently pruning
+the operator's temporary network. Use `fleet-strict` only after advanced
+confirmation when you intentionally want the repo baseline to be authoritative.
 
 ## Rollout Workflow
 
 1. Set fleet defaults in `deployment/defaults.env`.
 2. Bootstrap or sync real nodes so they receive `/etc/mds/local.env`.
-3. If using Smart Wi-Fi Manager, import or update the private fleet profile in
-   Fleet Ops. The default rollout merges the repo baseline into existing node
-   profiles.
-4. Run Sync + reconcile for the target drones.
+3. If using Smart Wi-Fi Manager, commit or update the approved private fleet
+   baseline at `config/fleet-profiles/smart-wifi-manager/config.json`.
+4. In Fleet Ops Wi-Fi, dry-run reconcile for selected drones, review drift, then
+   confirm apply.
 5. Confirm Fleet Ops shows matching desired/applied profile hashes and healthy
    sidecar status.
 
 If Fleet Ops reports `Profile missing`, the node does not have the configured
 repo-owned profile file yet. This is expected on public/demo repos that do not
 commit real Wi-Fi credentials. In a private fleet repo, add or import
-`deployment/connectivity/smart-wifi-manager/profile.json`, then run Sync +
-reconcile.
+`config/fleet-profiles/smart-wifi-manager/config.json`, then dry-run/apply the
+Wi-Fi reconcile in Fleet Ops.
 
 For an existing field node, enable Smart Wi-Fi Manager only while a known-good
 management path is still available, such as Ethernet or a stable NetBird route.
 Start with `MDS_SMART_WIFI_MANAGER_MODE=observe` when you only need the
-dashboard and status. Move to `manage` after the profile is verified so a bad
-SSID/password cannot strand the node.
+dashboard and status. Move to `fleet-merge` after the profile is verified so a
+bad SSID/password cannot strand the node by removing local recovery networks.
 
 To make the node dashboard reachable from a NetBird-connected operator
 machine, use a non-loopback listen address:

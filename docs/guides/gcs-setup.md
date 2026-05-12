@@ -647,8 +647,8 @@ See [NetBird Setup Guide](netbird-setup.md) for detailed instructions.
 ### Network Architecture
 
 ```
-GCS Server (100.64.0.1) ◄──NetBird VPN──► Drone 1 (100.64.0.2)
-                        ◄──────────────► Drone 2 (100.64.0.3)
+GCS Server (192.0.2.1) ◄──NetBird VPN──► Drone 1 (192.0.2.2)
+                        ◄──────────────► Drone 2 (192.0.2.3)
                         ◄──────────────► Drone N (100.64.0.N)
 ```
 

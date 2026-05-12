@@ -111,12 +111,16 @@ const TacticalDroneCard = ({ drone, onClose, className = '' }) => {
   const altitudeReading = resolveMslAltitude(drone);
   const altitudeAvailable = altitudeReading.value !== null;
   const positionUnavailableReason = drone?.position_unavailable_reason || 'Waiting for valid PX4 global position';
+  const altitudeHelpBySource = {
+    relative_home: 'Home-relative altitude from PX4 GLOBAL_POSITION_INT.relative_alt. Distinguish this from MSL altitude.',
+    absolute_msl: altitudeReading.trustedForMap
+      ? 'Absolute altitude above MSL from a valid PX4 global position.'
+      : 'Absolute altitude above MSL from raw GPS; map coordinate is still waiting for valid PX4 global position.',
+    local_ned: 'Local height from PX4 LOCAL_POSITION_NED. This supports VIO/non-GPS operation but is not a map coordinate.',
+    baro: 'Barometric altitude estimate. It is useful for local awareness but is not a map coordinate.',
+  };
   const altitudeHelp = altitudeAvailable
-    ? altitudeReading.source === 'gps_raw'
-      ? 'Raw GPS altitude above MSL from GPS_RAW_INT. Map coordinate is still waiting for valid PX4 global position.'
-      : altitudeReading.source === 'local_position'
-        ? 'Local height from PX4 LOCAL_POSITION_NED. This supports VIO/non-GPS operation but is not a map coordinate.'
-        : 'Altitude above MSL from PX4 global position.'
+    ? (altitudeHelpBySource[altitudeReading.source] || 'Source-aware altitude from telemetry policy.')
     : positionUnavailableReason;
   const distanceToHome = globalPositionValid && Number.isFinite(Number(drone?.distance_to_home_m))
     ? `${formatNumber(drone.distance_to_home_m)} m`

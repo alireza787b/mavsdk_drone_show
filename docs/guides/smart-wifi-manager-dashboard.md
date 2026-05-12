@@ -79,8 +79,11 @@ reachable management path.
 - To remove a network, click **Remove Profile**, save, then trigger a scan.
   Remove only after confirming another management path is active.
 
-In `observe` mode Smart Wi-Fi reports and updates policy but does not switch.
-In `manage` mode it may switch to the highest-priority reachable known profile.
+In `observe` mode Smart Wi-Fi reports only and does not mutate sidecar profile
+state. In `local` mode the node-local dashboard/CLI is authoritative.
+`fleet-merge` applies the fleet baseline while preserving local emergency
+networks. `fleet-strict` is advanced/lab mode only and requires explicit Fleet
+Ops confirmation.
 
 ## Legacy Manual Flow
 
@@ -108,10 +111,12 @@ and `smart-wifi-manager-dashboard.service`, then re-open the node URL.
 
 For many drones, prefer the MDS fleet profile workflow:
 
-1. Update the private fleet Smart Wi-Fi profile from **Fleet Ops**.
-2. Commit/push the private repo change.
-3. Run **Sync + reconcile** for the target drones.
-4. Confirm Fleet Ops profile hashes match.
+1. Commit the approved private fleet baseline at
+   `config/fleet-profiles/smart-wifi-manager/config.json`.
+2. Open **Fleet Ops Wi-Fi**.
+3. Dry-run reconcile for selected drones.
+4. Confirm apply only after reviewing blocked nodes, drift, and local extras.
+5. Confirm Fleet Ops profile hashes match.
 
 Do not store real customer SSIDs or passwords in public repositories.
 MDS defaults to merge-style Smart Wi-Fi rollout: the private repo profile is the

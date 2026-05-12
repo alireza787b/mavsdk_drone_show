@@ -493,15 +493,15 @@ class TestConfigurationEndpoints:
         assert "profile" in data["message"].lower()
         assert "password" not in json.dumps(data).lower()
 
-    def test_connectivity_profile_import_writes_repo_owned_profile_without_echoing_secrets(self, test_client):
-        """Fleet Ops can replace the repo-owned Smart Wi-Fi profile for later sync/reconcile rollout."""
+    def test_connectivity_profile_import_route_is_disabled(self, test_client):
+        """Legacy direct Smart Wi-Fi profile import cannot bypass Fleet Ops dry-run/apply."""
         profile = {
-            "mode": "manage",
+            "mode": "fleet-merge",
             "profiles": [
                 {
                     "id": "primary",
-                    "ssid": "field-net",
-                    "password": "super-secret",
+                    "ssid": "DemoField",
+                    "password": "redacted-demo-value",
                     "priority": 100,
                 }
             ],
@@ -515,20 +515,12 @@ class TestConfigurationEndpoints:
                     json={"profile": profile, "commit": False},
                 )
                 target = Path(tmpdir) / "deployment/connectivity/smart-wifi-manager/profile.json"
-                saved = json.loads(target.read_text(encoding="utf-8"))
 
-        assert response.status_code == 200
-        data = response.json()
-        assert saved == profile
-        assert data["profile_present"] is True
-        assert data["profile_valid"] is True
-        assert data["mode"] == "manage"
-        assert data["network_count"] == 1
-        assert data["updated_count"] == 1
-        assert data["profile_hash"]
-        assert "super-secret" not in json.dumps(data)
+        assert response.status_code == 410
+        assert not target.exists()
+        assert "dry-run" in response.json()["detail"]
 
-    def test_connectivity_profile_import_rejects_invalid_profiles(self, test_client):
+    def test_connectivity_profile_import_route_does_not_validate_before_deprecation(self, test_client):
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch('app_fastapi.BASE_DIR', tmpdir):
                 response = test_client.request(
@@ -537,8 +529,8 @@ class TestConfigurationEndpoints:
                     json={"profile": {"profiles": [{"id": "missing-ssid"}]}, "commit": False},
                 )
 
-        assert response.status_code == 422
-        assert "ssid" in response.json()["detail"]
+        assert response.status_code == 410
+        assert "Direct Smart Wi-Fi profile import is disabled" in response.json()["detail"]
 
 
 # ============================================================================
@@ -1383,12 +1375,12 @@ class TestGCSManagementEndpoints:
                 connectivity_backend='smart-wifi-manager',
                 smart_wifi_manager_repo_url_https='https://github.com/demo/smart-wifi-manager.git',
                 smart_wifi_manager_ref='v1.2.3',
-                smart_wifi_manager_mode='manage',
+                smart_wifi_manager_mode='fleet-merge',
                 smart_wifi_manager_import_mode='merge',
                 smart_wifi_manager_install_dir='/opt/demo-smartwifi',
                 smart_wifi_manager_dashboard_listen='0.0.0.0:9080',
                 smart_wifi_manager_profile_path='deployment/connectivity/demo/profile.json',
-                mavlink_management_mode='managed',
+                mavlink_management_mode='fleet-merge',
                 mavlink_anywhere_repo_url_https='https://github.com/demo/mavlink-anywhere.git',
                 mavlink_anywhere_ref='v9.9.9',
                 mavlink_anywhere_install_dir='/opt/demo-mavlink',
@@ -1456,7 +1448,7 @@ class TestGCSManagementEndpoints:
         assert data['git_auth_health']['status'] == 'healthy'
         assert data['repo_sync_status']['update_readiness'] == 'ready_to_fast_forward'
         assert data['repo_sync_status']['fast_forward_update_available'] is True
-        assert data['fleet_defaults']['smart_wifi_manager_mode'] == 'manage'
+        assert data['fleet_defaults']['smart_wifi_manager_mode'] == 'fleet-merge'
         assert data['fleet_defaults']['smart_wifi_manager_ref'] == 'v1.2.3'
         assert data['mavlink_runtime']['dashboard_service_status'] == 'active'
         assert data['connectivity_runtime']['service_status'] == 'active'
@@ -1676,9 +1668,9 @@ class TestGitStatusEndpoints:
             'git_auth_health_issues': [],
             'mavlink_runtime': {
                 'status_source': 'script',
-                'management_mode': 'managed',
-                'ref': 'v3.0.8',
-                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.8',
+                'management_mode': 'fleet-merge',
+                'ref': 'v3.0.9',
+                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.9',
                 'install_dir_present': True,
                 'runtime_present': True,
                 'runtime_head': 'abc1234',
@@ -1690,8 +1682,8 @@ class TestGitStatusEndpoints:
             'connectivity_runtime': {
                 'status_source': 'script',
                 'backend': 'smart-wifi-manager',
-                'ref': 'v2.1.9',
-                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.9',
+                'ref': 'v2.1.10',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.10',
                 'install_dir_present': True,
                 'mode': 'observe',
                 'import_mode': 'replace',

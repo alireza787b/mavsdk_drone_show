@@ -393,7 +393,7 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
       state: 'profile_missing',
       label: 'Profile missing',
       tone: 'warning',
-      detail: `Smart Wi-Fi is ${serviceStatus}; mode ${runtime.mode || 'unknown'}; ${formatConnectivityProfile(runtime)}. Import a private fleet profile, then Sync + reconcile. ${formatHashMatch(runtime)}.`,
+      detail: `Smart Wi-Fi is ${serviceStatus}; mode ${runtime.mode || 'unknown'}; ${formatConnectivityProfile(runtime)}. Add an approved fleet baseline, then use Fleet Ops Wi-Fi dry-run/apply. ${formatHashMatch(runtime)}.`,
     };
   }
 

@@ -27,7 +27,7 @@ Migrate drone fleet configuration from CSV (`config.csv`, `swarm.csv`) to JSON (
     {
       "hw_id": 1,
       "pos_id": 1,
-      "ip": "100.96.240.11",
+      "ip": "192.0.2.11",
       "mavlink_port": 14551,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600
@@ -35,7 +35,7 @@ Migrate drone fleet configuration from CSV (`config.csv`, `swarm.csv`) to JSON (
     {
       "hw_id": 2,
       "pos_id": 2,
-      "ip": "100.96.28.52",
+      "ip": "192.0.2.52",
       "mavlink_port": 14552,
       "serial_port": "/dev/ttyS0",
       "baudrate": 57600,

@@ -250,7 +250,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
       : 'No private secret required';
   const gcsRepoRole = runtime.gitAutoPush || effectiveConfiguredGitAutoPush ? 'GCS writer' : 'GCS read-only/demo';
   const mavlinkHostSummary = runtime.mavlinkRuntime?.runtime_present
-    ? `GCS-local ${runtime.mavlinkRuntime?.management_mode || 'managed'} runtime; router ${runtime.mavlinkRuntime?.router_service_status || 'unknown'}`
+    ? `GCS-local ${runtime.mavlinkRuntime?.management_mode || 'local'} runtime; router ${runtime.mavlinkRuntime?.router_service_status || 'unknown'}`
     : 'Not installed on this GCS host';
   const connectivityHostSummary = runtime.connectivityRuntime?.install_dir_present || runtime.connectivityRuntime?.service_status === 'active'
     ? `GCS-local ${runtime.connectivityRuntime?.backend || 'connectivity'} runtime; service ${runtime.connectivityRuntime?.service_status || 'unknown'}`

@@ -195,7 +195,7 @@ sudo ./tools/mds_node_init.sh -d 1 \
 
 Managed defaults:
 ```bash
-sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 100.96.32.75 -y
+sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y
 ```
 
 Headless UART routing:
@@ -319,7 +319,7 @@ API URL or `MDS_GCS_IP` is available. You can also re-run that discovery step
 later without repeating the whole bootstrap:
 
 ```bash
-sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
+sudo ./tools/mds_node_announce.sh --gcs-api-url http://192.0.2.75:5030
 sudo ./tools/mds_node_announce.sh --dry-run --report-json -
 ```
 

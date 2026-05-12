@@ -155,7 +155,7 @@
       "domain": "runtime",
       "source_of_truth": "deployment/defaults.env",
       "value_type": "string",
-      "default": "100.96.32.75",
+      "default": "192.0.2.75",
       "secret": false,
       "editable": false,
       "ui_visibility": "operator",
@@ -407,7 +407,7 @@
       "domain": "connectivity",
       "source_of_truth": "deployment/defaults.env",
       "value_type": "string",
-      "default": "observe",
+      "default": "fleet-merge",
       "secret": false,
       "editable": false,
       "ui_visibility": "operator",
@@ -415,7 +415,9 @@
       "apply_action": "manual",
       "allowed_values": [
         "observe",
-        "manage"
+        "local",
+        "fleet-merge",
+        "fleet-strict"
       ],
       "aliases": [],
       "deprecated": false,
@@ -538,15 +540,17 @@
       "domain": "mavlink",
       "source_of_truth": "deployment/defaults.env",
       "value_type": "string",
-      "default": "managed",
+      "default": "local",
       "secret": false,
       "editable": false,
       "ui_visibility": "operator",
       "restart_required": "manual",
       "apply_action": "manual",
       "allowed_values": [
-        "managed",
-        "manual"
+        "observe",
+        "local",
+        "fleet-merge",
+        "fleet-strict"
       ],
       "aliases": [],
       "deprecated": false,
@@ -1795,7 +1799,7 @@
       "domain": "connectivity",
       "source_of_truth": "/etc/mds/local.env",
       "value_type": "string",
-      "default": "observe",
+      "default": "fleet-merge",
       "secret": false,
       "editable": true,
       "ui_visibility": "operator",
@@ -1803,7 +1807,9 @@
       "apply_action": "reconcile_sidecar",
       "allowed_values": [
         "observe",
-        "manage"
+        "local",
+        "fleet-merge",
+        "fleet-strict"
       ],
       "aliases": [],
       "deprecated": false,
@@ -1997,15 +2003,17 @@
       "domain": "mavlink",
       "source_of_truth": "/etc/mds/local.env",
       "value_type": "string",
-      "default": "managed",
+      "default": "local",
       "secret": false,
       "editable": true,
       "ui_visibility": "operator",
       "restart_required": "sidecar_reconcile",
       "apply_action": "reconcile_sidecar",
       "allowed_values": [
-        "managed",
-        "manual"
+        "observe",
+        "local",
+        "fleet-merge",
+        "fleet-strict"
       ],
       "aliases": [],
       "deprecated": false,

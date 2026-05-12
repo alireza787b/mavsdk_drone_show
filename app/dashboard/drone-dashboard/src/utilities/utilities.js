@@ -21,8 +21,6 @@ export function getElevationURL(lat, lon) {
 
 export const getUnifiedGitStatusURL = () => buildGcsUrl(GCS_ROUTE_KEYS.gitStatus);
 
-export const getSyncReposURL = () => buildGcsUrl(GCS_ROUTE_KEYS.syncRepos);
-
 
 export function getCustomShowImageURL() {
     return buildGcsUrl(GCS_ROUTE_KEYS.customShowImage);

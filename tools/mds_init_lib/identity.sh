@@ -150,7 +150,7 @@ setup_local_env() {
     local git_auth_token_file="${GIT_AUTH_TOKEN_FILE:-${MDS_GIT_AUTH_TOKEN_FILE:-}}"
     local git_ssh_key_file="${GIT_SSH_KEY_FILE:-${MDS_GIT_SSH_KEY_FILE:-}}"
     local gcs_api_token_file="${GCS_API_TOKEN_FILE:-${MDS_GCS_API_TOKEN_FILE:-}}"
-    local mavlink_management_mode="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-managed}}}"
+    local mavlink_management_mode="${MAVLINK_MANAGEMENT_MODE:-${MDS_MAVLINK_MANAGEMENT_MODE:-${MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE:-local}}}"
     local mavlink_install_dir="${MAVLINK_ANYWHERE_DIR:-${MDS_MAVLINK_ANYWHERE_INSTALL_DIR:-${MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR:-/opt/mavlink-anywhere}}}"
     local mavlink_dashboard_listen="${MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-${MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN:-127.0.0.1:9070}}}"
     local mavlink_skip_dashboard="${MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-${MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD:-false}}}"
@@ -172,6 +172,20 @@ setup_local_env() {
 
     [[ -z "$repo_url" ]] && repo_url="$(get_repo_origin_url)"
     [[ -z "$branch" ]] && branch="$(get_repo_branch)"
+
+    case "${mavlink_management_mode}" in
+        observe|local|fleet-merge|fleet-strict)
+            ;;
+        managed)
+            mavlink_management_mode="fleet-merge"
+            ;;
+        manual|disabled|skip|none|"")
+            mavlink_management_mode="local"
+            ;;
+        *)
+            mavlink_management_mode="local"
+            ;;
+    esac
 
     if [[ -n "$gcs_api_token" ]]; then
         if [[ -z "$gcs_api_token_file" ]]; then
@@ -200,7 +214,7 @@ setup_local_env() {
 
         printf '\n# MAVLink runtime ownership for this host\n'
         printf 'MDS_MAVLINK_MANAGEMENT_MODE=%s\n' "${mavlink_management_mode}"
-        if [[ "${mavlink_management_mode}" == "managed" ]]; then
+        if [[ "${mavlink_management_mode}" == "fleet-merge" || "${mavlink_management_mode}" == "fleet-strict" ]]; then
             printf 'MDS_MAVLINK_ANYWHERE_INSTALL_DIR=%s\n' "${mavlink_install_dir}"
             printf 'MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN=%s\n' "${mavlink_dashboard_listen}"
             printf 'MDS_MAVLINK_ANYWHERE_SKIP_DASHBOARD=%s\n' "${mavlink_skip_dashboard}"

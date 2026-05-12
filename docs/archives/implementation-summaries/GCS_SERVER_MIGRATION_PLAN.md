@@ -457,7 +457,7 @@ The GCS Server is **significantly more complex** than the drone-side server:
 {
   "status": "success",
   "data": {
-    "gcs_ip": "100.96.32.75",
+    "gcs_ip": "192.0.2.75",
     "gcs_flask_port": 5000,
     "git_auto_push": true,
     "git_branch": "main-candidate",

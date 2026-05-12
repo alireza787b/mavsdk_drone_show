@@ -313,7 +313,7 @@ sim_mode = not os.path.exists('real.mode')
 
 | Parameter | SITL Value | Real Value | Purpose |
 |-----------|------------|------------|---------|
-| `GCS_IP` | `"172.18.0.1"` | `"100.96.32.75"` | GCS server address |
+| `GCS_IP` | `"172.18.0.1"` | `"192.0.2.75"` | GCS server address |
 | `gcs_api_port` | `5000` | `5000` | GCS API port |
 | `drone_api_port` | `7070` | `7070` | Drone API port |
 | `config_csv_name` | `"config_sitl.csv"` | `"config.csv"` | Drone config file |

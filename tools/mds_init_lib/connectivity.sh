@@ -15,10 +15,10 @@ SMART_WIFI_MANAGER_REF_EXPLICIT="false"
 [[ -n "${MDS_SMART_WIFI_MANAGER_REF+x}" ]] && SMART_WIFI_MANAGER_REF_EXPLICIT="true"
 
 MDS_CONNECTIVITY_BACKEND="${MDS_CONNECTIVITY_BACKEND:-${MDS_DEFAULT_CONNECTIVITY_BACKEND:-none}}"
-SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-observe}}"
+SMART_WIFI_MANAGER_MODE="${MDS_SMART_WIFI_MANAGER_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_MODE:-fleet-merge}}"
 SMART_WIFI_MANAGER_IMPORT_MODE="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-${MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}}"
 SMART_WIFI_MANAGER_REPO_URL="${MDS_SMART_WIFI_MANAGER_REPO_URL:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS:-https://github.com/${MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_SLUG:-alireza787b/smart-wifi-manager}.git}}"
-SMART_WIFI_MANAGER_REF="${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.9}}"
+SMART_WIFI_MANAGER_REF="${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.10}}"
 SMART_WIFI_MANAGER_INSTALL_DIR="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-${MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}}"
 SMART_WIFI_MANAGER_DASHBOARD_LISTEN="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-${MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}}"
 SMART_WIFI_MANAGER_PROFILE_SOURCE="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
@@ -45,8 +45,17 @@ normalize_connectivity_backend() {
 
 normalize_smart_wifi_mode() {
     case "${1:-observe}" in
-        manage|observe|disabled)
+        observe|local|fleet-merge|fleet-strict)
             printf '%s\n' "$1"
+            ;;
+        manage|managed)
+            printf 'fleet-merge\n'
+            ;;
+        manual)
+            printf 'local\n'
+            ;;
+        disabled|none)
+            printf 'observe\n'
             ;;
         *)
             return 1
@@ -139,7 +148,7 @@ prompt_connectivity_backend() {
                 return 1
             fi
             MDS_CONNECTIVITY_BACKEND="smart-wifi-manager"
-            SMART_WIFI_MANAGER_MODE="manage"
+            SMART_WIFI_MANAGER_MODE="fleet-merge"
             SMART_WIFI_MANAGER_PROFILE_SOURCE="repo:${SMART_WIFI_MANAGER_DEFAULT_PROFILE_RELATIVE}"
             SMART_WIFI_MANAGER_CONFIG_FILE=""
             ;;
@@ -151,7 +160,7 @@ prompt_connectivity_backend() {
                 return 1
             fi
             MDS_CONNECTIVITY_BACKEND="smart-wifi-manager"
-            SMART_WIFI_MANAGER_MODE="manage"
+            SMART_WIFI_MANAGER_MODE="fleet-merge"
             SMART_WIFI_MANAGER_PROFILE_SOURCE="file:${config_path}"
             SMART_WIFI_MANAGER_CONFIG_FILE="$config_path"
             ;;

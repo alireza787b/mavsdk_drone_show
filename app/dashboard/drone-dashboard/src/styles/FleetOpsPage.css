@@ -168,6 +168,17 @@
   color: var(--color-text-primary);
 }
 
+.fleet-ops-actions__token-input,
+.fleet-ops-confirm input[type="text"] {
+  min-height: 2.3rem;
+  min-width: 180px;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+}
+
 .fleet-ops-file-input {
   position: absolute;
   width: 1px;
@@ -180,9 +191,11 @@
   white-space: nowrap;
 }
 
-.fleet-ops-actions__buttons button {
+.fleet-ops-actions__buttons button,
+.fleet-ops-actions__link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
   min-height: 2.4rem;
   padding: 0.55rem 0.75rem;
@@ -194,9 +207,12 @@
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-decoration: none;
   cursor: pointer;
 }
 
+.fleet-ops-actions__link:hover,
+.fleet-ops-actions__link:focus-visible,
 .fleet-ops-actions__buttons button.is-primary {
   border-color: rgba(var(--color-primary-rgb), 0.35);
   background: rgba(var(--color-primary-rgb), 0.12);
@@ -206,6 +222,63 @@
 .fleet-ops-actions__buttons button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.fleet-ops-confirm {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-warning-light);
+}
+
+.fleet-ops-confirm div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.fleet-ops-confirm strong {
+  color: var(--color-text-primary);
+}
+
+.fleet-ops-confirm span {
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+}
+
+.fleet-ops-confirm label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-text-primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.fleet-ops-confirm button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-border-primary);
+  background: var(--color-surface-inset);
+  color: var(--color-text-primary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.fleet-ops-confirm button.is-primary {
+  border-color: var(--color-success-border);
+  background: var(--color-success-light);
+  color: var(--color-success);
 }
 
 .fleet-ops-toolbar label {

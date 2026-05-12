@@ -35,7 +35,7 @@ DESCRIPTION:
 
 OPTIONS:
     --gcs-api-url URL       Explicit GCS API base URL
-                            Example: http://100.96.32.75:5030
+                            Example: http://192.0.2.75:5030
     --gcs-api-token-file PATH
                             Bearer token file for auth-protected GCS APIs
     --identity-file PATH    Override node identity file
@@ -55,7 +55,7 @@ URL RESOLUTION ORDER:
     4. MDS_GCS_IP / GCS_IP with default port ${MDS_DEFAULT_GCS_API_PORT:-5030}
 
 EXAMPLES:
-    sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
+    sudo ./tools/mds_node_announce.sh --gcs-api-url http://192.0.2.75:5030
     sudo ./tools/mds_node_announce.sh --gcs-api-token-file /root/.mds/keys/gcs_api_token
     sudo ./tools/mds_node_announce.sh --dry-run --report-json -
     sudo ./tools/mds_node_announce.sh --local-env /etc/mds/local.env

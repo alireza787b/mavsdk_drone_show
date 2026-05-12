@@ -16,7 +16,7 @@ describe('DroneGitStatus', () => {
       git_auth_health_summary: 'Healthy',
       git_auth_health_issues: [],
       mavlink_runtime: {
-        management_mode: 'managed',
+        management_mode: 'fleet-merge',
         ref: 'v3.0.5',
         repo_web_url: 'https://github.com/demo/mavlink-anywhere/tree/v3.0.5',
         router_service_status: 'active',
@@ -28,7 +28,7 @@ describe('DroneGitStatus', () => {
         backend: 'smart-wifi-manager',
         mode: 'observe',
         service_status: 'active',
-        repo_web_url: 'https://github.com/demo/smart-wifi-manager/tree/v2.1.9',
+        repo_web_url: 'https://github.com/demo/smart-wifi-manager/tree/v2.1.10',
         dashboard_access_mode: 'local_only',
         dashboard_url: null,
       },
@@ -40,12 +40,12 @@ describe('DroneGitStatus', () => {
     },
   };
 
-  it('renders managed runtime summaries and reachable dashboard links when expanded', () => {
+  it('renders sidecar runtime summaries and reachable dashboard links when expanded', () => {
     render(<DroneGitStatus {...baseProps} />);
 
     fireEvent.click(screen.getByRole('button', { name: /toggle details/i }));
 
-    expect(screen.getByText(/managed · v3.0.5 · router active · dashboard direct link/i)).toBeInTheDocument();
+    expect(screen.getByText(/fleet-merge · v3.0.5 · router active · dashboard direct link/i)).toBeInTheDocument();
     expect(screen.getByText(/smart-wifi-manager · observe · service active · dashboard local only/i)).toBeInTheDocument();
     expect(screen.getByText(/git synchronization completed successfully · coordinator restart scheduled/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', 'http://10.0.0.101:9070');

@@ -54,6 +54,29 @@ normalize_backend() {
     esac
 }
 
+normalize_smart_wifi_mode() {
+    case "${1:-fleet-merge}" in
+        observe|local|fleet-merge|fleet-strict)
+            printf '%s\n' "$1"
+            ;;
+        manage|managed)
+            printf 'fleet-merge\n'
+            ;;
+        manual)
+            printf 'local\n'
+            ;;
+        disabled|none)
+            printf 'observe\n'
+            ;;
+        "")
+            printf 'fleet-merge\n'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 resolve_profile_path() {
     local source="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
     local default_relative="${MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH:-deployment/connectivity/smart-wifi-manager/profile.json}"
@@ -97,7 +120,7 @@ resolve_smart_wifi_repo_url() {
 }
 
 resolve_smart_wifi_ref() {
-    printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.9}}"
+    printf '%s\n' "${MDS_SMART_WIFI_MANAGER_REF:-${MDS_DEFAULT_SMART_WIFI_MANAGER_REF:-v2.1.10}}"
 }
 
 smart_wifi_git() {
@@ -108,10 +131,11 @@ smart_wifi_git() {
 smart_wifi_hash_input() {
     local profile_path="$1"
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
-    local mode="${MDS_SMART_WIFI_MANAGER_MODE:-observe}"
+    local mode
     local import_mode="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}"
     local dashboard_listen="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}"
     local repo_url repo_ref skip_dashboard
+    mode="$(normalize_smart_wifi_mode "${MDS_SMART_WIFI_MANAGER_MODE:-fleet-merge}")" || return 1
     repo_url="$(resolve_smart_wifi_repo_url)"
     repo_ref="$(resolve_smart_wifi_ref)"
     skip_dashboard="${MDS_SMART_WIFI_MANAGER_SKIP_DASHBOARD:-false}"
@@ -162,12 +186,17 @@ apply_smart_wifi_manager() {
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
     local configure_script="${install_dir}/configure_smart_wifi_manager.sh"
     local config_path="${MDS_SMART_WIFI_MANAGER_CONFIG_FILE:-/etc/smart-wifi-manager/config.json}"
-    local mode="${MDS_SMART_WIFI_MANAGER_MODE:-observe}"
+    local mode
     local import_mode="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}"
     local profile_path=""
     local new_hash=""
     local old_hash=""
     local runtime_present="false"
+
+    if ! mode="$(normalize_smart_wifi_mode "${MDS_SMART_WIFI_MANAGER_MODE:-fleet-merge}")"; then
+        log ERROR "Unsupported Smart Wi-Fi Manager mode: ${MDS_SMART_WIFI_MANAGER_MODE:-}"
+        return 1
+    fi
 
     profile_path="$(resolve_profile_path)"
     new_hash="$(smart_wifi_hash_input "${profile_path}")"
@@ -213,7 +242,7 @@ apply_smart_wifi_manager() {
 }
 
 show_status() {
-    local backend profile_path desired_hash applied_hash="" profile_hash=""
+    local backend profile_path desired_hash applied_hash="" profile_hash="" mode=""
     backend="$(normalize_backend "${MDS_CONNECTIVITY_BACKEND:-none}" || echo "unknown")"
     echo "backend=${backend}"
     if [[ "${backend}" == "smart-wifi-manager" ]]; then
@@ -229,7 +258,8 @@ show_status() {
         echo "repo_url=$(resolve_smart_wifi_repo_url)"
         echo "ref=$(resolve_smart_wifi_ref)"
         echo "install_dir=${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
-        echo "mode=${MDS_SMART_WIFI_MANAGER_MODE:-observe}"
+        mode="$(normalize_smart_wifi_mode "${MDS_SMART_WIFI_MANAGER_MODE:-fleet-merge}" || echo "unknown")"
+        echo "mode=${mode}"
         echo "import_mode=${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}"
         echo "profile_path=${profile_path}"
         echo "profile_hash=${profile_hash:-unknown}"

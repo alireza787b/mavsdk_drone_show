@@ -18,6 +18,7 @@ import {
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { getDroneDisplayIdentity } from '../utilities/dronePresentation';
+import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
 import { getFleetTelemetryResponse, unwrapFleetTelemetryPayload } from '../services/gcsApiService';
 
 const POLLING_RATE_HZ = 2;
@@ -125,6 +126,11 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const readiness = getDroneReadinessModel(detailedDrone, runtimeStatus);
   const connectionStatus = getConnectionStatus(runtimeStatus);
   const displayIdentity = getDroneDisplayIdentity(detailedDrone);
+  const altitudeReading = resolveMslAltitude(detailedDrone);
+  const altitudeText = altitudeReading.value !== null
+    ? `${formatAltitudeMeters(altitudeReading.value, altitudeReading.label)}${altitudeReading.stale ? ' stale' : ''}`
+    : 'Altitude unavailable';
+  const altitudeSources = altitudeReading.report?.sources || {};
 
   // Calculate uptime
   const firstSeen = detailedDrone[FIELD_NAMES.HEARTBEAT_FIRST_SEEN] || 0;
@@ -238,7 +244,7 @@ const DroneDetail = ({ drone, isAccordionView }) => {
         <div className="detail-grid">
           <div className="detail-item">
             <label>Altitude</label>
-            <span>{(detailedDrone[FIELD_NAMES.POSITION_ALT] || 0).toFixed(1)} m</span>
+            <span title={`Source: ${altitudeReading.source}`}>{altitudeText}</span>
           </div>
           <div className="detail-item">
             <label>Ground Speed</label>
@@ -302,6 +308,16 @@ const DroneDetail = ({ drone, isAccordionView }) => {
       <div className="detail-section">
         <h3><FaSatellite /> GPS & Navigation</h3>
         <div className="detail-grid">
+          {Object.entries(altitudeSources).map(([source, item]) => (
+            <div className="detail-item" key={source}>
+              <label>{source.replaceAll('_', ' ')}</label>
+              <span>
+                {item?.valid && Number.isFinite(Number(item.value_m))
+                  ? `${Number(item.value_m).toFixed(1)} m${item.stale ? ' stale' : ''}`
+                  : 'unavailable'}
+              </span>
+            </div>
+          ))}
           <div className="detail-item">
             <label>GPS Fix Type</label>
             <span className={gpsStatus.class}>{gpsStatus.label}</span>
@@ -384,18 +400,26 @@ const DroneDetail = ({ drone, isAccordionView }) => {
   const renderMapTab = () => (
     <div className="detail-content">
       <div className="map-display">
-        <LeafletMapBase
-          center={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
-          zoom={13}
-          defaultLayer="esriSatellite"
-          showLayerControl={false}
-          style={{ height: '100%', width: '100%' }}
-        >
-          <Marker
-            position={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
-            icon={droneIcon}
-          />
-        </LeafletMapBase>
+        {detailedDrone[FIELD_NAMES.GLOBAL_POSITION_VALID] !== false
+          && Number.isFinite(Number(detailedDrone[FIELD_NAMES.POSITION_LAT]))
+          && Number.isFinite(Number(detailedDrone[FIELD_NAMES.POSITION_LONG]))
+          && (Math.abs(Number(detailedDrone[FIELD_NAMES.POSITION_LAT])) > 0.000001
+            || Math.abs(Number(detailedDrone[FIELD_NAMES.POSITION_LONG])) > 0.000001) ? (
+            <LeafletMapBase
+              center={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
+              zoom={13}
+              defaultLayer="esriSatellite"
+              showLayerControl={false}
+              style={{ height: '100%', width: '100%' }}
+            >
+              <Marker
+                position={[detailedDrone[FIELD_NAMES.POSITION_LAT], detailedDrone[FIELD_NAMES.POSITION_LONG]]}
+                icon={droneIcon}
+              />
+            </LeafletMapBase>
+          ) : (
+            <div className="map-display__empty">Map position unavailable</div>
+          )}
       </div>
     </div>
   );

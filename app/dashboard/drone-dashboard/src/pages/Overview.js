@@ -130,7 +130,6 @@ const Overview = ({ setSelectedDrone }) => {
           (drone) =>
             drone.position_lat !== undefined &&
             drone.position_long !== undefined &&
-            drone.position_alt !== undefined &&
             drone.battery_voltage !== undefined
         );
 

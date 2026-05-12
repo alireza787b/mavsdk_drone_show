@@ -303,7 +303,7 @@ sudo ./tools/mds_node_init.sh -d 1 --dry-run
 If the node is provisioned but the GCS was unavailable during bootstrap:
 
 ```bash
-sudo ./tools/mds_node_announce.sh --gcs-api-url http://100.96.32.75:5030
+sudo ./tools/mds_node_announce.sh --gcs-api-url http://192.0.2.75:5030
 ```
 
 ## Post-Installation
@@ -359,15 +359,15 @@ Current best practice:
 Managed examples:
 
 ```bash
-sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 100.96.32.75 -y
+sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y
 ```
 
 ```bash
 sudo ./tools/mds_node_init.sh \
   -d 1 \
   --mavlink-uart /dev/ttyS0 \
-  --mavlink-ref v3.0.8 \
-  --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,100.96.32.75:24550" \
+  --mavlink-ref v3.0.9 \
+  --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,192.0.2.75:24550" \
   -y
 ```
 

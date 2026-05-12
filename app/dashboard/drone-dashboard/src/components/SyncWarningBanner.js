@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FaExclamationTriangle, FaSyncAlt, FaTimes } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
+import { FaExclamationTriangle, FaExternalLinkAlt, FaTimes } from 'react-icons/fa';
 import '../styles/SyncWarningBanner.css';
-import { useSyncDrones } from '../hooks/useSyncDrones';
 import { getUnifiedGitStatusResponse } from '../services/gcsApiService';
 
 /**
@@ -15,8 +15,6 @@ const SyncWarningBanner = () => {
   const [syncData, setSyncData] = useState(null);
   const [dismissed, setDismissed] = useState(false);
   const lastNeedsSyncCountRef = useRef(0);
-  const syncTimeoutRef = useRef(null);
-  const { syncing, syncDrones } = useSyncDrones();
 
   const fetchGitStatus = useCallback(async () => {
     try {
@@ -40,17 +38,8 @@ const SyncWarningBanner = () => {
     const interval = setInterval(fetchGitStatus, 10000);
     return () => {
       clearInterval(interval);
-      if (syncTimeoutRef.current) {
-        clearTimeout(syncTimeoutRef.current);
-      }
     };
   }, [fetchGitStatus]);
-
-  const handleSync = async () => {
-    await syncDrones();
-    // The backend now waits for verification, so a quick refresh is enough.
-    syncTimeoutRef.current = setTimeout(fetchGitStatus, 500);
-  };
 
   // Don't show if no data, dismissed, or no sync needed
   if (!syncData || dismissed || !syncData.needs_sync_count || syncData.needs_sync_count === 0) {
@@ -64,14 +53,10 @@ const SyncWarningBanner = () => {
         <span className="sync-warning-text">
           {syncData.needs_sync_count} of {syncData.total_drones} drone{syncData.total_drones !== 1 ? 's' : ''} out of sync with GCS
         </span>
-        <button
-          className="sync-warning-action"
-          onClick={handleSync}
-          disabled={syncing || syncData.sync_in_progress}
-        >
-          <FaSyncAlt aria-hidden="true" />
-          <span>{syncing || syncData.sync_in_progress ? 'Syncing' : 'Sync'}</span>
-        </button>
+        <Link className="sync-warning-action" to="/fleet-ops">
+          <FaExternalLinkAlt aria-hidden="true" />
+          <span>Review in Fleet Ops</span>
+        </Link>
         <button
           className="sync-warning-dismiss"
           onClick={() => setDismissed(true)}

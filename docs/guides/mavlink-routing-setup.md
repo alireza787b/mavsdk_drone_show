@@ -106,11 +106,16 @@ should come from:
 - fleet defaults in `deployment/defaults.env`
 - optional node override in `/etc/mds/local.env`
 
-Current managed defaults include:
+Current sidecar policy defaults include:
 
-- `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=managed`
-- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.8`
+- `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=local`
+- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.9`
 - `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/mavlink-anywhere`
+
+Use Fleet Ops MAVLink to inspect profile drift and to dry-run/apply endpoint
+policy baselines. The default `local` mode keeps node-local MAVLink Anywhere
+dashboard/CLI settings authoritative until a fleet endpoint baseline is
+explicitly configured.
 
 #### Prerequisites
 
@@ -134,7 +139,7 @@ sudo raspi-config
 cd ~
 git clone https://github.com/alireza787b/mavlink-anywhere.git
 cd mavlink-anywhere
-git checkout v3.0.8
+git checkout v3.0.9
 chmod +x install_mavlink_router.sh
 sudo ./install_mavlink_router.sh
 ```
@@ -279,7 +284,7 @@ sudo ./configure_mavlink_router.sh --install-dashboard \
   --dashboard-listen 0.0.0.0:9070
 ```
 
-If the node is using managed MDS ownership for `mavlink-anywhere`, keep the
+If the node is using Fleet Ops ownership for `mavlink-anywhere`, keep the
 runtime checkout/ref inside MDS defaults and use the reconcile helper after a
 local override change:
 
@@ -287,6 +292,10 @@ local override change:
 sudo ./tools/reconcile_mavlink_runtime.sh status
 sudo ./tools/reconcile_mavlink_runtime.sh apply --force
 ```
+
+Fleet Ops MAVLink profile reconcile preserves hardware source settings by
+default: serial device, baud, UDP input source, PX4 port, and board-specific
+router constraints are node overlays, not fleet endpoint policy.
 
 ## Troubleshooting
 

@@ -12,6 +12,30 @@ from urllib.parse import urlparse
 
 from src.settings.deployment_profile import load_deployment_profile
 
+SIDECAR_PROFILE_SCHEMA = "mds.sidecar_profile.v1"
+SIDECAR_PROFILE_MODES = ("observe", "local", "fleet-merge", "fleet-strict")
+SIDECAR_DRIFT_STATES = (
+    "in_sync",
+    "local_extra",
+    "missing_fleet_baseline",
+    "outdated",
+    "unmanaged",
+    "unreachable",
+)
+
+
+def normalize_sidecar_mode(value: Optional[str], *, default: str = "local", sidecar: str = "") -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "manage": "fleet-merge",
+        "managed": "fleet-merge",
+        "manual": "local",
+        "none": "observe",
+        "disabled": "observe",
+    }
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in SIDECAR_PROFILE_MODES else default
+
 
 def normalize_github_repo_web_url(repo_url: Optional[str], ref: Optional[str]) -> Optional[str]:
     normalized = str(repo_url or "").strip()
@@ -118,7 +142,7 @@ def sidecar_drift_state(
     normalized_mode = str(mode or "").strip().lower()
     if source in {"timeout", "invoke_error", "script_error"}:
         return "unreachable"
-    if not installed or normalized_mode in {"", "unknown", "disabled", "observe", "manual"}:
+    if not installed or normalized_mode in {"", "unknown", "disabled", "observe", "manual", "local"}:
         return "unmanaged"
     if missing_baseline:
         return "missing_fleet_baseline"
@@ -153,7 +177,11 @@ def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
     desired_hash = status.get("desired_config_hash") or None
     applied_hash = status.get("applied_config_hash") or None
     hash_match = optional_bool(status.get("config_hash_match"))
-    management_mode = status.get("mode") or deployment_profile.mavlink_management_mode
+    management_mode = normalize_sidecar_mode(
+        status.get("mode") or deployment_profile.mavlink_management_mode,
+        default="local",
+        sidecar="mavlink-anywhere",
+    )
     service_state = status.get("router_service", "unknown")
     drift_state = sidecar_drift_state(
         status_source=status.get("status_source", "fallback"),
@@ -225,7 +253,11 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
     applied_hash = status.get("applied_config_hash") or None
     local_hash = status.get("profile_hash") or file_sha256(profile_path)
     hash_match = optional_bool(status.get("config_hash_match"))
-    mode = status.get("mode") or deployment_profile.smart_wifi_manager_mode
+    mode = normalize_sidecar_mode(
+        status.get("mode") or deployment_profile.smart_wifi_manager_mode,
+        default="fleet-merge",
+        sidecar="smart-wifi-manager",
+    )
     service_state = status.get("service_status", "unknown")
     drift_state = sidecar_drift_state(
         status_source=status.get("status_source", "fallback"),
@@ -237,7 +269,7 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         hash_match=hash_match,
         missing_baseline=(
             str(status.get("backend") or deployment_profile.connectivity_backend) == "smart-wifi-manager"
-            and str(mode).lower() == "manage"
+            and str(mode).lower() in {"fleet-merge", "fleet-strict"}
             and not profile_present
         ),
     )

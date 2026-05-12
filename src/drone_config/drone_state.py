@@ -98,6 +98,9 @@ class DroneState:
         self.global_position_timestamp_ms: int = 0
         self.global_position_valid: bool = False
         self.position_source: str = "unavailable"
+        self.relative_altitude_m: Optional[float] = None
+        self.baro_altitude_m: Optional[float] = None
+        self.baro_timestamp_ms: int = 0
 
         # Battery
         self.battery: float = 0
@@ -139,6 +142,7 @@ class DroneState:
         # LOCAL_POSITION_NED data
         self.local_position_ned: Dict[str, float] = {
             'time_boot_ms': 0,
+            'timestamp_ms': 0,
             'x': 0.0,
             'y': 0.0,
             'z': 0.0,

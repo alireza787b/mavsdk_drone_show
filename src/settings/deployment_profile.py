@@ -75,6 +75,21 @@ def _parse_int(data: dict[str, str], key: str, default: int, path: Path) -> int:
         return default
 
 
+def _normalize_sidecar_profile_mode(value: str, *, default: str) -> str:
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "manage": "fleet-merge",
+        "managed": "fleet-merge",
+        "manual": "local",
+        "disabled": "observe",
+        "none": "observe",
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized in {"observe", "local", "fleet-merge", "fleet-strict"}:
+        return normalized
+    return default
+
+
 def _build_profile(path: Path) -> DeploymentProfile:
     data: dict[str, str] = {}
     source = "default"
@@ -89,7 +104,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
     repo_url_https = data.get("MDS_DEFAULT_REPO_URL_HTTPS", f"https://github.com/{repo_slug}.git")
     repo_url_ssh = data.get("MDS_DEFAULT_REPO_URL_SSH", f"git@github.com:{repo_slug}.git")
     branch = data.get("MDS_DEFAULT_BRANCH", "main")
-    real_gcs_ip = data.get("MDS_DEFAULT_REAL_GCS_IP", "100.96.32.75")
+    real_gcs_ip = data.get("MDS_DEFAULT_REAL_GCS_IP", "192.0.2.75")
     sitl_gcs_ip = data.get("MDS_DEFAULT_SITL_GCS_IP", "172.18.0.1")
 
     gcs_api_port = _parse_int(data, "MDS_DEFAULT_GCS_API_PORT", 5030, path)
@@ -102,8 +117,11 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS",
         "https://github.com/alireza787b/smart-wifi-manager.git",
     )
-    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.9")
-    smart_wifi_manager_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "observe")
+    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.10")
+    smart_wifi_manager_mode = _normalize_sidecar_profile_mode(
+        data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "fleet-merge"),
+        default="fleet-merge",
+    )
     smart_wifi_manager_import_mode = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_IMPORT_MODE", "merge")
     smart_wifi_manager_install_dir = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_INSTALL_DIR", "/opt/smart-wifi-manager")
     smart_wifi_manager_dashboard_listen = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_DASHBOARD_LISTEN", "127.0.0.1:9080")
@@ -111,12 +129,15 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH",
         "deployment/connectivity/smart-wifi-manager/profile.json",
     )
-    mavlink_management_mode = data.get("MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE", "managed")
+    mavlink_management_mode = _normalize_sidecar_profile_mode(
+        data.get("MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE", "local"),
+        default="local",
+    )
     mavlink_anywhere_repo_url_https = data.get(
         "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS",
         "https://github.com/alireza787b/mavlink-anywhere.git",
     )
-    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.8")
+    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.9")
     mavlink_anywhere_install_dir = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR", "/opt/mavlink-anywhere")
     mavlink_anywhere_dashboard_listen = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN", "127.0.0.1:9070")
     mavlink_anywhere_skip_dashboard = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD", "false").strip().lower() in {

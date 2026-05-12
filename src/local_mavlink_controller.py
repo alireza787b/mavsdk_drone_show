@@ -152,6 +152,8 @@ class LocalMavlinkController:
             self.process_gps_raw_int(msg)
         elif msg_type == 'LOCAL_POSITION_NED':
             self.process_local_position_ned(msg)
+        elif msg_type == 'SCALED_PRESSURE':
+            self.process_scaled_pressure(msg)
         elif msg_type == 'GPS_GLOBAL_ORIGIN':
             self.process_gps_global_origin(msg)
         elif msg_type == 'SYS_STATUS':
@@ -848,6 +850,9 @@ class LocalMavlinkController:
                 'long': lon_deg,
                 'alt': alt_m
             }
+            relative_alt_mm = getattr(msg, 'relative_alt', None)
+            if relative_alt_mm is not None and relative_alt_mm not in (2147483647, -2147483648):
+                self.drone_config.relative_altitude_m = relative_alt_mm / 1E3
             self.drone_config.velocity = {
                 'north': msg.vx / 1E2,
                 'east': msg.vy / 1E2,
@@ -878,6 +883,28 @@ class LocalMavlinkController:
             self.log_debug(f"Updated battery voltage to: {self.drone_config.battery}V")
         else:
             logging.error('Received BATTERY_STATUS message with invalid data')
+
+    def process_scaled_pressure(self, msg):
+        """
+        Process SCALED_PRESSURE and keep a barometric altitude estimate.
+
+        MAVLink ``press_abs`` is absolute pressure in hPa. The standard
+        barometric formula gives a rough altitude above mean sea level; the UI
+        labels it BARO so operators do not confuse it with home-relative AGL.
+        """
+        press_abs = getattr(msg, 'press_abs', None)
+        try:
+            pressure_hpa = float(press_abs)
+        except (TypeError, ValueError):
+            logging.error('Received SCALED_PRESSURE with invalid press_abs')
+            return
+        if pressure_hpa <= 0:
+            logging.error('Received SCALED_PRESSURE with non-positive press_abs')
+            return
+
+        self.drone_config.baro_altitude_m = 44330.0 * (1.0 - (pressure_hpa / 1013.25) ** 0.1903)
+        self.drone_config.baro_timestamp_ms = self._now_ms()
+        self._mark_telemetry_update(self.drone_config.baro_timestamp_ms)
             
     def process_local_position_ned(self, msg):
         """
@@ -891,8 +918,10 @@ class LocalMavlinkController:
             return
 
         # Update all fields in one atomic operation
+        now_ms = self._now_ms()
         self.drone_config.local_position_ned.update({
             'time_boot_ms': msg.time_boot_ms,
+            'timestamp_ms': now_ms,
             'x': msg.x,
             'y': msg.y,
             'z': msg.z,
@@ -900,7 +929,7 @@ class LocalMavlinkController:
             'vy': msg.vy,
             'vz': msg.vz
         })
-        self._mark_telemetry_update()
+        self._mark_telemetry_update(now_ms)
         
         self.log_debug(f"NED Update: X:{msg.x:.2f}m Y:{msg.y:.2f}m Z:{msg.z:.2f}m | "
                     f"VX:{msg.vx:.2f}m/s VY:{msg.vy:.2f}m/s VZ:{msg.vz:.2f}m/s")

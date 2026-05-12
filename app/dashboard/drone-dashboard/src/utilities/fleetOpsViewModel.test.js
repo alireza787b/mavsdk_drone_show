@@ -27,8 +27,8 @@ describe('fleetOpsViewModel', () => {
           git_auth_health_status: 'healthy',
           git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
           mavlink_runtime: {
-            management_mode: 'managed',
-            ref: 'v3.0.8',
+            management_mode: 'fleet-merge',
+            ref: 'v3.0.9',
             router_service_status: 'active',
             dashboard_service_status: 'active',
             dashboard_access_mode: 'local_only',
@@ -95,16 +95,16 @@ describe('fleetOpsViewModel', () => {
     });
   });
 
-  test('marks managed mavlink-anywhere as not applicable for SITL nodes', () => {
+  test('marks mavlink-anywhere as not applicable for SITL nodes', () => {
     expect(classifyMavlinkRuntime({ router_service_status: 'active' }, 'sitl')).toMatchObject({
       state: 'not_applicable',
       tone: 'muted',
     });
   });
 
-  test('marks managed sidecar hash drift as operator attention', () => {
+  test('marks fleet-managed sidecar hash drift as operator attention', () => {
     expect(classifyMavlinkRuntime({
-      management_mode: 'managed',
+      management_mode: 'fleet-merge',
       router_service_status: 'active',
       dashboard_enabled: false,
       desired_config_hash: 'ffffffffffffffff',

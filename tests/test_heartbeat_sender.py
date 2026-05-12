@@ -146,11 +146,11 @@ class TestHeartbeatSending:
             mock_params.GCS_IP = '192.168.1.1'
             mock_params.gcs_api_port = 5030
             mock_params.gcs_heartbeat_endpoint = '/api/v1/fleet/heartbeats'
-            mock_params.netbird_ip_prefix = '100.'
+            mock_params.netbird_ip_prefix = '192.0.2.'
 
             sender = HeartbeatSender(mock_config)
 
-            with patch.object(sender, '_get_netbird_ip', return_value='100.64.0.1'):
+            with patch.object(sender, '_get_netbird_ip', return_value='192.0.2.1'):
                 with patch.object(sender, '_get_network_info', return_value={'wifi': None, 'ethernet': None}):
                     with patch('requests.post') as mock_post:
                         mock_response = Mock()
@@ -164,7 +164,7 @@ class TestHeartbeatSending:
                         assert call_args[0][0] == 'http://192.168.1.1:5030/api/v1/fleet/heartbeats'
                         assert call_args[1]['json']['hw_id'] == '1'
                         assert call_args[1]['json']['pos_id'] == 1
-                        assert call_args[1]['json']['ip'] == '100.64.0.1'
+                        assert call_args[1]['json']['ip'] == '192.0.2.1'
 
     def test_send_heartbeat_failure(self):
         """Test heartbeat POST request failure"""
@@ -179,7 +179,7 @@ class TestHeartbeatSending:
             mock_params.GCS_IP = '192.168.1.1'
             mock_params.gcs_api_port = 5030
             mock_params.gcs_heartbeat_endpoint = '/api/v1/fleet/heartbeats'
-            mock_params.netbird_ip_prefix = '100.'
+            mock_params.netbird_ip_prefix = '192.0.2.'
 
             sender = HeartbeatSender(mock_config)
 
@@ -235,18 +235,18 @@ class TestNetworkInfoGathering:
             mock_params.heartbeat_interval = 10
             mock_params.GCS_IP = '192.168.1.1'
             mock_params.gcs_api_port = 5030
-            mock_params.netbird_ip_prefix = '100.'
+            mock_params.netbird_ip_prefix = '192.0.2.'
 
             sender = HeartbeatSender(mock_config)
 
             with patch('netifaces.interfaces', return_value=['eth0', 'wt0']):
                 with patch('netifaces.ifaddresses') as mock_ifaddr:
                     mock_ifaddr.return_value = {
-                        2: [{'addr': '100.64.0.5', 'netmask': '255.255.255.0'}]
+                        2: [{'addr': '192.0.2.5', 'netmask': '255.255.255.0'}]
                     }
                     with patch('netifaces.AF_INET', 2):
                         result = sender._get_netbird_ip()
-                        assert result == '100.64.0.5'
+                        assert result == '192.0.2.5'
 
     def test_get_netbird_ip_not_found(self):
         """Test when no netbird IP is found"""

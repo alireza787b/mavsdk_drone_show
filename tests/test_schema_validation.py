@@ -359,6 +359,41 @@ class TestGPSFixValidation:
 
         assert telemetry.gps_fix_type == 3
 
+    def test_drone_telemetry_preserves_source_aware_altitude_fields(self):
+        """Telemetry schema keeps altitude policy fields for GCS clients."""
+        from gcs_server_schemas import DroneTelemetry
+
+        payload = self._telemetry_payload(3)
+        payload.update(
+            {
+                "altitude_report": {
+                    "display_m": 12.3,
+                    "source": "relative_home",
+                    "label": "REL",
+                    "sources": {
+                        "relative_home": {"valid": True, "value_m": 12.3, "fresh": True},
+                        "absolute_msl": {"valid": False, "value_m": None, "fresh": False},
+                        "local_ned": {"valid": True, "value_m": 11.9, "fresh": True},
+                        "baro": {"valid": True, "value_m": 10.8, "fresh": True},
+                    },
+                },
+                "altitude_display_m": 12.3,
+                "altitude_source": "relative_home",
+                "relative_altitude_m": 12.3,
+                "baro_altitude_m": 10.8,
+                "local_position_timestamp_ms": 1732270245123,
+            }
+        )
+
+        telemetry = DroneTelemetry(**payload)
+
+        assert telemetry.altitude_source == "relative_home"
+        assert telemetry.altitude_display_m == 12.3
+        assert telemetry.altitude_report["sources"]["local_ned"]["value_m"] == 11.9
+        assert telemetry.relative_altitude_m == 12.3
+        assert telemetry.baro_altitude_m == 10.8
+        assert telemetry.local_position_timestamp_ms == 1732270245123
+
     def test_invalid_gps_fix_high(self):
         """Test rejection of GPS fix > 6"""
         from gcs_server_schemas import DroneTelemetry

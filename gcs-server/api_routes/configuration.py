@@ -239,41 +239,21 @@ def create_configuration_router(deps: Any) -> APIRouter:
         tags=["Configuration"],
     )
     async def update_connectivity_profile(request: ConnectivityProfileUpdateRequest):
-        """Replace the repo-owned Smart Wi-Fi fleet profile without exposing secrets in the response."""
-        try:
-            path, _, dashboard_managed = _connectivity_profile_target(deps)
-            if not dashboard_managed:
-                raise HTTPException(
-                    status_code=409,
-                    detail="Smart Wi-Fi profile path is outside the repository and cannot be managed from the dashboard.",
-                )
+        """Deprecated direct profile write route.
 
-            _validate_connectivity_profile(request.profile)
-            _write_connectivity_profile(path, request.profile)
-
-            should_commit = request.commit if request.commit is not None else deps.Params.GIT_AUTO_PUSH
-            git_result = None
-            if should_commit:
-                loop = asyncio.get_running_loop()
-                git_result = await loop.run_in_executor(
-                    None,
-                    deps.git_operations,
-                    deps.BASE_DIR,
-                    "connectivity: update Smart Wi-Fi fleet profile via dashboard",
-                )
-
-            status = _read_connectivity_profile_status(
-                deps,
-                "Smart Wi-Fi fleet profile saved. Run Sync + reconcile to apply it to selected or eligible drones.",
-            )
-            status.updated_count = 1
-            status.git_result = git_result
-            return status
-        except HTTPException:
-            raise
-        except Exception as exc:
-            deps.log_system_error(f"Error saving Smart Wi-Fi fleet profile: {exc}", "config")
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        Profile mutations now belong to Fleet Ops sidecar dry-run/apply routes.
+        Keeping this route as a hard failure prevents old clients from silently
+        bypassing confirmation.
+        """
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                "Direct Smart Wi-Fi profile import is disabled. Commit the approved "
+                "fleet baseline under config/fleet-profiles/smart-wifi-manager/config.json "
+                "and use /api/v1/fleet/sidecars/smart-wifi-manager/reconcile/dry-run "
+                "followed by /api/v1/fleet/sidecars/smart-wifi-manager/reconcile/apply."
+            ),
+        )
 
     @router.get("/api/v1/config/fleet/trajectory-start-positions", tags=["Configuration"])
     async def get_drone_positions():

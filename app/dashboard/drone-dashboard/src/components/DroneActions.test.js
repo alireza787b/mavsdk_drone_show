@@ -70,10 +70,10 @@ describe('DroneActions', () => {
       }),
     }));
 
-    fireEvent.click(screen.getByRole('button', { name: /update code/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reboot companion computer/i }));
 
     expect(onSendCommand).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      missionType: String(DRONE_ACTION_TYPES.UPDATE_CODE),
+      missionType: String(DRONE_ACTION_TYPES.REBOOT_SYS),
       triggerTime: '0',
       uiMeta: expect.objectContaining({
         triggerSummary: 'Immediate on acceptance',

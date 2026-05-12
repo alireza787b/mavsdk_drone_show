@@ -95,6 +95,22 @@ http://drone-ip:7070/openapi.json
   "position_lat": 47.397742,
   "position_long": 8.545594,
   "position_alt": 488.5,
+  "altitude_display_m": 18.4,
+  "altitude_source": "relative_home",
+  "relative_altitude_m": 18.4,
+  "baro_altitude_m": 17.9,
+  "altitude_report": {
+    "display_m": 18.4,
+    "source": "relative_home",
+    "label": "REL",
+    "stale": false,
+    "sources": {
+      "relative_home": {"valid": true, "value_m": 18.4, "fresh": true, "label": "REL"},
+      "absolute_msl": {"valid": true, "value_m": 488.5, "fresh": true, "label": "MSL"},
+      "local_ned": {"valid": true, "value_m": 18.2, "fresh": true, "label": "LCL"},
+      "baro": {"valid": true, "value_m": 17.9, "fresh": true, "label": "BARO"}
+    }
+  },
   "global_position_valid": true,
   "global_position_timestamp_ms": 1732270245000,
   "global_position_age_ms": 100,
@@ -305,7 +321,7 @@ Notes:
   "commits_ahead": 0,
   "commits_behind": 0,
   "mavlink_runtime": {
-    "management_mode": "managed",
+    "management_mode": "local",
     "ref": "v3.0.8",
     "router_service_status": "active",
     "desired_config_hash": "9c4d...",

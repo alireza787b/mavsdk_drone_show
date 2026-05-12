@@ -11,6 +11,7 @@ from command_submission import (
     estimate_max_target_relative_altitude_m as _estimate_max_target_relative_altitude_m,
     submit_tracked_command,
 )
+from enums import Mission
 from schemas import (
     CommandListResponse,
     CommandOutcome,
@@ -83,6 +84,11 @@ def create_command_router(deps: Any) -> APIRouter:
         Returns a command_id that can be used to track the command's progress via
         GET /api/v1/commands/{command_id} endpoint.
         """
+        if int(command.mission_type) == int(Mission.UPDATE_CODE.value):
+            raise HTTPException(
+                status_code=400,
+                detail="UPDATE_CODE is restricted to Fleet Ops Git Sync dry-run and explicit apply.",
+            )
         try:
             return await submit_tracked_command(deps, command)
         except CommandIdempotencyConflictError as exc:

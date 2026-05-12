@@ -15,7 +15,7 @@ This document explains the **single source of truth** architecture for drone pos
 ```
 config.csv (legacy):
 hw_id, pos_id, x, y, ip, ...
-1,     1,      -5.0, 2.5, 100.96.240.11, ...
+1,     1,      -5.0, 2.5, 192.0.2.11, ...
 
 Problem: Two sources of truth caused:
 - Synchronization bugs (x,y becoming empty or wrong)
@@ -30,7 +30,7 @@ config.json:
 {
   "version": 1,
   "drones": [
-    {"hw_id": 1, "pos_id": 1, "ip": "100.96.240.11", "mavlink_port": 14551,
+    {"hw_id": 1, "pos_id": 1, "ip": "192.0.2.11", "mavlink_port": 14551,
      "serial_port": "/dev/ttyS0", "baudrate": 57600}
   ]
 }
@@ -112,7 +112,7 @@ Returns drone configuration (NO x,y fields).
   {
     "hw_id": 1,
     "pos_id": 1,
-    "ip": "100.96.240.11",
+    "ip": "192.0.2.11",
     "mavlink_port": 14551,
     "serial_port": "/dev/ttyS0",
     "baudrate": 57600
@@ -143,7 +143,7 @@ Saves configuration (x,y automatically stripped if present).
   {
     "hw_id": 1,
     "pos_id": 1,
-    "ip": "100.96.240.11",
+    "ip": "192.0.2.11",
     "mavlink_port": 14551,
     "serial_port": "/dev/ttyS0",
     "baudrate": 57600

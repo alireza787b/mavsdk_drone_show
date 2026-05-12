@@ -24,9 +24,18 @@ def build_drone_config(follow_value=1):
         last_update_timestamp=1234567890,
         telemetry_timestamp_ms=1234567890123,
         telemetry_sequence=12,
+        global_position_valid=True,
+        global_position_timestamp_ms=1234567890123,
+        gps_raw_timestamp_ms=1234567890123,
+        gps_raw_altitude_m=1286.0,
+        relative_altitude_m=8.4,
+        baro_altitude_m=7.9,
+        baro_timestamp_ms=1234567890123,
+        position_source="global_position_int",
         yaw_rate_deg_s=4.5,
         local_position_ned={
             "time_boot_ms": 4567,
+            "timestamp_ms": 1234567890123,
             "x": 1.2,
             "y": -0.5,
             "z": -3.4,
@@ -64,6 +73,8 @@ def test_get_drone_state_prefers_live_swarm_assignment():
 
     assert state["follow_mode"] == 0
     assert state["distance_to_home_m"] == 0
+    assert state["altitude_report"]["source"] == "relative_home"
+    assert state["altitude_display_m"] == 8.4
     assert communicator._get_live_swarm_assignment()["follow"] == 0
 
 
@@ -106,4 +117,5 @@ def test_get_swarm_state_exposes_realtime_fields():
     assert state["telemetry_timestamp_ms"] == 1234567890123
     assert state["source_frame"] == "local_ned"
     assert state["local_position_north"] == 1.2
+    assert state["altitude_source"] == "relative_home"
     assert state["yaw_rate_deg_s"] == 4.5

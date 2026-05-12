@@ -12,7 +12,6 @@ import {
   FaBatteryFull,
   FaSyncAlt,
   FaPowerOff,
-  FaCodeBranch,
   FaHome,
   FaRocket,
   FaSkull,
@@ -50,8 +49,8 @@ const ACTION_SECTIONS = [
   {
     key: 'maintenance',
     title: 'Service',
-    description: 'Repo, identity, restart.',
-    actions: ['UPDATE_CODE', 'INIT_SYSID', 'REBOOT_FC', 'REBOOT_SYS'],
+    description: 'Identity and restart.',
+    actions: ['INIT_SYSID', 'REBOOT_FC', 'REBOOT_SYS'],
   },
   {
     key: 'danger',
@@ -74,7 +73,6 @@ const ACTION_SHORT_LABELS = {
   PRECISION_MOVE: 'Precision Move',
   REBOOT_FC: 'Reboot PX4',
   REBOOT_SYS: 'Reboot System',
-  UPDATE_CODE: 'Update Repo',
   INIT_SYSID: 'Init SysID',
   APPLY_COMMON_PARAMS: 'Apply Params',
 };
@@ -92,7 +90,6 @@ const ACTION_ICONS = {
   PRECISION_MOVE: FaCrosshairs,
   REBOOT_FC: FaPowerOff,
   REBOOT_SYS: FaSyncAlt,
-  UPDATE_CODE: FaCodeBranch,
   INIT_SYSID: FaToolbox,
   APPLY_COMMON_PARAMS: FaWrench,
 };
@@ -110,7 +107,6 @@ const ACTION_DESCRIPTIONS = {
   PRECISION_MOVE: 'Move a local offset from the current state, then hold.',
   REBOOT_FC: 'Restart PX4 and flight-control services.',
   REBOOT_SYS: 'Restart the companion computer or container.',
-  UPDATE_CODE: 'Pull the repo and refresh services.',
   INIT_SYSID: 'Reapply system identity.',
   APPLY_COMMON_PARAMS: 'Apply the common PX4 params.',
 };

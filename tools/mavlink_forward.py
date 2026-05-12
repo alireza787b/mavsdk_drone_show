@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # Replace these variables with the actual IPs and ports you want to use
     SRC_IP = "0.0.0.0"
     SRC_PORT = 14550
-    DEST_IP = "100.100.184.90"
+    DEST_IP = "192.0.2.90"
     DEST_PORT = 14550
 
     forward_mavlink(SRC_IP, SRC_PORT, DEST_IP, DEST_PORT)

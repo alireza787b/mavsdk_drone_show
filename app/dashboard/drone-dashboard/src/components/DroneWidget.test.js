@@ -137,7 +137,7 @@ describe('DroneWidget command scope state', () => {
     expect(screen.getByText(/map pending/i)).toBeInTheDocument();
   });
 
-  test('shows raw GPS MSL altitude while map position is still pending', () => {
+  test('shows source-aware MSL altitude while map position is still pending', () => {
     renderWidget({
       drone: {
         ...baseDrone,
@@ -152,10 +152,10 @@ describe('DroneWidget command scope state', () => {
       },
     });
 
-    expect(screen.getByText('1280 m GPS MSL')).toBeInTheDocument();
-    expect(screen.getByText('1280 m GPS MSL')).toHaveAttribute(
+    expect(screen.getByText('1280 m MSL')).toBeInTheDocument();
+    expect(screen.getByText('1280 m MSL')).toHaveAttribute(
       'data-help',
-      expect.stringContaining('Raw GPS altitude above MSL'),
+      expect.stringContaining('mean sea level'),
     );
   });
 
@@ -176,8 +176,8 @@ describe('DroneWidget command scope state', () => {
       },
     });
 
-    expect(screen.getByText('3.2 m Local')).toBeInTheDocument();
-    expect(screen.getByText('3.2 m Local')).toHaveAttribute(
+    expect(screen.getByText('3.2 m LCL')).toBeInTheDocument();
+    expect(screen.getByText('3.2 m LCL')).toHaveAttribute(
       'data-help',
       expect.stringContaining('LOCAL_POSITION_NED'),
     );

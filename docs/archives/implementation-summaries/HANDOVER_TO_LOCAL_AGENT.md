@@ -1,7 +1,7 @@
 # HANDOVER: FastAPI GCS Server React UI Integration Issues
 
 **Date:** 2025-11-24
-**From:** Remote AI Agent (via Netbird at 100.96.55.26)
+**From:** Remote AI Agent (via Netbird at 192.0.2.26)
 **To:** Local AI Agent (on SITL server)
 **Status:** Partially Complete - Endpoints fixed but need testing & verification
 
@@ -24,7 +24,7 @@ We completed a **Flask to FastAPI migration** cleanup that:
 ## CURRENT SYSTEM STATE
 
 ### ✅ What's Working
-- GCS FastAPI server runs at `http://100.96.55.26:5000` (Netbird interface wt0)
+- GCS FastAPI server runs at `http://192.0.2.26:5000` (Netbird interface wt0)
 - `/telemetry` endpoint works via curl (returns drone data)
 - Telemetry background polling is now functional (bug fixed)
 - CORS is properly configured (allows all origins)
@@ -255,7 +255,7 @@ cat .env
 
 # Should have:
 # REACT_APP_GCS_PORT=5000
-# REACT_APP_SERVER_URL=http://localhost  (or http://100.96.55.26)
+# REACT_APP_SERVER_URL=http://localhost  (or http://192.0.2.26)
 # REACT_APP_DRONE_PORT=7070
 
 # Restart React dev server

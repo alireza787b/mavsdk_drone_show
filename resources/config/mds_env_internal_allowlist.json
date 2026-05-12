@@ -161,6 +161,12 @@
       "reason": "Registry file override for tests and advanced diagnostics."
     },
     {
+      "name": "MDS_FLEET_OPS_MUTATION_TOKEN",
+      "domain": "auth",
+      "scope": "process",
+      "reason": "Optional raw mutation guard token for Fleet Ops apply endpoints; never expose through env registry APIs."
+    },
+    {
       "name": "MDS_GCS_ACCESS_LOGS",
       "domain": "logging",
       "scope": "launcher",
@@ -231,6 +237,12 @@
       "domain": "git",
       "scope": "process",
       "reason": "SSH known-hosts path used by git preflight."
+    },
+    {
+      "name": "MDS_GIT_STALE_LOCK_MAX_AGE_SECONDS",
+      "domain": "git",
+      "scope": "process",
+      "reason": "Git sync recovery tuning for stale lock cleanup; script-local and not an operator env profile field."
     },
     {
       "name": "MDS_GZ_PARTITION",
@@ -459,6 +471,12 @@
       "domain": "system",
       "scope": "process",
       "reason": "Recovery/service runtime user override."
+    },
+    {
+      "name": "MDS_SIDECAR_PROFILE_TOKEN",
+      "domain": "auth",
+      "scope": "process",
+      "reason": "Optional raw token for sidecar profile contract calls; pass through secure runtime channels only."
     },
     {
       "name": "MDS_SKIP_GCS_SYSTEM_CONFIG",
