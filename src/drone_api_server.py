@@ -698,6 +698,23 @@ class DroneAPIServer:
             detail=detail,
         )
 
+    def _build_ulog_capability_payload(self) -> Dict[str, Any]:
+        try:
+            return self._build_ulog_capability().model_dump()
+        except Exception as exc:
+            logger.warning("ULog capability probe failed during health check: %s", exc)
+            return {
+                "available": False,
+                "mavsdk_server_present": False,
+                "mavsdk_server_executable": False,
+                "mavsdk_server_path": os.path.join(BASE_DIR, "mavsdk_server"),
+                "filesystem_fallback_configured": False,
+                "filesystem_fallback_paths": [],
+                "filesystem_fallback_existing_paths": [],
+                "missing_dependency": "ulog_capability_probe_failed",
+                "detail": f"ULog capability probe failed: {exc.__class__.__name__}",
+            }
+
     @staticmethod
     def _is_mavsdk_dependency_error(exc: Exception) -> bool:
         message = str(exc).lower()
@@ -1354,7 +1371,7 @@ class DroneAPIServer:
             return DroneHealthResponse(
                 status="ok",
                 version=MDS_VERSION,
-                ulog_capability=self._build_ulog_capability().model_dump(),
+                ulog_capability=self._build_ulog_capability_payload(),
             )
 
         @self.app.get(DRONE_ENV_ROUTE, response_model=DroneEnvResponse)

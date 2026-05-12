@@ -25,6 +25,18 @@ class TestHealthCheck:
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
+    def test_v1_health_survives_ulog_capability_probe_failure(self, test_client, api_server, monkeypatch):
+        """Health must remain usable when optional ULog capability probing fails."""
+        monkeypatch.setattr(api_server, "_build_ulog_capability", Mock(side_effect=RuntimeError("ulog probe failed")))
+
+        response = test_client.get("/api/v1/system/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["ulog_capability"]["available"] is False
+        assert data["ulog_capability"]["missing_dependency"] == "ulog_capability_probe_failed"
+
 
 class TestNodeEnvironment:
     """Test node-local env inspection and mutation endpoints."""
