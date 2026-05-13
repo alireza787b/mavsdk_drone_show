@@ -195,6 +195,47 @@ def summarize_smart_wifi_profiles(profile_path: Optional[Union[str, Path]]) -> D
     }
 
 
+def _canonical_smart_wifi_profiles(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_profiles = payload.get("profiles") if isinstance(payload.get("profiles"), list) else []
+    profiles: List[Dict[str, Any]] = []
+    for raw_profile in raw_profiles:
+        if not isinstance(raw_profile, dict):
+            continue
+        profiles.append(
+            {
+                "id": str(raw_profile.get("id") or raw_profile.get("ssid") or "").strip(),
+                "ssid": str(raw_profile.get("ssid") or "").strip(),
+                "priority": safe_int(raw_profile.get("priority"), 0),
+                "connection_name": str(raw_profile.get("connection_name") or "").strip(),
+                "autoconnect": as_bool(raw_profile.get("autoconnect"), default=True),
+                "disabled": as_bool(raw_profile.get("disabled"), default=False),
+                "notes": str(raw_profile.get("notes") or "").strip(),
+                "secret_status": secret_status_from_profile(raw_profile),
+            }
+        )
+    profiles.sort(key=lambda item: (str(item.get("id") or "").lower(), str(item.get("ssid") or "").lower()))
+    return profiles
+
+
+def smart_wifi_profile_payload_hash(profile_path: Optional[Union[str, Path]]) -> Optional[str]:
+    payload = read_json_object(profile_path)
+    if not payload:
+        return None
+    canonical = {
+        "version": safe_int(payload.get("version"), 1),
+        "mode": normalize_sidecar_mode(payload.get("mode"), default="fleet-merge", sidecar="smart-wifi-manager"),
+        "interface": str(payload.get("interface") or "").strip(),
+        "scan_interval_sec": safe_int(payload.get("scan_interval_sec"), 0),
+        "signal_switch_threshold": safe_int(payload.get("signal_switch_threshold"), 0),
+        "connect_timeout_sec": safe_int(payload.get("connect_timeout_sec"), 0),
+        "cooldown_sec": safe_int(payload.get("cooldown_sec"), 0),
+        "allow_open_networks": as_bool(payload.get("allow_open_networks"), default=False),
+        "profiles": _canonical_smart_wifi_profiles(payload),
+    }
+    blob = json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:12]
+
+
 def _router_option(section: Dict[str, str], *names: str) -> str:
     for name in names:
         value = section.get(name.lower())
@@ -402,7 +443,8 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
     profile_present = bool(profile_path and Path(profile_path).is_file())
     desired_hash = status.get("desired_config_hash") or None
     applied_hash = status.get("applied_config_hash") or None
-    local_hash = status.get("profile_hash") or file_sha256(profile_path)
+    profile_payload_hash = smart_wifi_profile_payload_hash(profile_path)
+    local_hash = profile_payload_hash or short_hash(status.get("profile_hash") or file_sha256(profile_path))
     hash_match = optional_bool(status.get("config_hash_match"))
     mode = normalize_sidecar_mode(
         status.get("mode") or deployment_profile.smart_wifi_manager_mode,
@@ -417,7 +459,7 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         installed=install_dir_present,
         desired_hash=desired_hash,
         applied_hash=applied_hash,
-        local_hash=local_hash,
+        local_hash=None,
         hash_match=hash_match,
         missing_baseline=(
             str(status.get("backend") or deployment_profile.connectivity_backend) == "smart-wifi-manager"
@@ -443,8 +485,8 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         "profile_present": profile_present,
         "profile_source": "fleet-profile" if profile_present else "missing",
         "profile_hash": local_hash,
-        "desired_hash": desired_hash,
-        "applied_hash": applied_hash,
+        "desired_hash": local_hash if profile_present else None,
+        "applied_hash": local_hash if hash_match is True else None,
         "local_hash": local_hash,
         "drift_state": drift_state,
         "profile_summary": {
@@ -452,8 +494,8 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
             "import_mode": deployment_profile.smart_wifi_manager_import_mode,
             "profile_present": profile_present,
             "profile_hash": short_hash(local_hash),
-            "desired_hash": short_hash(desired_hash),
-            "applied_hash": short_hash(applied_hash),
+            "desired_hash": short_hash(local_hash if profile_present else None),
+            "applied_hash": short_hash(local_hash if hash_match is True else None),
             **wifi_profile_summary,
         },
         "last_apply_result": status.get("last_apply_result") or status.get("error") or drift_state,

@@ -1865,6 +1865,9 @@ EOF
         cat > "$fakebin/git" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+if [[ "$*" == *"describe --tags --exact-match HEAD"* ]]; then
+    printf 'v9.9.9\n'
+fi
 exit 0
 EOF
         chmod +x "$fakebin/git"
@@ -1874,7 +1877,69 @@ exit 1
 EOF
         chmod +x "$fakebin/systemctl"
         TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
-        grep -q -- "-c safe.directory=$install_dir -C $install_dir fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
+        grep -q -- "-c safe.directory=$install_dir -C $install_dir describe --tags --exact-match HEAD" "$tmpdir/git_args.txt"
+        ! grep -q -- "fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_reconcile_connectivity_continues_when_existing_runtime_fetch_is_unavailable():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        install_dir="$tmpdir/swm"
+        mkdir -p "$repo_dir/deployment/connectivity/smart-wifi-manager" "$repo_dir/tools" "$install_dir/.git"
+        cp "{RECONCILE_CONNECTIVITY_SCRIPT}" "$repo_dir/tools/reconcile_connectivity.sh"
+        cp "{REPO_ROOT / 'tools' / 'load_deployment_profile.sh'}" "$repo_dir/tools/load_deployment_profile.sh"
+        cat > "$repo_dir/deployment/defaults.env" <<'EOF'
+MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS=https://github.com/demo/smart-wifi-manager.git
+MDS_DEFAULT_SMART_WIFI_MANAGER_REF=v9.9.9
+EOF
+        cat > "$repo_dir/deployment/connectivity/smart-wifi-manager/profile.json" <<'EOF'
+{{"mode":"fleet-merge","profiles":[]}}
+EOF
+        cat > "$install_dir/install.sh" <<'EOF'
+#!/bin/bash
+:
+EOF
+        chmod +x "$install_dir/install.sh"
+        cat > "$install_dir/configure_smart_wifi_manager.sh" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" > "$TMPDIR/configure_args.txt"
+EOF
+        chmod +x "$install_dir/configure_smart_wifi_manager.sh"
+        config_dir="$tmpdir/etc-mds"
+        mkdir -p "$config_dir"
+        cat > "$config_dir/local.env" <<EOF
+MDS_CONNECTIVITY_BACKEND=smart-wifi-manager
+MDS_SMART_WIFI_MANAGER_INSTALL_DIR=$install_dir
+MDS_SMART_WIFI_MANAGER_MODE=fleet-merge
+EOF
+        fakebin="$tmpdir/fakebin"
+        mkdir -p "$fakebin"
+        cat > "$fakebin/git" <<'EOF'
+#!/bin/bash
+printf '%s\n' "$*" >> "$TMPDIR/git_args.txt"
+if [[ "$*" == *"describe --tags --exact-match HEAD"* ]]; then
+    exit 1
+fi
+if [[ "$*" == *"fetch --depth 1 origin v9.9.9"* ]]; then
+    exit 1
+fi
+exit 0
+EOF
+        chmod +x "$fakebin/git"
+        cat > "$fakebin/systemctl" <<'EOF'
+#!/bin/sh
+exit 1
+EOF
+        chmod +x "$fakebin/systemctl"
+        TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
+        grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
+        grep -q -- "fetch --depth 1 origin v9.9.9" "$tmpdir/git_args.txt"
         """
     )
 

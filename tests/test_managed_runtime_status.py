@@ -3,6 +3,7 @@ from src.managed_runtime_status import (
     build_mavlink_runtime_summary,
     read_git_sync_runtime_summary,
     resolve_dashboard_access,
+    smart_wifi_profile_payload_hash,
 )
 
 
@@ -75,6 +76,52 @@ def test_build_connectivity_runtime_summary_prefers_reconcile_dashboard_listen(m
     assert result["profile_summary"]["profiles"][0]["ssid"] == "Demo Field"
     assert result["profile_summary"]["profiles"][0]["secret_status"] == "stored"
     assert "redacted-demo-value" not in str(result["profile_summary"])
+
+
+def test_smart_wifi_profile_payload_hash_ignores_secret_values(tmp_path):
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    first.write_text(
+        '{"mode":"fleet-merge","profiles":[{"id":"field","ssid":"Demo Field","priority":90,"password":"one"}]}',
+        encoding="utf-8",
+    )
+    second.write_text(
+        '{"mode":"fleet-merge","profiles":[{"id":"field","ssid":"Demo Field","priority":90,"password":"two"}]}',
+        encoding="utf-8",
+    )
+
+    assert smart_wifi_profile_payload_hash(first) == smart_wifi_profile_payload_hash(second)
+
+
+def test_build_connectivity_runtime_summary_reports_outdated_not_local_extra_for_stale_apply(monkeypatch, tmp_path):
+    profile = tmp_path / "wifi-profile.json"
+    install_dir = tmp_path / "smart-wifi-manager"
+    install_dir.mkdir()
+    profile.write_text(
+        '{"mode":"fleet-merge","profiles":[{"id":"field","ssid":"Demo Field","priority":90,"password":"redacted-demo-value"}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "src.managed_runtime_status.read_reconcile_status",
+        lambda repo_root, script_relative_path: {
+            "status_source": "script",
+            "backend": "smart-wifi-manager",
+            "service_status": "active",
+            "install_dir": str(install_dir),
+            "profile_path": str(profile),
+            "mode": "fleet-merge",
+            "desired_config_hash": "desired-control",
+            "applied_config_hash": "old-control",
+            "config_hash_match": "false",
+        },
+    )
+
+    result = build_connectivity_runtime_summary(tmp_path)
+
+    assert result["drift_state"] == "outdated"
+    assert result["desired_hash"] == result["local_hash"]
+    assert result["applied_hash"] is None
+    assert "redacted-demo-value" not in str(result)
 
 
 def test_build_mavlink_runtime_summary_reports_sidecar_contract(monkeypatch, tmp_path):

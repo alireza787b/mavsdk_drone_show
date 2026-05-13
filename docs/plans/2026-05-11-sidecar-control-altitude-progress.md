@@ -190,6 +190,35 @@ Resume validation completed:
   - `v5.3.61-sidecar-altitude-control` at `01513515`
   - `origin/main` and `origin/main-candidate` updated to the release commit
   - GitHub release created
+
+## 2026-05-13 Wi-Fi Drift Correction
+
+Final hardware review found a remaining false-positive Wi-Fi drift case:
+Fleet Ops could show `local_extra` even when the sanitized node profile list
+matched the repo baseline. Root cause was twofold:
+
+- The node runtime summary compared different hash families: a desired
+  reconcile-control hash against a local profile-file hash.
+- Smart Wi-Fi reconcile still attempted a runtime Git fetch even when the
+  requested runtime ref was already installed, so limited outbound network on a
+  field board could leave the last-apply state stale.
+
+Fixes implemented:
+
+- Smart Wi-Fi profile hashes now canonicalize sanitized payloads and ignore raw
+  secret values before hashing.
+- Stale Smart Wi-Fi apply state now reports `outdated`, not `local_extra`, when
+  no actual node-local profile extra is known.
+- Existing Smart Wi-Fi runtime installs at the requested tag skip remote fetch;
+  if a fetch fails but the local configure helper exists, reconcile continues
+  with the installed runtime instead of blocking profile apply.
+
+Validation:
+
+- `bash -n tools/reconcile_connectivity.sh` passed.
+- `python3 -m py_compile src/managed_runtime_status.py gcs-server/api_routes/fleet_sidecars.py` passed.
+- `pytest tests/test_gcs_fleet_sidecars_routes.py tests/test_managed_runtime_status.py tests/test_bootstrap_installers.py::test_reconcile_connectivity_uses_repo_profile_when_backend_is_smart_wifi_manager tests/test_bootstrap_installers.py::test_reconcile_connectivity_updates_existing_runtime_with_safe_directory tests/test_bootstrap_installers.py::test_reconcile_connectivity_continues_when_existing_runtime_fetch_is_unavailable -q` passed: 28 tests.
+- `git diff --check` passed.
 - Private integration started:
   - Created branch `catchadrone-sidecar-altitude-20260512` from the private
     anchor.

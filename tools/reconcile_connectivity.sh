@@ -145,6 +145,93 @@ smart_wifi_git() {
     git -c "safe.directory=${install_dir}" -C "${install_dir}" "$@"
 }
 
+smart_wifi_profile_hash() {
+    local profile_path="$1"
+    if [[ -z "${profile_path}" || ! -f "${profile_path}" ]]; then
+        printf '\n'
+        return 0
+    fi
+    python3 - "${profile_path}" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError):
+    sys.exit(1)
+if not isinstance(payload, dict):
+    sys.exit(1)
+
+def as_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+def as_int(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+def normalize_mode(value):
+    normalized = str(value or "").strip().lower()
+    aliases = {
+        "manage": "fleet-merge",
+        "managed": "fleet-merge",
+        "manual": "local",
+        "none": "observe",
+        "disabled": "observe",
+    }
+    normalized = aliases.get(normalized, normalized)
+    return normalized if normalized in {"observe", "local", "fleet-merge", "fleet-strict"} else "fleet-merge"
+
+def secret_status(profile):
+    explicit = str(profile.get("secret_status") or "").strip().lower()
+    if explicit in {"stored", "missing", "external file", "redacted"}:
+        return explicit
+    if any(str(profile.get(key) or "").strip() for key in ("password_file", "passphrase_file", "psk_file", "secret_file")):
+        return "external file"
+    if any(str(profile.get(key) or "").strip() for key in ("password", "passphrase", "psk", "secret")):
+        return "stored"
+    return "missing"
+
+profiles = []
+for profile in payload.get("profiles") or []:
+    if not isinstance(profile, dict):
+        continue
+    profiles.append({
+        "id": str(profile.get("id") or profile.get("ssid") or "").strip(),
+        "ssid": str(profile.get("ssid") or "").strip(),
+        "priority": as_int(profile.get("priority"), 0),
+        "connection_name": str(profile.get("connection_name") or "").strip(),
+        "autoconnect": as_bool(profile.get("autoconnect"), True),
+        "disabled": as_bool(profile.get("disabled"), False),
+        "notes": str(profile.get("notes") or "").strip(),
+        "secret_status": secret_status(profile),
+    })
+profiles.sort(key=lambda item: (item["id"].lower(), item["ssid"].lower()))
+
+canonical = {
+    "version": as_int(payload.get("version"), 1),
+    "mode": normalize_mode(payload.get("mode")),
+    "interface": str(payload.get("interface") or "").strip(),
+    "scan_interval_sec": as_int(payload.get("scan_interval_sec"), 0),
+    "signal_switch_threshold": as_int(payload.get("signal_switch_threshold"), 0),
+    "connect_timeout_sec": as_int(payload.get("connect_timeout_sec"), 0),
+    "cooldown_sec": as_int(payload.get("cooldown_sec"), 0),
+    "allow_open_networks": as_bool(payload.get("allow_open_networks"), False),
+    "profiles": profiles,
+}
+blob = json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode("utf-8")
+print(hashlib.sha256(blob).hexdigest())
+PY
+}
+
 smart_wifi_hash_input() {
     local profile_path="$1"
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
@@ -160,7 +247,7 @@ smart_wifi_hash_input() {
     payload="mode=${mode};import_mode=${import_mode};install_dir=${install_dir};dashboard=${dashboard_listen};repo=${repo_url};ref=${repo_ref};skip_dashboard=${skip_dashboard}"
 
     if [[ -n "${profile_path}" && -f "${profile_path}" ]]; then
-        payload="${payload};profile=$(sha256sum "${profile_path}" | awk '{print $1}')"
+        payload="${payload};profile=$(smart_wifi_profile_hash "${profile_path}")"
     else
         payload="${payload};profile=none"
     fi
@@ -178,9 +265,23 @@ ensure_smart_wifi_manager_runtime() {
     repo_ref="$(resolve_smart_wifi_ref)"
 
     if [[ -d "${install_dir}/.git" ]]; then
+        if [[ -x "${install_dir}/configure_smart_wifi_manager.sh" ]]; then
+            local current_ref=""
+            current_ref="$(smart_wifi_git describe --tags --exact-match HEAD 2>/dev/null || true)"
+            if [[ "${current_ref}" == "${repo_ref}" ]]; then
+                log INFO "Smart Wi-Fi Manager runtime already at ${repo_ref}; skipping runtime fetch"
+                return 0
+            fi
+        fi
         log INFO "Syncing Smart Wi-Fi Manager runtime (${repo_ref})"
         smart_wifi_git remote set-url origin "${repo_url}" >/dev/null 2>&1
-        smart_wifi_git fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1
+        if ! smart_wifi_git fetch --depth 1 origin "${repo_ref}" >/dev/null 2>&1; then
+            if [[ -x "${install_dir}/configure_smart_wifi_manager.sh" ]]; then
+                log WARN "Smart Wi-Fi Manager runtime fetch failed; continuing with existing local runtime"
+                return 0
+            fi
+            return 1
+        fi
         smart_wifi_git checkout -f FETCH_HEAD >/dev/null 2>&1
     else
         if [[ -e "${install_dir}" && ! -d "${install_dir}/.git" ]]; then
@@ -273,7 +374,7 @@ show_status() {
             applied_hash="$(tr -d '\r\n' < "${STATE_FILE}")"
         fi
         if [[ -n "${profile_path}" && -f "${profile_path}" ]]; then
-            profile_hash="$(sha256sum "${profile_path}" | awk '{print $1}')"
+            profile_hash="$(smart_wifi_profile_hash "${profile_path}")"
         fi
 
         echo "repo_url=$(resolve_smart_wifi_repo_url)"
