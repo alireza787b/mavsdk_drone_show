@@ -174,7 +174,7 @@ class TestSidecarProfileProxy:
         assert captured["refresh_cwd"] == str(repo_root)
         assert captured["refresh_timeout"] == 60
 
-    def test_profile_import_repairs_legacy_smart_wifi_config_mode(self, test_client, monkeypatch, tmp_path):
+    def test_profile_import_uses_local_reconcile_preview_for_legacy_mode_error(self, test_client, monkeypatch, tmp_path):
         repo_root = tmp_path / "repo"
         helper = repo_root / "tools" / "reconcile_connectivity.sh"
         helper.parent.mkdir(parents=True)
@@ -189,25 +189,27 @@ class TestSidecarProfileProxy:
             def json():
                 return {"error": "mode must be manage, observe, or disabled"}
 
-        class SuccessResponse:
-            status_code = 200
-            text = "{}"
-
-            @staticmethod
-            def json():
-                return {"dry_run_id": "node-plan", "confirmation_token": "node-token"}
-
         def fake_post(url, json, headers, timeout):
             captured["posts"].append({"url": url, "json": json, "headers": headers, "timeout": timeout})
-            return ErrorResponse() if len(captured["posts"]) == 1 else SuccessResponse()
+            return ErrorResponse()
 
-        def fake_run(command, cwd, stdout, stderr, timeout, check):
-            captured["refresh_command"] = command
-            captured["refresh_cwd"] = cwd
-            return Mock(returncode=0)
+        def fake_run(command, cwd, capture_output, text, timeout, check):
+            captured["status_command"] = command
+            captured["status_cwd"] = cwd
+            return Mock(
+                returncode=0,
+                stdout=(
+                    "backend=smart-wifi-manager\n"
+                    "ref=v2.1.10\n"
+                    "mode=fleet-merge\n"
+                    "desired_config_hash=desired-control\n"
+                    "applied_config_hash=old-control\n"
+                    "config_hash_match=false\n"
+                    "service_status=active\n"
+                ),
+            )
 
         monkeypatch.setenv("MDS_REPO_ROOT", str(repo_root))
-        monkeypatch.setattr("src.drone_api_server.os.geteuid", lambda: 0)
         monkeypatch.setattr("src.drone_api_server.requests.post", fake_post)
         monkeypatch.setattr("src.drone_api_server.subprocess.run", fake_run)
 
@@ -217,11 +219,13 @@ class TestSidecarProfileProxy:
         )
 
         assert response.status_code == 200
-        assert response.json()["dry_run_id"] == "node-plan"
-        assert response.json()["mds_reconcile_refresh"] == {"ok": True, "status": "success"}
-        assert len(captured["posts"]) == 2
-        assert captured["refresh_command"] == [str(helper), "apply", "--force", "--quiet"]
-        assert captured["refresh_cwd"] == str(repo_root)
+        payload = response.json()
+        assert payload["dry_run_id"].startswith("mds-local-reconcile-")
+        assert payload["mutation_path"] == "mds-local-reconcile-helper"
+        assert payload["runtime"]["config_hash_match"] == "false"
+        assert len(captured["posts"]) == 1
+        assert captured["status_command"] == [str(helper), "status", "--quiet"]
+        assert captured["status_cwd"] == str(repo_root)
 
     def test_profile_import_uses_local_reconcile_preview_when_token_missing(self, test_client, monkeypatch, tmp_path):
         repo_root = tmp_path / "repo"
@@ -316,6 +320,47 @@ class TestSidecarProfileProxy:
         assert response.json()["applied"] is True
         assert response.json()["mutation_path"] == "mds-local-reconcile-helper"
         assert response.json()["mds_reconcile_refresh"] == {"ok": True, "status": "success"}
+        assert captured["url"] == "http://127.0.0.1:9080/api/v1/profiles/apply"
+        assert captured["apply_command"] == [str(helper), "apply", "--force", "--quiet"]
+        assert captured["apply_cwd"] == str(repo_root)
+
+    def test_profile_apply_uses_local_reconcile_for_legacy_mode_error(self, test_client, monkeypatch, tmp_path):
+        repo_root = tmp_path / "repo"
+        helper = repo_root / "tools" / "reconcile_connectivity.sh"
+        helper.parent.mkdir(parents=True)
+        helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        captured = {}
+
+        class ErrorResponse:
+            status_code = 500
+            text = '{"error":"mode must be manage, observe, or disabled"}'
+
+            @staticmethod
+            def json():
+                return {"error": "mode must be manage, observe, or disabled"}
+
+        def fake_post(url, json, headers, timeout):
+            captured["url"] = url
+            return ErrorResponse()
+
+        def fake_run(command, cwd, stdout, stderr, timeout, check):
+            captured["apply_command"] = command
+            captured["apply_cwd"] = cwd
+            return Mock(returncode=0)
+
+        monkeypatch.setenv("MDS_REPO_ROOT", str(repo_root))
+        monkeypatch.setattr("src.drone_api_server.os.geteuid", lambda: 0)
+        monkeypatch.setattr("src.drone_api_server.requests.post", fake_post)
+        monkeypatch.setattr("src.drone_api_server.subprocess.run", fake_run)
+
+        response = test_client.post(
+            "/api/v1/sidecars/smart-wifi-manager/profiles/apply",
+            json={"dry_run_id": "mds-local-reconcile-plan", "confirmation": {"token": "node-token"}},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["applied"] is True
+        assert response.json()["mutation_path"] == "mds-local-reconcile-helper"
         assert captured["url"] == "http://127.0.0.1:9080/api/v1/profiles/apply"
         assert captured["apply_command"] == [str(helper), "apply", "--force", "--quiet"]
         assert captured["apply_cwd"] == str(repo_root)

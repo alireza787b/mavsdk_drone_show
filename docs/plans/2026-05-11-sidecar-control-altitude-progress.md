@@ -355,7 +355,8 @@ though the node had enough local authority to reconcile through
 Fixes implemented:
 
 - The node API profile proxy now detects the Smart Wi-Fi dashboard token-required
-  response and falls back to the node-local MDS reconcile helper.
+  response and legacy service-mode response and falls back to the node-local MDS
+  reconcile helper.
 - Fallback dry-run is read-only: it runs `reconcile_connectivity.sh status
   --quiet`, returns sanitized desired/applied hash state, and creates the
   dry-run token consumed by the existing GCS confirmation gate.

@@ -620,10 +620,16 @@ def _sidecar_proxy_requires_profile_token(sidecar: str, response: requests.Respo
     )
 
 
+def _sidecar_proxy_has_smart_wifi_mode_error(sidecar: str, response: requests.Response) -> bool:
+    if sidecar != "smart-wifi-manager":
+        return False
+    return "mode must be manage, observe, or disabled" in _sidecar_proxy_error_text(response)
+
+
 def _should_repair_smart_wifi_config(sidecar: str, action: str, response: requests.Response) -> bool:
     if sidecar != "smart-wifi-manager" or action not in {"import", "apply"}:
         return False
-    return "mode must be manage, observe, or disabled" in _sidecar_proxy_error_text(response)
+    return _sidecar_proxy_has_smart_wifi_mode_error(sidecar, response)
 
 
 def _repo_root() -> Path:
@@ -1717,6 +1723,13 @@ class DroneAPIServer:
             except requests.RequestException as exc:
                 raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
             repair_refresh = None
+            if response.status_code >= 400 and (
+                _sidecar_proxy_requires_profile_token(sidecar, response)
+                or _sidecar_proxy_has_smart_wifi_mode_error(sidecar, response)
+            ):
+                fallback = _smart_wifi_local_profile_fallback(action, payload or {})
+                if fallback is not None:
+                    return fallback
             if response.status_code >= 400 and _should_repair_smart_wifi_config(sidecar, action, response):
                 repair_refresh = _run_sidecar_reconcile_refresh(sidecar, "apply")
                 if repair_refresh and repair_refresh.get("ok"):
@@ -1724,7 +1737,10 @@ class DroneAPIServer:
                         response = requests.post(url, json=payload or {}, headers=headers, timeout=10)
                     except requests.RequestException as exc:
                         raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
-            if response.status_code >= 400 and _sidecar_proxy_requires_profile_token(sidecar, response):
+            if response.status_code >= 400 and (
+                _sidecar_proxy_requires_profile_token(sidecar, response)
+                or _sidecar_proxy_has_smart_wifi_mode_error(sidecar, response)
+            ):
                 fallback = _smart_wifi_local_profile_fallback(action, payload or {})
                 if fallback is not None:
                     return fallback
