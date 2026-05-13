@@ -105,6 +105,7 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
                 "coordinator_restart_scheduled=true",
                 "connectivity_reconcile_status=success",
                 "mavlink_runtime_reconcile_status=warning",
+                "mavsdk_runtime_status=provisioned",
                 "requirements_update_status=updated",
                 "recovery_action=clean_reclone",
                 f"recovery_backup_path={tmp_path}/backup",
@@ -120,6 +121,7 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
 
     assert result["status"] == "success"
     assert result["service_reload_status"] == "updated"
+    assert result["mavsdk_runtime_status"] == "provisioned"
     assert result["coordinator_restart_scheduled"] is True
     assert result["updated_units"] == ["coordinator.service", "git_sync_mds.service"]
     assert result["deferred_unit_actions"] == [
@@ -132,4 +134,5 @@ def test_read_git_sync_runtime_summary_reads_local_state(monkeypatch, tmp_path):
     assert result["disk_free_kb"] == 424242
     assert "Coordinator restart scheduled" in result["summary"]
     assert "Recovery: clean_reclone" in result["summary"]
+    assert "MAVSDK runtime: provisioned" in result["summary"]
     assert "Deferred apply: git_sync_mds.service:next_invocation, coordinator.service:manual_restart_required" in result["summary"]

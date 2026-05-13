@@ -367,6 +367,7 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
             "coordinator_restart_scheduled": False,
             "connectivity_reconcile_status": "unknown",
             "mavlink_runtime_reconcile_status": "unknown",
+            "mavsdk_runtime_status": "unknown",
             "requirements_update_status": "unknown",
             "recovery_action": "none",
             "recovery_backup_path": None,
@@ -388,6 +389,7 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
             "coordinator_restart_scheduled": False,
             "connectivity_reconcile_status": "unknown",
             "mavlink_runtime_reconcile_status": "unknown",
+            "mavsdk_runtime_status": "unknown",
             "requirements_update_status": "unknown",
             "recovery_action": "none",
             "recovery_backup_path": None,
@@ -407,6 +409,7 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
     service_reload_message = str(data.get("service_reload_message") or "").strip()
     connectivity_status = str(data.get("connectivity_reconcile_status") or "unknown").strip() or "unknown"
     mavlink_status = str(data.get("mavlink_runtime_reconcile_status") or "unknown").strip() or "unknown"
+    mavsdk_status = str(data.get("mavsdk_runtime_status") or "unknown").strip() or "unknown"
     requirements_status = str(data.get("requirements_update_status") or "unknown").strip() or "unknown"
     recovery_action = str(data.get("recovery_action") or "none").strip() or "none"
     recovery_backup_path = str(data.get("recovery_backup_path") or "").strip() or None
@@ -428,6 +431,8 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
         summary_parts.append(f"Connectivity: {connectivity_status}")
     if mavlink_status not in {"unknown", "not_required"}:
         summary_parts.append(f"MAVLink runtime: {mavlink_status}")
+    if mavsdk_status not in {"unknown", "not_checked", "present"}:
+        summary_parts.append(f"MAVSDK runtime: {mavsdk_status}")
     if requirements_status not in {"unknown", "unchanged", "not_required"}:
         summary_parts.append(f"Requirements: {requirements_status}")
     if recovery_action not in {"", "none"}:
@@ -455,6 +460,7 @@ def read_git_sync_runtime_summary() -> Dict[str, Any]:
         "coordinator_restart_scheduled": coordinator_restart_scheduled,
         "connectivity_reconcile_status": connectivity_status,
         "mavlink_runtime_reconcile_status": mavlink_status,
+        "mavsdk_runtime_status": mavsdk_status,
         "requirements_update_status": requirements_status,
         "recovery_action": recovery_action,
         "recovery_backup_path": recovery_backup_path,

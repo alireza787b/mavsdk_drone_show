@@ -115,8 +115,10 @@ Current behavior:
 8. if `daemon-reload` fails after staged unit replacement, restore the previous unit files and reload again
 9. re-apply optional connectivity backend state via `tools/reconcile_connectivity.sh`
 10. re-apply managed MAVLink Anywhere runtime state via `tools/reconcile_mavlink_runtime.sh`
-11. update Python requirements if `requirements.txt` changed
-12. schedule a delayed coordinator restart only when the synced revision affects
+11. verify or repair the node-local `mavsdk_server` runtime artifact used by
+   MAVSDK-backed PX4 params and onboard ULog operations
+12. update Python requirements if `requirements.txt` changed
+13. schedule a delayed coordinator restart only when the synced revision affects
    the live node runtime
 
 SITL/non-systemd behavior:
@@ -161,6 +163,7 @@ automation to tell what really happened after a pull:
 - `deferred_unit_actions`
 - `coordinator_restart_scheduled`
 - connectivity / MAVLink / requirements reconcile outcomes
+- `mavsdk_runtime_status` for the node-local `mavsdk_server` artifact
 
 That summary is exposed:
 
@@ -179,6 +182,15 @@ Use it to distinguish:
   `*.service:manual_unit_update_required`
 - coordinator changes that still need manual restart because the service was
   inactive or restart scheduling failed
+- MAVSDK runtime repair outcomes such as `present`, `provisioned`, `warning`,
+  or `missing_downloader`
+
+By default, git sync attempts a non-destructive `mavsdk_server` repair when the
+binary is missing or not executable by running `tools/download_mavsdk_server.sh`
+against the current repo path. Set `MDS_SKIP_MAVSDK_RUNTIME_REPAIR=true` only
+for controlled lab images where the binary is managed out of band; PX4 params
+and MAVSDK-backed onboard ULog operations will remain unavailable if the binary
+is absent.
 
 Version ownership for optional sidecars is separate from the MDS Python/systemd
 units:

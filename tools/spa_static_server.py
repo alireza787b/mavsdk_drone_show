@@ -43,6 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
 class SPARequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, directory: str, **kwargs):
         self._cache_request_path = "/"
+        self._translated_request_path = ""
+        self._response_code = 200
         self._vary_accept_encoding = False
         super().__init__(*args, directory=directory, **kwargs)
 
@@ -55,14 +57,26 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
                 return self._send_head_with_optional_gzip()
             finally:
                 self.path = original_path
-        self._cache_request_path = urlsplit(self.path).path or "/"
+        self._cache_request_path = self._normalized_request_path(self.path)
         return self._send_head_with_optional_gzip()
+
+    def translate_path(self, path):
+        alias = self._static_alias_path(path)
+        if alias is not None:
+            self._translated_request_path = alias
+            return super().translate_path(alias)
+        self._translated_request_path = ""
+        return super().translate_path(path)
 
     def end_headers(self):
         self.send_header("Cache-Control", self._cache_control_for_request())
         if self._vary_accept_encoding:
             self.send_header("Vary", "Accept-Encoding")
         super().end_headers()
+
+    def send_response(self, code, message=None):
+        self._response_code = code
+        super().send_response(code, message)
 
     def _send_head_with_optional_gzip(self):
         translated_path = Path(self.translate_path(self.path))
@@ -96,7 +110,7 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
         return io.BytesIO(content)
 
     def _should_fallback_to_index(self) -> bool:
-        request_path = urlsplit(self.path).path
+        request_path = self._normalized_request_path(self.path)
         normalized = posixpath.normpath(unquote(request_path))
 
         if normalized in {"", "."}:
@@ -120,12 +134,30 @@ class SPARequestHandler(SimpleHTTPRequestHandler):
         return "gzip" in accepted_encodings.lower()
 
     def _cache_control_for_request(self) -> str:
-        request_path = self._cache_request_path or "/"
+        request_path = self._translated_request_path or self._cache_request_path or "/"
+        if self._response_code >= 400:
+            return HTML_CACHE_HEADER
         if request_path in {"/", "/index.html"}:
             return HTML_CACHE_HEADER
         if request_path.startswith("/static/"):
             return IMMUTABLE_CACHE_HEADER
         return DEFAULT_CACHE_HEADER
+
+    @staticmethod
+    def _normalized_request_path(path: str) -> str:
+        return urlsplit(path).path or "/"
+
+    @staticmethod
+    def _static_alias_path(path: str) -> str | None:
+        request_path = SPARequestHandler._normalized_request_path(path)
+        normalized = posixpath.normpath(unquote(request_path))
+        if normalized in {"", "."}:
+            normalized = "/"
+        marker = "/static/"
+        index = normalized.find(marker)
+        if index <= 0:
+            return None
+        return normalized[index:]
 
     @staticmethod
     @lru_cache(maxsize=128)

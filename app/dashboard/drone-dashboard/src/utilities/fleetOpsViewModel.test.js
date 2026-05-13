@@ -123,6 +123,7 @@ describe('fleetOpsViewModel', () => {
       summary: 'Git synchronization completed successfully; unit update requires installer refresh.',
       service_reload_status: 'warning',
       deferred_unit_actions: ['git_sync_mds.service:manual_unit_update_required'],
+      mavsdk_runtime_status: 'present',
       mavlink_runtime_reconcile_status: 'success',
       connectivity_reconcile_status: 'not_required',
     })).toMatchObject({
@@ -137,6 +138,7 @@ describe('fleetOpsViewModel', () => {
       status: 'success',
       summary: 'Git synchronization completed successfully.',
       service_reload_status: 'not_required',
+      mavsdk_runtime_status: 'provisioned',
       mavlink_runtime_reconcile_status: 'success',
       connectivity_reconcile_status: 'not_required',
     })).toMatchObject({
@@ -151,6 +153,7 @@ describe('fleetOpsViewModel', () => {
       summary: 'Git synchronization completed successfully.',
       service_reload_status: 'skipped',
       service_reload_message: 'Systemd unit reconcile skipped for this runtime.',
+      mavsdk_runtime_status: 'present',
       mavlink_runtime_reconcile_status: 'not_required',
       connectivity_reconcile_status: 'not_required',
     })).toMatchObject({
@@ -163,11 +166,27 @@ describe('fleetOpsViewModel', () => {
     expect(classifyGitSyncRuntime({
       status: 'unknown',
       summary: 'No node-local git sync runtime state has been recorded yet.',
+      mavsdk_runtime_status: 'unknown',
       mavlink_runtime_reconcile_status: 'unknown',
       connectivity_reconcile_status: 'unknown',
     })).toMatchObject({
       state: 'unknown',
       tone: 'muted',
+    });
+  });
+
+  test('marks mavsdk runtime repair warnings as operator attention', () => {
+    expect(classifyGitSyncRuntime({
+      status: 'success',
+      summary: 'Git synchronization completed successfully.',
+      service_reload_status: 'not_required',
+      mavsdk_runtime_status: 'warning',
+      mavlink_runtime_reconcile_status: 'success',
+      connectivity_reconcile_status: 'not_required',
+    })).toMatchObject({
+      state: 'attention',
+      label: 'Attention',
+      tone: 'warning',
     });
   });
 

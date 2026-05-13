@@ -1702,6 +1702,7 @@ class TestGitStatusEndpoints:
                 'coordinator_restart_scheduled': True,
                 'connectivity_reconcile_status': 'success',
                 'mavlink_runtime_reconcile_status': 'success',
+                'mavsdk_runtime_status': 'provisioned',
                 'requirements_update_status': 'unchanged',
             },
         },
@@ -1732,6 +1733,7 @@ class TestGitStatusEndpoints:
         assert data['git_status']['1']['connectivity_runtime']['tool'] == 'smart-wifi-manager'
         assert data['git_status']['1']['connectivity_runtime']['dashboard_access_mode'] == 'local_only'
         assert data['git_status']['1']['git_sync_runtime']['service_reload_status'] == 'updated'
+        assert data['git_status']['1']['git_sync_runtime']['mavsdk_runtime_status'] == 'provisioned'
         assert data['git_status']['1']['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_status']['1']['git_sync_runtime']['coordinator_restart_scheduled'] is True
         assert data['git_status']['1']['git_sync_runtime']['recovery_action'] == 'none'

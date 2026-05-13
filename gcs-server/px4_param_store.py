@@ -175,13 +175,13 @@ def fetch_snapshots_for_targets(deps: Any, request: Px4ParamFleetSnapshotRequest
 
         url = f"http://{ip}:{port}{DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE}"
         try:
-            response = requests.post(
+            snapshot_body = _request_json(
+                "post",
                 url,
-                json={"component_id": request.component_id},
-                timeout=timeout_sec,
+                timeout_sec=timeout_sec,
+                payload={"component_id": request.component_id},
             )
-            response.raise_for_status()
-            snapshot = Px4ParamSnapshotResponse.model_validate(response.json())
+            snapshot = Px4ParamSnapshotResponse.model_validate(snapshot_body)
             save_snapshot(snapshot)
             snapshots.append(snapshot)
         except requests.RequestException as exc:
@@ -207,9 +207,33 @@ def _build_drone_api_url(ip: str, port: int, route: str) -> str:
     return f"http://{ip}:{port}{route}"
 
 
+def _response_error_message(response: requests.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"HTTP {response.status_code}: non-JSON error response from target omitted"
+
+    if isinstance(payload, dict):
+        detail = payload.get("detail")
+        if isinstance(detail, dict):
+            message = detail.get("message") or detail.get("error")
+            if message:
+                return str(message)
+            return json.dumps(detail, sort_keys=True)
+        if isinstance(detail, str) and detail.strip():
+            return detail.strip()
+
+        error = payload.get("error") or payload.get("message")
+        if error:
+            return str(error)
+
+    return f"HTTP {response.status_code}"
+
+
 def _request_json(method: str, url: str, *, timeout_sec: float, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     response = requests.request(method, url, json=payload, timeout=timeout_sec)
-    response.raise_for_status()
+    if not response.ok:
+        raise requests.HTTPError(_response_error_message(response), response=response)
     return response.json()
 
 

@@ -692,6 +692,7 @@ class DroneGitSyncRuntimeStatus(BaseModel):
     coordinator_restart_scheduled: bool = Field(False, description="Whether the last sync scheduled a coordinator restart")
     connectivity_reconcile_status: str = Field("unknown", description="Latest connectivity reconcile result")
     mavlink_runtime_reconcile_status: str = Field("unknown", description="Latest MAVLink runtime reconcile result")
+    mavsdk_runtime_status: str = Field("unknown", description="Latest mavsdk_server runtime artifact posture from node sync")
     requirements_update_status: str = Field("unknown", description="Latest Python requirements update result")
     recovery_action: str = Field("none", description="Latest git recovery action performed by node sync")
     recovery_backup_path: Optional[str] = Field(None, description="Backup path retained after clean reclone recovery")

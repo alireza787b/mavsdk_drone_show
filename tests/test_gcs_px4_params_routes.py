@@ -2,8 +2,10 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import requests
 
 from api_routes.px4_params import create_px4_params_router
+from px4_param_store import fetch_snapshots_for_targets
 
 
 def _make_deps():
@@ -185,6 +187,64 @@ def test_px4_params_router_snapshot_routes_use_live_store(monkeypatch):
     assert snapshot_response.json()["snapshot"]["snapshot_id"] == "snap-1"
     assert rows_response.status_code == 200
     assert rows_response.json()["total_rows"] == 1
+
+
+def test_fetch_px4_snapshots_preserves_drone_error_detail(monkeypatch):
+    deps = _make_deps()
+
+    class FakeResponse:
+        ok = False
+        status_code = 424
+        text = ""
+
+        def json(self):
+            return {
+                "detail": {
+                    "error": "mavsdk_server_missing",
+                    "message": "mavsdk_server binary not found",
+                }
+            }
+
+    def fake_request(method, url, json=None, timeout=None):
+        del method, url, json, timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    response = fetch_snapshots_for_targets(
+        deps,
+        SimpleNamespace(hw_ids=["1"], component_id=1),
+    )
+
+    assert response.snapshots == []
+    assert len(response.errors) == 1
+    assert response.errors[0].error == "mavsdk_server binary not found"
+
+
+def test_fetch_px4_snapshots_omits_non_json_error_body(monkeypatch):
+    deps = _make_deps()
+
+    class FakeResponse:
+        ok = False
+        status_code = 500
+        text = "secret-bearing upstream page"
+
+        def json(self):
+            raise ValueError("not json")
+
+    def fake_request(method, url, json=None, timeout=None):
+        del method, url, json, timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(requests, "request", fake_request)
+
+    response = fetch_snapshots_for_targets(
+        deps,
+        SimpleNamespace(hw_ids=["1"], component_id=1),
+    )
+
+    assert response.errors[0].error == "HTTP 500: non-JSON error response from target omitted"
+    assert "secret-bearing" not in response.errors[0].error
 
 
 def test_px4_params_router_patch_job_routes_use_live_store(monkeypatch):

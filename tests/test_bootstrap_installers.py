@@ -840,6 +840,36 @@ def test_service_source_path_maps_known_units_without_associative_array_lookup()
     assert result.returncode == 0, result.stderr
 
 
+def test_git_sync_self_heals_missing_mavsdk_server_runtime_artifact(tmp_path):
+    repo_dir = tmp_path / "repo"
+    tools_dir = repo_dir / "tools"
+    tools_dir.mkdir(parents=True)
+    downloader = tools_dir / "download_mavsdk_server.sh"
+    downloader.write_text(
+        "#!/bin/bash\n"
+        "set -euo pipefail\n"
+        "printf 'binary' >\"${MDS_INSTALL_DIR}/mavsdk_server\"\n",
+        encoding="utf-8",
+    )
+    downloader.chmod(0o755)
+
+    result = run_bash(
+        f"""
+        source "{GIT_SYNC_SCRIPT}"
+        log_info() {{ :; }}
+        log_warn() {{ :; }}
+        log_debug() {{ :; }}
+        export MDS_INSTALL_DIR="{repo_dir}"
+        REPO_DIR="{repo_dir}"
+        ensure_mavsdk_runtime_artifact
+        [[ "$MAVSDK_RUNTIME_STATUS" == "provisioned" ]]
+        [[ -x "{repo_dir}/mavsdk_server" ]]
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_common_lib_respects_runtime_user_and_install_dir_overrides():
     result = run_bash(
         f"""
@@ -1562,6 +1592,7 @@ def test_git_sync_runtime_state_persists_post_sync_summary():
         COORDINATOR_RESTART_SCHEDULED=true
         CONNECTIVITY_RECONCILE_STATUS="success"
         MAVLINK_RUNTIME_RECONCILE_STATUS="warning"
+        MAVSDK_RUNTIME_STATUS="provisioned"
         REQUIREMENTS_UPDATE_STATUS="updated"
         persist_git_sync_state "success" "Git synchronization completed successfully"
         grep -q '^status=success$' "$tmpdir/last_result.env"
@@ -1572,6 +1603,7 @@ def test_git_sync_runtime_state_persists_post_sync_summary():
         grep -q '^coordinator_restart_scheduled=true$' "$tmpdir/last_result.env"
         grep -q '^connectivity_reconcile_status=success$' "$tmpdir/last_result.env"
         grep -q '^mavlink_runtime_reconcile_status=warning$' "$tmpdir/last_result.env"
+        grep -q '^mavsdk_runtime_status=provisioned$' "$tmpdir/last_result.env"
         grep -q '^requirements_update_status=updated$' "$tmpdir/last_result.env"
         """
     )

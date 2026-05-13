@@ -91,6 +91,47 @@ Mutation routes require dry-run first. When `MDS_FLEET_OPS_MUTATION_TOKEN` is
 configured on the GCS host, callers must send it as `X-Fleet-Ops-Token` or an
 `Authorization: Bearer ...` header.
 
+## Dry-Run Definition
+
+A dry-run is an executable preview of a fleet mutation. It checks selected
+targets, current presence, current policy mode, the requested baseline, and the
+planned sidecar action, then returns the exact plan Fleet Ops would apply. It
+must not write node files, change NetworkManager profiles, restart sidecar
+services, alter MAVLink routes, or change policy mode.
+
+An apply request is accepted only after the operator reviews a dry-run plan and
+confirms the selected targets. Fleet Ops blocks apply requests for stale or
+offline targets unless an explicitly supported maintenance workflow says
+otherwise. `fleet-strict` additionally requires advanced confirmation because it
+can prune managed local drift.
+
+## Wi-Fi Drift And Reference Workflow
+
+`local_extra` is expected in `fleet-merge` when a node has emergency,
+site-local, or operator-added Wi-Fi profiles that are not in the repo baseline.
+Fleet Ops preserves those additions and reports the drift instead of silently
+overwriting connectivity.
+
+To turn a connected node into the next fleet reference without exposing secrets:
+
+1. Open Fleet Ops Wi-Fi profiles and inspect the node summary for the selected
+   drone. The summary is redacted and shows password state only.
+2. Use **Promote Draft** for that node. This creates a sanitized reference
+   draft; it does not mutate the repo baseline or any node.
+3. Review the draft with the operator. Keep only networks intended for the
+   fleet baseline; leave local/emergency networks node-local unless explicitly
+   approved for the private repo.
+4. Commit the approved baseline to
+   `config/fleet-profiles/smart-wifi-manager/config.json` in the private fleet
+   repo.
+5. Run Wi-Fi reconcile dry-run for selected drones in `fleet-merge`.
+6. Apply only after explicit confirmation.
+
+After apply, a node is `in_sync` only when its sanitized profile matches the
+repo baseline with no extra local profile material. If approved local profiles
+remain on that node, `fleet-merge` should continue to report `local_extra`;
+that state is actionable visibility, not by itself a failure.
+
 ## Sidecar Product Contracts
 
 Smart Wi-Fi Manager exposes safe profile summary/export/validate/diff/import,

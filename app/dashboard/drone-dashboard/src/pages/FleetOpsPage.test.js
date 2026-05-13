@@ -59,6 +59,7 @@ const gitPayload = {
       git_sync_runtime: {
         status: 'unknown',
         summary: 'No node-local git sync runtime state has been recorded yet.',
+        mavsdk_runtime_status: 'unknown',
         mavlink_runtime_reconcile_status: 'unknown',
         connectivity_reconcile_status: 'unknown',
       },
@@ -207,6 +208,7 @@ describe('FleetOpsPage', () => {
         summary: 'Git synchronization completed successfully; unit update requires installer refresh.',
         service_reload_status: 'warning',
         deferred_unit_actions: ['git_sync_mds.service:manual_unit_update_required'],
+        mavsdk_runtime_status: 'warning',
         mavlink_runtime_reconcile_status: 'success',
         connectivity_reconcile_status: 'not_required',
       },
@@ -246,6 +248,24 @@ describe('FleetOpsPage', () => {
     expect(screen.getByText(/smart wi-fi is inactive; mode fleet-merge; fleet profile source missing\. add an approved fleet baseline, then use fleet ops wi-fi dry-run\/apply\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
+  });
+
+  test('shows mavsdk runtime repair status in sync details', () => {
+    const runtimeGitPayload = clonePayload(gitPayload);
+    runtimeGitPayload.git_status[1].git_sync_runtime = {
+      status: 'success',
+      summary: 'Git synchronization completed successfully · MAVSDK runtime: provisioned',
+      service_reload_status: 'not_required',
+      mavsdk_runtime_status: 'provisioned',
+      mavlink_runtime_reconcile_status: 'success',
+      connectivity_reconcile_status: 'not_required',
+    };
+
+    renderFleetOps({ gitStatusOverride: runtimeGitPayload, heartbeatOverride: heartbeatPayload });
+
+    fireEvent.click(screen.getByRole('button', { name: /^sync$/i }));
+
+    expect(screen.getByText(/MAVSDK provisioned · MAVLink success · Connectivity not_required/i)).toBeInTheDocument();
   });
 
   test('keeps local-only sidecar dashboards visible but disabled', () => {

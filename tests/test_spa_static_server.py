@@ -69,3 +69,32 @@ def test_spa_server_falls_back_to_index_with_no_cache(tmp_path):
     assert status == 200
     assert headers["cache-control"] == "no-cache"
     assert b"dashboard" in payload
+
+
+def test_spa_server_serves_route_prefixed_lazy_chunks_with_immutable_cache(tmp_path):
+    build_dir = tmp_path / "build"
+    static_dir = build_dir / "static" / "css"
+    static_dir.mkdir(parents=True)
+    asset_path = static_dir / "648.c4a881a1.chunk.css"
+    asset_path.write_text(".fleet-ops{display:grid}", encoding="utf-8")
+    (build_dir / "index.html").write_text("<html><body>dashboard</body></html>", encoding="utf-8")
+
+    with run_spa_server(build_dir) as port:
+        status, headers, payload = request(port, "/fleet-ops/static/css/648.c4a881a1.chunk.css")
+
+    assert status == 200
+    assert headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert payload == b".fleet-ops{display:grid}"
+
+
+def test_spa_server_does_not_immutably_cache_missing_route_prefixed_chunks(tmp_path):
+    build_dir = tmp_path / "build"
+    (build_dir / "static" / "css").mkdir(parents=True)
+    (build_dir / "index.html").write_text("<html><body>dashboard</body></html>", encoding="utf-8")
+
+    with run_spa_server(build_dir) as port:
+        status, headers, payload = request(port, "/fleet-ops/static/css/missing.chunk.css")
+
+    assert status == 404
+    assert headers["cache-control"] == "no-cache"
+    assert b"Error response" in payload

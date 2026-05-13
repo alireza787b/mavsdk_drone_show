@@ -335,6 +335,48 @@ class TestDroneState:
         assert cached.status_code == 200
         assert cached.json()["snapshot"]["total_params"] == 1
 
+    def test_refresh_px4_param_snapshot_reports_missing_mavsdk_server(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+    ):
+        async def fake_with_local_system(operation):
+            raise FileNotFoundError("mavsdk_server binary not found")
+
+        monkeypatch.setattr(api_server, "_with_local_mavsdk_system", fake_with_local_system)
+
+        response = test_client.post("/api/v1/px4-params/snapshots/refresh", json={})
+
+        assert response.status_code == 424
+        detail = response.json()["detail"]
+        assert detail["error"] == "mavsdk_server_missing"
+        assert detail["action"] == "refresh_px4_param_snapshot"
+        assert detail["mavsdk_capability"]["mavsdk_server_present"] is False
+
+    def test_refresh_px4_param_snapshot_reports_missing_mavsdk_server_with_ulog_fallback(
+        self,
+        test_client,
+        api_server,
+        monkeypatch,
+        tmp_path,
+    ):
+        async def fake_with_local_system(operation):
+            raise FileNotFoundError("mavsdk_server binary not found")
+
+        fallback_dir = tmp_path / "ulog"
+        fallback_dir.mkdir()
+        monkeypatch.setattr(api_server, "_with_local_mavsdk_system", fake_with_local_system)
+        monkeypatch.setattr(api_server._ulog_service, "filesystem_fallback_dirs", lambda: [fallback_dir])
+
+        response = test_client.post("/api/v1/px4-params/snapshots/refresh", json={})
+
+        assert response.status_code == 424
+        detail = response.json()["detail"]
+        assert detail["error"] == "mavsdk_server_missing"
+        assert detail["mavsdk_capability"]["available"] is False
+        assert detail["mavsdk_capability"]["filesystem_fallback_configured"] is False
+
     def test_set_px4_param_value_rejected_while_armed(self, test_client, mock_drone_config):
         mock_drone_config.is_armed = True
 
@@ -990,6 +1032,7 @@ class TestGitStatus:
                 'coordinator_restart_scheduled': True,
                 'connectivity_reconcile_status': 'success',
                 'mavlink_runtime_reconcile_status': 'success',
+                'mavsdk_runtime_status': 'provisioned',
                 'requirements_update_status': 'unchanged',
             },
         )
@@ -1032,6 +1075,7 @@ class TestGitStatus:
         assert data['connectivity_runtime']['service_status'] == 'active'
         assert data['connectivity_runtime']['tool'] == 'smart-wifi-manager'
         assert data['git_sync_runtime']['service_reload_status'] == 'updated'
+        assert data['git_sync_runtime']['mavsdk_runtime_status'] == 'provisioned'
         assert data['git_sync_runtime']['deferred_unit_actions'] == ['git_sync_mds.service:next_invocation']
         assert data['git_sync_runtime']['coordinator_restart_scheduled'] is True
         assert data['git_sync_runtime']['recovery_action'] == 'none'

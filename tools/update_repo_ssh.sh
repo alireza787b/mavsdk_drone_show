@@ -94,6 +94,7 @@ COORDINATOR_RESTART_NEEDED=false
 COORDINATOR_RESTART_SCHEDULED=false
 CONNECTIVITY_RECONCILE_STATUS="not_required"
 MAVLINK_RUNTIME_RECONCILE_STATUS="not_required"
+MAVSDK_RUNTIME_STATUS="not_checked"
 REQUIREMENTS_UPDATE_STATUS="unchanged"
 GIT_SYNC_LOCK_MODE="none"
 GIT_SYNC_RECOVERY_ACTION="none"
@@ -210,6 +211,7 @@ persist_git_sync_state() {
         printf 'coordinator_restart_reasons=%s\n' "$(sanitize_state_value "${restart_reasons_csv}")"
         printf 'connectivity_reconcile_status=%s\n' "$(sanitize_state_value "${CONNECTIVITY_RECONCILE_STATUS}")"
         printf 'mavlink_runtime_reconcile_status=%s\n' "$(sanitize_state_value "${MAVLINK_RUNTIME_RECONCILE_STATUS}")"
+        printf 'mavsdk_runtime_status=%s\n' "$(sanitize_state_value "${MAVSDK_RUNTIME_STATUS}")"
         printf 'requirements_update_status=%s\n' "$(sanitize_state_value "${REQUIREMENTS_UPDATE_STATUS}")"
         printf 'recovery_action=%s\n' "$(sanitize_state_value "${GIT_SYNC_RECOVERY_ACTION}")"
         printf 'recovery_backup_path=%s\n' "$(sanitize_state_value "${GIT_SYNC_RECOVERY_BACKUP_PATH}")"
@@ -1063,6 +1065,48 @@ check_mavlink_runtime_updates() {
         MAVLINK_RUNTIME_RECONCILE_STATUS="warning"
         log_warn "$component" "Managed mavlink-anywhere reconcile did not complete cleanly"
     fi
+}
+
+ensure_mavsdk_runtime_artifact() {
+    local component="MAVSDK-RUNTIME"
+    local downloader="${REPO_DIR}/tools/download_mavsdk_server.sh"
+    local version_args=()
+
+    if [[ "${MDS_SKIP_MAVSDK_RUNTIME_REPAIR:-false}" == "true" ]]; then
+        MAVSDK_RUNTIME_STATUS="skipped"
+        log_info "$component" "Skipping mavsdk_server runtime repair because MDS_SKIP_MAVSDK_RUNTIME_REPAIR=true"
+        return 0
+    fi
+
+    if [[ -x "${REPO_DIR}/mavsdk_server" ]]; then
+        MAVSDK_RUNTIME_STATUS="present"
+        log_debug "$component" "mavsdk_server runtime artifact is present"
+        return 0
+    fi
+
+    if [[ ! -f "$downloader" ]]; then
+        MAVSDK_RUNTIME_STATUS="missing_downloader"
+        log_warn "$component" "mavsdk_server is missing and downloader is unavailable at ${downloader}"
+        return 0
+    fi
+
+    if [[ -n "${MDS_MAVSDK_VERSION:-}" ]]; then
+        version_args=(--version "${MDS_MAVSDK_VERSION}")
+    fi
+
+    log_warn "$component" "mavsdk_server is missing or not executable; attempting runtime provisioning"
+    if MDS_INSTALL_DIR="${REPO_DIR}" bash "$downloader" "${version_args[@]}"; then
+        chmod +x "${REPO_DIR}/mavsdk_server" 2>/dev/null || true
+        if [[ -x "${REPO_DIR}/mavsdk_server" ]]; then
+            MAVSDK_RUNTIME_STATUS="provisioned"
+            log_info "$component" "Provisioned mavsdk_server runtime artifact"
+            return 0
+        fi
+    fi
+
+    MAVSDK_RUNTIME_STATUS="warning"
+    log_warn "$component" "Unable to provision mavsdk_server; PX4 params and onboard ULog MAVSDK operations remain unavailable"
+    return 0
 }
 
 # ----------------------------------
@@ -1960,6 +2004,7 @@ main() {
     if ! check_service_updates; then
         exit_with_failure_result "SERVICE-UPDATE" "Post-sync systemd unit reconcile failed and requires manual recovery" 1 "GIT_FAILED_CONTINUING"
     fi
+    ensure_mavsdk_runtime_artifact
     check_connectivity_updates
     check_mavlink_runtime_updates
     check_requirements_update

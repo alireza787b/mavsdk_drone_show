@@ -407,7 +407,7 @@ function NodeDetails({ row, activeTab }) {
         <div>
           <dt>Reconcile</dt>
           <dd>
-            MAVLink {gitSync.mavlink_runtime_reconcile_status || 'unknown'} · Connectivity {gitSync.connectivity_reconcile_status || 'unknown'}
+            MAVSDK {gitSync.mavsdk_runtime_status || 'unknown'} · MAVLink {gitSync.mavlink_runtime_reconcile_status || 'unknown'} · Connectivity {gitSync.connectivity_reconcile_status || 'unknown'}
           </dd>
         </div>
       </dl>

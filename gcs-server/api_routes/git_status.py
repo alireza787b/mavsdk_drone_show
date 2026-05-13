@@ -205,6 +205,7 @@ def _build_git_status_response(deps: Any) -> GitStatusResponse:
                     coordinator_restart_scheduled=bool(raw_git_sync_runtime.get("coordinator_restart_scheduled", False)),
                     connectivity_reconcile_status=raw_git_sync_runtime.get("connectivity_reconcile_status", "unknown"),
                     mavlink_runtime_reconcile_status=raw_git_sync_runtime.get("mavlink_runtime_reconcile_status", "unknown"),
+                    mavsdk_runtime_status=raw_git_sync_runtime.get("mavsdk_runtime_status", "unknown"),
                     requirements_update_status=raw_git_sync_runtime.get("requirements_update_status", "unknown"),
                     recovery_action=raw_git_sync_runtime.get("recovery_action", "none"),
                     recovery_backup_path=raw_git_sync_runtime.get("recovery_backup_path"),

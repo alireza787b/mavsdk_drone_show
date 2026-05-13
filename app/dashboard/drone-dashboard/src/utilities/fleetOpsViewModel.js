@@ -113,7 +113,7 @@ function classifyRuntimeStepTone(value) {
   if (!normalized || normalized === 'unknown') {
     return 'muted';
   }
-  if (['not_required', 'unchanged', 'skipped', 'disabled', 'none', 'no_restart_required'].includes(normalized)) {
+  if (['not_required', 'unchanged', 'skipped', 'disabled', 'none', 'no_restart_required', 'present', 'provisioned'].includes(normalized)) {
     return 'good';
   }
   return classifyTone(value);
@@ -291,6 +291,7 @@ export function classifyGitSyncRuntime(gitSyncRuntime) {
   const serviceReloadTone = classifyRuntimeStepTone(gitSyncRuntime.service_reload_status);
   const mavlinkTone = classifyRuntimeStepTone(gitSyncRuntime.mavlink_runtime_reconcile_status);
   const connectivityTone = classifyRuntimeStepTone(gitSyncRuntime.connectivity_reconcile_status);
+  const mavsdkTone = classifyRuntimeStepTone(gitSyncRuntime.mavsdk_runtime_status);
   const hasDeferredManualAction = Array.isArray(gitSyncRuntime.deferred_unit_actions)
     && gitSyncRuntime.deferred_unit_actions.some((action) => String(action || '').includes('manual_unit_update_required'));
   const tone = worstTone(
@@ -298,6 +299,7 @@ export function classifyGitSyncRuntime(gitSyncRuntime) {
     serviceReloadTone,
     mavlinkTone,
     connectivityTone,
+    mavsdkTone,
     hasDeferredManualAction ? 'warning' : 'muted',
   );
   const state = tone === 'good' ? 'healthy' : tone === 'muted' ? 'unknown' : 'attention';

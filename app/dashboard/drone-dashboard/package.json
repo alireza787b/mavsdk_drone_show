@@ -3,7 +3,7 @@
   "version": "5.3",
   "private": true,
   "license": "CC-BY-NC-SA-4.0",
-  "homepage": ".",
+  "homepage": "/",
   "engines": {
     "node": ">=20 <23",
     "npm": ">=10 <11"

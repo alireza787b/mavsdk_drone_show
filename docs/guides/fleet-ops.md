@@ -23,6 +23,12 @@ Fleet Ops is actionable, but guarded:
 - local-only sidecar dashboards remain visible as disabled diagnostic icons;
 - raw tokens, private keys, and secret file contents are never shown in browser UI.
 
+A dry-run is the operator preview step for any fleet mutation. It resolves the
+selected drones, verifies presence/eligibility, reads current node posture, and
+returns the exact sync/reconcile/policy plan without writing files, restarting
+services, changing Wi-Fi, changing MAVLink routes, or changing sidecar policy.
+Apply is a separate confirmed action against the reviewed plan.
+
 ## Data Sources
 
 Fleet Ops uses existing GCS APIs:
@@ -137,6 +143,15 @@ drone, presence, service state, installed ref, mode, profile source, desired
 hash, local/applied hash, drift state, profile count, dashboard link, and last
 apply result. Baseline, node detail, promote-draft, reconcile, and policy-mode
 changes are all dialog-based.
+
+`local_extra` drift in Wi-Fi `fleet-merge` means the node has local profiles in
+addition to the repo baseline. Fleet Ops keeps those profiles because they may
+be field/emergency connectivity. To make a connected drone the new baseline,
+open its redacted node summary, promote a sanitized reference draft, review the
+draft with the operator, commit the approved baseline to
+`config/fleet-profiles/smart-wifi-manager/config.json`, then run reconcile
+dry-run and apply for selected drones. Do not copy raw passwords from node
+profiles into docs, tickets, public repos, or screenshots.
 
 Fleet Ops MAVLink profile controls live at `/fleet-ops/mavlink` and use the
 same operator model. The fleet baseline owns shared endpoint policy; hardware

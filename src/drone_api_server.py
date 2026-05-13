@@ -357,6 +357,7 @@ class DroneGitSyncRuntimeResponse(BaseModel):
     coordinator_restart_scheduled: bool = False
     connectivity_reconcile_status: str = "unknown"
     mavlink_runtime_reconcile_status: str = "unknown"
+    mavsdk_runtime_status: str = "unknown"
     requirements_update_status: str = "unknown"
     recovery_action: str = "none"
     recovery_backup_path: Optional[str] = None
@@ -648,6 +649,40 @@ class DroneAPIServer:
                 return candidate
         raise FileNotFoundError("mavsdk_server binary not found")
 
+    @staticmethod
+    def _build_mavsdk_server_capability_payload() -> Dict[str, Any]:
+        env_path = os.environ.get("MAVSDK_SERVER_PATH")
+        candidates = [
+            env_path,
+            os.path.join(BASE_DIR, "mavsdk_server"),
+            os.path.join(os.path.dirname(BASE_DIR), "mavsdk_server"),
+        ]
+        selected_path = next((candidate for candidate in candidates if candidate and os.path.isfile(candidate)), None)
+        present = selected_path is not None
+        executable = bool(selected_path and os.access(selected_path, os.X_OK))
+
+        if executable:
+            missing_dependency = None
+            detail = "mavsdk_server is present and executable."
+        elif present:
+            missing_dependency = "mavsdk_server_not_executable"
+            detail = "mavsdk_server exists but is not executable on this node."
+        else:
+            missing_dependency = "mavsdk_server_missing"
+            detail = "mavsdk_server is missing on this node."
+
+        return {
+            "available": executable,
+            "mavsdk_server_present": present,
+            "mavsdk_server_executable": executable,
+            "mavsdk_server_path": selected_path or os.path.join(BASE_DIR, "mavsdk_server"),
+            "filesystem_fallback_configured": False,
+            "filesystem_fallback_paths": [],
+            "filesystem_fallback_existing_paths": [],
+            "missing_dependency": missing_dependency,
+            "detail": detail,
+        }
+
     def _build_ulog_capability(self) -> OnboardUlogCapability:
         mavsdk_server_path: Optional[str] = None
         mavsdk_server_present = False
@@ -766,6 +801,49 @@ class DroneAPIServer:
                 "message": message,
                 "action": action,
                 "ulog_capability": capability,
+            },
+        )
+
+    def _px4_param_failure_http_exception(self, action: str, exc: Exception) -> HTTPException:
+        capability = self._build_mavsdk_server_capability_payload()
+        message = str(exc) or exc.__class__.__name__
+        lowered = message.lower()
+
+        if self._is_mavsdk_dependency_error(exc):
+            error = capability.get("missing_dependency") or "mavsdk_server_unavailable"
+            return HTTPException(
+                status_code=424,
+                detail={
+                    "error": error,
+                    "message": message,
+                    "action": action,
+                    "mavsdk_capability": capability,
+                },
+            )
+
+        if isinstance(exc, (TimeoutError, ConnectionError, RuntimeError)) and (
+            "mavsdk" in lowered
+            or "connection" in lowered
+            or "timed out" in lowered
+            or "param" in lowered
+        ):
+            return HTTPException(
+                status_code=503,
+                detail={
+                    "error": "px4_params_transport_unavailable",
+                    "message": message,
+                    "action": action,
+                    "mavsdk_capability": capability,
+                },
+            )
+
+        return HTTPException(
+            status_code=500,
+            detail={
+                "error": "px4_params_operation_failed",
+                "message": message,
+                "action": action,
+                "mavsdk_capability": capability,
             },
         )
 
@@ -1560,10 +1638,7 @@ class DroneAPIServer:
                 raise
             except Exception as exc:
                 logger.error(f"Error refreshing PX4 parameter snapshot: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to refresh PX4 parameter snapshot: {exc}",
-                ) from exc
+                raise self._px4_param_failure_http_exception("refresh_px4_param_snapshot", exc) from exc
 
         @self.app.get(DRONE_PX4_PARAMS_SNAPSHOT_CURRENT_ROUTE, response_model=Px4ParamSnapshotResponse)
         async def get_current_px4_param_snapshot():
@@ -1583,10 +1658,7 @@ class DroneAPIServer:
                 raise
             except Exception as exc:
                 logger.error(f"Error reading PX4 parameter {name}: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to read PX4 parameter {name}: {exc}",
-                ) from exc
+                raise self._px4_param_failure_http_exception("read_px4_param_value", exc) from exc
 
         @self.app.patch(DRONE_PX4_PARAM_VALUE_ROUTE_TEMPLATE, response_model=Px4ParamSetResponse)
         async def set_px4_param_value(name: str, request: Px4ParamSetRequest):
@@ -1602,10 +1674,7 @@ class DroneAPIServer:
                 raise
             except Exception as exc:
                 logger.error(f"Error writing PX4 parameter {name}: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to write PX4 parameter {name}: {exc}",
-                ) from exc
+                raise self._px4_param_failure_http_exception("write_px4_param_value", exc) from exc
 
         @self.app.post(DRONE_PX4_PARAMS_PATCH_APPLY_ROUTE, response_model=Px4ParamPatchApplyResponse)
         async def apply_px4_param_patch(request: Px4ParamPatchApplyRequest):
@@ -1621,10 +1690,7 @@ class DroneAPIServer:
                 raise
             except Exception as exc:
                 logger.error(f"Error applying PX4 parameter patch: {exc}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to apply PX4 parameter patch: {exc}",
-                ) from exc
+                raise self._px4_param_failure_http_exception("apply_px4_param_patch", exc) from exc
 
         @self.app.get(DRONE_ULOG_POLICY_ROUTE)
         async def get_onboard_ulog_policy():
