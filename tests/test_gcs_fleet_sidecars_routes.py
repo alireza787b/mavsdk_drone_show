@@ -246,7 +246,7 @@ def test_reconcile_dry_run_rejects_caller_supplied_baseline(monkeypatch, tmp_pat
 def test_reconcile_dry_run_uses_node_api_sidecar_proxy(monkeypatch, tmp_path):
     baseline = tmp_path / "config/fleet-profiles/smart-wifi-manager/config.json"
     baseline.parent.mkdir(parents=True)
-    baseline.write_text('{"profiles":[{"id":"field","ssid":"DemoField"}]}', encoding="utf-8")
+    baseline.write_text('{"mode":"fleet-merge","profiles":[{"id":"field","ssid":"DemoField"}]}', encoding="utf-8")
     client = _client(_make_deps(tmp_path), monkeypatch)
     captured = {}
 
@@ -274,6 +274,7 @@ def test_reconcile_dry_run_uses_node_api_sidecar_proxy(monkeypatch, tmp_path):
     assert captured["url"] == "http://198.51.100.11:7070/api/v1/sidecars/smart-wifi-manager/profiles/import"
     assert response.json()["mode"] == "fleet-merge"
     assert captured["json"]["mode"] == "manage"
+    assert captured["json"]["baseline"]["mode"] == "manage"
     assert captured["json"]["dry_run"] is True
     assert captured["timeout"] == 10
     assert response.json()["results"]["1"]["ok"] is True

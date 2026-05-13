@@ -824,13 +824,19 @@ def _sidecar_api_payload(sidecar: str, payload: dict[str, Any]) -> dict[str, Any
     if sidecar != "smart-wifi-manager" or "mode" not in payload:
         return payload
     translated = deepcopy(payload)
-    mode = str(translated.get("mode") or "")
-    translated["mode"] = {
-        "observe": "observe",
-        "local": "manage",
-        "fleet-merge": "manage",
-        "fleet-strict": "manage",
-    }.get(mode, mode)
+    def service_mode(value: Any) -> str:
+        mode = str(value or "")
+        return {
+            "observe": "observe",
+            "local": "manage",
+            "fleet-merge": "manage",
+            "fleet-strict": "manage",
+        }.get(mode, mode)
+
+    translated["mode"] = service_mode(translated.get("mode"))
+    baseline = translated.get("baseline")
+    if isinstance(baseline, dict) and "mode" in baseline:
+        baseline["mode"] = service_mode(baseline.get("mode"))
     return translated
 
 
