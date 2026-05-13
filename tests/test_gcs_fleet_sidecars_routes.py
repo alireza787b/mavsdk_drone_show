@@ -21,7 +21,13 @@ def _make_deps(tmp_path, runtime=None):
         "profile_source": "node-local",
         "desired_hash": "desiredhash",
         "local_hash": "localhash",
-        "profile_summary": {"network_count": 2},
+        "profile_summary": {
+            "network_count": 2,
+            "profiles": [
+                {"id": "field", "ssid": "Demo Field", "priority": 90, "secret_status": "stored"},
+                {"id": "backup", "ssid": "Demo Backup", "priority": 10, "secret_status": "external file"},
+            ],
+        },
         "dashboard_access_mode": "direct",
         "dashboard_url": "http://198.51.100.11:9080/",
         "dashboard_listen": "0.0.0.0:9080",
@@ -58,6 +64,7 @@ def test_fleet_sidecar_table_uses_last_known_runtime(monkeypatch, tmp_path):
     assert row["local_hash"] == "localhash"
     assert row["drift_state"] == "in_sync"
     assert row["profile_count"] == 2
+    assert [profile["ssid"] for profile in row["profiles"]] == ["Demo Field", "Demo Backup"]
     assert row["presence"]["state"] == "online"
 
 
@@ -299,6 +306,7 @@ def test_table_and_job_responses_redact_runtime_secret_fields(monkeypatch, tmp_p
         "drift_state": "in_sync",
         "profile_summary": {
             "network_count": 1,
+            "profiles": [{"id": "field", "ssid": "Demo Field", "password": "redacted-demo-value"}],
             "password": "redacted-demo-value",
             "password_file": "/root/secret",
         },
@@ -316,8 +324,53 @@ def test_table_and_job_responses_redact_runtime_secret_fields(monkeypatch, tmp_p
     row = table.json()["rows"][0]
     assert row["profile_summary"]["password"] == "redacted"
     assert row["profile_summary"]["password_file"] == "external file"
+    assert row["profiles"][0]["password"] == "redacted"
     assert row["operator_state"]["token"] == "redacted"
     assert row["last_apply_result"]["confirmation_token"] == "redacted"
+
+
+def test_mavlink_node_table_exposes_sanitized_sources_and_endpoints(monkeypatch, tmp_path):
+    deps = _make_deps(tmp_path)
+    deps.git_status_data_all_drones = {
+        "1": {
+            "mavlink_runtime": {
+                "tool": "mavlink-anywhere",
+                "service_state": "active",
+                "mode": "local",
+                "drift_state": "unmanaged",
+                "dashboard_access_mode": "direct",
+                "dashboard_listen": "0.0.0.0:9070",
+                "profile_summary": {
+                    "source_count": 1,
+                    "endpoint_count": 1,
+                    "sources": [
+                        {"name": "px4", "type": "UartEndpoint", "device": "/dev/ttyS0", "baud": 921600, "role": "source"},
+                    ],
+                    "endpoints": [
+                        {
+                            "name": "gcs_vpn",
+                            "type": "UdpEndpoint",
+                            "mode": "normal",
+                            "address": "192.0.2.10",
+                            "port": 24550,
+                            "token": "redacted-demo-value",
+                        },
+                    ],
+                },
+            }
+        }
+    }
+    client = _client(deps, monkeypatch)
+
+    response = client.get("/api/v1/fleet/sidecars/mavlink-anywhere")
+
+    assert response.status_code == 200
+    assert "redacted-demo-value" not in response.text
+    row = response.json()["rows"][0]
+    assert row["profile_count"] == 1
+    assert row["sources"][0]["name"] == "px4"
+    assert row["endpoints"][0]["name"] == "gcs_vpn"
+    assert row["endpoints"][0]["token"] == "redacted"
 
 
 def test_sidecar_error_details_are_sanitized(monkeypatch, tmp_path):

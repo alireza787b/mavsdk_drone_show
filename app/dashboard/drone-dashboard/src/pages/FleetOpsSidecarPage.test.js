@@ -1,6 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import FleetOpsSidecarPage, { SMART_WIFI_SIDECAR_CONFIG } from './FleetOpsSidecarPage';
+import FleetOpsSidecarPage, { MAVLINK_SIDECAR_CONFIG, SMART_WIFI_SIDECAR_CONFIG } from './FleetOpsSidecarPage';
 import {
   applyFleetSidecarReconcileResponse,
   dryRunFleetSidecarReconcileResponse,
@@ -45,10 +45,21 @@ const wifiTable = {
       profile_source: 'node-local',
       desired_hash: 'abcdef1234567890',
       local_hash: 'abcdef1234567890',
-      drift_state: 'in_sync',
-      profile_count: 1,
+      drift_state: 'local_extra',
+      profile_count: 2,
       dashboard: { url: 'http://198.51.100.11:9080/' },
-      last_apply_result: { status: 'success' },
+      profile_summary: {
+        network_count: 2,
+        profiles: [
+          { id: 'field-primary', ssid: 'Demo Field Local', priority: 100, secret_status: 'stored' },
+          { id: 'field-recovery', ssid: 'Demo Recovery', priority: 20, secret_status: 'external file' },
+        ],
+      },
+      profiles: [
+        { id: 'field-primary', ssid: 'Demo Field Local', priority: 100, secret_status: 'stored' },
+        { id: 'field-recovery', ssid: 'Demo Recovery', priority: 20, secret_status: 'external file' },
+      ],
+      last_apply_result: 'local_extra',
     },
     {
       hw_id: '2',
@@ -63,6 +74,62 @@ const wifiTable = {
       profile_count: 0,
       dashboard: {},
       last_apply_result: null,
+    },
+  ],
+};
+
+const mavlinkTable = {
+  schema: 'mds.sidecar_profile.v1',
+  sidecar: 'mavlink-anywhere',
+  baseline: {
+    present: true,
+    path: 'config/fleet-profiles/mavlink-anywhere/profile.json',
+    hash: 'fedcba9876543210',
+    hash_semantics: 'sha256:canonical-sanitized-payload:12',
+    profile_count: 1,
+    endpoints: [
+      {
+        name: 'gcs_ops',
+        type: 'UdpEndpoint',
+        mode: 'normal',
+        address: '192.0.2.10',
+        port: 24550,
+        category: 'gcs',
+        enabled: true,
+      },
+    ],
+  },
+  rows: [
+    {
+      hw_id: '1',
+      presence: { state: 'online', age_seconds: 1 },
+      service_state: 'active',
+      installed_ref: 'v3.0.9',
+      mode: 'local',
+      profile_source: 'node-overlay',
+      desired_hash: null,
+      applied_hash: 'routehash123456',
+      local_hash: 'routehash123456',
+      drift_state: 'unmanaged',
+      profile_count: 1,
+      dashboard: { url: 'http://198.51.100.11:9070/' },
+      profile_summary: {
+        source_count: 1,
+        endpoint_count: 1,
+        sources: [
+          { name: 'px4', type: 'UartEndpoint', device: '/dev/ttyS0', baud: 921600, role: 'source', mode: 'normal' },
+        ],
+        endpoints: [
+          { name: 'gcs_vpn', type: 'UdpEndpoint', mode: 'normal', address: '192.0.2.11', port: 24550, category: 'gcs' },
+        ],
+      },
+      sources: [
+        { name: 'px4', type: 'UartEndpoint', device: '/dev/ttyS0', baud: 921600, role: 'source', mode: 'normal' },
+      ],
+      endpoints: [
+        { name: 'gcs_vpn', type: 'UdpEndpoint', mode: 'normal', address: '192.0.2.11', port: 24550, category: 'gcs' },
+      ],
+      last_apply_result: 'unmanaged',
     },
   ],
 };
@@ -88,8 +155,44 @@ describe('FleetOpsSidecarPage', () => {
 
     expect(screen.getByRole('dialog', { name: /repo wi-fi baseline/i })).toBeInTheDocument();
     expect(screen.getByText('Demo Field')).toBeInTheDocument();
-    expect(screen.getByText('secret:stored')).toBeInTheDocument();
+    expect(screen.getByText('password stored')).toBeInTheDocument();
     expect(screen.queryByText(/redacted-demo-value/i)).not.toBeInTheDocument();
+  });
+
+  test('node detail dialog shows sanitized local and repo Wi-Fi profile detail', async () => {
+    render(<FleetOpsSidecarPage config={SMART_WIFI_SIDECAR_CONFIG} />);
+
+    await screen.findByRole('heading', { name: /wi-fi sidecar profiles/i });
+    const driftButtons = await screen.findAllByRole('button', { name: /local_extra/i });
+    fireEvent.click(driftButtons[0]);
+
+    expect(screen.getByRole('dialog', { name: /node wi-fi profile: 1/i })).toBeInTheDocument();
+    expect(screen.getByText('Node Wi-Fi Profiles')).toBeInTheDocument();
+    expect(screen.getByText('Repo Wi-Fi Baseline')).toBeInTheDocument();
+    expect(screen.getByText('Demo Field Local')).toBeInTheDocument();
+    expect(screen.getByText('Demo Recovery')).toBeInTheDocument();
+    expect(screen.getAllByText('Demo Field').length).toBeGreaterThan(0);
+    expect(screen.getByText('password external file')).toBeInTheDocument();
+    expect(screen.queryByText(/redacted-demo-value/i)).not.toBeInTheDocument();
+  });
+
+  test('mavlink detail dialog shows node sources, node endpoints, and repo endpoints', async () => {
+    getFleetSidecarResponse.mockResolvedValue({ data: mavlinkTable });
+
+    render(<FleetOpsSidecarPage config={MAVLINK_SIDECAR_CONFIG} />);
+
+    await screen.findByRole('heading', { name: /mavlink sidecar profiles/i });
+    expect(await screen.findByRole('link', { name: /open drone 1 sidecar dashboard/i })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /view drone 1 profile details/i }));
+
+    expect(screen.getByRole('dialog', { name: /node mavlink overlay: 1/i })).toBeInTheDocument();
+    expect(screen.getByText('Node MAVLink Overlay')).toBeInTheDocument();
+    expect(screen.getByText('Repo MAVLink Baseline')).toBeInTheDocument();
+    expect(screen.getByText('MAVLink input sources')).toBeInTheDocument();
+    expect(screen.getByText('px4')).toBeInTheDocument();
+    expect(screen.getByText('/dev/ttyS0 @ 921600')).toBeInTheDocument();
+    expect(screen.getByText('gcs_vpn')).toBeInTheDocument();
+    expect(screen.getByText('gcs_ops')).toBeInTheDocument();
   });
 
   test('requires dry-run token acknowledgement before reconcile apply', async () => {

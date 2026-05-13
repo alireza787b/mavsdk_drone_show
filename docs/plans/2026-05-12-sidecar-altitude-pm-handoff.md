@@ -112,18 +112,23 @@ pending.
 
 1. Run SITL validator with the release candidate after public repos are
    committed/tagged.
-2. In Fleet Ops, verify all known drones appear in Wi-Fi and MAVLink sidecar
-   tables with presence, service state, installed ref, mode, source, hashes,
-   drift, profile count, dashboard link, and last apply result.
-3. Open repo baseline and node summary dialogs. Confirm secrets show only
-   status values, never passwords.
-4. Confirm `observe` and `local` cannot run reconcile, and `fleet-merge` /
+2. In Fleet Ops, verify all known drones appear in compact Wi-Fi and MAVLink
+   sidecar tables with presence, service state, installed ref, mode, profile
+   source, hashes, drift, profile/route count, dashboard icon link, and last
+   apply result.
+3. Open repo baseline and node detail dialogs. Confirm Wi-Fi details show
+   sanitized network names/IDs/priority/password state, and MAVLink details show
+   sanitized endpoints plus node-local input sources.
+4. Confirm secrets show only status values such as `stored`, `missing`,
+   `external file`, or `redacted`, never passwords, tokens, private keys,
+   local secret-file paths, or raw profile bodies.
+5. Confirm `observe` and `local` cannot run reconcile, and `fleet-merge` /
    `fleet-strict` require dry-run before apply.
-5. Confirm `fleet-strict` requires advanced confirmation.
-6. Confirm GCS Runtime has only host-side runtime/update/restart/auth/env/service
+6. Confirm `fleet-strict` requires advanced confirmation.
+7. Confirm GCS Runtime has only host-side runtime/update/restart/auth/env/service
    controls and links back to Fleet Ops for drone sidecars.
-7. In no-GPS/local-position SITL, verify dashboard cards, drone detail, tactical
+8. In no-GPS/local-position SITL, verify dashboard cards, drone detail, tactical
    cards, map/globe surfaces, and tooltips show useful local/baro/relative
    altitude without saying `waiting for map`.
-8. After SITL passes and live GCS is healthy, connect boards and run board sync
+9. After SITL passes and live GCS is healthy, connect boards and run board sync
    dry-run before any apply.

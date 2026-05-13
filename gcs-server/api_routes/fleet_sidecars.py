@@ -425,6 +425,7 @@ def _build_sidecar_table(deps: Any, sidecar: str) -> dict[str, Any]:
         heartbeat = heartbeats.get(hw_id, {})
         dashboard = _dashboard_for_node(sidecar, drone, runtime)
         profile_summary = runtime.get("profile_summary") if isinstance(runtime.get("profile_summary"), dict) else {}
+        profile_details = _runtime_profile_details(sidecar, profile_summary)
         rows.append(
             {
                 "hw_id": hw_id,
@@ -454,6 +455,9 @@ def _build_sidecar_table(deps: Any, sidecar: str) -> dict[str, Any]:
                 "dashboard": dashboard,
                 "last_apply_result": _sanitize_public_value(runtime.get("last_apply_result")),
                 "profile_summary": _sanitize_public_value(profile_summary),
+                "profiles": profile_details["profiles"],
+                "endpoints": profile_details["endpoints"],
+                "sources": profile_details["sources"],
                 "operator_state": _sanitize_public_value(runtime.get("operator_state")),
             }
         )
@@ -504,6 +508,21 @@ def _profile_count_from_runtime(sidecar: str, runtime: dict[str, Any]) -> int:
     if sidecar == "smart-wifi-manager" and runtime.get("profile_present"):
         return 1
     return 0
+
+
+def _runtime_profile_details(sidecar: str, profile_summary: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    profiles: list[dict[str, Any]] = []
+    endpoints: list[dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
+    if sidecar == "smart-wifi-manager":
+        raw_profiles = profile_summary.get("profiles") if isinstance(profile_summary.get("profiles"), list) else []
+        profiles = [item for item in _sanitize_public_value(raw_profiles) if isinstance(item, dict)]
+    elif sidecar == "mavlink-anywhere":
+        raw_endpoints = profile_summary.get("endpoints") if isinstance(profile_summary.get("endpoints"), list) else []
+        raw_sources = profile_summary.get("sources") if isinstance(profile_summary.get("sources"), list) else []
+        endpoints = [item for item in _sanitize_public_value(raw_endpoints) if isinstance(item, dict)]
+        sources = [item for item in _sanitize_public_value(raw_sources) if isinstance(item, dict)]
+    return {"profiles": profiles, "endpoints": endpoints, "sources": sources}
 
 
 def _safe_heartbeats(deps: Any) -> dict[str, Any]:

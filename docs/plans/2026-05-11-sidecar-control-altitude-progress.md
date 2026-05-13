@@ -1,6 +1,7 @@
 # MDS Sidecar Control, Altitude Policy, Release Hardening Progress
 
 Date: 2026-05-12
+Updated: 2026-05-13
 
 ## Scope
 
@@ -31,13 +32,31 @@ Logo/rebranding and broad stale-worktree cleanup remain deferred.
 - `fleet-strict` is advanced/lab mode only and never a field default.
 - GCS Runtime remains host-only; Fleet Ops owns drone-side sidecar controls.
 
+## 2026-05-13 Detail UX Follow-Up
+
+Operator review found that Fleet Ops Wi-Fi and MAVLink detail dialogs repeated
+the compact table posture but did not expose the sanitized profile details
+needed for fast field inspection. The follow-up fix keeps the table compact and
+makes drift/last-apply cells clickable, while the reusable detail dialog now
+shows:
+
+- node-local Wi-Fi profiles beside the repo Wi-Fi baseline;
+- node-local MAVLink input sources, node-local MAVLink endpoints, and the repo
+  MAVLink endpoint baseline;
+- only sanitized metadata: SSID/profile ID/priority/password state for Wi-Fi,
+  and endpoint/source name/type/mode/address/port/device/baud for MAVLink.
+
+The implementation also fixes string `last_apply_result` values such as
+`local_extra` and `unmanaged` so the table no longer shows `n/a` for valid
+reported states.
+
 ## Slice Status
 
 | Slice | Status | Notes |
 | --- | --- | --- |
 | 1. Contract and API design | Complete | Shared schema, mode names, drift states, hash/redaction semantics, and route map documented in `docs/features/fleet-sidecar-profiles.md`. |
-| 2. Smart Wi-Fi Manager fleet profile control | Public release complete; MDS release complete | Official MDS now has Fleet Ops sidecar APIs plus Wi-Fi profile control UI with table, baseline/node/promote/job dialogs, dry-run/apply, policy mode changes, token header support, and unreachable-node opt-in. Smart Wi-Fi Manager `v2.1.10` includes command/log redaction and confirmation-token alias fixes. |
-| 3. MAVLink Anywhere profile parity | Public release complete; MDS release complete | Backend route supports `mavlink-anywhere`; UI page mirrors Wi-Fi controls while preserving hardware-overlay semantics. MAVLink Anywhere `v3.0.9` is released. |
+| 2. Smart Wi-Fi Manager fleet profile control | Public release complete; MDS release complete; detail UX follow-up implemented | Official MDS now has Fleet Ops sidecar APIs plus Wi-Fi profile control UI with compact table, sanitized node/baseline profile details, promote/job dialogs, dry-run/apply, policy mode changes, token header support, and unreachable-node opt-in. Smart Wi-Fi Manager `v2.1.10` includes command/log redaction and confirmation-token alias fixes. |
+| 3. MAVLink Anywhere profile parity | Public release complete; MDS release complete; detail UX follow-up implemented | Backend route supports `mavlink-anywhere`; UI page mirrors Wi-Fi controls while preserving and exposing sanitized hardware-overlay/source details by default. MAVLink Anywhere `v3.0.9` is released. |
 | 4. Fleet Ops/GCS Runtime cleanup | Released in official MDS | Direct dashboard UPDATE_CODE controls now route to Fleet Ops dry-run/apply; old direct Smart Wi-Fi profile import and legacy one-click sync UI/helpers were removed. GCS Runtime remains host-only. |
 | 5. Altitude/no-GPS telemetry policy | Released in official MDS | Source-aware altitude report and dashboard/detail display changes are present. Typed GCS telemetry schema and API/operator docs now preserve/describe `relative_home`, `absolute_msl`, `local_ned`, and `baro` sources. |
 | 6. Tests, docs, releases, deployment, board sync | In progress | Public sidecar releases and official MDS release are complete. Private sync/deploy, Hetzner build/SITL, hardware board sync, and final report remain. |
@@ -104,6 +123,13 @@ Logo/rebranding and broad stale-worktree cleanup remain deferred.
   release artifacts are clean.
 
 ## Validation Log
+
+2026-05-13 profile-detail follow-up validation:
+
+- `python3 -m py_compile src/managed_runtime_status.py gcs-server/api_routes/fleet_sidecars.py` passed.
+- `pytest tests/test_managed_runtime_status.py tests/test_gcs_fleet_sidecars_routes.py` passed: 23 tests.
+- `npm test -- --watchAll=false --runTestsByPath src/pages/FleetOpsSidecarPage.test.js src/utilities/fleetOpsViewModel.test.js` passed: 2 suites, 19 tests.
+- `git diff --check` passed.
 
 Prior to this resume, focused validation was reported as:
 

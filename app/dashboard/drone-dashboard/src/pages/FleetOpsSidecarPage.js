@@ -4,8 +4,10 @@ import {
   FaCheckCircle,
   FaClipboardCheck,
   FaEye,
+  FaExternalLinkAlt,
   FaFileExport,
   FaInfoCircle,
+  FaListUl,
   FaProjectDiagram,
   FaRedo,
   FaTimes,
@@ -109,6 +111,50 @@ function installedRefLabel(value) {
   return value.commit || value.ref || value.branch || value.path || 'reported';
 }
 
+function formatLastApplyResult(value) {
+  if (!value) return 'n/a';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    return value.status || value.result || value.drift_state || value.message || 'reported';
+  }
+  return String(value);
+}
+
+function profileCollection(source, key) {
+  if (!source || typeof source !== 'object') return [];
+  if (Array.isArray(source[key])) return source[key];
+  const summary = source.profile_summary;
+  if (summary && typeof summary === 'object' && Array.isArray(summary[key])) {
+    return summary[key];
+  }
+  return [];
+}
+
+function profileCountLabel(config, source) {
+  if (config.itemKind === 'mavlink') {
+    const endpoints = profileCollection(source, 'endpoints').length;
+    const sources = profileCollection(source, 'sources').length;
+    if (sources && endpoints) return `${endpoints} endpoints · ${sources} sources`;
+    if (sources) return `${sources} sources`;
+    return `${source?.profile_count ?? endpoints} endpoints`;
+  }
+  return `${source?.profile_count ?? profileCollection(source, 'profiles').length ?? 0} profiles`;
+}
+
+function driftSummary(state, itemKind) {
+  if (state === 'local_extra') {
+    return itemKind === 'mavlink'
+      ? 'Node-local MAVLink overlay differs from the fleet endpoint baseline and is preserved in fleet-merge.'
+      : 'Node-local Wi-Fi profiles exist beyond the repo baseline and are preserved in fleet-merge.';
+  }
+  if (state === 'missing_fleet_baseline') return 'A fleet baseline is required before reconcile can apply safely.';
+  if (state === 'outdated') return 'Node-local/applied profile hash differs from the desired fleet baseline.';
+  if (state === 'unmanaged') return 'This sidecar is inspect-only unless policy is changed with dry-run/apply.';
+  if (state === 'unreachable') return 'The node has no fresh sidecar profile report.';
+  if (state === 'in_sync') return 'Node profile posture matches the active policy.';
+  return 'Use the detail dialog for node-local and repo baseline context.';
+}
+
 function Modal({ title, icon: Icon = FaInfoCircle, children, onClose }) {
   return (
     <div className="fleet-sidecar__modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -147,39 +193,88 @@ function DetailGrid({ items }) {
   );
 }
 
-function ProfileList({ profiles = [], endpoints = [], itemKind = 'wifi', emptyLabel = 'No profiles reported.' }) {
-  const items = profiles.length ? profiles : endpoints;
-  if (!items.length) {
+function mavlinkEndpointAddress(item) {
+  if (item.address && item.port) return `${item.address}:${item.port}`;
+  if (item.address) return item.address;
+  if (item.device && item.baud) return `${item.device} @ ${item.baud}`;
+  if (item.device) return item.device;
+  if (item.port) return `port ${item.port}`;
+  return 'n/a';
+}
+
+function ProfileList({
+  profiles = [],
+  endpoints = [],
+  sources = [],
+  itemKind = 'wifi',
+  emptyLabel = 'No profiles reported.',
+}) {
+  if (itemKind === 'mavlink') {
+    const groups = [
+      ['MAVLink input sources', sources],
+      ['Fleet endpoints', endpoints],
+    ].filter(([, items]) => items.length);
+    if (!groups.length) {
+      return <div className="fleet-sidecar__empty">{emptyLabel}</div>;
+    }
+    return (
+      <div className="fleet-sidecar__profile-list">
+        {groups.map(([label, items]) => (
+          <section className="fleet-sidecar__profile-group" key={label} aria-label={label}>
+            <h3>{label}</h3>
+            {items.map((item) => (
+              <div className="fleet-sidecar__profile-row" key={`${label}-${item.name || mavlinkEndpointAddress(item)}`}>
+                <div>
+                  <strong>{item.name || (item.role === 'source' ? 'source' : 'endpoint')}</strong>
+                  <span>{item.type || 'endpoint'} · {item.category || item.role || 'policy'}</span>
+                </div>
+                <span className={`fleet-sidecar__badge ${item.enabled === false ? 'warn' : ''}`}>{item.mode || 'normal'}</span>
+                <span title={mavlinkEndpointAddress(item)}>{mavlinkEndpointAddress(item)}</span>
+              </div>
+            ))}
+          </section>
+        ))}
+      </div>
+    );
+  }
+
+  if (!profiles.length) {
     return <div className="fleet-sidecar__empty">{emptyLabel}</div>;
   }
   return (
     <div className="fleet-sidecar__profile-list">
-      {items.map((item) => {
-        if (itemKind === 'mavlink') {
-          const address = item.address && item.port ? `${item.address}:${item.port}` : item.device || 'n/a';
-          return (
-            <div className="fleet-sidecar__profile-row" key={item.name || address}>
-              <div>
-                <strong>{item.name || 'endpoint'}</strong>
-                <span>{item.type || 'endpoint'} · {item.category || 'policy'}</span>
-              </div>
-              <span className="fleet-sidecar__badge">{item.mode || 'normal'}</span>
-              <span>{address}</span>
-            </div>
-          );
-        }
-        return (
-          <div className="fleet-sidecar__profile-row" key={item.id || item.ssid}>
-            <div>
-              <strong>{item.ssid || item.id || 'profile'}</strong>
-              <span>{item.id || 'no id'}</span>
-            </div>
-            <span className="fleet-sidecar__badge">secret:{item.secret_status || 'missing'}</span>
-            <span>prio {item.priority ?? 0}</span>
+      {profiles.map((item) => (
+        <div className="fleet-sidecar__profile-row" key={item.id || item.ssid}>
+          <div>
+            <strong>{item.ssid || item.id || 'profile'}</strong>
+            <span>{item.id || item.connection_name || 'no id'}</span>
           </div>
-        );
-      })}
+          <span className="fleet-sidecar__badge">password {item.secret_status || 'missing'}</span>
+          <span>{item.disabled ? 'disabled' : `prio ${item.priority ?? 0}`}</span>
+        </div>
+      ))}
     </div>
+  );
+}
+
+function ProfileDetailSection({ title, source, itemKind, emptyLabel }) {
+  const profiles = profileCollection(source, 'profiles');
+  const endpoints = profileCollection(source, 'endpoints');
+  const sources = profileCollection(source, 'sources');
+  return (
+    <section className="fleet-sidecar__profile-section">
+      <header>
+        <h3>{title}</h3>
+        <span>{itemKind === 'mavlink' ? `${endpoints.length} endpoints · ${sources.length} sources` : `${profiles.length} profiles`}</span>
+      </header>
+      <ProfileList
+        profiles={profiles}
+        endpoints={endpoints}
+        sources={sources}
+        itemKind={itemKind}
+        emptyLabel={emptyLabel}
+      />
+    </section>
   );
 }
 
@@ -193,16 +288,16 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
             <th>Drone</th>
             <th>Presence</th>
             <th>Service</th>
-            <th>Installed Ref</th>
+            <th>Ref</th>
             <th>Mode</th>
             <th>Source</th>
             <th>Desired</th>
             <th>{itemKind === 'mavlink' ? 'Applied' : 'Local'}</th>
             <th>Drift</th>
-            <th>{itemKind === 'mavlink' ? 'Endpoints' : 'Profiles'}</th>
-            <th>Dashboard</th>
-            <th>Last Apply</th>
-            <th>Details</th>
+            <th>{itemKind === 'mavlink' ? 'Routes' : 'Profiles'}</th>
+            <th>Links</th>
+            <th>Apply</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -227,18 +322,57 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
                   </span>
                 </td>
                 <td data-label="Service"><span className={`fleet-sidecar__badge ${statusClass(row.service_state)}`}>{row.service_state || 'unknown'}</span></td>
-                <td data-label="Installed Ref">{installedRefLabel(row.installed_ref)}</td>
+                <td data-label="Ref" title={installedRefLabel(row.installed_ref)}>{installedRefLabel(row.installed_ref)}</td>
                 <td data-label="Mode">{row.mode}</td>
                 <td data-label="Source">{row.profile_source || 'n/a'}</td>
                 <td data-label="Desired">{shortHash(row.desired_hash)}</td>
                 <td data-label="Local">{shortHash(row.local_hash || row.applied_hash)}</td>
-                <td data-label="Drift"><span className={`fleet-sidecar__badge ${statusClass(row.drift_state)}`}>{row.drift_state}</span></td>
-                <td data-label="Profiles">{row.profile_count ?? 0}</td>
-                <td data-label="Dashboard">{row.dashboard?.url ? <a href={row.dashboard.url} target="_blank" rel="noreferrer">Open</a> : 'n/a'}</td>
-                <td data-label="Last Apply">{row.last_apply_result?.status || 'n/a'}</td>
+                <td data-label="Drift">
+                  <button
+                    type="button"
+                    className={`fleet-sidecar__badge fleet-sidecar__badge-button ${statusClass(row.drift_state)}`}
+                    onClick={() => onOpenNode(row, 'drift')}
+                    title={driftSummary(row.drift_state, itemKind)}
+                  >
+                    {row.drift_state}
+                  </button>
+                </td>
+                <td data-label={itemKind === 'mavlink' ? 'Routes' : 'Profiles'} title={profileCountLabel({ itemKind }, row)}>{profileCountLabel({ itemKind }, row)}</td>
+                <td data-label="Links">
+                  {row.dashboard?.url ? (
+                    <a
+                      className="fleet-sidecar__icon-link"
+                      href={row.dashboard.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Open sidecar dashboard"
+                      aria-label={`Open drone ${row.hw_id} sidecar dashboard`}
+                    >
+                      <FaExternalLinkAlt aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <span className="fleet-sidecar__muted">n/a</span>
+                  )}
+                </td>
+                <td data-label="Apply">
+                  <button
+                    type="button"
+                    className="fleet-sidecar__link-button"
+                    onClick={() => onOpenNode(row, 'apply')}
+                    title="Show last apply and profile detail"
+                  >
+                    {formatLastApplyResult(row.last_apply_result)}
+                  </button>
+                </td>
                 <td data-label="Details">
-                  <button type="button" className="fleet-sidecar__table-button" onClick={() => onOpenNode(row)}>
-                    <FaInfoCircle aria-hidden="true" /> View
+                  <button
+                    type="button"
+                    className="fleet-sidecar__icon-button"
+                    onClick={() => onOpenNode(row, 'details')}
+                    title="View profile details"
+                    aria-label={`View drone ${row.hw_id} profile details`}
+                  >
+                    <FaListUl aria-hidden="true" />
                   </button>
                 </td>
               </tr>
@@ -273,6 +407,7 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
         <ProfileList
           profiles={table?.baseline?.profiles || []}
           endpoints={table?.baseline?.endpoints || []}
+          sources={table?.baseline?.sources || []}
           itemKind={config.itemKind}
           emptyLabel={config.emptyLabel}
         />
@@ -293,14 +428,26 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
             ['Desired hash', shortHash(dialog.row.desired_hash)],
             ['Local/applied hash', shortHash(dialog.row.local_hash || dialog.row.applied_hash)],
             ['Drift', dialog.row.drift_state],
-            [config.itemKind === 'mavlink' ? 'Endpoints' : 'Profiles', dialog.row.profile_count],
+            [config.itemKind === 'mavlink' ? 'Routes' : 'Profiles', profileCountLabel(config, dialog.row)],
             ['Dashboard', dialog.row.dashboard?.url],
-            ['Last apply', dialog.row.last_apply_result?.status],
+            ['Last apply', formatLastApplyResult(dialog.row.last_apply_result)],
           ]}
         />
         <div className="fleet-sidecar__callout">
-          {dialog.row.operator_state?.summary || 'Use dry-run before applying any profile or policy change.'}
+          {dialog.row.operator_state?.summary || driftSummary(dialog.row.drift_state, config.itemKind)}
         </div>
+        <ProfileDetailSection
+          title={config.itemKind === 'mavlink' ? 'Node MAVLink Overlay' : 'Node Wi-Fi Profiles'}
+          source={dialog.row}
+          itemKind={config.itemKind}
+          emptyLabel={config.emptyLabel}
+        />
+        <ProfileDetailSection
+          title={config.itemKind === 'mavlink' ? 'Repo MAVLink Baseline' : 'Repo Wi-Fi Baseline'}
+          source={table?.baseline}
+          itemKind={config.itemKind}
+          emptyLabel={config.emptyLabel}
+        />
       </Modal>
     );
   }
@@ -660,7 +807,7 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
         includeUnreachable={includeUnreachable}
         itemKind={itemKind}
         onToggleSelected={toggleSelected}
-        onOpenNode={(row) => setDialog({ type: 'node', row })}
+        onOpenNode={(row, focus = 'details') => setDialog({ type: 'node', row, focus })}
       />
 
       <SidecarProfileDialog config={config} table={table} dialog={dialog} closeDialog={closeDialog} />
@@ -703,6 +850,7 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
           <ProfileList
             profiles={dialog.draft?.draft?.summary?.profiles || dialog.draft?.draft?.profiles || []}
             endpoints={dialog.draft?.draft?.summary?.endpoints || dialog.draft?.draft?.endpoints || []}
+            sources={dialog.draft?.draft?.summary?.sources || dialog.draft?.draft?.sources || []}
             itemKind={itemKind}
             emptyLabel={config.emptyLabel}
           />

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-import os
+import configparser
 import hashlib
+import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -127,6 +129,152 @@ def short_hash(value: Optional[str]) -> Optional[str]:
     return normalized[:12] if normalized else None
 
 
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def read_json_object(path: Optional[Union[str, Path]]) -> Dict[str, Any]:
+    if not path:
+        return {}
+    candidate = Path(path)
+    if not candidate.is_file():
+        return {}
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def secret_status_from_profile(profile: Dict[str, Any]) -> str:
+    explicit = str(profile.get("secret_status") or "").strip().lower()
+    allowed = {"stored", "missing", "external file", "redacted"}
+    if explicit in allowed:
+        return explicit
+
+    external_keys = {"password_file", "passphrase_file", "psk_file", "secret_file"}
+    if any(str(profile.get(key) or "").strip() for key in external_keys):
+        return "external file"
+
+    secret_keys = {"password", "passphrase", "psk", "secret"}
+    if any(str(profile.get(key) or "").strip() for key in secret_keys):
+        return "stored"
+    return "missing"
+
+
+def summarize_smart_wifi_profiles(profile_path: Optional[Union[str, Path]]) -> Dict[str, Any]:
+    payload = read_json_object(profile_path)
+    raw_profiles = payload.get("profiles") if isinstance(payload.get("profiles"), list) else []
+    profiles: List[Dict[str, Any]] = []
+    for raw_profile in raw_profiles:
+        if not isinstance(raw_profile, dict):
+            continue
+        profile_id = str(raw_profile.get("id") or raw_profile.get("ssid") or "").strip()
+        ssid = str(raw_profile.get("ssid") or "").strip()
+        if not profile_id and not ssid:
+            continue
+        profiles.append(
+            {
+                "id": profile_id or ssid,
+                "ssid": ssid or profile_id,
+                "priority": safe_int(raw_profile.get("priority"), 0),
+                "connection_name": str(raw_profile.get("connection_name") or "").strip(),
+                "autoconnect": as_bool(raw_profile.get("autoconnect"), default=True),
+                "disabled": as_bool(raw_profile.get("disabled"), default=False),
+                "secret_status": secret_status_from_profile(raw_profile),
+            }
+        )
+    profiles.sort(key=lambda item: (-safe_int(item.get("priority"), 0), str(item.get("id") or "").lower()))
+    return {
+        "profile_count": len(profiles),
+        "network_count": len(profiles),
+        "profiles": profiles,
+    }
+
+
+def _router_option(section: Dict[str, str], *names: str) -> str:
+    for name in names:
+        value = section.get(name.lower())
+        if value is not None:
+            return str(value).strip()
+    return ""
+
+
+def _split_endpoint_section(section_name: str) -> tuple[str, str]:
+    parts = str(section_name or "").strip().split(None, 1)
+    endpoint_type = parts[0] if parts else "Endpoint"
+    endpoint_name = parts[1] if len(parts) > 1 else endpoint_type
+    return endpoint_type, endpoint_name
+
+
+def summarize_mavlink_router_config(path: Optional[Union[str, Path]]) -> Dict[str, Any]:
+    if not path:
+        return {"router_config_present": False, "sources": [], "endpoints": [], "source_count": 0, "endpoint_count": 0}
+    candidate = Path(path)
+    if not candidate.is_file():
+        return {"router_config_present": False, "sources": [], "endpoints": [], "source_count": 0, "endpoint_count": 0}
+
+    parser = configparser.ConfigParser(interpolation=None)
+    try:
+        parser.read(candidate, encoding="utf-8")
+    except configparser.Error:
+        return {"router_config_present": True, "sources": [], "endpoints": [], "source_count": 0, "endpoint_count": 0}
+
+    sources: List[Dict[str, Any]] = []
+    endpoints: List[Dict[str, Any]] = []
+    for section_name in parser.sections():
+        if "endpoint" not in section_name.lower():
+            continue
+        endpoint_type, endpoint_name = _split_endpoint_section(section_name)
+        section = {str(key).lower(): str(value) for key, value in parser.items(section_name)}
+        mode = _router_option(section, "mode") or "normal"
+        address = _router_option(section, "address")
+        port = safe_int(_router_option(section, "port"), 0)
+        device = _router_option(section, "device")
+        baud = safe_int(_router_option(section, "baud", "baudrate"), 0)
+        enabled = not as_bool(_router_option(section, "disabled"), default=False)
+        is_source = (
+            endpoint_type.lower().startswith("uart")
+            or (
+                endpoint_type.lower().startswith("udp")
+                and mode.lower() == "server"
+                and endpoint_name.lower() in {"input", "source", "px4"}
+            )
+        )
+        item: Dict[str, Any] = {
+            "name": endpoint_name,
+            "type": endpoint_type,
+            "mode": mode.lower(),
+            "enabled": enabled,
+            "role": "source" if is_source else "endpoint",
+        }
+        if address:
+            item["address"] = address
+        if port:
+            item["port"] = port
+        if device:
+            item["device"] = device
+        if baud:
+            item["baud"] = baud
+        if is_source:
+            sources.append(item)
+        else:
+            endpoints.append(item)
+
+    sources.sort(key=lambda item: str(item.get("name") or "").lower())
+    endpoints.sort(key=lambda item: str(item.get("name") or "").lower())
+    return {
+        "router_config_present": True,
+        "sources": sources,
+        "endpoints": endpoints,
+        "source_count": len(sources),
+        "endpoint_count": len(endpoints),
+    }
+
+
 def sidecar_drift_state(
     *,
     status_source: str,
@@ -183,6 +331,8 @@ def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         sidecar="mavlink-anywhere",
     )
     service_state = status.get("router_service", "unknown")
+    router_config_path = status.get("router_config") or os.environ.get("MAVLINK_ROUTER_CONFIG") or "/etc/mavlink-router/main.conf"
+    router_profile_summary = summarize_mavlink_router_config(router_config_path)
     drift_state = sidecar_drift_state(
         status_source=status.get("status_source", "fallback"),
         mode=management_mode,
@@ -228,6 +378,7 @@ def build_mavlink_runtime_summary(repo_root: Path) -> Dict[str, Any]:
             "applied_hash": short_hash(applied_hash),
             "router_service": service_state,
             "dashboard_service": status.get("dashboard_service", "unknown"),
+            **router_profile_summary,
         },
         "last_apply_result": status.get("last_apply_result") or status.get("error") or drift_state,
         "desired_config_hash": desired_hash,
@@ -259,6 +410,7 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
         sidecar="smart-wifi-manager",
     )
     service_state = status.get("service_status", "unknown")
+    wifi_profile_summary = summarize_smart_wifi_profiles(profile_path)
     drift_state = sidecar_drift_state(
         status_source=status.get("status_source", "fallback"),
         mode=mode,
@@ -302,6 +454,7 @@ def build_connectivity_runtime_summary(repo_root: Path) -> Dict[str, Any]:
             "profile_hash": short_hash(local_hash),
             "desired_hash": short_hash(desired_hash),
             "applied_hash": short_hash(applied_hash),
+            **wifi_profile_summary,
         },
         "last_apply_result": status.get("last_apply_result") or status.get("error") or drift_state,
         "dashboard_listen": status.get("dashboard_listen")

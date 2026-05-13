@@ -55,6 +55,18 @@ Profile hashes compare canonical sanitized payloads, never raw secrets.
 
 Hash semantics label: `sha256:canonical-sanitized-payload:12`.
 
+Fleet Ops detail dialogs may show sanitized operational metadata:
+
+- Wi-Fi profile names/SSIDs, profile IDs, priority, disabled/autoconnect state,
+  and password state.
+- MAVLink endpoint/source names, endpoint type, mode, role, enabled state,
+  address/port, serial device, and baud rate.
+
+They must not show raw Wi-Fi passwords, tokens, private keys, secret-file paths,
+or raw profile bodies. Use exact language when reviewing UI: **profile source**
+means where the sidecar profile came from; **MAVLink input source** means the
+node-local serial/UDP/PX4 input overlay.
+
 ## Fleet Baseline Locations
 
 Preferred repo baselines:
@@ -115,7 +127,8 @@ overwriting connectivity.
 To turn a connected node into the next fleet reference without exposing secrets:
 
 1. Open Fleet Ops Wi-Fi profiles and inspect the node summary for the selected
-   drone. The summary is redacted and shows password state only.
+   drone. The detail view shows sanitized node-local networks beside the repo
+   baseline and shows password state only.
 2. Use **Promote Draft** for that node. This creates a sanitized reference
    draft; it does not mutate the repo baseline or any node.
 3. Review the draft with the operator. Keep only networks intended for the

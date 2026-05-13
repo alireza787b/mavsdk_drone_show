@@ -1675,6 +1675,9 @@ Each row includes:
 - profile/endpoint count
 - dashboard link metadata
 - last apply result
+- `profiles` for sanitized Smart Wi-Fi node-local profiles when reported
+- `sources` and `endpoints` for sanitized MAVLink node-local input sources and
+  route endpoints when reported
 
 #### `GET /api/v1/fleet/sidecars/{sidecar}/baseline`
 Return the redacted repo baseline summary and desired hash. Preferred baseline
@@ -1685,8 +1688,15 @@ paths are:
 
 Legacy deployment paths may be read for compatibility.
 
+Baseline responses include sanitized Smart Wi-Fi `profiles` or MAVLink
+`endpoints`. MAVLink baseline endpoints intentionally exclude node hardware
+input overlays such as UART devices and PX4 UDP input sources.
+
 #### `GET /api/v1/fleet/sidecars/{sidecar}/nodes/{hw_id}`
-Return one node-local redacted profile summary and drift posture.
+Return one node-local redacted profile summary and drift posture. Wi-Fi node
+responses may include sanitized `profiles`; MAVLink node responses may include
+sanitized `sources` and `endpoints`. Credentials, tokens, private keys,
+secret-file paths, and raw profile bodies are not returned.
 
 #### `POST /api/v1/fleet/sidecars/{sidecar}/promote-draft`
 Generate a sanitized reference draft from one selected node. This does not
