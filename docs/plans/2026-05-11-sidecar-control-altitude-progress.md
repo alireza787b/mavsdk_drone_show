@@ -342,3 +342,30 @@ Validation:
 - `pytest tests/test_gcs_fleet_sidecars_routes.py::test_reconcile_dry_run_uses_node_api_sidecar_proxy -q` passed.
 - Included in the 34-test sidecar/runtime/bootstrap regression pass before
   release.
+
+## 2026-05-13 Smart Wi-Fi Local CLI Fallback Correction
+
+Live board validation found that field nodes may intentionally omit
+`SMART_WIFI_MANAGER_API_TOKEN` from the MDS node process while still supporting
+the documented local MDS reconcile helper. In that posture the Fleet Ops
+dry-run/apply path could not reach the Smart Wi-Fi dashboard mutation API even
+though the node had enough local authority to reconcile through
+`tools/reconcile_connectivity.sh`.
+
+Fixes implemented:
+
+- The node API profile proxy now detects the Smart Wi-Fi dashboard token-required
+  response and falls back to the node-local MDS reconcile helper.
+- Fallback dry-run is read-only: it runs `reconcile_connectivity.sh status
+  --quiet`, returns sanitized desired/applied hash state, and creates the
+  dry-run token consumed by the existing GCS confirmation gate.
+- Fallback apply remains confirmation-gated by Fleet Ops and runs
+  `reconcile_connectivity.sh apply --force --quiet`; no Wi-Fi secrets are
+  returned.
+
+Validation:
+
+- Added node proxy tests for token-missing dry-run and apply fallback.
+- Added Smart Wi-Fi hash alias tests so `manage` service payloads and
+  `fleet-merge` fleet payloads compare equal when their sanitized profile
+  entries match.

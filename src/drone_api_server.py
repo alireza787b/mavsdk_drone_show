@@ -33,6 +33,7 @@ import time
 import subprocess
 import socket
 import shutil
+import hashlib
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set, Tuple
 
@@ -609,6 +610,16 @@ def _sidecar_proxy_error_text(response: requests.Response) -> str:
         return str(detail)
 
 
+def _sidecar_proxy_requires_profile_token(sidecar: str, response: requests.Response) -> bool:
+    if sidecar != "smart-wifi-manager":
+        return False
+    text = _sidecar_proxy_error_text(response)
+    return (
+        "SMART_WIFI_MANAGER_API_TOKEN is required" in text
+        or "API_TOKEN is required for remote mutating requests" in text
+    )
+
+
 def _should_repair_smart_wifi_config(sidecar: str, action: str, response: requests.Response) -> bool:
     if sidecar != "smart-wifi-manager" or action not in {"import", "apply"}:
         return False
@@ -654,6 +665,104 @@ def _run_sidecar_reconcile_refresh(sidecar: str, action: str) -> Optional[Dict[s
     if completed.returncode == 0:
         return {"ok": True, "status": "success"}
     return {"ok": False, "status": "failed", "exit_code": completed.returncode}
+
+
+def _parse_reconcile_status_output(stdout: str) -> Dict[str, str]:
+    status: Dict[str, str] = {}
+    for raw_line in str(stdout or "").splitlines():
+        line = raw_line.strip()
+        if not line or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        status[key.strip()] = value.strip()
+    return status
+
+
+def _run_sidecar_reconcile_status(sidecar: str) -> Dict[str, Any]:
+    config = SIDECAR_PROFILE_PROXY_DEFAULTS.get(sidecar) or {}
+    script_relative = str(config.get("reconcile_script") or "").strip()
+    if not script_relative:
+        return {"ok": False, "status": "missing_helper"}
+    repo_root = _repo_root()
+    script_path = repo_root / script_relative
+    if not script_path.is_file():
+        return {"ok": False, "status": "missing_helper"}
+
+    try:
+        completed = subprocess.run(
+            [str(script_path), "status", "--quiet"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "status": "timeout"}
+    except OSError:
+        return {"ok": False, "status": "invoke_error"}
+    if completed.returncode != 0:
+        return {"ok": False, "status": "failed", "exit_code": completed.returncode}
+    raw_status = _parse_reconcile_status_output(completed.stdout)
+    public_status = {
+        key: raw_status.get(key)
+        for key in (
+            "backend",
+            "ref",
+            "mode",
+            "profile_hash",
+            "desired_config_hash",
+            "applied_config_hash",
+            "config_hash_match",
+            "service_status",
+        )
+        if raw_status.get(key)
+    }
+    return {"ok": True, "status": "success", "runtime": public_status}
+
+
+def _smart_wifi_local_profile_fallback(action: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if action == "import":
+        status = _run_sidecar_reconcile_status("smart-wifi-manager")
+        if not status.get("ok"):
+            return None
+        runtime = status.get("runtime") if isinstance(status.get("runtime"), dict) else {}
+        seed = json.dumps(
+            {
+                "sidecar": "smart-wifi-manager",
+                "action": action,
+                "mode": payload.get("mode"),
+                "desired": runtime.get("desired_config_hash"),
+                "applied": runtime.get("applied_config_hash"),
+                "ts": int(time.time() * 1000),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        token = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:16]
+        return {
+            "sidecar": "smart-wifi-manager",
+            "dry_run": True,
+            "dry_run_id": f"mds-local-reconcile-{token}",
+            "confirmation_token": token,
+            "mode": payload.get("mode") or runtime.get("mode") or "fleet-merge",
+            "mutation_path": "mds-local-reconcile-helper",
+            "runtime": runtime,
+            "warnings": [
+                "Smart Wi-Fi profile API token is not configured on this node; apply will use the node-local MDS reconcile helper."
+            ],
+        }
+    if action == "apply":
+        refresh = _run_sidecar_reconcile_refresh("smart-wifi-manager", "apply")
+        if not refresh or not refresh.get("ok"):
+            return None
+        return {
+            "sidecar": "smart-wifi-manager",
+            "applied": True,
+            "mutation_path": "mds-local-reconcile-helper",
+            "mds_reconcile_refresh": refresh,
+        }
+    return None
 
 
 # ============================================================================
@@ -1615,6 +1724,10 @@ class DroneAPIServer:
                         response = requests.post(url, json=payload or {}, headers=headers, timeout=10)
                     except requests.RequestException as exc:
                         raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
+            if response.status_code >= 400 and _sidecar_proxy_requires_profile_token(sidecar, response):
+                fallback = _smart_wifi_local_profile_fallback(action, payload or {})
+                if fallback is not None:
+                    return fallback
             if response.status_code >= 400:
                 raise HTTPException(status_code=response.status_code, detail=_sidecar_proxy_error_detail(response))
             try:
