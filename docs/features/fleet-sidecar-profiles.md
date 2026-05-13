@@ -55,6 +55,9 @@ Profile hashes compare canonical sanitized payloads, never raw secrets.
 
 Hash semantics label: `sha256:canonical-sanitized-payload:12`.
 
+Fleet Ops list views identify drones as `P{pos}|H{hw}`. Detail dialogs split
+that compact label back into separate Pos ID and HW ID fields.
+
 Fleet Ops detail dialogs may show sanitized operational metadata:
 
 - Wi-Fi profile names/SSIDs, profile IDs, priority, disabled/autoconnect state,
@@ -66,6 +69,11 @@ They must not show raw Wi-Fi passwords, tokens, private keys, secret-file paths,
 or raw profile bodies. Use exact language when reviewing UI: **profile source**
 means where the sidecar profile came from; **MAVLink input source** means the
 node-local serial/UDP/PX4 input overlay.
+
+To avoid repeated rows in node detail dialogs, Fleet Ops shows repo baseline
+profiles separately from node-only additions or overlays. A profile or endpoint
+that exactly matches the baseline should not be listed twice in the same detail
+dialog.
 
 ## Fleet Baseline Locations
 

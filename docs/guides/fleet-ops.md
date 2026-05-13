@@ -140,20 +140,22 @@ When Smart Wi-Fi Manager is configured, Fleet Ops shows the resolved profile
 hash plus desired/applied config hashes. Hashes are shortened in the UI for
 operator readability; raw profile content and secrets are not displayed.
 
-Fleet Ops Wi-Fi profile controls live at `/fleet-ops/wifi`. The table shows
-drone, presence, service state, installed ref, mode, profile source, desired
-hash, local/applied hash, drift state, profile count, a compact Wi-Fi Manager
-dashboard icon, and last apply result. The table is intentionally compact;
-drift and last-apply values open the same reusable detail view as the details
-icon. Baseline, node detail, promote-draft, reconcile, and policy-mode changes
-are all dialog-based.
+Fleet Ops Wi-Fi profile controls live at `/fleet-ops/wifi`. The table shows the
+drone as `P{pos}|H{hw}`, presence, service state, installed ref, mode, profile
+source, desired hash, local/applied hash, drift state, profile count, a compact
+Wi-Fi Manager dashboard icon, and last apply result. The dashboard icon links to
+the board-local Wi-Fi Manager dashboard on that node's sidecar port. The table
+is intentionally compact; drift and last-apply values open the same reusable
+detail view as the details icon. Baseline, node detail, promote-draft,
+reconcile, and policy-mode changes are all dialog-based.
 
-The Wi-Fi detail view shows sanitized node-local Wi-Fi profiles and the repo
-baseline side by side, with the same Wi-Fi Manager dashboard icon near the node
-facts. Operators may see SSIDs, profile IDs, priority, disabled/autoconnect
-posture, and password state values such as `stored`, `missing`, `external
-file`, or `redacted`. Operators must not see raw passwords or local secret-file
-paths.
+The Wi-Fi detail view shows Pos ID and HW ID as separate fields, the same Wi-Fi
+Manager dashboard icon near the node facts, the repo baseline profiles, and
+node-only Wi-Fi profiles that are not already present in the baseline. This
+avoids duplicate rows while still making local additions visible. Operators may
+see SSIDs, profile IDs, priority, disabled/autoconnect posture, and password
+state values such as `stored`, `missing`, `external file`, or `redacted`.
+Operators must not see raw passwords or local secret-file paths.
 
 `local_extra` drift in Wi-Fi `fleet-merge` means the node has local profiles in
 addition to the repo baseline. Fleet Ops keeps those profiles because they may
@@ -170,11 +172,13 @@ source settings such as UART device, baud, UDP input source, and PX4 port stay
 node-local unless an operator deliberately changes them through node-local
 MAVLink Anywhere tooling.
 
-The MAVLink detail view shows sanitized node-local input sources, node-local
-fleet endpoints, and the repo MAVLink endpoint baseline, with a compact MAVLink
-Anywhere dashboard icon near the node facts. This is for quick operator
-inspection; SITL routing remains separate and real-node hardware sources are not
-overwritten by `fleet-merge`.
+The MAVLink detail view shows Pos ID and HW ID as separate fields, sanitized
+node-local input sources, node-only MAVLink endpoint overlays, and the repo
+MAVLink endpoint baseline, with a compact MAVLink Anywhere dashboard icon near
+the node facts. The dashboard icon links to the board-local MAVLink Anywhere
+dashboard on that node's sidecar port. This is for quick operator inspection;
+SITL routing remains separate and real-node hardware sources are not overwritten
+by `fleet-merge`.
 
 Promote Draft generates a sanitized reference draft only. It does not replace a
 repo baseline or alter any node profile.

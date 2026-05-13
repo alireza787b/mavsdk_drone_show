@@ -38,6 +38,8 @@ const wifiTable = {
   rows: [
     {
       hw_id: '1',
+      pos_id: 1,
+      ip: '198.51.100.11',
       presence: { state: 'online', age_seconds: 1 },
       service_state: 'active',
       installed_ref: 'v2.1.10',
@@ -63,6 +65,8 @@ const wifiTable = {
     },
     {
       hw_id: '2',
+      pos_id: 2,
+      ip: '198.51.100.12',
       presence: { state: 'offline', age_seconds: 500 },
       service_state: 'unreachable',
       installed_ref: null,
@@ -102,6 +106,8 @@ const mavlinkTable = {
   rows: [
     {
       hw_id: '1',
+      pos_id: 1,
+      ip: '198.51.100.11',
       presence: { state: 'online', age_seconds: 1 },
       service_state: 'active',
       installed_ref: 'v3.0.9',
@@ -149,7 +155,7 @@ describe('FleetOpsSidecarPage', () => {
       'href',
       expect.stringContaining('docs/features/fleet-sidecar-profiles.md'),
     );
-    expect(await screen.findByLabelText(/select drone 2/i)).toBeDisabled();
+    expect(await screen.findByLabelText(/select P2\|H2/i)).toBeDisabled();
 
     fireEvent.click(screen.getByRole('button', { name: /baseline/i }));
 
@@ -166,12 +172,14 @@ describe('FleetOpsSidecarPage', () => {
     const driftButtons = await screen.findAllByRole('button', { name: /local_extra/i });
     fireEvent.click(driftButtons[0]);
 
-    expect(screen.getByRole('dialog', { name: /node wi-fi profile: 1/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /open drone 1 wi-fi manager dashboard/i })[0]).toHaveAttribute(
+    expect(screen.getByRole('dialog', { name: /node wi-fi profile: P1\|H1/i })).toBeInTheDocument();
+    expect(screen.getByText('Pos ID')).toBeInTheDocument();
+    expect(screen.getByText('HW ID')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /open P1\|H1 wi-fi manager dashboard/i })[0]).toHaveAttribute(
       'href',
       'http://198.51.100.11:9080/'
     );
-    expect(screen.getByText('Node Wi-Fi Profiles')).toBeInTheDocument();
+    expect(screen.getByText('Node-only Wi-Fi Profiles')).toBeInTheDocument();
     expect(screen.getByText('Repo Wi-Fi Baseline')).toBeInTheDocument();
     expect(screen.getByText('Demo Field Local')).toBeInTheDocument();
     expect(screen.getByText('Demo Recovery')).toBeInTheDocument();
@@ -186,15 +194,15 @@ describe('FleetOpsSidecarPage', () => {
     render(<FleetOpsSidecarPage config={MAVLINK_SIDECAR_CONFIG} />);
 
     await screen.findByRole('heading', { name: /mavlink sidecar profiles/i });
-    expect(await screen.findByRole('link', { name: /open drone 1 mavlink anywhere dashboard/i })).toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: /view drone 1 profile details/i }));
+    expect(await screen.findByRole('link', { name: /open P1\|H1 mavlink anywhere dashboard/i })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /view P1\|H1 profile details/i }));
 
-    expect(screen.getByRole('dialog', { name: /node mavlink overlay: 1/i })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /open drone 1 mavlink anywhere dashboard/i })[0]).toHaveAttribute(
+    expect(screen.getByRole('dialog', { name: /node mavlink overlay: P1\|H1/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /open P1\|H1 mavlink anywhere dashboard/i })[0]).toHaveAttribute(
       'href',
       'http://198.51.100.11:9070/'
     );
-    expect(screen.getByText('Node MAVLink Overlay')).toBeInTheDocument();
+    expect(screen.getByText('Node-only MAVLink Overlay')).toBeInTheDocument();
     expect(screen.getByText('Repo MAVLink Baseline')).toBeInTheDocument();
     expect(screen.getByText('MAVLink input sources')).toBeInTheDocument();
     expect(screen.getByText('px4')).toBeInTheDocument();
@@ -232,7 +240,7 @@ describe('FleetOpsSidecarPage', () => {
     render(<FleetOpsSidecarPage config={SMART_WIFI_SIDECAR_CONFIG} />);
 
     await screen.findByRole('heading', { name: /wi-fi sidecar profiles/i });
-    fireEvent.click(await screen.findByLabelText(/select drone 1/i));
+    fireEvent.click(await screen.findByLabelText(/select P1\|H1/i));
     fireEvent.click(screen.getByRole('button', { name: /dry-run reconcile/i }));
 
     await waitFor(() => {
@@ -272,7 +280,7 @@ describe('FleetOpsSidecarPage', () => {
     render(<FleetOpsSidecarPage config={SMART_WIFI_SIDECAR_CONFIG} />);
 
     await screen.findByRole('heading', { name: /wi-fi sidecar profiles/i });
-    fireEvent.click(await screen.findByLabelText(/select drone 1/i));
+    fireEvent.click(await screen.findByLabelText(/select P1\|H1/i));
     fireEvent.change(screen.getByLabelText(/^mode$/i), { target: { value: 'local' } });
 
     const reconcileButton = screen.getByRole('button', { name: /dry-run reconcile/i });
@@ -301,7 +309,7 @@ describe('FleetOpsSidecarPage', () => {
     render(<FleetOpsSidecarPage config={SMART_WIFI_SIDECAR_CONFIG} />);
 
     await screen.findByRole('heading', { name: /wi-fi sidecar profiles/i });
-    fireEvent.click(await screen.findByLabelText(/select drone 1/i));
+    fireEvent.click(await screen.findByLabelText(/select P1\|H1/i));
     fireEvent.click(screen.getByRole('button', { name: /promote draft/i }));
 
     expect(screen.getByRole('dialog', { name: /promote reference draft/i })).toBeInTheDocument();

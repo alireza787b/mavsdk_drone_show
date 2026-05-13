@@ -130,6 +130,68 @@ function profileCollection(source, key) {
   return [];
 }
 
+function droneLabel(row) {
+  const pos = row?.pos_id ?? row?.position_id ?? row?.hw_id ?? '?';
+  const hw = row?.hw_id ?? row?.id ?? '?';
+  return `P${pos}|H${hw}`;
+}
+
+function sidecarDashboardUrl(row, itemKind) {
+  if (row?.dashboard?.url) return row.dashboard.url;
+  if (!row?.ip) return null;
+  const port = row.dashboard?.port || (itemKind === 'mavlink' ? 9070 : 9080);
+  return `http://${row.ip}:${port}/`;
+}
+
+function comparableProfileId(item, itemKind, collectionKind) {
+  if (!item || typeof item !== 'object') return '';
+  if (itemKind === 'wifi') {
+    const id = String(item.id || item.connection_name || '').trim().toLowerCase();
+    const ssid = String(item.ssid || '').trim().toLowerCase();
+    return id && ssid ? `${id}|${ssid}` : id || ssid;
+  }
+  if (collectionKind === 'sources') {
+    return String(item.name || `${item.type || ''}|${item.device || ''}|${item.baud || ''}`).trim().toLowerCase();
+  }
+  return String(item.name || `${item.type || ''}|${item.address || ''}|${item.port || ''}|${item.device || ''}|${item.baud || ''}`).trim().toLowerCase();
+}
+
+function filterBaselineDuplicates(items, baselineItems, itemKind, collectionKind) {
+  const baselineIds = new Set(
+    baselineItems
+      .map((item) => comparableProfileId(item, itemKind, collectionKind))
+      .filter(Boolean)
+  );
+  if (!baselineIds.size) return items;
+  return items.filter((item) => {
+    const id = comparableProfileId(item, itemKind, collectionKind);
+    return !id || !baselineIds.has(id);
+  });
+}
+
+function nodeOnlyProfileSource(source, baseline, itemKind) {
+  return {
+    profiles: filterBaselineDuplicates(
+      profileCollection(source, 'profiles'),
+      profileCollection(baseline, 'profiles'),
+      itemKind,
+      'profiles'
+    ),
+    endpoints: filterBaselineDuplicates(
+      profileCollection(source, 'endpoints'),
+      profileCollection(baseline, 'endpoints'),
+      itemKind,
+      'endpoints'
+    ),
+    sources: filterBaselineDuplicates(
+      profileCollection(source, 'sources'),
+      profileCollection(baseline, 'sources'),
+      itemKind,
+      'sources'
+    ),
+  };
+}
+
 function profileCountLabel(config, source) {
   if (config.itemKind === 'mavlink') {
     const endpoints = profileCollection(source, 'endpoints').length;
@@ -279,18 +341,19 @@ function ProfileDetailSection({ title, source, itemKind, emptyLabel }) {
 }
 
 function SidecarDashboardLink({ row, itemKind, withLabel = false }) {
-  if (!row?.dashboard?.url) {
-    return withLabel ? <span className="fleet-sidecar__muted">Dashboard unavailable</span> : <span className="fleet-sidecar__muted">n/a</span>;
+  const href = sidecarDashboardUrl(row, itemKind);
+  if (!href) {
+    return <span className="fleet-sidecar__muted">n/a</span>;
   }
   const label = itemKind === 'mavlink' ? 'MAVLink Anywhere dashboard' : 'Wi-Fi Manager dashboard';
   return (
     <a
       className={`fleet-sidecar__icon-link ${withLabel ? 'fleet-sidecar__icon-link--with-label' : ''}`}
-      href={row.dashboard.url}
+      href={href}
       target="_blank"
       rel="noreferrer"
       title={`Open ${label}`}
-      aria-label={`Open drone ${row.hw_id} ${label}`}
+      aria-label={`Open ${droneLabel(row)} ${label}`}
     >
       <FaExternalLinkAlt aria-hidden="true" />
       {withLabel && <span>Dashboard</span>}
@@ -331,11 +394,11 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
                     checked={selected.includes(String(row.hw_id))}
                     onChange={() => onToggleSelected(row)}
                     disabled={!selectable}
-                    aria-label={`Select drone ${row.hw_id}`}
+                    aria-label={`Select ${droneLabel(row)}`}
                     title={!selectable ? 'Unreachable or offline nodes require explicit include.' : undefined}
                   />
                 </td>
-                <td data-label="Drone">{row.hw_id}</td>
+                <td data-label="Drone">{droneLabel(row)}</td>
                 <td data-label="Presence">
                   <span className={`fleet-sidecar__badge ${statusClass(row.presence?.state)}`} title={formatAge(row.presence)}>
                     {row.presence?.state || 'unknown'}
@@ -377,7 +440,7 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
                     className="fleet-sidecar__icon-button"
                     onClick={() => onOpenNode(row, 'details')}
                     title="View profile details"
-                    aria-label={`View drone ${row.hw_id} profile details`}
+                    aria-label={`View ${droneLabel(row)} profile details`}
                   >
                     <FaListUl aria-hidden="true" />
                   </button>
@@ -421,10 +484,13 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
   }
 
   if (dialog?.type === 'node') {
+    const nodeOnlySource = nodeOnlyProfileSource(dialog.row, table?.baseline, config.itemKind);
     return (
-      <Modal title={`${config.nodeTitle}: ${dialog.row.hw_id}`} icon={FaInfoCircle} onClose={closeDialog}>
+      <Modal title={`${config.nodeTitle}: ${droneLabel(dialog.row)}`} icon={FaInfoCircle} onClose={closeDialog}>
         <DetailGrid
           items={[
+            ['Pos ID', dialog.row.pos_id],
+            ['HW ID', dialog.row.hw_id],
             ['Presence', `${dialog.row.presence?.state || 'unknown'} (${formatAge(dialog.row.presence)})`],
             ['Service', dialog.row.service_state],
             ['Installed ref', installedRefLabel(dialog.row.installed_ref)],
@@ -444,10 +510,10 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
           {dialog.row.operator_state?.summary || driftSummary(dialog.row.drift_state, config.itemKind)}
         </div>
         <ProfileDetailSection
-          title={config.itemKind === 'mavlink' ? 'Node MAVLink Overlay' : 'Node Wi-Fi Profiles'}
-          source={dialog.row}
+          title={config.itemKind === 'mavlink' ? 'Node-only MAVLink Overlay' : 'Node-only Wi-Fi Profiles'}
+          source={nodeOnlySource}
           itemKind={config.itemKind}
-          emptyLabel={config.emptyLabel}
+          emptyLabel={config.itemKind === 'mavlink' ? 'No node-only MAVLink entries reported.' : 'No node-only Wi-Fi profiles reported.'}
         />
         <ProfileDetailSection
           title={config.itemKind === 'mavlink' ? 'Repo MAVLink Baseline' : 'Repo Wi-Fi Baseline'}
@@ -824,7 +890,7 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
           {modalError && <div className="fleet-sidecar__alert in-modal">{modalError}</div>}
           <DetailGrid
             items={[
-              ['Reference drone', dialog.row?.hw_id],
+              ['Reference drone', droneLabel(dialog.row)],
               ['Presence', `${dialog.row?.presence?.state || 'unknown'} (${formatAge(dialog.row?.presence)})`],
               ['Local hash', shortHash(dialog.row?.local_hash)],
               ['Drift', dialog.row?.drift_state],
@@ -848,7 +914,7 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
         <Modal title="Reference Draft Generated" icon={FaFileExport} onClose={closeDialog}>
           <DetailGrid
             items={[
-              ['Reference drone', dialog.row?.hw_id],
+              ['Reference drone', droneLabel(dialog.row)],
               ['Repo baseline mutated', dialog.draft?.mutated_repo_baseline ? 'yes' : 'no'],
               ['Draft hash', shortHash(dialog.draft?.draft?.summary?.hash || dialog.draft?.draft?.hash)],
               [itemKind === 'mavlink' ? 'Endpoints' : 'Profiles', dialog.draft?.draft?.summary?.profile_count || dialog.draft?.draft?.profile_count],
