@@ -582,7 +582,7 @@ path_requires_coordinator_restart() {
         gcs-server/*|app/dashboard/*|app/linux_dashboard_start.sh|multiple_sitl/*)
             return 1
             ;;
-        deployment/connectivity/smart-wifi-manager/profile.json|deployment/defaults.env)
+        deployment/connectivity/smart-wifi-manager/profile.json|deployment/mavlink-anywhere/profile.json|config/fleet-profiles/*|fleet_profiles/*|deployment/defaults.env)
             return 1
             ;;
         tools/install_gcs.sh|tools/mds_gcs_init.sh|tools/mds_gcs_init_lib/*|tools/mds_init_lib/*|tools/install_companion.sh|tools/install_mds_node.sh)
