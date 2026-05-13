@@ -755,17 +755,17 @@ schedule_systemd_restart() {
 
     (
         sleep "$delay_seconds"
-        if sudo -n "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
+        if run_privileged "$systemctl_cmd" "$action" "$restart_target" >/dev/null 2>&1; then
             logger -t "$SCRIPT_NAME" -p user.info "$component: ${action} ${restart_target} completed"
-        elif [[ "$fallback_target" != "$restart_target" ]] && sudo -n "$systemctl_cmd" "$action" "$fallback_target" >/dev/null 2>&1; then
+        elif [[ "$fallback_target" != "$restart_target" ]] && run_privileged "$systemctl_cmd" "$action" "$fallback_target" >/dev/null 2>&1; then
             logger -t "$SCRIPT_NAME" -p user.info "$component: ${action} ${fallback_target} completed"
         elif [[ "$service_name" == "coordinator.service" ]] && restart_service_main_pid_fallback "$service_name" "$systemctl_cmd"; then
             :
         else
-            logger -t "$SCRIPT_NAME" -p user.warn "$component: sudo ${action} ${service_name} failed after scheduled restart"
+            logger -t "$SCRIPT_NAME" -p user.warn "$component: privileged ${action} ${service_name} failed after scheduled restart"
         fi
     ) &
-    log_info "$component" "Scheduled '${action}' for ${restart_target} in ${delay_seconds}s via sudo ${systemctl_cmd}"
+    log_info "$component" "Scheduled '${action}' for ${restart_target} in ${delay_seconds}s via ${systemctl_cmd}"
     return 0
 }
 

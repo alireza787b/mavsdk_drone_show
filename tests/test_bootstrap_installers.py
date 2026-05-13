@@ -1400,6 +1400,54 @@ EOF
     assert result.returncode == 0, result.stderr
 
 
+def test_post_sync_runtime_restart_runs_directly_for_root_without_sudo():
+    result = run_bash(
+        f"""
+        tmpdir="$(mktemp -d)"
+        repo_dir="$tmpdir/repo"
+        bin_dir="$tmpdir/bin"
+        home_dir="$tmpdir/home/root"
+        mkdir -p "$repo_dir" "$bin_dir" "$home_dir/logs"
+
+        cat > "$bin_dir/sudo" <<'EOF'
+#!/bin/bash
+exit 127
+EOF
+        cat > "$bin_dir/systemctl" <<'EOF'
+#!/bin/bash
+printf '%s\\n' "$*" >> "$TMPDIR/systemctl.log"
+case "$*" in
+  "is-active --quiet coordinator.service") exit 0 ;;
+  "is-failed --quiet coordinator.service") exit 1 ;;
+  "restart coordinator") exit 0 ;;
+esac
+exit 1
+EOF
+        chmod +x "$bin_dir/sudo" "$bin_dir/systemctl"
+
+        PATH="$bin_dir:/usr/bin:/bin" \
+        TMPDIR="$tmpdir" \
+        HOME="$home_dir" \
+        USER="root" \
+        REPO_USER="root" \
+        REPO_DIR="$repo_dir" \
+        MDS_SYSTEMCTL_CMD="$bin_dir/systemctl" \
+        RUNTIME_RESTART_DELAY_SECONDS=0 \
+        bash -lc 'source "{GIT_SYNC_SCRIPT}"; mark_coordinator_restart_needed "runtime files changed"; apply_post_sync_service_actions'
+
+        for _ in $(seq 1 20); do
+          if grep -q "restart coordinator" "$tmpdir/systemctl.log"; then
+            exit 0
+          fi
+          sleep 0.1
+        done
+        exit 1
+        """
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_post_sync_runtime_restart_falls_back_to_main_pid_signal_when_sudo_restart_fails():
     result = run_bash(
         f"""

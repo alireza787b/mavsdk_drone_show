@@ -369,3 +369,19 @@ Validation:
 - Added Smart Wi-Fi hash alias tests so `manage` service payloads and
   `fleet-merge` fleet payloads compare equal when their sanitized profile
   entries match.
+
+## 2026-05-13 Node API Restart Privilege Correction
+
+Hardware git sync verified both boards pulled the latest commit, but the
+already-running coordinator/node API process did not reload the new proxy code.
+The post-sync restart scheduler still called `sudo` directly, which can fail on
+root-run companion installs where direct `systemctl` is the correct privilege
+path.
+
+Fixes implemented:
+
+- `tools/update_repo_ssh.sh` now uses the shared `run_privileged` helper for
+  scheduled coordinator restarts, matching the earlier sidecar reconcile
+  privilege fix.
+- Added regression coverage for root-run nodes where `sudo` is unavailable or
+  unusable.
