@@ -2197,7 +2197,7 @@ def test_runtime_git_sync_reconciles_optional_connectivity_backend():
     git_sync_text = GIT_SYNC_SCRIPT.read_text(encoding="utf-8")
 
     assert "check_connectivity_updates()" in git_sync_text
-    assert 'sudo "${reconcile_script}" apply --quiet' in git_sync_text
+    assert 'run_privileged "${reconcile_script}" apply --quiet' in git_sync_text
     assert '"wifi-manager"' not in git_sync_text
 
 

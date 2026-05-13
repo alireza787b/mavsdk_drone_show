@@ -261,3 +261,27 @@ Validation:
     lodash `4.18.1`, and postcss `8.5.14`.
   - Remaining npm audit findings are tied to CRA/react-scripts build/test
     dependencies and require a separate breaking toolchain migration.
+
+## 2026-05-13 Git Sync Privilege Reconcile Correction
+
+Hardware sync review found one remaining stale warning path after the Smart
+Wi-Fi profile sets were actually aligned: the board-side git-sync helper invoked
+managed sidecar reconcile with `sudo` unconditionally. On root-run/minimal
+companion installs this can fail even though the same reconcile script can be
+run directly, leaving `connectivity_reconcile_status=warning` and causing Fleet
+Ops to show `outdated` instead of the expected synchronized posture.
+
+Fixes implemented:
+
+- Added a shared `run_privileged` helper to `tools/update_repo_ssh.sh`.
+- Git-sync now executes sidecar reconcile directly when already running as
+  root, uses `sudo -n` only for non-root operators, and fails closed when no
+  privilege path exists.
+- Both Smart Wi-Fi Manager and MAVLink Anywhere managed runtime reconcile paths
+  use the same helper.
+
+Validation:
+
+- `bash -n tools/update_repo_ssh.sh` passed.
+- `pytest tests/test_bootstrap_installers.py::test_runtime_git_sync_reconciles_optional_connectivity_backend tests/test_bootstrap_installers.py::test_git_sync_accepts_healthy_mavlink_runtime_after_reconcile_warning tests/test_bootstrap_installers.py::test_git_sync_status_health_falls_back_to_unprivileged_status tests/test_bootstrap_installers.py::test_git_sync_rejects_unhealthy_mavlink_runtime_after_reconcile_warning -q` passed: 4 tests.
+- `git diff --check` passed.

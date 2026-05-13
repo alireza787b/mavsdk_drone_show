@@ -131,6 +131,18 @@ log_warn() { log "warn" "$@"; }
 log_error() { log "error" "$@"; }
 log_debug() { [[ "${DEBUG:-0}" == "1" ]] && log "debug" "$@" || true; }
 
+run_privileged() {
+    if [[ "${EUID:-$(id -u)}" -eq 0 ]]; then
+        "$@"
+        return $?
+    fi
+    if command -v sudo >/dev/null 2>&1; then
+        sudo -n "$@"
+        return $?
+    fi
+    return 127
+}
+
 emit_structured_failure_result() {
     local component="$1"
     local message="$2"
@@ -953,7 +965,7 @@ check_connectivity_updates() {
     fi
 
     log_info "$component" "Reapplying connectivity backend configuration..."
-    if sudo "${reconcile_script}" apply --quiet; then
+    if run_privileged "${reconcile_script}" apply --quiet; then
         CONNECTIVITY_RECONCILE_STATUS="success"
         log_info "$component" "Connectivity backend reconciled"
     elif connectivity_runtime_currently_healthy "${reconcile_script}"; then
@@ -1055,7 +1067,7 @@ check_mavlink_runtime_updates() {
     fi
 
     log_info "$component" "Reapplying managed mavlink-anywhere runtime..."
-    if sudo "${reconcile_script}" apply --quiet; then
+    if run_privileged "${reconcile_script}" apply --quiet; then
         MAVLINK_RUNTIME_RECONCILE_STATUS="success"
         log_info "$component" "Managed mavlink-anywhere runtime reconciled"
     elif mavlink_runtime_currently_healthy "${reconcile_script}"; then
