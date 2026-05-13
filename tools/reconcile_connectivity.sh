@@ -77,6 +77,23 @@ normalize_smart_wifi_mode() {
     esac
 }
 
+smart_wifi_service_mode() {
+    case "${1:-fleet-merge}" in
+        observe)
+            printf 'observe\n'
+            ;;
+        local|fleet-merge|fleet-strict|manage|managed|"")
+            printf 'manage\n'
+            ;;
+        disabled|none)
+            printf 'disabled\n'
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 resolve_profile_path() {
     local source="${MDS_SMART_WIFI_MANAGER_PROFILE_SOURCE:-}"
     local default_relative="${MDS_DEFAULT_SMART_WIFI_MANAGER_PROFILE_PATH:-deployment/connectivity/smart-wifi-manager/profile.json}"
@@ -131,7 +148,7 @@ smart_wifi_git() {
 smart_wifi_hash_input() {
     local profile_path="$1"
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
-    local mode
+    local mode service_mode
     local import_mode="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}"
     local dashboard_listen="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}"
     local repo_url repo_ref skip_dashboard
@@ -197,6 +214,10 @@ apply_smart_wifi_manager() {
         log ERROR "Unsupported Smart Wi-Fi Manager mode: ${MDS_SMART_WIFI_MANAGER_MODE:-}"
         return 1
     fi
+    if ! service_mode="$(smart_wifi_service_mode "${mode}")"; then
+        log ERROR "Unsupported Smart Wi-Fi Manager service mode for policy: ${mode}"
+        return 1
+    fi
 
     profile_path="$(resolve_profile_path)"
     new_hash="$(smart_wifi_hash_input "${profile_path}")"
@@ -224,7 +245,7 @@ apply_smart_wifi_manager() {
         return 1
     fi
 
-    local cmd=("${configure_script}" --headless --config "${config_path}" --mode "${mode}")
+    local cmd=("${configure_script}" --headless --config "${config_path}" --mode "${service_mode}")
     if [[ -n "${profile_path}" ]]; then
         if [[ ! -f "${profile_path}" ]]; then
             log ERROR "Configured Smart Wi-Fi Manager profile not found: ${profile_path}"

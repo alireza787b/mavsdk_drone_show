@@ -643,7 +643,10 @@ def _load_baseline_summary(deps: Any, sidecar: str) -> dict[str, Any]:
             "endpoints": [],
         }
     redacted = _redacted_profile_config(payload)
+    profiles = redacted.get("profiles", [])
     endpoints = redacted.get("endpoints", [])
+    if sidecar == "smart-wifi-manager":
+        profiles = _smart_wifi_public_profiles(payload)
     if sidecar == "mavlink-anywhere":
         endpoints = _mavlink_policy_endpoints(redacted)
     return {
@@ -654,7 +657,7 @@ def _load_baseline_summary(deps: Any, sidecar: str) -> dict[str, Any]:
         "hash": _sanitized_hash(sidecar, payload),
         "hash_semantics": HASH_SEMANTICS,
         "profile_count": _baseline_profile_count(sidecar, payload),
-        "profiles": redacted.get("profiles", []),
+        "profiles": profiles,
         "endpoints": endpoints,
         "mode": _normalize_sidecar_mode(payload.get("mode"), default=SIDECARS[sidecar]["default_mode"], sidecar=sidecar),
     }
@@ -697,6 +700,29 @@ def _sanitize_secret_text(text: str) -> str:
     return sanitized
 
 
+def _smart_wifi_public_profiles(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    profiles: list[dict[str, Any]] = []
+    for profile in payload.get("profiles", []) or []:
+        if not isinstance(profile, dict):
+            continue
+        redacted = deepcopy(profile)
+        _redact_secret_fields(redacted)
+        profiles.append(
+            {
+                "id": str(profile.get("id") or profile.get("ssid") or "").strip(),
+                "ssid": str(profile.get("ssid") or "").strip(),
+                "priority": int(profile.get("priority") or 0),
+                "connection_name": str(profile.get("connection_name") or "").strip(),
+                "autoconnect": bool(profile.get("autoconnect", True)),
+                "disabled": bool(profile.get("disabled", False)),
+                "notes": str(profile.get("notes") or "").strip(),
+                "secret_status": redacted.get("secret_status", "missing"),
+            }
+        )
+    profiles.sort(key=lambda item: (item["id"].lower(), item["ssid"].lower()))
+    return profiles
+
+
 def _redact_secret_fields(value: Any) -> Any:
     secret_keys = {"password", "passphrase", "psk", "secret", "token", "api_key", "private_key"}
     external_secret_keys = {"password_file", "passphrase_file", "secret_file", "token_file", "api_key_file", "private_key_file"}
@@ -730,25 +756,6 @@ def _sanitized_hash(sidecar: str, payload: dict[str, Any]) -> str:
 
 
 def _smart_wifi_canonical_payload(config: dict[str, Any]) -> dict[str, Any]:
-    profiles = []
-    for profile in config.get("profiles", []) or []:
-        if not isinstance(profile, dict):
-            continue
-        redacted = deepcopy(profile)
-        _redact_secret_fields(redacted)
-        profiles.append(
-            {
-                "id": str(profile.get("id") or profile.get("ssid") or "").strip(),
-                "ssid": str(profile.get("ssid") or "").strip(),
-                "priority": int(profile.get("priority") or 0),
-                "connection_name": str(profile.get("connection_name") or "").strip(),
-                "autoconnect": bool(profile.get("autoconnect", True)),
-                "disabled": bool(profile.get("disabled", False)),
-                "notes": str(profile.get("notes") or "").strip(),
-                "secret_status": redacted.get("secret_status", "missing"),
-            }
-        )
-    profiles.sort(key=lambda item: (item["id"].lower(), item["ssid"].lower()))
     return {
         "version": int(config.get("version") or 1),
         "mode": _normalize_sidecar_mode(config.get("mode"), default="fleet-merge", sidecar="smart-wifi-manager"),
@@ -758,7 +765,7 @@ def _smart_wifi_canonical_payload(config: dict[str, Any]) -> dict[str, Any]:
         "connect_timeout_sec": int(config.get("connect_timeout_sec") or 0),
         "cooldown_sec": int(config.get("cooldown_sec") or 0),
         "allow_open_networks": bool(config.get("allow_open_networks", False)),
-        "profiles": profiles,
+        "profiles": _smart_wifi_public_profiles(config),
     }
 
 

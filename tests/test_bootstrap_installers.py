@@ -1821,7 +1821,7 @@ EOF
         grep -q -- '--dashboard-version v9.9.9' "$tmpdir/install_args.txt"
         grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
         grep -q -- '--import-mode merge' "$tmpdir/configure_args.txt"
-        grep -q -- '--mode fleet-merge' "$tmpdir/configure_args.txt"
+        grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
         """
     )
 

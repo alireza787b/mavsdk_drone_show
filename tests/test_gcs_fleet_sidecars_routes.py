@@ -83,7 +83,10 @@ def test_fleet_sidecar_baseline_is_redacted(monkeypatch, tmp_path):
     data = response.json()
     assert data["present"] is True
     assert data["profile_count"] == 1
+    assert data["profiles"][0]["connection_name"] == ""
+    assert data["profiles"][0]["disabled"] is False
     assert data["profiles"][0]["secret_status"] == "stored"
+    assert "password" not in data["profiles"][0]
     assert "redacted-demo-value" not in response.text
 
 
