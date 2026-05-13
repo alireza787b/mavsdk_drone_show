@@ -280,6 +280,32 @@ class TestBackgroundTelemetryHelpers:
         assert payload['heartbeat_last_seen'] == 1700000000123
         assert payload['heartbeat_first_seen'] == 1699999999000
         assert payload['heartbeat_network_info'] == {'reachable': True}
+        assert payload['altitude_report']['source'] == 'absolute_msl'
+        assert payload['altitude_display_m'] == pytest.approx(488.5)
+        assert payload['altitude_source'] == 'absolute_msl'
+
+    def test_build_background_telemetry_record_adds_altitude_report_for_legacy_dgps_payload(self):
+        from app_fastapi import _build_background_telemetry_record
+
+        payload = _build_background_telemetry_record(
+            2,
+            '192.168.1.102',
+            {
+                'hw_id': 2,
+                'position_lat': 35.123456,
+                'position_long': -120.654321,
+                'position_alt': 153.388,
+                'gps_fix_type': 4,
+                'gps_raw_valid': True,
+                'timestamp': int(time.time() * 1000),
+                'update_time': int(time.time()),
+            },
+        )
+
+        assert payload['gps_fix_type'] == 4
+        assert payload['altitude_report']['available'] is True
+        assert payload['altitude_report']['source'] == 'absolute_msl'
+        assert payload['altitude_display_m'] == pytest.approx(153.388)
 
     def test_build_background_telemetry_record_marks_stale_local_feed_unavailable(self):
         from app_fastapi import _build_background_telemetry_record, last_heartbeats
@@ -381,6 +407,8 @@ class TestBackgroundTelemetryHelpers:
         assert payload['global_position_valid'] is False
         assert payload['distance_to_home_m'] is None
         assert 'global position' in payload['position_unavailable_reason'].lower()
+        assert payload['altitude_report']['available'] is False
+        assert payload['altitude_display_m'] is None
 
     def test_background_services_apply_drone_targets_seeds_placeholders_and_prunes_removed(self):
         module_path = Path(__file__).resolve().parents[1] / "gcs-server" / "app_fastapi.py"

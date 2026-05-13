@@ -92,6 +92,7 @@ from fleet_candidates import get_fleet_candidate_registry
 from git_status import git_status_data_all_drones, data_lock_git_status
 from command_tracker import get_command_tracker, init_command_tracker
 from src import __version__ as MDS_VERSION
+from src.telemetry_display import build_altitude_report
 
 # Import SAR router
 from api_routes.fleet_candidates import create_fleet_candidates_router
@@ -661,6 +662,61 @@ def _ensure_position_quality_fields(record: Dict[str, Any], now_ms: int) -> Dict
     return record
 
 
+def _first_update_timestamp_ms(record: Dict[str, Any], *keys: str) -> int:
+    for key in keys:
+        timestamp_ms = _normalize_update_time_ms(record.get(key))
+        if timestamp_ms is not None:
+            return timestamp_ms
+    return 0
+
+
+def _ensure_altitude_policy_fields(record: Dict[str, Any], now_ms: int) -> Dict[str, Any]:
+    existing_report = record.get("altitude_report")
+    if isinstance(existing_report, dict):
+        record.setdefault("altitude_display_m", existing_report.get("display_m"))
+        record.setdefault("altitude_source", existing_report.get("source"))
+        record.setdefault("relative_altitude_m", existing_report.get("relative_home_m"))
+        record.setdefault("baro_altitude_m", existing_report.get("baro_m"))
+        return record
+
+    global_timestamp_ms = 0
+    if bool(record.get("global_position_valid")):
+        global_timestamp_ms = _first_update_timestamp_ms(
+            record,
+            "global_position_timestamp_ms",
+            "telemetry_timestamp_ms",
+            "update_time",
+            "timestamp",
+        )
+    local_timestamp_ms = _first_update_timestamp_ms(
+        record,
+        "local_position_timestamp_ms",
+        "telemetry_timestamp_ms",
+        "update_time",
+        "timestamp",
+    )
+    report = build_altitude_report(
+        position={"alt": record.get("position_alt")},
+        local_position_ned={
+            "z": record.get("local_position_down"),
+            "time_boot_ms": record.get("local_position_time_boot_ms"),
+            "timestamp_ms": local_timestamp_ms,
+        },
+        gps_fix_type=record.get("gps_fix_type", 0),
+        global_position_timestamp_ms=global_timestamp_ms,
+        relative_altitude_m=record.get("relative_altitude_m"),
+        baro_altitude_m=record.get("baro_altitude_m"),
+        baro_timestamp_ms=_first_update_timestamp_ms(record, "baro_timestamp_ms", "telemetry_timestamp_ms", "update_time", "timestamp"),
+        now_ms=now_ms,
+    )
+    record["altitude_report"] = report
+    record["altitude_display_m"] = report.get("display_m")
+    record["altitude_source"] = report.get("source")
+    record["relative_altitude_m"] = report.get("relative_home_m")
+    record["baro_altitude_m"] = report.get("baro_m")
+    return record
+
+
 def _build_background_unavailable_record(
     hw_id: Any,
     pos_id: Any,
@@ -743,7 +799,8 @@ def _build_background_unavailable_record(
     if update_time_ms is not None:
         record["telemetry_last_update_age_ms"] = max(0, now_ms - update_time_ms)
 
-    return _ensure_position_quality_fields(record, now_ms)
+    _ensure_position_quality_fields(record, now_ms)
+    return _ensure_altitude_policy_fields(record, now_ms)
 
 
 def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -771,6 +828,7 @@ def _build_background_telemetry_record(hw_id: Any, ip: str, data: Dict[str, Any]
     record["telemetry_last_update_age_ms"] = telemetry_age_ms
     record["telemetry_stale_threshold_ms"] = stale_threshold_ms
     _ensure_position_quality_fields(record, now_ms)
+    _ensure_altitude_policy_fields(record, now_ms)
 
     if update_time_ms is None:
         record["telemetry_available"] = False
