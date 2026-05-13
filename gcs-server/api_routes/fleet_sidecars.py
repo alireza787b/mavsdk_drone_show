@@ -821,7 +821,7 @@ def _drone_api_port(deps: Any) -> int:
 
 
 def _sidecar_api_payload(sidecar: str, payload: dict[str, Any]) -> dict[str, Any]:
-    if sidecar != "smart-wifi-manager" or "mode" not in payload:
+    if sidecar != "smart-wifi-manager":
         return payload
     translated = deepcopy(payload)
     def service_mode(value: Any) -> str:
@@ -833,7 +833,6 @@ def _sidecar_api_payload(sidecar: str, payload: dict[str, Any]) -> dict[str, Any
             "fleet-strict": "manage",
         }.get(mode, mode)
 
-    translated["mode"] = service_mode(translated.get("mode"))
     baseline = translated.get("baseline")
     if isinstance(baseline, dict) and "mode" in baseline:
         baseline["mode"] = service_mode(baseline.get("mode"))

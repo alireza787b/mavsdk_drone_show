@@ -321,11 +321,13 @@ API still accepts service modes `manage`, `observe`, and `disabled`.
 Fixes implemented:
 
 - Fleet Ops keeps the public/shared sidecar policy contract unchanged.
-- At the Smart Wi-Fi Manager API boundary only, MDS translates
-  `fleet-merge`, `fleet-strict`, and `local` to the non-destructive sidecar
-  service mode `manage`; `observe` remains `observe`. The translation applies
-  to both the top-level sidecar import mode and the nested repo baseline mode
-  sent to legacy Smart Wi-Fi Manager profile APIs.
+- At the Smart Wi-Fi Manager API boundary only, MDS translates the nested repo
+  baseline config mode (`fleet-merge`, `fleet-strict`, and `local`) to the
+  non-destructive Smart Wi-Fi service mode `manage`; `observe` remains
+  `observe`.
+- The top-level sidecar import mode remains the shared policy value
+  (`fleet-merge` for the current field baseline), matching the Smart Wi-Fi
+  profile-control contract.
 - The dry-run job response still reports the operator-facing mode, while the
   node proxy receives the legacy-compatible sidecar mode.
 
