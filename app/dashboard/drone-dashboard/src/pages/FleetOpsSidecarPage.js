@@ -278,6 +278,26 @@ function ProfileDetailSection({ title, source, itemKind, emptyLabel }) {
   );
 }
 
+function SidecarDashboardLink({ row, itemKind, withLabel = false }) {
+  if (!row?.dashboard?.url) {
+    return withLabel ? <span className="fleet-sidecar__muted">Dashboard unavailable</span> : <span className="fleet-sidecar__muted">n/a</span>;
+  }
+  const label = itemKind === 'mavlink' ? 'MAVLink Anywhere dashboard' : 'Wi-Fi Manager dashboard';
+  return (
+    <a
+      className={`fleet-sidecar__icon-link ${withLabel ? 'fleet-sidecar__icon-link--with-label' : ''}`}
+      href={row.dashboard.url}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open ${label}`}
+      aria-label={`Open drone ${row.hw_id} ${label}`}
+    >
+      <FaExternalLinkAlt aria-hidden="true" />
+      {withLabel && <span>Dashboard</span>}
+    </a>
+  );
+}
+
 export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKind, onToggleSelected, onOpenNode }) {
   return (
     <div className="fleet-sidecar__table-wrap">
@@ -295,7 +315,7 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
             <th>{itemKind === 'mavlink' ? 'Applied' : 'Local'}</th>
             <th>Drift</th>
             <th>{itemKind === 'mavlink' ? 'Routes' : 'Profiles'}</th>
-            <th>Links</th>
+            <th>Dashboard</th>
             <th>Apply</th>
             <th></th>
           </tr>
@@ -338,21 +358,8 @@ export function SidecarStatusTable({ rows, selected, includeUnreachable, itemKin
                   </button>
                 </td>
                 <td data-label={itemKind === 'mavlink' ? 'Routes' : 'Profiles'} title={profileCountLabel({ itemKind }, row)}>{profileCountLabel({ itemKind }, row)}</td>
-                <td data-label="Links">
-                  {row.dashboard?.url ? (
-                    <a
-                      className="fleet-sidecar__icon-link"
-                      href={row.dashboard.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Open sidecar dashboard"
-                      aria-label={`Open drone ${row.hw_id} sidecar dashboard`}
-                    >
-                      <FaExternalLinkAlt aria-hidden="true" />
-                    </a>
-                  ) : (
-                    <span className="fleet-sidecar__muted">n/a</span>
-                  )}
+                <td data-label="Dashboard">
+                  <SidecarDashboardLink row={row} itemKind={itemKind} />
                 </td>
                 <td data-label="Apply">
                   <button
@@ -398,10 +405,8 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
         <DetailGrid
           items={[
             ['Configured', table?.baseline?.present ? 'yes' : 'no'],
-            ['Path', table?.baseline?.path],
             ['Hash', shortHash(table?.baseline?.hash)],
             [config.itemKind === 'mavlink' ? 'Endpoints' : 'Profiles', table?.baseline?.profile_count],
-            ['Hash semantics', table?.baseline?.hash_semantics],
           ]}
         />
         <ProfileList
@@ -429,10 +434,12 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
             ['Local/applied hash', shortHash(dialog.row.local_hash || dialog.row.applied_hash)],
             ['Drift', dialog.row.drift_state],
             [config.itemKind === 'mavlink' ? 'Routes' : 'Profiles', profileCountLabel(config, dialog.row)],
-            ['Dashboard', dialog.row.dashboard?.url],
             ['Last apply', formatLastApplyResult(dialog.row.last_apply_result)],
           ]}
         />
+        <div className="fleet-sidecar__modal-actions">
+          <SidecarDashboardLink row={dialog.row} itemKind={config.itemKind} withLabel />
+        </div>
         <div className="fleet-sidecar__callout">
           {dialog.row.operator_state?.summary || driftSummary(dialog.row.drift_state, config.itemKind)}
         </div>

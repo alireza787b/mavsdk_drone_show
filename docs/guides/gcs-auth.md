@@ -89,6 +89,9 @@ When dashboard auth is enabled:
 - the sidebar shows the current signed-in user
 - Runtime Admin shows dashboard/API auth posture
 - admins can create/disable users and create/revoke API tokens
+- active API tokens are shown by default; revoked token records remain available
+  behind a compact audit toggle so short-lived debug/verification tokens do not
+  clutter the normal operator view
 - signed-in users can open their sidebar profile and change their own password
 - viewer users are read-only
 - operator users can use normal operator actions but cannot manage auth/runtime administration
@@ -112,6 +115,11 @@ sudo python3 tools/mds_auth_admin.py rotate-session-secret
 
 `status` output intentionally reports posture, users, and token metadata only;
 it does not print password hashes or token hashes.
+
+Revoked API token records are retained as audit metadata. They cannot be used
+after revocation, but keeping the record preserves who created it, when it
+expired, and when it was revoked. For field/debug automation, prefer short TTLs,
+descriptive names, and immediate revocation after validation.
 
 Token examples:
 

@@ -270,11 +270,25 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--spacing-xs);
   width: 30px;
   height: 30px;
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
   background: var(--color-bg-tertiary);
+}
+
+.fleet-sidecar__icon-link--with-label {
+  width: auto;
+  max-width: 170px;
+  padding: 0 var(--spacing-sm);
+  text-decoration: none;
+}
+
+.fleet-sidecar__icon-link--with-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fleet-sidecar__muted {
@@ -369,6 +383,12 @@
 
 .fleet-sidecar__details dd {
   overflow-wrap: anywhere;
+}
+
+.fleet-sidecar__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: calc(var(--spacing-md) * -0.5) var(--spacing-md) var(--spacing-md);
 }
 
 .fleet-sidecar__profile-list,

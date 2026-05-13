@@ -5,6 +5,14 @@ import { MemoryRouter } from 'react-router-dom';
 const mockSaveGcsConfigResponse = jest.fn();
 const mockApplyGcsConfigResponse = jest.fn();
 const mockApplyRuntimeUpdateResponse = jest.fn();
+let mockAuthContext = {
+  dashboardAuthEnabled: false,
+  apiAuthEnabled: false,
+  role: null,
+  user: null,
+  status: { dashboard_auth_enabled: false, api_auth_enabled: false },
+  logout: jest.fn(),
+};
 
 jest.mock('../hooks/useGcsGitInfo', () => ({
   __esModule: true,
@@ -17,14 +25,7 @@ jest.mock('../hooks/useGcsRuntimeStatus', () => ({
 }));
 
 jest.mock('../contexts/AuthContext', () => ({
-  useAuth: () => ({
-    dashboardAuthEnabled: false,
-    apiAuthEnabled: false,
-    role: null,
-    user: null,
-    status: { dashboard_auth_enabled: false, api_auth_enabled: false },
-    logout: jest.fn(),
-  }),
+  useAuth: () => mockAuthContext,
 }));
 
 jest.mock('../services/gcsApiService', () => ({
@@ -141,6 +142,14 @@ const baseRuntimeStatus = {
 describe('RuntimeAdminPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockAuthContext = {
+      dashboardAuthEnabled: false,
+      apiAuthEnabled: false,
+      role: null,
+      user: null,
+      status: { dashboard_auth_enabled: false, api_auth_enabled: false },
+      logout: jest.fn(),
+    };
   });
 
   test('renders live runtime posture and doc links', () => {
@@ -172,6 +181,41 @@ describe('RuntimeAdminPage', () => {
     );
     expect(screen.queryByRole('link', { name: /open mavlink-anywhere repo/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /open local dashboard/i })).not.toBeInTheDocument();
+  });
+
+  test('hides revoked API token audit records by default', async () => {
+    const {
+      listAuthTokensResponse,
+      listAuthUsersResponse,
+    } = require('../services/gcsApiService');
+    mockAuthContext = {
+      dashboardAuthEnabled: true,
+      apiAuthEnabled: true,
+      role: 'admin',
+      user: { username: 'admin' },
+      status: { dashboard_auth_enabled: true, api_auth_enabled: true },
+      logout: jest.fn(),
+    };
+    listAuthUsersResponse.mockResolvedValueOnce({ data: { users: [] } });
+    listAuthTokensResponse.mockResolvedValueOnce({
+      data: {
+        tokens: [
+          { id: 'tok_active', name: 'operator-current', revoked: false },
+          { id: 'tok_old', name: 'codex-board1-inspect-v5366', revoked: true },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter future={routerFuture}>
+        <RuntimeAdminPage runtimeOverride={baseRuntimeStatus} gitInfoOverride={baseGitInfo} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('operator-current')).toBeInTheDocument();
+    expect(screen.queryByText('codex-board1-inspect-v5366')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /revoked 1/i }));
+    expect(await screen.findByText('codex-board1-inspect-v5366')).toBeInTheDocument();
   });
 
   test('persists runtime host config and schedules apply restart', async () => {

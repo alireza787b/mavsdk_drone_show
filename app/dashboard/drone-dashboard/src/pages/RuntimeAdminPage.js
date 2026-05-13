@@ -167,6 +167,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
   const [restartWatch, setRestartWatch] = useState(null);
   const [authUsers, setAuthUsers] = useState([]);
   const [authTokens, setAuthTokens] = useState([]);
+  const [showRevokedTokens, setShowRevokedTokens] = useState(false);
   const [authNotice, setAuthNotice] = useState(null);
   const [userDialog, setUserDialog] = useState(null);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
@@ -230,6 +231,15 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
     () => draftMode !== effectiveConfiguredMode || Boolean(draftGitAutoPush) !== Boolean(effectiveConfiguredGitAutoPush),
     [draftGitAutoPush, draftMode, effectiveConfiguredGitAutoPush, effectiveConfiguredMode],
   );
+  const activeAuthTokens = useMemo(
+    () => authTokens.filter((token) => !token.revoked),
+    [authTokens],
+  );
+  const revokedAuthTokens = useMemo(
+    () => authTokens.filter((token) => token.revoked),
+    [authTokens],
+  );
+  const visibleAuthTokens = showRevokedTokens ? authTokens : activeAuthTokens;
   const sitlInstanceCount = Number.isInteger(runtime.sitlInstanceCount) ? runtime.sitlInstanceCount : null;
   const showSitlInventoryWarning = Boolean(sitlInstanceCount && effectiveConfiguredMode === 'real');
   const sitlInventoryWarningMessage = runtime.mode === 'sitl'
@@ -629,10 +639,21 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
               <section className="runtime-admin-page__security-panel">
                 <div className="runtime-admin-page__security-panel-header">
                   <h3>Tokens</h3>
-                  <button type="button" className="runtime-admin-page__action-btn" onClick={() => setTokenDialogOpen(true)}>
-                    <FaPlus aria-hidden="true" />
-                    <span>Create</span>
-                  </button>
+                  <span className="runtime-admin-page__security-panel-actions">
+                    {revokedAuthTokens.length ? (
+                      <button
+                        type="button"
+                        className="runtime-admin-page__ghost-btn"
+                        onClick={() => setShowRevokedTokens((current) => !current)}
+                      >
+                        {showRevokedTokens ? 'Hide revoked' : `Revoked ${revokedAuthTokens.length}`}
+                      </button>
+                    ) : null}
+                    <button type="button" className="runtime-admin-page__action-btn" onClick={() => setTokenDialogOpen(true)}>
+                      <FaPlus aria-hidden="true" />
+                      <span>Create</span>
+                    </button>
+                  </span>
                 </div>
                 {revealedToken?.token ? (
                   <div className="runtime-admin-page__token-reveal">
@@ -641,7 +662,7 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                   </div>
                 ) : null}
                 <div className="runtime-admin-page__mini-table">
-                  {authTokens.map((token) => (
+                  {visibleAuthTokens.map((token) => (
                     <div key={token.id} className="runtime-admin-page__mini-row">
                       <span>{token.name || token.id}</span>
                       <StatusPill tone={token.revoked ? 'danger' : 'good'}>
@@ -652,7 +673,11 @@ function RuntimeAdminPage({ runtimeOverride = null, gitInfoOverride = null }) {
                       </button>
                     </div>
                   ))}
-                  {!authTokens.length ? <p className="runtime-admin-page__empty">No API tokens reported.</p> : null}
+                  {!visibleAuthTokens.length ? (
+                    <p className="runtime-admin-page__empty">
+                      {authTokens.length ? 'Only revoked token audit records are hidden.' : 'No API tokens reported.'}
+                    </p>
+                  ) : null}
                 </div>
               </section>
             </div>

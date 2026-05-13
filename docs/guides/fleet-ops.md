@@ -142,16 +142,18 @@ operator readability; raw profile content and secrets are not displayed.
 
 Fleet Ops Wi-Fi profile controls live at `/fleet-ops/wifi`. The table shows
 drone, presence, service state, installed ref, mode, profile source, desired
-hash, local/applied hash, drift state, profile count, dashboard link, and last
-apply result. The table is intentionally compact; drift and last-apply values
-open the same reusable detail view as the details icon. Baseline, node detail,
-promote-draft, reconcile, and policy-mode changes are all dialog-based.
+hash, local/applied hash, drift state, profile count, a compact Wi-Fi Manager
+dashboard icon, and last apply result. The table is intentionally compact;
+drift and last-apply values open the same reusable detail view as the details
+icon. Baseline, node detail, promote-draft, reconcile, and policy-mode changes
+are all dialog-based.
 
 The Wi-Fi detail view shows sanitized node-local Wi-Fi profiles and the repo
-baseline side by side. Operators may see SSIDs, profile IDs, priority,
-disabled/autoconnect posture, and password state values such as `stored`,
-`missing`, `external file`, or `redacted`. Operators must not see raw passwords
-or local secret-file paths.
+baseline side by side, with the same Wi-Fi Manager dashboard icon near the node
+facts. Operators may see SSIDs, profile IDs, priority, disabled/autoconnect
+posture, and password state values such as `stored`, `missing`, `external
+file`, or `redacted`. Operators must not see raw passwords or local secret-file
+paths.
 
 `local_extra` drift in Wi-Fi `fleet-merge` means the node has local profiles in
 addition to the repo baseline. Fleet Ops keeps those profiles because they may
@@ -169,9 +171,10 @@ node-local unless an operator deliberately changes them through node-local
 MAVLink Anywhere tooling.
 
 The MAVLink detail view shows sanitized node-local input sources, node-local
-fleet endpoints, and the repo MAVLink endpoint baseline. This is for quick
-operator inspection; SITL routing remains separate and real-node hardware
-sources are not overwritten by `fleet-merge`.
+fleet endpoints, and the repo MAVLink endpoint baseline, with a compact MAVLink
+Anywhere dashboard icon near the node facts. This is for quick operator
+inspection; SITL routing remains separate and real-node hardware sources are not
+overwritten by `fleet-merge`.
 
 Promote Draft generates a sanitized reference draft only. It does not replace a
 repo baseline or alter any node profile.

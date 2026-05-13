@@ -167,6 +167,10 @@ describe('FleetOpsSidecarPage', () => {
     fireEvent.click(driftButtons[0]);
 
     expect(screen.getByRole('dialog', { name: /node wi-fi profile: 1/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /open drone 1 wi-fi manager dashboard/i })[0]).toHaveAttribute(
+      'href',
+      'http://198.51.100.11:9080/'
+    );
     expect(screen.getByText('Node Wi-Fi Profiles')).toBeInTheDocument();
     expect(screen.getByText('Repo Wi-Fi Baseline')).toBeInTheDocument();
     expect(screen.getByText('Demo Field Local')).toBeInTheDocument();
@@ -182,10 +186,14 @@ describe('FleetOpsSidecarPage', () => {
     render(<FleetOpsSidecarPage config={MAVLINK_SIDECAR_CONFIG} />);
 
     await screen.findByRole('heading', { name: /mavlink sidecar profiles/i });
-    expect(await screen.findByRole('link', { name: /open drone 1 sidecar dashboard/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /open drone 1 mavlink anywhere dashboard/i })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: /view drone 1 profile details/i }));
 
     expect(screen.getByRole('dialog', { name: /node mavlink overlay: 1/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /open drone 1 mavlink anywhere dashboard/i })[0]).toHaveAttribute(
+      'href',
+      'http://198.51.100.11:9070/'
+    );
     expect(screen.getByText('Node MAVLink Overlay')).toBeInTheDocument();
     expect(screen.getByText('Repo MAVLink Baseline')).toBeInTheDocument();
     expect(screen.getByText('MAVLink input sources')).toBeInTheDocument();
