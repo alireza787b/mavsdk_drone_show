@@ -219,6 +219,32 @@ Validation:
 - `python3 -m py_compile src/managed_runtime_status.py gcs-server/api_routes/fleet_sidecars.py` passed.
 - `pytest tests/test_gcs_fleet_sidecars_routes.py tests/test_managed_runtime_status.py tests/test_bootstrap_installers.py::test_reconcile_connectivity_uses_repo_profile_when_backend_is_smart_wifi_manager tests/test_bootstrap_installers.py::test_reconcile_connectivity_updates_existing_runtime_with_safe_directory tests/test_bootstrap_installers.py::test_reconcile_connectivity_continues_when_existing_runtime_fetch_is_unavailable -q` passed: 28 tests.
 - `git diff --check` passed.
+
+## 2026-05-13 Sidecar Mutation Proxy Correction
+
+Follow-up hardware dry-run found that direct Fleet Ops calls to node-local
+Smart Wi-Fi Manager dashboards are correctly rejected when the dashboard has no
+remote mutation token. To avoid distributing raw sidecar tokens through GCS,
+MDS now proxies sidecar profile-control mutations through the node API and lets
+the node API call the sidecar loopback API locally.
+
+Fixes implemented:
+
+- Added node API route
+  `/api/v1/sidecars/{sidecar}/profiles/{action}` for `import`, `apply`, and
+  `promote-reference-draft`.
+- Fleet Ops sidecar reconcile/promote calls now prefer the node API proxy on
+  the drone API port and only fall back to direct sidecar dashboard calls for
+  older nodes.
+- The node proxy sends optional sidecar tokens only from node-local environment
+  if configured; no sidecar token is required for current loopback operation
+  when the sidecar itself has no remote token configured.
+
+Validation:
+
+- `python3 -m py_compile src/drone_api_routes.py src/drone_api_server.py gcs-server/api_routes/fleet_sidecars.py` passed.
+- `pytest tests/test_gcs_fleet_sidecars_routes.py tests/test_drone_api_http.py::TestSidecarProfileProxy -q` passed: 19 tests.
+- `git diff --check` passed.
 - Private integration started:
   - Created branch `catchadrone-sidecar-altitude-20260512` from the private
     anchor.

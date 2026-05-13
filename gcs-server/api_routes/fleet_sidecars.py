@@ -149,7 +149,7 @@ def create_fleet_sidecars_router(deps: Any) -> APIRouter:
         node = _node_row(deps, sidecar, request.node_id)
         if not node:
             raise HTTPException(status_code=404, detail="node not found")
-        result = _post_sidecar(node, "/api/v1/profiles/promote-reference-draft", {})
+        result = _post_sidecar(deps, sidecar, node, "promote-reference-draft", {})
         return {
             "schema": SIDECAR_SCHEMA,
             "sidecar": sidecar,
@@ -179,7 +179,7 @@ def create_fleet_sidecars_router(deps: Any) -> APIRouter:
                 payload = {"mode": request.mode, "dry_run": True, "baseline": baseline}
                 node_results[str(node_id)] = {
                     "ok": True,
-                    "result": _post_sidecar(node, "/api/v1/profiles/import", payload),
+                    "result": _post_sidecar(deps, sidecar, node, "import", payload),
                 }
             except HTTPException as exc:
                 node_results[str(node_id)] = {"ok": False, "error": exc.detail}
@@ -234,7 +234,7 @@ def create_fleet_sidecars_router(deps: Any) -> APIRouter:
             try:
                 apply_results[node_id] = {
                     "ok": True,
-                    "result": _post_sidecar(node, "/api/v1/profiles/apply", payload),
+                    "result": _post_sidecar(deps, sidecar, node, "apply", payload),
                 }
             except HTTPException as exc:
                 apply_results[node_id] = {"ok": False, "error": exc.detail}
@@ -813,12 +813,33 @@ def _mavlink_canonical_payload(profile: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _post_sidecar(node: dict[str, Any], path: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _drone_api_port(deps: Any) -> int:
+    try:
+        return int(getattr(getattr(deps, "Params", object()), "drone_api_port", 7070) or 7070)
+    except (TypeError, ValueError):
+        return 7070
+
+
+def _post_sidecar(deps: Any, sidecar: str, node: dict[str, Any], action: str, payload: dict[str, Any]) -> dict[str, Any]:
     ip = node.get("ip")
-    port = ((node.get("dashboard") or {}).get("port")) or 9080
     if not ip:
         raise HTTPException(status_code=400, detail="node ip is not configured")
-    url = f"http://{ip}:{port}{path}"
+
+    proxy_url = f"http://{ip}:{_drone_api_port(deps)}/api/v1/sidecars/{sidecar}/profiles/{action}"
+    try:
+        response = requests.post(proxy_url, json=payload, timeout=10)
+        if response.status_code != 404:
+            if response.status_code >= 400:
+                raise HTTPException(status_code=response.status_code, detail=_sidecar_error_detail(response))
+            try:
+                return response.json()
+            except ValueError as exc:
+                raise HTTPException(status_code=502, detail="sidecar proxy returned non-json response") from exc
+    except requests.RequestException:
+        pass
+
+    port = ((node.get("dashboard") or {}).get("port")) or SIDECARS[sidecar]["dashboard_port"]
+    url = f"http://{ip}:{port}/api/v1/profiles/{action}"
     headers = {}
     token = os.environ.get(SIDECAR_PROFILE_TOKEN_ENV, "").strip()
     if token:

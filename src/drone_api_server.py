@@ -55,6 +55,20 @@ from mds_logging.api_schemas import (
 
 logger = get_logger("drone_api")
 
+SIDECAR_PROFILE_PROXY_ACTIONS = {"import", "apply", "promote-reference-draft"}
+SIDECAR_PROFILE_PROXY_DEFAULTS = {
+    "smart-wifi-manager": {
+        "port": 9080,
+        "listen_env": "MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN",
+        "token_env": ("MDS_SIDECAR_PROFILE_TOKEN", "SMART_WIFI_MANAGER_API_TOKEN"),
+    },
+    "mavlink-anywhere": {
+        "port": 9070,
+        "listen_env": "MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN",
+        "token_env": ("MDS_SIDECAR_PROFILE_TOKEN", "MAVLINK_ANYWHERE_API_TOKEN"),
+    },
+}
+
 # Project imports
 from src.drone_config import DroneConfig
 from src.constants import NetworkDefaults
@@ -75,6 +89,7 @@ from src.drone_api_routes import (
     DRONE_PX4_PARAMS_SNAPSHOT_REFRESH_ROUTE,
     DRONE_PX4_PARAM_VALUE_ROUTE_TEMPLATE,
     DRONE_POSITION_DEVIATION_ROUTE,
+    DRONE_SIDECAR_PROFILE_PROXY_ROUTE_TEMPLATE,
     DRONE_STATE_ROUTE,
     DRONE_SWARM_CONFIG_ROUTE,
     DRONE_SWARM_STATE_ROUTE,
@@ -544,6 +559,43 @@ class LocalPositionNEDResponse(BaseModel):
     vy: float
     vz: float
     timestamp: int
+
+
+def _listen_port(value: Optional[str], default: int) -> int:
+    text = str(value or "").strip()
+    if text.isdigit():
+        return int(text)
+    if ":" in text:
+        tail = text.rsplit(":", 1)[-1]
+        if tail.isdigit():
+            return int(tail)
+    return default
+
+
+def _sidecar_profile_proxy_url(sidecar: str, action: str) -> str:
+    config = SIDECAR_PROFILE_PROXY_DEFAULTS.get(sidecar)
+    if not config:
+        raise HTTPException(status_code=404, detail="unsupported sidecar")
+    if action not in SIDECAR_PROFILE_PROXY_ACTIONS:
+        raise HTTPException(status_code=404, detail="unsupported sidecar profile action")
+    port = _listen_port(os.environ.get(str(config["listen_env"])), int(config["port"]))
+    return f"http://127.0.0.1:{port}/api/v1/profiles/{action}"
+
+
+def _sidecar_profile_proxy_headers(sidecar: str) -> Dict[str, str]:
+    config = SIDECAR_PROFILE_PROXY_DEFAULTS.get(sidecar) or {}
+    for key in config.get("token_env", ()):
+        token = os.environ.get(str(key), "").strip()
+        if token:
+            return {"Authorization": f"Bearer {token}"}
+    return {}
+
+
+def _sidecar_proxy_error_detail(response: requests.Response) -> Any:
+    try:
+        return response.json()
+    except ValueError:
+        return (response.text or "sidecar request failed")[:500]
 
 
 # ============================================================================
@@ -1487,6 +1539,22 @@ class DroneAPIServer:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=f"error_in_update_node_env: {exc}") from exc
+
+        @self.app.post(DRONE_SIDECAR_PROFILE_PROXY_ROUTE_TEMPLATE)
+        async def proxy_sidecar_profile_request(sidecar: str, action: str, payload: Dict[str, Any]):
+            """Proxy profile-control requests to node-local sidecar loopback APIs."""
+            url = _sidecar_profile_proxy_url(sidecar, action)
+            headers = _sidecar_profile_proxy_headers(sidecar)
+            try:
+                response = requests.post(url, json=payload or {}, headers=headers, timeout=10)
+            except requests.RequestException as exc:
+                raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
+            if response.status_code >= 400:
+                raise HTTPException(status_code=response.status_code, detail=_sidecar_proxy_error_detail(response))
+            try:
+                return response.json()
+            except ValueError as exc:
+                raise HTTPException(status_code=502, detail="sidecar returned non-json response") from exc
 
         @self.app.get('/ping')
         async def ping():

@@ -92,6 +92,51 @@ class TestNodeEnvironment:
         assert "cannot be written to node" in response.json()["detail"]
 
 
+class TestSidecarProfileProxy:
+    """Test node-local sidecar profile proxy routes."""
+
+    def test_profile_proxy_uses_loopback_sidecar_api(self, test_client, monkeypatch):
+        captured = {}
+
+        class DummyResponse:
+            status_code = 200
+            text = "{}"
+
+            @staticmethod
+            def json():
+                return {"dry_run_id": "node-plan", "confirmation_token": "node-token"}
+
+        def fake_post(url, json, headers, timeout):
+            captured["url"] = url
+            captured["json"] = json
+            captured["headers"] = headers
+            captured["timeout"] = timeout
+            return DummyResponse()
+
+        monkeypatch.delenv("MDS_SIDECAR_PROFILE_TOKEN", raising=False)
+        monkeypatch.delenv("SMART_WIFI_MANAGER_API_TOKEN", raising=False)
+        monkeypatch.setattr("src.drone_api_server.requests.post", fake_post)
+
+        response = test_client.post(
+            "/api/v1/sidecars/smart-wifi-manager/profiles/import",
+            json={"mode": "fleet-merge", "dry_run": True},
+        )
+
+        assert response.status_code == 200
+        assert captured["url"] == "http://127.0.0.1:9080/api/v1/profiles/import"
+        assert captured["json"]["dry_run"] is True
+        assert captured["headers"] == {}
+        assert captured["timeout"] == 10
+
+    def test_profile_proxy_rejects_unknown_action(self, test_client):
+        response = test_client.post(
+            "/api/v1/sidecars/smart-wifi-manager/profiles/delete-all",
+            json={},
+        )
+
+        assert response.status_code == 404
+
+
 class TestDroneState:
     """Test drone state endpoint"""
 
