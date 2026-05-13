@@ -285,3 +285,28 @@ Validation:
 - `bash -n tools/update_repo_ssh.sh` passed.
 - `pytest tests/test_bootstrap_installers.py::test_runtime_git_sync_reconciles_optional_connectivity_backend tests/test_bootstrap_installers.py::test_git_sync_accepts_healthy_mavlink_runtime_after_reconcile_warning tests/test_bootstrap_installers.py::test_git_sync_status_health_falls_back_to_unprivileged_status tests/test_bootstrap_installers.py::test_git_sync_rejects_unhealthy_mavlink_runtime_after_reconcile_warning -q` passed: 4 tests.
 - `git diff --check` passed.
+
+## 2026-05-13 Sidecar Apply State Refresh Correction
+
+Hardware verification exposed a second stale-state path: Fleet Ops profile
+apply correctly mutated the node-local sidecar through the node API proxy, but
+MDS node runtime state was still owned by the local reconcile helpers. If no
+later git-sync reconcile refreshed that state file, Fleet Ops could keep showing
+`outdated` even when sanitized desired/local hashes and profile IDs matched.
+
+Fixes implemented:
+
+- The node API sidecar profile proxy now refreshes MDS reconcile state after a
+  successful `apply` action by running the matching local reconcile helper with
+  `--force --quiet`.
+- The refresh runs directly as root, falls back to `sudo -n` for non-root node
+  API deployments, and reports a sanitized `mds_reconcile_refresh` result in
+  the sidecar apply response.
+- GCS Fleet Ops now allows a longer timeout for sidecar `apply` calls because
+  the node proxy may perform a local reconcile refresh after the sidecar apply.
+
+Validation:
+
+- `python3 -m py_compile src/drone_api_server.py gcs-server/api_routes/fleet_sidecars.py` passed.
+- `pytest tests/test_drone_api_http.py::TestSidecarProfileProxy tests/test_gcs_fleet_sidecars_routes.py::test_reconcile_dry_run_uses_node_api_sidecar_proxy tests/test_gcs_fleet_sidecars_routes.py::test_reconcile_apply_allows_node_proxy_reconcile_refresh_time -q` passed.
+- `git diff --check` passed.

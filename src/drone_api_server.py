@@ -32,6 +32,7 @@ import os
 import time
 import subprocess
 import socket
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Set, Tuple
 
@@ -61,11 +62,13 @@ SIDECAR_PROFILE_PROXY_DEFAULTS = {
         "port": 9080,
         "listen_env": "MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN",
         "token_env": ("MDS_SIDECAR_PROFILE_TOKEN", "SMART_WIFI_MANAGER_API_TOKEN"),
+        "reconcile_script": "tools/reconcile_connectivity.sh",
     },
     "mavlink-anywhere": {
         "port": 9070,
         "listen_env": "MDS_MAVLINK_ANYWHERE_DASHBOARD_LISTEN",
         "token_env": ("MDS_SIDECAR_PROFILE_TOKEN", "MAVLINK_ANYWHERE_API_TOKEN"),
+        "reconcile_script": "tools/reconcile_mavlink_runtime.sh",
     },
 }
 
@@ -596,6 +599,47 @@ def _sidecar_proxy_error_detail(response: requests.Response) -> Any:
         return response.json()
     except ValueError:
         return (response.text or "sidecar request failed")[:500]
+
+
+def _repo_root() -> Path:
+    return Path(os.environ.get("MDS_REPO_ROOT") or Path(__file__).resolve().parents[1]).resolve()
+
+
+def _run_sidecar_reconcile_refresh(sidecar: str, action: str) -> Optional[Dict[str, Any]]:
+    if action != "apply":
+        return None
+    config = SIDECAR_PROFILE_PROXY_DEFAULTS.get(sidecar) or {}
+    script_relative = str(config.get("reconcile_script") or "").strip()
+    if not script_relative:
+        return None
+    repo_root = _repo_root()
+    script_path = repo_root / script_relative
+    if not script_path.is_file():
+        return {"ok": False, "status": "missing_helper"}
+
+    command = [str(script_path), "apply", "--force", "--quiet"]
+    if hasattr(os, "geteuid") and os.geteuid() != 0:
+        sudo = shutil.which("sudo")
+        if not sudo:
+            return {"ok": False, "status": "missing_privilege"}
+        command = [sudo, "-n", *command]
+
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(repo_root),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "status": "timeout"}
+    except OSError:
+        return {"ok": False, "status": "invoke_error"}
+    if completed.returncode == 0:
+        return {"ok": True, "status": "success"}
+    return {"ok": False, "status": "failed", "exit_code": completed.returncode}
 
 
 # ============================================================================
@@ -1552,9 +1596,16 @@ class DroneAPIServer:
             if response.status_code >= 400:
                 raise HTTPException(status_code=response.status_code, detail=_sidecar_proxy_error_detail(response))
             try:
-                return response.json()
+                data = response.json()
             except ValueError as exc:
                 raise HTTPException(status_code=502, detail="sidecar returned non-json response") from exc
+            refresh = _run_sidecar_reconcile_refresh(sidecar, action)
+            if refresh is None:
+                return data
+            if isinstance(data, dict):
+                data["mds_reconcile_refresh"] = refresh
+                return data
+            return {"sidecar_result": data, "mds_reconcile_refresh": refresh}
 
         @self.app.get('/ping')
         async def ping():

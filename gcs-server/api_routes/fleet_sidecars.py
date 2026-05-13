@@ -827,7 +827,7 @@ def _post_sidecar(deps: Any, sidecar: str, node: dict[str, Any], action: str, pa
 
     proxy_url = f"http://{ip}:{_drone_api_port(deps)}/api/v1/sidecars/{sidecar}/profiles/{action}"
     try:
-        response = requests.post(proxy_url, json=payload, timeout=10)
+        response = requests.post(proxy_url, json=payload, timeout=90 if action == "apply" else 10)
         if response.status_code != 404:
             if response.status_code >= 400:
                 raise HTTPException(status_code=response.status_code, detail=_sidecar_error_detail(response))

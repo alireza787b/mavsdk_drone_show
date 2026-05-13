@@ -273,6 +273,58 @@ def test_reconcile_dry_run_uses_node_api_sidecar_proxy(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert captured["url"] == "http://198.51.100.11:7070/api/v1/sidecars/smart-wifi-manager/profiles/import"
     assert captured["json"]["dry_run"] is True
+    assert captured["timeout"] == 10
+    assert response.json()["results"]["1"]["ok"] is True
+
+
+def test_reconcile_apply_allows_node_proxy_reconcile_refresh_time(monkeypatch, tmp_path):
+    baseline = tmp_path / "config/fleet-profiles/smart-wifi-manager/config.json"
+    baseline.parent.mkdir(parents=True)
+    baseline.write_text('{"profiles":[{"id":"field","ssid":"DemoField"}]}', encoding="utf-8")
+    client = _client(_make_deps(tmp_path), monkeypatch)
+    captured_timeouts = []
+
+    class FakeResponse:
+        status_code = 200
+
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, **kwargs):
+        captured_timeouts.append((url, kwargs.get("timeout")))
+        if url.endswith("/profiles/import"):
+            return FakeResponse({"dry_run_id": "node-plan", "confirmation_token": "node-token"})
+        return FakeResponse({"applied": True, "mds_reconcile_refresh": {"ok": True, "status": "success"}})
+
+    monkeypatch.setattr(fleet_sidecars.requests, "post", fake_post)
+
+    dry_run = client.post(
+        "/api/v1/fleet/sidecars/smart-wifi-manager/reconcile/dry-run",
+        headers=MUTATION_HEADERS,
+        json={"node_ids": ["1"], "mode": "fleet-merge"},
+    )
+    assert dry_run.status_code == 200
+
+    response = client.post(
+        "/api/v1/fleet/sidecars/smart-wifi-manager/reconcile/apply",
+        headers=MUTATION_HEADERS,
+        json={
+            "dry_run_id": dry_run.json()["job_id"],
+            "confirmation": {
+                "acknowledged_risks": True,
+                "confirmation_token": dry_run.json()["confirmation_token"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured_timeouts[-1] == (
+        "http://198.51.100.11:7070/api/v1/sidecars/smart-wifi-manager/profiles/apply",
+        90,
+    )
     assert response.json()["results"]["1"]["ok"] is True
 
 
