@@ -310,3 +310,25 @@ Validation:
 - `python3 -m py_compile src/drone_api_server.py gcs-server/api_routes/fleet_sidecars.py` passed.
 - `pytest tests/test_drone_api_http.py::TestSidecarProfileProxy tests/test_gcs_fleet_sidecars_routes.py::test_reconcile_dry_run_uses_node_api_sidecar_proxy tests/test_gcs_fleet_sidecars_routes.py::test_reconcile_apply_allows_node_proxy_reconcile_refresh_time -q` passed.
 - `git diff --check` passed.
+
+## 2026-05-13 Smart Wi-Fi API Compatibility Correction
+
+Hardware dry-run against the node-local Smart Wi-Fi Manager dashboard exposed a
+legacy sidecar API vocabulary mismatch: MDS correctly stores and presents the
+operator policy as `fleet-merge`, but the installed Smart Wi-Fi Manager profile
+API still accepts service modes `manage`, `observe`, and `disabled`.
+
+Fixes implemented:
+
+- Fleet Ops keeps the public/shared sidecar policy contract unchanged.
+- At the Smart Wi-Fi Manager API boundary only, MDS translates
+  `fleet-merge`, `fleet-strict`, and `local` to the non-destructive sidecar
+  service mode `manage`; `observe` remains `observe`.
+- The dry-run job response still reports the operator-facing mode, while the
+  node proxy receives the legacy-compatible sidecar mode.
+
+Validation:
+
+- `pytest tests/test_gcs_fleet_sidecars_routes.py::test_reconcile_dry_run_uses_node_api_sidecar_proxy -q` passed.
+- Included in the 34-test sidecar/runtime/bootstrap regression pass before
+  release.

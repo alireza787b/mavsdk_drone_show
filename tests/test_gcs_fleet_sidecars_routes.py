@@ -272,6 +272,8 @@ def test_reconcile_dry_run_uses_node_api_sidecar_proxy(monkeypatch, tmp_path):
 
     assert response.status_code == 200
     assert captured["url"] == "http://198.51.100.11:7070/api/v1/sidecars/smart-wifi-manager/profiles/import"
+    assert response.json()["mode"] == "fleet-merge"
+    assert captured["json"]["mode"] == "manage"
     assert captured["json"]["dry_run"] is True
     assert captured["timeout"] == 10
     assert response.json()["results"]["1"]["ok"] is True

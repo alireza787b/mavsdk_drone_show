@@ -820,14 +820,29 @@ def _drone_api_port(deps: Any) -> int:
         return 7070
 
 
+def _sidecar_api_payload(sidecar: str, payload: dict[str, Any]) -> dict[str, Any]:
+    if sidecar != "smart-wifi-manager" or "mode" not in payload:
+        return payload
+    translated = deepcopy(payload)
+    mode = str(translated.get("mode") or "")
+    translated["mode"] = {
+        "observe": "observe",
+        "local": "manage",
+        "fleet-merge": "manage",
+        "fleet-strict": "manage",
+    }.get(mode, mode)
+    return translated
+
+
 def _post_sidecar(deps: Any, sidecar: str, node: dict[str, Any], action: str, payload: dict[str, Any]) -> dict[str, Any]:
     ip = node.get("ip")
     if not ip:
         raise HTTPException(status_code=400, detail="node ip is not configured")
 
+    sidecar_payload = _sidecar_api_payload(sidecar, payload)
     proxy_url = f"http://{ip}:{_drone_api_port(deps)}/api/v1/sidecars/{sidecar}/profiles/{action}"
     try:
-        response = requests.post(proxy_url, json=payload, timeout=90 if action == "apply" else 10)
+        response = requests.post(proxy_url, json=sidecar_payload, timeout=90 if action == "apply" else 10)
         if response.status_code != 404:
             if response.status_code >= 400:
                 raise HTTPException(status_code=response.status_code, detail=_sidecar_error_detail(response))
@@ -845,7 +860,7 @@ def _post_sidecar(deps: Any, sidecar: str, node: dict[str, Any], action: str, pa
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=8)
+        response = requests.post(url, json=sidecar_payload, headers=headers, timeout=8)
     except requests.RequestException as exc:
         raise HTTPException(status_code=502, detail=f"sidecar request failed: {exc}") from exc
     if response.status_code >= 400:
