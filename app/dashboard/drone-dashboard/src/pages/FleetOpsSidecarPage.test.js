@@ -179,7 +179,7 @@ describe('FleetOpsSidecarPage', () => {
       'href',
       'http://198.51.100.11:9080/'
     );
-    expect(screen.getByText('Node-only Wi-Fi Profiles')).toBeInTheDocument();
+    expect(screen.getByText('Node Wi-Fi Differences')).toBeInTheDocument();
     expect(screen.getByText('Repo Wi-Fi Baseline')).toBeInTheDocument();
     expect(screen.getByText('Demo Field Local')).toBeInTheDocument();
     expect(screen.getByText('Demo Recovery')).toBeInTheDocument();
@@ -202,7 +202,7 @@ describe('FleetOpsSidecarPage', () => {
       'href',
       'http://198.51.100.11:9070/'
     );
-    expect(screen.getByText('Node-only MAVLink Overlay')).toBeInTheDocument();
+    expect(screen.getByText('Node MAVLink Differences')).toBeInTheDocument();
     expect(screen.getByText('Repo MAVLink Baseline')).toBeInTheDocument();
     expect(screen.getByText('MAVLink input sources')).toBeInTheDocument();
     expect(screen.getByText('px4')).toBeInTheDocument();

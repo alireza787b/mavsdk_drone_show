@@ -71,9 +71,10 @@ means where the sidecar profile came from; **MAVLink input source** means the
 node-local serial/UDP/PX4 input overlay.
 
 To avoid repeated rows in node detail dialogs, Fleet Ops shows repo baseline
-profiles separately from node-only additions or overlays. A profile or endpoint
-that exactly matches the baseline should not be listed twice in the same detail
-dialog.
+profiles separately from node differences. A profile or endpoint that exactly
+matches the baseline should not be listed twice in the same detail dialog. A
+same-ID profile or same-name endpoint with changed sanitized fields must remain
+visible in node differences so drift is explainable.
 
 ## Fleet Baseline Locations
 

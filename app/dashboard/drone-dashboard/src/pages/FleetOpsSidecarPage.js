@@ -146,9 +146,7 @@ function sidecarDashboardUrl(row, itemKind) {
 function comparableProfileId(item, itemKind, collectionKind) {
   if (!item || typeof item !== 'object') return '';
   if (itemKind === 'wifi') {
-    const id = String(item.id || item.connection_name || '').trim().toLowerCase();
-    const ssid = String(item.ssid || '').trim().toLowerCase();
-    return id && ssid ? `${id}|${ssid}` : id || ssid;
+    return String(item.id || item.connection_name || item.ssid || '').trim().toLowerCase();
   }
   if (collectionKind === 'sources') {
     return String(item.name || `${item.type || ''}|${item.device || ''}|${item.baud || ''}`).trim().toLowerCase();
@@ -156,34 +154,44 @@ function comparableProfileId(item, itemKind, collectionKind) {
   return String(item.name || `${item.type || ''}|${item.address || ''}|${item.port || ''}|${item.device || ''}|${item.baud || ''}`).trim().toLowerCase();
 }
 
-function filterBaselineDuplicates(items, baselineItems, itemKind, collectionKind) {
-  const baselineIds = new Set(
-    baselineItems
-      .map((item) => comparableProfileId(item, itemKind, collectionKind))
-      .filter(Boolean)
-  );
-  if (!baselineIds.size) return items;
+function stableValue(value) {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableValue).join(',')}]`;
+  }
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableValue(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function filterExactBaselineMatches(items, baselineItems, itemKind, collectionKind) {
+  const baselineById = new Map();
+  baselineItems.forEach((item) => {
+    const id = comparableProfileId(item, itemKind, collectionKind);
+    if (id) baselineById.set(id, stableValue(item));
+  });
+  if (!baselineById.size) return items;
   return items.filter((item) => {
     const id = comparableProfileId(item, itemKind, collectionKind);
-    return !id || !baselineIds.has(id);
+    return !id || baselineById.get(id) !== stableValue(item);
   });
 }
 
-function nodeOnlyProfileSource(source, baseline, itemKind) {
+function nodeDifferenceProfileSource(source, baseline, itemKind) {
   return {
-    profiles: filterBaselineDuplicates(
+    profiles: filterExactBaselineMatches(
       profileCollection(source, 'profiles'),
       profileCollection(baseline, 'profiles'),
       itemKind,
       'profiles'
     ),
-    endpoints: filterBaselineDuplicates(
+    endpoints: filterExactBaselineMatches(
       profileCollection(source, 'endpoints'),
       profileCollection(baseline, 'endpoints'),
       itemKind,
       'endpoints'
     ),
-    sources: filterBaselineDuplicates(
+    sources: filterExactBaselineMatches(
       profileCollection(source, 'sources'),
       profileCollection(baseline, 'sources'),
       itemKind,
@@ -484,7 +492,7 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
   }
 
   if (dialog?.type === 'node') {
-    const nodeOnlySource = nodeOnlyProfileSource(dialog.row, table?.baseline, config.itemKind);
+    const nodeDifferenceSource = nodeDifferenceProfileSource(dialog.row, table?.baseline, config.itemKind);
     return (
       <Modal title={`${config.nodeTitle}: ${droneLabel(dialog.row)}`} icon={FaInfoCircle} onClose={closeDialog}>
         <DetailGrid
@@ -510,10 +518,10 @@ function SidecarProfileDialog({ config, table, dialog, closeDialog }) {
           {dialog.row.operator_state?.summary || driftSummary(dialog.row.drift_state, config.itemKind)}
         </div>
         <ProfileDetailSection
-          title={config.itemKind === 'mavlink' ? 'Node-only MAVLink Overlay' : 'Node-only Wi-Fi Profiles'}
-          source={nodeOnlySource}
+          title={config.itemKind === 'mavlink' ? 'Node MAVLink Differences' : 'Node Wi-Fi Differences'}
+          source={nodeDifferenceSource}
           itemKind={config.itemKind}
-          emptyLabel={config.itemKind === 'mavlink' ? 'No node-only MAVLink entries reported.' : 'No node-only Wi-Fi profiles reported.'}
+          emptyLabel={config.itemKind === 'mavlink' ? 'No node differences beyond repo baseline.' : 'No node differences beyond repo baseline.'}
         />
         <ProfileDetailSection
           title={config.itemKind === 'mavlink' ? 'Repo MAVLink Baseline' : 'Repo Wi-Fi Baseline'}

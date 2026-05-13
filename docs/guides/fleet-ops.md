@@ -150,9 +150,10 @@ detail view as the details icon. Baseline, node detail, promote-draft,
 reconcile, and policy-mode changes are all dialog-based.
 
 The Wi-Fi detail view shows Pos ID and HW ID as separate fields, the same Wi-Fi
-Manager dashboard icon near the node facts, the repo baseline profiles, and
-node-only Wi-Fi profiles that are not already present in the baseline. This
-avoids duplicate rows while still making local additions visible. Operators may
+Manager dashboard icon near the node facts, the repo baseline profiles, and node
+Wi-Fi differences. Exact baseline matches are hidden from the node-difference
+section to avoid duplicate rows, but same profile IDs with changed sanitized
+fields remain visible so `local_extra` never appears unexplained. Operators may
 see SSIDs, profile IDs, priority, disabled/autoconnect posture, and password
 state values such as `stored`, `missing`, `external file`, or `redacted`.
 Operators must not see raw passwords or local secret-file paths.
@@ -173,12 +174,13 @@ node-local unless an operator deliberately changes them through node-local
 MAVLink Anywhere tooling.
 
 The MAVLink detail view shows Pos ID and HW ID as separate fields, sanitized
-node-local input sources, node-only MAVLink endpoint overlays, and the repo
+node-local input sources, node MAVLink endpoint differences, and the repo
 MAVLink endpoint baseline, with a compact MAVLink Anywhere dashboard icon near
-the node facts. The dashboard icon links to the board-local MAVLink Anywhere
-dashboard on that node's sidecar port. This is for quick operator inspection;
-SITL routing remains separate and real-node hardware sources are not overwritten
-by `fleet-merge`.
+the node facts. Exact baseline matches are hidden from the node-difference
+section; changed same-name endpoints remain visible. The dashboard icon links to
+the board-local MAVLink Anywhere dashboard on that node's sidecar port. This is
+for quick operator inspection; SITL routing remains separate and real-node
+hardware sources are not overwritten by `fleet-merge`.
 
 Promote Draft generates a sanitized reference draft only. It does not replace a
 repo baseline or alter any node profile.
