@@ -673,6 +673,38 @@ def _run_sidecar_reconcile_refresh(sidecar: str, action: str) -> Optional[Dict[s
     return {"ok": False, "status": "failed", "exit_code": completed.returncode}
 
 
+def _run_smart_wifi_service_mode_repair() -> Dict[str, Any]:
+    install_dir = os.environ.get("MDS_SMART_WIFI_MANAGER_INSTALL_DIR", "/opt/smart-wifi-manager")
+    configure_script = Path(install_dir) / "configure_smart_wifi_manager.sh"
+    config_path = os.environ.get("MDS_SMART_WIFI_MANAGER_CONFIG_FILE", "/etc/smart-wifi-manager/config.json")
+    if not configure_script.is_file():
+        return {"ok": False, "status": "missing_helper"}
+
+    command = [str(configure_script), "--headless", "--config", config_path, "--mode", "manage"]
+    if hasattr(os, "geteuid") and os.geteuid() != 0:
+        sudo = shutil.which("sudo")
+        if not sudo:
+            return {"ok": False, "status": "missing_privilege"}
+        command = [sudo, "-n", *command]
+
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(_repo_root()),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "status": "timeout"}
+    except OSError:
+        return {"ok": False, "status": "invoke_error"}
+    if completed.returncode == 0:
+        return {"ok": True, "status": "success"}
+    return {"ok": False, "status": "failed", "exit_code": completed.returncode}
+
+
 def _parse_reconcile_status_output(stdout: str) -> Dict[str, str]:
     status: Dict[str, str] = {}
     for raw_line in str(stdout or "").splitlines():
@@ -1723,12 +1755,22 @@ class DroneAPIServer:
             except requests.RequestException as exc:
                 raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
             repair_refresh = None
+            mode_repair = None
+            if response.status_code >= 400 and _sidecar_proxy_has_smart_wifi_mode_error(sidecar, response):
+                mode_repair = _run_smart_wifi_service_mode_repair()
+                if mode_repair.get("ok"):
+                    try:
+                        response = requests.post(url, json=payload or {}, headers=headers, timeout=10)
+                    except requests.RequestException as exc:
+                        raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
             if response.status_code >= 400 and (
                 _sidecar_proxy_requires_profile_token(sidecar, response)
                 or _sidecar_proxy_has_smart_wifi_mode_error(sidecar, response)
             ):
                 fallback = _smart_wifi_local_profile_fallback(action, payload or {})
                 if fallback is not None:
+                    if mode_repair is not None:
+                        fallback["mds_mode_repair"] = mode_repair
                     return fallback
             if response.status_code >= 400 and _should_repair_smart_wifi_config(sidecar, action, response):
                 repair_refresh = _run_sidecar_reconcile_refresh(sidecar, "apply")
@@ -1743,6 +1785,8 @@ class DroneAPIServer:
             ):
                 fallback = _smart_wifi_local_profile_fallback(action, payload or {})
                 if fallback is not None:
+                    if mode_repair is not None:
+                        fallback["mds_mode_repair"] = mode_repair
                     return fallback
             if response.status_code >= 400:
                 raise HTTPException(status_code=response.status_code, detail=_sidecar_proxy_error_detail(response))
@@ -1754,8 +1798,12 @@ class DroneAPIServer:
             if repair_refresh is not None and refresh is None:
                 refresh = repair_refresh
             if refresh is None:
+                if mode_repair is not None and isinstance(data, dict):
+                    data["mds_mode_repair"] = mode_repair
                 return data
             if isinstance(data, dict):
+                if mode_repair is not None:
+                    data["mds_mode_repair"] = mode_repair
                 data["mds_reconcile_refresh"] = refresh
                 return data
             return {"sidecar_result": data, "mds_reconcile_refresh": refresh}

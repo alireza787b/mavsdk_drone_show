@@ -357,6 +357,9 @@ Fixes implemented:
 - The node API profile proxy now detects the Smart Wi-Fi dashboard token-required
   response and legacy service-mode response and falls back to the node-local MDS
   reconcile helper.
+- For a legacy service-mode response, the proxy first attempts a narrow
+  node-local service-mode repair (`manage`) and retries the dashboard API before
+  falling back to the helper path.
 - Fallback dry-run is read-only: it runs `reconcile_connectivity.sh status
   --quiet`, returns sanitized desired/applied hash state, and creates the
   dry-run token consumed by the existing GCS confirmation gate.

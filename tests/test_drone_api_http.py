@@ -227,6 +227,64 @@ class TestSidecarProfileProxy:
         assert captured["status_command"] == [str(helper), "status", "--quiet"]
         assert captured["status_cwd"] == str(repo_root)
 
+    def test_profile_import_repairs_smart_wifi_service_mode_then_retries(self, test_client, monkeypatch, tmp_path):
+        repo_root = tmp_path / "repo"
+        install_dir = tmp_path / "smart-wifi-manager"
+        configure = install_dir / "configure_smart_wifi_manager.sh"
+        configure.parent.mkdir(parents=True)
+        configure.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        captured = {"posts": []}
+
+        class ErrorResponse:
+            status_code = 500
+            text = '{"error":"mode must be manage, observe, or disabled"}'
+
+            @staticmethod
+            def json():
+                return {"error": "mode must be manage, observe, or disabled"}
+
+        class SuccessResponse:
+            status_code = 200
+            text = "{}"
+
+            @staticmethod
+            def json():
+                return {"dry_run_id": "node-plan", "confirmation_token": "node-token"}
+
+        def fake_post(url, json, headers, timeout):
+            captured["posts"].append({"url": url, "json": json, "headers": headers, "timeout": timeout})
+            return ErrorResponse() if len(captured["posts"]) == 1 else SuccessResponse()
+
+        def fake_run(command, cwd, stdout, stderr, timeout, check):
+            captured["repair_command"] = command
+            captured["repair_cwd"] = cwd
+            return Mock(returncode=0)
+
+        monkeypatch.setenv("MDS_REPO_ROOT", str(repo_root))
+        monkeypatch.setenv("MDS_SMART_WIFI_MANAGER_INSTALL_DIR", str(install_dir))
+        monkeypatch.setattr("src.drone_api_server.os.geteuid", lambda: 0)
+        monkeypatch.setattr("src.drone_api_server.requests.post", fake_post)
+        monkeypatch.setattr("src.drone_api_server.subprocess.run", fake_run)
+
+        response = test_client.post(
+            "/api/v1/sidecars/smart-wifi-manager/profiles/import",
+            json={"mode": "fleet-merge", "dry_run": True},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["dry_run_id"] == "node-plan"
+        assert response.json()["mds_mode_repair"] == {"ok": True, "status": "success"}
+        assert len(captured["posts"]) == 2
+        assert captured["repair_command"] == [
+            str(configure),
+            "--headless",
+            "--config",
+            "/etc/smart-wifi-manager/config.json",
+            "--mode",
+            "manage",
+        ]
+        assert captured["repair_cwd"] == str(repo_root)
+
     def test_profile_import_uses_local_reconcile_preview_when_token_missing(self, test_client, monkeypatch, tmp_path):
         repo_root = tmp_path / "repo"
         helper = repo_root / "tools" / "reconcile_connectivity.sh"
