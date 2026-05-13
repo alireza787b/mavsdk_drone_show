@@ -328,6 +328,9 @@ Fixes implemented:
 - The top-level sidecar import mode remains the shared policy value
   (`fleet-merge` for the current field baseline), matching the Smart Wi-Fi
   profile-control contract.
+- If a node-local Smart Wi-Fi config was previously written with an invalid
+  service mode, the node API proxy now repairs it by running the local MDS
+  reconcile helper once and then retries the sidecar dry-run/apply request.
 - The dry-run job response still reports the operator-facing mode, while the
   node proxy receives the legacy-compatible sidecar mode.
 

@@ -601,6 +601,20 @@ def _sidecar_proxy_error_detail(response: requests.Response) -> Any:
         return (response.text or "sidecar request failed")[:500]
 
 
+def _sidecar_proxy_error_text(response: requests.Response) -> str:
+    detail = _sidecar_proxy_error_detail(response)
+    try:
+        return json.dumps(detail, sort_keys=True)
+    except TypeError:
+        return str(detail)
+
+
+def _should_repair_smart_wifi_config(sidecar: str, action: str, response: requests.Response) -> bool:
+    if sidecar != "smart-wifi-manager" or action not in {"import", "apply"}:
+        return False
+    return "mode must be manage, observe, or disabled" in _sidecar_proxy_error_text(response)
+
+
 def _repo_root() -> Path:
     return Path(os.environ.get("MDS_REPO_ROOT") or Path(__file__).resolve().parents[1]).resolve()
 
@@ -1593,6 +1607,14 @@ class DroneAPIServer:
                 response = requests.post(url, json=payload or {}, headers=headers, timeout=10)
             except requests.RequestException as exc:
                 raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
+            repair_refresh = None
+            if response.status_code >= 400 and _should_repair_smart_wifi_config(sidecar, action, response):
+                repair_refresh = _run_sidecar_reconcile_refresh(sidecar, "apply")
+                if repair_refresh and repair_refresh.get("ok"):
+                    try:
+                        response = requests.post(url, json=payload or {}, headers=headers, timeout=10)
+                    except requests.RequestException as exc:
+                        raise HTTPException(status_code=502, detail=f"sidecar loopback request failed: {exc}") from exc
             if response.status_code >= 400:
                 raise HTTPException(status_code=response.status_code, detail=_sidecar_proxy_error_detail(response))
             try:
@@ -1600,6 +1622,8 @@ class DroneAPIServer:
             except ValueError as exc:
                 raise HTTPException(status_code=502, detail="sidecar returned non-json response") from exc
             refresh = _run_sidecar_reconcile_refresh(sidecar, action)
+            if repair_refresh is not None and refresh is None:
+                refresh = repair_refresh
             if refresh is None:
                 return data
             if isinstance(data, dict):
