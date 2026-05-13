@@ -90,6 +90,22 @@ def test_fleet_sidecar_baseline_is_redacted(monkeypatch, tmp_path):
     assert "redacted-demo-value" not in response.text
 
 
+def test_smart_wifi_hash_treats_service_mode_as_fleet_merge():
+    fleet_profile = {
+        "mode": "fleet-merge",
+        "profiles": [{"id": "field", "ssid": "Demo Field", "priority": 90, "password": "one"}],
+    }
+    service_profile = {
+        "mode": "manage",
+        "profiles": [{"id": "field", "ssid": "Demo Field", "priority": 90, "password": "two"}],
+    }
+
+    assert fleet_sidecars._sanitized_hash("smart-wifi-manager", fleet_profile) == fleet_sidecars._sanitized_hash(
+        "smart-wifi-manager",
+        service_profile,
+    )
+
+
 def test_preferred_config_fleet_baseline_wins_over_legacy_path(monkeypatch, tmp_path):
     preferred = tmp_path / "config/fleet-profiles/smart-wifi-manager/config.json"
     legacy = tmp_path / "deployment/connectivity/smart-wifi-manager/profile.json"

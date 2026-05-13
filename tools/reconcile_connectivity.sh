@@ -255,6 +255,35 @@ smart_wifi_hash_input() {
     printf '%s' "${payload}" | sha256sum | awk '{print $1}'
 }
 
+smart_wifi_service_profile_path() {
+    local profile_path="$1"
+    local temp_path
+    if [[ -z "${profile_path}" || ! -f "${profile_path}" ]]; then
+        printf '\n'
+        return 0
+    fi
+    temp_path="$(mktemp "${TMPDIR:-/tmp}/mds-smart-wifi-profile.XXXXXX.json")" || return 1
+    python3 - "${profile_path}" "${temp_path}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+target = Path(sys.argv[2])
+payload = json.loads(source.read_text(encoding="utf-8"))
+if isinstance(payload, dict):
+    mode = str(payload.get("mode") or "").strip().lower()
+    if mode in {"local", "fleet-merge", "fleet-strict", "manage", "managed"}:
+        payload["mode"] = "manage"
+    elif mode == "observe":
+        payload["mode"] = "observe"
+    elif mode in {"disabled", "none"}:
+        payload["mode"] = "disabled"
+target.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+PY
+    printf '%s\n' "${temp_path}"
+}
+
 ensure_smart_wifi_manager_runtime() {
     local install_dir="${MDS_SMART_WIFI_MANAGER_INSTALL_DIR:-/opt/smart-wifi-manager}"
     local dashboard_listen="${MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN:-127.0.0.1:9080}"
@@ -307,6 +336,7 @@ apply_smart_wifi_manager() {
     local mode
     local import_mode="${MDS_SMART_WIFI_MANAGER_IMPORT_MODE:-merge}"
     local profile_path=""
+    local import_profile_path=""
     local new_hash=""
     local old_hash=""
     local runtime_present="false"
@@ -352,11 +382,20 @@ apply_smart_wifi_manager() {
             log ERROR "Configured Smart Wi-Fi Manager profile not found: ${profile_path}"
             return 1
         fi
-        cmd+=(--import "${profile_path}" --import-mode "${import_mode}")
+        import_profile_path="$(smart_wifi_service_profile_path "${profile_path}")" || return 1
+        cmd+=(--import "${import_profile_path}" --import-mode "${import_mode}")
     fi
 
     log INFO "Applying Smart Wi-Fi Manager configuration"
-    "${cmd[@]}"
+    if ! "${cmd[@]}"; then
+        if [[ -n "${import_profile_path}" && "${import_profile_path}" != "${profile_path}" ]]; then
+            rm -f "${import_profile_path}"
+        fi
+        return 1
+    fi
+    if [[ -n "${import_profile_path}" && "${import_profile_path}" != "${profile_path}" ]]; then
+        rm -f "${import_profile_path}"
+    fi
 
     mkdir -p "${STATE_DIR}"
     printf '%s\n' "${new_hash}" > "${STATE_FILE}"

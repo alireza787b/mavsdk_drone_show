@@ -93,6 +93,21 @@ def test_smart_wifi_profile_payload_hash_ignores_secret_values(tmp_path):
     assert smart_wifi_profile_payload_hash(first) == smart_wifi_profile_payload_hash(second)
 
 
+def test_smart_wifi_profile_payload_hash_treats_service_mode_as_fleet_merge(tmp_path):
+    fleet_profile = tmp_path / "fleet.json"
+    service_profile = tmp_path / "service.json"
+    fleet_profile.write_text(
+        '{"mode":"fleet-merge","profiles":[{"id":"field","ssid":"Demo Field","priority":90,"password":"one"}]}',
+        encoding="utf-8",
+    )
+    service_profile.write_text(
+        '{"mode":"manage","profiles":[{"id":"field","ssid":"Demo Field","priority":90,"password":"two"}]}',
+        encoding="utf-8",
+    )
+
+    assert smart_wifi_profile_payload_hash(fleet_profile) == smart_wifi_profile_payload_hash(service_profile)
+
+
 def test_build_connectivity_runtime_summary_reports_outdated_not_local_extra_for_stale_apply(monkeypatch, tmp_path):
     profile = tmp_path / "wifi-profile.json"
     install_dir = tmp_path / "smart-wifi-manager"

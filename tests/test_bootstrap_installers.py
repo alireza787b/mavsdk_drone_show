@@ -1805,6 +1805,13 @@ EOS
     cat > "$target/configure_smart_wifi_manager.sh" <<'EOS'
 #!/bin/bash
 printf '%s\n' "$*" > "$TMPDIR/configure_args.txt"
+previous=""
+for arg in "$@"; do
+    if [[ "$previous" == "--import" ]]; then
+        cp "$arg" "$TMPDIR/import_payload.json"
+    fi
+    previous="$arg"
+done
 EOS
     chmod +x "$target/configure_smart_wifi_manager.sh"
 fi
@@ -1819,7 +1826,8 @@ EOF
         TMPDIR="$tmpdir" PATH="$fakebin:$PATH" MDS_CONNECTIVITY_STATE_DIR="$tmpdir/state" MDS_LOCAL_ENV_FILE="$config_dir/local.env" bash "$repo_dir/tools/reconcile_connectivity.sh" apply --force
         grep -q -- 'clone --depth 1 --branch v9.9.9 https://github.com/demo/smart-wifi-manager.git' "$tmpdir/git_args.txt"
         grep -q -- '--dashboard-version v9.9.9' "$tmpdir/install_args.txt"
-        grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
+        ! grep -q -- '--import '"$repo_dir"'/deployment/connectivity/smart-wifi-manager/profile.json' "$tmpdir/configure_args.txt"
+        grep -q '"mode":"manage"' "$tmpdir/import_payload.json"
         grep -q -- '--import-mode merge' "$tmpdir/configure_args.txt"
         grep -q -- '--mode manage' "$tmpdir/configure_args.txt"
         """
