@@ -11,6 +11,7 @@ import { FIELD_NAMES } from '../constants/fieldMappings';
 import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 import { getDroneReadinessModel } from '../utilities/droneReadiness';
 import { formatCompactDroneIdentity } from '../utilities/missionIdentityUtils';
+import { formatAltitudeMeters, resolveMslAltitude } from '../utilities/telemetryAltitude';
 import '../styles/ExpandedDronePortal.css';
 
 const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
@@ -95,11 +96,22 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
     return { class: 'critical', text: `${voltage.toFixed(1)}V` };
   };
 
-  const getAltitudeDisplay = (alt) => {
-    if (alt === undefined || alt === null) return 'N/A';
-    return `${alt.toFixed(1)}m`;
+  const altitudeReading = resolveMslAltitude(drone);
+  const altitudeAvailable = altitudeReading.value !== null;
+  const altitudeDisplay = altitudeAvailable
+    ? `${formatAltitudeMeters(altitudeReading.value, altitudeReading.label)}${altitudeReading.stale ? ' stale' : ''}`
+    : 'Alt n/a';
+  const altitudeHelpBySource = {
+    relative_home: 'Home-relative altitude from PX4 GLOBAL_POSITION_INT.relative_alt.',
+    absolute_msl: altitudeReading.trustedForMap
+      ? 'Absolute altitude above MSL from a valid PX4 global position.'
+      : 'Absolute altitude above MSL from raw GPS; map position may still be pending.',
+    local_ned: 'Local height from PX4 LOCAL_POSITION_NED. Useful for VIO/non-GPS operation, not a map coordinate.',
+    baro: 'Barometric altitude estimate. Useful as source-labeled fallback, not as home-relative height.',
   };
-
+  const altitudeHelp = altitudeAvailable
+    ? (altitudeHelpBySource[altitudeReading.source] || 'Source-aware altitude from telemetry policy.')
+    : 'No valid relative, local, barometric, or MSL altitude source is available.';
   const batteryStatus = getBatteryStatus(drone[FIELD_NAMES.BATTERY_VOLTAGE]);
   const droneIP = drone[FIELD_NAMES.IP] || (drone[FIELD_NAMES.HW_ID] === '1' ? '127.0.0.1' : 'N/A');
 
@@ -196,8 +208,12 @@ const ExpandedDronePortal = ({ drone, isOpen, onClose, originRect }) => {
               {/* Altitude */}
               <div className="data-item">
                 <span className="data-label">Altitude</span>
-                <span className="data-value">
-                  {getAltitudeDisplay(drone[FIELD_NAMES.POSITION_ALT])}
+                <span
+                  className={`data-value ${altitudeAvailable ? '' : 'altitude-unavailable'}`}
+                  data-help={altitudeHelp}
+                  title={altitudeHelp}
+                >
+                  {altitudeDisplay}
                 </span>
               </div>
 

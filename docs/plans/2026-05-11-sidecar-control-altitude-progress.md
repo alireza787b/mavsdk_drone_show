@@ -2,12 +2,29 @@
 
 Date: 2026-05-12
 Updated: 2026-05-13
+Reconciled: 2026-05-14
 
 ## Scope
 
 Tracks the approved sidecar-control, Fleet Ops/GCS Runtime cleanup, altitude
 display policy, release hardening, private deploy, and board-sync phase.
 Logo/rebranding and broad stale-worktree cleanup remain deferred.
+
+## 2026-05-14 Public Status Reconciliation
+
+The current public release state is documented in
+`docs/plans/2026-05-12-sidecar-altitude-pm-handoff.md`.
+
+Current public anchors supersede older validation-log entries in this running
+progress note:
+
+- Official MDS: `v5.3.87-overview-card-layout` at `a71a7fc6`.
+- Smart Wi-Fi Manager: `v2.1.10` at `95cc7c2`.
+- MAVLink Anywhere: `v3.0.9` at `35f74ba`.
+
+Customer/private deployment, board sync, and field-hardware status are not
+public repo facts. They must be tracked only in the downstream private handoff.
+Older `v5.3.61` and `v5.3.67` entries below are historical breadcrumbs.
 
 ## Handoff Inputs Read
 

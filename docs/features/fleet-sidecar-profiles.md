@@ -85,8 +85,12 @@ Preferred repo baselines:
 | Smart Wi-Fi Manager | `config/fleet-profiles/smart-wifi-manager/config.json` |
 | MAVLink Anywhere | `config/fleet-profiles/mavlink-anywhere/profile.json` |
 
-Legacy deployment paths may be read for compatibility, but new work should use
-`config/fleet-profiles/...`.
+Fleet Ops resolves the preferred path first, then falls back to legacy
+deployment paths such as
+`deployment/connectivity/smart-wifi-manager/profile.json` and
+`deployment/mavlink-anywhere/profile.json` for existing deployments. New public
+work should use `config/fleet-profiles/...`; private deployments may migrate at
+their own maintenance window as long as the active path is visible in Fleet Ops.
 
 ## Fleet Ops API
 

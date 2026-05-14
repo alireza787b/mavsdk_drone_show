@@ -1,24 +1,22 @@
 # MDS Sidecar Control And Altitude PM Handoff
 
 Date: 2026-05-12
+Reviewed: 2026-05-14
 
 ## Current State
 
-Implementation for Slices 1-5 is complete and the public sidecar releases plus
-official MDS release are complete. A follow-up official patch refreshes the
-dashboard lockfile with safe npm audit fixes. Private merge/deploy,
-Hetzner SITL validation, and hardware validation are still in progress.
+Public implementation and release gates for this phase are complete through
+official MDS `v5.3.87-overview-card-layout` at `a71a7fc6`, Smart Wi-Fi Manager
+`v2.1.10` at `95cc7c2`, and MAVLink Anywhere `v3.0.9` at `35f74ba`.
 
-Slice 6 remains the active release/deploy gate:
+This public PM handoff is intentionally sanitized. Customer/private deployment
+state, board sync state, Wi-Fi profiles, NetBird addresses, and live hardware
+validation belong in the downstream private PM handoff for that deployment, not
+in this public repo.
 
-1. Carry the official MDS release and dashboard lockfile patch into the private
-   Catch-A-Drone repo without overwriting private-only assets/config.
-2. Run heavy frontend build/browser checks on
-   Hetzner.
-3. Deploy private GCS.
-4. Run SITL validator before switching back to real mode.
-5. Ask boards to be connected only after GCS is healthy, then dry-run/apply board
-   sync with explicit confirmation.
+Slice 6 is closed for the public release line. Downstream deployments should
+still run their own Hetzner build/browser checks, SITL/real-mode validation,
+and Fleet Ops dry-run/apply gates before tester handoff.
 
 ## Initial Plan Coverage
 
@@ -29,7 +27,7 @@ Slice 6 remains the active release/deploy gate:
 | 3. MAVLink Anywhere | MAVLink profile parity is present. Fleet baseline excludes node hardware overlays, and merge/strict behavior preserves local source settings by default. |
 | 4. Fleet Ops/GCS Runtime | Drone-side controls are in Fleet Ops. GCS Runtime is host-only and links to Fleet Ops instead of duplicating sidecar actions. |
 | 5. Altitude/no-GPS | Altitude is source-aware and independent of map readiness: `relative_home`, `absolute_msl`, `local_ned`, and `baro`. UI and typed telemetry now preserve source/freshness. |
-| 6. Release/deploy/board sync | Public sidecar and official MDS releases are done. Private merge/deploy, Hetzner SITL, and hardware validation are still outstanding. |
+| 6. Release/deploy/board sync | Public sidecar and official MDS release are complete. Deployment-specific SITL, private GCS, and board sync validation are tracked in the private downstream handoff. |
 
 ## Extra Fixes Beyond The Initial Plan
 
@@ -83,26 +81,23 @@ Slice 6 remains the active release/deploy gate:
 
 ## Release Status
 
-The public sidecar releases and official MDS release are complete. Private
-client MDS, private deploy, SITL validation, and hardware validation are still
-pending.
+The public sidecar releases and official MDS release are complete.
 
 | Repo | State |
 | --- | --- |
-| Official MDS | Public `v5.3.61-sidecar-altitude-control` released at `01513515`; follow-up dashboard lockfile patch is being tagged as the current official patch release. |
+| Official MDS | Public `v5.3.87-overview-card-layout` released at `a71a7fc6`; `origin/main` and `origin/main-candidate` point at this release. |
 | Smart Wi-Fi Manager | Public `v2.1.10` released at `95cc7c2` with linux amd64/arm64/arm6 dashboard assets. |
 | MAVLink Anywhere | Public `v3.0.9` released at `35f74ba` with linux amd64/arm64/arm6 dashboard assets. |
-| Private client MDS | Sidecar/altitude release cherry-picked onto a private integration branch with private operational config preserved; lockfile patch still needs to be carried before push/deploy. |
+| Private/customer deployments | Not described in this public document. Track customer-specific merge/deploy/board status in the private handoff only. |
 
 ## Remaining Debt And Notes
 
 - Final public leak scan was run with targeted local scans; `gitleaks` and
   `trufflehog` are not installed in this Linode workspace.
-- Heavy frontend build/browser checks must run on Hetzner, per the original
-  operating rule.
-- Board sync is intentionally blocked until boards are online and not in a
-  field-critical window.
-- Hardware validation cannot be claimed until boards are connected and checked.
+- Heavy frontend build/browser checks should run on the deployment host for each
+  downstream private deployment, per the operating rule.
+- Board sync and live hardware validation are deployment-specific and cannot be
+  claimed from the public repo alone.
 - Remaining dependency debt: the dashboard still uses CRA/react-scripts 5.
   Non-breaking audit fixes are applied, but eliminating the residual
   react-scripts build/test-chain advisories requires a separate frontend
