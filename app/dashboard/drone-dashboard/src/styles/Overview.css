@@ -312,14 +312,16 @@
 /* Drone Grid with Dynamic Layout */
 .drone-list {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20.5rem), 1fr));
+    grid-auto-rows: minmax(25.5rem, auto);
     gap: var(--spacing-base);
     padding: 0;
     margin: 0;
-    align-items: start;
+    align-items: stretch;
 }
 
 .drone-list__item {
+    display: flex;
     min-width: 0;
     contain: layout paint;
 }

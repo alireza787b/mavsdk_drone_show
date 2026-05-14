@@ -9,6 +9,8 @@
 
 .drone-readiness--compact {
   margin-bottom: var(--spacing-sm);
+  max-height: 5.6rem;
+  overflow: hidden;
 }
 
 .drone-readiness--compact-minimal {
@@ -71,6 +73,13 @@
   line-height: 1.45;
 }
 
+.drone-readiness--compact .drone-readiness__summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .drone-readiness__details {
   margin-top: var(--spacing-sm);
 }
@@ -98,6 +107,12 @@
 
 .drone-readiness__details-body {
   margin-top: var(--spacing-sm);
+}
+
+.drone-readiness--compact .drone-readiness__details-body {
+  max-height: 3.4rem;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .drone-readiness__section h4 {
