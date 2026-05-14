@@ -1,12 +1,26 @@
-# MAVSDK Drone Show (MDS)
+# MDS - Mission-Directed Swarm
 
-**All-in-One PX4 Framework for Drone Shows, Smart Swarms, and SAR**
+**Open-source MAVLink fleet operations for PX4 drones, SITL, drone shows, SAR, and cooperative autonomy.**
 
 [![Version](https://img.shields.io/badge/version-5.0-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
+[![PX4](https://img.shields.io/badge/PX4-MAVLink-005CAF.svg)](https://px4.io/)
+[![MAVSDK](https://img.shields.io/badge/MAVSDK-Python-21D4FD.svg)](https://mavsdk.mavlink.io/)
 
-MDS combines the drone-side runtime, GCS/backend services, and React operator dashboard into one PX4-oriented stack. It is built to stay simple enough for a quick SITL demo while remaining structured enough for serious multi-drone validation, operations, and custom deployments.
+MDS began as MAVSDK Drone Show and now covers a broader PX4-oriented fleet stack:
+drone-side runtime, GCS/backend services, React operator dashboard, SITL, real
+companion computers, sidecar connectivity, and mission execution workflows. It
+is built to stay simple enough for a quick SITL demo while remaining structured
+enough for serious multi-drone validation, operations, and custom deployments.
+
+## Ecosystem
+
+| Tool | Role |
+|------|------|
+| **MDS** | GCS, operator dashboard, SITL/real fleet control, mission execution, logs, environment control |
+| **[Smart Wi-Fi Manager](https://github.com/alireza787b/smart-wifi-manager)** | field Wi-Fi profile management for Linux companion computers |
+| **[MAVLink Anywhere](https://github.com/alireza787b/mavlink-anywhere)** | MAVLink routing dashboard for companion computers, GCS links, LTE/Wi-Fi/VPN, UDP, and serial |
 
 ## What MDS Covers
 
@@ -14,6 +28,10 @@ MDS combines the drone-side runtime, GCS/backend services, and React operator da
 - **Smart swarm missions** with live leader-follower coordination and runtime control
 - **QuickScout SAR / recon** with multi-drone coverage planning and PX4 Mission Mode execution
 - **Unified operations tooling** with SITL, GCS services, trajectory planning, and live/historical logs
+
+MDS is a field-operations and research platform, not certified avionics. Flight
+testing requires qualified operators, local aviation compliance, geofencing,
+failsafe review, and independent safety validation.
 
 ## Start Here
 
