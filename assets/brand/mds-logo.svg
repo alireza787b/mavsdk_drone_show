@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 120" role="img" aria-labelledby="title desc">
+  <title id="title">MDS Mission-Directed Swarm</title>
+  <desc id="desc">MDS wordmark with minimal angular mission mark.</desc>
+  <rect width="120" height="120" rx="28" fill="#09111c"/>
+  <path d="M22 84 39 32l21 52 21-52 17 52" fill="none" stroke="#f8fbff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="39" cy="32" r="5.5" fill="#20d6ff"/>
+  <circle cx="81" cy="32" r="5.5" fill="#20d6ff"/>
+  <circle cx="60" cy="84" r="4.5" fill="#f8fbff"/>
+  <path d="M60 84v16" stroke="#f4b942" stroke-width="5" stroke-linecap="round"/>
+  <path d="M60 108 52 95h16z" fill="#f4b942"/>
+  <text x="148" y="62" fill="#09111c" font-family="Arial, Helvetica, sans-serif" font-size="52" font-weight="900" letter-spacing="-2">MDS</text>
+  <text x="150" y="93" fill="#536173" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" letter-spacing="4">MISSION-DIRECTED SWARM</text>
+</svg>

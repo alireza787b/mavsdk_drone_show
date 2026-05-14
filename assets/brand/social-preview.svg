@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">MDS social preview</title>
+  <desc id="desc">GitHub social preview for MDS Mission-Directed Swarm.</desc>
+  <rect width="1280" height="640" fill="#09111c"/>
+  <path d="M0 520 C260 430 430 620 690 500 S1040 360 1280 460" fill="none" stroke="#20d6ff" stroke-width="3" opacity="0.16"/>
+  <path d="M920 90 H1160 M960 130 H1220 M890 170 H1110" stroke="#f4b942" stroke-width="2" opacity="0.16"/>
+  <g transform="translate(110 150)">
+    <rect width="180" height="180" rx="42" fill="#f8fbff"/>
+    <path d="M34 126 58 48l32 78 32-78 24 78" fill="none" stroke="#09111c" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="58" cy="48" r="7" fill="#20d6ff"/>
+    <circle cx="122" cy="48" r="7" fill="#20d6ff"/>
+    <circle cx="90" cy="126" r="6" fill="#09111c"/>
+    <path d="M90 126v28" stroke="#f4b942" stroke-width="8" stroke-linecap="round"/>
+    <path d="M90 170 78 150h24z" fill="#f4b942"/>
+  </g>
+  <text x="340" y="230" fill="#f8fbff" font-family="Arial, Helvetica, sans-serif" font-size="88" font-weight="900" letter-spacing="-4">MDS</text>
+  <text x="346" y="292" fill="#20d6ff" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800" letter-spacing="5">MISSION-DIRECTED SWARM</text>
+  <text x="346" y="360" fill="#d8e1ea" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="500">Open-source MAVLink fleet operations for PX4 drones, SITL, SAR, drone shows, and cooperative autonomy.</text>
+  <text x="346" y="438" fill="#8fa3b8" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="2">PX4 · MAVLink · SITL · GCS · Smart Swarm · Field Ops</text>
+</svg>

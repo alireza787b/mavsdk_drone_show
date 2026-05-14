@@ -7,28 +7,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
-## [5.2] - 2026-04-19
-
-### Added
-- Custom SITL/private repository authentication handoff:
-  documented public, public-fork, and private-repo auth paths; added
-  non-interactive Git access preflight for SITL runtime sync and image
-  preparation; and verified private SSH read/write operation on Hetzner.
-- Operator-friendly Mission Config optional-field templates for `callsign`,
-  `marker_color`, `notes`, and `role_hint`.
-
-### Changed
-- Dashboard startup, SITL launcher, and image-release scripts now propagate
-  read-only SSH/token auth settings consistently into child preflight checks.
-- Private SITL image workflow now closes on a flattened `latest` image at the
-  validated client branch, while public official usage remains unauthenticated.
+## [Unreleased]
 
 ---
 
-
-## [Unreleased]
+## [5.4] - 2026-05-14
 
 ### Added
+- Temporary minimal MDS brand assets for favicon, sidebar, README, docs, and
+  GitHub social-preview source.
+- Security and roadmap landing docs for public project review.
+- Public-facing roadmap keywords for MCP-compatible AI-agent workflows,
+  automated SAR/surveillance/cooperative missions, PixEagle vision-assisted
+  swarm control, GPS-denied/indoor swarm feasibility, ArduPilot exploration,
+  and optimized SIH simulation.
 - Root `Makefile` command index for common GCS startup, bootstrap, fleet sync,
   SITL reconcile, and validation commands, plus an operator guide documenting
   that `make` targets are thin wrappers around canonical scripts/APIs.
@@ -42,14 +34,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
   validity, freshness, stale last-known behavior, and map-trust boundaries.
 
 ### Changed
+- README now routes first-time users to the SITL guide and dashboard-first SITL
+  Control workflow instead of putting low-level shell commands in the intro.
+- README ecosystem tools moved lower because Smart Wi-Fi Manager and MAVLink
+  Anywhere are optional sidecars, not required for the first MDS demo.
+- Dashboard version, package metadata, manifest, favicon, and sidebar branding
+  aligned to `5.4`.
 - Fleet Ops node cards now expose compact per-node sidecar dashboard shortcuts
   and use a more stable mobile card layout for node identity, status pills, and
   quick actions.
 - Active installer, dashboard, docs-link, SITL image, and git-sync defaults now
   use `main` as the canonical deployment branch; feature/client branches remain
   explicit overrides through `MDS_BRANCH`.
-- Managed sidecar defaults now pin Smart Wi-Fi Manager `v2.1.10` and MAVLink
-  Anywhere `v3.0.9`.
+- Managed sidecar defaults now pin Smart Wi-Fi Manager `v2.1.11` and MAVLink
+  Anywhere `v3.0.10`.
 - SITL image selection now has a git-tracked deployment default, so official
   and private deployments can publish/use different validated images without
   manual `MDS_DOCKER_IMAGE` overrides.
@@ -1027,6 +1025,24 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 - `configure_logging()` function from `drone_show_src/utils.py`
 - `setup_logging()` function from `functions/file_management.py`
 - All `logging.basicConfig()` calls across the codebase
+
+---
+
+## [5.2] - 2026-04-19
+
+### Added
+- Custom SITL/private repository authentication handoff:
+  documented public, public-fork, and private-repo auth paths; added
+  non-interactive Git access preflight for SITL runtime sync and image
+  preparation; and verified private SSH read/write operation on Hetzner.
+- Operator-friendly Mission Config optional-field templates for `callsign`,
+  `marker_color`, `notes`, and `role_hint`.
+
+### Changed
+- Dashboard startup, SITL launcher, and image-release scripts now propagate
+  read-only SSH/token auth settings consistently into child preflight checks.
+- Private SITL image workflow now closes on a flattened `latest` image at the
+  validated client branch, while public official usage remains unauthenticated.
 
 ---
 

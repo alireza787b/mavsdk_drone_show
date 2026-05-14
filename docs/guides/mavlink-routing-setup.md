@@ -109,7 +109,7 @@ should come from:
 Current sidecar policy defaults include:
 
 - `MDS_DEFAULT_MAVLINK_MANAGEMENT_MODE=local`
-- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.9`
+- `MDS_DEFAULT_MAVLINK_ANYWHERE_REF=v3.0.10`
 - `MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR=/opt/mavlink-anywhere`
 
 Use Fleet Ops MAVLink to inspect profile drift and to dry-run/apply endpoint
@@ -139,7 +139,7 @@ sudo raspi-config
 cd ~
 git clone https://github.com/alireza787b/mavlink-anywhere.git
 cd mavlink-anywhere
-git checkout v3.0.9
+git checkout v3.0.10
 chmod +x install_mavlink_router.sh
 sudo ./install_mavlink_router.sh
 ```

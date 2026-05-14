@@ -1,8 +1,8 @@
-# MAVSDK Drone Show Documentation
+# MDS Documentation
 
-**Complete documentation index for MDS 5.3**
+**Complete documentation index for MDS 5.4**
 
-Welcome to the MAVSDK Drone Show documentation! This index will help you find the right guide for your needs.
+Welcome to the MDS documentation. This index routes operators, maintainers, and AI agents to the right guide without duplicating setup steps on the landing page.
 
 ---
 
@@ -250,7 +250,7 @@ Topics covered:
 - Automated version synchronization
 - Manual override capabilities
 
-**Current Version:** 5.3
+**Current Version:** 5.4
 
 **Changelog:** See [CHANGELOG.md](../CHANGELOG.md) for complete version history.
 
@@ -311,6 +311,6 @@ Please submit a pull request or open an issue on GitHub.
 
 ---
 
-**Last Updated:** March 2026 (Version 5.0)
+**Last Updated:** May 2026 (Version 5.4)
 
 © 2025 Alireza Ghaderi | Licensed under CC BY-SA 4.0

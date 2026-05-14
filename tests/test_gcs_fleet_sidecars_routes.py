@@ -17,7 +17,7 @@ def _make_deps(tmp_path, runtime=None):
         "service_state": "active",
         "mode": "fleet-merge",
         "drift_state": "in_sync",
-        "installed_ref": "v2.1.10",
+        "installed_ref": "v2.1.11",
         "profile_source": "node-local",
         "desired_hash": "desiredhash",
         "local_hash": "localhash",

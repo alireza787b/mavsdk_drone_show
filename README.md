@@ -2,25 +2,19 @@
 
 **Open-source MAVLink fleet operations for PX4 drones, SITL, drone shows, SAR, and cooperative autonomy.**
 
-[![Version](https://img.shields.io/badge/version-5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.4-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 [![PX4](https://img.shields.io/badge/PX4-MAVLink-005CAF.svg)](https://px4.io/)
 [![MAVSDK](https://img.shields.io/badge/MAVSDK-Python-21D4FD.svg)](https://mavsdk.mavlink.io/)
+
+![MDS logo](assets/brand/mds-logo.svg)
 
 MDS began as MAVSDK Drone Show and now covers a broader PX4-oriented fleet stack:
 drone-side runtime, GCS/backend services, React operator dashboard, SITL, real
 companion computers, sidecar connectivity, and mission execution workflows. It
 is built to stay simple enough for a quick SITL demo while remaining structured
 enough for serious multi-drone validation, operations, and custom deployments.
-
-## Ecosystem
-
-| Tool | Role |
-|------|------|
-| **MDS** | GCS, operator dashboard, SITL/real fleet control, mission execution, logs, environment control |
-| **[Smart Wi-Fi Manager](https://github.com/alireza787b/smart-wifi-manager)** | field Wi-Fi profile management for Linux companion computers |
-| **[MAVLink Anywhere](https://github.com/alireza787b/mavlink-anywhere)** | MAVLink routing dashboard for companion computers, GCS links, LTE/Wi-Fi/VPN, UDP, and serial |
 
 ## What MDS Covers
 
@@ -49,45 +43,28 @@ failsafe review, and independent safety validation.
 
 ## Quick Demo
 
-For a normal first run, use the official SITL archive and the full guide:
+Start with the **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)**.
+It covers the official SITL archive, validation, bootstrap, dashboard launch,
+and the current dashboard-first SITL Control workflow.
 
-- **[SITL Comprehensive Guide](docs/guides/sitl-comprehensive.md)** for the current MEGA download, archive validation, extraction, GCS bootstrap, and container launch flow
+For normal demos, use the dashboard **SITL Control** page to reconcile/start
+SITL drones instead of copying low-level shell commands from the README. Shell
+and `make` wrappers still exist for automation and advanced operators; see the
+**[Operator Makefile Guide](docs/guides/operator-makefile.md)** when you need
+scripted control.
 
-Once the official image is loaded and the GCS bootstrap is complete, the minimal 2-drone demo path is:
-
-```bash
-cd ~/mavsdk_drone_show
-bash multiple_sitl/create_dockers.sh 2
-bash app/linux_dashboard_start.sh --sitl
-```
-
-Then open `http://<host>:3030`.
-
-If you prefer a memorable command wrapper, the root `Makefile` exposes the same
-canonical scripts without replacing them:
-
-```bash
-make help
-make gcs-sitl
-make gcs-real START_FLAGS="--prod --skip-deps"
-make fleet-sync
-```
-
-See the [Operator Makefile Guide](docs/guides/operator-makefile.md) for the
-full command map and the rule that `make` targets must remain thin wrappers.
-
-`bash app/linux_dashboard_start.sh --sitl` now keeps the FastAPI backend single-process by default, even in development mode, so telemetry, heartbeats, command tracking, and other in-memory operational state stay coherent during live SITL runs. Only enable backend auto-reload for backend code editing with `MDS_GCS_BACKEND_RELOAD=true`.
+The dashboard launcher keeps the FastAPI backend single-process by default, so
+telemetry, heartbeats, command tracking, and other in-memory operational state
+stay coherent during live SITL runs. Backend auto-reload is only for backend
+code editing; the SITL guide covers that advanced mode.
 
 For the stock official SITL package, Mission Config starts from the tracked Azadi Stadium demo origin in `data/origin.sitl.default.json`. If you later set a different origin in the dashboard or via the API, MDS writes a local runtime override to `data/origin.json` on that server. Remove that local file when you want the stock Azadi default to apply again.
 
 For the default official HTTPS demo path, the GCS now treats git write-back as disabled by default (`MDS_GIT_AUTO_PUSH=false`). That keeps imports/config saves clean on read-only evaluation setups; move to the fork/SSH workflow when you want the GCS to commit and push changes.
 
-If you skipped the bootstrap installer and do not have the repo yet:
-
-```bash
-git clone -b main https://github.com/alireza787b/mavsdk_drone_show.git
-cd mavsdk_drone_show
-```
+If you skipped the bootstrap installer and do not have the repo yet, follow the
+clone/bootstrap path in the SITL guide instead of copying ad-hoc commands from
+the README.
 
 For a first dashboard-driven Smart Swarm run after SITL launch:
 
@@ -97,11 +74,9 @@ For a first dashboard-driven Smart Swarm run after SITL launch:
 4. use `Smart Swarm Runtime` to verify the `Formation Preview` and live readiness snapshot
 5. start `Selected Drone` or `Selected Cluster`, then use `Stop Swarm (Hold)`, `Land Swarm`, or `RTL Swarm` for explicit swarm-level control
 
-For the validated 5-drone Smart Swarm acceptance flow after a SITL launch, use:
-
-```bash
-python3 tools/validate_smart_swarm_runtime.py
-```
+The validated 5-drone Smart Swarm acceptance flow is documented in the Smart
+Swarm and SITL guides, including the operator-safe dashboard path and the
+automation validation helper for advanced users.
 
 If you need your own fork, custom image, or a pinned redistribution workflow, do not improvise from the demo path. Use:
 
@@ -118,6 +93,15 @@ These advanced and real-hardware paths require stronger PX4/Linux/networking kno
 - **[QuickScout Guide](docs/quickscout.md)** for SAR / recon workflows
 - **[Documentation Index](docs/README.md)** for the full map, APIs, archived notes, and deeper references
 
+## Optional Ecosystem Tools
+
+MDS can integrate optional companion-side tools when real hardware needs them:
+
+- **[Smart Wi-Fi Manager](https://github.com/alireza787b/smart-wifi-manager)** for field Wi-Fi profile management on Linux companion computers
+- **[MAVLink Anywhere](https://github.com/alireza787b/mavlink-anywhere)** for MAVLink routing over companion computers, LTE/Wi-Fi/VPN, UDP, and serial
+
+They remain standalone projects and are not required for a first SITL demo.
+
 ## Product Highlights
 
 - **Single operator surface**: React dashboard for monitoring, control, QuickScout, trajectory planning, and log review
@@ -125,6 +109,18 @@ These advanced and real-hardware paths require stronger PX4/Linux/networking kno
 - **Operational visibility**: unified logging across GCS, drones, and frontend error reporting with exportable sessions
 - **Drone Show pipeline**: staged SkyBrush ZIP import, processed trajectory plots, readiness gating, and synchronized launch control
 - **Scalable architecture**: designed for anything from a small demo to large validated multi-container runs
+
+## Roadmap Direction
+
+Active and planned work is tracked in [ROADMAP.md](ROADMAP.md). Current research
+directions include:
+
+- MCP-compatible AI-agent workflows for drone swarms and fleet operations
+- automated SAR, surveillance, and cooperative mission workflows
+- PixEagle integration for vision-assisted swarm control
+- GPS-denied and indoor swarm feasibility using AI/image-processing pipelines such as monocular vision
+- future ArduPilot support exploration
+- optimized minimal SIH Docker simulation for lightweight validation
 
 ## Dashboard Scope
 

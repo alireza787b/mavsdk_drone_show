@@ -200,7 +200,7 @@ class TestSidecarProfileProxy:
                 returncode=0,
                 stdout=(
                     "backend=smart-wifi-manager\n"
-                    "ref=v2.1.10\n"
+                    "ref=v2.1.11\n"
                     "mode=fleet-merge\n"
                     "desired_config_hash=desired-control\n"
                     "applied_config_hash=old-control\n"
@@ -311,7 +311,7 @@ class TestSidecarProfileProxy:
                 returncode=0,
                 stdout=(
                     "backend=smart-wifi-manager\n"
-                    "ref=v2.1.10\n"
+                    "ref=v2.1.11\n"
                     "mode=fleet-merge\n"
                     "desired_config_hash=desired-control\n"
                     "applied_config_hash=old-control\n"
@@ -1326,8 +1326,8 @@ class TestGitStatus:
                 'status_source': 'script',
                 'management_mode': 'fleet-merge',
                 'repo_url': 'https://github.com/demo/mavlink-anywhere.git',
-                'ref': 'v3.0.9',
-                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.9',
+                'ref': 'v3.0.10',
+                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.10',
                 'install_dir': '/opt/mavlink-anywhere',
                 'install_dir_present': True,
                 'runtime_present': True,
@@ -1346,8 +1346,8 @@ class TestGitStatus:
                 'status_source': 'script',
                 'backend': 'smart-wifi-manager',
                 'repo_url': 'https://github.com/demo/smart-wifi-manager.git',
-                'ref': 'v2.1.10',
-                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.10',
+                'ref': 'v2.1.11',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.11',
                 'install_dir': '/opt/smart-wifi-manager',
                 'install_dir_present': True,
                 'mode': 'observe',

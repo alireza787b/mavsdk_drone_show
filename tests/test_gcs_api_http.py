@@ -1697,8 +1697,8 @@ class TestGitStatusEndpoints:
             'mavlink_runtime': {
                 'status_source': 'script',
                 'management_mode': 'fleet-merge',
-                'ref': 'v3.0.9',
-                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.9',
+                'ref': 'v3.0.10',
+                'repo_web_url': 'https://github.com/demo/mavlink-anywhere/tree/v3.0.10',
                 'install_dir_present': True,
                 'runtime_present': True,
                 'runtime_head': 'abc1234',
@@ -1710,8 +1710,8 @@ class TestGitStatusEndpoints:
             'connectivity_runtime': {
                 'status_source': 'script',
                 'backend': 'smart-wifi-manager',
-                'ref': 'v2.1.10',
-                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.10',
+                'ref': 'v2.1.11',
+                'repo_web_url': 'https://github.com/demo/smart-wifi-manager/tree/v2.1.11',
                 'install_dir_present': True,
                 'mode': 'observe',
                 'import_mode': 'replace',
@@ -1911,31 +1911,21 @@ class TestGitStatusEndpoints:
         mock_verify_targets,
         test_client,
     ):
-        """POST /api/v1/git/sync-operations should only report success after repo convergence is verified."""
-        mock_load_config.return_value = [
-            {'hw_id': '1', 'pos_id': 1, 'ip': '10.0.0.1'},
-            {'hw_id': '2', 'pos_id': 2, 'ip': '10.0.0.2'},
-        ]
-        mock_gcs_git_report.return_value = {
-            'branch': 'main-candidate',
-            'commit': 'abc123def456',
-        }
-        mock_send_commands.return_value = {
-            'results': {
-                '1': {'category': 'accepted'},
-                '2': {'category': 'accepted'},
-            }
-        }
-        mock_verify_targets.return_value = ([1], [2])
+        """Deprecated direct sync route should not bypass Fleet Ops dry-run/apply."""
 
         response = test_client.post('/api/v1/git/sync-operations', json={})
 
         assert response.status_code == 200
         data = response.json()
         assert data['success'] is False
-        assert data['synced_drones'] == [1]
-        assert data['failed_drones'] == [2]
-        assert 'partially verified' in data['message']
+        assert data['synced_drones'] == []
+        assert data['failed_drones'] == []
+        assert data['total_attempted'] == 0
+        assert data['target_branch'] is None
+        assert data['target_commit'] is None
+        assert 'Direct sync is disabled' in data['message']
+        mock_send_commands.assert_not_called()
+        mock_verify_targets.assert_not_called()
 
     @patch('app_fastapi._verify_sync_targets')
     @patch('app_fastapi.send_commands_to_all')
@@ -1949,31 +1939,21 @@ class TestGitStatusEndpoints:
         mock_verify_targets,
         test_client,
     ):
-        """POST /api/v1/git/sync-operations should verify actual repo convergence."""
-        mock_load_config.return_value = [
-            {'hw_id': '1', 'pos_id': 1, 'ip': '10.0.0.1'},
-            {'hw_id': '2', 'pos_id': 2, 'ip': '10.0.0.2'},
-        ]
-        mock_gcs_git_report.return_value = {
-            'branch': 'main-candidate',
-            'commit': 'abc123def456',
-        }
-        mock_send_commands.return_value = {
-            'results': {
-                '1': {'category': 'accepted'},
-                '2': {'category': 'accepted'},
-            }
-        }
-        mock_verify_targets.return_value = ([1], [2])
+        """Canonical sync route is disabled unless using Fleet Ops dry-run/apply."""
 
         response = test_client.post('/api/v1/git/sync-operations', json={})
 
         assert response.status_code == 200
         data = response.json()
         assert data['success'] is False
-        assert data['synced_drones'] == [1]
-        assert data['failed_drones'] == [2]
-        assert 'partially verified' in data['message']
+        assert data['synced_drones'] == []
+        assert data['failed_drones'] == []
+        assert data['total_attempted'] == 0
+        assert data['target_branch'] is None
+        assert data['target_commit'] is None
+        assert 'Direct sync is disabled' in data['message']
+        mock_send_commands.assert_not_called()
+        mock_verify_targets.assert_not_called()
 
 
 # ============================================================================

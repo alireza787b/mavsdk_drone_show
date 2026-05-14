@@ -78,7 +78,7 @@ resolve_repo_url() {
 }
 
 resolve_repo_ref() {
-    printf '%s\n' "${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.9}}"
+    printf '%s\n' "${MDS_MAVLINK_ANYWHERE_REF:-${MDS_DEFAULT_MAVLINK_ANYWHERE_REF:-v3.0.10}}"
 }
 
 resolve_install_dir() {

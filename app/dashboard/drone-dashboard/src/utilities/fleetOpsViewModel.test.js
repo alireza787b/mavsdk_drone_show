@@ -28,7 +28,7 @@ describe('fleetOpsViewModel', () => {
           git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
           mavlink_runtime: {
             management_mode: 'fleet-merge',
-            ref: 'v3.0.9',
+            ref: 'v3.0.10',
             router_service_status: 'active',
             dashboard_service_status: 'active',
             dashboard_access_mode: 'local_only',

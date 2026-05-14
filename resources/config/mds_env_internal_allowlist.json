@@ -365,6 +365,12 @@
       "reason": "MAVSDK server binary download override."
     },
     {
+      "name": "MDS_SKIP_MAVSDK_RUNTIME_REPAIR",
+      "domain": "mavsdk",
+      "scope": "process",
+      "reason": "Git-sync recovery escape hatch for skipping mavsdk_server artifact repair; not an operator env profile field."
+    },
+    {
       "name": "MDS_MAVSDK_VERSION",
       "domain": "system",
       "scope": "launcher",

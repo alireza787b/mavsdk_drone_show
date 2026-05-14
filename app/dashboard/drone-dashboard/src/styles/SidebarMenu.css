@@ -111,10 +111,9 @@
 }
 
 .brand-icon {
-  font-size: 22px;
-  padding: var(--spacing-sm);
-  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.18), rgba(var(--color-primary-rgb), 0.08));
-  border: 1px solid var(--color-primary-border);
+  padding: 0;
+  background: transparent;
+  border: 0;
   border-radius: var(--border-radius-base);
   box-shadow: var(--shadow-md);
   display: flex;
@@ -122,6 +121,14 @@
   justify-content: center;
   min-width: 44px;
   height: 44px;
+}
+
+.brand-icon img,
+.brand-icon-collapsed img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--border-radius-base);
 }
 
 .brand-text h3 {
@@ -186,10 +193,9 @@
 }
 
 .brand-icon-collapsed {
-  font-size: 18px;
-  padding: var(--spacing-sm);
-  background: linear-gradient(135deg, rgba(var(--color-primary-rgb), 0.18), rgba(var(--color-primary-rgb), 0.08));
-  border: 1px solid var(--color-primary-border);
+  padding: 0;
+  background: transparent;
+  border: 0;
   border-radius: var(--border-radius-base);
   box-shadow: var(--shadow-sm);
   display: flex;

@@ -19,7 +19,6 @@ import {
   FaSearchLocation,
   FaMagic,
   FaClipboardList,
-  FaSatelliteDish,
   FaSlidersH,
   FaUserCheck,
   FaDocker,
@@ -28,6 +27,7 @@ import {
   FaSignOutAlt,
   FaUserShield,
   FaKey,
+  FaSatelliteDish,
 } from 'react-icons/fa';
 import { useTheme } from '../hooks/useTheme';
 import ThemeToggle from './ThemeToggle';
@@ -37,6 +37,7 @@ import GitInfo from './GitInfo';
 import RuntimeModeBadge from './RuntimeModeBadge';
 import useGcsGitInfo from '../hooks/useGcsGitInfo';
 import { VERSION_DISPLAY } from '../version';
+import mdsMark from '../assets/mds-mark.svg';
 
 const getInitialCollapsed = () => {
   if (typeof window === 'undefined') {
@@ -327,7 +328,7 @@ const SidebarMenu = ({
           <div className="header-expanded">
             <div className="brand">
               <span className="brand-icon" aria-hidden="true">
-                <FaSatelliteDish />
+                <img src={mdsMark} alt="" />
               </span>
               <div className="brand-text">
                 <h3>MDS Control</h3>
@@ -358,7 +359,7 @@ const SidebarMenu = ({
         ) : (
           <div className="header-collapsed">
             <span className="brand-icon-collapsed" aria-hidden="true">
-              <FaSatelliteDish />
+              <img src={mdsMark} alt="" />
             </span>
             <Link
               className="sidebar-runtime-summary-collapsed"

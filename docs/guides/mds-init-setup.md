@@ -366,7 +366,7 @@ sudo ./tools/mds_node_init.sh -d 1 --mavlink-auto --gcs-ip 192.0.2.75 -y
 sudo ./tools/mds_node_init.sh \
   -d 1 \
   --mavlink-uart /dev/ttyS0 \
-  --mavlink-ref v3.0.9 \
+  --mavlink-ref v3.0.10 \
   --mavlink-endpoints "127.0.0.1:14540,127.0.0.1:14569,192.0.2.75:24550" \
   -y
 ```

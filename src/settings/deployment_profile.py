@@ -117,7 +117,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_SMART_WIFI_MANAGER_REPO_URL_HTTPS",
         "https://github.com/alireza787b/smart-wifi-manager.git",
     )
-    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.10")
+    smart_wifi_manager_ref = data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_REF", "v2.1.11")
     smart_wifi_manager_mode = _normalize_sidecar_profile_mode(
         data.get("MDS_DEFAULT_SMART_WIFI_MANAGER_MODE", "fleet-merge"),
         default="fleet-merge",
@@ -137,7 +137,7 @@ def _build_profile(path: Path) -> DeploymentProfile:
         "MDS_DEFAULT_MAVLINK_ANYWHERE_REPO_URL_HTTPS",
         "https://github.com/alireza787b/mavlink-anywhere.git",
     )
-    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.9")
+    mavlink_anywhere_ref = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_REF", "v3.0.10")
     mavlink_anywhere_install_dir = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_INSTALL_DIR", "/opt/mavlink-anywhere")
     mavlink_anywhere_dashboard_listen = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_DASHBOARD_LISTEN", "127.0.0.1:9070")
     mavlink_anywhere_skip_dashboard = data.get("MDS_DEFAULT_MAVLINK_ANYWHERE_SKIP_DASHBOARD", "false").strip().lower() in {

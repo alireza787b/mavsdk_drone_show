@@ -165,7 +165,7 @@ Port = 24550
         lambda repo_root, script_relative_path: {
             "status_source": "script",
             "mode": "fleet-merge",
-            "ref": "v3.0.9",
+            "ref": "v3.0.10",
             "router_service": "active",
             "dashboard_service": "active",
             "desired_config_hash": "abc123",

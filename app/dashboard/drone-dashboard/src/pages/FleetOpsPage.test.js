@@ -34,8 +34,8 @@ const gitPayload = {
       git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
       mavlink_runtime: {
         management_mode: 'fleet-merge',
-        ref: 'v3.0.9',
-        repo_web_url: 'https://github.com/alireza787b/mavlink-anywhere/tree/v3.0.9',
+        ref: 'v3.0.10',
+        repo_web_url: 'https://github.com/alireza787b/mavlink-anywhere/tree/v3.0.10',
         router_service_status: 'active',
         dashboard_enabled: true,
         dashboard_service_status: 'active',
@@ -76,7 +76,7 @@ const gitPayload = {
       git_auth_health_summary: 'SSH key is missing.',
       mavlink_runtime: {
         management_mode: 'fleet-merge',
-        ref: 'v3.0.9',
+        ref: 'v3.0.10',
         router_service_status: 'failed',
         dashboard_enabled: true,
         dashboard_service_status: 'inactive',
@@ -195,7 +195,7 @@ describe('FleetOpsPage', () => {
       git_auth_health_summary: 'HTTPS token-file access is configured and readable.',
       mavlink_runtime: {
         management_mode: 'fleet-merge',
-        ref: 'v3.0.9',
+        ref: 'v3.0.10',
         router_service_status: 'active',
         dashboard_enabled: false,
         desired_config_hash: 'aaaaaaaaaaaaaaaa',
@@ -243,7 +243,7 @@ describe('FleetOpsPage', () => {
     expect(screen.getByText(/wi-fi and mavlink posture/i)).toBeInTheDocument();
     expect(screen.getAllByText(/MAVLink/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Smart Wi-Fi/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/ref v3.0.9; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
+    expect(screen.getByText(/ref v3.0.10; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
     expect(screen.getByText(/smart wi-fi is inactive; mode fleet-merge; fleet profile source missing\. add an approved fleet baseline, then use fleet ops wi-fi dry-run\/apply\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">MDS mark</title>
+  <desc id="desc">Minimal angular M mission mark for MDS.</desc>
+  <rect width="96" height="96" rx="22" fill="#09111c"/>
+  <path d="M17 68 31 25l17 43 17-43 14 43" fill="none" stroke="#f8fbff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="31" cy="25" r="4.5" fill="#20d6ff"/>
+  <circle cx="65" cy="25" r="4.5" fill="#20d6ff"/>
+  <circle cx="48" cy="68" r="3.8" fill="#f8fbff"/>
+  <path d="M48 68v13" stroke="#f4b942" stroke-width="4" stroke-linecap="round"/>
+  <path d="M48 88 42 78h12z" fill="#f4b942"/>
+</svg>
