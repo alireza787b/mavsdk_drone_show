@@ -327,17 +327,43 @@ This is post-v1 hardening, not missing core functionality.
 operator dashboards on companion nodes. In the current MDS deployment model,
 they are reachable only on trusted private networks such as NetBird/local LANs.
 For stricter deployments, those sidecars should have their own optional
-dashboard/API auth and subnet allowlist so an exposed node-side utility cannot
-become the weak link.
+dashboard login, API/mutation protection, subnet allowlist, and reverse-proxy
+deployment model so an exposed node-side utility cannot become the weak link.
 
 **Solution:** Add this as a deliberate sidecar hardening slice, not as hidden
 MDS glue:
 
 - define a common optional auth/subnet model for both public sidecar repos
-- support bearer token or basic session auth without breaking headless mode
-- support `allow_cidrs` for GCS/NetBird/admin subnets
-- add MDS proxy-token guidance if the GCS should manage sidecar profiles later
-- document recovery if a sidecar auth config locks out the operator
+- provide MDS-like dashboard login semantics where appropriate, but keep
+  headless/CLI operation working by default
+- protect sidecar mutation APIs with bearer tokens or signed local requests;
+  status/read-only APIs may remain open only on loopback/trusted subnets
+- support `allow_cidrs` for GCS, NetBird, admin LAN, and field laptop subnets
+- document a Caddy/reverse-proxy deployment pattern for MDS, Smart Wi-Fi
+  Manager, and MAVLink Anywhere when dashboards are served under one HTTPS
+  host
+- define recovery if a sidecar auth config locks out the operator
+- align all naming with the MDS environment registry before implementation so
+  no duplicate auth variables appear across products
+
+**Future env/registry candidates to design, not add as active keys yet:**
+
+- `MDS_SIDECAR_AUTH_ENABLED`
+- `MDS_SIDECAR_API_AUTH_ENABLED`
+- `MDS_SIDECAR_ALLOWED_CIDRS`
+- `MDS_SMART_WIFI_MANAGER_AUTH_ENABLED`
+- `MDS_SMART_WIFI_MANAGER_API_AUTH_ENABLED`
+- `MDS_SMART_WIFI_MANAGER_ALLOWED_CIDRS`
+- `MDS_MAVLINK_ANYWHERE_AUTH_ENABLED`
+- `MDS_MAVLINK_ANYWHERE_API_AUTH_ENABLED`
+- `MDS_MAVLINK_ANYWHERE_ALLOWED_CIDRS`
+- `MDS_REVERSE_PROXY_MODE`
+- `MDS_REVERSE_PROXY_PUBLIC_URL`
+- `MDS_REVERSE_PROXY_TRUSTED_PROXY_CIDRS`
+
+These names are placeholders for the future design review. Do not consume them
+in runtime code until the sidecar auth slice adds registry metadata, bootstrap
+prompts, docs, tests, and SSH recovery guidance.
 
 **Files/repos to revisit:**
 - `mavlink-anywhere`
@@ -345,6 +371,10 @@ MDS glue:
 - `docs/guides/mavlink-routing-setup.md`
 - `docs/guides/connectivity-runtime.md`
 - `docs/guides/gcs-auth.md`
+- `docs/guides/runtime-config-sources.md`
+- `resources/config/mds_env_registry.json`
+- `tools/mds_gcs_init.sh`
+- `tools/mds_node_init.sh`
 - MDS Fleet Ops sidecar proxy/API surfaces if direct sidecar editing expands
 
 ---
