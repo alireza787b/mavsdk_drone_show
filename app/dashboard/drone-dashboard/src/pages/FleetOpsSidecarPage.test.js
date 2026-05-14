@@ -188,6 +188,54 @@ describe('FleetOpsSidecarPage', () => {
     expect(screen.queryByText(/redacted-demo-value/i)).not.toBeInTheDocument();
   });
 
+  test('node Wi-Fi differences hide profiles that match the repo-visible fields', async () => {
+    getFleetSidecarResponse.mockResolvedValue({
+      data: {
+        ...wifiTable,
+        rows: [
+          {
+            ...wifiTable.rows[0],
+            drift_state: 'in_sync',
+            profile_count: 1,
+            profiles: [
+              {
+                id: 'field-primary',
+                ssid: 'Demo Field',
+                priority: '100',
+                secret_status: 'stored',
+                source: 'node-runtime',
+                last_connected_at: 'redacted',
+              },
+            ],
+            profile_summary: {
+              profiles: [
+                {
+                  id: 'field-primary',
+                  ssid: 'Demo Field',
+                  priority: '100',
+                  secret_status: 'stored',
+                  source: 'node-runtime',
+                  last_connected_at: 'redacted',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    render(<FleetOpsSidecarPage config={SMART_WIFI_SIDECAR_CONFIG} />);
+
+    await screen.findByRole('heading', { name: /wi-fi sidecar profiles/i });
+    fireEvent.click(await screen.findByRole('button', { name: /view P1\|H1 profile details/i }));
+
+    expect(screen.getByText('Node Wi-Fi Differences')).toBeInTheDocument();
+    expect(screen.getByText('0 profiles')).toBeInTheDocument();
+    expect(screen.getByText('No node differences beyond repo baseline.')).toBeInTheDocument();
+    expect(screen.getByText('Repo Wi-Fi Baseline')).toBeInTheDocument();
+    expect(screen.getByText('Demo Field')).toBeInTheDocument();
+  });
+
   test('mavlink detail dialog shows node sources, node endpoints, and repo endpoints', async () => {
     getFleetSidecarResponse.mockResolvedValue({ data: mavlinkTable });
 

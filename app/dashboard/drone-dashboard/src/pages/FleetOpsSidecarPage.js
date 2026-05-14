@@ -154,6 +154,56 @@ function comparableProfileId(item, itemKind, collectionKind) {
   return String(item.name || `${item.type || ''}|${item.address || ''}|${item.port || ''}|${item.device || ''}|${item.baud || ''}`).trim().toLowerCase();
 }
 
+function comparableText(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function comparableNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : comparableText(value);
+}
+
+function comparableBool(value) {
+  if (value === null || value === undefined) return null;
+  return Boolean(value);
+}
+
+function comparableProfileValue(item, itemKind, collectionKind) {
+  if (!item || typeof item !== 'object') return stableValue(item);
+  if (itemKind === 'wifi') {
+    return stableValue({
+      id: comparableText(item.id || item.connection_name || item.ssid),
+      ssid: comparableText(item.ssid),
+      priority: comparableNumber(item.priority),
+      secret_status: comparableText(item.secret_status),
+      disabled: comparableBool(item.disabled),
+    });
+  }
+  if (collectionKind === 'sources') {
+    return stableValue({
+      name: comparableText(item.name),
+      type: comparableText(item.type),
+      device: comparableText(item.device),
+      baud: comparableNumber(item.baud),
+      role: comparableText(item.role),
+      mode: comparableText(item.mode),
+      enabled: comparableBool(item.enabled),
+    });
+  }
+  return stableValue({
+    name: comparableText(item.name),
+    type: comparableText(item.type),
+    address: comparableText(item.address),
+    port: comparableNumber(item.port),
+    device: comparableText(item.device),
+    baud: comparableNumber(item.baud),
+    category: comparableText(item.category),
+    mode: comparableText(item.mode),
+    enabled: comparableBool(item.enabled),
+  });
+}
+
 function stableValue(value) {
   if (Array.isArray(value)) {
     return `[${value.map(stableValue).join(',')}]`;
@@ -168,12 +218,12 @@ function filterExactBaselineMatches(items, baselineItems, itemKind, collectionKi
   const baselineById = new Map();
   baselineItems.forEach((item) => {
     const id = comparableProfileId(item, itemKind, collectionKind);
-    if (id) baselineById.set(id, stableValue(item));
+    if (id) baselineById.set(id, comparableProfileValue(item, itemKind, collectionKind));
   });
   if (!baselineById.size) return items;
   return items.filter((item) => {
     const id = comparableProfileId(item, itemKind, collectionKind);
-    return !id || baselineById.get(id) !== stableValue(item);
+    return !id || baselineById.get(id) !== comparableProfileValue(item, itemKind, collectionKind);
   });
 }
 
