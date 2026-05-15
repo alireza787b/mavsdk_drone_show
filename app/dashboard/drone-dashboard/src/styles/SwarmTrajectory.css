@@ -142,6 +142,226 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+.workflow-step--planner {
+  border-color: var(--color-border-secondary);
+}
+
+.swarm-planner-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(320px, 1.05fr);
+  gap: var(--spacing-lg);
+  align-items: stretch;
+}
+
+.swarm-planner-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-base);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-secondary);
+}
+
+.swarm-planner-card__header,
+.swarm-processed-preview__header,
+.swarm-validation-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+}
+
+.swarm-planner-card__header > div,
+.swarm-processed-preview__header {
+  min-width: 0;
+}
+
+.swarm-planner-card__header strong,
+.swarm-processed-preview__header strong,
+.swarm-validation-panel__header strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+
+.swarm-planner-card__header span,
+.swarm-processed-preview__header span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-planner-card__header select {
+  min-width: 140px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.swarm-waypoint-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.swarm-waypoint-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-waypoint-form input {
+  width: 100%;
+  min-height: 38px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.swarm-planner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.swarm-planner-actions .utility-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.swarm-planner-card__notice {
+  margin-top: 0;
+}
+
+.swarm-route-sketch {
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+}
+
+.swarm-route-sketch--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-route-sketch__bg {
+  fill: var(--color-bg-primary);
+}
+
+.swarm-waypoint-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  max-height: 260px;
+  overflow: auto;
+}
+
+.swarm-waypoint-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--spacing-sm);
+  align-items: center;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+}
+
+.swarm-waypoint-row__main {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.swarm-waypoint-row__main strong,
+.swarm-waypoint-row__main span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.swarm-waypoint-row__main span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.swarm-waypoint-row__actions {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.swarm-waypoint-row__actions button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.swarm-waypoint-row__actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.swarm-validation-panel,
+.swarm-processed-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-base);
+  padding: var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-secondary);
+}
+
+.swarm-validation-panel__advisories,
+.swarm-preview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.swarm-validation-panel__advisories span,
+.swarm-preview-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  background: var(--color-bg-primary);
+}
+
+.swarm-preview-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
 /* Enhanced Cluster Plot Header */
 .cluster-plot-header {
   display: flex;
@@ -1986,6 +2206,10 @@
 
 /* Mobile Responsive Design */
 @media (max-width: 1200px) {
+  .swarm-planner-grid {
+    grid-template-columns: 1fr;
+  }
+
   .cluster-plot-header {
     flex-direction: column;
     align-items: stretch;
@@ -2032,6 +2256,25 @@
   .status-card {
     padding: var(--spacing-base);
     margin-bottom: var(--spacing-lg);
+  }
+
+  .swarm-waypoint-form {
+    grid-template-columns: 1fr;
+  }
+
+  .swarm-planner-card__header,
+  .swarm-processed-preview__header,
+  .swarm-validation-panel__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .swarm-waypoint-row {
+    grid-template-columns: 1fr;
+  }
+
+  .swarm-waypoint-row__actions {
+    justify-content: flex-start;
   }
 
   .guide-content {

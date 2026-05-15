@@ -45,6 +45,9 @@ export function formatQuickScoutDistance(distanceM) {
 }
 
 export function getQuickScoutMissionTemplateLabel(missionTemplate) {
+  if (missionTemplate === 'point_dispatch') {
+    return 'Point Dispatch';
+  }
   if (missionTemplate === 'last_known_point') {
     return 'Last Known Point';
   }
@@ -95,6 +98,17 @@ export function buildQuickScoutGeometrySummary({
   searchPath,
   corridorWidthM,
 }) {
+  if (missionTemplate === 'point_dispatch') {
+    return {
+      title: 'Point dispatch package',
+      note: 'QuickScout sends the selected aircraft to the operator-selected global point using fixed MSL cruise altitude.',
+      chips: [
+        `Point ${formatCoordinate(searchCenter)}`,
+        'Single waypoint',
+      ],
+    };
+  }
+
   if (missionTemplate === 'last_known_point') {
     return {
       title: 'Point-centered search envelope',

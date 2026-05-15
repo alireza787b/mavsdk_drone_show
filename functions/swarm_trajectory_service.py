@@ -5,10 +5,15 @@ Swarm trajectory service helpers shared by the FastAPI surface.
 from __future__ import annotations
 
 import logging
+import math
 import tempfile
+import threading
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -26,6 +31,11 @@ from src.params import Params
 from utils import git_operations
 
 logger = logging.getLogger(__name__)
+
+_PROCESSING_JOB_TERMINAL_STATES = {"succeeded", "failed", "canceled"}
+_PROCESSING_JOB_LOCK = threading.Lock()
+_PROCESSING_JOB_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="swarm-trajectory")
+_PROCESSING_JOBS: Dict[str, Dict[str, Any]] = {}
 
 
 class SwarmTrajectoryError(Exception):
@@ -123,6 +133,139 @@ def _round_metric(value: Optional[float]) -> Optional[float]:
     if value is None:
         return None
     return round(float(value), 2)
+
+
+def _is_finite_number(value: Any) -> bool:
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def _first_existing_column(columns: List[str], candidates: List[str]) -> Optional[str]:
+    lowered = {str(column).lower(): column for column in columns}
+    for candidate in candidates:
+        if candidate.lower() in lowered:
+            return lowered[candidate.lower()]
+    return None
+
+
+def _swarm_issue(
+    code: str,
+    message: str,
+    severity: str,
+    *,
+    drone_id: Optional[int] = None,
+    leader_id: Optional[int] = None,
+    details: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    payload = {
+        "code": code,
+        "message": message,
+        "severity": severity,
+    }
+    if drone_id is not None:
+        payload["drone_id"] = int(drone_id)
+    if leader_id is not None:
+        payload["leader_id"] = int(leader_id)
+    if details:
+        payload["details"] = details
+    return payload
+
+
+def _resolve_top_leader(drone_id: int, follow_map: Dict[int, int]) -> Tuple[Optional[int], Optional[str]]:
+    current_id = int(drone_id)
+    visited = set()
+    while True:
+        if current_id in visited:
+            return None, "circular_leader_chain"
+        visited.add(current_id)
+        leader_id = follow_map.get(current_id)
+        if leader_id is None:
+            return None, "missing_swarm_assignment"
+        if int(leader_id) == 0:
+            return current_id, None
+        current_id = int(leader_id)
+
+
+def _serialize_processing_job(job_id: str) -> Dict[str, Any]:
+    with _PROCESSING_JOB_LOCK:
+        job = _PROCESSING_JOBS.get(job_id)
+        if not job:
+            raise SwarmTrajectoryError("Swarm trajectory processing job not found", status_code=404)
+        return {
+            "job_id": job_id,
+            "status": job["status"],
+            "phase": job["phase"],
+            "progress_percent": job["progress_percent"],
+            "message": job.get("message"),
+            "result": job.get("result"),
+            "error_code": job.get("error_code"),
+            "error_message": job.get("error_message"),
+            "cancel_requested": bool(job.get("cancel_requested")),
+            "created_at": job["created_at"],
+            "updated_at": job["updated_at"],
+            "started_at": job.get("started_at"),
+            "completed_at": job.get("completed_at"),
+        }
+
+
+def _update_processing_job(job_id: str, **updates: Any) -> None:
+    if not job_id:
+        return
+    with _PROCESSING_JOB_LOCK:
+        job = _PROCESSING_JOBS.get(job_id)
+        if not job:
+            return
+        now = time.time()
+        job.update(updates)
+        job["updated_at"] = now
+        if updates.get("status") == "running" and not job.get("started_at"):
+            job["started_at"] = now
+        if updates.get("status") in _PROCESSING_JOB_TERMINAL_STATES:
+            job["completed_at"] = now
+
+
+def _read_processed_preview_points(csv_path: Path, max_points: int) -> Tuple[List[Dict[str, Any]], int, bool, List[str]]:
+    warnings: List[str] = []
+    try:
+        trajectory = pd.read_csv(csv_path)
+    except Exception as exc:
+        return [], 0, False, [f"Unable to read processed CSV: {exc}"]
+
+    if trajectory.empty:
+        return [], 0, False, ["Processed CSV is empty."]
+
+    columns = list(trajectory.columns)
+    time_col = _first_existing_column(columns, ["t", "time_s", "TimeFromStart_s", "time"])
+    lat_col = _first_existing_column(columns, ["lat", "latitude", "Latitude"])
+    lng_col = _first_existing_column(columns, ["lon", "lng", "longitude", "Longitude"])
+    alt_col = _first_existing_column(columns, ["alt", "alt_msl", "Altitude_MSL_m", "z", "pz"])
+    yaw_col = _first_existing_column(columns, ["yaw", "heading_deg", "Heading_deg", "Heading"])
+    global_coordinates_available = lat_col is not None and lng_col is not None
+
+    if not global_coordinates_available:
+        warnings.append("Global latitude/longitude columns are unavailable; preview path cannot be shown on the map.")
+
+    row_count = int(len(trajectory))
+    stride = max(1, math.ceil(row_count / max(1, max_points)))
+    preview_rows = trajectory.iloc[::stride].head(max_points)
+    points: List[Dict[str, Any]] = []
+
+    for sequence, (_, row) in enumerate(preview_rows.iterrows()):
+        point: Dict[str, Any] = {"sequence": sequence}
+        if time_col and _is_finite_number(row.get(time_col)):
+            point["time_s"] = _round_metric(float(row.get(time_col)))
+        if global_coordinates_available and _is_finite_number(row.get(lat_col)) and _is_finite_number(row.get(lng_col)):
+            point["lat"] = float(row.get(lat_col))
+            point["lng"] = float(row.get(lng_col))
+        if alt_col and _is_finite_number(row.get(alt_col)):
+            point["alt_msl"] = _round_metric(float(row.get(alt_col)))
+        if yaw_col and _is_finite_number(row.get(yaw_col)):
+            point["yaw_deg"] = _round_metric(float(row.get(yaw_col)))
+        points.append(point)
+
+    return points, row_count, global_coordinates_available, warnings
 
 
 def _collect_processed_package_drone_stats(processed_dir: Path, drone_ids: List[int]) -> Dict[int, Dict]:
@@ -530,6 +673,397 @@ def get_processing_status_payload() -> Dict:
         },
         "folders": folders,
     }
+
+
+def get_validation_payload() -> Dict:
+    status_payload = get_processing_status_payload()
+    status = status_payload["status"]
+    blockers: List[Dict[str, Any]] = []
+    warnings: List[Dict[str, Any]] = []
+    advisories: List[Dict[str, Any]] = []
+
+    processed_drone_ids = sorted(int(drone_id) for drone_id in status.get("processed_drones", []))
+    follow_map = {
+        int(drone_id): int(leader_id)
+        for drone_id, leader_id in (status.get("follow_map") or {}).items()
+    }
+    expected_drone_ids = sorted(follow_map.keys())
+    missing_drone_ids = sorted(set(expected_drone_ids) - set(processed_drone_ids))
+    cluster_summary = status.get("cluster_summary") or {}
+    workspace_state = cluster_summary.get("overall_state") or "unknown"
+
+    if workspace_state == "unknown":
+        blockers.append(_swarm_issue(
+            "swarm_trajectory_swarm_structure_unavailable",
+            "Swarm structure could not be analyzed. Check the swarm configuration before preview, commit, or transfer.",
+            "blocker",
+        ))
+    elif status.get("has_results") and int(cluster_summary.get("cluster_count") or 0) == 0:
+        blockers.append(_swarm_issue(
+            "swarm_trajectory_no_swarm_clusters",
+            "Processed outputs exist, but the current swarm configuration has no valid leader clusters.",
+            "blocker",
+        ))
+
+    if not status.get("has_results"):
+        blockers.append(_swarm_issue(
+            "swarm_trajectory_no_processed_outputs",
+            "No processed Swarm Trajectory package is available. Process leader uploads before preview, commit, or transfer.",
+            "blocker",
+        ))
+
+    for cluster in status.get("clusters") or []:
+        leader_id = cluster.get("leader_id")
+        if not cluster.get("ready"):
+            state = cluster.get("state") or "unknown"
+            severity = "blocker" if state in {"missing_upload", "needs_processing", "partial_outputs"} else "warning"
+            target = blockers if severity == "blocker" else warnings
+            target.append(_swarm_issue(
+                f"swarm_trajectory_cluster_{state}",
+                f"Cluster {leader_id} is not ready: {state.replace('_', ' ')}.",
+                severity,
+                leader_id=leader_id,
+                details={
+                    "missing_follower_ids": cluster.get("missing_follower_ids") or [],
+                    "processed_follower_ids": cluster.get("processed_follower_ids") or [],
+                    "processed_drone_count": cluster.get("processed_drone_count"),
+                    "expected_drone_count": cluster.get("expected_drone_count"),
+                },
+            ))
+
+        for issue in cluster.get("issues") or []:
+            blockers.append(_swarm_issue(
+                "swarm_trajectory_cluster_issue",
+                str(issue),
+                "blocker",
+                leader_id=leader_id,
+            ))
+
+        for advisory in cluster.get("advisories") or []:
+            advisories.append(_swarm_issue(
+                "swarm_trajectory_cluster_advisory",
+                str(advisory),
+                "advisory",
+                leader_id=leader_id,
+            ))
+
+    session_changes = status.get("session_changes") or {}
+    if session_changes.get("requires_full_reprocess"):
+        blockers.append(_swarm_issue(
+            "swarm_trajectory_reprocess_required",
+            "The saved processing session is stale. Reprocess the package before commit or transfer.",
+            "blocker",
+            details=session_changes,
+        ))
+    elif session_changes.get("has_previous_session") and not session_changes.get("safe_to_incremental", True):
+        warnings.append(_swarm_issue(
+            "swarm_trajectory_session_review_required",
+            "Processing session changes require operator review before committing outputs.",
+            "warning",
+            details=session_changes,
+        ))
+
+    if missing_drone_ids:
+        blockers.append(_swarm_issue(
+            "swarm_trajectory_missing_processed_drones",
+            f"Processed outputs are missing for drones: {missing_drone_ids}.",
+            "blocker",
+            details={"missing_drone_ids": missing_drone_ids},
+        ))
+
+    package_stats = status.get("package_stats") or {}
+    if status.get("has_results") and not package_stats.get("available"):
+        warnings.append(_swarm_issue(
+            "swarm_trajectory_package_stats_unavailable",
+            "Processed package timing/altitude statistics are unavailable.",
+            "warning",
+        ))
+
+    if status.get("has_results") and not status.get("plots_available"):
+        warnings.append(_swarm_issue(
+            "swarm_trajectory_plots_unavailable",
+            "Processed path plots are unavailable; use the map preview and regenerate plots when needed.",
+            "warning",
+        ))
+
+    orphan_uploaded_leaders = status.get("orphan_uploaded_leaders") or []
+    if orphan_uploaded_leaders:
+        warnings.append(_swarm_issue(
+            "swarm_trajectory_orphan_uploads",
+            "One or more uploaded leader CSV files are not part of the current swarm configuration.",
+            "warning",
+            details={"orphan_uploaded_leaders": orphan_uploaded_leaders},
+        ))
+
+    for drone_id, stats in (status.get("package_drone_stats") or {}).items():
+        if stats.get("max_altitude_msl_m") is None or stats.get("min_altitude_msl_m") is None:
+            warnings.append(_swarm_issue(
+                "swarm_trajectory_altitude_stats_unavailable",
+                f"Altitude statistics are unavailable for drone {drone_id}.",
+                "warning",
+                drone_id=int(drone_id),
+            ))
+
+    return {
+        "success": True,
+        "ready": len(blockers) == 0,
+        "state": workspace_state,
+        "blockers": blockers,
+        "warnings": warnings,
+        "advisories": advisories,
+        "processed_drone_ids": processed_drone_ids,
+        "expected_drone_ids": expected_drone_ids,
+        "missing_drone_ids": missing_drone_ids,
+        "cluster_summary": cluster_summary,
+        "package_stats": package_stats,
+    }
+
+
+def get_preview_payload(max_points_per_drone: int = 500) -> Dict:
+    status_payload = get_processing_status_payload()
+    status = status_payload["status"]
+    validation = get_validation_payload()
+    processed_dir = Path(status_payload["folders"]["processed"])
+    processed_drone_ids = sorted(int(drone_id) for drone_id in status.get("processed_drones", []))
+    follow_map = {
+        int(drone_id): int(leader_id)
+        for drone_id, leader_id in (status.get("follow_map") or {}).items()
+    }
+    package_drone_stats = status.get("package_drone_stats") or {}
+    drones: List[Dict[str, Any]] = []
+
+    for drone_id in processed_drone_ids:
+        csv_path = processed_dir / f"Drone {drone_id}.csv"
+        points, row_count, global_available, preview_warnings = _read_processed_preview_points(
+            csv_path,
+            max_points=max_points_per_drone,
+        )
+        direct_leader_id = follow_map.get(drone_id)
+        top_leader_id, leader_error = _resolve_top_leader(drone_id, follow_map)
+        role = "leader" if direct_leader_id == 0 else "follower" if direct_leader_id is not None else "unknown"
+        if leader_error:
+            preview_warnings.append(f"Leader relationship issue: {leader_error}.")
+
+        drones.append({
+            "drone_id": drone_id,
+            "role": role,
+            "top_leader_id": top_leader_id,
+            "direct_leader_id": direct_leader_id if direct_leader_id not in (None, 0) else None,
+            "point_count": row_count,
+            "preview_point_count": len(points),
+            "global_coordinates_available": global_available,
+            "points": points,
+            "warnings": preview_warnings,
+            "package_stats": package_drone_stats.get(str(drone_id)) or package_drone_stats.get(drone_id),
+        })
+
+    clusters = []
+    processed_set = set(processed_drone_ids)
+    for cluster in status.get("clusters") or []:
+        leader_id = int(cluster.get("leader_id"))
+        expected_ids = [leader_id] + [int(value) for value in cluster.get("follower_ids", [])]
+        clusters.append({
+            "leader_id": leader_id,
+            "drone_ids": [drone_id for drone_id in expected_ids if drone_id in processed_set],
+            "expected_drone_ids": expected_ids,
+            "ready": bool(cluster.get("ready")),
+            "state": cluster.get("state") or "unknown",
+            "issues": cluster.get("issues") or [],
+            "advisories": cluster.get("advisories") or [],
+        })
+
+    return {
+        "success": True,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "drones": drones,
+        "clusters": clusters,
+        "summary": {
+            "processed_drone_count": len(processed_drone_ids),
+            "cluster_summary": status.get("cluster_summary") or {},
+            "package_stats": status.get("package_stats") or _build_empty_package_stats(),
+            "has_results": bool(status.get("has_results")),
+            "global_preview_drone_count": sum(1 for drone in drones if drone["global_coordinates_available"]),
+        },
+        "blockers": validation["blockers"],
+        "warnings": validation["warnings"],
+        "advisories": validation["advisories"],
+    }
+
+
+def get_elevation_batch_payload(
+    points: List[Dict[str, Any]],
+    elevation_provider: Optional[Callable[[float, float], Optional[Dict[str, Any]]]],
+) -> Dict:
+    results: List[Dict[str, Any]] = []
+
+    for point in points:
+        lat = float(point["lat"])
+        lng = float(point["lng"])
+        result = {
+            "id": point.get("id"),
+            "lat": lat,
+            "lng": lng,
+            "elevation_m": None,
+            "status": "unavailable",
+            "source": "unavailable",
+            "message": "Elevation provider is unavailable.",
+        }
+
+        if elevation_provider is not None:
+            try:
+                elevation_data = elevation_provider(lat, lng)
+                if isinstance(elevation_data, dict):
+                    elevation = elevation_data.get("elevation")
+                    if elevation is None:
+                        elevation = elevation_data.get("elevation_m")
+                    if _is_finite_number(elevation):
+                        result.update({
+                            "elevation_m": float(elevation),
+                            "status": "ok",
+                            "source": str(elevation_data.get("source") or "backend"),
+                            "message": elevation_data.get("message"),
+                        })
+                    else:
+                        result["message"] = str(elevation_data.get("error") or "Elevation value was not returned.")
+                elif _is_finite_number(elevation_data):
+                    result.update({
+                        "elevation_m": float(elevation_data),
+                        "status": "ok",
+                        "source": "backend",
+                        "message": None,
+                    })
+                else:
+                    result["message"] = "Elevation value was not returned."
+            except Exception as exc:
+                result["message"] = f"Elevation lookup failed: {exc}"
+
+        results.append(result)
+
+    resolved = sum(1 for item in results if item["status"] == "ok")
+    return {
+        "success": True,
+        "results": results,
+        "summary": {
+            "requested": len(points),
+            "resolved": resolved,
+            "unavailable": len(points) - resolved,
+            "status": "ok" if resolved == len(points) else "partial" if resolved else "unavailable",
+        },
+    }
+
+
+def create_processing_job_payload(force_clear: bool = False, auto_reload: bool = True) -> Dict:
+    job_id = str(uuid.uuid4())
+    now = time.time()
+    with _PROCESSING_JOB_LOCK:
+        _PROCESSING_JOBS[job_id] = {
+            "status": "queued",
+            "phase": "queued",
+            "progress_percent": 0,
+            "message": "Queued Swarm Trajectory processing job.",
+            "cancel_requested": False,
+            "created_at": now,
+            "updated_at": now,
+            "started_at": None,
+            "completed_at": None,
+            "result": None,
+        }
+
+    def _run_job() -> None:
+        with _PROCESSING_JOB_LOCK:
+            job = _PROCESSING_JOBS.get(job_id)
+            if not job:
+                return
+            if job.get("cancel_requested"):
+                job.update({
+                    "status": "canceled",
+                    "phase": "canceled",
+                    "progress_percent": 0,
+                    "message": "Processing canceled before start.",
+                    "updated_at": time.time(),
+                    "completed_at": time.time(),
+                })
+                return
+
+        _update_processing_job(
+            job_id,
+            status="running",
+            phase="processing",
+            progress_percent=20,
+            message="Processing leader/follower trajectories.",
+        )
+        try:
+            result = process_trajectories_payload(force_clear=force_clear, auto_reload=auto_reload)
+            _update_processing_job(
+                job_id,
+                status="succeeded",
+                phase="complete",
+                progress_percent=100,
+                message=result.get("message") or "Swarm Trajectory processing complete.",
+                result=result,
+            )
+        except SwarmTrajectoryError as exc:
+            _update_processing_job(
+                job_id,
+                status="failed",
+                phase="failed",
+                progress_percent=100,
+                error_code="swarm_trajectory_processing_failed",
+                error_message=exc.message,
+                message=exc.message,
+            )
+        except Exception as exc:
+            logger.error("Swarm Trajectory processing job failed: %s", exc, exc_info=True)
+            _update_processing_job(
+                job_id,
+                status="failed",
+                phase="failed",
+                progress_percent=100,
+                error_code="swarm_trajectory_internal_error",
+                error_message=str(exc),
+                message="Swarm Trajectory processing failed.",
+            )
+
+    future = _PROCESSING_JOB_EXECUTOR.submit(_run_job)
+    with _PROCESSING_JOB_LOCK:
+        _PROCESSING_JOBS[job_id]["future"] = future
+    return _serialize_processing_job(job_id)
+
+
+def get_processing_job_payload(job_id: str) -> Dict:
+    return _serialize_processing_job(job_id)
+
+
+def cancel_processing_job_payload(job_id: str) -> Dict:
+    terminal = False
+    with _PROCESSING_JOB_LOCK:
+        job = _PROCESSING_JOBS.get(job_id)
+        if not job:
+            raise SwarmTrajectoryError("Swarm trajectory processing job not found", status_code=404)
+        if job["status"] in _PROCESSING_JOB_TERMINAL_STATES:
+            terminal = True
+            future = None
+        else:
+            job["cancel_requested"] = True
+            future = job.get("future")
+
+    if terminal:
+        return _serialize_processing_job(job_id)
+
+    if future and future.cancel():
+        _update_processing_job(
+            job_id,
+            status="canceled",
+            phase="canceled",
+            message="Processing canceled before execution.",
+        )
+    else:
+        _update_processing_job(
+            job_id,
+            message="Cancellation requested. The active processor cannot be interrupted safely; wait for terminal status.",
+        )
+
+    return _serialize_processing_job(job_id)
 
 
 def clear_processed_payload() -> Dict:

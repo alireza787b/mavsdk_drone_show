@@ -1,22 +1,27 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import SwarmTrajectory from './SwarmTrajectory';
 import useFetch from '../hooks/useFetch';
 import {
   buildSwarmTrajectoryPlotUrl,
+  cancelSwarmTrajectoryProcessJob,
   clearAllSwarmTrajectories,
   clearSwarmTrajectoryDrone,
   clearSwarmTrajectoryLeader,
   clearProcessedData,
   commitSwarmTrajectoryOutputs,
+  createSwarmTrajectoryProcessJob,
   downloadSwarmClusterKml,
   downloadSwarmTrajectoryCsv,
   downloadSwarmTrajectoryKml,
   getSwarmLeaders,
+  getSwarmTrajectoryElevationBatch,
+  getSwarmTrajectoryPreview,
+  getSwarmTrajectoryProcessJob,
   getSwarmTrajectoryStatus,
-  processTrajectories,
+  getSwarmTrajectoryValidation,
   removeSwarmTrajectoryUpload,
   uploadSwarmTrajectory,
 } from '../services/droneApiService';
@@ -24,17 +29,22 @@ import {
 jest.mock('../hooks/useFetch');
 jest.mock('../services/droneApiService', () => ({
   buildSwarmTrajectoryPlotUrl: jest.fn((filename) => `http://plots.test/${filename}`),
+  cancelSwarmTrajectoryProcessJob: jest.fn(),
   clearAllSwarmTrajectories: jest.fn(),
   clearSwarmTrajectoryDrone: jest.fn(),
   clearSwarmTrajectoryLeader: jest.fn(),
   clearProcessedData: jest.fn(),
   commitSwarmTrajectoryOutputs: jest.fn(),
+  createSwarmTrajectoryProcessJob: jest.fn(),
   downloadSwarmClusterKml: jest.fn(),
   downloadSwarmTrajectoryCsv: jest.fn(),
   downloadSwarmTrajectoryKml: jest.fn(),
   getSwarmLeaders: jest.fn(),
+  getSwarmTrajectoryElevationBatch: jest.fn(),
+  getSwarmTrajectoryPreview: jest.fn(),
+  getSwarmTrajectoryProcessJob: jest.fn(),
   getSwarmTrajectoryStatus: jest.fn(),
-  processTrajectories: jest.fn(),
+  getSwarmTrajectoryValidation: jest.fn(),
   removeSwarmTrajectoryUpload: jest.fn(),
   uploadSwarmTrajectory: jest.fn(),
 }));
@@ -106,6 +116,99 @@ describe('SwarmTrajectory git writeback messaging', () => {
       simulation_mode: true,
     });
     getSwarmTrajectoryStatus.mockResolvedValue(readyStatus);
+    getSwarmTrajectoryValidation.mockResolvedValue({
+      success: true,
+      ready: true,
+      state: 'ready',
+      blockers: [],
+      warnings: [],
+      advisories: [],
+      processed_drone_ids: [1, 2, 3],
+      expected_drone_ids: [1, 2, 3],
+      missing_drone_ids: [],
+      cluster_summary: readyStatus.status.cluster_summary,
+      package_stats: { available: true, drone_count: 3, drone_ids: [1, 2, 3] },
+    });
+    getSwarmTrajectoryPreview.mockResolvedValue({
+      success: true,
+      generated_at: '2026-05-15T00:00:00Z',
+      drones: [
+        {
+          drone_id: 1,
+          role: 'leader',
+          top_leader_id: 1,
+          direct_leader_id: null,
+          point_count: 2,
+          preview_point_count: 2,
+          global_coordinates_available: true,
+          points: [
+            { sequence: 0, lat: 35, lng: 51, alt_msl: 1200, time_s: 0 },
+            { sequence: 1, lat: 35.01, lng: 51.02, alt_msl: 1210, time_s: 30 },
+          ],
+          warnings: [],
+        },
+        {
+          drone_id: 2,
+          role: 'follower',
+          top_leader_id: 1,
+          direct_leader_id: 1,
+          point_count: 2,
+          preview_point_count: 2,
+          global_coordinates_available: true,
+          points: [
+            { sequence: 0, lat: 35, lng: 51.001, alt_msl: 1198, time_s: 0 },
+            { sequence: 1, lat: 35.01, lng: 51.021, alt_msl: 1208, time_s: 30 },
+          ],
+          warnings: [],
+        },
+      ],
+      clusters: [],
+      summary: {},
+      blockers: [],
+      warnings: [],
+      advisories: [],
+    });
+    getSwarmTrajectoryElevationBatch.mockResolvedValue({
+      success: true,
+      results: [{ id: 'wp', lat: 35, lng: 51, elevation_m: 1000, status: 'ok', source: 'test' }],
+      summary: { requested: 1, resolved: 1, unavailable: 0, status: 'ok' },
+    });
+    createSwarmTrajectoryProcessJob.mockResolvedValue({
+      job_id: 'job-1',
+      status: 'queued',
+      phase: 'queued',
+      progress_percent: 0,
+      message: 'Queued',
+      cancel_requested: false,
+    });
+    getSwarmTrajectoryProcessJob.mockResolvedValue({
+      job_id: 'job-1',
+      status: 'succeeded',
+      phase: 'complete',
+      progress_percent: 100,
+      message: 'Complete',
+      cancel_requested: false,
+      result: {
+        success: true,
+        outcome: 'success',
+        message: 'Formation outputs ready',
+        processed_drones: 3,
+        processed_drone_list: [1, 2, 3],
+        processed_leaders: [1],
+        missing_leaders: [],
+        skipped_drone_ids: [],
+        auto_reloaded: [],
+        statistics: { leaders: 1, followers: 2, errors: 0 },
+      },
+    });
+    cancelSwarmTrajectoryProcessJob.mockResolvedValue({
+      job_id: 'job-1',
+      status: 'canceled',
+      phase: 'canceled',
+      progress_percent: 20,
+      message: 'Canceled',
+      cancel_requested: true,
+    });
     buildSwarmTrajectoryPlotUrl.mockImplementation((filename) => `http://plots.test/${filename}`);
     clearAllSwarmTrajectories.mockResolvedValue({ success: true });
     clearSwarmTrajectoryDrone.mockResolvedValue({ success: true });
@@ -115,7 +218,6 @@ describe('SwarmTrajectory git writeback messaging', () => {
     downloadSwarmClusterKml.mockResolvedValue(new Blob(['cluster']));
     downloadSwarmTrajectoryCsv.mockResolvedValue(new Blob(['csv']));
     downloadSwarmTrajectoryKml.mockResolvedValue(new Blob(['kml']));
-    processTrajectories.mockResolvedValue({ success: true });
     removeSwarmTrajectoryUpload.mockResolvedValue({ success: true });
     uploadSwarmTrajectory.mockResolvedValue({ success: true });
   });
@@ -222,5 +324,42 @@ describe('SwarmTrajectory git writeback messaging', () => {
 
     expect(screen.getAllByRole('link', { name: 'Open Swarm Design' }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole('link', { name: 'Open Mission Trigger' }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('assigns a drafted leader route from the single-page workflow', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SwarmTrajectory />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Plan or Import Leader Route')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.0' } });
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.0' } });
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/WP1/i)).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.01' } });
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.02' } });
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '30' } });
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/WP2/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /assign to leader/i }));
+
+    await waitFor(() => {
+      expect(uploadSwarmTrajectory).toHaveBeenCalledWith('1', expect.any(Blob), 'Drone 1.csv');
+    });
+    expect(getSwarmTrajectoryElevationBatch).not.toHaveBeenCalled();
   });
 });

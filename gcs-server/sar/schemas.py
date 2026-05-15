@@ -16,6 +16,7 @@ class ReturnBehavior(str, Enum):
 
 
 class QuickScoutMissionTemplate(str, Enum):
+    POINT_DISPATCH = "point_dispatch"
     AREA_SWEEP = "area_sweep"
     LAST_KNOWN_POINT = "last_known_point"
     CORRIDOR_SEARCH = "corridor_search"
@@ -45,6 +46,15 @@ class QuickScoutControlEffect(str, Enum):
     COMMAND_ACCEPTED = "command_accepted"
     COMMAND_REJECTED = "command_rejected"
     REPLAN_REQUIRED = "replan_required"
+
+
+class QuickScoutPlanningJobState(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELED = "canceled"
+    EXPIRED = "expired"
 
 
 class QuickScoutControlAvailability(BaseModel):
@@ -125,8 +135,6 @@ class SearchArea(BaseModel):
         if self.type == "point":
             if self.center is None:
                 raise ValueError("Point search areas require a center")
-            if self.radius_m is None or self.radius_m <= 0:
-                raise ValueError("Point search areas require a positive radius")
             return self
 
         if self.type == "line":
@@ -202,6 +210,37 @@ class DroneCoveragePlan(BaseModel):
     total_distance_m: float = Field(..., ge=0, description="Total path distance (m)")
 
 
+class QuickScoutPlanningWarning(BaseModel):
+    """Machine-readable planning warning for UI review and future automation."""
+
+    code: str = Field(..., description="Stable warning code")
+    message: str = Field(..., description="Operator-facing warning")
+    details: Optional[Dict[str, Any]] = Field(None, description="Optional warning details")
+
+
+class QuickScoutPlanningPositionSource(BaseModel):
+    """Telemetry position source accepted for planning."""
+
+    pos_id: int = Field(..., ge=0, description="Drone position ID")
+    hw_id: Optional[str] = Field(None, description="Hardware ID when available")
+    lat: float = Field(..., ge=-90, le=90, description="Accepted latitude")
+    lng: float = Field(..., ge=-180, le=180, description="Accepted longitude")
+    timestamp_ms: int = Field(..., ge=0, description="Position sample timestamp (Unix ms)")
+    age_s: float = Field(..., ge=0, description="Position sample age in seconds")
+    source: str = Field(default="global_position", description="Telemetry source used for planning")
+
+
+class QuickScoutTerrainSummary(BaseModel):
+    """Terrain lookup summary for explicit altitude-source review."""
+
+    requested: bool = Field(..., description="Whether terrain following was requested")
+    status: str = Field(..., description="ok, unavailable, partial, or skipped")
+    queried_waypoints: int = Field(default=0, ge=0, description="Number of terrain points queried")
+    resolved_waypoints: int = Field(default=0, ge=0, description="Number of terrain points resolved")
+    missing_waypoints: int = Field(default=0, ge=0, description="Number of terrain points without elevation")
+    message: Optional[str] = Field(None, description="Operator-facing terrain status")
+
+
 class CoveragePlanResponse(BaseModel):
     """Response from coverage planning endpoint"""
     model_config = ConfigDict(extra='ignore')
@@ -211,6 +250,35 @@ class CoveragePlanResponse(BaseModel):
     total_area_sq_m: float = Field(..., ge=0, description="Total search area (sq m)")
     estimated_coverage_time_s: float = Field(..., ge=0, description="Estimated total coverage time (s)")
     algorithm_used: str = Field(..., description="Algorithm used for planning")
+    warnings: List[QuickScoutPlanningWarning] = Field(default_factory=list, description="Planning warnings")
+    position_sources: List[QuickScoutPlanningPositionSource] = Field(
+        default_factory=list,
+        description="Accepted telemetry positions used as planner origins",
+    )
+    terrain_summary: Optional[QuickScoutTerrainSummary] = Field(
+        None,
+        description="Terrain lookup status when altitude behavior affected planning",
+    )
+
+
+class QuickScoutPlanningJobResponse(BaseModel):
+    """Long-running QuickScout planning job state."""
+
+    job_id: str = Field(..., description="Planning job identifier")
+    status: QuickScoutPlanningJobState = Field(..., description="Planning job state")
+    phase: str = Field(..., description="Current planning phase")
+    progress_percent: int = Field(default=0, ge=0, le=100, description="Best-effort progress percentage")
+    message: Optional[str] = Field(None, description="Operator-facing job message")
+    mission_id: Optional[str] = Field(None, description="Generated mission ID when planning succeeds")
+    result: Optional[CoveragePlanResponse] = Field(None, description="Coverage plan result when complete")
+    error_code: Optional[str] = Field(None, description="Stable error code when failed")
+    error_message: Optional[str] = Field(None, description="Operator-facing failure detail")
+    warnings: List[QuickScoutPlanningWarning] = Field(default_factory=list, description="Planning warnings")
+    cancel_requested: bool = Field(default=False, description="Whether cancellation was requested")
+    created_at: float = Field(..., description="Job creation timestamp (Unix epoch)")
+    updated_at: float = Field(..., description="Last job update timestamp (Unix epoch)")
+    started_at: Optional[float] = Field(None, description="Job start timestamp (Unix epoch)")
+    completed_at: Optional[float] = Field(None, description="Terminal timestamp (Unix epoch)")
 
 
 class QuickScoutFinding(BaseModel):
@@ -429,6 +497,18 @@ class QuickScoutOperationRecord(BaseModel):
     total_area_sq_m: float = Field(default=0.0, ge=0, description="Total search area (sq m)")
     estimated_coverage_time_s: float = Field(default=0.0, ge=0, description="Estimated coverage time (s)")
     algorithm_used: str = Field(default="boustrophedon", description="Planner algorithm used")
+    planning_warnings: List[QuickScoutPlanningWarning] = Field(
+        default_factory=list,
+        description="Warnings produced while computing the mission package",
+    )
+    position_sources: List[QuickScoutPlanningPositionSource] = Field(
+        default_factory=list,
+        description="Accepted telemetry positions used while computing the mission package",
+    )
+    terrain_summary: Optional[QuickScoutTerrainSummary] = Field(
+        None,
+        description="Terrain lookup status for the computed mission package",
+    )
     created_at: float = Field(..., description="Creation timestamp (Unix epoch)")
     updated_at: float = Field(..., description="Last-update timestamp (Unix epoch)")
     started_at: Optional[float] = Field(None, description="Mission launch timestamp (Unix epoch)")

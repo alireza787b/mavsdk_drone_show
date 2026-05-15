@@ -859,6 +859,148 @@ class SwarmTrajectoryProcessRequest(BaseModel):
     auto_reload: bool = Field(True, description="Auto-include unchanged leader uploads from the active workspace")
 
 
+class SwarmTrajectoryProcessingJobState(str, Enum):
+    """Long-running Swarm Trajectory processing job states."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELED = "canceled"
+
+
+class SwarmTrajectoryIssue(BaseModel):
+    """Machine-readable Swarm Trajectory validation issue."""
+
+    code: str = Field(..., description="Stable issue code")
+    message: str = Field(..., description="Operator-facing issue summary")
+    severity: Literal["blocker", "warning", "advisory"] = Field(..., description="Issue severity")
+    drone_id: Optional[int] = Field(None, ge=1, description="Related drone ID when applicable")
+    leader_id: Optional[int] = Field(None, ge=1, description="Related cluster leader ID when applicable")
+    details: Optional[Dict[str, Any]] = Field(None, description="Optional machine-readable issue details")
+
+
+class SwarmTrajectoryValidationResponse(BaseModel):
+    """Validation/readiness response for processed Swarm Trajectory packages."""
+
+    success: Literal[True] = Field(True, description="Always true for successful validation responses")
+    ready: bool = Field(..., description="Whether the current processed package is ready for commit/transfer review")
+    state: str = Field(..., description="High-level workspace readiness state")
+    blockers: List[SwarmTrajectoryIssue] = Field(default_factory=list, description="Blocking issues")
+    warnings: List[SwarmTrajectoryIssue] = Field(default_factory=list, description="Warnings requiring operator review")
+    advisories: List[SwarmTrajectoryIssue] = Field(default_factory=list, description="Non-blocking advisories")
+    processed_drone_ids: List[int] = Field(default_factory=list, description="Drones with processed trajectory outputs")
+    expected_drone_ids: List[int] = Field(default_factory=list, description="Drones expected by current swarm configuration")
+    missing_drone_ids: List[int] = Field(default_factory=list, description="Expected drones missing processed outputs")
+    cluster_summary: Optional[Dict[str, Any]] = Field(None, description="Cluster readiness summary")
+    package_stats: Optional[Dict[str, Any]] = Field(None, description="Aggregate processed package stats")
+
+
+class SwarmTrajectoryPreviewPoint(BaseModel):
+    """Downsampled processed trajectory point for map/3D preview."""
+
+    sequence: int = Field(..., ge=0, description="Point sequence in the downsampled preview")
+    time_s: Optional[float] = Field(None, ge=0, description="Mission time at this point")
+    lat: Optional[float] = Field(None, ge=-90, le=90, description="Latitude when global coordinates are available")
+    lng: Optional[float] = Field(None, ge=-180, le=180, description="Longitude when global coordinates are available")
+    alt_msl: Optional[float] = Field(None, description="Altitude MSL")
+    yaw_deg: Optional[float] = Field(None, description="Yaw/heading in degrees")
+
+
+class SwarmTrajectoryPreviewDrone(BaseModel):
+    """Visualization-ready processed trajectory for one drone."""
+
+    drone_id: int = Field(..., ge=1, description="Drone ID")
+    role: Literal["leader", "follower", "unknown"] = Field(..., description="Role in current swarm graph")
+    top_leader_id: Optional[int] = Field(None, ge=1, description="Top-level cluster leader ID")
+    direct_leader_id: Optional[int] = Field(None, ge=1, description="Direct follow target when this is a follower")
+    point_count: int = Field(..., ge=0, description="Full processed CSV row count")
+    preview_point_count: int = Field(..., ge=0, description="Returned downsampled point count")
+    global_coordinates_available: bool = Field(..., description="Whether lat/lng columns are present and usable")
+    points: List[SwarmTrajectoryPreviewPoint] = Field(default_factory=list, description="Downsampled preview points")
+    warnings: List[str] = Field(default_factory=list, description="Drone-specific preview warnings")
+    package_stats: Optional[Dict[str, Any]] = Field(None, description="Per-drone package stats")
+
+
+class SwarmTrajectoryPreviewCluster(BaseModel):
+    """Visualization grouping for one leader/follower cluster."""
+
+    leader_id: int = Field(..., ge=1, description="Cluster leader ID")
+    drone_ids: List[int] = Field(default_factory=list, description="Processed drones in this preview cluster")
+    expected_drone_ids: List[int] = Field(default_factory=list, description="Expected drones in this cluster")
+    ready: bool = Field(..., description="Whether this cluster is fully processed")
+    state: str = Field(..., description="Cluster readiness state")
+    issues: List[str] = Field(default_factory=list, description="Cluster issues")
+    advisories: List[str] = Field(default_factory=list, description="Cluster advisories")
+
+
+class SwarmTrajectoryPreviewResponse(BaseModel):
+    """Processed package preview for map/3D visualization."""
+
+    success: Literal[True] = Field(True, description="Always true for successful preview responses")
+    generated_at: str = Field(..., description="Preview generation timestamp")
+    drones: List[SwarmTrajectoryPreviewDrone] = Field(default_factory=list, description="Per-drone preview paths")
+    clusters: List[SwarmTrajectoryPreviewCluster] = Field(default_factory=list, description="Cluster preview groups")
+    summary: Dict[str, Any] = Field(default_factory=dict, description="Workspace and package summary")
+    blockers: List[SwarmTrajectoryIssue] = Field(default_factory=list, description="Blocking validation issues")
+    warnings: List[SwarmTrajectoryIssue] = Field(default_factory=list, description="Warnings requiring operator review")
+    advisories: List[SwarmTrajectoryIssue] = Field(default_factory=list, description="Non-blocking advisories")
+
+
+class SwarmTrajectoryElevationPoint(BaseModel):
+    """Coordinate requested for Swarm Trajectory terrain context."""
+
+    id: Optional[str] = Field(None, max_length=80, description="Caller-supplied point ID")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude")
+
+
+class SwarmTrajectoryElevationBatchRequest(BaseModel):
+    """Batch terrain/elevation lookup request."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    points: List[SwarmTrajectoryElevationPoint] = Field(..., min_length=1, max_length=500)
+
+
+class SwarmTrajectoryElevationResult(BaseModel):
+    """Per-point terrain/elevation lookup result."""
+
+    id: Optional[str] = Field(None, description="Caller-supplied point ID")
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+    elevation_m: Optional[float] = Field(None, description="Resolved ground elevation MSL")
+    status: Literal["ok", "unavailable"] = Field(..., description="Lookup status")
+    source: str = Field(..., description="Elevation provider/source")
+    message: Optional[str] = Field(None, description="Operator-facing provider status")
+
+
+class SwarmTrajectoryElevationBatchResponse(BaseModel):
+    """Batch terrain/elevation lookup response with explicit unavailable state."""
+
+    success: Literal[True] = Field(True, description="Always true for successful batch responses")
+    results: List[SwarmTrajectoryElevationResult] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict, description="Lookup summary")
+
+
+class SwarmTrajectoryProcessingJobResponse(BaseModel):
+    """Long-running processing job state for Swarm Trajectory."""
+
+    job_id: str = Field(..., description="Processing job ID")
+    status: SwarmTrajectoryProcessingJobState = Field(..., description="Current job state")
+    phase: str = Field(..., description="Current processing phase")
+    progress_percent: int = Field(..., ge=0, le=100, description="Best-effort progress")
+    message: Optional[str] = Field(None, description="Operator-facing job status")
+    result: Optional[Dict[str, Any]] = Field(None, description="Process result when succeeded")
+    error_code: Optional[str] = Field(None, description="Stable failure code")
+    error_message: Optional[str] = Field(None, description="Operator-facing failure detail")
+    cancel_requested: bool = Field(False, description="Whether cancellation has been requested")
+    created_at: float = Field(..., description="Job creation time (Unix epoch)")
+    updated_at: float = Field(..., description="Last update time (Unix epoch)")
+    started_at: Optional[float] = Field(None, description="Job start time (Unix epoch)")
+    completed_at: Optional[float] = Field(None, description="Terminal time (Unix epoch)")
+
+
 class SwarmTrajectoryCommitRequest(BaseModel):
     """Optional git commit metadata for POST /api/v1/swarm-trajectories/commit."""
 
@@ -1734,7 +1876,7 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Standard error response"""
     error: str = Field(..., description="Error message")
-    detail: Optional[Union[str, List[ErrorDetail]]] = Field(None, description="Detailed error info")
+    detail: Optional[Union[str, Dict[str, Any], List[ErrorDetail]]] = Field(None, description="Detailed error info")
     timestamp: int = Field(..., description="Error timestamp (Unix ms)")
     path: Optional[str] = Field(None, description="Request path that caused error")
 

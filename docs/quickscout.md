@@ -1,179 +1,160 @@
-# QuickScout - Search Operations Module
+# QuickScout
 
-Template-driven rapid-search mission mode for SAR and reconnaissance workflows, using durable GCS mission state, tracked command launch/control, PX4 Mission Mode execution, and operator-reviewed findings.
+QuickScout is the MDS rapid SAR, surveillance, and reconnaissance planning mode. It produces PX4 Mission-style waypoint packages for one drone or a selected group of drones, then launches them through the normal tracked command pipeline.
 
-## Overview
+Use QuickScout when the operator needs a fast, reviewed search plan: dispatch to a point, search around a last-known position, sweep an area, follow a multi-vertex corridor, monitor progress, abort/return, and recover the mission workspace later.
 
-QuickScout adds a new mission mode (`QUICKSCOUT = 5`) for rapid search operations. The GCS plans a mission package, partitions assigned coverage across selected drones, launches via the shared tracked-command pipeline, and keeps a durable mission workspace for recovery, monitoring, and findings review.
+Related docs:
 
-Identity rule:
+- [Mission Planning Workspace](features/mission-planning-workspace.md)
+- [Telemetry Altitude Policy](guides/telemetry-altitude-policy.md)
+- [Mapbox Setup](guides/mapbox-setup.md)
+- [Dashboard Operator Guide](guides/dashboard-operator.md)
 
-- planning may be operator-facing in slot terms (`pos_id`)
-- launch resolves those assigned slots to the currently assigned physical drones (`hw_id`)
-- mission package state and monitor mode should preserve both role context and hardware identity instead of blurring them
+## Operator Workflow
 
-## Architecture
+1. Open `QuickScout`.
+2. Choose the mission template: `Point Dispatch`, `Last Known`, `Area Search`, or `Corridor Search`.
+3. Select aircraft by slot/position ID. Launch resolves those slots to the currently assigned hardware IDs.
+4. Draw or enter the geometry:
+   - Point dispatch and last-known search use one operator-selected point.
+   - Area search uses a polygon.
+   - Corridor search uses an ordered polyline with two or more vertices plus corridor width.
+5. Set altitude, terrain following, sweep width, overlap, speed, camera interval, and return behavior.
+6. Click `Compute Plan`.
+7. Watch the planning progress dialog. Long planning uses a bounded job with status, phase text, cancel, retry, and actionable failure messages.
+8. Review the mission package before launch: selected drones, geometry, altitude source, terrain state, estimated duration/distance, warnings, blockers, and return behavior.
+9. Launch from the review dialog.
+10. Monitor progress, findings, handoff/export data, pause/resume availability, and abort/return state from the monitor workspace.
 
-```
-GCS Dashboard (React)               GCS Server (FastAPI)                Drone (PX4)
-  QuickScoutPage.js          -->    POST /api/sar/mission/plan    -->  coverage_planner.py
-  Template-aware planning           QuickScoutService                   Compute/search package
-  Review launch package             QuickScoutStore                     Persist mission + findings
+The page avoids silent fallbacks. If telemetry, origin, terrain, or geometry is unavailable, the UI shows the specific blocker instead of computing from default coordinates.
 
-  Click "Launch"             -->    POST /api/sar/mission/launch  -->  drone_communicator.py
-                                    tracked command dispatch            Write waypoints JSON
-                                                                        drone_setup.py
-                                                                        quickscout_mission.py
-                                                                        (PX4 Mission upload)
+## Mission Templates
 
-  Monitor progress           <--    GET /api/sar/mission/{id}/status
-  DroneStatusCards                  service/store                 <--  POST /progress reports
-  Findings review                   /api/sar/findings
-```
+| Template | Geometry | Current behavior |
+|----------|----------|------------------|
+| `point_dispatch` | Single point | Builds a direct dispatch package to an operator-selected coordinate. |
+| `last_known_point` | Single point plus radius | Builds a point-centered uncertainty search around the last known coordinate. |
+| `area_sweep` | Polygon | Builds a boustrophedon/lawn-mower coverage path and partitions it across selected drones. |
+| `corridor_search` | Multi-vertex polyline plus width | Buffers the route into a corridor and builds a coverage path along the corridor. |
 
-## Supported Templates
+QuickScout is influenced by established SAR and GCS planning patterns, including IAMSAR search concepts and QGroundControl-style polygon/corridor editing. The current implementation is not a complete IAMSAR pattern library. Expanding square, sector, track-line, parallel-track, contour, and coordinated vessel-aircraft searches remain explicit future extensions unless represented by the current templates.
 
-- `area_sweep`: polygon coverage search
-- `last_known_point`: point-centered uncertainty search
-- `corridor_search`: route-centered buffered search strip
+## Safety Semantics
 
-All templates currently resolve into one coverage-package flow for execution, while keeping template metadata explicit for review, recovery, and future MCP/AI-agent integration.
+QuickScout uses PX4 Mission semantics:
 
-## Planning Algorithm
+- The mission is uploaded as an autonomous flight plan.
+- PX4 Mission mode requires a valid global 3D position estimate.
+- Local-position, VIO, or baro-only states can be useful for display, but they do not provide a safe map origin for global mission planning.
+- Selected drones require fresh valid global position samples when their position is needed for assignment.
+- Default or placeholder telemetry such as `(0, 0)` is rejected unless the operator explicitly selected that coordinate as mission geometry.
+- Last-known telemetry is treated as last-known, with age/source context, not as fresh position truth.
 
-1. Convert polygon vertices from lat/lng to local ENU (East-North-Up) coordinates using `pymap3d`
-2. Create a Shapely polygon from ENU coordinates
-3. Generate parallel sweep lines across the polygon's bounding box (spaced by `sweep_width_m * (1 - overlap_percent/100)`)
-4. Clip sweep lines to the polygon boundary
-5. Connect clipped segments in alternating direction (boustrophedon/lawn-mower pattern)
-6. For N drones: partition waypoints into N roughly-equal sectors
-7. Assign sectors to drones by GPS proximity (greedy nearest-match)
-8. Convert ENU waypoints back to lat/lng with altitude
+Terrain behavior is explicit:
 
-## API Endpoints
+- MSL cruise altitude is always shown as the mission altitude reference.
+- AGL survey altitude can be terrain-assisted when terrain data is available.
+- If terrain following is requested and elevation lookup cannot resolve required waypoints, planning fails with a terrain-unavailable state instead of silently falling back.
+- Operators can disable terrain following when a fixed MSL plan is intended.
 
-All endpoints are prefixed with `/api/sar`.
+Abort behavior is explicit:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/mission/plan` | Compute coverage plan for a search area |
-| GET | `/missions` | List persisted QuickScout missions for recovery |
-| POST | `/mission/launch` | Launch a planned mission to drones |
-| GET | `/mission/{id}/workspace` | Recover persisted mission package and live status |
-| GET | `/mission/{id}/status` | Get mission status and drone progress |
-| GET | `/mission/{id}/handoff` | Get the canonical mission handoff/export bundle |
-| POST | `/mission/{id}/pause` | Pause executing drones |
-| POST | `/mission/{id}/resume` | Resume paused drones |
-| POST | `/mission/{id}/abort` | Abort mission with return behavior |
-| POST | `/mission/{id}/progress` | Drone progress report (from drone) |
-| POST | `/findings` | Create a mission finding |
-| GET | `/findings` | List findings for a mission |
-| PATCH | `/findings/{id}` | Update a finding |
-| DELETE | `/findings/{id}` | Delete a finding |
-| POST | `/elevation/batch` | Batch terrain elevation lookup |
+- `return_home`: command RTL/return behavior after abort or mission end.
+- `land_current`: command landing at current position.
+- `hold_position`: command hold/loiter where supported.
 
-## Configuration
+## Degraded Conditions
 
-### Survey Parameters (SurveyConfig)
+| Condition | Expected operator state |
+|-----------|-------------------------|
+| No Mapbox token | Leaflet fallback remains usable. Mapbox-specific drawing/satellite features may be unavailable. |
+| Map tile provider unavailable | The shared map wrapper falls back from Mapbox to Leaflet, then from the default Leaflet satellite layer to OpenStreetMap where possible. |
+| Stale telemetry | Planning blocks selected-drone origin/assignment when freshness cannot be trusted. |
+| No GPS/global position | Global mission planning blocks; local altitude may still display under the telemetry policy. |
+| Terrain provider failure | Terrain-following plans block with `quickscout_terrain_unavailable`; fixed-MSL planning remains possible if selected by the operator. |
+| Backend planning takes too long | The planning job shows progress, can be canceled, and returns a bounded failed/expired state. |
+| Degraded connectivity | Existing mission workspace and findings remain recoverable from the GCS store; active drone command state still depends on live command/telemetry links. |
 
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `sweep_width_m` | 30.0 | 0-500 | Width between sweep lines (meters) |
-| `overlap_percent` | 10.0 | 0-50 | Overlap between adjacent sweeps |
-| `cruise_altitude_msl` | 50.0 | 0-500 | Transit altitude MSL (meters) |
-| `survey_altitude_agl` | 40.0 | 0-300 | Survey altitude AGL (meters) |
-| `cruise_speed_ms` | 10.0 | 0-25 | Transit speed (m/s) |
-| `survey_speed_ms` | 5.0 | 0-15 | Survey speed (m/s) |
-| `camera_interval_s` | 2.0 | 0-30 | Camera capture interval (seconds) |
-| `use_terrain_following` | true | - | Adjust altitude for terrain |
+## API Surface
 
-### Return Behaviors
+QuickScout routes intentionally use the stable `/api/sar` subsystem root.
 
-- `return_home` (default): RTL after survey completion
-- `land_current`: Land at current position
-- `hold_position`: Hold/loiter at last waypoint
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `POST` | `/api/sar/mission/plan` | Synchronous compatibility planning path. |
+| `POST` | `/api/sar/mission/plan/jobs` | Create a bounded asynchronous planning job. |
+| `GET` | `/api/sar/mission/plan/jobs/{job_id}` | Read planning job status, progress, result, or error. |
+| `POST` | `/api/sar/mission/plan/jobs/{job_id}/cancel` | Request planning job cancellation. |
+| `GET` | `/api/sar/missions` | List persisted mission workspaces. |
+| `POST` | `/api/sar/mission/launch` | Launch a reviewed mission package through tracked command dispatch. |
+| `GET` | `/api/sar/mission/{mission_id}/workspace` | Recover mission package, status, controls, and findings. |
+| `GET` | `/api/sar/mission/{mission_id}/status` | Read mission status and drone progress. |
+| `GET` | `/api/sar/mission/{mission_id}/handoff` | Export the mission handoff bundle. |
+| `POST` | `/api/sar/mission/{mission_id}/pause` | Pause/hold where available. |
+| `POST` | `/api/sar/mission/{mission_id}/resume` | Resume a paused mission where available. |
+| `POST` | `/api/sar/mission/{mission_id}/abort` | Abort with explicit return behavior. |
+| `POST` | `/api/sar/mission/{mission_id}/progress` | Drone-side progress reporting. |
+| `POST` | `/api/sar/findings` | Create a finding. |
+| `GET` | `/api/sar/findings` | List findings for a mission. |
+| `PATCH` | `/api/sar/findings/{finding_id}` | Update a finding. |
+| `DELETE` | `/api/sar/findings/{finding_id}` | Delete a finding. |
+| `POST` | `/api/sar/elevation/batch` | Batch terrain/elevation lookup. |
 
-## Dependencies
+Planning job state is in memory. A GCS restart may lose active job status, but persisted mission packages and findings remain in the QuickScout store.
 
-**GCS Server only** (not needed on drones):
-- `shapely>=2.0.0` - Polygon operations and sweep line clipping
-- `pymap3d` - Coordinate conversions (lat/lng <-> ENU)
+## Implementation Map
 
-**Frontend**:
-- `@mapbox/mapbox-gl-draw` - Polygon drawing on map
-- `react-map-gl` / `mapbox-gl` - Map rendering (existing dependency)
+Backend:
 
-## Frontend
+- `gcs-server/sar/schemas.py`
+- `gcs-server/sar/coverage_planner.py`
+- `gcs-server/sar/service.py`
+- `gcs-server/sar/terrain.py`
+- `gcs-server/sar/store.py`
+- `gcs-server/sar/routes.py`
 
-The QuickScout page is accessible from the sidebar menu and provides two modes:
+Frontend:
 
-- **Plan Mode**: select a mission template, define search geometry, configure survey/profile settings, review coverage packaging, and launch
-- **Monitor Mode**: view drone progress, mission/package context, control availability, evidence-backed findings review, mission handoff/export, and finding-led follow-up search seeding
+- `app/dashboard/drone-dashboard/src/pages/QuickScoutPage.js`
+- `app/dashboard/drone-dashboard/src/components/sar/`
+- `app/dashboard/drone-dashboard/src/components/mission-planning/`
+- `app/dashboard/drone-dashboard/src/services/sarApiService.js`
+- `app/dashboard/drone-dashboard/src/utilities/missionGeometry.js`
 
-Operator identity presentation in QuickScout follows the same doctrine as the rest of MDS:
+Drone execution:
 
-- planning surfaces are slot-oriented where useful
-- launch resolves those assignments onto the current physical drones
-- monitor cards should preserve both identities in compact `Pn|Hm` form whenever slot context is known
+- `quickscout_mission.py`
+- `src/drone_setup.py`
+- `src/drone_communicator.py`
 
-The map view shows coverage paths color-coded per drone (solid for survey legs, dashed for transit), plus findings markers and search footprint previews for point/corridor templates.
+Tests:
 
-## File Structure
+- `tests/test_sar_coverage_planner.py`
+- `tests/test_sar_api.py`
+- `tests/test_gcs_sar_routes.py`
+- `app/dashboard/drone-dashboard/src/pages/QuickScoutPage.test.js`
+- `app/dashboard/drone-dashboard/src/services/sarApiService.test.js`
+- `app/dashboard/drone-dashboard/src/utilities/missionGeometry.test.js`
 
-```
-gcs-server/sar/
-  __init__.py
-  schemas.py              # Pydantic models
-  coverage_planner.py     # Boustrophedon algorithm
-  terrain.py              # Terrain elevation helpers
-  service.py              # QuickScout application service
-  store.py                # Durable SQLite mission + findings store
-  mission_manager.py      # Legacy mission facade still used by older internal helpers
-  routes.py               # FastAPI APIRouter
+## Validation Checklist
 
-quickscout_mission.py     # Drone-side PX4 mission executor
+Before field handoff or a serious SITL demo:
 
-app/dashboard/drone-dashboard/src/
-  pages/QuickScoutPage.js
-  components/sar/          # All QuickScout UI components
-  services/sarApiService.js
-  styles/QuickScout.css
+- Compute point dispatch, last-known point, area search, and multi-vertex corridor search.
+- Verify the planning job dialog reaches success, failure, canceled, or expired. No spinner should run indefinitely.
+- Verify no selected-drone plan is accepted from stale, missing, or default `(0, 0)` telemetry.
+- Verify Leaflet fallback with no Mapbox token.
+- Verify terrain-following success and terrain-unavailable failure.
+- Review launch package details before dispatch.
+- Abort from monitor mode and confirm the chosen return behavior.
+- Export the handoff bundle and confirm findings remain attached to the mission.
 
-tests/
-  test_sar_schemas.py
-  test_sar_coverage_planner.py
-  test_sar_api.py
-```
+## External Design References
 
-## Drone-Side Execution
-
-The drone receives waypoints via the standard command dispatch flow:
-
-1. GCS sends QUICKSCOUT command with waypoints array
-2. `drone_communicator.py` writes waypoints to `/tmp/quickscout_{hw_id}_{mission_id}.json`
-3. `drone_setup.py` launches `quickscout_mission.py` as a subprocess
-4. `quickscout_mission.py`:
-   - Connects to PX4 via MAVSDK
-   - Builds `MissionItem` list from waypoints (with camera actions)
-   - Uploads mission, arms, and starts
-   - Monitors progress and reports to GCS via POST `/api/sar/mission/{id}/progress`
-   - LED feedback: blue (init) -> yellow (upload) -> white (executing) -> green (complete)
-
-## Current V1 Boundaries
-
-QuickScout is significantly more mature than the original PoC, but it is still an evolving search-operations subsystem. The current validated baseline includes:
-
-- template-aware planning and recovery
-- tracked launch / hold / abort control semantics
-- durable mission state on GCS
-- durable findings workflow with operator review
-- evidence-reference editing on findings
-- canonical mission handoff/export bundle plus monitor-mode brief/export workflow
-- reusable findings-aware, template-complete QuickScout SITL validators covering `area_sweep`, `last_known_point`, and `corridor_search`, plus single-drone and multi-drone launch-control drills with evidence refs and mission handoff/export
-
-Still deferred:
-
-- mid-mission add/remove-drone retasking
-- deeper follow-up package generation from current airborne state beyond finding-seeded replans
-- advanced retask / fault-injection SITL scenarios beyond the validated findings-aware launch-control gates
-- broader raw MAVLink / `mavlink2rest` style debug surfaces
+- [IAMSAR Manual Volume III](https://hamnetkzn.org.za/files/training/IAMSAR%20Manual%20Doc9731_vol3_en_2016%20Edition.pdf)
+- [PX4 Mission Mode](https://docs.px4.io/main/en/flight_modes_fw/mission.html)
+- [QGroundControl Plan View](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/plan_view/plan_view.html)
+- [QGroundControl Corridor Scan](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/plan_view/pattern_corridor_scan.html)
+- [NASA Display Standard](https://www.nasa.gov/reference/appendix-f-vol-2/)
+- [NIST Public Safety UAS Portfolio](https://www.nist.gov/ctl/pscr/research-portfolios/uncrewed-aircraft-systems)

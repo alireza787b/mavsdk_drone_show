@@ -1,5 +1,6 @@
 from threading import Lock
 from types import SimpleNamespace
+import time
 
 import pytest
 from fastapi import FastAPI
@@ -36,6 +37,11 @@ def _make_deps():
                 "hw_id": "1",
                 "position_lat": 47.0,
                 "position_long": 8.0,
+                "gps_fix_type": 3,
+                "global_position_valid": True,
+                "global_position_timestamp_ms": int(time.time() * 1000),
+                "timestamp": time.time(),
+                "telemetry_available": True,
             }
         },
         telemetry_lock=Lock(),
@@ -127,6 +133,9 @@ def test_sar_router_registers_expected_routes():
     routes = {route.path for route in app.routes}
 
     assert "/api/sar/mission/plan" in routes
+    assert "/api/sar/mission/plan/jobs" in routes
+    assert "/api/sar/mission/plan/jobs/{job_id}" in routes
+    assert "/api/sar/mission/plan/jobs/{job_id}/cancel" in routes
     assert "/api/sar/missions" in routes
     assert "/api/sar/mission/launch" in routes
     assert "/api/sar/mission/{mission_id}/workspace" in routes
@@ -153,6 +162,11 @@ def test_sar_router_uses_live_dependency_attributes_after_router_creation():
             "hw_id": "7",
             "position_lat": 47.0,
             "position_long": 8.0,
+            "gps_fix_type": 3,
+            "global_position_valid": True,
+            "global_position_timestamp_ms": int(time.time() * 1000),
+            "timestamp": time.time(),
+            "telemetry_available": True,
         }
     }
 
@@ -326,7 +340,7 @@ def test_sar_plan_accepts_last_known_point_template():
     assert response.json()["plans"]
 
 
-def test_sar_plan_accepts_corridor_search_template():
+def test_sar_plan_accepts_corridor_search_template_area_summary():
     deps = _make_deps()
     app = FastAPI()
     app.include_router(create_sar_router(deps))
@@ -361,7 +375,7 @@ def test_sar_plan_accepts_corridor_search_template():
     assert response.json()["plans"]
 
 
-def test_sar_plan_accepts_corridor_search_template():
+def test_sar_plan_accepts_corridor_search_template_multi_vertex():
     deps = _make_deps()
     app = FastAPI()
     app.include_router(create_sar_router(deps))

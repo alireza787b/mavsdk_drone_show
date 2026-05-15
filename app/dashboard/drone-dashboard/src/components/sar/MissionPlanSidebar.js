@@ -16,6 +16,18 @@ import {
   normalizeSearchPath,
 } from '../../utilities/quickScoutSearchGeometry';
 
+const isFiniteInputNumber = (value) => (
+  value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+);
+
+const parseOptionalNumber = (value) => {
+  if (value === '') {
+    return '';
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : '';
+};
+
 const MissionPlanSidebar = ({
   drones,
   selectedDrones,
@@ -65,11 +77,14 @@ const MissionPlanSidebar = ({
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showMissionBrief, setShowMissionBrief] = useState(false);
-  const hasSearchCenter = Number.isFinite(Number(searchCenter?.lat))
-    && Number.isFinite(Number(searchCenter?.lng));
+  const isPointMode = missionTemplate === 'last_known_point' || missionTemplate === 'point_dispatch';
+  const hasSearchCenter = isFiniteInputNumber(searchCenter?.lat)
+    && isFiniteInputNumber(searchCenter?.lng);
   const normalizedSearchPath = normalizeSearchPath(searchPath);
 
-  const hasArea = missionTemplate === 'last_known_point'
+  const hasArea = missionTemplate === 'point_dispatch'
+    ? Boolean(hasSearchCenter)
+    : missionTemplate === 'last_known_point'
     ? Boolean(hasSearchCenter && Number(searchRadiusM) > 0)
     : missionTemplate === 'corridor_search'
       ? Boolean(normalizedSearchPath.length >= 2 && Number(corridorWidthM) > 0)
@@ -95,7 +110,7 @@ const MissionPlanSidebar = ({
 
   return (
     <div className="qs-sidebar">
-      <div className="qs-sidebar-header">Mission Planning</div>
+      <div className="qs-sidebar-header">Plan</div>
       <div className="qs-sidebar-content">
         <MissionRecoveryPanel
           missions={missionCatalog}
@@ -114,25 +129,33 @@ const MissionPlanSidebar = ({
               type="button"
               className={`qs-template-card ${missionTemplate === 'area_sweep' ? 'active' : ''}`}
               onClick={() => onMissionTemplateChange('area_sweep')}
+              title="Polygon search area with multi-drone coverage partitioning."
             >
               <span className="qs-template-label">Area Sweep</span>
-              <span className="qs-template-brief">Polygon search area with multi-drone coverage partitioning.</span>
+            </button>
+            <button
+              type="button"
+              className={`qs-template-card ${missionTemplate === 'point_dispatch' ? 'active' : ''}`}
+              onClick={() => onMissionTemplateChange('point_dispatch')}
+              title="Fast point dispatch using PX4 mission waypoint behavior."
+            >
+              <span className="qs-template-label">Point Dispatch</span>
             </button>
             <button
               type="button"
               className={`qs-template-card ${missionTemplate === 'last_known_point' ? 'active' : ''}`}
               onClick={() => onMissionTemplateChange('last_known_point')}
+              title="Point-centered search package around a reported location and radius."
             >
               <span className="qs-template-label">Last Known Point</span>
-              <span className="qs-template-brief">Point-centered search package around a reported location and radius.</span>
             </button>
             <button
               type="button"
               className={`qs-template-card ${missionTemplate === 'corridor_search' ? 'active' : ''}`}
               onClick={() => onMissionTemplateChange('corridor_search')}
+              title="Route-centered search corridor along shoreline, trail, road, or trackline."
             >
               <span className="qs-template-label">Corridor Search</span>
-              <span className="qs-template-brief">Route-centered search corridor along shoreline, trail, road, or trackline.</span>
             </button>
           </div>
         </div>
@@ -146,15 +169,15 @@ const MissionPlanSidebar = ({
                 type="button"
                 className={`qs-profile-card ${missionProfileId === profile.id ? 'active' : ''}`}
                 onClick={() => onMissionProfileChange(profile.id)}
+                title={profile.brief}
               >
                 <span className="qs-profile-label">{profile.label}</span>
-                <span className="qs-profile-brief">{profile.brief}</span>
               </button>
             ))}
           </div>
           {missionProfileId === 'custom' && (
             <div className="qs-empty-copy qs-gap-bottom">
-              Current survey settings are custom and no longer match a saved profile.
+              Custom survey settings.
             </div>
           )}
 
@@ -217,10 +240,12 @@ const MissionPlanSidebar = ({
         {/* Search Area Status */}
         <div className="qs-config-section">
           <div className="qs-config-title">Search Area</div>
-          {missionTemplate === 'last_known_point' ? (
+          {isPointMode ? (
             <>
               <div className="qs-config-row">
-                <span className="qs-config-label">Center</span>
+                <span className="qs-config-label">
+                  {missionTemplate === 'point_dispatch' ? 'Point' : 'Center'}
+                </span>
                 <span className="qs-stat-value">
                   {hasSearchCenter
                     ? `${Number(searchCenter.lat).toFixed(4)}, ${Number(searchCenter.lng).toFixed(4)}`
@@ -235,8 +260,8 @@ const MissionPlanSidebar = ({
                     className="qs-config-input qs-config-input-wide"
                     value={searchCenter?.lat ?? ''}
                     onChange={(e) => onSearchCenterChange({
-                      lat: parseFloat(e.target.value) || 0,
-                      lng: Number(searchCenter?.lng) || 0,
+                      lat: parseOptionalNumber(e.target.value),
+                      lng: searchCenter?.lng ?? '',
                     })}
                   />
                 </div>
@@ -249,30 +274,34 @@ const MissionPlanSidebar = ({
                     className="qs-config-input qs-config-input-wide"
                     value={searchCenter?.lng ?? ''}
                     onChange={(e) => onSearchCenterChange({
-                      lat: Number(searchCenter?.lat) || 0,
-                      lng: parseFloat(e.target.value) || 0,
+                      lat: searchCenter?.lat ?? '',
+                      lng: parseOptionalNumber(e.target.value),
                     })}
                   />
                 </div>
               </div>
-              <div className="qs-config-row">
-                <span className="qs-config-label">Radius</span>
-                <div>
-                  <input
-                    type="number"
-                    className="qs-config-input"
-                    value={searchRadiusM}
-                    onChange={(e) => onSearchRadiusChange(parseFloat(e.target.value) || 0)}
-                  />
-                  <span className="qs-config-unit">m</span>
-                </div>
-              </div>
-              <div className="qs-config-row">
-                <span className="qs-config-label">Footprint</span>
-                <span className="qs-stat-value">
-                  {searchFootprintHa > 0 ? `${searchFootprintHa.toFixed(2)} ha` : 'Not set'}
-                </span>
-              </div>
+              {missionTemplate === 'last_known_point' && (
+                <>
+                  <div className="qs-config-row">
+                    <span className="qs-config-label">Radius</span>
+                    <div>
+                      <input
+                        type="number"
+                        className="qs-config-input"
+                        value={searchRadiusM}
+                        onChange={(e) => onSearchRadiusChange(parseFloat(e.target.value) || 0)}
+                      />
+                      <span className="qs-config-unit">m</span>
+                    </div>
+                  </div>
+                  <div className="qs-config-row">
+                    <span className="qs-config-label">Footprint</span>
+                    <span className="qs-stat-value">
+                      {searchFootprintHa > 0 ? `${searchFootprintHa.toFixed(2)} ha` : 'Not set'}
+                    </span>
+                  </div>
+                </>
+              )}
               <button
                 type="button"
                 className="qs-btn qs-btn-secondary qs-btn-full"
@@ -280,12 +309,6 @@ const MissionPlanSidebar = ({
               >
                 Use Map Center
               </button>
-              <div className="qs-search-note qs-stack-offset">
-                QuickScout will build a point-centered search envelope from this report and partition the resulting coverage package across the selected aircraft.
-              </div>
-              <div className="qs-empty-copy qs-stack-offset">
-                SearchBar selections also seed the last known point automatically.
-              </div>
             </>
           ) : missionTemplate === 'corridor_search' ? (
             <>
@@ -337,10 +360,7 @@ const MissionPlanSidebar = ({
                 </button>
               </div>
               <div className="qs-search-note qs-stack-offset">
-                SearchBar selections append route points for the corridor. The mission package expands that route into a buffered search strip before partitioning aircraft assignments.
-              </div>
-              <div className="qs-empty-copy qs-stack-offset">
-                Add at least two ordered route points, then compute the corridor package.
+                Add 2+ ordered route points.
               </div>
             </>
           ) : hasArea ? (
@@ -383,9 +403,6 @@ const MissionPlanSidebar = ({
                 No drones configured &mdash; add drones in Mission Config
               </div>
             )}
-          </div>
-          <div className="qs-empty-copy qs-stack-offset">
-            QuickScout planning selects assigned slots and resolves them to the current hardware fleet at launch.
           </div>
           <IdentityDoctrineStrip surface="quickscout" className="qs-identity-doctrine" />
         </div>
@@ -531,7 +548,7 @@ const MissionPlanSidebar = ({
             onClick={onComputePlan}
             disabled={!canCompute}
           >
-            {computing ? 'Computing...' : planNeedsRecompute ? 'Recompute Plan' : 'Compute Plan'}
+            {computing ? 'Planning...' : planNeedsRecompute ? 'Recompute Plan' : 'Compute Plan'}
           </button>
 
           {coveragePlan && (

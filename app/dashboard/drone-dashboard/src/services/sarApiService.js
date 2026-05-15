@@ -39,6 +39,21 @@ export const computePlan = async (missionRequest) => {
   return response.data;
 };
 
+export const createPlanningJob = async (missionRequest) => {
+  const response = await postGcsResource(buildSarUrl('/mission/plan/jobs'), missionRequest);
+  return response.data;
+};
+
+export const getPlanningJob = async (jobId) => {
+  const response = await fetchGcsResource(buildSarUrl(`/mission/plan/jobs/${encodeURIComponent(jobId)}`));
+  return response.data;
+};
+
+export const cancelPlanningJob = async (jobId) => {
+  const response = await postGcsResource(buildSarUrl(`/mission/plan/jobs/${encodeURIComponent(jobId)}/cancel`));
+  return response.data;
+};
+
 export const listMissions = async (params = {}) => {
   const response = await fetchGcsResource(buildSarUrl(`/missions${buildQueryString(params)}`));
   return response.data;

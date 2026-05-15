@@ -4,7 +4,7 @@ import asyncio
 from functools import partial
 from typing import Any
 
-from fastapi import APIRouter, Body, File, Path as PathParam, Request, UploadFile
+from fastapi import APIRouter, Body, File, Path as PathParam, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
 from api_errors import DEFAULT_ERROR_RESPONSES, build_error_payload
@@ -15,14 +15,19 @@ from schemas import (
     SwarmTrajectoryClearProcessedResponse,
     SwarmTrajectoryCommitRequest,
     SwarmTrajectoryCommitResponse,
+    SwarmTrajectoryElevationBatchRequest,
+    SwarmTrajectoryElevationBatchResponse,
     SwarmTrajectoryLeaderListResponse,
     SwarmTrajectoryPolicyResponse,
+    SwarmTrajectoryPreviewResponse,
+    SwarmTrajectoryProcessingJobResponse,
     SwarmTrajectoryProcessRequest,
     SwarmTrajectoryProcessResponse,
     SwarmTrajectoryRecommendationResponse,
     SwarmTrajectoryRemoveLeaderResponse,
     SwarmTrajectoryStatusResponse,
     SwarmTrajectoryUploadResponse,
+    SwarmTrajectoryValidationResponse,
 )
 
 
@@ -167,6 +172,70 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             _log_swarm_internal_error(deps, "Failed to process swarm trajectories", exc)
             return _swarm_problem_response(request, status_code=500)
 
+    @router.post(
+        "/api/v1/swarm-trajectories/process/jobs",
+        response_model=SwarmTrajectoryProcessingJobResponse,
+        status_code=202,
+        tags=["Swarm Trajectories"],
+    )
+    async def create_processing_job(
+        request: Request,
+        payload: SwarmTrajectoryProcessRequest | None = Body(default=None),
+    ):
+        """Create an asynchronous Swarm Trajectory processing job."""
+        try:
+            process_request = payload or SwarmTrajectoryProcessRequest()
+            result = deps.swarm_trajectory_service.create_processing_job_payload(
+                force_clear=process_request.force_clear,
+                auto_reload=process_request.auto_reload,
+            )
+            return SwarmTrajectoryProcessingJobResponse.model_validate(result)
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+        except Exception as exc:
+            _log_swarm_internal_error(deps, "Failed to create swarm trajectory processing job", exc)
+            return _swarm_problem_response(request, status_code=500)
+
+    @router.get(
+        "/api/v1/swarm-trajectories/process/jobs/{job_id}",
+        response_model=SwarmTrajectoryProcessingJobResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def get_processing_job(
+        request: Request,
+        job_id: str = PathParam(..., description="Processing job ID"),
+    ):
+        """Get asynchronous Swarm Trajectory processing job state."""
+        try:
+            return SwarmTrajectoryProcessingJobResponse.model_validate(
+                deps.swarm_trajectory_service.get_processing_job_payload(job_id)
+            )
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+        except Exception as exc:
+            _log_swarm_internal_error(deps, f"Failed to get swarm trajectory processing job {job_id}", exc)
+            return _swarm_problem_response(request, status_code=500)
+
+    @router.post(
+        "/api/v1/swarm-trajectories/process/jobs/{job_id}/cancel",
+        response_model=SwarmTrajectoryProcessingJobResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def cancel_processing_job(
+        request: Request,
+        job_id: str = PathParam(..., description="Processing job ID"),
+    ):
+        """Request cancellation for an asynchronous Swarm Trajectory processing job."""
+        try:
+            return SwarmTrajectoryProcessingJobResponse.model_validate(
+                deps.swarm_trajectory_service.cancel_processing_job_payload(job_id)
+            )
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+        except Exception as exc:
+            _log_swarm_internal_error(deps, f"Failed to cancel swarm trajectory processing job {job_id}", exc)
+            return _swarm_problem_response(request, status_code=500)
+
     @router.get(
         "/api/v1/swarm-trajectories/recommendation",
         response_model=SwarmTrajectoryRecommendationResponse,
@@ -207,6 +276,74 @@ def create_swarm_trajectory_router(deps: Any) -> APIRouter:
             return _swarm_error_response(request, exc)
         except Exception as exc:
             _log_swarm_internal_error(deps, "Failed to get swarm trajectory status", exc)
+            return _swarm_problem_response(request, status_code=500)
+
+    @router.get(
+        "/api/v1/swarm-trajectories/validate",
+        response_model=SwarmTrajectoryValidationResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def validate_processed_package(request: Request):
+        """Validate current processed Swarm Trajectory package readiness."""
+        try:
+            return SwarmTrajectoryValidationResponse.model_validate(
+                deps.swarm_trajectory_service.get_validation_payload()
+            )
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+        except Exception as exc:
+            _log_swarm_internal_error(deps, "Failed to validate swarm trajectory package", exc)
+            return _swarm_problem_response(request, status_code=500)
+
+    @router.get(
+        "/api/v1/swarm-trajectories/preview",
+        response_model=SwarmTrajectoryPreviewResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def preview_processed_package(
+        request: Request,
+        max_points_per_drone: int = Query(500, ge=10, le=2000),
+    ):
+        """Return downsampled processed paths for map and cluster preview."""
+        try:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                partial(deps.swarm_trajectory_service.get_preview_payload, max_points_per_drone),
+            )
+            return SwarmTrajectoryPreviewResponse.model_validate(result)
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+        except Exception as exc:
+            _log_swarm_internal_error(deps, "Failed to build swarm trajectory preview", exc)
+            return _swarm_problem_response(request, status_code=500)
+
+    @router.post(
+        "/api/v1/swarm-trajectories/elevation/batch",
+        response_model=SwarmTrajectoryElevationBatchResponse,
+        tags=["Swarm Trajectories"],
+    )
+    async def get_swarm_trajectory_elevations(
+        request: Request,
+        payload: SwarmTrajectoryElevationBatchRequest,
+    ):
+        """Resolve terrain context for Swarm Trajectory waypoint authoring."""
+        try:
+            loop = asyncio.get_running_loop()
+            point_payloads = [point.model_dump() for point in payload.points]
+            result = await loop.run_in_executor(
+                None,
+                partial(
+                    deps.swarm_trajectory_service.get_elevation_batch_payload,
+                    point_payloads,
+                    getattr(deps, "get_elevation", None),
+                ),
+            )
+            return SwarmTrajectoryElevationBatchResponse.model_validate(result)
+        except deps.swarm_trajectory_service.SwarmTrajectoryError as exc:
+            return _swarm_error_response(request, exc)
+        except Exception as exc:
+            _log_swarm_internal_error(deps, "Failed to resolve swarm trajectory elevations", exc)
             return _swarm_problem_response(request, status_code=500)
 
     @router.get(

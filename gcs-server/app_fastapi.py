@@ -1119,12 +1119,15 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
     """Return one consistent HTTP-error envelope for FastAPI and Starlette errors."""
     if exc.status_code >= 500:
         log_system_error(f"HTTP {exc.status_code} on {request.url.path}: {exc.detail}", "api")
+    safe_detail = exc.detail
+    if exc.status_code >= 500 and not (isinstance(exc.detail, dict) and exc.detail.get("code")):
+        safe_detail = None
     return JSONResponse(
         status_code=exc.status_code,
         content=build_error_payload(
             request,
             status_code=exc.status_code,
-            detail=None if exc.status_code >= 500 else exc.detail,
+            detail=safe_detail,
         ),
     )
 

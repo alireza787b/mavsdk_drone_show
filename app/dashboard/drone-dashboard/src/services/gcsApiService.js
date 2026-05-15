@@ -82,8 +82,12 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   staticPlotsBase: 'staticPlotsBase',
   swarmTrajectoryBase: 'swarmTrajectoryBase',
   swarmTrajectoryStatus: 'swarmTrajectoryStatus',
+  swarmTrajectoryValidation: 'swarmTrajectoryValidation',
+  swarmTrajectoryPreview: 'swarmTrajectoryPreview',
+  swarmTrajectoryElevationBatch: 'swarmTrajectoryElevationBatch',
   swarmTrajectoryPolicy: 'swarmTrajectoryPolicy',
   swarmTrajectoryProcess: 'swarmTrajectoryProcess',
+  swarmTrajectoryProcessJobs: 'swarmTrajectoryProcessJobs',
   swarmTrajectoryClearProcessed: 'swarmTrajectoryClearProcessed',
   logsBase: 'logsBase',
   sarBase: 'sarBase',
@@ -166,8 +170,12 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.staticPlotsBase]: '/api/v1/swarm-trajectories/plots',
   [GCS_ROUTE_KEYS.swarmTrajectoryBase]: '/api/v1/swarm-trajectories',
   [GCS_ROUTE_KEYS.swarmTrajectoryStatus]: '/api/v1/swarm-trajectories/status',
+  [GCS_ROUTE_KEYS.swarmTrajectoryValidation]: '/api/v1/swarm-trajectories/validate',
+  [GCS_ROUTE_KEYS.swarmTrajectoryPreview]: '/api/v1/swarm-trajectories/preview',
+  [GCS_ROUTE_KEYS.swarmTrajectoryElevationBatch]: '/api/v1/swarm-trajectories/elevation/batch',
   [GCS_ROUTE_KEYS.swarmTrajectoryPolicy]: '/api/v1/swarm-trajectories/policy',
   [GCS_ROUTE_KEYS.swarmTrajectoryProcess]: '/api/v1/swarm-trajectories/process',
+  [GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs]: '/api/v1/swarm-trajectories/process/jobs',
   [GCS_ROUTE_KEYS.swarmTrajectoryClearProcessed]: '/api/v1/swarm-trajectories/clear-processed',
   [GCS_ROUTE_KEYS.logsBase]: '/api/logs',
   [GCS_ROUTE_KEYS.sarBase]: '/api/sar',
@@ -253,8 +261,12 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/swarm-trajectories/plots': GCS_ROUTE_KEYS.staticPlotsBase,
   '/api/v1/swarm-trajectories': GCS_ROUTE_KEYS.swarmTrajectoryBase,
   '/api/v1/swarm-trajectories/status': GCS_ROUTE_KEYS.swarmTrajectoryStatus,
+  '/api/v1/swarm-trajectories/validate': GCS_ROUTE_KEYS.swarmTrajectoryValidation,
+  '/api/v1/swarm-trajectories/preview': GCS_ROUTE_KEYS.swarmTrajectoryPreview,
+  '/api/v1/swarm-trajectories/elevation/batch': GCS_ROUTE_KEYS.swarmTrajectoryElevationBatch,
   '/api/v1/swarm-trajectories/policy': GCS_ROUTE_KEYS.swarmTrajectoryPolicy,
   '/api/v1/swarm-trajectories/process': GCS_ROUTE_KEYS.swarmTrajectoryProcess,
+  '/api/v1/swarm-trajectories/process/jobs': GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs,
   '/api/v1/swarm-trajectories/clear-processed': GCS_ROUTE_KEYS.swarmTrajectoryClearProcessed,
 });
 
@@ -794,12 +806,51 @@ export async function getSwarmTrajectoryStatusResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.swarmTrajectoryStatus, config);
 }
 
+export async function getSwarmTrajectoryValidationResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.swarmTrajectoryValidation, config);
+}
+
+export async function getSwarmTrajectoryPreviewResponse({ maxPointsPerDrone = 500 } = {}, config = {}) {
+  const params = new URLSearchParams();
+  if (maxPointsPerDrone) {
+    params.set('max_points_per_drone', String(maxPointsPerDrone));
+  }
+  const query = params.toString();
+  return fetchGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.swarmTrajectoryPreview]}${query ? `?${query}` : ''}`,
+    config,
+  );
+}
+
+export async function getSwarmTrajectoryElevationBatchResponse(payload = {}, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.swarmTrajectoryElevationBatch, payload, config);
+}
+
 export async function getSwarmTrajectoryPolicyResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.swarmTrajectoryPolicy, config);
 }
 
 export async function processSwarmTrajectoriesResponse(payload = {}, config = {}) {
   return postGcsResource(GCS_ROUTE_KEYS.swarmTrajectoryProcess, payload, config);
+}
+
+export async function createSwarmTrajectoryProcessJobResponse(payload = {}, config = {}) {
+  return postGcsResource(GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs, payload, config);
+}
+
+export async function getSwarmTrajectoryProcessJobResponse(jobId, config = {}) {
+  return fetchGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs]}/${encodeURIComponent(jobId)}`,
+    config,
+  );
+}
+
+export async function cancelSwarmTrajectoryProcessJobResponse(jobId, config = {}) {
+  return postGcsResource(
+    `${GCS_ROUTES[GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs]}/${encodeURIComponent(jobId)}/cancel`,
+    {},
+    config,
+  );
 }
 
 export async function clearProcessedSwarmTrajectoriesResponse(config = {}) {

@@ -80,6 +80,16 @@ Before sending commands, verify:
 - selected cards show `In` and intentionally excluded cards show `Out`
 - preflight has no unresolved blockers for the current target scope
 
+Mission-specific reminders:
+
+- QuickScout launches from its own review dialog after the SAR package is
+  computed. Monitor and abort/return controls remain in QuickScout.
+- Swarm Trajectory is prepared on the Swarm Trajectory page, but final Mission
+  Type 4 dispatch still happens from Dashboard Mission Trigger after validation
+  and readiness are clear.
+- Local-position, VIO, or baro-only altitude can be useful for awareness, but
+  global waypoint missions still require map-trusted position truth.
+
 ## Related Guides
 
 - [Fleet Ops](fleet-ops.md)
@@ -88,3 +98,5 @@ Before sending commands, verify:
 - [Smart Swarm](../features/smart-swarm.md)
 - [Drone Show](../features/drone-show.md)
 - [Swarm Trajectory](../features/swarm-trajectory.md)
+- [QuickScout](../quickscout.md)
+- [Mission Planning Workspace](../features/mission-planning-workspace.md)

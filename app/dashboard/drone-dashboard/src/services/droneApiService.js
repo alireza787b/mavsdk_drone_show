@@ -3,16 +3,22 @@
 import {
   buildStaticPlotUrl,
   buildSwarmTrajectoryUrl,
+  cancelSwarmTrajectoryProcessJobResponse,
   clearProcessedSwarmTrajectoriesResponse,
   COMMAND_SUBMIT_TIMEOUT_MS,
+  createSwarmTrajectoryProcessJobResponse,
   deleteGcsResource,
   fetchBlobGcsResource,
   getActiveCommandsResponse,
   getCommandStatusResponse,
   getRecentCommandsResponse,
   getSwarmLeadersResponse,
+  getSwarmTrajectoryElevationBatchResponse,
   getSwarmTrajectoryPolicyResponse,
+  getSwarmTrajectoryPreviewResponse,
+  getSwarmTrajectoryProcessJobResponse,
   getSwarmTrajectoryStatusResponse,
+  getSwarmTrajectoryValidationResponse,
   postGcsResource,
   processSwarmTrajectoriesResponse,
   submitCommandResponse,
@@ -81,6 +87,33 @@ export const getSwarmTrajectoryStatus = async () => {
     return response.data;
   } catch (error) {
     throw error;
+  }
+};
+
+export const getSwarmTrajectoryValidation = async () => {
+  try {
+    const response = await getSwarmTrajectoryValidationResponse();
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Validation failed'));
+  }
+};
+
+export const getSwarmTrajectoryPreview = async (options = {}) => {
+  try {
+    const response = await getSwarmTrajectoryPreviewResponse(options);
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Preview failed'));
+  }
+};
+
+export const getSwarmTrajectoryElevationBatch = async (points = []) => {
+  try {
+    const response = await getSwarmTrajectoryElevationBatchResponse({ points });
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Terrain lookup failed'));
   }
 };
 
@@ -215,6 +248,36 @@ export const processTrajectories = async (options = {}) => {
     return response.data;
   } catch (error) {
     throw new Error(await extractApiErrorMessage(error, 'Processing failed'));
+  }
+};
+
+export const createSwarmTrajectoryProcessJob = async (options = {}) => {
+  try {
+    const response = await createSwarmTrajectoryProcessJobResponse({
+      force_clear: options.force_clear || false,
+      auto_reload: options.auto_reload !== false
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Processing failed'));
+  }
+};
+
+export const getSwarmTrajectoryProcessJob = async (jobId) => {
+  try {
+    const response = await getSwarmTrajectoryProcessJobResponse(jobId);
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Processing status failed'));
+  }
+};
+
+export const cancelSwarmTrajectoryProcessJob = async (jobId) => {
+  try {
+    const response = await cancelSwarmTrajectoryProcessJobResponse(jobId);
+    return response.data;
+  } catch (error) {
+    throw new Error(await extractApiErrorMessage(error, 'Processing cancel failed'));
   }
 };
 

@@ -24,6 +24,7 @@ const LeafletMapBase = ({
   className = '',
   ...rest
 }) => {
+  const { eventHandlers: providedEventHandlers = {}, ...mapContainerProps } = rest;
   const selectId = useId();
   const [activeLayerKey, setActiveLayerKey] = useState(() =>
     resolveTileLayerKey(defaultLayer || getUserTilePreference())
@@ -50,6 +51,11 @@ const LeafletMapBase = ({
     }
     setActiveLayerKey('osm');
     setTileFallbackNotice(`${resolvedActiveLayer.name} tiles are unavailable. Showing OpenStreetMap fallback.`);
+  };
+
+  const mapEventHandlers = {
+    ...providedEventHandlers,
+    ...(onClick ? { click: onClick } : {}),
   };
 
   return (
@@ -86,7 +92,8 @@ const LeafletMapBase = ({
         worldCopyJump={LEAFLET_DEFAULTS.worldCopyJump}
         scrollWheelZoom
         style={{ width: '100%', height: '100%' }}
-        {...rest}
+        eventHandlers={mapEventHandlers}
+        {...mapContainerProps}
       >
         <TileLayer
           key={resolvedActiveLayer.key}

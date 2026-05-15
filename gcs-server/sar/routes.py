@@ -16,6 +16,7 @@ from .schemas import (
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
+    QuickScoutPlanningJobResponse,
     QuickScoutMissionWorkspaceResponse,
     SurveyState,
 )
@@ -44,6 +45,21 @@ def create_sar_router(deps: Any) -> APIRouter:
         except Exception as exc:
             logger.error(f"Coverage planning failed: {exc}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Coverage planning failed: {str(exc)}") from exc
+
+    @router.post("/mission/plan/jobs", response_model=QuickScoutPlanningJobResponse, status_code=202)
+    async def create_planning_job(request: QuickScoutMissionRequest):
+        """Start an asynchronous QuickScout planning job."""
+        return get_quickscout_service().create_planning_job(deps, request)
+
+    @router.get("/mission/plan/jobs/{job_id}", response_model=QuickScoutPlanningJobResponse)
+    async def get_planning_job(job_id: str):
+        """Return current asynchronous QuickScout planning job state."""
+        return get_quickscout_service().get_planning_job(job_id)
+
+    @router.post("/mission/plan/jobs/{job_id}/cancel", response_model=QuickScoutPlanningJobResponse)
+    async def cancel_planning_job(job_id: str):
+        """Cancel a queued or running QuickScout planning job."""
+        return get_quickscout_service().cancel_planning_job(job_id)
 
     @router.get("/missions", response_model=QuickScoutMissionCatalogResponse)
     async def list_missions(

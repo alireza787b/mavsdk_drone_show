@@ -2,36 +2,55 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FaCheckCircle,
+  FaArrowDown,
+  FaArrowUp,
   FaExclamationTriangle,
   FaGlobeAmericas,
   FaHourglassHalf,
+  FaPlus,
   FaRobot,
   FaSearchPlus,
   FaTimes,
   FaTrashAlt,
+  FaUpload,
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
 import { ConfirmDialog, DocsLink, MetricStrip, OperatorNotice, StatusBadge } from '../components/ui';
+import { MissionAltitudeControl, MissionJobProgressDialog } from '../components/mission-planning';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
 import {
   buildSwarmTrajectoryPlotUrl,
+  cancelSwarmTrajectoryProcessJob,
   clearAllSwarmTrajectories,
   clearSwarmTrajectoryDrone,
   clearSwarmTrajectoryLeader,
   clearProcessedData,
   commitSwarmTrajectoryOutputs,
+  createSwarmTrajectoryProcessJob,
   downloadSwarmClusterKml,
   downloadSwarmTrajectoryCsv,
   downloadSwarmTrajectoryKml,
   getSwarmLeaders,
+  getSwarmTrajectoryElevationBatch,
+  getSwarmTrajectoryPreview,
+  getSwarmTrajectoryProcessJob,
   getSwarmTrajectoryStatus,
-  processTrajectories,
+  getSwarmTrajectoryValidation,
   removeSwarmTrajectoryUpload,
   uploadSwarmTrajectory,
 } from '../services/droneApiService';
+import {
+  SWARM_TRAJECTORY_ALTITUDE_MODES,
+  buildSwarmLeaderCsv,
+  buildTerrainStatusFromResults,
+  normalizeDraftWaypoint,
+  toFiniteNumber,
+  validateDraftWaypoint,
+  validateDraftWaypoints,
+} from '../utilities/swarmTrajectoryDraft';
 import {
   buildSwarmTrajectoryViewModel,
   getClusterStateMeta,
@@ -78,6 +97,105 @@ const triggerBlobDownload = (blob, filename) => {
   window.URL.revokeObjectURL(url);
 };
 
+const DEFAULT_WAYPOINT_FORM = {
+  latitude: '',
+  longitude: '',
+  altitude: 100,
+  timeFromStart: 0,
+  estimatedSpeed: 8,
+  heading: 0,
+};
+
+const PREVIEW_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#9333ea', '#0891b2', '#ca8a04'];
+
+const issueMessages = (issues = []) => (issues || []).map((issue) => issue.message || issue.code || String(issue));
+
+const normalizeJobForDialog = (job = {}) => {
+  const safeJob = job || {};
+  return {
+    status: safeJob.status || 'running',
+    phase: safeJob.phase || 'processing',
+    progressPercent: Number(safeJob.progress_percent ?? safeJob.progressPercent ?? 0),
+    message: safeJob.message,
+    error: safeJob.error_message || safeJob.error,
+  };
+};
+
+const createWaypointId = () => `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const collectSketchBounds = (series = []) => {
+  const points = series.flatMap((item) => item.points || []);
+  const lats = points.map((point) => point.latitude ?? point.lat).filter(Number.isFinite);
+  const lngs = points.map((point) => point.longitude ?? point.lng).filter(Number.isFinite);
+  if (!lats.length || !lngs.length) {
+    return null;
+  }
+  return {
+    minLat: Math.min(...lats),
+    maxLat: Math.max(...lats),
+    minLng: Math.min(...lngs),
+    maxLng: Math.max(...lngs),
+  };
+};
+
+const mapPointToSketch = (point, bounds) => {
+  const lat = point.latitude ?? point.lat;
+  const lng = point.longitude ?? point.lng;
+  const lngSpan = Math.max(bounds.maxLng - bounds.minLng, 0.000001);
+  const latSpan = Math.max(bounds.maxLat - bounds.minLat, 0.000001);
+  const x = 24 + ((lng - bounds.minLng) / lngSpan) * 252;
+  const y = 156 - ((lat - bounds.minLat) / latSpan) * 132;
+  return `${x.toFixed(1)},${y.toFixed(1)}`;
+};
+
+const RouteSketch = ({ series = [], emptyLabel = 'No route preview' }) => {
+  const bounds = collectSketchBounds(series);
+  if (!bounds) {
+    return (
+      <div className="swarm-route-sketch swarm-route-sketch--empty">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <svg className="swarm-route-sketch" viewBox="0 0 300 180" role="img" aria-label="Route preview">
+      <rect x="0" y="0" width="300" height="180" rx="6" className="swarm-route-sketch__bg" />
+      {series.map((item, index) => {
+        const points = (item.points || []).filter((point) => (
+          Number.isFinite(point.latitude ?? point.lat) && Number.isFinite(point.longitude ?? point.lng)
+        ));
+        if (!points.length) {
+          return null;
+        }
+        const mapped = points.map((point) => mapPointToSketch(point, bounds));
+        const color = item.color || PREVIEW_COLORS[index % PREVIEW_COLORS.length];
+        return (
+          <g key={item.id || item.label || index}>
+            <polyline
+              points={mapped.join(' ')}
+              fill="none"
+              stroke={color}
+              strokeWidth={item.role === 'leader' ? 4 : 2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx={mapped[0].split(',')[0]} cy={mapped[0].split(',')[1]} r="4" fill={color} />
+            <circle
+              cx={mapped[mapped.length - 1].split(',')[0]}
+              cy={mapped[mapped.length - 1].split(',')[1]}
+              r="4"
+              fill="#fff"
+              stroke={color}
+              strokeWidth="2"
+            />
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
+
 const SwarmTrajectory = () => {
   const [leaders, setLeaders] = useState([]);
   const [hierarchies, setHierarchies] = useState({});
@@ -86,6 +204,8 @@ const SwarmTrajectory = () => {
   const [processing, setProcessing] = useState(false);
   const [results, setResults] = useState(null);
   const [status, setStatus] = useState(null);
+  const [validation, setValidation] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [simulationMode, setSimulationMode] = useState(false);
   const [lightboxImage, setLightboxImage] = useState(null);
   const [committing, setCommitting] = useState(false);
@@ -97,6 +217,19 @@ const SwarmTrajectory = () => {
   const [pageError, setPageError] = useState('');
   const [operatorNotice, setOperatorNotice] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [processJob, setProcessJob] = useState(null);
+  const [processDialogOpen, setProcessDialogOpen] = useState(false);
+  const [selectedLeaderId, setSelectedLeaderId] = useState('');
+  const [draftWaypoints, setDraftWaypoints] = useState([]);
+  const [waypointForm, setWaypointForm] = useState(DEFAULT_WAYPOINT_FORM);
+  const [editingWaypointId, setEditingWaypointId] = useState('');
+  const [altitudeMode, setAltitudeMode] = useState(SWARM_TRAJECTORY_ALTITUDE_MODES.MSL);
+  const [terrainStatus, setTerrainStatus] = useState({
+    status: 'neutral',
+    label: 'MSL',
+    detail: 'Fixed MSL route authoring.',
+  });
+  const [uploadingDraft, setUploadingDraft] = useState(false);
   const [isCompactViewport, setIsCompactViewport] = useState(
     () => typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
   );
@@ -149,6 +282,29 @@ const SwarmTrajectory = () => {
       ? 'commit_and_push'
       : 'local_commit';
   const isPartialPackage = viewModel.currentOutcome === 'partial';
+  const validationBlockers = issueMessages(validation?.blockers);
+  const validationWarnings = issueMessages(validation?.warnings);
+  const validationAdvisories = issueMessages(validation?.advisories);
+  const validationReady = validation ? Boolean(validation.ready) : hasProcessedOutputs && !isPartialPackage;
+  const previewSeries = useMemo(() => (
+    (preview?.drones || [])
+      .filter((drone) => drone.global_coordinates_available && drone.points?.length)
+      .map((drone, index) => ({
+        id: drone.drone_id,
+        label: `Drone ${drone.drone_id}`,
+        role: drone.role,
+        color: PREVIEW_COLORS[index % PREVIEW_COLORS.length],
+        points: drone.points,
+      }))
+  ), [preview]);
+  const draftSeries = useMemo(() => [{
+    id: 'draft',
+    label: 'Draft leader route',
+    role: 'leader',
+    color: '#2563eb',
+    points: draftWaypoints,
+  }], [draftWaypoints]);
+  const draftRouteErrors = useMemo(() => validateDraftWaypoints(draftWaypoints), [draftWaypoints]);
   const workspaceMetricItems = useMemo(() => [
     {
       key: 'clusters',
@@ -235,6 +391,7 @@ const SwarmTrajectory = () => {
       setHierarchies(data.hierarchies || {});
       setFollowerDetails(data.follower_details || {});
       setSimulationMode(Boolean(data.simulation_mode));
+      setSelectedLeaderId((current) => current || String((data.leaders || [])[0] || ''));
       setPageError('');
     } catch (error) {
       console.error('Error fetching leaders:', error);
@@ -293,8 +450,38 @@ const SwarmTrajectory = () => {
     }
   };
 
+  const fetchValidation = async () => {
+    try {
+      const data = await getSwarmTrajectoryValidation();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to validate trajectory package');
+      }
+      setValidation(data);
+      return data;
+    } catch (error) {
+      console.error('Validation error:', error);
+      setValidation(null);
+      return null;
+    }
+  };
+
+  const fetchPreview = async () => {
+    try {
+      const data = await getSwarmTrajectoryPreview({ maxPointsPerDrone: 300 });
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load trajectory preview');
+      }
+      setPreview(data);
+      return data;
+    } catch (error) {
+      console.error('Preview error:', error);
+      setPreview(null);
+      return null;
+    }
+  };
+
   const refreshOperationalState = async ({ reloadStructure = false } = {}) => {
-    const tasks = [fetchStatus()];
+    const tasks = [fetchStatus(), fetchValidation(), fetchPreview()];
     if (reloadStructure) {
       tasks.unshift(fetchLeaders());
     }
@@ -302,7 +489,7 @@ const SwarmTrajectory = () => {
   };
 
   const initializeComponent = async () => {
-    await Promise.all([fetchLeaders(), fetchStatus()]);
+    await Promise.all([fetchLeaders(), fetchStatus(), fetchValidation(), fetchPreview()]);
   };
 
   const handleFileUpload = async (leaderId, file) => {
@@ -330,13 +517,204 @@ const SwarmTrajectory = () => {
     }
   };
 
+  const resetWaypointForm = (nextIndex = draftWaypoints.length) => {
+    setWaypointForm({
+      ...DEFAULT_WAYPOINT_FORM,
+      altitude: altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 100 : 100,
+      timeFromStart: nextIndex * 30,
+    });
+    setEditingWaypointId('');
+  };
+
+  const handleWaypointFormChange = (field, value) => {
+    setWaypointForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const resolveWaypointAltitude = async (waypoint) => {
+    if (altitudeMode !== SWARM_TRAJECTORY_ALTITUDE_MODES.AGL) {
+      setTerrainStatus({
+        status: 'neutral',
+        label: 'MSL',
+        detail: 'Fixed MSL route authoring.',
+      });
+      return {
+        ...waypoint,
+        altitudeReference: 'MSL',
+        targetAgl: 0,
+        groundElevation: 0,
+        terrainAccurate: true,
+      };
+    }
+
+    const lookup = await getSwarmTrajectoryElevationBatch([{
+      id: waypoint.id,
+      lat: waypoint.latitude,
+      lng: waypoint.longitude,
+    }]);
+    const results = lookup.results || [];
+    setTerrainStatus(buildTerrainStatusFromResults(results));
+    const result = results[0];
+    if (!result || result.status !== 'ok' || !Number.isFinite(Number(result.elevation_m))) {
+      throw new Error(result?.message || 'Terrain elevation is unavailable. Switch to fixed MSL or retry.');
+    }
+
+    const targetAgl = Math.max(0, Number(waypoint.altitude) || 0);
+    return {
+      ...waypoint,
+      altitude: Number(result.elevation_m) + targetAgl,
+      altitudeReference: 'AGL',
+      targetAgl,
+      groundElevation: Number(result.elevation_m),
+      terrainAccurate: true,
+    };
+  };
+
+  const saveDraftWaypoint = async () => {
+    try {
+      const existingIndex = draftWaypoints.findIndex((waypoint) => waypoint.id === editingWaypointId);
+      const waypointIndex = existingIndex >= 0 ? existingIndex : draftWaypoints.length;
+      const rawWaypoint = {
+        id: editingWaypointId || createWaypointId(),
+        latitude: toFiniteNumber(waypointForm.latitude),
+        longitude: toFiniteNumber(waypointForm.longitude),
+        altitude: toFiniteNumber(waypointForm.altitude),
+        timeFromStart: toFiniteNumber(waypointForm.timeFromStart, waypointIndex * 30),
+        estimatedSpeed: toFiniteNumber(waypointForm.estimatedSpeed, 8),
+        preferredSpeed: toFiniteNumber(waypointForm.estimatedSpeed, 8),
+        heading: toFiniteNumber(waypointForm.heading, 0),
+        calculatedHeading: toFiniteNumber(waypointForm.heading, 0),
+      };
+      const altitudeResolved = await resolveWaypointAltitude(rawWaypoint);
+      const nextWaypoint = normalizeDraftWaypoint(altitudeResolved, waypointIndex);
+      const waypointErrors = validateDraftWaypoint(nextWaypoint);
+      if (waypointErrors.length) {
+        throw new Error(waypointErrors.join(' '));
+      }
+
+      setDraftWaypoints((prev) => {
+        if (existingIndex >= 0) {
+          return prev.map((waypoint) => (waypoint.id === editingWaypointId ? nextWaypoint : waypoint));
+        }
+        return [...prev, nextWaypoint];
+      });
+      resetWaypointForm(waypointIndex + 1);
+    } catch (error) {
+      showNotice('error', 'Waypoint not saved', error.message || 'Check the waypoint fields and terrain state.');
+    }
+  };
+
+  const editDraftWaypoint = (waypoint) => {
+    setEditingWaypointId(waypoint.id);
+    setWaypointForm({
+      latitude: waypoint.latitude,
+      longitude: waypoint.longitude,
+      altitude: waypoint.altitudeReference === 'AGL' ? waypoint.targetAgl : waypoint.altitude,
+      timeFromStart: waypoint.timeFromStart,
+      estimatedSpeed: waypoint.estimatedSpeed,
+      heading: waypoint.heading,
+    });
+    setAltitudeMode(
+      waypoint.altitudeReference === 'AGL'
+        ? SWARM_TRAJECTORY_ALTITUDE_MODES.AGL
+        : SWARM_TRAJECTORY_ALTITUDE_MODES.MSL
+    );
+  };
+
+  const deleteDraftWaypoint = (waypointId) => {
+    setDraftWaypoints((prev) => prev.filter((waypoint) => waypoint.id !== waypointId));
+    if (editingWaypointId === waypointId) {
+      resetWaypointForm();
+    }
+  };
+
+  const moveDraftWaypoint = (waypointId, direction) => {
+    setDraftWaypoints((prev) => {
+      const index = prev.findIndex((waypoint) => waypoint.id === waypointId);
+      const targetIndex = index + direction;
+      if (index < 0 || targetIndex < 0 || targetIndex >= prev.length) {
+        return prev;
+      }
+      const next = [...prev];
+      const [item] = next.splice(index, 1);
+      next.splice(targetIndex, 0, item);
+      return next.map((waypoint, waypointIndex) => ({
+        ...waypoint,
+        name: `WP${waypointIndex + 1}`,
+      }));
+    });
+  };
+
+  const uploadDraftToLeader = async () => {
+    if (!selectedLeaderId) {
+      showNotice('error', 'Leader not selected', 'Choose a top-level leader before assigning a route.');
+      return;
+    }
+    const errors = validateDraftWaypoints(draftWaypoints);
+    if (errors.length) {
+      showNotice('error', 'Draft route blocked', errors[0], errors.slice(1));
+      return;
+    }
+
+    setUploadingDraft(true);
+    try {
+      const csv = buildSwarmLeaderCsv(draftWaypoints);
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const result = await uploadSwarmTrajectory(selectedLeaderId, blob, `Drone ${selectedLeaderId}.csv`);
+      if (!result.success) {
+        throw new Error(result.error || 'Upload failed');
+      }
+      await refreshOperationalState();
+      showNotice(
+        'success',
+        `Leader ${selectedLeaderId} route assigned`,
+        'Run processing to generate follower paths and validation preview.',
+      );
+    } catch (error) {
+      showNotice('error', 'Route upload failed', error.message || 'Unable to assign leader route');
+    } finally {
+      setUploadingDraft(false);
+    }
+  };
+
+  const pollProcessingJob = async (jobId) => {
+    const startedAt = Date.now();
+    let latestJob = await getSwarmTrajectoryProcessJob(jobId);
+    setProcessJob(latestJob);
+
+    while (!['succeeded', 'failed', 'canceled'].includes(latestJob.status)) {
+      if (Date.now() - startedAt > 120000) {
+        throw new Error('Processing timed out while waiting for job completion. Check backend logs and retry.');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      latestJob = await getSwarmTrajectoryProcessJob(jobId);
+      setProcessJob(latestJob);
+    }
+
+    return latestJob;
+  };
+
   const executeProcessing = async (processingOptions) => {
     setProcessing(true);
     setResults(null);
     setOperatorNotice(null);
+    setProcessDialogOpen(true);
 
     try {
-      const result = await processTrajectories(processingOptions);
+      const createdJob = await createSwarmTrajectoryProcessJob(processingOptions);
+      setProcessJob(createdJob);
+      const completedJob = await pollProcessingJob(createdJob.job_id);
+
+      if (completedJob.status !== 'succeeded') {
+        throw new Error(completedJob.error_message || completedJob.message || 'Processing did not complete.');
+      }
+
+      const result = completedJob.result;
+      if (!result?.success) {
+        throw new Error(completedJob.error_message || completedJob.message || 'Processing finished without a result payload.');
+      }
 
       setResults(result);
       await refreshOperationalState();
@@ -418,6 +796,23 @@ const SwarmTrajectory = () => {
     }
 
     await executeProcessing(processingOptions);
+  };
+
+  const cancelProcessing = async () => {
+    if (!processJob?.job_id) {
+      return;
+    }
+    try {
+      const nextJob = await cancelSwarmTrajectoryProcessJob(processJob.job_id);
+      setProcessJob(nextJob);
+      showNotice(
+        'warning',
+        'Processing cancel requested',
+        nextJob.message || 'The active processor may finish before cancellation can take effect.',
+      );
+    } catch (error) {
+      showNotice('error', 'Cancel failed', error.message || 'Unable to cancel processing job');
+    }
   };
 
   const handleExplicitClear = async () => {
@@ -649,6 +1044,15 @@ const SwarmTrajectory = () => {
       notify('info', 'Process the swarm trajectory package before committing');
       return;
     }
+    if (!validationReady) {
+      showNotice(
+        'error',
+        'Commit blocked by validation',
+        validationBlockers[0] || 'Resolve Swarm Trajectory validation blockers before committing outputs.',
+        validationBlockers.slice(1),
+      );
+      return;
+    }
 
     const isPushMode = commitMode === 'commit_and_push';
     const title = isPushMode ? 'Commit and push mission outputs?' : 'Commit mission outputs locally?';
@@ -670,6 +1074,7 @@ const SwarmTrajectory = () => {
         `Processed drones: ${viewModel.processedDroneCount}`,
         `Ready clusters: ${viewModel.clusterSummary.ready_cluster_count}/${viewModel.clusterSummary.cluster_count}`,
         `Session: ${viewModel.session.session_id || 'No active processing session'}`,
+        validationWarnings.length ? `Warnings: ${validationWarnings.length}` : 'Validation: ready',
       ],
       warning: finalWarning,
       confirmLabel,
@@ -793,10 +1198,162 @@ const SwarmTrajectory = () => {
 
       {leaders.length > 0 ? (
         <>
+          <div className="workflow-step workflow-step--planner">
+            <div className="step-header">
+              <h3><span className="step-number">1</span>Plan or Import Leader Route</h3>
+              <p>Create a precise global leader route here, or upload an existing CSV below.</p>
+            </div>
+
+            <div className="swarm-planner-grid">
+              <section className="swarm-planner-card" aria-label="Leader route waypoint editor">
+                <div className="swarm-planner-card__header">
+                  <div>
+                    <strong>Draft leader path</strong>
+                    <span>{draftWaypoints.length} waypoint{draftWaypoints.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <select
+                    value={selectedLeaderId}
+                    onChange={(event) => setSelectedLeaderId(event.target.value)}
+                    aria-label="Leader route assignment"
+                  >
+                    {leaders.map((leaderId) => (
+                      <option key={leaderId} value={leaderId}>Leader {leaderId}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="swarm-waypoint-form">
+                  <label>
+                    <span>Latitude</span>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={waypointForm.latitude}
+                      onChange={(event) => handleWaypointFormChange('latitude', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Longitude</span>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={waypointForm.longitude}
+                      onChange={(event) => handleWaypointFormChange('longitude', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Time</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={waypointForm.timeFromStart}
+                      onChange={(event) => handleWaypointFormChange('timeFromStart', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Speed</span>
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.1"
+                      value={waypointForm.estimatedSpeed}
+                      onChange={(event) => handleWaypointFormChange('estimatedSpeed', event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>Heading</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="360"
+                      step="1"
+                      value={waypointForm.heading}
+                      onChange={(event) => handleWaypointFormChange('heading', event.target.value)}
+                    />
+                  </label>
+                </div>
+
+                <MissionAltitudeControl
+                  mode={altitudeMode}
+                  valueM={waypointForm.altitude}
+                  onModeChange={(mode) => setAltitudeMode(
+                    mode === SWARM_TRAJECTORY_ALTITUDE_MODES.IMPORTED
+                      ? SWARM_TRAJECTORY_ALTITUDE_MODES.MSL
+                      : mode
+                  )}
+                  onValueChange={(value) => handleWaypointFormChange('altitude', value)}
+                  terrainStatus={terrainStatus}
+                />
+
+                <div className="swarm-planner-actions">
+                  <button type="button" className="utility-btn commit" onClick={saveDraftWaypoint}>
+                    <FaPlus aria-hidden="true" />
+                    {editingWaypointId ? 'Save Waypoint' : 'Add Waypoint'}
+                  </button>
+                  <button type="button" className="utility-btn" onClick={() => resetWaypointForm()}>
+                    Reset Form
+                  </button>
+                  <button
+                    type="button"
+                    className="utility-btn"
+                    onClick={uploadDraftToLeader}
+                    disabled={uploadingDraft || draftRouteErrors.length > 0}
+                  >
+                    <FaUpload aria-hidden="true" />
+                    {uploadingDraft ? 'Assigning...' : 'Assign to Leader'}
+                  </button>
+                </div>
+
+                {draftWaypoints.length > 0 && draftRouteErrors.length ? (
+                  <OperatorNotice tone="warning" title="Draft route needs attention" className="swarm-planner-card__notice">
+                    {draftRouteErrors[0]}
+                  </OperatorNotice>
+                ) : null}
+              </section>
+
+              <section className="swarm-planner-card" aria-label="Leader route preview">
+                <div className="swarm-planner-card__header">
+                  <div>
+                    <strong>2D route preview</strong>
+                    <span>{altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 'AGL with terrain lookup' : 'Fixed MSL'}</span>
+                  </div>
+                  <StatusBadge tone={draftRouteErrors.length ? 'warning' : 'success'}>
+                    {draftRouteErrors.length ? 'Draft' : 'Ready'}
+                  </StatusBadge>
+                </div>
+                <RouteSketch series={draftSeries} emptyLabel="Add waypoints to preview the leader path" />
+                <div className="swarm-waypoint-list" role="list" aria-label="Draft waypoints">
+                  {draftWaypoints.map((waypoint, index) => (
+                    <div key={waypoint.id} className="swarm-waypoint-row" role="listitem">
+                      <button type="button" className="swarm-waypoint-row__main" onClick={() => editDraftWaypoint(waypoint)}>
+                        <strong>{index + 1}. {waypoint.name}</strong>
+                        <span>
+                          {waypoint.latitude.toFixed(5)}, {waypoint.longitude.toFixed(5)} · {waypoint.altitude.toFixed(0)} m MSL
+                        </span>
+                      </button>
+                      <div className="swarm-waypoint-row__actions">
+                        <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, -1)} disabled={index === 0} aria-label={`Move waypoint ${index + 1} up`}>
+                          <FaArrowUp aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, 1)} disabled={index === draftWaypoints.length - 1} aria-label={`Move waypoint ${index + 1} down`}>
+                          <FaArrowDown aria-hidden="true" />
+                        </button>
+                        <button type="button" onClick={() => deleteDraftWaypoint(waypoint.id)} aria-label={`Delete waypoint ${index + 1}`}>
+                          <FaTrashAlt aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </div>
+
           <div className="workflow-step">
             <div className="step-header">
-              <h3><span className="step-number">1</span>Upload Leader CSVs</h3>
-              <p>Upload only top-leader paths. Followers are generated later from the current swarm hierarchy.</p>
+              <h3><span className="step-number">2</span>Upload Leader CSVs</h3>
+              <p>Use this for externally prepared top-leader paths. Followers are generated from the current swarm hierarchy.</p>
             </div>
 
             <div className="leaders-grid">
@@ -887,7 +1444,7 @@ const SwarmTrajectory = () => {
 
           <div className="workflow-step">
             <div className="step-header">
-              <h3><span className="step-number">2</span>Generate Cluster Outputs</h3>
+              <h3><span className="step-number">3</span>Generate Cluster Outputs</h3>
               <p>Run processing to create follower trajectories, plots, and the current review package for launch preflight.</p>
             </div>
 
@@ -977,7 +1534,7 @@ const SwarmTrajectory = () => {
           {hasProcessedOutputs ? (
           <div className="workflow-step">
             <div className="step-header">
-              <h3><span className="step-number">3</span>Review and Prepare Launch</h3>
+              <h3><span className="step-number">4</span>Review and Prepare Launch</h3>
               <p>Inspect generated cluster outputs, confirm readiness, then optionally record the mission package to git before launch.</p>
             </div>
 
@@ -1020,6 +1577,51 @@ const SwarmTrajectory = () => {
                   ) : null}
                 </div>
 
+                <div className="swarm-validation-panel">
+                  <div className="swarm-validation-panel__header">
+                    <strong>Validation</strong>
+                    <StatusBadge tone={validationReady ? 'success' : 'danger'}>
+                      {validationReady ? 'Ready' : 'Blocked'}
+                    </StatusBadge>
+                  </div>
+                  {validationBlockers.length ? (
+                    <OperatorNotice tone="danger" title="Commit/transfer blockers">
+                      <ul>
+                        {validationBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+                      </ul>
+                    </OperatorNotice>
+                  ) : null}
+                  {validationWarnings.length ? (
+                    <OperatorNotice tone="warning" title="Operator review">
+                      <ul>
+                        {validationWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    </OperatorNotice>
+                  ) : null}
+                  {!validationBlockers.length && !validationWarnings.length && validationAdvisories.length ? (
+                    <div className="swarm-validation-panel__advisories">
+                      {validationAdvisories.map((advisory) => <span key={advisory}>{advisory}</span>)}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="swarm-processed-preview">
+                  <div className="swarm-processed-preview__header">
+                    <strong>Leader/follower preview</strong>
+                    <span>{previewSeries.length} path{previewSeries.length === 1 ? '' : 's'} with global coordinates</span>
+                  </div>
+                  <RouteSketch series={previewSeries} emptyLabel="Processed global preview is unavailable" />
+                  <div className="swarm-preview-legend">
+                    {(preview?.drones || []).slice(0, 12).map((drone, index) => (
+                      <span key={drone.drone_id}>
+                        <i style={{ backgroundColor: PREVIEW_COLORS[index % PREVIEW_COLORS.length] }} />
+                        Drone {drone.drone_id} · {drone.role}
+                        {drone.direct_leader_id ? ` → ${drone.direct_leader_id}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="next-steps">
                   <p>
                     <strong>Next:</strong>{' '}
@@ -1030,7 +1632,7 @@ const SwarmTrajectory = () => {
                 </div>
 
                 <div className="review-actions">
-                  <button className="utility-btn commit" onClick={commitAndPushChanges} disabled={committing}>
+                  <button className="utility-btn commit" onClick={commitAndPushChanges} disabled={committing || !validationReady}>
                     {committing
                       ? 'Saving...'
                       : commitMode === 'local_commit'
@@ -1344,6 +1946,15 @@ const SwarmTrajectory = () => {
           </div>
         </div>
       ) : null}
+
+      <MissionJobProgressDialog
+        open={processDialogOpen}
+        title="Processing swarm trajectories"
+        job={normalizeJobForDialog(processJob)}
+        onCancel={processing ? cancelProcessing : null}
+        onRetry={processJob?.status === 'failed' ? () => requestProcessing(false) : null}
+        onClose={() => setProcessDialogOpen(false)}
+      />
 
       <ConfirmDialog
         open={Boolean(confirmDialog)}

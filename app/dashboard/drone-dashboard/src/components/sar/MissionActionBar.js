@@ -1,6 +1,7 @@
 // src/components/sar/MissionActionBar.js
-import React from 'react';
+import React, { useState } from 'react';
 import { FaMapMarkedAlt, FaPause, FaHome, FaArrowDown, FaPauseCircle } from 'react-icons/fa';
+import { ConfirmDialog } from '../ui';
 
 const MissionActionBar = ({
   onReplan,
@@ -10,6 +11,8 @@ const MissionActionBar = ({
   controlAvailability = null,
   returnBehavior = 'return_home',
 }) => {
+  const [showAbortConfirm, setShowAbortConfirm] = useState(false);
+
   if (!missionState || missionState === 'planning' || missionState === 'ready') return null;
 
   const pauseEnabled = controlAvailability?.pause_enabled ?? (missionState === 'executing');
@@ -39,36 +42,50 @@ const MissionActionBar = ({
   };
 
   return (
-    <div className="qs-action-bar">
-      <button
-        className="qs-action-btn resume"
-        onClick={onReplan}
-        aria-label={controlAvailability?.replan_reason || 'Create a follow-up package from current aircraft state'}
-        disabled={!replanEnabled}
-      >
-        <FaMapMarkedAlt />
-      </button>
-      <button
-        className="qs-action-btn pause"
-        onClick={onPause}
-        aria-label={controlAvailability?.pause_reason || 'Hold mission'}
-        disabled={!pauseEnabled}
-      >
-        <FaPause />
-      </button>
-      <button
-        className="qs-action-btn end"
-        onClick={() => {
-          if (window.confirm(`End mission? Drones will ${returnBehaviorMeta.label.toLowerCase()}.`)) {
-            onAbort();
-          }
+    <>
+      <div className="qs-action-bar">
+        <button
+          className="qs-action-btn resume"
+          onClick={onReplan}
+          aria-label={controlAvailability?.replan_reason || 'Create a follow-up package from current aircraft state'}
+          disabled={!replanEnabled}
+        >
+          <FaMapMarkedAlt />
+        </button>
+        <button
+          className="qs-action-btn pause"
+          onClick={onPause}
+          aria-label={controlAvailability?.pause_reason || 'Hold mission'}
+          disabled={!pauseEnabled}
+        >
+          <FaPause />
+        </button>
+        <button
+          className="qs-action-btn end"
+          onClick={() => setShowAbortConfirm(true)}
+          aria-label={returnBehaviorMeta.title}
+          disabled={!abortEnabled}
+        >
+          {returnBehaviorMeta.icon}
+        </button>
+      </div>
+      <ConfirmDialog
+        open={showAbortConfirm}
+        title="End QuickScout Mission"
+        message={(
+          <span>
+            Confirm mission end. Assigned drones will {returnBehaviorMeta.label.toLowerCase()}.
+          </span>
+        )}
+        tone="danger"
+        confirmLabel="End Mission"
+        onCancel={() => setShowAbortConfirm(false)}
+        onConfirm={() => {
+          setShowAbortConfirm(false);
+          onAbort?.();
         }}
-        aria-label={returnBehaviorMeta.title}
-        disabled={!abortEnabled}
-      >
-        {returnBehaviorMeta.icon}
-      </button>
-    </div>
+      />
+    </>
   );
 };
 

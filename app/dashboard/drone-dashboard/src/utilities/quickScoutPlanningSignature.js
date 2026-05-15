@@ -1,6 +1,10 @@
 function normalizePoint(point = {}) {
-  const lat = Number(point?.lat);
-  const lng = Number(point?.lng);
+  const lat = point?.lat === '' || point?.lat === null || point?.lat === undefined
+    ? NaN
+    : Number(point?.lat);
+  const lng = point?.lng === '' || point?.lng === null || point?.lng === undefined
+    ? NaN
+    : Number(point?.lng);
 
   return {
     lat: Number.isFinite(lat) ? lat : null,

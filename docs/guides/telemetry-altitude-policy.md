@@ -34,3 +34,23 @@ than replacing a useful local/barometric value with `waiting for map`.
   coordinate exists.
 - A drone can be operational in a local-position/VIO mode while map and home
   distance remain unavailable.
+
+## Mission Planning
+
+Mission planning must not promote display-only altitude into global mission
+truth.
+
+- QuickScout and other PX4 Mission-style planners require valid global
+  coordinates when assigning or launching global waypoint missions.
+- Swarm Trajectory authoring stores global latitude/longitude and MSL altitude.
+  `Target AGL` is converted into stored MSL only after terrain/elevation is
+  resolved for that waypoint.
+- `relative_home`, `local_ned`, and `baro` can support local operator awareness
+  but cannot define map placement, corridor buffers, distance-to-home, or
+  terrain clearance by themselves.
+- Missing or stale global position must be shown as unavailable. Do not plan
+  from `(0, 0)` unless the operator explicitly selected `(0, 0)` as mission
+  geometry.
+- Last-known position is a source-labeled historical point. It can seed a
+  last-known search only when the operator accepts it as search geometry; it is
+  not fresh telemetry.

@@ -108,7 +108,7 @@ export const ROUTE_DOCS = Object.freeze([
   },
   {
     path: '/trajectory-planning',
-    label: 'Trajectory guide',
+    label: 'Advanced route editor guide',
     docPath: 'docs/features/swarm-trajectory.md',
     feature: 'trajectory-planning',
   },

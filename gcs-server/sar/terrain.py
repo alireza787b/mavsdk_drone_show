@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from get_elevation import get_elevation
-from sar.schemas import CoverageWaypoint
+from sar.schemas import CoverageWaypoint, QuickScoutTerrainSummary
 from mds_logging import get_logger
 
 logger = get_logger("terrain")
@@ -53,6 +53,15 @@ async def apply_terrain_following(
     survey_alt_agl: float,
     cruise_alt_msl: float,
 ) -> List[CoverageWaypoint]:
+    adjusted, _ = await apply_terrain_following_with_report(waypoints, survey_alt_agl, cruise_alt_msl)
+    return adjusted
+
+
+async def apply_terrain_following_with_report(
+    waypoints: List[CoverageWaypoint],
+    survey_alt_agl: float,
+    cruise_alt_msl: float,
+) -> tuple[List[CoverageWaypoint], QuickScoutTerrainSummary]:
     """
     Adjust waypoint altitudes for terrain following.
 
@@ -66,7 +75,7 @@ async def apply_terrain_following(
         cruise_alt_msl: Fixed cruise altitude MSL for transit legs (m).
 
     Returns:
-        New list of waypoints with adjusted altitudes.
+        New list of waypoints with adjusted altitudes and a terrain lookup summary.
     """
     # Collect survey waypoints for batch elevation query
     survey_indices = [i for i, wp in enumerate(waypoints) if wp.is_survey_leg]
@@ -80,6 +89,8 @@ async def apply_terrain_following(
         elev_map[idx] = elev
 
     adjusted = []
+    resolved_count = 0
+    missing_count = 0
     for i, wp in enumerate(waypoints):
         # Create new waypoint with adjusted altitude
         new_data = wp.model_dump()
@@ -89,10 +100,33 @@ async def apply_terrain_following(
             new_data['alt_msl'] = ground_elev + survey_alt_agl
             new_data['alt_agl'] = survey_alt_agl
             new_data['ground_elevation'] = ground_elev
+            resolved_count += 1
         else:
             # Transit or elevation unavailable: use cruise altitude
             new_data['alt_msl'] = cruise_alt_msl
+            if wp.is_survey_leg:
+                missing_count += 1
 
         adjusted.append(CoverageWaypoint(**new_data))
 
-    return adjusted
+    if not survey_indices:
+        status = "skipped"
+        message = "No survey legs required terrain elevation lookup."
+    elif missing_count == 0:
+        status = "ok"
+        message = "Terrain elevations resolved for all survey waypoints."
+    elif resolved_count == 0:
+        status = "unavailable"
+        message = "Terrain provider returned no elevations for survey waypoints."
+    else:
+        status = "partial"
+        message = "Terrain provider returned partial elevations for survey waypoints."
+
+    return adjusted, QuickScoutTerrainSummary(
+        requested=True,
+        status=status,
+        queried_waypoints=len(survey_indices),
+        resolved_waypoints=resolved_count,
+        missing_waypoints=missing_count,
+        message=message,
+    )

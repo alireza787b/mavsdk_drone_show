@@ -6,6 +6,8 @@ Uses FastAPI TestClient with mocked dependencies.
 import os
 import sys
 import signal
+import time
+import asyncio
 import pytest
 from unittest.mock import patch, Mock
 
@@ -32,18 +34,28 @@ MOCK_CONFIG = [
     {'pos_id': 1, 'hw_id': '2', 'ip': '127.0.0.1', 'mavlink_port': 14541},
 ]
 
-MOCK_TELEMETRY = {
-    '1': {
-        'pos_id': 0, 'hw_id': '1', 'state': 'idle',
-        'position_lat': 47.0, 'position_long': 8.0, 'position_alt': 500.0,
-        'battery_voltage': 12.6, 'gps_fix_type': 3,
-    },
-    '2': {
-        'pos_id': 1, 'hw_id': '2', 'state': 'idle',
-        'position_lat': 47.001, 'position_long': 8.001, 'position_alt': 500.0,
-        'battery_voltage': 12.4, 'gps_fix_type': 3,
-    },
-}
+def make_mock_telemetry(*, timestamp=None):
+    timestamp = time.time() if timestamp is None else timestamp
+    return {
+        '1': {
+            'pos_id': 0, 'hw_id': '1', 'state': 'idle',
+            'position_lat': 47.0, 'position_long': 8.0, 'position_alt': 500.0,
+            'battery_voltage': 12.6, 'gps_fix_type': 3,
+            'global_position_valid': True,
+            'global_position_timestamp_ms': int(timestamp * 1000),
+            'timestamp': timestamp,
+            'telemetry_available': True,
+        },
+        '2': {
+            'pos_id': 1, 'hw_id': '2', 'state': 'idle',
+            'position_lat': 47.001, 'position_long': 8.001, 'position_alt': 500.0,
+            'battery_voltage': 12.4, 'gps_fix_type': 3,
+            'global_position_valid': True,
+            'global_position_timestamp_ms': int(timestamp * 1000),
+            'timestamp': timestamp,
+            'telemetry_available': True,
+        },
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -60,7 +72,7 @@ def mock_background_services():
 def client():
     """Create TestClient with mocked telemetry and config."""
     with patch('app_fastapi.load_config', return_value=MOCK_CONFIG):
-        with patch('app_fastapi.telemetry_data_all_drones', MOCK_TELEMETRY):
+        with patch('app_fastapi.telemetry_data_all_drones', make_mock_telemetry()):
             from app_fastapi import app
             yield TestClient(app)
 
@@ -111,6 +123,19 @@ def make_plan_request(pos_ids=None):
     return req
 
 
+def wait_for_job(client, job_id, terminal=True, attempts=30):
+    terminal_states = {"succeeded", "failed", "canceled", "expired"}
+    latest = None
+    for _ in range(attempts):
+        resp = client.get(f"/api/sar/mission/plan/jobs/{job_id}")
+        assert resp.status_code == 200
+        latest = resp.json()
+        if not terminal or latest["status"] in terminal_states:
+            return latest
+        time.sleep(0.05)
+    return latest
+
+
 class TestPlanMission:
     def test_plan_success(self, client):
         """POST /api/sar/mission/plan with valid polygon should return plan."""
@@ -129,6 +154,88 @@ class TestPlanMission:
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["plans"]) == 2
+        assert len(data["position_sources"]) == 2
+
+    def test_plan_point_dispatch_template(self, client):
+        request = make_plan_request(pos_ids=[0])
+        request["mission_template"] = "point_dispatch"
+        request["search_area"] = {
+            "type": "point",
+            "center": {"lat": 47.004, "lng": 8.004},
+        }
+
+        resp = client.post("/api/sar/mission/plan", json=request)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_area_sq_m"] == 0
+        assert len(data["plans"]) == 1
+        assert data["terrain_summary"]["status"] == "skipped"
+        waypoint = data["plans"][0]["waypoints"][0]
+        assert waypoint["lat"] == 47.004
+        assert waypoint["lng"] == 8.004
+        assert waypoint["is_survey_leg"] is False
+
+    def test_plan_rejects_default_zero_telemetry_origin(self, client):
+        telemetry = make_mock_telemetry()
+        telemetry["1"]["position_lat"] = 0.0
+        telemetry["1"]["position_long"] = 0.0
+
+        with patch('app_fastapi.telemetry_data_all_drones', telemetry):
+            resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
+
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert detail["code"] == "quickscout_position_unavailable"
+        assert detail["details"]["rejected_positions"][0]["reason"] == "default_coordinate"
+
+    def test_plan_rejects_stale_telemetry_origin(self, client):
+        telemetry = make_mock_telemetry(timestamp=time.time() - 120)
+
+        with patch('app_fastapi.telemetry_data_all_drones', telemetry):
+            resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
+
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert detail["code"] == "quickscout_position_unavailable"
+        assert detail["details"]["rejected_positions"][0]["reason"] == "position_stale"
+
+    def test_plan_rejects_explicit_invalid_global_position(self, client):
+        telemetry = make_mock_telemetry()
+        telemetry["1"]["global_position_valid"] = False
+        telemetry["1"]["position_unavailable_reason"] = "No global estimate"
+
+        with patch('app_fastapi.telemetry_data_all_drones', telemetry):
+            resp = client.post("/api/sar/mission/plan", json=make_plan_request(pos_ids=[0]))
+
+        assert resp.status_code == 400
+        detail = resp.json()["detail"]
+        assert detail["code"] == "quickscout_position_unavailable"
+        assert detail["details"]["rejected_positions"][0]["reason"] == "global_position_invalid"
+
+    def test_plan_warns_and_skips_invalid_unselected_origin_when_all_drones_requested(self, client):
+        telemetry = make_mock_telemetry()
+        telemetry["2"]["position_lat"] = 0.0
+        telemetry["2"]["position_long"] = 0.0
+
+        with patch('app_fastapi.telemetry_data_all_drones', telemetry):
+            resp = client.post("/api/sar/mission/plan", json=make_plan_request())
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["plans"]) == 1
+        assert data["warnings"][0]["code"] == "quickscout_position_skipped"
+
+    def test_plan_terrain_following_failure_is_explicit(self, client):
+        request = make_plan_request(pos_ids=[0])
+        request["survey_config"]["use_terrain_following"] = True
+
+        with patch('sar.terrain.batch_get_elevations', return_value=[]):
+            resp = client.post("/api/sar/mission/plan", json=request)
+
+        assert resp.status_code == 503
+        detail = resp.json()["detail"]
+        assert detail["code"] == "quickscout_terrain_unavailable"
+        assert detail["details"]["missing_waypoints"] > 0
 
     def test_plan_invalid_polygon(self, client):
         """Polygon with <3 points should fail validation."""
@@ -200,7 +307,7 @@ class TestPlanMission:
         assert operation["search_area"]["radius_m"] == 120
         assert len(operation["search_area"]["points"]) >= 6
 
-    def test_plan_corridor_search_template(self, client):
+    def test_plan_corridor_search_template_area_summary(self, client):
         request = {
             "mission_template": "corridor_search",
             "search_area": {
@@ -237,7 +344,7 @@ class TestPlanMission:
         assert len(operation["search_area"]["path"]) == 3
         assert operation["search_area"]["area_sq_m"] > 0
 
-    def test_plan_corridor_search_template(self, client):
+    def test_plan_corridor_search_template_multi_vertex(self, client):
         request = {
             "mission_template": "corridor_search",
             "search_area": {
@@ -273,6 +380,34 @@ class TestPlanMission:
         assert len(operation["search_area"]["path"]) == 3
         assert operation["search_area"]["corridor_width_m"] == 90
         assert len(operation["search_area"]["points"]) >= 6
+
+    def test_plan_job_success(self, client):
+        resp = client.post("/api/sar/mission/plan/jobs", json=make_plan_request(pos_ids=[0]))
+        assert resp.status_code == 202
+        job_id = resp.json()["job_id"]
+
+        job = wait_for_job(client, job_id)
+        assert job["status"] == "succeeded"
+        assert job["progress_percent"] == 100
+        assert job["mission_id"]
+        assert job["result"]["mission_id"] == job["mission_id"]
+
+    def test_plan_job_cancel(self, client, monkeypatch):
+        import sar.service as svc
+
+        async def slow_plan(self, deps, request, *, job_id=None):
+            await asyncio.sleep(5)
+            raise AssertionError("slow plan should be canceled")
+
+        monkeypatch.setattr(svc.QuickScoutService, "plan_mission", slow_plan)
+
+        resp = client.post("/api/sar/mission/plan/jobs", json=make_plan_request(pos_ids=[0]))
+        assert resp.status_code == 202
+        job_id = resp.json()["job_id"]
+
+        cancel = client.post(f"/api/sar/mission/plan/jobs/{job_id}/cancel")
+        assert cancel.status_code == 200
+        assert cancel.json()["status"] == "canceled"
 
 
 class TestMissionStatus:

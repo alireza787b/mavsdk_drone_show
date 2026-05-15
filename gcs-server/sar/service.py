@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 import uuid
 import math
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
@@ -22,6 +23,8 @@ from schemas import SubmitCommandRequest, SubmitCommandResponse
 from sar.coverage_planner import BoustrophedonPlanner
 from sar.schemas import (
     CoveragePlanResponse,
+    CoverageWaypoint,
+    DroneCoveragePlan,
     DroneProgressReport,
     DroneSurveyState,
     QuickScoutFinding,
@@ -35,6 +38,11 @@ from sar.schemas import (
     QuickScoutMissionHandoffFinding,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionPhase,
+    QuickScoutPlanningJobResponse,
+    QuickScoutPlanningJobState,
+    QuickScoutPlanningPositionSource,
+    QuickScoutPlanningWarning,
+    QuickScoutTerrainSummary,
     QuickScoutMissionRequest,
     QuickScoutMissionControlResponse,
     QuickScoutMissionLaunchResponse,
@@ -48,12 +56,19 @@ from sar.schemas import (
     SurveyState,
 )
 from sar.store import get_quickscout_store
-from sar.terrain import apply_terrain_following
+from sar.terrain import apply_terrain_following_with_report
 import pymap3d
 
 logger = get_logger("quickscout_service")
 
 _service_instance: "QuickScoutService | None" = None
+MAX_PLANNING_POSITION_AGE_S = 30.0
+TERMINAL_JOB_STATES = {
+    QuickScoutPlanningJobState.SUCCEEDED,
+    QuickScoutPlanningJobState.FAILED,
+    QuickScoutPlanningJobState.CANCELED,
+    QuickScoutPlanningJobState.EXPIRED,
+}
 
 
 def get_quickscout_service() -> "QuickScoutService":
@@ -69,6 +84,203 @@ class QuickScoutService:
     def __init__(self, store=None, planner_factory=BoustrophedonPlanner):
         self.store = store or get_quickscout_store()
         self.planner_factory = planner_factory
+        self._planning_jobs: Dict[str, Dict[str, Any]] = {}
+        self._planning_tasks: Dict[str, asyncio.Task] = {}
+
+    @staticmethod
+    def _now_ms() -> int:
+        return int(time.time() * 1000)
+
+    @staticmethod
+    def _normalize_timestamp_ms(value: Any) -> Optional[int]:
+        if value in (None, ""):
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if numeric <= 0:
+            return None
+        if numeric < 1_000_000_000_000:
+            numeric *= 1000.0
+        return int(numeric)
+
+    @staticmethod
+    def _problem_detail(code: str, message: str, *, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        payload = {"code": code, "message": message}
+        if details:
+            payload["details"] = details
+        return payload
+
+    @staticmethod
+    def _planning_warning(code: str, message: str, *, details: Optional[Dict[str, Any]] = None) -> QuickScoutPlanningWarning:
+        return QuickScoutPlanningWarning(code=code, message=message, details=details)
+
+    def _update_planning_job(
+        self,
+        job_id: Optional[str],
+        *,
+        status: Optional[QuickScoutPlanningJobState] = None,
+        phase: Optional[str] = None,
+        progress_percent: Optional[int] = None,
+        message: Optional[str] = None,
+        result: Optional[CoveragePlanResponse] = None,
+        mission_id: Optional[str] = None,
+        error_code: Optional[str] = None,
+        error_message: Optional[str] = None,
+        warnings: Optional[List[QuickScoutPlanningWarning]] = None,
+        completed: bool = False,
+    ) -> None:
+        if not job_id or job_id not in self._planning_jobs:
+            return
+        job = self._planning_jobs[job_id]
+        now = time.time()
+        if status is not None:
+            job["status"] = status
+            if status == QuickScoutPlanningJobState.RUNNING and job.get("started_at") is None:
+                job["started_at"] = now
+        if phase is not None:
+            job["phase"] = phase
+        if progress_percent is not None:
+            job["progress_percent"] = max(0, min(100, int(progress_percent)))
+        if message is not None:
+            job["message"] = message
+        if result is not None:
+            job["result"] = result
+            job["mission_id"] = result.mission_id
+        if mission_id is not None:
+            job["mission_id"] = mission_id
+        if error_code is not None:
+            job["error_code"] = error_code
+        if error_message is not None:
+            job["error_message"] = error_message
+        if warnings is not None:
+            job["warnings"] = list(warnings)
+        if completed:
+            job["completed_at"] = now
+        job["updated_at"] = now
+
+    def _serialize_planning_job(self, job_id: str) -> QuickScoutPlanningJobResponse:
+        if job_id not in self._planning_jobs:
+            raise HTTPException(status_code=404, detail="QuickScout planning job not found")
+        job = self._planning_jobs[job_id]
+        return QuickScoutPlanningJobResponse(
+            job_id=job_id,
+            status=job["status"],
+            phase=job["phase"],
+            progress_percent=job["progress_percent"],
+            message=job.get("message"),
+            mission_id=job.get("mission_id"),
+            result=job.get("result"),
+            error_code=job.get("error_code"),
+            error_message=job.get("error_message"),
+            warnings=job.get("warnings") or [],
+            cancel_requested=bool(job.get("cancel_requested")),
+            created_at=job["created_at"],
+            updated_at=job["updated_at"],
+            started_at=job.get("started_at"),
+            completed_at=job.get("completed_at"),
+        )
+
+    def _raise_if_planning_job_canceled(self, job_id: Optional[str]) -> None:
+        if job_id and self._planning_jobs.get(job_id, {}).get("cancel_requested"):
+            raise asyncio.CancelledError()
+
+    def create_planning_job(self, deps: Any, request: QuickScoutMissionRequest) -> QuickScoutPlanningJobResponse:
+        job_id = str(uuid.uuid4())
+        now = time.time()
+        self._planning_jobs[job_id] = {
+            "status": QuickScoutPlanningJobState.QUEUED,
+            "phase": "queued",
+            "progress_percent": 0,
+            "message": "Planning request accepted.",
+            "warnings": [],
+            "cancel_requested": False,
+            "created_at": now,
+            "updated_at": now,
+            "started_at": None,
+            "completed_at": None,
+        }
+        task = asyncio.create_task(self._run_planning_job(deps, job_id, request))
+        self._planning_tasks[job_id] = task
+        return self._serialize_planning_job(job_id)
+
+    async def _run_planning_job(
+        self,
+        deps: Any,
+        job_id: str,
+        request: QuickScoutMissionRequest,
+    ) -> None:
+        try:
+            result = await self.plan_mission(deps, request, job_id=job_id)
+            self._update_planning_job(
+                job_id,
+                status=QuickScoutPlanningJobState.SUCCEEDED,
+                phase="complete",
+                progress_percent=100,
+                message="QuickScout plan is ready for review.",
+                result=result,
+                warnings=result.warnings,
+                completed=True,
+            )
+        except asyncio.CancelledError:
+            self._update_planning_job(
+                job_id,
+                status=QuickScoutPlanningJobState.CANCELED,
+                phase="canceled",
+                progress_percent=self._planning_jobs.get(job_id, {}).get("progress_percent", 0),
+                message="Planning job was canceled before launch package creation.",
+                completed=True,
+            )
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            self._update_planning_job(
+                job_id,
+                status=QuickScoutPlanningJobState.FAILED,
+                phase="failed",
+                progress_percent=self._planning_jobs.get(job_id, {}).get("progress_percent", 100),
+                message="QuickScout planning failed.",
+                error_code=detail.get("code") or "quickscout_planning_failed",
+                error_message=detail.get("message") or str(exc.detail),
+                completed=True,
+            )
+        except Exception as exc:
+            logger.error("QuickScout planning job failed: %s", exc, exc_info=True)
+            self._update_planning_job(
+                job_id,
+                status=QuickScoutPlanningJobState.FAILED,
+                phase="failed",
+                progress_percent=self._planning_jobs.get(job_id, {}).get("progress_percent", 100),
+                message="QuickScout planning failed.",
+                error_code="quickscout_planning_failed",
+                error_message=str(exc),
+                completed=True,
+            )
+        finally:
+            self._planning_tasks.pop(job_id, None)
+
+    def get_planning_job(self, job_id: str) -> QuickScoutPlanningJobResponse:
+        return self._serialize_planning_job(job_id)
+
+    def cancel_planning_job(self, job_id: str) -> QuickScoutPlanningJobResponse:
+        if job_id not in self._planning_jobs:
+            raise HTTPException(status_code=404, detail="QuickScout planning job not found")
+        job = self._planning_jobs[job_id]
+        if job["status"] in TERMINAL_JOB_STATES:
+            return self._serialize_planning_job(job_id)
+        job["cancel_requested"] = True
+        job["updated_at"] = time.time()
+        task = self._planning_tasks.get(job_id)
+        if task is not None:
+            task.cancel()
+        self._update_planning_job(
+            job_id,
+            status=QuickScoutPlanningJobState.CANCELED,
+            phase="canceled",
+            message="Planning cancellation requested.",
+            completed=True,
+        )
+        return self._serialize_planning_job(job_id)
 
     def _resolve_pos_ids_to_hw_ids(
         self,
@@ -159,20 +371,153 @@ class QuickScoutService:
         )
         return await submit_tracked_command(deps, request)
 
-    def _get_drone_gps_positions(self, deps: Any, pos_ids: Optional[List[int]] = None) -> Dict[str, Tuple[float, float]]:
-        """Get current GPS positions. Returns {pos_id_str: (lat, lng)}."""
-        positions = {}
+    def _validate_planning_position(
+        self,
+        data: Dict[str, Any],
+        *,
+        now_ms: int,
+    ) -> Tuple[Optional[Tuple[float, float, int, float]], Optional[Dict[str, Any]]]:
+        hw_id = str(data.get("hw_id") or "")
+        pos_id = data.get("pos_id")
+        context = {"hw_id": hw_id, "pos_id": pos_id}
+
+        if data.get("telemetry_available") is False:
+            return None, {**context, "reason": "telemetry_unavailable", "detail": data.get("telemetry_error") or "Telemetry is unavailable"}
+
+        if data.get("global_position_valid") is False:
+            return None, {**context, "reason": "global_position_invalid", "detail": data.get("position_unavailable_reason") or "PX4 global position is not valid"}
+
+        try:
+            lat = float(data.get("position_lat"))
+            lng = float(data.get("position_long"))
+        except (TypeError, ValueError):
+            return None, {**context, "reason": "position_missing", "detail": "Latitude or longitude is missing"}
+
+        if not all(math.isfinite(value) for value in (lat, lng)):
+            return None, {**context, "reason": "position_not_finite", "detail": "Latitude or longitude is not finite"}
+
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+            return None, {**context, "reason": "position_out_of_range", "detail": "Latitude or longitude is outside valid WGS84 bounds"}
+
+        if abs(lat) <= 0.000001 and abs(lng) <= 0.000001:
+            return None, {**context, "reason": "default_coordinate", "detail": "Telemetry reported the default 0,0 coordinate"}
+
+        explicit_global = data.get("global_position_valid")
+        if not isinstance(explicit_global, bool):
+            try:
+                gps_fix_type = int(data.get("gps_fix_type") or 0)
+            except (TypeError, ValueError):
+                gps_fix_type = 0
+            if gps_fix_type < 3:
+                return None, {**context, "reason": "gps_fix_insufficient", "detail": "A 3D GPS/global position fix is required"}
+
+        timestamp_ms = None
+        for key in ("global_position_timestamp_ms", "telemetry_timestamp_ms", "timestamp", "server_time"):
+            timestamp_ms = self._normalize_timestamp_ms(data.get(key))
+            if timestamp_ms is not None:
+                break
+        if timestamp_ms is None:
+            return None, {**context, "reason": "position_timestamp_missing", "detail": "Telemetry position timestamp is unavailable"}
+
+        age_s = max(0.0, (now_ms - timestamp_ms) / 1000.0)
+        if age_s > MAX_PLANNING_POSITION_AGE_S:
+            return None, {
+                **context,
+                "reason": "position_stale",
+                "detail": f"Telemetry position is {age_s:.1f}s old; maximum accepted age is {MAX_PLANNING_POSITION_AGE_S:.0f}s",
+                "age_s": age_s,
+            }
+
+        return (lat, lng, timestamp_ms, age_s), None
+
+    def _get_drone_gps_positions(
+        self,
+        deps: Any,
+        pos_ids: Optional[List[int]] = None,
+    ) -> Tuple[Dict[str, Tuple[float, float]], List[QuickScoutPlanningPositionSource], List[QuickScoutPlanningWarning]]:
+        """Get validated current GPS positions. Returns positions, sources, warnings."""
+        positions: Dict[str, Tuple[float, float]] = {}
+        sources: List[QuickScoutPlanningPositionSource] = []
+        rejected: List[Dict[str, Any]] = []
+        now_ms = self._now_ms()
+        requested_ids = set(int(pos_id) for pos_id in pos_ids) if pos_ids is not None else None
         with deps.telemetry_lock:
             for _, data in deps.telemetry_data_all_drones.items():
                 if not data:
                     continue
-                lat = data.get("position_lat")
-                lng = data.get("position_long")
                 pos_id = data.get("pos_id")
-                if lat is not None and lng is not None and pos_id is not None:
-                    if pos_ids is None or int(pos_id) in pos_ids:
-                        positions[str(pos_id)] = (float(lat), float(lng))
-        return positions
+                try:
+                    normalized_pos_id = int(pos_id)
+                except (TypeError, ValueError):
+                    rejected.append({
+                        "hw_id": data.get("hw_id"),
+                        "pos_id": pos_id,
+                        "reason": "pos_id_invalid",
+                        "detail": "Telemetry row has no numeric pos_id",
+                    })
+                    continue
+                if requested_ids is not None and normalized_pos_id not in requested_ids:
+                    continue
+
+                accepted, rejection = self._validate_planning_position(data, now_ms=now_ms)
+                if rejection is not None:
+                    rejected.append(rejection)
+                    continue
+
+                lat, lng, timestamp_ms, age_s = accepted
+                positions[str(normalized_pos_id)] = (lat, lng)
+                sources.append(
+                    QuickScoutPlanningPositionSource(
+                        pos_id=normalized_pos_id,
+                        hw_id=str(data.get("hw_id") or ""),
+                        lat=lat,
+                        lng=lng,
+                        timestamp_ms=timestamp_ms,
+                        age_s=age_s,
+                        source=str(data.get("position_source") or "global_position"),
+                    )
+                )
+
+        if requested_ids is not None:
+            missing_ids = sorted(requested_ids - {int(key) for key in positions.keys()})
+            if missing_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=self._problem_detail(
+                        "quickscout_position_unavailable",
+                        "One or more selected drones do not have fresh valid global positions for QuickScout planning.",
+                        details={
+                            "missing_pos_ids": missing_ids,
+                            "rejected_positions": rejected,
+                            "maximum_age_s": MAX_PLANNING_POSITION_AGE_S,
+                        },
+                    ),
+                )
+
+        if not positions:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_position_unavailable",
+                    "No fresh valid drone global positions are available for QuickScout planning.",
+                    details={
+                        "rejected_positions": rejected,
+                        "maximum_age_s": MAX_PLANNING_POSITION_AGE_S,
+                    },
+                ),
+            )
+
+        warnings: List[QuickScoutPlanningWarning] = []
+        if rejected and requested_ids is None:
+            warnings.append(
+                self._planning_warning(
+                    "quickscout_position_skipped",
+                    "One or more fleet positions were skipped because they were stale, invalid, or unavailable.",
+                    details={"rejected_positions": rejected},
+                )
+            )
+
+        return positions, sources, warnings
 
     @staticmethod
     def _build_ready_drone_states(operation: QuickScoutOperationRecord) -> Dict[str, DroneSurveyState]:
@@ -391,6 +736,70 @@ class QuickScoutService:
         return request.search_area.points, request.search_area
 
     @staticmethod
+    def _get_hw_id_map(deps: Any) -> Dict[str, str]:
+        try:
+            return {
+                str(drone.get("pos_id", "")): str(drone.get("hw_id", ""))
+                for drone in deps.load_config()
+            }
+        except Exception:
+            return {}
+
+    def _build_point_dispatch_plans(
+        self,
+        request: QuickScoutMissionRequest,
+        drone_positions: Dict[str, Tuple[float, float]],
+        hw_map: Dict[str, str],
+    ) -> List[DroneCoveragePlan]:
+        center = request.search_area.center
+        if center is None:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_point_required",
+                    "Point-dispatch missions require a selected destination point.",
+                ),
+            )
+
+        plans: List[DroneCoveragePlan] = []
+        cruise_speed_ms = float(request.survey_config.cruise_speed_ms)
+        for pos_id_str, (origin_lat, origin_lng) in drone_positions.items():
+            pos_id = int(pos_id_str)
+            east, north, _ = pymap3d.geodetic2enu(
+                center.lat,
+                center.lng,
+                request.survey_config.cruise_altitude_msl,
+                origin_lat,
+                origin_lng,
+                0,
+            )
+            distance_m = math.sqrt((east ** 2) + (north ** 2))
+            duration_s = distance_m / cruise_speed_ms if cruise_speed_ms > 0 else 0.0
+            waypoint = CoverageWaypoint(
+                lat=center.lat,
+                lng=center.lng,
+                alt_msl=request.survey_config.cruise_altitude_msl,
+                alt_agl=None,
+                ground_elevation=None,
+                is_survey_leg=False,
+                speed_ms=cruise_speed_ms,
+                yaw_deg=None,
+                camera_interval_s=None,
+                sequence=0,
+            )
+            plans.append(
+                DroneCoveragePlan(
+                    hw_id=hw_map.get(pos_id_str) or pos_id_str,
+                    pos_id=pos_id,
+                    waypoints=[waypoint],
+                    assigned_area_sq_m=0.0,
+                    estimated_duration_s=duration_s,
+                    total_distance_m=distance_m,
+                )
+            )
+        return plans
+
+    @staticmethod
     def _build_corridor_search_polygon(
         path_points: List[SearchAreaPoint],
         corridor_width_m: float,
@@ -445,49 +854,149 @@ class QuickScoutService:
 
         return polygon_points, float(buffered.area)
 
-    async def plan_mission(self, deps: Any, request: QuickScoutMissionRequest) -> CoveragePlanResponse:
-        """Compute and persist a QuickScout plan without launching it."""
-        drone_positions = self._get_drone_gps_positions(deps, request.pos_ids)
-        if not drone_positions:
-            raise HTTPException(
-                status_code=400,
-                detail="No live drone GPS positions available for mission planning",
+    @staticmethod
+    def _aggregate_terrain_summaries(summaries: List[QuickScoutTerrainSummary]) -> Optional[QuickScoutTerrainSummary]:
+        if not summaries:
+            return None
+        queried = sum(summary.queried_waypoints for summary in summaries)
+        resolved = sum(summary.resolved_waypoints for summary in summaries)
+        missing = sum(summary.missing_waypoints for summary in summaries)
+        if missing > 0:
+            status = "unavailable" if resolved == 0 else "partial"
+            message = (
+                "Terrain following requested, but one or more survey waypoint elevations were unavailable."
             )
-
-        polygon_points, resolved_search_area = self._resolve_search_area_for_planning(request)
-        planner = self.planner_factory()
-        plans, total_area = planner.plan(
-            polygon_points=polygon_points,
-            drone_positions=drone_positions,
-            config=request.survey_config,
+        else:
+            status = "ok"
+            message = "Terrain following elevations resolved."
+        return QuickScoutTerrainSummary(
+            requested=True,
+            status=status,
+            queried_waypoints=queried,
+            resolved_waypoints=resolved,
+            missing_waypoints=missing,
+            message=message,
         )
+
+    async def plan_mission(
+        self,
+        deps: Any,
+        request: QuickScoutMissionRequest,
+        *,
+        job_id: Optional[str] = None,
+    ) -> CoveragePlanResponse:
+        """Compute and persist a QuickScout plan without launching it."""
+        warnings: List[QuickScoutPlanningWarning] = []
+        self._update_planning_job(
+            job_id,
+            status=QuickScoutPlanningJobState.RUNNING,
+            phase="validating_positions",
+            progress_percent=8,
+            message="Checking selected drone global positions.",
+        )
+        self._raise_if_planning_job_canceled(job_id)
+        drone_positions, position_sources, position_warnings = self._get_drone_gps_positions(deps, request.pos_ids)
+        warnings.extend(position_warnings)
+
+        self._update_planning_job(
+            job_id,
+            phase="building_geometry",
+            progress_percent=22,
+            message="Preparing QuickScout search geometry.",
+        )
+        self._raise_if_planning_job_canceled(job_id)
+        hw_map = self._get_hw_id_map(deps)
+        terrain_summary: Optional[QuickScoutTerrainSummary] = None
+
+        if request.mission_template == QuickScoutMissionTemplate.POINT_DISPATCH:
+            plans = self._build_point_dispatch_plans(request, drone_positions, hw_map)
+            total_area = 0.0
+            resolved_search_area = request.search_area
+            terrain_summary = QuickScoutTerrainSummary(
+                requested=request.survey_config.use_terrain_following,
+                status="skipped",
+                queried_waypoints=0,
+                resolved_waypoints=0,
+                missing_waypoints=0,
+                message="Point dispatch uses the configured fixed MSL cruise altitude.",
+            )
+            if len(plans) > 1:
+                warnings.append(
+                    self._planning_warning(
+                        "quickscout_shared_point_dispatch",
+                        "Multiple drones are assigned to the same dispatch point; review spacing and timing before launch.",
+                        details={"drone_count": len(plans)},
+                    )
+                )
+        else:
+            polygon_points, resolved_search_area = self._resolve_search_area_for_planning(request)
+            self._update_planning_job(
+                job_id,
+                phase="computing_coverage",
+                progress_percent=42,
+                message="Computing coverage tracks.",
+            )
+            self._raise_if_planning_job_canceled(job_id)
+            planner = self.planner_factory()
+            plans, total_area = planner.plan(
+                polygon_points=polygon_points,
+                drone_positions=drone_positions,
+                config=request.survey_config,
+            )
         if not plans:
             raise HTTPException(status_code=400, detail="Coverage planning produced no plans")
 
-        if request.survey_config.use_terrain_following:
+        if request.survey_config.use_terrain_following and request.mission_template != QuickScoutMissionTemplate.POINT_DISPATCH:
+            self._update_planning_job(
+                job_id,
+                phase="terrain_lookup",
+                progress_percent=68,
+                message="Resolving terrain elevations for survey altitude.",
+            )
+            self._raise_if_planning_job_canceled(job_id)
+            terrain_summaries: List[QuickScoutTerrainSummary] = []
             for plan in plans:
                 plan.waypoints = self._apply_camera_interval(plan.waypoints, request.survey_config.camera_interval_s)
-                plan.waypoints = await apply_terrain_following(
+                plan.waypoints, plan_terrain_summary = await apply_terrain_following_with_report(
                     plan.waypoints,
                     request.survey_config.survey_altitude_agl,
                     request.survey_config.cruise_altitude_msl,
                 )
-        else:
+                terrain_summaries.append(plan_terrain_summary)
+            terrain_summary = self._aggregate_terrain_summaries(terrain_summaries)
+            if terrain_summary and terrain_summary.missing_waypoints > 0:
+                raise HTTPException(
+                    status_code=503,
+                    detail=self._problem_detail(
+                        "quickscout_terrain_unavailable",
+                        "Terrain following was requested, but the terrain provider did not resolve every survey waypoint. Use fixed MSL or retry when terrain data is available.",
+                        details=terrain_summary.model_dump(),
+                    ),
+                )
+        elif request.mission_template != QuickScoutMissionTemplate.POINT_DISPATCH:
             plan_interval = request.survey_config.camera_interval_s
             for plan in plans:
                 plan.waypoints = self._apply_camera_interval(plan.waypoints, plan_interval)
+            terrain_summary = QuickScoutTerrainSummary(
+                requested=False,
+                status="skipped",
+                queried_waypoints=0,
+                resolved_waypoints=0,
+                missing_waypoints=0,
+                message="Terrain following disabled; planner used fixed MSL altitude.",
+            )
 
-        try:
-            hw_map = {
-                str(drone.get("pos_id", "")): str(drone.get("hw_id", ""))
-                for drone in deps.load_config()
-            }
-            for plan in plans:
-                if str(plan.pos_id) in hw_map:
-                    plan.hw_id = hw_map[str(plan.pos_id)]
-        except Exception:
-            pass
+        for plan in plans:
+            if str(plan.pos_id) in hw_map:
+                plan.hw_id = hw_map[str(plan.pos_id)]
 
+        self._update_planning_job(
+            job_id,
+            phase="persisting_package",
+            progress_percent=88,
+            message="Saving mission package for launch review.",
+        )
+        self._raise_if_planning_job_canceled(job_id)
         mission_id = str(uuid.uuid4())
         est_time = max((plan.estimated_duration_s for plan in plans), default=0.0)
         now = time.time()
@@ -506,6 +1015,9 @@ class QuickScoutService:
             total_area_sq_m=total_area,
             estimated_coverage_time_s=est_time,
             algorithm_used=request.survey_config.algorithm,
+            planning_warnings=warnings,
+            position_sources=position_sources,
+            terrain_summary=terrain_summary,
             created_at=now,
             updated_at=now,
         )
@@ -518,6 +1030,9 @@ class QuickScoutService:
             total_area_sq_m=operation.total_area_sq_m,
             estimated_coverage_time_s=operation.estimated_coverage_time_s,
             algorithm_used=operation.algorithm_used,
+            warnings=warnings,
+            position_sources=position_sources,
+            terrain_summary=terrain_summary,
         )
 
     @staticmethod

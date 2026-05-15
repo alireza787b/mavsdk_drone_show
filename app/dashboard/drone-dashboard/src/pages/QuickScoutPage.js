@@ -52,6 +52,7 @@ import {
 import { buildQuickScoutPlanningSignature } from '../utilities/quickScoutPlanningSignature';
 import { buildQuickScoutLaunchReadiness } from '../utilities/quickScoutLaunchReadiness';
 import { ActionIconButton, DocsLink, StatusBadge } from '../components/ui/OperatorPrimitives';
+import { MissionJobProgressDialog, MissionReviewLaunchDialog } from '../components/mission-planning';
 import {
   buildCorridorGeoJSON,
   buildCorridorPathGeoJSON,
@@ -60,6 +61,11 @@ import {
   calculateCircularAreaSqM,
   normalizeSearchPath,
 } from '../utilities/quickScoutSearchGeometry';
+import {
+  formatQuickScoutArea,
+  formatQuickScoutDuration,
+  getQuickScoutMissionTemplateLabel,
+} from '../utilities/quickScoutMissionPresentation';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 // Styles
@@ -98,6 +104,7 @@ const DEFAULT_CORRIDOR_WIDTH_M = 90;
 
 const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
 const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
+const PLANNING_JOB_TERMINAL_STATES = new Set(['succeeded', 'failed', 'canceled', 'expired']);
 
 const getMissionStateTone = (state) => {
   switch (state) {
@@ -114,7 +121,45 @@ const getMissionStateTone = (state) => {
   }
 };
 
-const hasFiniteCoordinate = (value) => Number.isFinite(Number(value));
+const getReturnBehaviorLabel = (returnBehavior) => {
+  if (returnBehavior === 'hold_position') {
+    return 'Hold position';
+  }
+  if (returnBehavior === 'land_current') {
+    return 'Land current';
+  }
+  return 'Return home';
+};
+
+const hasFiniteCoordinate = (value) => (
+  value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+);
+
+const formatApiErrorDetail = (detail) => {
+  if (!detail) {
+    return '';
+  }
+  if (typeof detail === 'string') {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => item?.msg || item?.message || item?.detail || item?.code || String(item))
+      .filter(Boolean)
+      .join('; ');
+  }
+  if (typeof detail === 'object') {
+    return detail.message || detail.detail || detail.error || detail.code || JSON.stringify(detail);
+  }
+  return String(detail);
+};
+
+const getApiErrorMessage = (error, fallback = 'Request failed') => (
+  formatApiErrorDetail(error?.response?.data?.detail)
+  || error?.response?.data?.message
+  || error?.message
+  || fallback
+);
 
 const hasDronePosition = (drone) => (
   hasFiniteCoordinate(drone?.position_lat) && hasFiniteCoordinate(drone?.position_long)
@@ -171,6 +216,9 @@ const QuickScoutPage = () => {
   const [missionCatalog, setMissionCatalog] = useState([]);
   const [recoveringMissionId, setRecoveringMissionId] = useState(null);
   const [lastPlannedSignature, setLastPlannedSignature] = useState(null);
+  const [planningJob, setPlanningJob] = useState(null);
+  const [planningJobDialogOpen, setPlanningJobDialogOpen] = useState(false);
+  const [launchReviewOpen, setLaunchReviewOpen] = useState(false);
 
   // Monitor state
   const [missionId, setMissionId] = useState(null);
@@ -196,8 +244,17 @@ const QuickScoutPage = () => {
   const findingClickRef = useRef(null);
   const mapRef = useRef(null);
   const drawControlRef = useRef(null);
+  const planningJobPollRef = useRef(null);
+  const planningJobRequestRef = useRef(null);
   const [flyToTarget, setFlyToTarget] = useState(null);
   const autoRecoveryCheckedRef = useRef(false);
+
+  const clearPlanningJobPoll = useCallback(() => {
+    if (planningJobPollRef.current) {
+      clearInterval(planningJobPollRef.current);
+      planningJobPollRef.current = null;
+    }
+  }, []);
 
   const focusMap = useCallback((longitude, latitude, zoom = 15) => {
     const nextViewport = { longitude, latitude, zoom };
@@ -210,6 +267,7 @@ const QuickScoutPage = () => {
   }, [useLeaflet]);
 
   const resetWorkspace = useCallback(() => {
+    clearPlanningJobPoll();
     setMode('plan');
     setSearchArea([]);
     setSearchAreaSqM(0);
@@ -236,8 +294,15 @@ const QuickScoutPage = () => {
     setMissionHandoff(null);
     setLoadingMissionHandoff(false);
     setRecoveringMissionId(null);
+    setComputing(false);
+    setPlanningJob(null);
+    setPlanningJobDialogOpen(false);
+    setLaunchReviewOpen(false);
+    planningJobRequestRef.current = null;
     drawControlRef.current?.reset();
-  }, []);
+  }, [clearPlanningJobPoll]);
+
+  useEffect(() => () => clearPlanningJobPoll(), [clearPlanningJobPoll]);
 
   const refreshMissionCatalog = useCallback(async ({ withLoading = false } = {}) => {
     if (withLoading) {
@@ -514,6 +579,42 @@ const QuickScoutPage = () => {
     && lastPlannedSignature
     && currentPlanningSignature !== lastPlannedSignature
   );
+  const launchReviewMission = useMemo(() => ({
+    Mission: missionLabel || 'Untitled QuickScout',
+    Template: getQuickScoutMissionTemplateLabel(missionTemplate),
+    Aircraft: `${activePlanTargetHwIds.length || 0} assigned`,
+    Area: formatQuickScoutArea(coveragePlan?.total_area_sq_m),
+    Duration: formatQuickScoutDuration(coveragePlan?.estimated_coverage_time_s),
+    Altitude: surveyConfig.use_terrain_following
+      ? `${surveyConfig.survey_altitude_agl} m AGL terrain`
+      : `${surveyConfig.cruise_altitude_msl} m MSL fixed`,
+    End: getReturnBehaviorLabel(returnBehavior),
+  }), [
+    activePlanTargetHwIds.length,
+    coveragePlan?.estimated_coverage_time_s,
+    coveragePlan?.total_area_sq_m,
+    missionLabel,
+    missionTemplate,
+    returnBehavior,
+    surveyConfig.cruise_altitude_msl,
+    surveyConfig.survey_altitude_agl,
+    surveyConfig.use_terrain_following,
+  ]);
+  const launchReviewBlockers = useMemo(() => [
+    ...(planNeedsRecompute ? ['Mission inputs changed after compute; recompute before launch.'] : []),
+    ...((launchReadiness?.blockers || []).map((issue) => (
+      `${issue.label || 'Launch blocker'}${issue.detail ? `: ${issue.detail}` : ''}`
+    ))),
+  ], [launchReadiness?.blockers, planNeedsRecompute]);
+  const launchReviewWarnings = useMemo(() => [
+    ...((launchReadiness?.warnings || []).map((issue) => (
+      `${issue.label || 'Advisory'}${issue.detail ? `: ${issue.detail}` : ''}`
+    ))),
+    ...((coveragePlan?.warnings || []).map((warning) => warning.message || warning.code).filter(Boolean)),
+    ...(coveragePlan?.terrain_summary?.status && coveragePlan.terrain_summary.status !== 'ok'
+      ? [coveragePlan.terrain_summary.message || `Terrain status: ${coveragePlan.terrain_summary.status}`]
+      : []),
+  ], [coveragePlan?.terrain_summary, coveragePlan?.warnings, launchReadiness?.warnings]);
   const currentMissionState = missionStatus?.state || currentMissionSummary?.state || null;
   const currentMissionDisplayName = currentMissionSummary?.mission_label || missionLabel || missionId;
   const missionHandoffRefreshKey = useMemo(() => {
@@ -642,7 +743,7 @@ const QuickScoutPage = () => {
     setMissionTemplate(templateId);
     setCoveragePlan(null);
     setLastPlannedSignature(null);
-    if (templateId === 'last_known_point' && !searchCenter) {
+    if ((templateId === 'last_known_point' || templateId === 'point_dispatch') && !searchCenter) {
       const onlineDrone = mergedDrones.find((drone) => drone.online && hasDronePosition(drone));
       if (onlineDrone) {
         setSearchCenter({
@@ -690,6 +791,26 @@ const QuickScoutPage = () => {
     setLastPlannedSignature(null);
   }, [viewport.latitude, viewport.longitude]);
 
+  const handlePlanMapPointClick = useCallback((latitude, longitude) => {
+    if (mode !== 'plan' || markingFinding) {
+      return;
+    }
+    if (missionTemplate !== 'last_known_point' && missionTemplate !== 'point_dispatch') {
+      return;
+    }
+    if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+      return;
+    }
+
+    handleSearchCenterChange({
+      lat: Number(latitude),
+      lng: Number(longitude),
+    });
+    toast.info(missionTemplate === 'point_dispatch'
+      ? 'Dispatch point set from map'
+      : 'Last-known point set from map');
+  }, [handleSearchCenterChange, markingFinding, missionTemplate, mode]);
+
   const handleAppendMapCenterToPath = useCallback(() => {
     if (!Number.isFinite(Number(viewport.latitude)) || !Number.isFinite(Number(viewport.longitude))) {
       return;
@@ -712,10 +833,14 @@ const QuickScoutPage = () => {
     handleSearchPathChange([]);
   }, [handleSearchPathChange]);
 
-  const handleComputePlan = useCallback(async () => {
-    setComputing(true);
-    try {
-      const requestSearchArea = missionTemplate === 'last_known_point'
+  const buildMissionPlanRequest = useCallback(() => {
+    const requestSearchArea = missionTemplate === 'point_dispatch'
+      ? {
+        type: 'point',
+        center: searchCenter,
+        area_sq_m: 0,
+      }
+      : missionTemplate === 'last_known_point'
         ? {
           type: 'point',
           center: searchCenter,
@@ -729,62 +854,202 @@ const QuickScoutPage = () => {
             corridor_width_m: corridorWidthM,
             area_sq_m: calculateCorridorAreaSqM(searchPath, corridorWidthM),
           }
-        : {
-          type: 'polygon',
-          points: searchArea,
-          area_sq_m: searchAreaSqM,
-        };
-      const request = {
-        search_area: requestSearchArea,
-        survey_config: surveyConfig,
-        pos_ids: selectedDrones.length > 0 ? selectedDrones : null,
-        mission_template: missionTemplate,
-        mission_label: missionLabel || null,
-        mission_profile: missionProfileId === 'custom' ? 'custom' : missionProfileId,
-        mission_brief: missionBrief || null,
-        return_behavior: returnBehavior,
-      };
-      const response = await sarApi.computePlan(request);
-      setCoveragePlan(response);
-      setMissionId(response.mission_id);
-      setLastPlannedSignature(buildQuickScoutPlanningSignature({
-        missionTemplate,
-        searchArea,
-        searchCenter,
-        searchRadiusM,
-        searchPath,
-        corridorWidthM,
-        surveyConfig,
-        selectedDrones,
-        missionProfileId,
-        missionLabel,
-        missionBrief,
-        returnBehavior,
-      }));
-      await refreshMissionCatalog();
-      toast.success(`Plan computed: ${response.plans.length} drones, ${(response.total_area_sq_m / 10000).toFixed(1)} ha`);
-    } catch (err) {
-      if (err.code === 'ECONNABORTED') {
-        toast.error('Planning timed out — try disabling terrain following or reducing area size');
-      } else {
-        const detail = err.response?.data?.detail || err.message;
-        toast.error(`Planning failed: ${detail}`);
-      }
-    } finally {
-      setComputing(false);
-    }
-  }, [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, refreshMissionCatalog, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig]);
+          : {
+            type: 'polygon',
+            points: searchArea,
+            area_sq_m: searchAreaSqM,
+          };
 
-  const handleLaunchMission = useCallback(async () => {
+    const request = {
+      search_area: requestSearchArea,
+      survey_config: surveyConfig,
+      pos_ids: selectedDrones.length > 0 ? selectedDrones : null,
+      mission_template: missionTemplate,
+      mission_label: missionLabel || null,
+      mission_profile: missionProfileId === 'custom' ? 'custom' : missionProfileId,
+      mission_brief: missionBrief || null,
+      return_behavior: returnBehavior,
+    };
+
+    const signature = buildQuickScoutPlanningSignature({
+      missionTemplate,
+      searchArea,
+      searchCenter,
+      searchRadiusM,
+      searchPath,
+      corridorWidthM,
+      surveyConfig,
+      selectedDrones,
+      missionProfileId,
+      missionLabel,
+      missionBrief,
+      returnBehavior,
+    });
+
+    return { request, signature };
+  }, [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig]);
+
+  const applyPlanningJobResult = useCallback(async (job, signature) => {
+    const response = job?.result;
+    if (!response) {
+      throw new Error('Planning job completed without a coverage plan.');
+    }
+
+    setCoveragePlan(response);
+    setMissionId(response.mission_id);
+    setLastPlannedSignature(signature);
+    await refreshMissionCatalog();
+    toast.success(`Plan computed: ${response.plans.length} drones, ${(response.total_area_sq_m / 10000).toFixed(1)} ha`);
+  }, [refreshMissionCatalog]);
+
+  const startPlanningJob = useCallback(async (request, signature) => {
+    clearPlanningJobPoll();
+    planningJobRequestRef.current = { request, signature };
+    setComputing(true);
+    setPlanningJobDialogOpen(true);
+    setPlanningJob({
+      status: 'queued',
+      phase: 'submitting',
+      progress_percent: 0,
+      message: 'Submitting QuickScout planning job.',
+      warnings: [],
+    });
+
+    const finishWithJob = async (job) => {
+      clearPlanningJobPoll();
+      setComputing(false);
+
+      if (job.status === 'succeeded') {
+        try {
+          await applyPlanningJobResult(job, signature);
+        } catch (error) {
+          setPlanningJob((current) => ({
+            ...(current || job),
+            status: 'failed',
+            phase: 'finalizing',
+            error_message: error.message,
+          }));
+          toast.error(`Planning failed: ${error.message}`);
+        }
+        return;
+      }
+
+      if (job.status === 'canceled') {
+        toast.warning(job.message || 'Planning canceled');
+        return;
+      }
+
+      const message = job.error_message || job.message || 'Planning job failed';
+      toast.error(`Planning failed: ${message}`);
+    };
+
+    try {
+      const createdJob = await sarApi.createPlanningJob(request);
+      setPlanningJob(createdJob);
+
+      if (PLANNING_JOB_TERMINAL_STATES.has(createdJob.status)) {
+        await finishWithJob(createdJob);
+        return;
+      }
+
+      const pollJob = async () => {
+        try {
+          const currentJob = await sarApi.getPlanningJob(createdJob.job_id);
+          setPlanningJob(currentJob);
+          if (PLANNING_JOB_TERMINAL_STATES.has(currentJob.status)) {
+            await finishWithJob(currentJob);
+          }
+        } catch (error) {
+          clearPlanningJobPoll();
+          setComputing(false);
+          const message = getApiErrorMessage(error, 'Unable to read planning job status');
+          setPlanningJob((current) => ({
+            ...(current || createdJob),
+            status: 'failed',
+            phase: 'status_unavailable',
+            error_message: message,
+          }));
+          toast.error(`Planning failed: ${message}`);
+        }
+      };
+
+      planningJobPollRef.current = setInterval(pollJob, 900);
+      pollJob();
+    } catch (error) {
+      clearPlanningJobPoll();
+      setComputing(false);
+      const message = getApiErrorMessage(error, 'Unable to start planning job');
+      setPlanningJob((current) => ({
+        ...(current || {}),
+        status: 'failed',
+        phase: 'submit_failed',
+        progress_percent: 0,
+        error_message: message,
+      }));
+      toast.error(`Planning failed: ${message}`);
+    }
+  }, [applyPlanningJobResult, clearPlanningJobPoll]);
+
+  const handleComputePlan = useCallback(async () => {
+    const { request, signature } = buildMissionPlanRequest();
+    await startPlanningJob(request, signature);
+  }, [buildMissionPlanRequest, startPlanningJob]);
+
+  const handleCancelPlanningJob = useCallback(async () => {
+    const jobId = planningJob?.job_id;
+    if (!jobId) {
+      clearPlanningJobPoll();
+      setComputing(false);
+      setPlanningJobDialogOpen(false);
+      return;
+    }
+
+    try {
+      const canceledJob = await sarApi.cancelPlanningJob(jobId);
+      clearPlanningJobPoll();
+      setPlanningJob(canceledJob);
+      setComputing(false);
+      toast.warning(canceledJob.message || 'Planning canceled');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Unable to cancel planning job');
+      toast.error(`Cancel failed: ${message}`);
+    }
+  }, [clearPlanningJobPoll, planningJob?.job_id]);
+
+  const handleRetryPlanningJob = useCallback(async () => {
+    const retry = planningJobRequestRef.current || buildMissionPlanRequest();
+    await startPlanningJob(retry.request, retry.signature);
+  }, [buildMissionPlanRequest, startPlanningJob]);
+
+  const planningJobDialogData = useMemo(() => ({
+    status: planningJob?.status || (computing ? 'running' : 'queued'),
+    progressPercent: planningJob?.progress_percent ?? 0,
+    phase: planningJob?.phase,
+    message: planningJob?.message,
+    error: planningJob?.error_message,
+    warnings: (planningJob?.warnings || [])
+      .map((warning) => warning?.message || warning?.code || String(warning))
+      .filter(Boolean),
+  }), [computing, planningJob]);
+
+  const handleOpenLaunchReview = useCallback(() => {
+    if (!coveragePlan || planNeedsRecompute || !(launchReadiness?.canLaunch ?? true)) {
+      return;
+    }
+    setLaunchReviewOpen(true);
+  }, [coveragePlan, launchReadiness?.canLaunch, planNeedsRecompute]);
+
+  const handleConfirmLaunchMission = useCallback(async () => {
     if (!missionId) return;
     setLaunching(true);
     try {
       const response = await sarApi.launchMission(missionId);
       await refreshMissionCatalog();
       toast.success(response?.message || 'Mission launched');
+      setLaunchReviewOpen(false);
       setMode('monitor');
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message;
+      const detail = getApiErrorMessage(err, 'Launch request failed');
       toast.error(`Launch failed: ${detail}`);
     } finally {
       setLaunching(false);
@@ -814,7 +1079,7 @@ const QuickScoutPage = () => {
   const handleAbort = useCallback(async () => {
     if (!missionId) return;
     try {
-      const response = await sarApi.abortMission(missionId);
+      const response = await sarApi.abortMission(missionId, null, returnBehavior);
       await refreshMissionCatalog();
       if (response?.success) {
         toast.warning(response?.message || 'Mission aborted');
@@ -824,7 +1089,7 @@ const QuickScoutPage = () => {
     } catch (err) {
       toast.error('Abort failed');
     }
-  }, [missionId, refreshMissionCatalog]);
+  }, [missionId, refreshMissionCatalog, returnBehavior]);
 
   const handleFindingAdded = useCallback((finding) => {
     setFindings((prev) => [...prev, finding]);
@@ -916,7 +1181,7 @@ const QuickScoutPage = () => {
   const handleLocationSelect = useCallback((longitude, latitude, _altitude) => {
     const zoom = 15;
     focusMap(longitude, latitude, zoom);
-    if (missionTemplate === 'last_known_point') {
+    if (missionTemplate === 'last_known_point' || missionTemplate === 'point_dispatch') {
       handleSearchCenterChange({ lat: latitude, lng: longitude });
     }
     if (missionTemplate === 'corridor_search') {
@@ -1039,7 +1304,9 @@ const QuickScoutPage = () => {
               onClick={(e) => {
                 if (markingFinding && findingClickRef.current) {
                   findingClickRef.current(e);
+                  return;
                 }
+                handlePlanMapPointClick(e?.lngLat?.lat, e?.lngLat?.lng);
               }}
             >
               {mode === 'plan' && (missionTemplate === 'area_sweep' || missionTemplate === 'corridor_search') && (
@@ -1053,9 +1320,9 @@ const QuickScoutPage = () => {
                 />
               )}
 
-              {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
+              {mode === 'plan' && (missionTemplate === 'last_known_point' || missionTemplate === 'point_dispatch') && searchCenter && (
                 <>
-                  {Source && Layer && pointSearchPreview && (
+                  {missionTemplate === 'last_known_point' && Source && Layer && pointSearchPreview && (
                     <Source id="qs-point-search-preview" type="geojson" data={pointSearchPreview}>
                       <Layer
                         id="qs-point-search-fill"
@@ -1160,6 +1427,9 @@ const QuickScoutPage = () => {
               zoom={viewport.zoom || 3}
               defaultLayer="esriSatellite"
               style={{ width: '100%', height: '100%' }}
+              onClick={(event) => {
+                handlePlanMapPointClick(event?.latlng?.lat, event?.latlng?.lng);
+              }}
             >
               <LeafletFlyTo target={flyToTarget} />
 
@@ -1172,9 +1442,9 @@ const QuickScoutPage = () => {
                 />
               )}
 
-              {mode === 'plan' && missionTemplate === 'last_known_point' && searchCenter && (
+              {mode === 'plan' && (missionTemplate === 'last_known_point' || missionTemplate === 'point_dispatch') && searchCenter && (
                 <>
-                  {Number(searchRadiusM) > 0 && (
+                  {missionTemplate === 'last_known_point' && Number(searchRadiusM) > 0 && (
                     <LeafletCircle
                       center={[searchCenter.lat, searchCenter.lng]}
                       radius={Number(searchRadiusM)}
@@ -1284,7 +1554,7 @@ const QuickScoutPage = () => {
             surveyConfig={surveyConfig}
             onConfigChange={handleSurveyConfigChange}
             onComputePlan={handleComputePlan}
-            onLaunchMission={handleLaunchMission}
+            onLaunchMission={handleOpenLaunchReview}
             coveragePlan={coveragePlan}
             searchArea={searchArea}
             computing={computing}
@@ -1366,6 +1636,25 @@ const QuickScoutPage = () => {
           />
         )}
       </div>
+      <MissionJobProgressDialog
+        open={planningJobDialogOpen}
+        title="Compute QuickScout Plan"
+        job={planningJobDialogData}
+        onCancel={handleCancelPlanningJob}
+        onRetry={handleRetryPlanningJob}
+        onClose={() => setPlanningJobDialogOpen(false)}
+      />
+      <MissionReviewLaunchDialog
+        open={launchReviewOpen}
+        title="Review QuickScout Launch"
+        confirmLabel="Launch Mission"
+        mission={launchReviewMission}
+        blockers={launchReviewBlockers}
+        warnings={launchReviewWarnings}
+        busy={launching}
+        onConfirm={handleConfirmLaunchMission}
+        onCancel={() => setLaunchReviewOpen(false)}
+      />
     </div>
   );
 };

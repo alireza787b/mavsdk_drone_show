@@ -2,6 +2,7 @@
 Swarm trajectory service tests.
 """
 
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -13,9 +14,15 @@ from functions.swarm_session_manager import SwarmSessionManager
 from functions import swarm_trajectory_processor
 from functions.swarm_trajectory_service import (
     SwarmTrajectoryError,
+    cancel_processing_job_payload,
     clear_processed_payload,
     clear_individual_drone_payload,
+    create_processing_job_payload,
+    get_elevation_batch_payload,
+    get_preview_payload,
+    get_processing_job_payload,
     get_processing_status_payload,
+    get_validation_payload,
     process_trajectories_payload,
     save_uploaded_trajectory,
     validate_target_scope_for_swarm_trajectory,
@@ -251,6 +258,295 @@ def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_p
     assert clusters[5]['state'] == 'missing_upload'
     assert clusters[5]['issues']
     assert clusters[5]['package_stats']['available'] is False
+
+
+def test_validation_payload_reports_blockers_and_actionable_warnings(monkeypatch):
+    """Readiness validation should expose machine-readable blockers and degraded states."""
+    status_payload = {
+        'success': True,
+        'status': {
+            'processed_drones': [1],
+            'follow_map': {1: 0, 2: 1},
+            'has_results': True,
+            'plots_available': False,
+            'orphan_uploaded_leaders': [9],
+            'package_stats': {
+                'available': True,
+                'drone_count': 1,
+                'drone_ids': [1],
+                'route_entry_time_s': 0.0,
+                'mission_clock_s': 10.0,
+                'route_motion_time_s': 10.0,
+                'max_altitude_msl_m': 120.0,
+                'min_altitude_msl_m': 100.0,
+                'altitude_window_m': 20.0,
+            },
+            'package_drone_stats': {
+                1: {
+                    'drone_id': 1,
+                    'route_entry_time_s': 0.0,
+                    'mission_clock_s': 10.0,
+                    'route_motion_time_s': 10.0,
+                    'max_altitude_msl_m': 120.0,
+                    'min_altitude_msl_m': 100.0,
+                    'altitude_window_m': 20.0,
+                },
+            },
+            'clusters': [{
+                'leader_id': 1,
+                'follower_ids': [2],
+                'processed_follower_ids': [],
+                'missing_follower_ids': [2],
+                'processed_drone_count': 1,
+                'expected_drone_count': 2,
+                'ready': False,
+                'state': 'partial_outputs',
+                'issues': ['One or more follower trajectories are missing from processed outputs.'],
+                'advisories': [],
+            }],
+            'cluster_summary': {
+                'cluster_count': 1,
+                'ready_cluster_count': 0,
+                'needs_processing_cluster_count': 0,
+                'missing_upload_cluster_count': 0,
+                'partial_output_cluster_count': 1,
+                'processed_cluster_count': 1,
+                'all_clusters_ready': False,
+                'overall_state': 'partial',
+            },
+            'session_changes': {
+                'has_previous_session': True,
+                'swarm_structure_changed': False,
+                'parameters_changed': False,
+                'trajectory_files_changed': False,
+                'new_uploads': [],
+                'missing_uploads': [],
+                'leader_structure_changed': False,
+                'requires_full_reprocess': False,
+                'safe_to_incremental': True,
+            },
+        },
+        'folders': {},
+    }
+
+    monkeypatch.setattr(
+        'functions.swarm_trajectory_service.get_processing_status_payload',
+        lambda: status_payload,
+    )
+
+    payload = get_validation_payload()
+
+    assert payload['ready'] is False
+    blocker_codes = {issue['code'] for issue in payload['blockers']}
+    warning_codes = {issue['code'] for issue in payload['warnings']}
+    assert 'swarm_trajectory_cluster_partial_outputs' in blocker_codes
+    assert 'swarm_trajectory_missing_processed_drones' in blocker_codes
+    assert 'swarm_trajectory_plots_unavailable' in warning_codes
+    assert 'swarm_trajectory_orphan_uploads' in warning_codes
+    assert payload['missing_drone_ids'] == [2]
+
+
+def test_preview_payload_exposes_leader_follower_paths(monkeypatch, tmp_path):
+    """Preview should return downsampled global paths with leader/follower grouping."""
+    processed_dir = tmp_path / 'processed'
+    processed_dir.mkdir()
+    (processed_dir / 'Drone 1.csv').write_text(
+        't,lat,lon,alt,yaw\n0,35.0,51.0,1200,10\n10,35.1,51.1,1210,20\n',
+        encoding='utf-8',
+    )
+    (processed_dir / 'Drone 2.csv').write_text(
+        't,lat,lon,alt,yaw\n0,35.0,51.001,1198,10\n10,35.1,51.101,1208,20\n',
+        encoding='utf-8',
+    )
+
+    status_payload = {
+        'success': True,
+        'status': {
+            'processed_drones': [1, 2],
+            'follow_map': {1: 0, 2: 1},
+            'has_results': True,
+            'plots_available': True,
+            'orphan_uploaded_leaders': [],
+            'package_stats': {
+                'available': True,
+                'drone_count': 2,
+                'drone_ids': [1, 2],
+                'route_entry_time_s': 0.0,
+                'mission_clock_s': 10.0,
+                'route_motion_time_s': 10.0,
+                'max_altitude_msl_m': 1210.0,
+                'min_altitude_msl_m': 1198.0,
+                'altitude_window_m': 12.0,
+            },
+            'package_drone_stats': {
+                1: {'drone_id': 1, 'max_altitude_msl_m': 1210.0, 'min_altitude_msl_m': 1200.0},
+                2: {'drone_id': 2, 'max_altitude_msl_m': 1208.0, 'min_altitude_msl_m': 1198.0},
+            },
+            'clusters': [{
+                'leader_id': 1,
+                'follower_ids': [2],
+                'ready': True,
+                'state': 'ready',
+                'issues': [],
+                'advisories': [],
+            }],
+            'cluster_summary': {
+                'cluster_count': 1,
+                'ready_cluster_count': 1,
+                'needs_processing_cluster_count': 0,
+                'missing_upload_cluster_count': 0,
+                'partial_output_cluster_count': 0,
+                'processed_cluster_count': 1,
+                'all_clusters_ready': True,
+                'overall_state': 'ready',
+            },
+            'session_changes': {
+                'has_previous_session': True,
+                'swarm_structure_changed': False,
+                'parameters_changed': False,
+                'trajectory_files_changed': False,
+                'new_uploads': [],
+                'missing_uploads': [],
+                'leader_structure_changed': False,
+                'requires_full_reprocess': False,
+                'safe_to_incremental': True,
+            },
+        },
+        'folders': {
+            'processed': str(processed_dir),
+        },
+    }
+
+    monkeypatch.setattr(
+        'functions.swarm_trajectory_service.get_processing_status_payload',
+        lambda: status_payload,
+    )
+
+    payload = get_preview_payload(max_points_per_drone=1)
+
+    assert payload['summary']['processed_drone_count'] == 2
+    assert payload['summary']['global_preview_drone_count'] == 2
+    assert payload['blockers'] == []
+    drones = {drone['drone_id']: drone for drone in payload['drones']}
+    assert drones[1]['role'] == 'leader'
+    assert drones[1]['top_leader_id'] == 1
+    assert drones[1]['preview_point_count'] == 1
+    assert drones[1]['points'][0]['lat'] == 35.0
+    assert drones[2]['role'] == 'follower'
+    assert drones[2]['direct_leader_id'] == 1
+    assert payload['clusters'][0]['drone_ids'] == [1, 2]
+
+
+def test_elevation_batch_payload_returns_explicit_unavailable_state():
+    points = [{'id': 'wp-1', 'lat': 35.0, 'lng': 51.0}]
+
+    unavailable = get_elevation_batch_payload(points, None)
+    resolved = get_elevation_batch_payload(
+        points,
+        lambda lat, lng: {'elevation': 1432.5, 'source': 'test-provider'},
+    )
+
+    assert unavailable['results'][0]['status'] == 'unavailable'
+    assert unavailable['summary']['status'] == 'unavailable'
+    assert resolved['results'][0]['status'] == 'ok'
+    assert resolved['results'][0]['elevation_m'] == 1432.5
+    assert resolved['summary']['status'] == 'ok'
+
+
+def test_validation_payload_blocks_unknown_swarm_structure(monkeypatch):
+    """Processed CSVs are not launch-ready if the swarm graph cannot be analyzed."""
+    monkeypatch.setattr(
+        'functions.swarm_trajectory_service.get_processing_status_payload',
+        lambda: {
+            'success': True,
+            'status': {
+                'processed_drones': [1],
+                'follow_map': {},
+                'has_results': True,
+                'plots_available': True,
+                'orphan_uploaded_leaders': [],
+                'package_stats': {
+                    'available': True,
+                    'drone_count': 1,
+                    'drone_ids': [1],
+                    'route_entry_time_s': 0.0,
+                    'mission_clock_s': 10.0,
+                    'route_motion_time_s': 10.0,
+                    'max_altitude_msl_m': 120.0,
+                    'min_altitude_msl_m': 100.0,
+                    'altitude_window_m': 20.0,
+                },
+                'package_drone_stats': {},
+                'clusters': [],
+                'cluster_summary': {
+                    'cluster_count': 0,
+                    'ready_cluster_count': 0,
+                    'needs_processing_cluster_count': 0,
+                    'missing_upload_cluster_count': 0,
+                    'partial_output_cluster_count': 0,
+                    'processed_cluster_count': 0,
+                    'all_clusters_ready': False,
+                    'overall_state': 'unknown',
+                },
+                'session_changes': {
+                    'has_previous_session': True,
+                    'swarm_structure_changed': False,
+                    'parameters_changed': False,
+                    'trajectory_files_changed': False,
+                    'new_uploads': [],
+                    'missing_uploads': [],
+                    'leader_structure_changed': False,
+                    'requires_full_reprocess': False,
+                    'safe_to_incremental': True,
+                },
+            },
+            'folders': {},
+        },
+    )
+
+    payload = get_validation_payload()
+
+    assert payload['ready'] is False
+    assert payload['blockers'][0]['code'] == 'swarm_trajectory_swarm_structure_unavailable'
+
+
+def test_processing_job_payload_reaches_terminal_state_and_cancel_is_safe(monkeypatch):
+    """Async jobs should expose state and terminal cancellation should not deadlock."""
+    monkeypatch.setattr(
+        'functions.swarm_trajectory_service.process_trajectories_payload',
+        lambda force_clear=False, auto_reload=True: {
+            'success': True,
+            'outcome': 'success',
+            'message': 'Formation outputs ready',
+            'processed_drones': 1,
+            'processed_drone_list': [1],
+            'expected_drone_list': [1],
+            'skipped_drone_ids': [],
+            'statistics': {'leaders': 1, 'followers': 0, 'errors': 0},
+            'session_id': 'session-1',
+            'recommendation': {'action': 'safe_incremental'},
+            'processed_leaders': [1],
+            'missing_leaders': [],
+            'auto_reloaded': [],
+            'ignored_leaders': [],
+        },
+    )
+
+    created = create_processing_job_payload(force_clear=True)
+    job = created
+    for _ in range(50):
+        job = get_processing_job_payload(created['job_id'])
+        if job['status'] == 'succeeded':
+            break
+        time.sleep(0.01)
+
+    assert job['status'] == 'succeeded'
+    assert job['progress_percent'] == 100
+    assert job['result']['processed_drone_list'] == [1]
+
+    canceled = cancel_processing_job_payload(created['job_id'])
+    assert canceled['status'] == 'succeeded'
+    assert canceled['cancel_requested'] is False
 
 
 def test_validate_target_scope_for_swarm_trajectory_requires_processed_outputs_and_leader_chain():

@@ -1,6 +1,6 @@
 # MDS Documentation
 
-**Complete documentation index for MDS 5.4**
+**Complete documentation index for the current MDS release**
 
 Welcome to the MDS documentation. This index routes operators, maintainers, and AI agents to the right guide without duplicating setup steps on the landing page.
 
@@ -19,6 +19,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | run Smart Swarm from the dashboard | [Smart Swarm Guide](features/smart-swarm.md) |
 | inspect Smart Swarm tracking quality | [Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md) |
 | package runtime proof reports | [Runtime Evidence Reporting](guides/runtime-evidence-reporting.md) |
+| plan QuickScout or Swarm Trajectory missions | [Mission Planning Workspace](features/mission-planning-workspace.md) |
 | author, process, and launch a Swarm Trajectory mission | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | point MDS at a customer/private repo | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | understand what should sync fleet-wide versus stay local/secret | [Fleet Sync And Secrets](guides/fleet-sync-and-secrets.md) |
@@ -41,6 +42,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | Tester / pilot / evaluator | [SITL Comprehensive Guide](guides/sitl-comprehensive.md) |
 | Drone Show operator | [Drone Show Guide](features/drone-show.md) |
 | Smart Swarm operator | [Smart Swarm Guide](features/smart-swarm.md) |
+| SAR / surveillance operator | [QuickScout Guide](quickscout.md) |
 | Swarm Trajectory operator | [Swarm Trajectory Guide](features/swarm-trajectory.md) |
 | Deployment engineer | [GCS Setup Guide](guides/gcs-setup.md) and [MDS Init Setup](guides/mds-init-setup.md) |
 | Customer maintainer | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
@@ -60,6 +62,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - canonical reusable runtime-acceptance suite for maintainers, CI, and AI agents across same-host and split-root validation layouts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage
+- **[Mission Planning Workspace](features/mission-planning-workspace.md)** - shared QuickScout and Swarm Trajectory planning rules, altitude/terrain doctrine, and job/error policy
 
 ### Project Videos
 
@@ -73,6 +76,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[Smart Wi-Fi Manager Dashboard](guides/smart-wifi-manager-dashboard.md)** - node-local Wi-Fi profile add/edit/remove workflow and field-safe recovery guidance
 - **[SITL Control Guide](guides/sitl-control.md)** - dashboard-based local SITL lifecycle control, image save flow, and operator-focused container management
 - **[Mapbox Setup](guides/mapbox-setup.md)** - optional Mapbox token setup and fallback behavior for map views
+- **[Telemetry Altitude Policy](guides/telemetry-altitude-policy.md)** - display altitude ordering and map-trusted position rules
 - **[SITL Validation Platform](guides/sitl-validation-platform.md)** - reusable end-to-end validation templates, plan files, and artifacts
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - dedicated follower-tracking capture and plots built on the Smart Swarm websocket stream
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - package accepted run summaries, metrics, visuals, logs, and optional PDFs in a customer-neutral format
@@ -120,8 +124,9 @@ Detailed documentation for MDS features:
 | **[Drone Show](features/drone-show.md)** | SkyBrush ZIP import, control-mode selection, trigger timing, custom CSV distinction, and launch-readiness workflow |
 | **[Smart Swarm](features/smart-swarm.md)** | Live leader-follower formations, runtime controls, failover behavior, first SITL flow, and validator tool |
 | **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** | Capture expected vs actual follower tracking during leader jogs and frame changes |
-| **[Swarm Trajectory](features/swarm-trajectory.md)** | Swarm Design -> Trajectory Planning -> Swarm Trajectory -> Dashboard mission workflow for processed leader/follower trajectories |
-| **[QuickScout](quickscout.md)** | Cooperative SAR/recon coverage planning, mission execution, and monitoring |
+| **[Mission Planning Workspace](features/mission-planning-workspace.md)** | Shared QuickScout and Swarm Trajectory planning UI doctrine, altitude/terrain behavior, degraded-state handling, and job/progress policy |
+| **[Swarm Trajectory](features/swarm-trajectory.md)** | Single-page leader-route authoring, validation, preview, processing, commit/transfer, and Dashboard Mission Type 4 workflow for leader/follower trajectories |
+| **[QuickScout](quickscout.md)** | SAR/recon point dispatch, last-known point, polygon area search, multi-vertex corridor planning, launch review, and monitoring |
 | **[Logging System](guides/logging-system.md)** | Unified logging, Log Viewer workflow, export, and operator/developer modes |
 | **[Origin System](features/origin-system.md)** | Coordinate system implementation and global positioning |
 | **[Control Modes and Coordinates](control-modes-and-coordinates.md)** | Comprehensive guide to control modes, coordinate systems, Phase 2 auto-correction, and time synchronization |

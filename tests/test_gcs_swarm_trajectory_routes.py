@@ -206,6 +206,127 @@ def _make_service(tmp_path: Path):
             "recommendation": _recommendation_payload(),
         },
         get_processing_status_payload=lambda: _status_payload(),
+        get_validation_payload=lambda: {
+            "success": True,
+            "ready": False,
+            "state": "partial",
+            "blockers": [{
+                "code": "swarm_trajectory_cluster_missing_upload",
+                "message": "Cluster 5 is not ready: missing upload.",
+                "severity": "blocker",
+                "leader_id": 5,
+            }],
+            "warnings": [],
+            "advisories": [],
+            "processed_drone_ids": [1, 2],
+            "expected_drone_ids": [1, 2, 5, 6],
+            "missing_drone_ids": [5, 6],
+            "cluster_summary": _status_payload()["status"]["cluster_summary"],
+            "package_stats": _package_stats_payload(available=True, drone_ids=[1, 2]),
+        },
+        get_preview_payload=lambda max_points_per_drone=500: {
+            "success": True,
+            "generated_at": "2026-05-15T00:00:00Z",
+            "drones": [{
+                "drone_id": 1,
+                "role": "leader",
+                "top_leader_id": 1,
+                "direct_leader_id": None,
+                "point_count": 1,
+                "preview_point_count": 1,
+                "global_coordinates_available": True,
+                "points": [{
+                    "sequence": 0,
+                    "time_s": 0.0,
+                    "lat": 35.0,
+                    "lng": 51.0,
+                    "alt_msl": 1200.0,
+                    "yaw_deg": 0.0,
+                }],
+                "warnings": [],
+                "package_stats": _package_stats_payload(available=True, drone_ids=[1]),
+            }],
+            "clusters": [{
+                "leader_id": 1,
+                "drone_ids": [1, 2],
+                "expected_drone_ids": [1, 2],
+                "ready": True,
+                "state": "ready",
+                "issues": [],
+                "advisories": [],
+            }],
+            "summary": {
+                "processed_drone_count": 1,
+                "cluster_summary": _status_payload()["status"]["cluster_summary"],
+                "package_stats": _package_stats_payload(available=True, drone_ids=[1]),
+                "has_results": True,
+                "global_preview_drone_count": 1,
+            },
+            "blockers": [],
+            "warnings": [],
+            "advisories": [],
+        },
+        get_elevation_batch_payload=lambda points, elevation_provider: {
+            "success": True,
+            "results": [
+                {
+                    "id": point.get("id"),
+                    "lat": point["lat"],
+                    "lng": point["lng"],
+                    "elevation_m": elevation_provider(point["lat"], point["lng"])["elevation"],
+                    "status": "ok",
+                    "source": "test-provider",
+                    "message": None,
+                }
+                for point in points
+            ],
+            "summary": {"requested": len(points), "resolved": len(points), "unavailable": 0, "status": "ok"},
+        },
+        create_processing_job_payload=lambda force_clear=False, auto_reload=True: {
+            "job_id": "job-1",
+            "status": "queued",
+            "phase": "queued",
+            "progress_percent": 0,
+            "message": "Queued Swarm Trajectory processing job.",
+            "result": None,
+            "error_code": None,
+            "error_message": None,
+            "cancel_requested": False,
+            "created_at": 1770000000.0,
+            "updated_at": 1770000000.0,
+            "started_at": None,
+            "completed_at": None,
+        },
+        get_processing_job_payload=lambda job_id: {
+            "job_id": job_id,
+            "status": "running",
+            "phase": "processing",
+            "progress_percent": 20,
+            "message": "Processing leader/follower trajectories.",
+            "result": None,
+            "error_code": None,
+            "error_message": None,
+            "cancel_requested": False,
+            "created_at": 1770000000.0,
+            "updated_at": 1770000001.0,
+            "started_at": 1770000001.0,
+            "completed_at": None,
+        },
+        cancel_processing_job_payload=lambda job_id: {
+            "job_id": job_id,
+            "status": "running",
+            "phase": "processing",
+            "progress_percent": 20,
+            "message": "Cancellation requested. The active processor cannot be interrupted safely; wait for terminal status.",
+            "result": None,
+            "error_code": None,
+            "error_message": None,
+            "cancel_requested": True,
+            "created_at": 1770000000.0,
+            "updated_at": 1770000002.0,
+            "started_at": 1770000001.0,
+            "completed_at": None,
+        },
         clear_processed_payload=lambda: {
             "success": True,
             "cleared_items": ["processed/Drone 1.csv", "plots/combined_swarm.jpg"],
@@ -261,6 +382,7 @@ def _make_deps(tmp_path: Path):
             TRAJECTORY_PLANNER_DEFAULT_SAFE_CLEARANCE_M=100.0,
         ),
         swarm_trajectory_service=_make_service(tmp_path),
+        get_elevation=lambda lat, lon: {"elevation": 123.4, "source": "test-provider"},
         log_system_event=lambda *args, **kwargs: None,
         log_system_error=lambda *args, **kwargs: None,
     )
@@ -276,8 +398,14 @@ def test_swarm_trajectory_router_registers_expected_routes(tmp_path):
     assert "/api/v1/swarm-trajectories/leaders" in routes
     assert "/api/v1/swarm-trajectories/upload/{leader_id}" in routes
     assert "/api/v1/swarm-trajectories/process" in routes
+    assert "/api/v1/swarm-trajectories/process/jobs" in routes
+    assert "/api/v1/swarm-trajectories/process/jobs/{job_id}" in routes
+    assert "/api/v1/swarm-trajectories/process/jobs/{job_id}/cancel" in routes
     assert "/api/v1/swarm-trajectories/recommendation" in routes
     assert "/api/v1/swarm-trajectories/status" in routes
+    assert "/api/v1/swarm-trajectories/validate" in routes
+    assert "/api/v1/swarm-trajectories/preview" in routes
+    assert "/api/v1/swarm-trajectories/elevation/batch" in routes
     assert "/api/v1/swarm-trajectories/policy" in routes
     assert "/api/v1/swarm-trajectories/clear-processed" in routes
     assert "/api/v1/swarm-trajectories/clear" in routes
@@ -321,6 +449,45 @@ def test_swarm_trajectory_router_status_uses_live_service_after_router_creation(
 
     assert response.status_code == 200
     assert response.json()["status"]["processed_trajectories"] == 9
+
+
+def test_swarm_trajectory_router_validation_preview_and_elevation_are_typed(tmp_path):
+    deps = _make_deps(tmp_path)
+    app = FastAPI()
+    app.include_router(create_swarm_trajectory_router(deps))
+
+    with TestClient(app) as client:
+        validation = client.get("/api/v1/swarm-trajectories/validate")
+        preview = client.get("/api/v1/swarm-trajectories/preview?max_points_per_drone=50")
+        elevation = client.post(
+            "/api/v1/swarm-trajectories/elevation/batch",
+            json={"points": [{"id": "wp-1", "lat": 35.0, "lng": 51.0}]},
+        )
+
+    assert validation.status_code == 200
+    assert validation.json()["blockers"][0]["code"] == "swarm_trajectory_cluster_missing_upload"
+    assert preview.status_code == 200
+    assert preview.json()["drones"][0]["points"][0]["lat"] == 35.0
+    assert elevation.status_code == 200
+    assert elevation.json()["results"][0]["elevation_m"] == 123.4
+
+
+def test_swarm_trajectory_router_processing_job_contract(tmp_path):
+    deps = _make_deps(tmp_path)
+    app = FastAPI()
+    app.include_router(create_swarm_trajectory_router(deps))
+
+    with TestClient(app) as client:
+        created = client.post("/api/v1/swarm-trajectories/process/jobs", json={"force_clear": True})
+        status = client.get("/api/v1/swarm-trajectories/process/jobs/job-1")
+        canceled = client.post("/api/v1/swarm-trajectories/process/jobs/job-1/cancel")
+
+    assert created.status_code == 202
+    assert created.json()["status"] == "queued"
+    assert status.status_code == 200
+    assert status.json()["phase"] == "processing"
+    assert canceled.status_code == 200
+    assert canceled.json()["cancel_requested"] is True
 
 
 def test_swarm_trajectory_router_process_rejects_malformed_json(tmp_path):
@@ -404,9 +571,14 @@ def test_swarm_trajectory_router_openapi_exposes_typed_contracts(tmp_path):
 
     schema = app.openapi()
     process_spec = schema["paths"]["/api/v1/swarm-trajectories/process"]["post"]
+    process_job_spec = schema["paths"]["/api/v1/swarm-trajectories/process/jobs"]["post"]
     commit_spec = schema["paths"]["/api/v1/swarm-trajectories/commit"]["post"]
     status_spec = schema["paths"]["/api/v1/swarm-trajectories/status"]["get"]
+    validation_spec = schema["paths"]["/api/v1/swarm-trajectories/validate"]["get"]
+    preview_spec = schema["paths"]["/api/v1/swarm-trajectories/preview"]["get"]
+    elevation_spec = schema["paths"]["/api/v1/swarm-trajectories/elevation/batch"]["post"]
     process_request_schema = process_spec["requestBody"]["content"]["application/json"]["schema"]
+    process_job_request_schema = process_job_spec["requestBody"]["content"]["application/json"]["schema"]
     commit_request_schema = commit_spec["requestBody"]["content"]["application/json"]["schema"]
 
     assert process_request_schema["anyOf"][0]["$ref"].endswith(
@@ -415,6 +587,12 @@ def test_swarm_trajectory_router_openapi_exposes_typed_contracts(tmp_path):
     assert process_request_schema["anyOf"][1]["type"] == "null"
     assert process_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/SwarmTrajectoryProcessResponse"
+    )
+    assert process_job_request_schema["anyOf"][0]["$ref"].endswith(
+        "/SwarmTrajectoryProcessRequest"
+    )
+    assert process_job_spec["responses"]["202"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryProcessingJobResponse"
     )
     assert commit_request_schema["anyOf"][0]["$ref"].endswith(
         "/SwarmTrajectoryCommitRequest"
@@ -425,4 +603,16 @@ def test_swarm_trajectory_router_openapi_exposes_typed_contracts(tmp_path):
     )
     assert status_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/SwarmTrajectoryStatusResponse"
+    )
+    assert validation_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryValidationResponse"
+    )
+    assert preview_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryPreviewResponse"
+    )
+    assert elevation_spec["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryElevationBatchRequest"
+    )
+    assert elevation_spec["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/SwarmTrajectoryElevationBatchResponse"
     )

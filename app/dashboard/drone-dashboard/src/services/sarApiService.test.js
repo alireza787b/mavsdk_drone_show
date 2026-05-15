@@ -1,9 +1,12 @@
 import {
   abortMission,
   batchElevation,
+  cancelPlanningJob,
   computePlan,
+  createPlanningJob,
   getFindings,
   getMissionHandoff,
+  getPlanningJob,
   getMissionWorkspace,
   listMissions,
   updateFinding,
@@ -49,6 +52,30 @@ describe('sarApiService', () => {
 
     expect(buildSarUrl).toHaveBeenCalledWith('/missions?limit=5&state=ready');
     expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/sar/missions?limit=5&state=ready');
+  });
+
+  it('uses planning job endpoints for long-running QuickScout compute', async () => {
+    postGcsResource.mockResolvedValueOnce({ data: { job_id: 'job-1', status: 'queued' } });
+    fetchGcsResource.mockResolvedValueOnce({ data: { job_id: 'job-1', status: 'running' } });
+    postGcsResource.mockResolvedValueOnce({ data: { job_id: 'job-1', status: 'canceled' } });
+
+    await createPlanningJob({ search_area: { type: 'polygon', points: [] } });
+    await getPlanningJob('job/1');
+    await cancelPlanningJob('job/1');
+
+    expect(buildSarUrl).toHaveBeenNthCalledWith(1, '/mission/plan/jobs');
+    expect(postGcsResource).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/sar/mission/plan/jobs',
+      { search_area: { type: 'polygon', points: [] } }
+    );
+    expect(buildSarUrl).toHaveBeenNthCalledWith(2, '/mission/plan/jobs/job%2F1');
+    expect(fetchGcsResource).toHaveBeenCalledWith('http://gcs.test:5030/api/sar/mission/plan/jobs/job%2F1');
+    expect(buildSarUrl).toHaveBeenNthCalledWith(3, '/mission/plan/jobs/job%2F1/cancel');
+    expect(postGcsResource).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/sar/mission/plan/jobs/job%2F1/cancel'
+    );
   });
 
   it('encodes mission ids and repeated drone filters for abort requests', async () => {

@@ -1,0 +1,504 @@
+@import './DesignTokens.css';
+
+.mission-map-workspace {
+  display: grid;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.mission-map-workspace__header,
+.mission-map-workspace__footer {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.mission-map-workspace__title {
+  min-width: 0;
+}
+
+.mission-map-workspace__title h2 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+  margin: 0;
+}
+
+.mission-map-workspace__title p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  margin: var(--spacing-xs) 0 0;
+  max-width: 64ch;
+}
+
+.mission-map-workspace__status {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+}
+
+.mission-map-workspace__body {
+  display: grid;
+  gap: var(--spacing-md);
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  min-height: min(66vh, 760px);
+}
+
+.mission-map-workspace__map {
+  background: var(--color-surface-inset);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-base);
+  min-height: 420px;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.mission-map-workspace__provider,
+.mission-map-workspace__toolbar {
+  left: var(--spacing-md);
+  position: absolute;
+  right: var(--spacing-md);
+  z-index: var(--z-map-overlay);
+}
+
+.mission-map-workspace__provider {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  top: var(--spacing-md);
+}
+
+.mission-map-workspace__toolbar {
+  bottom: var(--spacing-md);
+  display: flex;
+  justify-content: center;
+}
+
+.mission-map-workspace__canvas {
+  height: 100%;
+  min-height: inherit;
+}
+
+.mission-map-workspace__sidebar {
+  display: grid;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.mission-geometry-toolbar {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-base);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  max-width: min(100%, 840px);
+  padding: var(--spacing-sm);
+}
+
+.mission-geometry-summary,
+.mission-drone-selector {
+  display: grid;
+  gap: var(--spacing-sm);
+}
+
+.mission-geometry-summary__header,
+.mission-drone-selector__header {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: space-between;
+}
+
+.mission-geometry-summary__metrics {
+  display: grid;
+  gap: var(--spacing-sm);
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  margin: 0;
+}
+
+.mission-geometry-summary__metrics div {
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-sm);
+}
+
+.mission-geometry-summary__metrics dt,
+.mission-review-dialog__summary dt {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--spacing-xs);
+  text-transform: uppercase;
+}
+
+.mission-geometry-summary__metrics dd,
+.mission-review-dialog__summary dd {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mission-geometry-summary__issues,
+.mission-job-progress__warnings,
+.mission-review-dialog ul {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.mission-drone-selector__meta {
+  color: var(--color-text-tertiary);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-xs);
+  gap: var(--spacing-sm);
+}
+
+.mission-drone-selector__list {
+  display: grid;
+  gap: var(--spacing-xs);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.mission-drone-selector__row {
+  align-items: center;
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-base);
+  cursor: pointer;
+  display: grid;
+  gap: var(--spacing-sm);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 48px;
+  padding: var(--spacing-sm);
+}
+
+.mission-drone-selector__row:has(input:focus-visible) {
+  box-shadow: var(--operator-focus-ring);
+}
+
+.mission-drone-selector__identity {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.mission-drone-selector__identity strong,
+.mission-drone-selector__identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-drone-selector__identity small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.mission-altitude-control {
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-base);
+  color: var(--color-text-primary);
+  display: grid;
+  gap: var(--spacing-md);
+  margin: 0;
+  padding: var(--spacing-md);
+}
+
+.mission-altitude-control legend {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  padding: 0 var(--spacing-xs);
+}
+
+.mission-altitude-control__modes {
+  display: grid;
+  gap: var(--spacing-sm);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mission-altitude-control__mode {
+  align-items: center;
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-base);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 0.12rem;
+  justify-items: center;
+  min-height: 76px;
+  padding: var(--spacing-sm);
+  text-align: center;
+}
+
+.mission-altitude-control__mode.is-selected,
+.mission-altitude-control__mode:focus-visible {
+  border-color: var(--color-primary-border);
+  box-shadow: var(--operator-focus-ring);
+  outline: none;
+}
+
+.mission-altitude-control__mode small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.mission-altitude-control__input {
+  align-items: center;
+  display: grid;
+  gap: var(--spacing-sm);
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 140px) auto;
+}
+
+.mission-altitude-control__input span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+}
+
+.mission-altitude-control__input input {
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-base);
+  color: var(--color-text-primary);
+  min-height: var(--input-height-base);
+  padding: 0 var(--spacing-sm);
+}
+
+.mission-altitude-control__input input:focus-visible {
+  box-shadow: var(--operator-focus-ring);
+  outline: none;
+}
+
+.mission-altitude-control__terrain {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  gap: var(--spacing-sm);
+}
+
+.mission-dialog {
+  background: var(--modal-backdrop-color);
+  display: grid;
+  inset: 0;
+  padding: max(var(--spacing-base), env(safe-area-inset-top)) max(var(--spacing-base), env(safe-area-inset-right)) max(var(--spacing-base), env(safe-area-inset-bottom)) max(var(--spacing-base), env(safe-area-inset-left));
+  place-items: center;
+  position: fixed;
+  z-index: calc(var(--z-tooltip) + 48);
+}
+
+.mission-dialog__panel {
+  background: var(--color-bg-primary);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-base);
+  box-shadow: var(--shadow-2xl);
+  max-height: min(88dvh, 760px);
+  overflow: auto;
+  width: min(100%, 560px);
+}
+
+.mission-dialog__panel--warning {
+  border-color: var(--color-warning-border);
+}
+
+.mission-dialog__panel--danger {
+  border-color: var(--color-danger-border);
+}
+
+.mission-dialog__header,
+.mission-dialog__footer {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: space-between;
+  padding: var(--spacing-base);
+}
+
+.mission-dialog__header {
+  border-bottom: var(--operator-card-border);
+}
+
+.mission-dialog__header h2 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.mission-dialog__close {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--border-radius-full);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--button-icon-size-sm);
+  justify-content: center;
+  width: var(--button-icon-size-sm);
+}
+
+.mission-dialog__close:hover,
+.mission-dialog__close:focus-visible {
+  background: var(--operator-control-background-hover);
+  color: var(--color-primary);
+  outline: none;
+}
+
+.mission-dialog__body {
+  padding: var(--spacing-base);
+}
+
+.mission-dialog__footer {
+  border-top: var(--operator-card-border);
+  justify-content: flex-end;
+}
+
+.mission-job-progress {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.mission-job-progress__status {
+  align-items: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.mission-job-progress__bar {
+  background: var(--color-surface-inset);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-full);
+  height: 12px;
+  overflow: hidden;
+}
+
+.mission-job-progress__bar span {
+  background: var(--color-primary);
+  display: block;
+  height: 100%;
+  transition: width var(--transition-base);
+}
+
+.mission-job-progress p {
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.mission-review-dialog {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.mission-review-dialog__summary {
+  display: grid;
+  gap: var(--spacing-sm);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin: 0;
+}
+
+.mission-review-dialog__summary div {
+  background: var(--operator-control-background);
+  border: var(--operator-control-border);
+  border-radius: var(--border-radius-base);
+  padding: var(--spacing-sm);
+}
+
+.mission-plan-status-bar {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: var(--operator-card-border);
+  border-radius: var(--border-radius-base);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+}
+
+.mission-plan-status-bar__action {
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary-border);
+  border-radius: var(--border-radius-full);
+  color: var(--color-primary-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  min-height: var(--button-height-sm);
+  padding: 0 var(--spacing-base);
+}
+
+.mission-plan-status-bar__action:focus-visible {
+  box-shadow: var(--operator-focus-ring);
+  outline: none;
+}
+
+@media (max-width: 1024px) {
+  .mission-map-workspace__body {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-map-workspace__sidebar {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .mission-map-workspace__header,
+  .mission-map-workspace__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mission-map-workspace__status {
+    justify-content: flex-start;
+  }
+
+  .mission-map-workspace__map {
+    min-height: 360px;
+  }
+
+  .mission-map-workspace__provider,
+  .mission-map-workspace__toolbar {
+    left: var(--spacing-sm);
+    right: var(--spacing-sm);
+  }
+
+  .mission-altitude-control__modes,
+  .mission-altitude-control__input {
+    grid-template-columns: 1fr;
+  }
+
+  .mission-dialog__footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .mission-dialog__footer .operator-button {
+    width: 100%;
+  }
+}
+

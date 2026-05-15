@@ -5,8 +5,6 @@ import MissionActionBar from './MissionActionBar';
 
 describe('MissionActionBar', () => {
   it('prioritizes replan instead of fake resume when holding', () => {
-    window.confirm = jest.fn(() => true);
-
     const onReplan = jest.fn();
     const onPause = jest.fn();
     const onAbort = jest.fn();
@@ -31,5 +29,33 @@ describe('MissionActionBar', () => {
     fireEvent.click(buttons[0]);
     expect(onReplan).toHaveBeenCalledTimes(1);
     expect(buttons[1]).toBeDisabled();
+  });
+
+  it('confirms mission abort in a centered dialog', () => {
+    const onAbort = jest.fn();
+
+    render(
+      <MissionActionBar
+        missionState="executing"
+        controlAvailability={{
+          pause_enabled: true,
+          replan_enabled: false,
+          abort_enabled: true,
+        }}
+        returnBehavior="hold_position"
+        onReplan={jest.fn()}
+        onPause={jest.fn()}
+        onAbort={onAbort}
+      />
+    );
+
+    const buttons = screen.getAllByRole('button');
+    fireEvent.click(buttons[2]);
+
+    expect(screen.getByRole('dialog', { name: 'End QuickScout Mission' })).toBeInTheDocument();
+    expect(screen.getByText(/hold position/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'End Mission' }));
+
+    expect(onAbort).toHaveBeenCalledTimes(1);
   });
 });

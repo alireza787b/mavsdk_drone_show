@@ -1,5 +1,11 @@
 import {
+  cancelSwarmTrajectoryProcessJob,
   clearProcessedData,
+  createSwarmTrajectoryProcessJob,
+  getSwarmTrajectoryElevationBatch,
+  getSwarmTrajectoryPreview,
+  getSwarmTrajectoryProcessJob,
+  getSwarmTrajectoryValidation,
   getRecentCommands,
   getSwarmClusterStatus,
   processTrajectories,
@@ -9,10 +15,16 @@ import {
 import {
   COMMAND_SUBMIT_TIMEOUT_MS,
   buildSwarmTrajectoryUrl,
+  cancelSwarmTrajectoryProcessJobResponse,
   clearProcessedSwarmTrajectoriesResponse,
+  createSwarmTrajectoryProcessJobResponse,
   getRecentCommandsResponse,
   getSwarmLeadersResponse,
+  getSwarmTrajectoryElevationBatchResponse,
+  getSwarmTrajectoryPreviewResponse,
+  getSwarmTrajectoryProcessJobResponse,
   getSwarmTrajectoryStatusResponse,
+  getSwarmTrajectoryValidationResponse,
   postGcsResource,
   processSwarmTrajectoriesResponse,
   submitCommandResponse,
@@ -21,13 +33,19 @@ import {
 jest.mock('./gcsApiService', () => ({
   COMMAND_SUBMIT_TIMEOUT_MS: 12000,
   buildSwarmTrajectoryUrl: jest.fn(),
+  cancelSwarmTrajectoryProcessJobResponse: jest.fn(),
   clearProcessedSwarmTrajectoriesResponse: jest.fn(),
+  createSwarmTrajectoryProcessJobResponse: jest.fn(),
   getActiveCommandsResponse: jest.fn(),
   getCommandStatusResponse: jest.fn(),
   getRecentCommandsResponse: jest.fn(),
   getSwarmLeadersResponse: jest.fn(),
+  getSwarmTrajectoryElevationBatchResponse: jest.fn(),
   getSwarmTrajectoryPolicyResponse: jest.fn(),
+  getSwarmTrajectoryPreviewResponse: jest.fn(),
+  getSwarmTrajectoryProcessJobResponse: jest.fn(),
   getSwarmTrajectoryStatusResponse: jest.fn(),
+  getSwarmTrajectoryValidationResponse: jest.fn(),
   postGcsResource: jest.fn(),
   processSwarmTrajectoriesResponse: jest.fn(),
   submitCommandResponse: jest.fn(),
@@ -137,5 +155,33 @@ describe('droneApiService', () => {
       auto_reload: false,
     });
     expect(clearProcessedSwarmTrajectoriesResponse).toHaveBeenCalledWith();
+  });
+
+  it('delegates swarm trajectory validation, preview, elevation, and process jobs', async () => {
+    getSwarmTrajectoryValidationResponse.mockResolvedValue({ data: { success: true, ready: true } });
+    getSwarmTrajectoryPreviewResponse.mockResolvedValue({ data: { success: true, drones: [] } });
+    getSwarmTrajectoryElevationBatchResponse.mockResolvedValue({ data: { success: true, results: [] } });
+    createSwarmTrajectoryProcessJobResponse.mockResolvedValue({ data: { job_id: 'job-1', status: 'queued' } });
+    getSwarmTrajectoryProcessJobResponse.mockResolvedValue({ data: { job_id: 'job-1', status: 'running' } });
+    cancelSwarmTrajectoryProcessJobResponse.mockResolvedValue({ data: { job_id: 'job-1', status: 'canceled' } });
+
+    await getSwarmTrajectoryValidation();
+    await getSwarmTrajectoryPreview({ maxPointsPerDrone: 100 });
+    await getSwarmTrajectoryElevationBatch([{ id: 'wp-1', lat: 35, lng: 51 }]);
+    await createSwarmTrajectoryProcessJob({ force_clear: true, auto_reload: false });
+    await getSwarmTrajectoryProcessJob('job-1');
+    await cancelSwarmTrajectoryProcessJob('job-1');
+
+    expect(getSwarmTrajectoryValidationResponse).toHaveBeenCalledWith();
+    expect(getSwarmTrajectoryPreviewResponse).toHaveBeenCalledWith({ maxPointsPerDrone: 100 });
+    expect(getSwarmTrajectoryElevationBatchResponse).toHaveBeenCalledWith({
+      points: [{ id: 'wp-1', lat: 35, lng: 51 }],
+    });
+    expect(createSwarmTrajectoryProcessJobResponse).toHaveBeenCalledWith({
+      force_clear: true,
+      auto_reload: false,
+    });
+    expect(getSwarmTrajectoryProcessJobResponse).toHaveBeenCalledWith('job-1');
+    expect(cancelSwarmTrajectoryProcessJobResponse).toHaveBeenCalledWith('job-1');
   });
 });

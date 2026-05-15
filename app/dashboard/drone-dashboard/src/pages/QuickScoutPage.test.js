@@ -31,6 +31,9 @@ jest.mock('react-leaflet', () => ({
 
 jest.mock('../services/sarApiService', () => ({
   computePlan: jest.fn(),
+  createPlanningJob: jest.fn(),
+  getPlanningJob: jest.fn(),
+  cancelPlanningJob: jest.fn(),
   listMissions: jest.fn(),
   launchMission: jest.fn(),
   getMissionWorkspace: jest.fn(),
@@ -97,6 +100,9 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <button type="button" onClick={() => props.onMissionTemplateChange('last_known_point')}>
       Use last known point
     </button>
+    <button type="button" onClick={() => props.onMissionTemplateChange('point_dispatch')}>
+      Use point dispatch
+    </button>
     <button type="button" onClick={() => props.onMissionTemplateChange('corridor_search')}>
       Use corridor search
     </button>
@@ -140,6 +146,9 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <button type="button" onClick={props.onComputePlan}>
       Compute plan
     </button>
+    <button type="button" onClick={props.onLaunchMission}>
+      Launch mission
+    </button>
     <button type="button" onClick={props.onStartFreshPlan}>New Search</button>
   </div>
 ));
@@ -178,7 +187,17 @@ jest.mock('../components/sar/SearchAreaDrawer', () => {
   };
 });
 jest.mock('../components/trajectory/SearchBar', () => () => <div data-testid="search-bar" />);
-jest.mock('../components/map/LeafletMapBase', () => ({ children }) => <div data-testid="leaflet-map">{children}</div>);
+jest.mock('../components/map/LeafletMapBase', () => ({ children, onClick }) => (
+  <div data-testid="leaflet-map">
+    <button
+      type="button"
+      onClick={() => onClick?.({ latlng: { lat: 37.33, lng: -122.22 } })}
+    >
+      Map click
+    </button>
+    {children}
+  </div>
+));
 jest.mock('../components/map/LeafletDrawControl', () => () => <div data-testid="leaflet-draw" />);
 jest.mock('../components/map/LeafletCoveragePreview', () => () => <div data-testid="leaflet-coverage" />);
 jest.mock('../components/map/LeafletFindingMarkers', () => () => <div data-testid="leaflet-finding" />);
@@ -301,6 +320,48 @@ describe('QuickScoutPage', () => {
       estimated_coverage_time_s: 180,
       algorithm_used: 'boustrophedon',
     });
+    sarApi.createPlanningJob.mockResolvedValue({
+      job_id: 'job-ready',
+      status: 'succeeded',
+      phase: 'complete',
+      progress_percent: 100,
+      mission_id: 'mission-ready',
+      result: {
+        mission_id: 'mission-ready',
+        plans: [],
+        total_area_sq_m: 1200,
+        estimated_coverage_time_s: 180,
+        algorithm_used: 'boustrophedon',
+      },
+      warnings: [],
+    });
+    sarApi.getPlanningJob.mockResolvedValue({
+      job_id: 'job-ready',
+      status: 'succeeded',
+      phase: 'complete',
+      progress_percent: 100,
+      mission_id: 'mission-ready',
+      result: {
+        mission_id: 'mission-ready',
+        plans: [],
+        total_area_sq_m: 1200,
+        estimated_coverage_time_s: 180,
+        algorithm_used: 'boustrophedon',
+      },
+      warnings: [],
+    });
+    sarApi.cancelPlanningJob.mockResolvedValue({
+      job_id: 'job-ready',
+      status: 'canceled',
+      phase: 'canceled',
+      progress_percent: 0,
+      message: 'Planning canceled',
+      warnings: [],
+    });
+    sarApi.launchMission.mockResolvedValue({
+      success: true,
+      message: 'Mission launched',
+    });
     sarApi.getMissionStatus.mockResolvedValue({
       mission_id: 'mission-exec',
       state: 'executing',
@@ -416,7 +477,7 @@ describe('QuickScoutPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
 
     await waitFor(() =>
-      expect(sarApi.computePlan).toHaveBeenCalledWith(
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
         expect.objectContaining({
           return_behavior: 'hold_position',
           mission_label: 'Harbor sweep',
@@ -451,7 +512,7 @@ describe('QuickScoutPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
 
     await waitFor(() =>
-      expect(sarApi.computePlan).toHaveBeenCalledWith(
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
         expect.objectContaining({
           mission_template: 'last_known_point',
           search_area: expect.objectContaining({
@@ -462,8 +523,71 @@ describe('QuickScoutPage', () => {
         })
       )
     );
-    expect(sarApi.computePlan.mock.calls[0][0].search_area.area_sq_m).toBeCloseTo(Math.PI * 180 * 180, 6);
+    expect(sarApi.createPlanningJob.mock.calls[0][0].search_area.area_sq_m).toBeCloseTo(Math.PI * 180 * 180, 6);
     expect(screen.getByTestId('plan-template')).toHaveTextContent('last_known_point');
+  });
+
+  it('uses map clicks to set last-known point missions', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use last known point' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Map click' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mission_template: 'last_known_point',
+          search_area: expect.objectContaining({
+            type: 'point',
+            center: { lat: 37.33, lng: -122.22 },
+          }),
+        })
+      )
+    );
+  });
+
+  it('sends a point-dispatch request with operator-selected destination', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use point dispatch' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set search center' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mission_template: 'point_dispatch',
+          search_area: expect.objectContaining({
+            type: 'point',
+            center: { lat: 37.25, lng: -122.15 },
+            area_sq_m: 0,
+          }),
+        })
+      )
+    );
   });
 
   it('sends a corridor-search request with route geometry and width', async () => {
@@ -487,7 +611,7 @@ describe('QuickScoutPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
 
     await waitFor(() =>
-      expect(sarApi.computePlan).toHaveBeenCalledWith(
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
         expect.objectContaining({
           mission_template: 'corridor_search',
           search_area: expect.objectContaining({
@@ -502,8 +626,117 @@ describe('QuickScoutPage', () => {
         })
       )
     );
-    expect(sarApi.computePlan.mock.calls[0][0].search_area.area_sq_m).toBeGreaterThan(0);
+    expect(sarApi.createPlanningJob.mock.calls[0][0].search_area.area_sq_m).toBeGreaterThan(0);
     expect(screen.getByTestId('plan-template')).toHaveTextContent('corridor_search');
+  });
+
+  it('lets operators cancel an active planning job from the progress dialog', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+    sarApi.createPlanningJob.mockResolvedValue({
+      job_id: 'job-running',
+      status: 'running',
+      phase: 'computing_coverage',
+      progress_percent: 42,
+      message: 'Computing coverage tracks.',
+      warnings: [],
+    });
+    sarApi.getPlanningJob.mockImplementation(() => new Promise(() => {}));
+    sarApi.cancelPlanningJob.mockResolvedValue({
+      job_id: 'job-running',
+      status: 'canceled',
+      phase: 'canceled',
+      progress_percent: 42,
+      message: 'Planning canceled',
+      warnings: [],
+    });
+
+    await renderPage();
+    await flushAsyncState();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Compute QuickScout Plan' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Computing coverage tracks.')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(sarApi.cancelPlanningJob).toHaveBeenCalledWith('job-running'));
+  });
+
+  it('opens a centered launch review before dispatching the computed package', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        '1': {
+          hw_ID: '1',
+          hw_id: '1',
+          pos_id: 1,
+          position_lat: 37.0,
+          position_long: -122.0,
+          update_time: Date.now(),
+          timestamp: Date.now(),
+          heartbeat_last_seen: Date.now(),
+          last_seen: Date.now(),
+          readiness_status: 'ready',
+          readiness_summary: 'Ready to fly',
+          is_ready_to_arm: true,
+          is_armed: false,
+          readiness_checks: [],
+          preflight_blockers: [],
+          preflight_warnings: [],
+          status_messages: [],
+        },
+      },
+    });
+    unwrapFleetTelemetryPayload.mockImplementation((payload) => payload);
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+    sarApi.createPlanningJob.mockResolvedValue({
+      job_id: 'job-ready',
+      status: 'succeeded',
+      phase: 'complete',
+      progress_percent: 100,
+      mission_id: 'mission-ready',
+      warnings: [],
+      result: {
+        mission_id: 'mission-ready',
+        plans: [
+          {
+            hw_id: '1',
+            pos_id: 1,
+            assigned_area_sq_m: 1200,
+            estimated_duration_s: 180,
+            total_distance_m: 500,
+            waypoints: [{ lat: 37.0, lng: -122.0, alt_msl: 50, speed_ms: 5, sequence: 0 }],
+          },
+        ],
+        total_area_sq_m: 1200,
+        estimated_coverage_time_s: 180,
+        algorithm_used: 'boustrophedon',
+      },
+    });
+
+    await renderPage();
+    await flushAsyncState();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() => expect(screen.getByTestId('plan-target-count')).toHaveTextContent('1'));
+    await waitFor(() => expect(screen.getByTestId('plan-launch-ready')).toHaveTextContent('true'));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Launch mission' }));
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Review QuickScout Launch' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Launch Mission' }));
+
+    await waitFor(() => expect(sarApi.launchMission).toHaveBeenCalledWith('mission-ready'));
   });
 
   it('marks the launch package stale when planning inputs change after compute', async () => {
@@ -511,21 +744,29 @@ describe('QuickScoutPage', () => {
       data: [{ hw_id: '1', pos_id: 1 }],
     });
     sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
-    sarApi.computePlan.mockResolvedValue({
+    sarApi.createPlanningJob.mockResolvedValue({
+      job_id: 'job-ready',
+      status: 'succeeded',
+      phase: 'complete',
+      progress_percent: 100,
       mission_id: 'mission-ready',
-      plans: [
-        {
-          hw_id: '1',
-          pos_id: 1,
-          assigned_area_sq_m: 1200,
-          estimated_duration_s: 180,
-          total_distance_m: 500,
-          waypoints: [{ lat: 37.0, lng: -122.0, alt_msl: 50, speed_ms: 5, sequence: 0 }],
-        },
-      ],
-      total_area_sq_m: 1200,
-      estimated_coverage_time_s: 180,
-      algorithm_used: 'boustrophedon',
+      warnings: [],
+      result: {
+        mission_id: 'mission-ready',
+        plans: [
+          {
+            hw_id: '1',
+            pos_id: 1,
+            assigned_area_sq_m: 1200,
+            estimated_duration_s: 180,
+            total_distance_m: 500,
+            waypoints: [{ lat: 37.0, lng: -122.0, alt_msl: 50, speed_ms: 5, sequence: 0 }],
+          },
+        ],
+        total_area_sq_m: 1200,
+        estimated_coverage_time_s: 180,
+        algorithm_used: 'boustrophedon',
+      },
     });
     getFleetTelemetryResponse.mockResolvedValue({
       data: {

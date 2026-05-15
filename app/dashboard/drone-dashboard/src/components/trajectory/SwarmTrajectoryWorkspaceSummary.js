@@ -68,7 +68,7 @@ const SwarmTrajectoryWorkspaceSummary = ({ workspaceStatus, stages, session, com
           Open Swarm Design
         </Link>
         <Link to="/trajectory-planning" className="swarm-workspace-summary__link">
-          Open Trajectory Planning
+          Advanced Route Editor
         </Link>
         <Link to="/" className="swarm-workspace-summary__link">
           Open Mission Trigger

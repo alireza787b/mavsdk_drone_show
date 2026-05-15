@@ -133,8 +133,12 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/leaders')).toBe(GCS_ROUTE_KEYS.swarmLeaders);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryBase);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/status')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryStatus);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/validate')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryValidation);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/preview')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryPreview);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/elevation/batch')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryElevationBatch);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/policy')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryPolicy);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/process')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryProcess);
+    expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/process/jobs')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/clear-processed')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryClearProcessed);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });

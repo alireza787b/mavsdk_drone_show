@@ -1097,6 +1097,45 @@ Smart processing with automatic change detection.
 }
 ```
 
+The dashboard now prefers the asynchronous job API for operator-facing
+processing so the UI can show phase/progress/cancel state instead of waiting on
+one long request. Keep this synchronous endpoint for compatibility and simple
+automation, but do not build new UI flows that can spin indefinitely on it.
+
+#### `POST /api/v1/swarm-trajectories/process/jobs`
+Create an asynchronous processing job.
+
+**Request:**
+```json
+{
+  "force_clear": false,
+  "auto_reload": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "job_id": "swarm-process-abc123",
+  "status": "queued",
+  "phase": "queued",
+  "progress": 0,
+  "message": "Processing job queued",
+  "result": null,
+  "error": null
+}
+```
+
+#### `GET /api/v1/swarm-trajectories/process/jobs/{job_id}`
+Read processing job state. Terminal states are `succeeded`, `failed`,
+`canceled`, and `expired`.
+
+#### `POST /api/v1/swarm-trajectories/process/jobs/{job_id}/cancel`
+Request cancellation. If the underlying processor is already in a non-
+interruptible operation, the job response reports the safe terminal state and
+message instead of pretending cancellation stopped work immediately.
+
 #### `GET /api/v1/swarm-trajectories/status`
 Get current processing status and file counts.
 
@@ -1138,6 +1177,48 @@ Get current processing status and file counts.
 }
 ```
 
+#### `GET /api/v1/swarm-trajectories/validate`
+Validate the active processed package for commit/transfer/launch review.
+
+**Response:**
+```json
+{
+  "success": true,
+  "ready": false,
+  "state": "blocked",
+  "blockers": [
+    {
+      "code": "missing_leader_upload",
+      "severity": "blocked",
+      "message": "Leader 5 has no uploaded route."
+    }
+  ],
+  "warnings": [],
+  "advisories": [],
+  "processed_drone_ids": [1, 2],
+  "expected_drone_ids": [1, 2, 5, 6],
+  "missing_drone_ids": [5, 6]
+}
+```
+
+#### `GET /api/v1/swarm-trajectories/preview`
+Return downsampled processed paths and cluster relationships for map preview.
+Optional query: `max_points_per_drone` between `10` and `2000`.
+
+#### `POST /api/v1/swarm-trajectories/elevation/batch`
+Resolve terrain/elevation for waypoint authoring. Each result reports whether
+terrain was available; clients must not silently use a guessed elevation for
+AGL waypoint storage.
+
+**Request:**
+```json
+{
+  "points": [
+    {"lat": 35.0, "lng": 51.0}
+  ]
+}
+```
+
 #### `GET /api/v1/swarm-trajectories/policy`
 Get the operator-facing trajectory planner envelope sourced from backend `Params`.
 
@@ -1176,6 +1257,12 @@ Use this endpoint as the frontend source of truth for Swarm Trajectory planner d
 Additional active Swarm Trajectory endpoints:
 
 - `GET /api/v1/swarm-trajectories/recommendation`
+- `POST /api/v1/swarm-trajectories/process/jobs`
+- `GET /api/v1/swarm-trajectories/process/jobs/{job_id}`
+- `POST /api/v1/swarm-trajectories/process/jobs/{job_id}/cancel`
+- `GET /api/v1/swarm-trajectories/validate`
+- `GET /api/v1/swarm-trajectories/preview`
+- `POST /api/v1/swarm-trajectories/elevation/batch`
 - `POST /api/v1/swarm-trajectories/clear`
 - `POST /api/v1/swarm-trajectories/clear-leader/{leader_id}`
 - `DELETE /api/v1/swarm-trajectories/remove/{leader_id}`
@@ -1196,8 +1283,14 @@ layer as well, so `/docs` and `/openapi.json` expose the current contract for:
 - `GET /api/v1/swarm-trajectories/leaders`
 - `GET /api/v1/swarm-trajectories/recommendation`
 - `GET /api/v1/swarm-trajectories/status`
+- `GET /api/v1/swarm-trajectories/validate`
+- `GET /api/v1/swarm-trajectories/preview`
+- `POST /api/v1/swarm-trajectories/elevation/batch`
 - `GET /api/v1/swarm-trajectories/policy`
 - `POST /api/v1/swarm-trajectories/process`
+- `POST /api/v1/swarm-trajectories/process/jobs`
+- `GET /api/v1/swarm-trajectories/process/jobs/{job_id}`
+- `POST /api/v1/swarm-trajectories/process/jobs/{job_id}/cancel`
 - `POST /api/v1/swarm-trajectories/clear-processed`
 - `POST /api/v1/swarm-trajectories/clear`
 - `POST /api/v1/swarm-trajectories/clear-leader/{leader_id}`
@@ -1741,6 +1834,78 @@ Read job results. Job-read responses omit sidecar confirmation tokens.
 Mutation routes require dry-run first and explicit confirmation second. When
 `MDS_FLEET_OPS_MUTATION_TOKEN` is configured, callers must send
 `X-Fleet-Ops-Token` or `Authorization: Bearer ...`.
+
+---
+
+### QuickScout / SAR Mission Planning
+
+QuickScout keeps the stable `/api/sar/*` subsystem root because it is a mission
+subsystem, not a legacy compatibility alias. See
+[QuickScout](../quickscout.md) for operator semantics.
+
+#### `POST /api/sar/mission/plan`
+Compute a QuickScout package synchronously. Current first-party UI prefers the
+job endpoint below for long operations, but this route remains available for
+bounded automation and compatibility.
+
+Mission templates:
+
+- `point_dispatch`
+- `last_known_point`
+- `area_sweep`
+- `corridor_search`
+
+Planner safety:
+
+- selected-drone planning rejects missing, stale, invalid, or placeholder
+  telemetry positions
+- `(0, 0)` is valid only when explicitly supplied as operator geometry
+- terrain-following requests fail with a terrain-unavailable error when
+  required elevation data cannot be resolved
+
+#### `POST /api/sar/mission/plan/jobs`
+Create an asynchronous planning job.
+
+**Response:**
+```json
+{
+  "success": true,
+  "job_id": "quickscout-plan-abc123",
+  "status": "queued",
+  "phase": "queued",
+  "progress": 0,
+  "message": "Planning job queued",
+  "result": null,
+  "error": null
+}
+```
+
+#### `GET /api/sar/mission/plan/jobs/{job_id}`
+Read planning job state. Terminal states are `succeeded`, `failed`, `canceled`,
+and `expired`.
+
+#### `POST /api/sar/mission/plan/jobs/{job_id}/cancel`
+Request cancellation for a planning job.
+
+#### Active QuickScout endpoints
+
+- `GET /api/sar/missions`
+- `POST /api/sar/mission/launch`
+- `GET /api/sar/mission/{mission_id}/workspace`
+- `GET /api/sar/mission/{mission_id}/status`
+- `GET /api/sar/mission/{mission_id}/handoff`
+- `POST /api/sar/mission/{mission_id}/pause`
+- `POST /api/sar/mission/{mission_id}/resume`
+- `POST /api/sar/mission/{mission_id}/abort`
+- `POST /api/sar/mission/{mission_id}/progress`
+- `POST /api/sar/findings`
+- `GET /api/sar/findings`
+- `PATCH /api/sar/findings/{finding_id}`
+- `DELETE /api/sar/findings/{finding_id}`
+- `POST /api/sar/elevation/batch`
+
+QuickScout planning job state is in memory. Persisted mission packages,
+findings, and handoff data remain in the QuickScout store.
 
 ---
 
