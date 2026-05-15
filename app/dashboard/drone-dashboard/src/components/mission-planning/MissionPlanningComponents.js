@@ -613,4 +613,3 @@ export const missionPlanningIcons = {
   paused: <FaPauseCircle />,
   retry: <FaRedo />,
 };
-

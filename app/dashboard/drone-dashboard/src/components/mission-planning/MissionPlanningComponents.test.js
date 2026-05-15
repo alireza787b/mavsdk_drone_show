@@ -229,4 +229,3 @@ describe('mission planning shared components', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 });
-

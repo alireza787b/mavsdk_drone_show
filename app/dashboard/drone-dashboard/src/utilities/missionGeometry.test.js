@@ -112,4 +112,3 @@ describe('missionGeometry shared helpers', () => {
     expect(formatMetricArea(2_500_000)).toBe('2.5 km²');
   });
 });
-
