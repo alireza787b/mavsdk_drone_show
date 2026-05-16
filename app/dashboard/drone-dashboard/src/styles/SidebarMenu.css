@@ -367,9 +367,7 @@
 
 /* Tooltip System */
 .nav-tooltip {
-  position: absolute;
-  left: 100%;
-  top: 50%;
+  position: fixed;
   transform: translateY(-50%);
   background: var(--color-surface-raised);
   color: var(--color-text-primary);
@@ -380,9 +378,9 @@
   font-size: var(--font-size-sm);
   white-space: nowrap;
   z-index: var(--z-tooltip);
-  margin-left: var(--spacing-sm);
   font-family: var(--font-family-primary);
   animation: tooltipFadeIn 0.2s ease;
+  pointer-events: none;
 }
 
 @keyframes tooltipFadeIn {

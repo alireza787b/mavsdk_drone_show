@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
@@ -15,7 +15,9 @@ from .schemas import (
     QuickScoutMissionHandoff,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
+    QuickScoutMissionLaunchRequest,
     QuickScoutMissionLaunchResponse,
+    QuickScoutLaunchRevalidationResponse,
     QuickScoutPlanningJobResponse,
     QuickScoutMissionWorkspaceResponse,
     SurveyState,
@@ -69,9 +71,21 @@ def create_sar_router(deps: Any) -> APIRouter:
         return get_quickscout_service().list_operation_summaries(limit=limit, state=state)
 
     @router.post("/mission/launch", response_model=QuickScoutMissionLaunchResponse)
-    async def launch_mission(mission_id: str = Query(..., description="Mission ID to launch")):
+    async def launch_mission(
+        mission_id: str = Query(..., description="Mission ID to launch"),
+        request: Optional[QuickScoutMissionLaunchRequest] = Body(default=None),
+    ):
         """Launch a previously planned mission."""
-        return await get_quickscout_service().launch_mission(deps, mission_id)
+        return await get_quickscout_service().launch_mission(
+            deps,
+            mission_id,
+            revalidation_token=request.revalidation_token if request else None,
+        )
+
+    @router.post("/mission/{mission_id}/revalidate-launch", response_model=QuickScoutLaunchRevalidationResponse)
+    async def revalidate_launch(mission_id: str):
+        """Revalidate live drone positions before launching a staged configured-origin package."""
+        return get_quickscout_service().revalidate_launch(deps, mission_id)
 
     @router.get("/mission/{mission_id}/workspace", response_model=QuickScoutMissionWorkspaceResponse)
     async def get_mission_workspace(mission_id: str):

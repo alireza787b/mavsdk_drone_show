@@ -201,6 +201,7 @@ GCS_EXPECTED_HTTP = {
         "/api/sar/mission/{mission_id}/resume",
         "/api/sar/mission/{mission_id}/abort",
         "/api/sar/mission/{mission_id}/progress",
+        "/api/sar/mission/{mission_id}/revalidate-launch",
         "/api/sar/findings",
         "/api/sar/elevation/batch",
     },

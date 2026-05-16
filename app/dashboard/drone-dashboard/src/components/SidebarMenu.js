@@ -1,5 +1,5 @@
 //app/dashboard/drone-dashboard/src/components/SidebarMenu.js
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, NavLink } from 'react-router-dom';
 import {
@@ -79,6 +79,7 @@ const SidebarMenu = ({
   });
   const [profileNotice, setProfileNotice] = useState(null);
   const [profileBusy, setProfileBusy] = useState(false);
+  const tooltipTimerRef = useRef(null);
 
   const isCollapsed = mobile ? false : (collapsed !== undefined ? collapsed : localCollapsed);
   const handleToggle = onToggle || setLocalCollapsed;
@@ -172,9 +173,9 @@ const SidebarMenu = ({
       label: 'Smart Swarm',
       items: [
         { to: '/swarm-design', icon: FaCubes, label: 'Swarm Design' },
-        { to: '/trajectory-planning', icon: FaRoute, label: 'Trajectory Planning' },
+        { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout SAR' },
         { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory' },
-        { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout' },
+        { to: '/trajectory-planning', icon: FaRoute, label: 'Advanced Route Editor' },
       ],
     },
     {
@@ -194,11 +195,42 @@ const SidebarMenu = ({
     },
   ];
 
-  const handleTooltip = (label) => {
-    if (isCollapsed) {
-      setActiveTooltip(label);
-      setTimeout(() => setActiveTooltip(null), 2000);
+  useEffect(() => () => {
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
     }
+  }, []);
+
+  const clearTooltipTimer = () => {
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+      tooltipTimerRef.current = null;
+    }
+  };
+
+  const handleTooltip = (label, event) => {
+    if (!isCollapsed) {
+      return;
+    }
+    clearTooltipTimer();
+    const rect = event?.currentTarget?.getBoundingClientRect?.();
+    setActiveTooltip({
+      label,
+      left: rect ? rect.right + 10 : 84,
+      top: rect ? rect.top + (rect.height / 2) : 80,
+    });
+    tooltipTimerRef.current = setTimeout(() => {
+      setActiveTooltip((current) => (current?.label === label ? null : current));
+      tooltipTimerRef.current = null;
+    }, 2000);
+  };
+
+  const handleTooltipLeave = () => {
+    clearTooltipTimer();
+    tooltipTimerRef.current = setTimeout(() => {
+      setActiveTooltip(null);
+      tooltipTimerRef.current = null;
+    }, 120);
   };
 
   const profilePopoverContent = (
@@ -310,8 +342,22 @@ const SidebarMenu = ({
     ? (typeof document === 'undefined' ? profilePopoverContent : createPortal(profilePopoverContent, document.body))
     : null;
 
+  const navTooltip = isCollapsed && activeTooltip && typeof document !== 'undefined'
+    ? createPortal(
+      <div
+        className="nav-tooltip"
+        style={{ left: activeTooltip.left, top: activeTooltip.top }}
+        role="tooltip"
+      >
+        {activeTooltip.label}
+      </div>,
+      document.body,
+    )
+    : null;
+
   return (
     <div className={`modern-sidebar-wrapper ${isCollapsed ? 'collapsed' : 'expanded'} ${mobile ? 'mobile' : 'desktop'} ${mobileOpen ? 'mobile-open' : ''} ${isDark ? 'dark' : 'light'}`}>
+      {navTooltip}
       {/* Toggle Button */}
       <button
         className="sidebar-toggle"
@@ -404,7 +450,14 @@ const SidebarMenu = ({
                       onNavigate();
                     }
                   }}
-                  onMouseEnter={() => handleTooltip(item.label)}
+                  onMouseEnter={(event) => handleTooltip(item.label, event)}
+                  onMouseOver={(event) => handleTooltip(item.label, event)}
+                  onMouseLeave={handleTooltipLeave}
+                  onPointerEnter={(event) => handleTooltip(item.label, event)}
+                  onPointerOver={(event) => handleTooltip(item.label, event)}
+                  onPointerLeave={handleTooltipLeave}
+                  onFocus={(event) => handleTooltip(item.label, event)}
+                  onBlur={handleTooltipLeave}
                   aria-label={isCollapsed ? item.label : undefined}
                   data-tooltip={item.label}
                 >
@@ -417,10 +470,6 @@ const SidebarMenu = ({
                     <span className={`nav-indicator-dot nav-indicator-dot--${item.attentionTone || 'neutral'}`} aria-hidden="true" />
                   ) : null}
 
-                  {/* Tooltip for collapsed state */}
-                  {isCollapsed && activeTooltip === item.label && (
-                    <div className="nav-tooltip">{item.label}</div>
-                  )}
                 </NavLink>
               );
             })}
@@ -464,14 +513,12 @@ const SidebarMenu = ({
                   type="button"
                   className="auth-user-icon"
                   aria-label={`Open profile for ${currentUserLabel}`}
-                  onMouseEnter={() => handleTooltip(`Signed in: ${currentUserLabel}`)}
+                  onMouseEnter={(event) => handleTooltip(`Signed in: ${currentUserLabel}`, event)}
+                  onMouseLeave={handleTooltipLeave}
                   onClick={handleProfileToggle}
                   aria-expanded={profileOpen}
                 >
                   <FaUserShield aria-hidden="true" />
-                  {activeTooltip === `Signed in: ${currentUserLabel}` && (
-                    <span className="nav-tooltip">{currentUserLabel}</span>
-                  )}
                 </button>
                 {profilePopover}
               </>
@@ -497,12 +544,10 @@ const SidebarMenu = ({
               type="button"
               className="git-info-icon"
               aria-label="Show git status hint"
-              onMouseEnter={() => handleTooltip('Git Status')}
+              onMouseEnter={(event) => handleTooltip('Git Status', event)}
+              onMouseLeave={handleTooltipLeave}
             >
               <FaCodeBranch aria-hidden="true" />
-              {activeTooltip === 'Git Status' && (
-                <span className="nav-tooltip">Git Status</span>
-              )}
             </button>
           )}
         </div>
@@ -519,12 +564,10 @@ const SidebarMenu = ({
               type="button"
               className="time-icon-collapsed"
               aria-label="Show current time hint"
-              onMouseEnter={() => handleTooltip('Time')}
+              onMouseEnter={(event) => handleTooltip('Time', event)}
+              onMouseLeave={handleTooltipLeave}
             >
               <FaClock aria-hidden="true" />
-              {activeTooltip === 'Time' && (
-                <span className="nav-tooltip"><CurrentTime /></span>
-              )}
             </button>
           )}
         </div>
@@ -569,36 +612,30 @@ const SidebarMenu = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open Alireza Ghaderi personal page"
-                onMouseEnter={() => handleTooltip('Alireza')}
+                onMouseEnter={(event) => handleTooltip('Alireza', event)}
+                onMouseLeave={handleTooltipLeave}
               >
                 <FaSatelliteDish aria-hidden="true" />
-                {activeTooltip === 'Alireza' && (
-                  <span className="nav-tooltip">Alireza</span>
-                )}
               </a>
               <a
                 href="https://github.com/alireza787b/mavsdk_drone_show"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open MDS GitHub repository"
-                onMouseEnter={() => handleTooltip('GitHub')}
+                onMouseEnter={(event) => handleTooltip('GitHub', event)}
+                onMouseLeave={handleTooltipLeave}
               >
                 <FaGithub aria-hidden="true" />
-                {activeTooltip === 'GitHub' && (
-                  <span className="nav-tooltip">GitHub</span>
-                )}
               </a>
               <a
                 href="https://linkedin.com/in/alireza787b"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open LinkedIn profile"
-                onMouseEnter={() => handleTooltip('LinkedIn')}
+                onMouseEnter={(event) => handleTooltip('LinkedIn', event)}
+                onMouseLeave={handleTooltipLeave}
               >
                 <FaLinkedin aria-hidden="true" />
-                {activeTooltip === 'LinkedIn' && (
-                  <span className="nav-tooltip">LinkedIn</span>
-                )}
               </a>
             </div>
           )}

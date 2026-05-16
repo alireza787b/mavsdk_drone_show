@@ -3,7 +3,7 @@
 Status: active hardening and operator validation
 Mission type: `4` (`SWARM_TRAJECTORY`)
 Primary page: `Swarm Trajectory`
-Advanced editor: `Trajectory Planning`
+Advanced editor: `Advanced Route Editor` (`/trajectory-planning`)
 
 Swarm Trajectory is the MDS global-coordinate trajectory workflow for processed leader/follower swarm missions. It is different from QuickScout: QuickScout produces PX4 Mission-style SAR packages, while Swarm Trajectory processes precise leader routes into per-drone MDS trajectory files for coordinated Mission Type 4 execution.
 
@@ -20,20 +20,21 @@ Related docs:
 1. Open `Swarm Design` and verify the intended leaders, followers, offsets, and clusters.
 2. Open `Swarm Trajectory`.
 3. In `Plan or Import Leader Route`, choose a top leader.
-4. Add, edit, delete, or reorder route waypoints on the page.
-5. Choose altitude input:
+4. Click the leader-route map to add waypoints, or use the compact numeric form for precise entry.
+5. Edit, delete, or reorder draft waypoints on the page.
+6. Choose altitude input:
    - `MSL` stores the entered altitude directly.
    - `AGL` queries terrain/elevation and stores the derived MSL mission altitude.
-6. Click `Assign to Leader` to upload the drafted route as that leader's raw CSV.
-7. Optionally use CSV upload for legacy/imported leader routes.
-8. Click `Process Swarm Trajectory Package`.
-9. Watch the processing job dialog. It shows phase, progress, cancel request state, success, failure, and retry state.
-10. Review validation blockers, warnings, cluster status, leader/follower preview paths, plots, and downloadable outputs.
-11. Commit outputs when the deployment needs git traceability or propagation.
-12. Transfer/launch from the Dashboard Mission Trigger as Mission Type 4 after readiness is clear.
-13. Clear/reset only when intentionally removing the active route package.
+7. Click `Assign to Leader` to upload the drafted route as that leader's raw CSV.
+8. Optionally use CSV upload for legacy/imported leader routes.
+9. Click `Process Swarm Trajectory Package`.
+10. Watch the processing job dialog. It shows phase, progress, cancel request state, success, failure, and retry state.
+11. Review validation blockers, warnings, cluster status, leader/follower preview paths, plots, and downloadable outputs.
+12. Commit outputs when the deployment needs git traceability or propagation.
+13. Transfer/launch from the Dashboard Mission Trigger as Mission Type 4 after readiness is clear.
+14. Clear/reset only when intentionally removing the active route package.
 
-The old `Trajectory Planning` page remains available as an advanced lower-level route editor. The primary operator workflow no longer requires starting there for normal leader-route authoring.
+The old trajectory-planning route remains available as `Advanced Route Editor` for lower-level route editing while its map authoring tools are migrated into Swarm Trajectory. The primary operator workflow no longer requires starting there for normal leader-route authoring.
 
 ## Product Semantics
 

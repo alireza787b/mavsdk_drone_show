@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('../hooks/useTheme', () => ({
@@ -85,6 +85,59 @@ describe('SidebarMenu', () => {
     expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
     expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
     expect(screen.getByRole('button', { name: /show git status hint/i })).not.toHaveAttribute('title');
+  });
+
+  it('orders mission workflows so QuickScout and Swarm Trajectory are primary', () => {
+    renderSidebar(
+      <SidebarMenu
+        collapsed={false}
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+      />
+    );
+
+    const smartSwarmSection = screen.getByText('Smart Swarm').closest('.nav-section');
+    const labels = within(smartSwarmSection).getAllByRole('link').map((link) => link.textContent);
+
+    expect(labels).toEqual([
+      'Swarm Design',
+      'QuickScout SAR',
+      'Swarm Trajectory',
+      'Advanced Route Editor',
+    ]);
+    expect(within(smartSwarmSection).getByRole('link', { name: 'QuickScout SAR' })).toHaveAttribute('href', '/quickscout');
+    expect(within(smartSwarmSection).getByRole('link', { name: 'Advanced Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
+  });
+
+  it('ports collapsed sidebar tooltips outside the scroll container and avoids stale hover timers', () => {
+    jest.useFakeTimers();
+    renderSidebar(
+      <SidebarMenu
+        collapsed
+        gitInfoOverride={baseGitInfo}
+        themeOverride={baseTheme}
+      />
+    );
+
+    const quickScout = screen.getByRole('link', { name: 'QuickScout SAR' });
+    const advancedEditor = screen.getByRole('link', { name: 'Advanced Route Editor' });
+
+    fireEvent.mouseEnter(quickScout);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('QuickScout SAR');
+    expect(screen.getByRole('tooltip').closest('.modern-sidebar-wrapper')).toBeNull();
+
+    fireEvent.mouseEnter(advancedEditor);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Advanced Route Editor');
+    act(() => {
+      jest.advanceTimersByTime(1999);
+    });
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Advanced Route Editor');
+
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    jest.useRealTimers();
   });
 
   it('opens a compact signed-in user profile from the sidebar', () => {

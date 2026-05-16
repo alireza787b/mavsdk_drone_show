@@ -592,9 +592,13 @@ class DroneCommunicator:
         gps_raw_timestamp_ms = safe_int(getattr(self.drone_config, "gps_raw_timestamp_ms", 0))
         global_position_timestamp_ms = safe_int(getattr(self.drone_config, "global_position_timestamp_ms", 0))
         gps_raw_altitude_m = getattr(self.drone_config, "gps_raw_altitude_m", None)
-        gps_raw_altitude_m = float(gps_raw_altitude_m) if gps_raw_altitude_m is not None else None
+        try:
+            gps_raw_altitude_m = float(gps_raw_altitude_m) if gps_raw_altitude_m is not None else None
+        except (TypeError, ValueError):
+            gps_raw_altitude_m = None
 
-        local_ned = dict(getattr(self.drone_config, "local_position_ned", {}) or {})
+        raw_local_ned = getattr(self.drone_config, "local_position_ned", None)
+        local_ned = dict(raw_local_ned) if isinstance(raw_local_ned, dict) else {}
         local_time_boot_ms = safe_int(local_ned.get("time_boot_ms"))
         altitude_report = build_altitude_report(
             position=getattr(self.drone_config, "position", None),

@@ -1,0 +1,26 @@
+.swarm-route-sketch {
+  --route-sketch-color-primary: var(--color-primary);
+  --route-sketch-color-success: var(--color-success);
+  --route-sketch-color-danger: var(--color-danger);
+  --route-sketch-color-accent: var(--color-accent-purple);
+  --route-sketch-color-info: var(--color-info);
+  --route-sketch-color-warning: var(--color-warning);
+
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+}
+
+.swarm-route-sketch--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.swarm-route-sketch__bg {
+  fill: var(--color-bg-primary);
+}

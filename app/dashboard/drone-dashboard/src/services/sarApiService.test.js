@@ -8,7 +8,9 @@ import {
   getMissionHandoff,
   getPlanningJob,
   getMissionWorkspace,
+  launchMission,
   listMissions,
+  revalidateLaunch,
   updateFinding,
 } from './sarApiService';
 import {
@@ -75,6 +77,25 @@ describe('sarApiService', () => {
     expect(postGcsResource).toHaveBeenNthCalledWith(
       2,
       'http://gcs.test:5030/api/sar/mission/plan/jobs/job%2F1/cancel'
+    );
+  });
+
+  it('uses revalidation token payloads for staged QuickScout launches', async () => {
+    postGcsResource.mockResolvedValue({ data: { launchable: true } });
+
+    await revalidateLaunch('mission/alpha');
+    await launchMission('mission/alpha', { revalidationToken: 'token-1' });
+
+    expect(buildSarUrl).toHaveBeenNthCalledWith(1, '/mission/mission%2Falpha/revalidate-launch');
+    expect(postGcsResource).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/sar/mission/mission%2Falpha/revalidate-launch'
+    );
+    expect(buildSarUrl).toHaveBeenNthCalledWith(2, '/mission/launch?mission_id=mission%2Falpha');
+    expect(postGcsResource).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/sar/mission/launch?mission_id=mission%2Falpha',
+      { revalidation_token: 'token-1' }
     );
   });
 

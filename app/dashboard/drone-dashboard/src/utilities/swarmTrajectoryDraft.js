@@ -1,20 +1,4 @@
-const REQUIRED_CSV_HEADERS = [
-  'Name',
-  'Latitude',
-  'Longitude',
-  'Altitude_MSL_m',
-  'TimeFromStart_s',
-  'EstimatedSpeed_ms',
-  'Heading_deg',
-  'HeadingMode',
-  'AltitudeReference',
-  'TargetAgl_m',
-  'GroundElevation_m',
-  'TerrainAccurate',
-  'TimingMode',
-  'PreferredSpeed_ms',
-  'CalculatedHeading_deg',
-];
+import { serializeTrajectoryCsv } from './trajectoryCsv';
 
 export const SWARM_TRAJECTORY_ALTITUDE_MODES = {
   MSL: 'fixed_msl',
@@ -51,6 +35,9 @@ export function normalizeDraftWaypoint(raw = {}, index = 0) {
     targetAgl,
     groundElevation,
     terrainAccurate: raw.terrainAccurate !== false,
+    terrainSource: raw.terrainSource || raw.source || '',
+    terrainConfidence: raw.terrainConfidence || raw.confidence || '',
+    terrainSampleTime: raw.terrainSampleTime || raw.sample_time || null,
     timingMode: raw.timingMode || 'manual_time',
     preferredSpeed: toFiniteNumber(raw.preferredSpeed, estimatedSpeed),
     calculatedHeading: toFiniteNumber(raw.calculatedHeading, heading),
@@ -87,14 +74,6 @@ export function validateDraftWaypoints(waypoints = []) {
   return errors;
 }
 
-function escapeCsvValue(value) {
-  const stringValue = String(value ?? '');
-  if (/[",\n\r]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  }
-  return stringValue;
-}
-
 export function buildSwarmLeaderCsv(waypoints = []) {
   const normalized = waypoints.map((waypoint, index) => normalizeDraftWaypoint(waypoint, index));
   const errors = validateDraftWaypoints(normalized);
@@ -102,27 +81,7 @@ export function buildSwarmLeaderCsv(waypoints = []) {
     throw new Error(errors.join(' '));
   }
 
-  const rows = normalized.map((waypoint) => [
-    waypoint.name,
-    waypoint.latitude.toFixed(8),
-    waypoint.longitude.toFixed(8),
-    waypoint.altitude.toFixed(2),
-    waypoint.timeFromStart.toFixed(1),
-    waypoint.estimatedSpeed.toFixed(1),
-    waypoint.heading.toFixed(1),
-    waypoint.headingMode,
-    waypoint.altitudeReference,
-    waypoint.targetAgl.toFixed(1),
-    waypoint.groundElevation.toFixed(1),
-    waypoint.terrainAccurate ? 'true' : 'false',
-    waypoint.timingMode,
-    waypoint.preferredSpeed.toFixed(1),
-    waypoint.calculatedHeading.toFixed(1),
-  ]);
-
-  return [REQUIRED_CSV_HEADERS, ...rows]
-    .map((row) => row.map(escapeCsvValue).join(','))
-    .join('\n');
+  return serializeTrajectoryCsv(normalized);
 }
 
 export function buildTerrainStatusFromResults(results = []) {
@@ -134,16 +93,23 @@ export function buildTerrainStatusFromResults(results = []) {
     };
   }
   const resolved = results.filter((result) => result.status === 'ok').length;
+  const providerLabels = Array.from(new Set(
+    results
+      .filter((result) => result.status === 'ok')
+      .map((result) => result.provider || result.source)
+      .filter(Boolean)
+  ));
+  const providerDetail = providerLabels.length === 1 ? ` via ${providerLabels[0]}` : '';
   if (resolved === results.length) {
     return {
       status: 'success',
       label: 'Terrain ready',
-      detail: `${resolved}/${results.length} waypoint elevations resolved.`,
+      detail: `${resolved}/${results.length} waypoint elevations resolved${providerDetail}.`,
     };
   }
   return {
     status: resolved > 0 ? 'warning' : 'danger',
     label: resolved > 0 ? 'Terrain partial' : 'Terrain unavailable',
-    detail: `${resolved}/${results.length} waypoint elevations resolved.`,
+    detail: `${resolved}/${results.length} waypoint elevations resolved${providerDetail}.`,
   };
 }

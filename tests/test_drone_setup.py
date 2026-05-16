@@ -583,6 +583,8 @@ class TestScriptExecution:
 
         params = Mock()
         params.trigger_sooner_seconds = 4
+        params.COMMAND_IDEMPOTENCY_HISTORY_SEC = 1800
+        params.COMMAND_IDEMPOTENCY_MAX_HISTORY = 256
         drone_config = create_mock_drone_config()
         drone_config.current_command_id = "cmd-123"
 
@@ -1205,6 +1207,44 @@ class TestMissionProcessMonitoring:
         mock_logger.error.assert_any_call(
             "Mission script 'actions.py' failed with return code 1. Output: mavsdk_server executable not found."
         )
+
+    @pytest.mark.asyncio
+    async def test_monitor_preserves_newer_staged_command_state(self):
+        """An older process completion must not erase a newly accepted safety command."""
+        from src.drone_setup import DroneSetup, RunningMissionProcess
+
+        params = Mock()
+        params.trigger_sooner_seconds = 4
+        params.COMMAND_IDEMPOTENCY_HISTORY_SEC = 1800
+        params.COMMAND_IDEMPOTENCY_MAX_HISTORY = 256
+        drone_config = create_mock_drone_config()
+        drone_config.current_command_id = "hold-cmd"
+        drone_config.mission = Mission.HOLD.value
+        drone_config.state = State.MISSION_READY.value
+
+        setup = DroneSetup(params, drone_config)
+        process = Mock()
+        process.communicate = AsyncMock(return_value=(b"quickscout complete\n", b""))
+        process.returncode = 0
+        process_record = RunningMissionProcess(
+            process_key="quickscout_mission.py:quickscout-cmd",
+            script_name="quickscout_mission.py",
+            process=process,
+            command_id="quickscout-cmd",
+            mission_type=Mission.QUICKSCOUT.value,
+        )
+        setup.running_processes[process_record.process_key] = process_record
+        setup._reset_mission_state = Mock()
+        setup._report_execution_to_gcs = AsyncMock()
+
+        await setup._monitor_script_process(process_record)
+
+        setup._reset_mission_state.assert_not_called()
+        assert drone_config.current_command_id == "hold-cmd"
+        assert drone_config.mission == Mission.HOLD.value
+        assert drone_config.state == State.MISSION_READY.value
+        setup._report_execution_to_gcs.assert_awaited_once()
+        assert setup._report_execution_to_gcs.await_args.kwargs["success"] is True
 
 
 @pytest.mark.unit

@@ -66,4 +66,21 @@ describe('QuickScoutLaunchReview', () => {
     expect(screen.getByText('Center 37.2500, -122.1500')).toBeInTheDocument();
     expect(screen.getByText('Radius 180 m')).toBeInTheDocument();
   });
+
+  it('marks configured-origin packages as staged until live revalidation', () => {
+    render(
+      <QuickScoutLaunchReview
+        {...baseProps}
+        coveragePlan={{
+          ...baseProps.coveragePlan,
+          position_source_mode: 'configured_origin',
+          requires_revalidation: true,
+        }}
+      />
+    );
+
+    expect(screen.getByText('Staged plan needs live revalidation')).toBeInTheDocument();
+    expect(screen.getByText('Configured origin')).toBeInTheDocument();
+    expect(screen.getByText('Origin slots:')).toBeInTheDocument();
+  });
 });

@@ -845,15 +845,14 @@ const MissionDetails = ({
           warnings: missionWarnings,
           reference: (
             <p>
-              Confirm leader routes in{' '}
-              <Link to="/trajectory-planning" className="origin-link">
-                Trajectory Planning
-              </Link>{' '}
-              and the processed package in{' '}
               <Link to="/swarm-trajectory" className="origin-link">
                 Swarm Trajectory
               </Link>{' '}
-              before launch.
+              before launch. Use{' '}
+              <Link to="/trajectory-planning" className="origin-link">
+                Advanced Route Editor
+              </Link>{' '}
+              only when lower-level path editing is required.
             </p>
           ),
           notes: renderOperatorNotes('Trajectory notes', [

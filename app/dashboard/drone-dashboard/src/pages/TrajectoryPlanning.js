@@ -48,6 +48,7 @@ import {
   resolveImportedTrajectoryTerrainContext,
   resolveWaypointTerrainContext,
 } from '../utilities/trajectoryTerrainContext';
+import { uploadLeaderTrajectoryCsv } from '../utilities/swarmTrajectoryAssignment';
 import { getPlotThemeColors } from '../utilities/plotThemeColors';
 
 // Leaflet fallback components
@@ -756,7 +757,7 @@ const TrajectoryPlanning = () => {
     }
 
     const result = await storageRef.current.saveTrajectory(name, waypoints, {
-      createdWith: 'Trajectory Planning v3.0',
+      createdWith: 'Advanced Route Editor v3.1',
       stats: trajectoryStats
     });
 
@@ -1055,9 +1056,11 @@ const TrajectoryPlanning = () => {
       throw new Error('No trajectory is currently loaded in the planner.');
     }
 
-    const csvContent = storageRef.current.convertToCSV(waypoints);
-    const csvBlob = new Blob([csvContent], { type: 'text/csv' });
-    const result = await uploadSwarmTrajectory(leaderId, csvBlob, `Drone ${leaderId}.csv`);
+    const result = await uploadLeaderTrajectoryCsv({
+      leaderId,
+      csvContent: storageRef.current.convertToCSV(waypoints),
+      uploadFn: uploadSwarmTrajectory,
+    });
     const uploadTone = plannerMissionReadiness.blockers.length > 0
       ? 'warning'
       : plannerMissionReadiness.advisories.length > 0
@@ -1251,7 +1254,7 @@ const TrajectoryPlanning = () => {
     <div className="trajectory-header">
       <div className="header-left">
         <div className="trajectory-header__identity">
-          <h1>Trajectory Planning</h1>
+          <h1>Advanced Route Editor</h1>
           <StatusBadge tone={plannerStatusTone}>{`Planner: ${plannerMissionReadiness.posture.label}`}</StatusBadge>
           <DocsLink route="/trajectory-planning" compact />
         </div>

@@ -52,6 +52,8 @@ The current plan library is split into three classes:
   - short-profile process, launch, formation, cleanup
 - `quickscout_runtime`
   - stable single-drone QuickScout last-known-point launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
+- `quickscout_origin_slots_runtime`
+  - stable single-drone QuickScout configured-origin staged plan, live revalidation, launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
 - `quickscout_area_runtime`
   - stable single-drone QuickScout polygon area-sweep launch, finding/handoff exercise, hold, resume rejection, abort, and cleanup
 - `quickscout_corridor_runtime`

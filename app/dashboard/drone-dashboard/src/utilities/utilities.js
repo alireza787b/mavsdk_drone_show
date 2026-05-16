@@ -71,15 +71,16 @@ export const getElevation = async (lat, lon) => {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      const elevation = data.results[0]?.elevation || null;
+      const elevation = data.results?.[0]?.elevation;
+      const resolvedElevation = Number.isFinite(Number(elevation)) ? Number(elevation) : null;
 
       // Store in cache (evict oldest if full)
       if (_elevationCache.size >= _ELEV_CACHE_MAX) {
         const first = _elevationCache.keys().next().value;
         _elevationCache.delete(first);
       }
-      _elevationCache.set(key, elevation);
-      return elevation;
+      _elevationCache.set(key, resolvedElevation);
+      return resolvedElevation;
     } catch (error) {
       console.error(`Failed to fetch elevation data: ${error}`);
       return null;

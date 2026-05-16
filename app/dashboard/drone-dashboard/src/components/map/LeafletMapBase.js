@@ -2,7 +2,7 @@
 // Reusable Leaflet map wrapper with a single controlled tile layer.
 
 import React, { useEffect, useId, useState } from 'react';
-import { MapContainer, TileLayer } from 'react-leaflet';
+import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
 import {
   LEAFLET_DEFAULTS,
   getUserTilePreference,
@@ -12,6 +12,11 @@ import {
   TILE_LAYERS,
 } from '../../config/mapConfig';
 import '../../styles/MapCommon.css';
+
+const LeafletMapEventBridge = ({ eventHandlers = {} }) => {
+  useMapEvents(eventHandlers);
+  return null;
+};
 
 const LeafletMapBase = ({
   center = [35.6895, 139.6917],
@@ -92,9 +97,9 @@ const LeafletMapBase = ({
         worldCopyJump={LEAFLET_DEFAULTS.worldCopyJump}
         scrollWheelZoom
         style={{ width: '100%', height: '100%' }}
-        eventHandlers={mapEventHandlers}
         {...mapContainerProps}
       >
+        <LeafletMapEventBridge eventHandlers={mapEventHandlers} />
         <TileLayer
           key={resolvedActiveLayer.key}
           url={resolvedActiveLayer.url}

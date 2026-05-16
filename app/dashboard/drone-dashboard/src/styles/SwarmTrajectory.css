@@ -83,6 +83,44 @@
   flex-wrap: wrap;
 }
 
+.swarm-advanced-actions {
+  align-self: center;
+  margin-top: var(--spacing-sm);
+}
+
+.swarm-advanced-actions summary {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  list-style: none;
+}
+
+.swarm-advanced-actions summary::-webkit-details-marker {
+  display: none;
+}
+
+.swarm-advanced-actions summary::before {
+  content: '...';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-right: 0.4rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-base);
+  color: var(--color-text-primary);
+}
+
+.swarm-advanced-actions[open] summary {
+  margin-bottom: var(--spacing-sm);
+}
+
+.swarm-advanced-actions--inline {
+  margin-top: 0;
+}
+
 .process-option-btn {
   display: flex;
   align-items: center;
@@ -238,26 +276,6 @@
 
 .swarm-planner-card__notice {
   margin-top: 0;
-}
-
-.swarm-route-sketch {
-  width: 100%;
-  min-height: 180px;
-  border: 1px solid var(--color-border-primary);
-  border-radius: var(--border-radius-base);
-  background: var(--color-bg-primary);
-}
-
-.swarm-route-sketch--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-sm);
-}
-
-.swarm-route-sketch__bg {
-  fill: var(--color-bg-primary);
 }
 
 .swarm-waypoint-list {

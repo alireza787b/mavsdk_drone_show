@@ -29,7 +29,7 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
               tone: 'ready',
               summary: 'All expected leader CSVs are loaded.',
               details: ['Uploaded leaders: 1, 5'],
-              actionLabel: 'Open Trajectory Planning',
+              actionLabel: 'Open Advanced Route Editor',
               actionHref: '/trajectory-planning',
             },
             {
@@ -52,7 +52,7 @@ describe('SwarmTrajectoryWorkspaceSummary', () => {
     expect(screen.getByRole('link', { name: 'Advanced Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByText('Swarm trajectory execution policy')).toBeInTheDocument();
     expect(screen.getByText(/This is not live Smart Swarm/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Open Trajectory Planning' })[0]).toHaveAttribute('href', '/trajectory-planning');
+    expect(screen.getAllByRole('link', { name: 'Open Advanced Route Editor' })[0]).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByText('Generate Cluster Outputs')).toBeInTheDocument();
   });
 

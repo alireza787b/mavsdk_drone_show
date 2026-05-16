@@ -49,6 +49,26 @@ def _make_deps():
         get_command_tracker=lambda: tracker,
         Mission=Mission,
         load_config=lambda: [{"pos_id": 0, "hw_id": "1", "ip": "10.0.0.1"}],
+        get_expected_position_from_trajectory=lambda _pos_id, _sim_mode: (0.0, 0.0),
+        build_desired_launch_positions_report=lambda drones, origin_lat, origin_lon, origin_alt=0.0, heading_deg=0.0, sim_mode=False, trajectory_resolver=None: {
+            "origin": {"lat": origin_lat, "lon": origin_lon, "alt": origin_alt},
+            "positions": [
+                {
+                    "pos_id": drone["pos_id"],
+                    "hw_id": drone["hw_id"],
+                    "latitude": origin_lat,
+                    "longitude": origin_lon,
+                    "altitude": origin_alt,
+                    "north": 0.0,
+                    "east": 0.0,
+                    "trajectory_north": 0.0,
+                    "trajectory_east": 0.0,
+                }
+                for drone in drones
+            ],
+            "total_drones": len(drones),
+            "heading": heading_deg,
+        },
         resolve_mission_type=lambda mission_type: (
             mission_type if isinstance(mission_type, Mission) else Mission(int(mission_type))
         ),
@@ -138,6 +158,7 @@ def test_sar_router_registers_expected_routes():
     assert "/api/sar/mission/plan/jobs/{job_id}/cancel" in routes
     assert "/api/sar/missions" in routes
     assert "/api/sar/mission/launch" in routes
+    assert "/api/sar/mission/{mission_id}/revalidate-launch" in routes
     assert "/api/sar/mission/{mission_id}/workspace" in routes
     assert "/api/sar/mission/{mission_id}/status" in routes
     assert "/api/sar/mission/{mission_id}/handoff" in routes
@@ -195,6 +216,96 @@ def test_sar_launch_uses_tracked_command_response():
     assert payload["drones_launched"] == 1
     assert payload["submissions"][0]["command"]["command_id"]
     assert payload["submissions"][0]["command"]["target_drones"] == ["1"]
+
+
+def test_sar_configured_origin_plan_is_staged_without_live_telemetry():
+    deps = _make_deps()
+    deps.telemetry_data_all_drones = {}
+    deps.load_origin = lambda: {
+        "lat": 47.0,
+        "lon": 8.0,
+        "alt": 500.0,
+        "alt_source": "manual",
+        "timestamp": "2026-05-16T00:00:00",
+    }
+    request = {
+        **_plan_request(),
+        "position_source_mode": "configured_origin",
+    }
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        response = client.post("/api/sar/mission/plan", json=request)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["position_source_mode"] == "configured_origin"
+    assert payload["launchable"] is False
+    assert payload["requires_revalidation"] is True
+    assert payload["planning_origin"]["lat"] == 47.0
+    assert payload["position_sources"][0]["source"] == "configured_origin_slot"
+    assert payload["position_sources"][0]["approximate"] is True
+
+
+def test_sar_configured_origin_launch_requires_revalidation_token():
+    deps = _make_deps()
+    deps.load_origin = lambda: {
+        "lat": 47.0,
+        "lon": 8.0,
+        "alt": 500.0,
+        "alt_source": "manual",
+        "timestamp": "2026-05-16T00:00:00",
+    }
+    request = {
+        **_plan_request(),
+        "position_source_mode": "configured_origin",
+    }
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=request)
+        mission_id = planned.json()["mission_id"]
+        response = client.post("/api/sar/mission/launch", params={"mission_id": mission_id})
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail["code"] == "quickscout_launch_revalidation_required"
+
+
+def test_sar_configured_origin_revalidate_issues_launch_token():
+    deps = _make_deps()
+    deps.load_origin = lambda: {
+        "lat": 47.0,
+        "lon": 8.0,
+        "alt": 500.0,
+        "alt_source": "manual",
+        "timestamp": "2026-05-16T00:00:00",
+    }
+    request = {
+        **_plan_request(),
+        "position_source_mode": "configured_origin",
+    }
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=request)
+        mission_id = planned.json()["mission_id"]
+        revalidated = client.post(f"/api/sar/mission/{mission_id}/revalidate-launch")
+        token = revalidated.json()["token"]
+        launched = client.post(
+            "/api/sar/mission/launch",
+            params={"mission_id": mission_id},
+            json={"revalidation_token": token},
+        )
+
+    assert revalidated.status_code == 200
+    assert revalidated.json()["launchable"] is True
+    assert revalidated.json()["slot_errors_m"]["0"] == pytest.approx(0.0)
+    assert launched.status_code == 200
+    assert launched.json()["success"] is True
 
 
 def test_sar_lists_persisted_missions_for_recovery():

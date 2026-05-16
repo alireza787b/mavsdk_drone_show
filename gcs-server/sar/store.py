@@ -54,60 +54,68 @@ class QuickScoutStore:
         repo_root = Path(__file__).resolve().parents[2]
         return str(repo_root / "runtime_data" / "quickscout" / "quickscout.sqlite3")
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(self, *, initialize: bool = True) -> sqlite3.Connection:
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        db_exists = self.db_path.exists()
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA journal_mode=WAL")
         connection.execute("PRAGMA foreign_keys=ON")
+        if initialize and not db_exists:
+            self._initialize_schema_on_connection(connection)
         return connection
 
     def _initialize_schema(self) -> None:
-        with self._connect() as connection:
-            connection.executescript(
+        with self._connect(initialize=False) as connection:
+            self._initialize_schema_on_connection(connection)
+
+    @staticmethod
+    def _initialize_schema_on_connection(connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS quickscout_operations (
+                mission_id TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                payload_json TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_quickscout_operations_state
+            ON quickscout_operations (state);
+
+            CREATE TABLE IF NOT EXISTS quickscout_findings (
+                finding_id TEXT PRIMARY KEY,
+                mission_id TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                payload_json TEXT NOT NULL,
+                FOREIGN KEY(mission_id) REFERENCES quickscout_operations(mission_id)
+                    ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_quickscout_findings_mission
+            ON quickscout_findings (mission_id, timestamp);
+            """
+        )
+        legacy_table_exists = connection.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name = 'quickscout_pois'
+            """
+        ).fetchone()
+        if legacy_table_exists:
+            connection.execute(
                 """
-                CREATE TABLE IF NOT EXISTS quickscout_operations (
-                    mission_id TEXT PRIMARY KEY,
-                    state TEXT NOT NULL,
-                    created_at REAL NOT NULL,
-                    updated_at REAL NOT NULL,
-                    payload_json TEXT NOT NULL
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_quickscout_operations_state
-                ON quickscout_operations (state);
-
-                CREATE TABLE IF NOT EXISTS quickscout_findings (
-                    finding_id TEXT PRIMARY KEY,
-                    mission_id TEXT NOT NULL,
-                    timestamp REAL NOT NULL,
-                    updated_at REAL NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    FOREIGN KEY(mission_id) REFERENCES quickscout_operations(mission_id)
-                        ON DELETE CASCADE
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_quickscout_findings_mission
-                ON quickscout_findings (mission_id, timestamp);
+                INSERT OR IGNORE INTO quickscout_findings (
+                    finding_id, mission_id, timestamp, updated_at, payload_json
+                )
+                SELECT
+                    poi_id, mission_id, timestamp, updated_at, payload_json
+                FROM quickscout_pois
                 """
             )
-            legacy_table_exists = connection.execute(
-                """
-                SELECT name
-                FROM sqlite_master
-                WHERE type = 'table' AND name = 'quickscout_pois'
-                """
-            ).fetchone()
-            if legacy_table_exists:
-                connection.execute(
-                    """
-                    INSERT OR IGNORE INTO quickscout_findings (
-                        finding_id, mission_id, timestamp, updated_at, payload_json
-                    )
-                    SELECT
-                        poi_id, mission_id, timestamp, updated_at, payload_json
-                    FROM quickscout_pois
-                    """
-                )
 
     def save_operation(self, operation: QuickScoutOperationRecord) -> QuickScoutOperationRecord:
         payload = operation.model_dump(mode="json")

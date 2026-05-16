@@ -142,6 +142,91 @@ def _is_finite_number(value: Any) -> bool:
         return False
 
 
+def _first_elevation_result(provider_payload: Dict[str, Any]) -> Dict[str, Any]:
+    results = provider_payload.get("results")
+    if isinstance(results, list) and results:
+        first = results[0]
+        if isinstance(first, dict):
+            return first
+    return {}
+
+
+def _normalize_elevation_payload(provider_payload: Any) -> Dict[str, Any]:
+    """Normalize backend elevation providers into the Swarm authoring contract."""
+    if _is_finite_number(provider_payload):
+        return {
+            "elevation_m": float(provider_payload),
+            "status": "ok",
+            "source": "backend",
+            "provider": "backend",
+            "confidence": "reported",
+            "message": None,
+            "sample_time": None,
+        }
+
+    if not isinstance(provider_payload, dict):
+        return {
+            "elevation_m": None,
+            "status": "unavailable",
+            "source": "unavailable",
+            "provider": "unavailable",
+            "confidence": "none",
+            "message": "Elevation value was not returned.",
+            "sample_time": None,
+        }
+
+    result_payload = _first_elevation_result(provider_payload)
+    elevation = provider_payload.get("elevation")
+    if elevation is None:
+        elevation = provider_payload.get("elevation_m")
+    if elevation is None:
+        elevation = result_payload.get("elevation")
+    if elevation is None:
+        elevation = result_payload.get("elevation_m")
+
+    source = (
+        provider_payload.get("source")
+        or result_payload.get("source")
+        or provider_payload.get("dataset")
+        or result_payload.get("dataset")
+        or ("opentopodata" if result_payload else "backend")
+    )
+    provider = provider_payload.get("provider") or source
+    confidence = provider_payload.get("confidence") or result_payload.get("confidence")
+    sample_time = (
+        provider_payload.get("sample_time")
+        or provider_payload.get("timestamp")
+        or result_payload.get("sample_time")
+        or result_payload.get("timestamp")
+    )
+
+    if _is_finite_number(elevation):
+        return {
+            "elevation_m": float(elevation),
+            "status": "ok",
+            "source": str(source),
+            "provider": str(provider),
+            "confidence": str(confidence or "reported"),
+            "message": provider_payload.get("message") or result_payload.get("message"),
+            "sample_time": sample_time,
+        }
+
+    return {
+        "elevation_m": None,
+        "status": "unavailable",
+        "source": str(source or "unavailable"),
+        "provider": str(provider or source or "unavailable"),
+        "confidence": str(confidence or "none"),
+        "message": str(
+            provider_payload.get("error")
+            or result_payload.get("error")
+            or provider_payload.get("message")
+            or "Elevation value was not returned."
+        ),
+        "sample_time": sample_time,
+    }
+
+
 def _first_existing_column(columns: List[str], candidates: List[str]) -> Optional[str]:
     lowered = {str(column).lower(): column for column in columns}
     for candidate in candidates:
@@ -906,34 +991,34 @@ def get_elevation_batch_payload(
             "elevation_m": None,
             "status": "unavailable",
             "source": "unavailable",
+            "provider": "unavailable",
+            "confidence": "none",
             "message": "Elevation provider is unavailable.",
+            "sample_time": None,
         }
 
         if elevation_provider is not None:
             try:
                 elevation_data = elevation_provider(lat, lng)
-                if isinstance(elevation_data, dict):
-                    elevation = elevation_data.get("elevation")
-                    if elevation is None:
-                        elevation = elevation_data.get("elevation_m")
-                    if _is_finite_number(elevation):
-                        result.update({
-                            "elevation_m": float(elevation),
-                            "status": "ok",
-                            "source": str(elevation_data.get("source") or "backend"),
-                            "message": elevation_data.get("message"),
-                        })
-                    else:
-                        result["message"] = str(elevation_data.get("error") or "Elevation value was not returned.")
-                elif _is_finite_number(elevation_data):
+                normalized = _normalize_elevation_payload(elevation_data)
+                if normalized["status"] == "ok":
                     result.update({
-                        "elevation_m": float(elevation_data),
+                        "elevation_m": normalized["elevation_m"],
                         "status": "ok",
-                        "source": "backend",
-                        "message": None,
+                        "source": normalized["source"],
+                        "provider": normalized["provider"],
+                        "confidence": normalized["confidence"],
+                        "message": normalized["message"],
+                        "sample_time": normalized["sample_time"],
                     })
                 else:
-                    result["message"] = "Elevation value was not returned."
+                    result.update({
+                        "source": normalized["source"],
+                        "provider": normalized["provider"],
+                        "confidence": normalized["confidence"],
+                        "message": normalized["message"],
+                        "sample_time": normalized["sample_time"],
+                    })
             except Exception as exc:
                 result["message"] = f"Elevation lookup failed: {exc}"
 

@@ -455,9 +455,16 @@ class DroneSetup:
                 )
                 return
 
+            preserve_newer_state = self._should_preserve_newer_mission_state(process_record)
             if return_code == 0:
                 logger.info(f"Mission script '{script_name}' completed successfully. Output: {stdout_str}")
-                self._reset_mission_state(success=True)
+                if preserve_newer_state:
+                    logger.info(
+                        f"Mission script '{script_name}' completed after a newer command was staged. "
+                        "Preserving the newer mission state."
+                    )
+                else:
+                    self._reset_mission_state(success=True)
                 # Report success to GCS
                 await self._report_execution_to_gcs(
                     command_id=process_record.command_id,
@@ -476,7 +483,13 @@ class DroneSetup:
                     f"Mission script '{script_name}' failed with return code {return_code}. "
                     f"Output: {diagnostic_output}"
                 )
-                self._reset_mission_state(success=False)
+                if preserve_newer_state:
+                    logger.info(
+                        f"Mission script '{script_name}' failed after a newer command was staged. "
+                        "Preserving the newer mission state."
+                    )
+                else:
+                    self._reset_mission_state(success=False)
                 # Report failure to GCS
                 await self._report_execution_to_gcs(
                     command_id=process_record.command_id,
@@ -494,7 +507,13 @@ class DroneSetup:
 
         except Exception as e:
             logger.error(f"Exception in _monitor_script_process for '{script_name}': {e}", exc_info=True)
-            self._reset_mission_state(success=False)
+            if self._should_preserve_newer_mission_state(process_record):
+                logger.info(
+                    f"Mission script '{script_name}' monitor failed after a newer command was staged. "
+                    "Preserving the newer mission state."
+                )
+            else:
+                self._reset_mission_state(success=False)
             async with self.process_lock:
                 if process_record.process_key in self.running_processes:
                     del self.running_processes[process_record.process_key]
@@ -510,6 +529,24 @@ class DroneSetup:
                 mission_type=process_record.mission_type,
                 phase="failed",
             )
+
+    def _should_preserve_newer_mission_state(self, process_record: RunningMissionProcess) -> bool:
+        """Avoid letting an older process completion clobber a newer accepted command."""
+        current_command_id = getattr(self.drone_config, 'current_command_id', None)
+        if current_command_id and current_command_id != process_record.command_id:
+            return True
+
+        process_mission_type = process_record.mission_type
+        if process_mission_type is None:
+            return False
+
+        try:
+            current_mission = int(getattr(self.drone_config, 'mission', Mission.NONE.value))
+            completed_mission = int(process_mission_type)
+        except (TypeError, ValueError):
+            return False
+
+        return current_mission != completed_mission
 
     def _build_command_report_url(self, endpoint: str) -> Optional[str]:
         gcs_ip = self.params.GCS_IP

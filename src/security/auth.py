@@ -19,7 +19,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+try:
+    from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+except Exception:  # pragma: no cover - exercised by lean installer Python
+    class BadSignature(Exception):
+        pass
+
+    class SignatureExpired(BadSignature):
+        pass
+
+    URLSafeTimedSerializer = None
 
 try:  # Prefer Argon2id through pwdlib when installed from requirements.txt.
     from pwdlib import PasswordHash
@@ -464,6 +473,8 @@ class AuthService:
         self._csrf_serializer: URLSafeTimedSerializer | None = None
 
     def _get_session_serializer(self) -> URLSafeTimedSerializer:
+        if URLSafeTimedSerializer is None:
+            raise RuntimeError("Dashboard session signing requires the itsdangerous package.")
         if self._session_serializer is None:
             self._session_serializer = URLSafeTimedSerializer(
                 _ensure_secret_file(self.settings.session_secret_file),
@@ -472,6 +483,8 @@ class AuthService:
         return self._session_serializer
 
     def _get_csrf_serializer(self) -> URLSafeTimedSerializer:
+        if URLSafeTimedSerializer is None:
+            raise RuntimeError("Dashboard CSRF signing requires the itsdangerous package.")
         if self._csrf_serializer is None:
             self._csrf_serializer = URLSafeTimedSerializer(
                 _ensure_secret_file(self.settings.csrf_secret_file),

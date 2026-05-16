@@ -57,9 +57,11 @@ export function buildQuickScoutPlanningSignature({
   missionLabel = '',
   missionBrief = '',
   returnBehavior = 'return_home',
+  positionSourceMode = 'live_drone_positions',
 } = {}) {
   return JSON.stringify({
     missionTemplate: String(missionTemplate || 'area_sweep').trim(),
+    positionSourceMode: String(positionSourceMode || 'live_drone_positions').trim(),
     searchArea: (Array.isArray(searchArea) ? searchArea : []).map(normalizePoint),
     searchCenter: searchCenter ? normalizePoint(searchCenter) : null,
     searchRadiusM: Number.isFinite(Number(searchRadiusM)) ? Number(searchRadiusM) : null,

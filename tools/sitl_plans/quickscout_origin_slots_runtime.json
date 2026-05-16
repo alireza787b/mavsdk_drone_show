@@ -1,0 +1,16 @@
+{
+  "title": "QuickScout Origin Slots Runtime",
+  "description": "Run the QuickScout last-known-point runtime drill through configured-origin staged planning, live revalidation, launch, hold, finding/handoff, abort, and cleanup.",
+  "tags": ["quickscout", "sar", "runtime", "configured-origin", "staged"],
+  "steps": [
+    {
+      "validator": "quickscout",
+      "options": {
+        "quickscout_launch_drone_count": 1,
+        "quickscout_position_source_mode": "configured_origin",
+        "quickscout_point_radius_m": 120.0,
+        "quickscout_min_estimated_coverage_s": 90.0
+      }
+    }
+  ]
+}

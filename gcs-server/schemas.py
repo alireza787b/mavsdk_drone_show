@@ -972,7 +972,10 @@ class SwarmTrajectoryElevationResult(BaseModel):
     elevation_m: Optional[float] = Field(None, description="Resolved ground elevation MSL")
     status: Literal["ok", "unavailable"] = Field(..., description="Lookup status")
     source: str = Field(..., description="Elevation provider/source")
+    provider: Optional[str] = Field(None, description="Normalized backend terrain provider")
+    confidence: Optional[str] = Field(None, description="Provider confidence or quality hint")
     message: Optional[str] = Field(None, description="Operator-facing provider status")
+    sample_time: Optional[Any] = Field(None, description="Provider sample timestamp when available")
 
 
 class SwarmTrajectoryElevationBatchResponse(BaseModel):

@@ -59,9 +59,17 @@ export const listMissions = async (params = {}) => {
   return response.data;
 };
 
-export const launchMission = async (missionId) => {
+export const revalidateLaunch = async (missionId) => {
   const response = await postGcsResource(
-    buildSarUrl(`/mission/launch${buildQueryString({ mission_id: missionId })}`)
+    buildSarUrl(`/mission/${encodeURIComponent(missionId)}/revalidate-launch`)
+  );
+  return response.data;
+};
+
+export const launchMission = async (missionId, { revalidationToken = null } = {}) => {
+  const response = await postGcsResource(
+    buildSarUrl(`/mission/launch${buildQueryString({ mission_id: missionId })}`),
+    revalidationToken ? { revalidation_token: revalidationToken } : {}
   );
   return response.data;
 };

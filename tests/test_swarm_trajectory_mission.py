@@ -222,8 +222,8 @@ async def test_perform_swarm_trajectory_raises_when_initial_climb_stalls(monkeyp
             stm,
             "_get_initial_climb_altitude_sample",
             new=AsyncMock(return_value={"relative_altitude_m": 0.0, "absolute_altitude_gain_m": 0.0}),
-        ):
-            with patch.object(stm.asyncio, "sleep", new=AsyncMock()) as sleep_mock:
+        ) as climb_sample_mock:
+            with patch.object(stm.asyncio, "sleep", new=AsyncMock()):
                 with patch.object(stm, "execute_end_behavior", new=AsyncMock()) as execute_end_behavior:
                     with pytest.raises(RuntimeError, match="Initial climb did not achieve the required altitude gain"):
                         await stm.perform_swarm_trajectory(
@@ -237,10 +237,9 @@ async def test_perform_swarm_trajectory_raises_when_initial_climb_stalls(monkeyp
                             end_behavior="return_home",
                         )
 
-    assert drone.offboard.set_velocity_ned.await_count >= 1
+    assert climb_sample_mock.await_count >= 1
     drone.offboard.set_position_global.assert_not_awaited()
     execute_end_behavior.assert_not_awaited()
-    sleep_mock.assert_awaited()
 
 
 @pytest.mark.asyncio

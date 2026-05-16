@@ -78,7 +78,7 @@ describe('MissionReadinessCard', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Swarm Mission Readiness')).toBeInTheDocument();
+      expect(screen.getByText('Swarm Package Readiness')).toBeInTheDocument();
     });
 
     expect(screen.getByText('50% Clusters Ready')).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe('MissionReadinessCard', () => {
       )),
     ).toBeInTheDocument();
     expect(screen.getByText('1450.0-1465.0 m MSL • window 15.0 m')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Trajectory Planning' })).toHaveAttribute('href', '/trajectory-planning');
     expect(screen.getByRole('link', { name: 'Swarm Trajectory' })).toHaveAttribute('href', '/swarm-trajectory');
+    expect(screen.getByRole('link', { name: 'Advanced Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
   });
 });

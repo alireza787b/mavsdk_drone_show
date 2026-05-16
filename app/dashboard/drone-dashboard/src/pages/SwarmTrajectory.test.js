@@ -27,6 +27,17 @@ import {
 } from '../services/droneApiService';
 
 jest.mock('../hooks/useFetch');
+jest.mock('../components/trajectory/SwarmRouteMapEditor', () => (props) => (
+  <div data-testid="swarm-route-map-editor">
+    <span>{props.altitudeLabel}</span>
+    <button
+      type="button"
+      onClick={() => props.onAddWaypoint?.({ latitude: 35.03, longitude: 51.04 })}
+    >
+      Map click route point
+    </button>
+  </div>
+));
 jest.mock('../services/droneApiService', () => ({
   buildSwarmTrajectoryPlotUrl: jest.fn((filename) => `http://plots.test/${filename}`),
   cancelSwarmTrajectoryProcessJob: jest.fn(),
@@ -238,7 +249,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
     });
 
     expect(screen.getByRole('button', { name: 'Commit Outputs Locally' })).toBeInTheDocument();
-    expect(screen.getByText(/optionally record the generated outputs to git/i)).toBeInTheDocument();
+    expect(screen.getByText(/optionally commit for traceability/i)).toBeInTheDocument();
   });
 
   test('treats partial outputs as attention items instead of normal launch-ready flow', async () => {
@@ -305,7 +316,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
     });
 
     expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
-    expect(screen.getByText(/resolve the listed attention items, and reprocess before treating this as a full-fleet launch package/i)).toBeInTheDocument();
+    expect(screen.getByText(/resolve attention items and reprocess/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mission trigger/i }).length).toBeGreaterThanOrEqual(2);
   });
 
@@ -361,5 +372,66 @@ describe('SwarmTrajectory git writeback messaging', () => {
       expect(uploadSwarmTrajectory).toHaveBeenCalledWith('1', expect.any(Blob), 'Drone 1.csv');
     });
     expect(getSwarmTrajectoryElevationBatch).not.toHaveBeenCalled();
+  });
+
+  test('adds draft waypoints from the embedded route map editor', async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SwarmTrajectory />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('swarm-route-map-editor')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Map click route point' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/35.03000, 51.04000/i)).toBeInTheDocument();
+    });
+    expect(getSwarmTrajectoryElevationBatch).not.toHaveBeenCalled();
+  });
+
+  test('adds AGL waypoints with backend terrain provenance and sea-level elevation', async () => {
+    getSwarmTrajectoryElevationBatch.mockResolvedValue({
+      success: true,
+      results: [{
+        id: 'wp',
+        lat: 35,
+        lng: 51,
+        elevation_m: 0,
+        status: 'ok',
+        source: 'opentopodata',
+        provider: 'opentopodata',
+        confidence: 'reported',
+      }],
+      summary: { requested: 1, resolved: 1, unavailable: 0, status: 'ok' },
+    });
+
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SwarmTrajectory />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Plan or Import Leader Route')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /AGL Terrain based/i }));
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.0' } });
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.0' } });
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
+
+    await waitFor(() => {
+      expect(getSwarmTrajectoryElevationBatch).toHaveBeenCalledWith([
+        expect.objectContaining({ lat: 35, lng: 51 }),
+      ]);
+    });
+    expect(await screen.findByText('Terrain ready')).toBeInTheDocument();
+    expect(screen.getByText(/1\/1 waypoint elevations resolved via opentopodata/i)).toBeInTheDocument();
+    expect(screen.getByText(/100 m MSL/i)).toBeInTheDocument();
   });
 });

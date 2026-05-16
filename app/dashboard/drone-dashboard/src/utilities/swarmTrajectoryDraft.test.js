@@ -41,7 +41,12 @@ describe('swarmTrajectoryDraft', () => {
 
   it('summarizes terrain lookup state for waypoint authoring', () => {
     expect(buildTerrainStatusFromResults([]).status).toBe('neutral');
-    expect(buildTerrainStatusFromResults([{ status: 'ok' }, { status: 'ok' }]).status).toBe('success');
+    const ready = buildTerrainStatusFromResults([
+      { status: 'ok', source: 'opentopodata' },
+      { status: 'ok', source: 'opentopodata' },
+    ]);
+    expect(ready.status).toBe('success');
+    expect(ready.detail).toContain('via opentopodata');
     expect(buildTerrainStatusFromResults([{ status: 'ok' }, { status: 'unavailable' }]).status).toBe('warning');
     expect(buildTerrainStatusFromResults([{ status: 'unavailable' }]).status).toBe('danger');
   });

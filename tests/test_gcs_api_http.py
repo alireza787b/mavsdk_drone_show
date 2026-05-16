@@ -235,6 +235,16 @@ class TestHealthEndpoints:
         assert isinstance(data['uptime_seconds'], (int, float))
         assert data['uptime_seconds'] >= 0
 
+    def test_cors_echoes_allowed_origin_for_credentialed_dashboard_requests(self, test_client):
+        """Credentialed dashboard requests must not receive wildcard CORS."""
+        origin = "http://127.0.0.1:3130"
+
+        response = test_client.get("/ping", headers={"Origin": origin})
+
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == origin
+        assert response.headers["access-control-allow-credentials"] == "true"
+
 
 class TestSwarmTrajectoryPolicyEndpoint:
     """Test Swarm Trajectory runtime policy endpoint."""

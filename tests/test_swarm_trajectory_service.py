@@ -453,6 +453,53 @@ def test_elevation_batch_payload_returns_explicit_unavailable_state():
     assert resolved['summary']['status'] == 'ok'
 
 
+def test_elevation_batch_payload_accepts_opentopodata_shape_and_zero_elevation():
+    points = [
+        {'id': 'sea-level', 'lat': 25.0, 'lng': 121.0},
+        {'id': 'hill', 'lat': 35.0, 'lng': 51.0},
+    ]
+
+    def provider(lat, _lng):
+        if lat == 25.0:
+            return {'results': [{'elevation': 0.0}], 'source': 'opentopodata', 'sample_time': '2026-05-16T00:00:00Z'}
+        return {'results': [{'elevation': 123.4, 'dataset': 'srtm90m'}]}
+
+    payload = get_elevation_batch_payload(points, provider)
+
+    assert payload['summary']['status'] == 'ok'
+    assert payload['results'][0]['status'] == 'ok'
+    assert payload['results'][0]['elevation_m'] == 0.0
+    assert payload['results'][0]['source'] == 'opentopodata'
+    assert payload['results'][0]['confidence'] == 'reported'
+    assert payload['results'][0]['sample_time'] == '2026-05-16T00:00:00Z'
+    assert payload['results'][1]['status'] == 'ok'
+    assert payload['results'][1]['elevation_m'] == 123.4
+    assert payload['results'][1]['source'] == 'srtm90m'
+
+
+def test_elevation_batch_payload_reports_partial_provider_unavailable():
+    points = [
+        {'id': 'ok', 'lat': 35.0, 'lng': 51.0},
+        {'id': 'missing', 'lat': 36.0, 'lng': 52.0},
+    ]
+
+    def provider(lat, _lng):
+        if lat == 35.0:
+            return {'elevation_m': 10.0, 'provider': 'test-dem', 'confidence': 'high'}
+        return {'results': [{'error': 'No DEM cell'}], 'source': 'test-dem'}
+
+    payload = get_elevation_batch_payload(points, provider)
+
+    assert payload['summary']['status'] == 'partial'
+    assert payload['summary']['resolved'] == 1
+    assert payload['summary']['unavailable'] == 1
+    assert payload['results'][0]['provider'] == 'test-dem'
+    assert payload['results'][0]['confidence'] == 'high'
+    assert payload['results'][1]['status'] == 'unavailable'
+    assert payload['results'][1]['source'] == 'test-dem'
+    assert payload['results'][1]['message'] == 'No DEM cell'
+
+
 def test_validation_payload_blocks_unknown_swarm_structure(monkeypatch):
     """Processed CSVs are not launch-ready if the swarm graph cannot be analyzed."""
     monkeypatch.setattr(

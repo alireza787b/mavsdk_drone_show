@@ -34,7 +34,8 @@ Planning policy:
 
 - Global waypoint planning requires valid global coordinates.
 - `relative_home`, `local_ned`, and `baro` are useful display sources but are not map coordinates by themselves.
-- QuickScout needs fresh valid global position samples when planner assignment depends on selected-drone location.
+- QuickScout `Live GPS` planning needs fresh valid global position samples when planner assignment depends on selected-drone location.
+- QuickScout `Origin Slots` planning uses configured origin launch slots for offline/staged design only. It is persisted with provenance and must pass live GPS/slot revalidation before launch.
 - Swarm Trajectory stores global latitude/longitude and MSL altitude in the mission package.
 - AGL authoring must be backed by terrain/elevation data before it is converted into MSL.
 - Terrain provider failures must be visible and actionable.

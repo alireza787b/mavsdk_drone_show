@@ -39,6 +39,10 @@ ALLOWED_DOMAIN_COLOR_FILES = {
     "app/dashboard/drone-dashboard/src/utilities/missionConfigFields.js": {
         "#00d4ff",
     },
+    "app/dashboard/drone-dashboard/src/components/trajectory/SwarmRouteMapEditor.js": {
+        "#2563eb",
+        "#ffffff",
+    },
 }
 
 COLOR_LITERAL_RE = re.compile(r"(#[0-9a-fA-F]{3,8}\b|rgba?\([^)]+\))")

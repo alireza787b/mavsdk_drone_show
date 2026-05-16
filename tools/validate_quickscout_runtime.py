@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Validate the QuickScout workflow against a live GCS/SITL stack.
 
-The validator supports all current QuickScout mission templates and both
-single-drone and partial-fleet launch drills.
+The validator supports all current QuickScout mission templates, single-drone
+and partial-fleet launch drills, and both live-GPS and configured-origin staged
+planning.
 
 In both cases it validates the same operator-facing lifecycle:
 
 1. Wait for a clean ready/idle fleet baseline
-2. Plan a QuickScout mission from live telemetry
+2. Plan a QuickScout mission from live telemetry or configured origin slots
 3. Launch the mission and confirm the targeted aircraft climb and begin searching
 4. Pause into HOLD and confirm the mission enters the holding phase
 5. Create/update a finding and validate the mission handoff bundle
@@ -182,16 +183,36 @@ def _telemetry_has_ids(telemetry: dict[str, dict[str, Any]], ids: list[int]) -> 
     return all(str(idx) in telemetry for idx in ids)
 
 
-def _is_idle_baseline_row(row: dict[str, Any]) -> bool:
-    heartbeat_last_seen = row.get("heartbeat_last_seen")
-    has_recent_heartbeat = False
-    if heartbeat_last_seen is not None:
-        try:
-            heartbeat_age = time.time() - (float(heartbeat_last_seen) / 1000.0)
-            has_recent_heartbeat = heartbeat_age <= COMMAND_HEARTBEAT_GRACE_SECONDS
-        except (TypeError, ValueError):
-            has_recent_heartbeat = False
+def _timestamp_age_seconds(raw_value: Any) -> float | None:
+    if raw_value is None:
+        return None
+    try:
+        timestamp = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+    if timestamp <= 0:
+        return None
+    if timestamp > 1e12:
+        timestamp /= 1000.0
+    return time.time() - timestamp
 
+
+def _has_recent_presence(row: dict[str, Any]) -> bool:
+    heartbeat_age = _timestamp_age_seconds(row.get("heartbeat_last_seen"))
+    if heartbeat_age is not None:
+        return heartbeat_age <= COMMAND_HEARTBEAT_GRACE_SECONDS
+
+    if row.get("telemetry_available") is False:
+        return False
+
+    for key in ("server_time", "timestamp", "global_position_timestamp_ms", "update_time"):
+        age = _timestamp_age_seconds(row.get(key))
+        if age is not None and age <= COMMAND_HEARTBEAT_GRACE_SECONDS:
+            return True
+    return False
+
+
+def _is_idle_baseline_row(row: dict[str, Any]) -> bool:
     mission = int(row.get("mission", 0) or 0)
     state = int(row.get("state", 0) or 0)
     home_position_set = row.get("home_position_set")
@@ -203,7 +224,7 @@ def _is_idle_baseline_row(row: dict[str, Any]) -> bool:
         and mission == 0
         and state == 0
         and (home_position_set is None or bool(home_position_set))
-        and has_recent_heartbeat
+        and _has_recent_presence(row)
     )
 
 
@@ -501,6 +522,12 @@ def build_quickscout_runtime_request(
         )
 
     raise RuntimeError(f"Unsupported QuickScout runtime mission template: {mission_template}")
+
+
+def apply_planning_position_source(plan_request: dict[str, Any], position_source_mode: str) -> dict[str, Any]:
+    updated = dict(plan_request)
+    updated["position_source_mode"] = position_source_mode
+    return updated
 
 
 def wait_api_ready(client: ApiClient, timeout: int = 60) -> dict[str, Any]:
@@ -872,6 +899,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--drone-ids", nargs="+", type=int, default=None, help="Space-separated drone hardware IDs to observe")
     parser.add_argument("--launch-drone-count", type=int, default=1, help="How many selected drones to include in the QuickScout launch package")
     parser.add_argument(
+        "--position-source-mode",
+        default="live_drone_positions",
+        choices=["live_drone_positions", "configured_origin"],
+        help="QuickScout planning source mode to validate",
+    )
+    parser.add_argument(
         "--mission-template",
         default="last_known_point",
         choices=["area_sweep", "last_known_point", "corridor_search"],
@@ -951,6 +984,7 @@ def main() -> int:
         cruise_speed_ms=args.cruise_speed_ms,
         survey_speed_ms=args.survey_speed_ms,
     )
+    plan_request = apply_planning_position_source(plan_request, args.position_source_mode)
     artifacts["stages"]["plan_request"] = plan_request
     log(
         "PLANNING QuickScout runtime mission for "
@@ -958,6 +992,15 @@ def main() -> int:
     )
     plan_response = client.post_json("/api/sar/mission/plan", plan_request)
     artifacts["stages"]["plan_response"] = plan_response
+    require(
+        plan_response.get("position_source_mode", "live_drone_positions") == args.position_source_mode,
+        f"QuickScout position source mismatch: {plan_response.get('position_source_mode')}",
+    )
+    if args.position_source_mode == "configured_origin":
+        require(plan_response.get("requires_revalidation") is True, "Configured-origin plan did not require launch revalidation")
+        require(plan_response.get("launchable") is False, "Configured-origin plan was incorrectly marked launchable")
+    else:
+        require(plan_response.get("requires_revalidation") in (False, None), "Live-GPS plan unexpectedly required revalidation")
     mission_id = str(plan_response["mission_id"])
     require(
         float(plan_response.get("estimated_coverage_time_s", 0.0) or 0.0) >= float(args.min_estimated_coverage_s),
@@ -989,7 +1032,20 @@ def main() -> int:
     )
 
     log(f"LAUNCHING QuickScout mission {mission_id} on hw_ids={target_hw_ids}")
-    launch_response = client.post_json("/api/sar/mission/launch", query={"mission_id": mission_id})
+    launch_payload = None
+    if args.position_source_mode == "configured_origin":
+        revalidation = client.post_json(f"/api/sar/mission/{mission_id}/revalidate-launch")
+        artifacts["stages"]["launch_revalidation"] = revalidation
+        require(
+            revalidation.get("launchable") is True and revalidation.get("token"),
+            f"QuickScout configured-origin revalidation failed: {json.dumps(revalidation, indent=2)}",
+        )
+        launch_payload = {"revalidation_token": revalidation["token"]}
+    launch_response = client.post_json(
+        "/api/sar/mission/launch",
+        payload=launch_payload,
+        query={"mission_id": mission_id},
+    )
     artifacts["stages"]["launch_response"] = launch_response
     require(bool(launch_response.get("success")), f"QuickScout launch did not succeed: {json.dumps(launch_response, indent=2)}")
     launched_hw_ids = sorted(str(hw_id) for hw_id in launch_response.get("launched_hw_ids", []))

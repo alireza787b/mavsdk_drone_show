@@ -8,6 +8,14 @@ import {
   unwrapFleetTelemetryPayload,
 } from '../services/gcsApiService';
 
+let mockMapContextValue = {
+  provider: 'leaflet',
+  isMapboxAvailable: false,
+  mapboxToken: '',
+};
+
+let mockMapboxCenter = { lat: 37.77, lng: -122.44 };
+
 jest.mock('react-toastify', () => ({
   toast: {
     success: jest.fn(),
@@ -35,6 +43,7 @@ jest.mock('../services/sarApiService', () => ({
   getPlanningJob: jest.fn(),
   cancelPlanningJob: jest.fn(),
   listMissions: jest.fn(),
+  revalidateLaunch: jest.fn(),
   launchMission: jest.fn(),
   getMissionWorkspace: jest.fn(),
   getMissionStatus: jest.fn(),
@@ -56,12 +65,46 @@ jest.mock('../services/gcsApiService', () => ({
 }));
 
 jest.mock('../contexts/MapContext', () => ({
-  useMapContext: () => ({
-    provider: 'leaflet',
-    isMapboxAvailable: false,
-    mapboxToken: '',
-  }),
+  useMapContext: () => mockMapContextValue,
 }));
+
+jest.mock('react-map-gl', () => {
+  const React = require('react');
+  const Map = React.forwardRef(({ children, onClick, onMove }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getMap: () => ({
+        getCenter: () => mockMapboxCenter,
+        getZoom: () => 12,
+        flyTo: jest.fn(),
+      }),
+    }));
+    return (
+      <div data-testid="mapbox-map">
+        <button
+          type="button"
+          onClick={() => onMove?.({ viewState: { latitude: 38.01, longitude: -123.02, zoom: 11 } })}
+        >
+          Move Mapbox
+        </button>
+        <button
+          type="button"
+          onClick={() => onClick?.({ lngLat: { lat: 37.55, lng: -122.31 } })}
+        >
+          Mapbox click
+        </button>
+        {children}
+      </div>
+    );
+  });
+  return {
+    __esModule: true,
+    default: Map,
+    Map,
+    Marker: ({ children }) => <div data-testid="mapbox-marker">{children}</div>,
+    Source: ({ children }) => <div data-testid="mapbox-source">{children}</div>,
+    Layer: () => <div data-testid="mapbox-layer" />,
+  };
+});
 
 jest.mock('../components/sar/PlanMonitorToggle', () => ({ mode, onModeChange }) => (
   <div>
@@ -82,6 +125,7 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <div data-testid="plan-loading">{String(props.loadingMissionCatalog)}</div>
     <div data-testid="plan-template">{props.missionTemplate}</div>
     <div data-testid="plan-return-behavior">{props.returnBehavior}</div>
+    <div data-testid="plan-position-source-mode">{props.positionSourceMode}</div>
     <div data-testid="plan-label">{props.missionLabel}</div>
     <div data-testid="plan-brief">{props.missionBrief}</div>
     <div data-testid="plan-needs-recompute">{String(props.planNeedsRecompute)}</div>
@@ -112,6 +156,9 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     >
       Set search center
     </button>
+    <button type="button" onClick={props.onUseMapCenter}>
+      Use map center
+    </button>
     <button type="button" onClick={() => props.onSearchRadiusChange(180)}>
       Set search radius
     </button>
@@ -128,8 +175,14 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <button type="button" onClick={() => props.onCorridorWidthChange(110)}>
       Set corridor width
     </button>
+    <button type="button" onClick={props.onAppendMapCenterToPath}>
+      Add map center
+    </button>
     <button type="button" onClick={() => props.onReturnBehaviorChange('hold_position')}>
       Set hold return
+    </button>
+    <button type="button" onClick={() => props.onPositionSourceModeChange('configured_origin')}>
+      Use origin slots
     </button>
     <button type="button" onClick={() => props.onMissionLabelChange('Harbor sweep')}>
       Set mission label
@@ -301,6 +354,12 @@ describe('QuickScoutPage', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    mockMapContextValue = {
+      provider: 'leaflet',
+      isMapboxAvailable: false,
+      mapboxToken: '',
+    };
+    mockMapboxCenter = { lat: 37.77, lng: -122.44 };
     jest.spyOn(console, 'warn').mockImplementation(() => {});
     realConsoleError = console.error;
     jest.spyOn(console, 'error').mockImplementation((...args) => {
@@ -361,6 +420,16 @@ describe('QuickScoutPage', () => {
     sarApi.launchMission.mockResolvedValue({
       success: true,
       message: 'Mission launched',
+    });
+    sarApi.revalidateLaunch.mockResolvedValue({
+      mission_id: 'mission-ready',
+      launchable: true,
+      token: 'token-ready',
+      expires_at: Date.now() / 1000 + 120,
+      blockers: [],
+      warnings: [],
+      slot_errors_m: {},
+      message: 'Live revalidation passed',
     });
     sarApi.getMissionStatus.mockResolvedValue({
       mission_id: 'mission-exec',
@@ -491,6 +560,32 @@ describe('QuickScoutPage', () => {
     expect(screen.getByTestId('plan-brief')).toHaveTextContent('Search quay perimeter');
   });
 
+  it('sends configured-origin staged planning mode when selected', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use origin slots' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          position_source_mode: 'configured_origin',
+        })
+      )
+    );
+    expect(screen.getByTestId('plan-position-source-mode')).toHaveTextContent('configured_origin');
+  });
+
   it('sends a point-centered request for last known point missions', async () => {
     getFleetConfigResponse.mockResolvedValue({
       data: [{ hw_id: '1', pos_id: 1 }],
@@ -525,6 +620,46 @@ describe('QuickScoutPage', () => {
     );
     expect(sarApi.createPlanningJob.mock.calls[0][0].search_area.area_sq_m).toBeCloseTo(Math.PI * 180 * 180, 6);
     expect(screen.getByTestId('plan-template')).toHaveTextContent('last_known_point');
+  });
+
+  it('uses the live Mapbox map center when seeding point missions', async () => {
+    mockMapContextValue = {
+      provider: 'mapbox',
+      isMapboxAvailable: true,
+      mapboxToken: 'token',
+    };
+    mockMapboxCenter = { lat: 37.8123, lng: -122.4567 };
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('mapbox-map')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use last known point' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Use map center' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Set search radius' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() =>
+      expect(sarApi.createPlanningJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mission_template: 'last_known_point',
+          search_area: expect.objectContaining({
+            type: 'point',
+            center: { lat: 37.8123, lng: -122.4567 },
+            radius_m: 180,
+          }),
+        })
+      )
+    );
   });
 
   it('uses map clicks to set last-known point missions', async () => {
@@ -737,6 +872,92 @@ describe('QuickScoutPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Launch Mission' }));
 
     await waitFor(() => expect(sarApi.launchMission).toHaveBeenCalledWith('mission-ready'));
+  });
+
+  it('revalidates configured-origin plans before launch dispatch', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        '1': {
+          hw_ID: '1',
+          hw_id: '1',
+          pos_id: 1,
+          position_lat: 37.0,
+          position_long: -122.0,
+          update_time: Date.now(),
+          timestamp: Date.now(),
+          heartbeat_last_seen: Date.now(),
+          last_seen: Date.now(),
+          readiness_status: 'ready',
+          readiness_summary: 'Ready to fly',
+          is_ready_to_arm: true,
+          is_armed: false,
+          readiness_checks: [],
+          preflight_blockers: [],
+          preflight_warnings: [],
+          status_messages: [],
+        },
+      },
+    });
+    unwrapFleetTelemetryPayload.mockImplementation((payload) => payload);
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+    sarApi.createPlanningJob.mockResolvedValue({
+      job_id: 'job-staged',
+      status: 'succeeded',
+      phase: 'complete',
+      progress_percent: 100,
+      mission_id: 'mission-staged',
+      warnings: [],
+      result: {
+        mission_id: 'mission-staged',
+        plans: [
+          {
+            hw_id: '1',
+            pos_id: 1,
+            assigned_area_sq_m: 1200,
+            estimated_duration_s: 180,
+            total_distance_m: 500,
+            waypoints: [{ lat: 37.0, lng: -122.0, alt_msl: 50, speed_ms: 5, sequence: 0 }],
+          },
+        ],
+        total_area_sq_m: 1200,
+        estimated_coverage_time_s: 180,
+        algorithm_used: 'boustrophedon',
+        position_source_mode: 'configured_origin',
+        requires_revalidation: true,
+        launchable: false,
+      },
+    });
+    sarApi.revalidateLaunch.mockResolvedValue({
+      mission_id: 'mission-staged',
+      launchable: true,
+      token: 'token-staged',
+      blockers: [],
+      warnings: [],
+      slot_errors_m: { 1: 0 },
+      message: 'Live revalidation passed',
+    });
+
+    await renderPage();
+    await flushAsyncState();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use origin slots' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() => expect(screen.getByTestId('plan-launch-ready')).toHaveTextContent('true'));
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Launch mission' }));
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Review QuickScout Launch' })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Launch Mission' }));
+
+    await waitFor(() => expect(sarApi.revalidateLaunch).toHaveBeenCalledWith('mission-staged'));
+    await waitFor(() => expect(sarApi.launchMission).toHaveBeenCalledWith('mission-staged', { revalidationToken: 'token-staged' }));
   });
 
   it('marks the launch package stale when planning inputs change after compute', async () => {

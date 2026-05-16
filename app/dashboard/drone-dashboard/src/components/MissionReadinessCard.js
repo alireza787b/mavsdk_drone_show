@@ -165,7 +165,7 @@ const MissionReadinessCard = ({
           <MdSmartToy className="empty-icon" aria-hidden="true" />
           <div className="empty-text">
             <h4>No Clusters Found</h4>
-            <p>Configure the swarm in Swarm Design, then send leader paths from Trajectory Planning or upload them in Swarm Trajectory.</p>
+            <p>Configure the swarm in Swarm Design, then prepare the leader route and package in Swarm Trajectory. Use Advanced Route Editor only for lower-level route edits.</p>
           </div>
           <Link to="/swarm-design" className="fix-link">
             Configure Swarm →
@@ -214,8 +214,8 @@ const MissionReadinessCard = ({
 
   const actionLinks = [
     { label: 'Swarm Design', to: '/swarm-design' },
-    { label: 'Trajectory Planning', to: '/trajectory-planning' },
     { label: 'Swarm Trajectory', to: '/swarm-trajectory' },
+    { label: 'Advanced Route Editor', to: '/trajectory-planning' },
   ];
 
   return (
@@ -223,11 +223,11 @@ const MissionReadinessCard = ({
       {/* Header with overall status */}
       <div className="readiness-header">
         <div className="header-left">
-          <h3>Swarm Mission Readiness</h3>
+          <h3>Swarm Package Readiness</h3>
           <div className={`overall-status ${overallStatus.status}`}>
-            {overallStatus.status === 'ready' ? 'Mission Trajectories Ready' :
+            {overallStatus.status === 'ready' ? 'Trajectory Package Ready' :
              overallStatus.status === 'partial' ? `${overallStatus.percentage}% Clusters Ready` :
-             'Mission Trajectories Incomplete'}
+             'Trajectory Package Incomplete'}
           </div>
         </div>
 

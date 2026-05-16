@@ -18,6 +18,8 @@ import { toast } from 'react-toastify';
 
 import { ConfirmDialog, DocsLink, MetricStrip, OperatorNotice, StatusBadge } from '../components/ui';
 import { MissionAltitudeControl, MissionJobProgressDialog } from '../components/mission-planning';
+import RouteSketch, { ROUTE_SKETCH_COLORS } from '../components/trajectory/RouteSketch';
+import SwarmRouteMapEditor from '../components/trajectory/SwarmRouteMapEditor';
 import SwarmTrajectoryWorkspaceSummary from '../components/trajectory/SwarmTrajectoryWorkspaceSummary';
 import useFetch from '../hooks/useFetch';
 import { GCS_ROUTE_KEYS } from '../services/gcsApiService';
@@ -59,6 +61,7 @@ import {
   buildSwarmTrajectoryStages,
   buildSwarmTrajectoryWorkspaceStatus,
 } from '../utilities/swarmTrajectoryWorkspaceModel';
+import { uploadLeaderTrajectoryCsv } from '../utilities/swarmTrajectoryAssignment';
 import '../styles/SwarmTrajectory.css';
 
 const buildListLabel = (values = []) => (values.length > 0 ? values.join(', ') : 'None');
@@ -106,8 +109,6 @@ const DEFAULT_WAYPOINT_FORM = {
   heading: 0,
 };
 
-const PREVIEW_COLORS = ['#2563eb', '#16a34a', '#dc2626', '#9333ea', '#0891b2', '#ca8a04'];
-
 const issueMessages = (issues = []) => (issues || []).map((issue) => issue.message || issue.code || String(issue));
 
 const normalizeJobForDialog = (job = {}) => {
@@ -122,79 +123,6 @@ const normalizeJobForDialog = (job = {}) => {
 };
 
 const createWaypointId = () => `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-
-const collectSketchBounds = (series = []) => {
-  const points = series.flatMap((item) => item.points || []);
-  const lats = points.map((point) => point.latitude ?? point.lat).filter(Number.isFinite);
-  const lngs = points.map((point) => point.longitude ?? point.lng).filter(Number.isFinite);
-  if (!lats.length || !lngs.length) {
-    return null;
-  }
-  return {
-    minLat: Math.min(...lats),
-    maxLat: Math.max(...lats),
-    minLng: Math.min(...lngs),
-    maxLng: Math.max(...lngs),
-  };
-};
-
-const mapPointToSketch = (point, bounds) => {
-  const lat = point.latitude ?? point.lat;
-  const lng = point.longitude ?? point.lng;
-  const lngSpan = Math.max(bounds.maxLng - bounds.minLng, 0.000001);
-  const latSpan = Math.max(bounds.maxLat - bounds.minLat, 0.000001);
-  const x = 24 + ((lng - bounds.minLng) / lngSpan) * 252;
-  const y = 156 - ((lat - bounds.minLat) / latSpan) * 132;
-  return `${x.toFixed(1)},${y.toFixed(1)}`;
-};
-
-const RouteSketch = ({ series = [], emptyLabel = 'No route preview' }) => {
-  const bounds = collectSketchBounds(series);
-  if (!bounds) {
-    return (
-      <div className="swarm-route-sketch swarm-route-sketch--empty">
-        {emptyLabel}
-      </div>
-    );
-  }
-
-  return (
-    <svg className="swarm-route-sketch" viewBox="0 0 300 180" role="img" aria-label="Route preview">
-      <rect x="0" y="0" width="300" height="180" rx="6" className="swarm-route-sketch__bg" />
-      {series.map((item, index) => {
-        const points = (item.points || []).filter((point) => (
-          Number.isFinite(point.latitude ?? point.lat) && Number.isFinite(point.longitude ?? point.lng)
-        ));
-        if (!points.length) {
-          return null;
-        }
-        const mapped = points.map((point) => mapPointToSketch(point, bounds));
-        const color = item.color || PREVIEW_COLORS[index % PREVIEW_COLORS.length];
-        return (
-          <g key={item.id || item.label || index}>
-            <polyline
-              points={mapped.join(' ')}
-              fill="none"
-              stroke={color}
-              strokeWidth={item.role === 'leader' ? 4 : 2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <circle cx={mapped[0].split(',')[0]} cy={mapped[0].split(',')[1]} r="4" fill={color} />
-            <circle
-              cx={mapped[mapped.length - 1].split(',')[0]}
-              cy={mapped[mapped.length - 1].split(',')[1]}
-              r="4"
-              fill="#fff"
-              stroke={color}
-              strokeWidth="2"
-            />
-          </g>
-        );
-      })}
-    </svg>
-  );
-};
 
 const SwarmTrajectory = () => {
   const [leaders, setLeaders] = useState([]);
@@ -293,7 +221,7 @@ const SwarmTrajectory = () => {
         id: drone.drone_id,
         label: `Drone ${drone.drone_id}`,
         role: drone.role,
-        color: PREVIEW_COLORS[index % PREVIEW_COLORS.length],
+        color: ROUTE_SKETCH_COLORS[index % ROUTE_SKETCH_COLORS.length],
         points: drone.points,
       }))
   ), [preview]);
@@ -301,7 +229,7 @@ const SwarmTrajectory = () => {
     id: 'draft',
     label: 'Draft leader route',
     role: 'leader',
-    color: '#2563eb',
+    color: ROUTE_SKETCH_COLORS[0],
     points: draftWaypoints,
   }], [draftWaypoints]);
   const draftRouteErrors = useMemo(() => validateDraftWaypoints(draftWaypoints), [draftWaypoints]);
@@ -569,6 +497,9 @@ const SwarmTrajectory = () => {
       targetAgl,
       groundElevation: Number(result.elevation_m),
       terrainAccurate: true,
+      terrainSource: result.provider || result.source || 'backend',
+      terrainConfidence: result.confidence || 'reported',
+      terrainSampleTime: result.sample_time || null,
     };
   };
 
@@ -603,6 +534,39 @@ const SwarmTrajectory = () => {
       resetWaypointForm(waypointIndex + 1);
     } catch (error) {
       showNotice('error', 'Waypoint not saved', error.message || 'Check the waypoint fields and terrain state.');
+    }
+  };
+
+  const addDraftWaypointFromMap = async ({ latitude, longitude }) => {
+    try {
+      const waypointIndex = draftWaypoints.length;
+      const rawWaypoint = {
+        id: createWaypointId(),
+        latitude: toFiniteNumber(latitude),
+        longitude: toFiniteNumber(longitude),
+        altitude: toFiniteNumber(waypointForm.altitude, DEFAULT_WAYPOINT_FORM.altitude),
+        timeFromStart: waypointIndex * 30,
+        estimatedSpeed: toFiniteNumber(waypointForm.estimatedSpeed, DEFAULT_WAYPOINT_FORM.estimatedSpeed),
+        heading: toFiniteNumber(waypointForm.heading, DEFAULT_WAYPOINT_FORM.heading),
+        headingMode: 'auto',
+      };
+      const normalized = normalizeDraftWaypoint(rawWaypoint, waypointIndex);
+      const errors = validateDraftWaypoint(normalized);
+      if (errors.length) {
+        throw new Error(errors.join(' '));
+      }
+      const resolved = await resolveWaypointAltitude(normalized);
+      setDraftWaypoints((prev) => [...prev, normalizeDraftWaypoint(resolved, waypointIndex)]);
+      setWaypointForm((prev) => ({
+        ...prev,
+        latitude: '',
+        longitude: '',
+        timeFromStart: (waypointIndex + 1) * 30,
+      }));
+      setEditingWaypointId('');
+      setOperatorNotice(null);
+    } catch (error) {
+      showNotice('error', 'Map waypoint not saved', error.message || 'Check terrain state and waypoint policy.');
     }
   };
 
@@ -660,12 +624,12 @@ const SwarmTrajectory = () => {
 
     setUploadingDraft(true);
     try {
-      const csv = buildSwarmLeaderCsv(draftWaypoints);
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const result = await uploadSwarmTrajectory(selectedLeaderId, blob, `Drone ${selectedLeaderId}.csv`);
-      if (!result.success) {
-        throw new Error(result.error || 'Upload failed');
-      }
+      await uploadLeaderTrajectoryCsv({
+        leaderId: selectedLeaderId,
+        waypoints: draftWaypoints,
+        buildCsv: buildSwarmLeaderCsv,
+        uploadFn: uploadSwarmTrajectory,
+      });
       await refreshOperationalState();
       showNotice(
         'success',
@@ -1201,8 +1165,13 @@ const SwarmTrajectory = () => {
           <div className="workflow-step workflow-step--planner">
             <div className="step-header">
               <h3><span className="step-number">1</span>Plan or Import Leader Route</h3>
-              <p>Create a precise global leader route here, or upload an existing CSV below.</p>
             </div>
+
+            <SwarmRouteMapEditor
+              waypoints={draftWaypoints}
+              onAddWaypoint={addDraftWaypointFromMap}
+              altitudeLabel={altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 'AGL terrain' : 'Fixed MSL'}
+            />
 
             <div className="swarm-planner-grid">
               <section className="swarm-planner-card" aria-label="Leader route waypoint editor">
@@ -1504,29 +1473,30 @@ const SwarmTrajectory = () => {
               {viewModel.uploadedLeaderIds.length === 0 ? (
                 <p className="requirement-note">Upload at least one leader CSV before processing.</p>
               ) : (
-                <p className="requirement-note requirement-note--soft">
-                  Recommended order: confirm the swarm hierarchy, upload each changed leader path, then process once for the full formation.
-                </p>
+                <p className="requirement-note requirement-note--soft">Ready to process current leader uploads.</p>
               )}
 
               {viewModel.uploadedLeaderIds.length > 0 ? (
-                <div className="advanced-processing-options">
-                  <button
-                    className="process-option-btn secondary"
-                    onClick={() => requestProcessing(true)}
-                    disabled={processing}
-                  >
-                    Start Fresh
-                  </button>
+                <details className="swarm-advanced-actions">
+                  <summary>Advanced processing</summary>
+                  <div className="advanced-processing-options">
+                    <button
+                      className="process-option-btn secondary"
+                      onClick={() => requestProcessing(true)}
+                      disabled={processing}
+                    >
+                      Start Fresh
+                    </button>
 
-                  <button
-                    className="process-option-btn tertiary"
-                    onClick={handleExplicitClear}
-                    disabled={clearingData}
-                  >
-                    {clearingData ? 'Clearing...' : 'Clear Processed Only'}
-                  </button>
-                </div>
+                    <button
+                      className="process-option-btn tertiary"
+                      onClick={handleExplicitClear}
+                      disabled={clearingData}
+                    >
+                      {clearingData ? 'Clearing...' : 'Clear Processed Only'}
+                    </button>
+                  </div>
+                </details>
               ) : null}
             </div>
           </div>
@@ -1614,7 +1584,7 @@ const SwarmTrajectory = () => {
                   <div className="swarm-preview-legend">
                     {(preview?.drones || []).slice(0, 12).map((drone, index) => (
                       <span key={drone.drone_id}>
-                        <i style={{ backgroundColor: PREVIEW_COLORS[index % PREVIEW_COLORS.length] }} />
+                        <i style={{ backgroundColor: ROUTE_SKETCH_COLORS[index % ROUTE_SKETCH_COLORS.length] }} />
                         Drone {drone.drone_id} · {drone.role}
                         {drone.direct_leader_id ? ` → ${drone.direct_leader_id}` : ''}
                       </span>
@@ -1626,8 +1596,8 @@ const SwarmTrajectory = () => {
                   <p>
                     <strong>Next:</strong>{' '}
                     {isPartialPackage
-                      ? 'review the cluster plots below, resolve the listed attention items, and reprocess before treating this as a full-fleet launch package. Dashboard preflight can still validate an intentional selected-subset plan later if the chosen leader chain remains complete.'
-                      : 'review the cluster plots below, optionally record the generated outputs to git for traceability, then launch Mission Type 4 from Dashboard → Command Control → Mission Trigger with preflight checks enabled.'}
+                      ? 'Resolve attention items and reprocess, or launch only an intentional selected subset after Dashboard preflight.'
+                      : 'Review preview, optionally commit for traceability, then use Dashboard Mission Type 4 preflight.'}
                   </p>
                 </div>
 
@@ -1846,9 +1816,12 @@ const SwarmTrajectory = () => {
               Refresh Status
             </button>
 
-            <button className="utility-btn danger" onClick={clearAll}>
-              Clear Workspace
-            </button>
+            <details className="swarm-advanced-actions swarm-advanced-actions--inline">
+              <summary>Advanced</summary>
+              <button className="utility-btn danger" onClick={clearAll}>
+                Clear Workspace
+              </button>
+            </details>
           </div>
         </>
       ) : (

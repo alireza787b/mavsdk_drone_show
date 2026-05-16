@@ -22,6 +22,11 @@ class QuickScoutMissionTemplate(str, Enum):
     CORRIDOR_SEARCH = "corridor_search"
 
 
+class QuickScoutPlanningPositionMode(str, Enum):
+    LIVE_DRONE_POSITIONS = "live_drone_positions"
+    CONFIGURED_ORIGIN = "configured_origin"
+
+
 class SurveyState(str, Enum):
     PLANNING = "planning"
     READY = "ready"
@@ -172,6 +177,10 @@ class QuickScoutMissionRequest(BaseModel):
     search_area: SearchArea = Field(..., description="Search area polygon")
     survey_config: SurveyConfig = Field(default_factory=SurveyConfig, description="Survey parameters")
     pos_ids: Optional[List[int]] = Field(None, description="Target drone position IDs (None = all)")
+    position_source_mode: QuickScoutPlanningPositionMode = Field(
+        default=QuickScoutPlanningPositionMode.LIVE_DRONE_POSITIONS,
+        description="Source used for per-drone planning origins",
+    )
     mission_template: QuickScoutMissionTemplate = Field(
         default=QuickScoutMissionTemplate.AREA_SWEEP,
         description="QuickScout mission template identifier",
@@ -225,9 +234,22 @@ class QuickScoutPlanningPositionSource(BaseModel):
     hw_id: Optional[str] = Field(None, description="Hardware ID when available")
     lat: float = Field(..., ge=-90, le=90, description="Accepted latitude")
     lng: float = Field(..., ge=-180, le=180, description="Accepted longitude")
-    timestamp_ms: int = Field(..., ge=0, description="Position sample timestamp (Unix ms)")
-    age_s: float = Field(..., ge=0, description="Position sample age in seconds")
+    timestamp_ms: Optional[int] = Field(None, ge=0, description="Position sample timestamp (Unix ms)")
+    age_s: Optional[float] = Field(None, ge=0, description="Position sample age in seconds")
     source: str = Field(default="global_position", description="Telemetry source used for planning")
+    approximate: bool = Field(default=False, description="Whether this source is a planned/approximate position")
+    details: Optional[Dict[str, Any]] = Field(None, description="Source-specific provenance details")
+
+
+class QuickScoutPlanningOrigin(BaseModel):
+    """Configured-origin provenance for staged QuickScout planning."""
+
+    lat: float = Field(..., ge=-90, le=90, description="Configured origin latitude")
+    lng: float = Field(..., ge=-180, le=180, description="Configured origin longitude")
+    alt_msl: float = Field(default=0.0, description="Configured origin MSL altitude")
+    heading_deg: float = Field(default=0.0, ge=0, lt=360, description="Launch-slot heading used for planning")
+    timestamp_ms: Optional[int] = Field(None, ge=0, description="Origin timestamp when available")
+    source: str = Field(default="configured_origin", description="Origin source label")
 
 
 class QuickScoutTerrainSummary(BaseModel):
@@ -253,7 +275,20 @@ class CoveragePlanResponse(BaseModel):
     warnings: List[QuickScoutPlanningWarning] = Field(default_factory=list, description="Planning warnings")
     position_sources: List[QuickScoutPlanningPositionSource] = Field(
         default_factory=list,
-        description="Accepted telemetry positions used as planner origins",
+        description="Accepted live positions or configured launch slots used as planner origins",
+    )
+    position_source_mode: QuickScoutPlanningPositionMode = Field(
+        default=QuickScoutPlanningPositionMode.LIVE_DRONE_POSITIONS,
+        description="Source mode used for per-drone planning origins",
+    )
+    planning_origin: Optional[QuickScoutPlanningOrigin] = Field(
+        None,
+        description="Configured origin used when position_source_mode is configured_origin",
+    )
+    launchable: bool = Field(default=True, description="Whether the package can be launched without extra revalidation")
+    requires_revalidation: bool = Field(
+        default=False,
+        description="Whether live GPS/slot revalidation is required before launch",
     )
     terrain_summary: Optional[QuickScoutTerrainSummary] = Field(
         None,
@@ -405,6 +440,12 @@ class QuickScoutMissionSummary(BaseModel):
     return_behavior: ReturnBehavior = Field(..., description="Configured mission end behavior")
     total_coverage_percent: float = Field(default=0.0, ge=0, le=100, description="Derived mission coverage (%)")
     finding_count: int = Field(default=0, ge=0, description="Persisted finding count")
+    position_source_mode: QuickScoutPlanningPositionMode = Field(
+        default=QuickScoutPlanningPositionMode.LIVE_DRONE_POSITIONS,
+        description="Planner origin source mode used for this package",
+    )
+    launchable: bool = Field(default=True, description="Whether the package is launchable without extra revalidation")
+    requires_revalidation: bool = Field(default=False, description="Whether launch requires live revalidation")
     last_command_summary: Optional[Dict] = Field(
         None,
         description="Most recent compact tracked-command recovery summary",
@@ -447,6 +488,33 @@ class QuickScoutMissionLaunchResponse(BaseModel):
         description="Per-drone tracked command submissions for the launch batch",
     )
     message: str = Field(..., description="Operator-facing summary")
+
+
+class QuickScoutMissionLaunchRequest(BaseModel):
+    """Optional launch payload for staged QuickScout package confirmation."""
+
+    revalidation_token: Optional[str] = Field(
+        None,
+        description="Short-lived token returned by launch revalidation for staged packages",
+    )
+
+
+class QuickScoutLaunchRevalidationResponse(BaseModel):
+    """Live GPS revalidation result for configured-origin QuickScout packages."""
+
+    mission_id: str = Field(..., description="Mission identifier")
+    launchable: bool = Field(..., description="Whether launch may proceed now")
+    token: Optional[str] = Field(None, description="Short-lived launch token when launchable")
+    expires_at: Optional[float] = Field(None, description="Token expiry timestamp (Unix epoch)")
+    max_slot_error_m: float = Field(..., ge=0, description="Maximum allowed distance from planned slot")
+    slot_errors_m: Dict[str, float] = Field(default_factory=dict, description="Live slot error by pos_id")
+    blockers: List[QuickScoutPlanningWarning] = Field(default_factory=list, description="Blocking revalidation issues")
+    warnings: List[QuickScoutPlanningWarning] = Field(default_factory=list, description="Non-blocking revalidation warnings")
+    position_sources: List[QuickScoutPlanningPositionSource] = Field(
+        default_factory=list,
+        description="Live positions accepted during revalidation",
+    )
+    message: str = Field(..., description="Operator-facing result summary")
 
 
 class QuickScoutMissionControlResponse(BaseModel):
@@ -503,7 +571,20 @@ class QuickScoutOperationRecord(BaseModel):
     )
     position_sources: List[QuickScoutPlanningPositionSource] = Field(
         default_factory=list,
-        description="Accepted telemetry positions used while computing the mission package",
+        description="Accepted live positions or configured launch slots used while computing the mission package",
+    )
+    position_source_mode: QuickScoutPlanningPositionMode = Field(
+        default=QuickScoutPlanningPositionMode.LIVE_DRONE_POSITIONS,
+        description="Planner origin source mode used for this package",
+    )
+    planning_origin: Optional[QuickScoutPlanningOrigin] = Field(
+        None,
+        description="Configured origin used for staged planning",
+    )
+    launchable: bool = Field(default=True, description="Whether the package can be launched without extra revalidation")
+    requires_revalidation: bool = Field(
+        default=False,
+        description="Whether live GPS/slot revalidation is required before launch",
     )
     terrain_summary: Optional[QuickScoutTerrainSummary] = Field(
         None,

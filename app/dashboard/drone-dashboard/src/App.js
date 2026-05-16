@@ -59,7 +59,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 
 /**
  * Main Application Component
- * Clean routing with Mapbox-based trajectory planning
+ * Clean routing for dashboard mission planning and operations
  * Now includes unified design system with dynamic sidebar
  */
 const MOBILE_BREAKPOINT = 960;
@@ -233,7 +233,7 @@ const AppShell = () => {
                       <Route path="/swarm-trajectory" element={<SwarmTrajectory />} />
                       <Route path="/px4-parameters" element={<Px4ParametersPage />} />
 
-                      {/* Enhanced Trajectory Planning Route with unified design system */}
+                      {/* Advanced Route Editor retained for lower-level trajectory authoring */}
                       <Route path="/trajectory-planning" element={<TrajectoryPlanning />} />
 
                       {/* QuickScout SAR */}

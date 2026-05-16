@@ -12,6 +12,8 @@ import time
 import uuid
 import math
 import asyncio
+import secrets
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
@@ -34,12 +36,15 @@ from sar.schemas import (
     QuickScoutControlAvailability,
     QuickScoutControlEffect,
     QuickScoutLaunchSubmission,
+    QuickScoutLaunchRevalidationResponse,
     QuickScoutMissionHandoff,
     QuickScoutMissionHandoffFinding,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionPhase,
     QuickScoutPlanningJobResponse,
     QuickScoutPlanningJobState,
+    QuickScoutPlanningOrigin,
+    QuickScoutPlanningPositionMode,
     QuickScoutPlanningPositionSource,
     QuickScoutPlanningWarning,
     QuickScoutTerrainSummary,
@@ -63,6 +68,10 @@ logger = get_logger("quickscout_service")
 
 _service_instance: "QuickScoutService | None" = None
 MAX_PLANNING_POSITION_AGE_S = 30.0
+CONFIGURED_ORIGIN_REVALIDATION_MAX_DISTANCE_M = 250.0
+CONFIGURED_ORIGIN_REVALIDATION_TOKEN_TTL_S = 120.0
+CONFIGURED_ORIGIN_CHANGE_TOLERANCE_M = 1.0
+CONFIGURED_ORIGIN_ALT_TOLERANCE_M = 2.0
 TERMINAL_JOB_STATES = {
     QuickScoutPlanningJobState.SUCCEEDED,
     QuickScoutPlanningJobState.FAILED,
@@ -86,6 +95,7 @@ class QuickScoutService:
         self.planner_factory = planner_factory
         self._planning_jobs: Dict[str, Dict[str, Any]] = {}
         self._planning_tasks: Dict[str, asyncio.Task] = {}
+        self._launch_revalidation_tokens: Dict[str, Dict[str, Any]] = {}
 
     @staticmethod
     def _now_ms() -> int:
@@ -104,6 +114,32 @@ class QuickScoutService:
         if numeric < 1_000_000_000_000:
             numeric *= 1000.0
         return int(numeric)
+
+    @staticmethod
+    def _normalize_origin_timestamp_ms(value: Any) -> Optional[int]:
+        normalized = QuickScoutService._normalize_timestamp_ms(value)
+        if normalized is not None:
+            return normalized
+        if not value:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return int(parsed.timestamp() * 1000)
+
+    @staticmethod
+    def _haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+        radius_m = 6_371_000.0
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lng2 - lng1)
+        a = (
+            math.sin(d_phi / 2.0) ** 2
+            + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2.0) ** 2
+        )
+        return radius_m * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
 
     @staticmethod
     def _problem_detail(code: str, message: str, *, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -519,6 +555,200 @@ class QuickScoutService:
 
         return positions, sources, warnings
 
+    def _get_configured_origin_positions(
+        self,
+        deps: Any,
+        pos_ids: Optional[List[int]] = None,
+    ) -> Tuple[
+        Dict[str, Tuple[float, float]],
+        List[QuickScoutPlanningPositionSource],
+        List[QuickScoutPlanningWarning],
+        QuickScoutPlanningOrigin,
+    ]:
+        """Build planning origins from configured launch slots without using live telemetry."""
+        try:
+            origin_data = deps.load_origin()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=self._problem_detail(
+                    "quickscout_origin_unavailable",
+                    "Configured origin could not be loaded for staged QuickScout planning.",
+                    details={"error": str(exc)},
+                ),
+            ) from exc
+
+        if not origin_data or origin_data.get("lat") in ("", None) or origin_data.get("lon") in ("", None):
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_origin_unavailable",
+                    "Set a configured origin before using staged QuickScout planning.",
+                ),
+            )
+
+        try:
+            origin_lat = float(origin_data["lat"])
+            origin_lng = float(origin_data["lon"])
+            origin_alt = float(origin_data.get("alt", 0) or 0)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_origin_invalid",
+                    "Configured origin has invalid latitude, longitude, or altitude values.",
+                ),
+            ) from exc
+
+        if (
+            not all(math.isfinite(value) for value in (origin_lat, origin_lng, origin_alt))
+            or not (-90.0 <= origin_lat <= 90.0)
+            or not (-180.0 <= origin_lng <= 180.0)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_origin_invalid",
+                    "Configured origin is outside valid WGS84 bounds.",
+                ),
+            )
+
+        if abs(origin_lat) <= 0.000001 and abs(origin_lng) <= 0.000001:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_origin_default_coordinate",
+                    "Configured origin is the default 0,0 coordinate. Set the real launch origin before staged planning.",
+                ),
+            )
+
+        try:
+            drones_config = deps.load_config()
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Failed to load drone config: {exc}") from exc
+        if not drones_config:
+            raise HTTPException(
+                status_code=404,
+                detail=self._problem_detail(
+                    "quickscout_config_unavailable",
+                    "No drone configuration is available for configured-origin QuickScout planning.",
+                ),
+            )
+
+        requested_ids = set(int(pos_id) for pos_id in pos_ids) if pos_ids is not None else None
+        builder = getattr(deps, "build_desired_launch_positions_report", None)
+        if builder is None:
+            from origin import build_desired_launch_positions_report as builder
+
+        trajectory_resolver = getattr(deps, "get_expected_position_from_trajectory", None)
+        sim_mode = bool(getattr(getattr(deps, "Params", None), "sim_mode", False))
+        heading_deg = float(origin_data.get("heading", origin_data.get("heading_deg", 0.0)) or 0.0) % 360.0
+        report = builder(
+            drones_config,
+            origin_lat,
+            origin_lng,
+            origin_alt,
+            heading_deg,
+            sim_mode,
+            trajectory_resolver=trajectory_resolver,
+        )
+
+        positions: Dict[str, Tuple[float, float]] = {}
+        sources: List[QuickScoutPlanningPositionSource] = []
+        missing_requested = set(requested_ids or [])
+        origin_timestamp_ms = self._normalize_origin_timestamp_ms(origin_data.get("timestamp"))
+        planning_origin = QuickScoutPlanningOrigin(
+            lat=origin_lat,
+            lng=origin_lng,
+            alt_msl=origin_alt,
+            heading_deg=heading_deg,
+            timestamp_ms=origin_timestamp_ms,
+            source=str(origin_data.get("alt_source") or "configured_origin"),
+        )
+
+        for item in report.get("positions", []):
+            try:
+                normalized_pos_id = int(item.get("pos_id"))
+                lat = float(item.get("latitude"))
+                lng = float(item.get("longitude"))
+            except (TypeError, ValueError):
+                continue
+            if requested_ids is not None and normalized_pos_id not in requested_ids:
+                continue
+            if not all(math.isfinite(value) for value in (lat, lng)):
+                continue
+            positions[str(normalized_pos_id)] = (lat, lng)
+            missing_requested.discard(normalized_pos_id)
+            sources.append(
+                QuickScoutPlanningPositionSource(
+                    pos_id=normalized_pos_id,
+                    hw_id=str(item.get("hw_id") or ""),
+                    lat=lat,
+                    lng=lng,
+                    timestamp_ms=origin_timestamp_ms or self._now_ms(),
+                    age_s=None,
+                    source="configured_origin_slot",
+                    approximate=True,
+                    details={
+                        "origin": planning_origin.model_dump(mode="json"),
+                        "north_m": item.get("north"),
+                        "east_m": item.get("east"),
+                        "trajectory_north_m": item.get("trajectory_north"),
+                        "trajectory_east_m": item.get("trajectory_east"),
+                    },
+                )
+            )
+
+        if missing_requested:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_configured_origin_slots_unavailable",
+                    "One or more selected drones do not have configured launch slots for staged planning.",
+                    details={"missing_pos_ids": sorted(missing_requested)},
+                ),
+            )
+
+        if not positions:
+            raise HTTPException(
+                status_code=400,
+                detail=self._problem_detail(
+                    "quickscout_configured_origin_slots_unavailable",
+                    "No configured launch slots are available for staged QuickScout planning.",
+                ),
+            )
+
+        warnings = [
+            self._planning_warning(
+                "quickscout_configured_origin_staged",
+                "Plan uses configured origin launch slots; live GPS revalidation is required before launch.",
+                details={
+                    "origin": planning_origin.model_dump(mode="json"),
+                    "slot_count": len(positions),
+                },
+            )
+        ]
+        return positions, sources, warnings, planning_origin
+
+    def _resolve_planning_positions(
+        self,
+        deps: Any,
+        request: QuickScoutMissionRequest,
+    ) -> Tuple[
+        Dict[str, Tuple[float, float]],
+        List[QuickScoutPlanningPositionSource],
+        List[QuickScoutPlanningWarning],
+        Optional[QuickScoutPlanningOrigin],
+        bool,
+        bool,
+    ]:
+        if request.position_source_mode == QuickScoutPlanningPositionMode.CONFIGURED_ORIGIN:
+            positions, sources, warnings, origin = self._get_configured_origin_positions(deps, request.pos_ids)
+            return positions, sources, warnings, origin, False, True
+
+        positions, sources, warnings = self._get_drone_gps_positions(deps, request.pos_ids)
+        return positions, sources, warnings, None, True, False
+
     @staticmethod
     def _build_ready_drone_states(operation: QuickScoutOperationRecord) -> Dict[str, DroneSurveyState]:
         now = time.time()
@@ -634,6 +864,11 @@ class QuickScoutService:
             return ("Define the search problem and compute a QuickScout package.", None)
 
         if phase == QuickScoutMissionPhase.READY_TO_LAUNCH:
+            if operation.requires_revalidation:
+                return (
+                    "Staged package is computed; live GPS revalidation is required before launch.",
+                    "Power on assigned aircraft, verify global position, then revalidate from launch review.",
+                )
             return ("Package is computed and ready for launch review.", None)
 
         if phase == QuickScoutMissionPhase.LAUNCH_PARTIAL:
@@ -892,10 +1127,21 @@ class QuickScoutService:
             status=QuickScoutPlanningJobState.RUNNING,
             phase="validating_positions",
             progress_percent=8,
-            message="Checking selected drone global positions.",
+            message=(
+                "Loading configured origin launch slots."
+                if request.position_source_mode == QuickScoutPlanningPositionMode.CONFIGURED_ORIGIN
+                else "Checking selected drone global positions."
+            ),
         )
         self._raise_if_planning_job_canceled(job_id)
-        drone_positions, position_sources, position_warnings = self._get_drone_gps_positions(deps, request.pos_ids)
+        (
+            drone_positions,
+            position_sources,
+            position_warnings,
+            planning_origin,
+            launchable,
+            requires_revalidation,
+        ) = self._resolve_planning_positions(deps, request)
         warnings.extend(position_warnings)
 
         self._update_planning_job(
@@ -1017,6 +1263,10 @@ class QuickScoutService:
             algorithm_used=request.survey_config.algorithm,
             planning_warnings=warnings,
             position_sources=position_sources,
+            position_source_mode=request.position_source_mode,
+            planning_origin=planning_origin,
+            launchable=launchable,
+            requires_revalidation=requires_revalidation,
             terrain_summary=terrain_summary,
             created_at=now,
             updated_at=now,
@@ -1032,6 +1282,10 @@ class QuickScoutService:
             algorithm_used=operation.algorithm_used,
             warnings=warnings,
             position_sources=position_sources,
+            position_source_mode=request.position_source_mode,
+            planning_origin=planning_origin,
+            launchable=launchable,
+            requires_revalidation=requires_revalidation,
             terrain_summary=terrain_summary,
         )
 
@@ -1112,6 +1366,9 @@ class QuickScoutService:
                     return_behavior=operation.return_behavior,
                     total_coverage_percent=self._calculate_total_coverage(operation.drone_states),
                     finding_count=finding_count,
+                    position_source_mode=operation.position_source_mode,
+                    launchable=operation.launchable,
+                    requires_revalidation=operation.requires_revalidation,
                     last_command_summary=operation.last_command_summary,
                 )
             )
@@ -1470,6 +1727,186 @@ class QuickScoutService:
             ],
         }
 
+    def _create_launch_revalidation_token(self, mission_id: str) -> Tuple[str, float]:
+        token = secrets.token_urlsafe(24)
+        expires_at = time.time() + CONFIGURED_ORIGIN_REVALIDATION_TOKEN_TTL_S
+        self._launch_revalidation_tokens[mission_id] = {
+            "token": token,
+            "expires_at": expires_at,
+        }
+        return token, expires_at
+
+    def _consume_launch_revalidation_token(self, mission_id: str, token: Optional[str]) -> bool:
+        if not token:
+            return False
+        record = self._launch_revalidation_tokens.get(mission_id)
+        if not record:
+            return False
+        if record.get("token") != token:
+            return False
+        if float(record.get("expires_at") or 0) < time.time():
+            self._launch_revalidation_tokens.pop(mission_id, None)
+            return False
+        self._launch_revalidation_tokens.pop(mission_id, None)
+        return True
+
+    def _build_launch_revalidation_required_error(self, operation: QuickScoutOperationRecord) -> HTTPException:
+        return HTTPException(
+            status_code=400,
+            detail=self._problem_detail(
+                "quickscout_launch_revalidation_required",
+                "This QuickScout package was planned from configured origin slots. Revalidate live drone GPS positions before launch.",
+                details={
+                    "mission_id": operation.mission_id,
+                    "position_source_mode": operation.position_source_mode.value,
+                    "requires_revalidation": operation.requires_revalidation,
+                    "token_ttl_s": CONFIGURED_ORIGIN_REVALIDATION_TOKEN_TTL_S,
+                },
+            ),
+        )
+
+    def revalidate_launch(self, deps: Any, mission_id: str) -> QuickScoutLaunchRevalidationResponse:
+        operation = self.store.get_operation(mission_id)
+        if operation is None:
+            raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+
+        if not operation.requires_revalidation:
+            return QuickScoutLaunchRevalidationResponse(
+                mission_id=mission_id,
+                launchable=True,
+                token=None,
+                expires_at=None,
+                max_slot_error_m=CONFIGURED_ORIGIN_REVALIDATION_MAX_DISTANCE_M,
+                slot_errors_m={},
+                blockers=[],
+                warnings=[],
+                position_sources=operation.position_sources,
+                message="This QuickScout package already uses live validated drone positions.",
+            )
+
+        blockers: List[QuickScoutPlanningWarning] = []
+        warnings: List[QuickScoutPlanningWarning] = []
+        position_sources: List[QuickScoutPlanningPositionSource] = []
+        slot_errors_m: Dict[str, float] = {}
+
+        planning_origin = operation.planning_origin
+        if planning_origin is not None:
+            try:
+                origin_data = deps.load_origin()
+                current_origin_lat = float(origin_data["lat"])
+                current_origin_lng = float(origin_data["lon"])
+                current_origin_alt = float(origin_data.get("alt", 0) or 0)
+                origin_delta_m = self._haversine_m(
+                    planning_origin.lat,
+                    planning_origin.lng,
+                    current_origin_lat,
+                    current_origin_lng,
+                )
+                origin_alt_delta_m = abs(current_origin_alt - planning_origin.alt_msl)
+                if (
+                    origin_delta_m > CONFIGURED_ORIGIN_CHANGE_TOLERANCE_M
+                    or origin_alt_delta_m > CONFIGURED_ORIGIN_ALT_TOLERANCE_M
+                ):
+                    blockers.append(
+                        self._planning_warning(
+                            "quickscout_planning_origin_changed",
+                            "Configured origin changed after this QuickScout package was computed. Recompute before launch.",
+                            details={
+                                "origin_delta_m": origin_delta_m,
+                                "origin_alt_delta_m": origin_alt_delta_m,
+                            },
+                        )
+                    )
+            except Exception as exc:
+                blockers.append(
+                    self._planning_warning(
+                        "quickscout_origin_unavailable",
+                        "Configured origin could not be verified before launch. Recompute or set origin again.",
+                        details={"error": str(exc)},
+                    )
+                )
+
+        try:
+            plan_pos_ids = [int(plan.pos_id) for plan in operation.plans]
+            live_positions, position_sources, position_warnings = self._get_drone_gps_positions(deps, plan_pos_ids)
+            warnings.extend(position_warnings)
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            blockers.append(
+                self._planning_warning(
+                    str(detail.get("code") or "quickscout_position_unavailable"),
+                    str(
+                        detail.get("message")
+                        or "One or more assigned drones do not have fresh valid global positions for launch revalidation."
+                    ),
+                    details=detail.get("details") if isinstance(detail.get("details"), dict) else None,
+                )
+            )
+            live_positions = {}
+
+        expected_sources = {
+            int(source.pos_id): source
+            for source in operation.position_sources
+            if source.source == "configured_origin_slot"
+        }
+        for plan in operation.plans:
+            expected = expected_sources.get(int(plan.pos_id))
+            live = live_positions.get(str(plan.pos_id))
+            if expected is None:
+                blockers.append(
+                    self._planning_warning(
+                        "quickscout_configured_slot_missing",
+                        f"No configured-origin slot provenance is stored for drone position {plan.pos_id}. Recompute before launch.",
+                        details={"pos_id": plan.pos_id, "hw_id": plan.hw_id},
+                    )
+                )
+                continue
+            if live is None:
+                continue
+            error_m = self._haversine_m(expected.lat, expected.lng, live[0], live[1])
+            slot_errors_m[str(plan.pos_id)] = error_m
+            if error_m > CONFIGURED_ORIGIN_REVALIDATION_MAX_DISTANCE_M:
+                blockers.append(
+                    self._planning_warning(
+                        "quickscout_launch_slot_mismatch",
+                        f"Drone position {plan.pos_id} is too far from its planned configured-origin launch slot.",
+                        details={
+                            "pos_id": plan.pos_id,
+                            "hw_id": plan.hw_id,
+                            "slot_error_m": error_m,
+                            "maximum_error_m": CONFIGURED_ORIGIN_REVALIDATION_MAX_DISTANCE_M,
+                        },
+                    )
+                )
+
+        if blockers:
+            return QuickScoutLaunchRevalidationResponse(
+                mission_id=mission_id,
+                launchable=False,
+                token=None,
+                expires_at=None,
+                max_slot_error_m=CONFIGURED_ORIGIN_REVALIDATION_MAX_DISTANCE_M,
+                slot_errors_m=slot_errors_m,
+                blockers=blockers,
+                warnings=warnings,
+                position_sources=position_sources,
+                message="Live revalidation failed. Resolve blockers or recompute from live GPS before launch.",
+            )
+
+        token, expires_at = self._create_launch_revalidation_token(mission_id)
+        return QuickScoutLaunchRevalidationResponse(
+            mission_id=mission_id,
+            launchable=True,
+            token=token,
+            expires_at=expires_at,
+            max_slot_error_m=CONFIGURED_ORIGIN_REVALIDATION_MAX_DISTANCE_M,
+            slot_errors_m=slot_errors_m,
+            blockers=[],
+            warnings=warnings,
+            position_sources=position_sources,
+            message="Live GPS positions match the configured-origin QuickScout plan. Launch token issued.",
+        )
+
     def _build_control_summary_payload(
         self,
         response: QuickScoutMissionControlResponse,
@@ -1490,10 +1927,19 @@ class QuickScoutService:
             "command": self._summarize_command_response(response.command),
         }
 
-    async def launch_mission(self, deps: Any, mission_id: str) -> QuickScoutMissionLaunchResponse:
+    async def launch_mission(
+        self,
+        deps: Any,
+        mission_id: str,
+        *,
+        revalidation_token: Optional[str] = None,
+    ) -> QuickScoutMissionLaunchResponse:
         operation = self.store.get_operation(mission_id)
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
+
+        if operation.requires_revalidation and not self._consume_launch_revalidation_token(mission_id, revalidation_token):
+            raise self._build_launch_revalidation_required_error(operation)
 
         try:
             deps.load_config()

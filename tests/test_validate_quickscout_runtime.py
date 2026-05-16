@@ -19,7 +19,7 @@ def test_telemetry_has_ids_requires_full_selected_fleet():
     assert _telemetry_has_ids({"1": {}, "3": {}}, [1, 2, 3]) is False
 
 
-def test_idle_baseline_requires_recent_heartbeat_ready_idle_and_disarmed():
+def test_idle_baseline_accepts_recent_heartbeat_ready_idle_and_disarmed():
     row = {
         "update_time": 1774290000,
         "is_ready_to_arm": True,
@@ -32,8 +32,26 @@ def test_idle_baseline_requires_recent_heartbeat_ready_idle_and_disarmed():
     }
 
     assert _is_idle_baseline_row(row) is True
-    assert _is_idle_baseline_row({**row, "heartbeat_last_seen": None}) is False
     assert _is_idle_baseline_row({**row, "is_armed": True}) is False
+
+
+def test_idle_baseline_accepts_fresh_telemetry_when_heartbeat_metadata_is_absent():
+    row = {
+        "update_time": time.time(),
+        "server_time": int(time.time() * 1000),
+        "telemetry_available": True,
+        "is_ready_to_arm": True,
+        "readiness_status": "ready",
+        "is_armed": False,
+        "mission": 0,
+        "state": 0,
+        "home_position_set": True,
+        "heartbeat_last_seen": None,
+    }
+
+    assert _is_idle_baseline_row(row) is True
+    assert _is_idle_baseline_row({**row, "telemetry_available": False}) is False
+    assert _is_idle_baseline_row({**row, "server_time": int((time.time() - 120) * 1000), "update_time": time.time() - 120}) is False
 
 
 def test_idle_reset_requires_disarmed_with_no_mission_state():

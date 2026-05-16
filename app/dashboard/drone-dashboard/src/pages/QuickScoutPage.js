@@ -101,6 +101,10 @@ const DEFAULT_SURVEY_CONFIG = {
 };
 const DEFAULT_LAST_KNOWN_POINT_RADIUS_M = 120;
 const DEFAULT_CORRIDOR_WIDTH_M = 90;
+const QUICKSCOUT_POSITION_SOURCE_MODES = {
+  LIVE_DRONE_POSITIONS: 'live_drone_positions',
+  CONFIGURED_ORIGIN: 'configured_origin',
+};
 
 const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
 const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
@@ -208,6 +212,7 @@ const QuickScoutPage = () => {
   const [missionLabel, setMissionLabel] = useState('');
   const [missionBrief, setMissionBrief] = useState('');
   const [returnBehavior, setReturnBehavior] = useState('return_home');
+  const [positionSourceMode, setPositionSourceMode] = useState(QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS);
   const [selectedDrones, setSelectedDrones] = useState([]);
   const [coveragePlan, setCoveragePlan] = useState(null);
   const [computing, setComputing] = useState(false);
@@ -259,12 +264,65 @@ const QuickScoutPage = () => {
   const focusMap = useCallback((longitude, latitude, zoom = 15) => {
     const nextViewport = { longitude, latitude, zoom };
     setViewport(nextViewport);
-    if (!useLeaflet && mapRef.current?.flyTo) {
-      mapRef.current.flyTo({ center: [longitude, latitude], zoom });
+    const mapboxMap = mapRef.current?.getMap?.() || mapRef.current;
+    if (!useLeaflet && mapboxMap?.flyTo) {
+      mapboxMap.flyTo({ center: [longitude, latitude], zoom });
       return;
     }
     setFlyToTarget({ latitude, longitude, zoom });
   }, [useLeaflet]);
+
+  const handleMapboxMove = useCallback((event) => {
+    const nextViewState = event?.viewState || {};
+    if (
+      Number.isFinite(Number(nextViewState.latitude))
+      && Number.isFinite(Number(nextViewState.longitude))
+    ) {
+      setViewport({
+        latitude: Number(nextViewState.latitude),
+        longitude: Number(nextViewState.longitude),
+        zoom: Number.isFinite(Number(nextViewState.zoom)) ? Number(nextViewState.zoom) : viewport.zoom,
+      });
+    }
+  }, [viewport.zoom]);
+
+  const handleLeafletMoveEnd = useCallback((event) => {
+    const map = event?.target;
+    const center = map?.getCenter?.();
+    if (!center) {
+      return;
+    }
+    setViewport({
+      latitude: Number(center.lat),
+      longitude: Number(center.lng),
+      zoom: Number.isFinite(Number(map?.getZoom?.())) ? Number(map.getZoom()) : viewport.zoom,
+    });
+  }, [viewport.zoom]);
+
+  const getCurrentMapCenter = useCallback(() => {
+    if (!useLeaflet) {
+      const mapboxMap = mapRef.current?.getMap?.() || mapRef.current;
+      const center = mapboxMap?.getCenter?.();
+      if (
+        center
+        && Number.isFinite(Number(center.lat))
+        && Number.isFinite(Number(center.lng))
+      ) {
+        return {
+          lat: Number(center.lat),
+          lng: Number(center.lng),
+        };
+      }
+    }
+
+    if (Number.isFinite(Number(viewport.latitude)) && Number.isFinite(Number(viewport.longitude))) {
+      return {
+        lat: Number(viewport.latitude),
+        lng: Number(viewport.longitude),
+      };
+    }
+    return null;
+  }, [useLeaflet, viewport.latitude, viewport.longitude]);
 
   const resetWorkspace = useCallback(() => {
     clearPlanningJobPoll();
@@ -281,6 +339,7 @@ const QuickScoutPage = () => {
     setMissionLabel('');
     setMissionBrief('');
     setReturnBehavior('return_home');
+    setPositionSourceMode(QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS);
     setSelectedDrones([]);
     setCoveragePlan(null);
     setLastPlannedSignature(null);
@@ -356,6 +415,7 @@ const QuickScoutPage = () => {
     setMissionLabel(operation.mission_label || '');
     setMissionBrief(operation.mission_brief || '');
     setReturnBehavior(operation.return_behavior || 'return_home');
+    setPositionSourceMode(operation.position_source_mode || QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS);
     setSelectedDrones(recoveredSelectedDrones);
     setCoveragePlan({
       mission_id: operation.mission_id,
@@ -363,9 +423,17 @@ const QuickScoutPage = () => {
       total_area_sq_m: operation.total_area_sq_m || 0,
       estimated_coverage_time_s: operation.estimated_coverage_time_s || 0,
       algorithm_used: operation.algorithm_used || DEFAULT_SURVEY_CONFIG.algorithm,
+      warnings: operation.planning_warnings || [],
+      position_source_mode: operation.position_source_mode || QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS,
+      position_sources: operation.position_sources || [],
+      planning_origin: operation.planning_origin || null,
+      launchable: operation.launchable ?? true,
+      requires_revalidation: operation.requires_revalidation ?? false,
+      terrain_summary: operation.terrain_summary || null,
     });
     setLastPlannedSignature(buildQuickScoutPlanningSignature({
       missionTemplate: operation.mission_template || 'area_sweep',
+      positionSourceMode: operation.position_source_mode || QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS,
       searchArea: operation.search_area?.points || [],
       searchCenter: operation.search_area?.center || null,
       searchRadiusM: operation.search_area?.radius_m || DEFAULT_LAST_KNOWN_POINT_RADIUS_M,
@@ -531,6 +599,7 @@ const QuickScoutPage = () => {
   const currentPlanningSignature = useMemo(
     () => buildQuickScoutPlanningSignature({
       missionTemplate,
+      positionSourceMode,
       searchArea,
       searchCenter,
       searchRadiusM,
@@ -543,7 +612,7 @@ const QuickScoutPage = () => {
       missionBrief,
       returnBehavior,
     }),
-    [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, returnBehavior, searchArea, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig],
+    [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, positionSourceMode, returnBehavior, searchArea, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig],
   );
   const activePlanTargetHwIds = useMemo(
     () => (coveragePlan?.plans || [])
@@ -588,10 +657,14 @@ const QuickScoutPage = () => {
     Altitude: surveyConfig.use_terrain_following
       ? `${surveyConfig.survey_altitude_agl} m AGL terrain`
       : `${surveyConfig.cruise_altitude_msl} m MSL fixed`,
+    Planning: coveragePlan?.position_source_mode === QUICKSCOUT_POSITION_SOURCE_MODES.CONFIGURED_ORIGIN
+      ? 'Configured origin'
+      : 'Live GPS',
     End: getReturnBehaviorLabel(returnBehavior),
   }), [
     activePlanTargetHwIds.length,
     coveragePlan?.estimated_coverage_time_s,
+    coveragePlan?.position_source_mode,
     coveragePlan?.total_area_sq_m,
     missionLabel,
     missionTemplate,
@@ -607,6 +680,9 @@ const QuickScoutPage = () => {
     ))),
   ], [launchReadiness?.blockers, planNeedsRecompute]);
   const launchReviewWarnings = useMemo(() => [
+    ...(coveragePlan?.requires_revalidation
+      ? ['Configured-origin package: live GPS revalidation runs immediately before launch.']
+      : []),
     ...((launchReadiness?.warnings || []).map((issue) => (
       `${issue.label || 'Advisory'}${issue.detail ? `: ${issue.detail}` : ''}`
     ))),
@@ -614,7 +690,7 @@ const QuickScoutPage = () => {
     ...(coveragePlan?.terrain_summary?.status && coveragePlan.terrain_summary.status !== 'ok'
       ? [coveragePlan.terrain_summary.message || `Terrain status: ${coveragePlan.terrain_summary.status}`]
       : []),
-  ], [coveragePlan?.terrain_summary, coveragePlan?.warnings, launchReadiness?.warnings]);
+  ], [coveragePlan?.requires_revalidation, coveragePlan?.terrain_summary, coveragePlan?.warnings, launchReadiness?.warnings]);
   const currentMissionState = missionStatus?.state || currentMissionSummary?.state || null;
   const currentMissionDisplayName = currentMissionSummary?.mission_label || missionLabel || missionId;
   const missionHandoffRefreshKey = useMemo(() => {
@@ -739,6 +815,12 @@ const QuickScoutPage = () => {
     setMissionProfileId(deriveQuickScoutProfileId(nextConfig));
   }, []);
 
+  const handlePositionSourceModeChange = useCallback((nextMode) => {
+    setPositionSourceMode(nextMode || QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS);
+    setCoveragePlan(null);
+    setLastPlannedSignature(null);
+  }, []);
+
   const handleMissionTemplateChange = useCallback((templateId) => {
     setMissionTemplate(templateId);
     setCoveragePlan(null);
@@ -779,17 +861,18 @@ const QuickScoutPage = () => {
   }, []);
 
   const handleUseMapCenter = useCallback(() => {
-    if (!Number.isFinite(Number(viewport.latitude)) || !Number.isFinite(Number(viewport.longitude))) {
+    const mapCenter = getCurrentMapCenter();
+    if (!mapCenter) {
       return;
     }
 
     setSearchCenter({
-      lat: Number(viewport.latitude),
-      lng: Number(viewport.longitude),
+      lat: mapCenter.lat,
+      lng: mapCenter.lng,
     });
     setCoveragePlan(null);
     setLastPlannedSignature(null);
-  }, [viewport.latitude, viewport.longitude]);
+  }, [getCurrentMapCenter]);
 
   const handlePlanMapPointClick = useCallback((latitude, longitude) => {
     if (mode !== 'plan' || markingFinding) {
@@ -812,18 +895,19 @@ const QuickScoutPage = () => {
   }, [handleSearchCenterChange, markingFinding, missionTemplate, mode]);
 
   const handleAppendMapCenterToPath = useCallback(() => {
-    if (!Number.isFinite(Number(viewport.latitude)) || !Number.isFinite(Number(viewport.longitude))) {
+    const mapCenter = getCurrentMapCenter();
+    if (!mapCenter) {
       return;
     }
 
     handleSearchPathChange([
       ...searchPath,
       {
-        lat: Number(viewport.latitude),
-        lng: Number(viewport.longitude),
+        lat: mapCenter.lat,
+        lng: mapCenter.lng,
       },
     ]);
-  }, [handleSearchPathChange, searchPath, viewport.latitude, viewport.longitude]);
+  }, [getCurrentMapCenter, handleSearchPathChange, searchPath]);
 
   const handleUndoSearchPathPoint = useCallback(() => {
     handleSearchPathChange(searchPath.slice(0, -1));
@@ -864,6 +948,7 @@ const QuickScoutPage = () => {
       search_area: requestSearchArea,
       survey_config: surveyConfig,
       pos_ids: selectedDrones.length > 0 ? selectedDrones : null,
+      position_source_mode: positionSourceMode,
       mission_template: missionTemplate,
       mission_label: missionLabel || null,
       mission_profile: missionProfileId === 'custom' ? 'custom' : missionProfileId,
@@ -873,6 +958,7 @@ const QuickScoutPage = () => {
 
     const signature = buildQuickScoutPlanningSignature({
       missionTemplate,
+      positionSourceMode,
       searchArea,
       searchCenter,
       searchRadiusM,
@@ -887,7 +973,7 @@ const QuickScoutPage = () => {
     });
 
     return { request, signature };
-  }, [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig]);
+  }, [corridorWidthM, missionBrief, missionLabel, missionProfileId, missionTemplate, positionSourceMode, returnBehavior, searchArea, searchAreaSqM, searchCenter, searchPath, searchRadiusM, selectedDrones, surveyConfig]);
 
   const applyPlanningJobResult = useCallback(async (job, signature) => {
     const response = job?.result;
@@ -1043,7 +1129,21 @@ const QuickScoutPage = () => {
     if (!missionId) return;
     setLaunching(true);
     try {
-      const response = await sarApi.launchMission(missionId);
+      let revalidationToken = null;
+      if (coveragePlan?.requires_revalidation) {
+        const revalidation = await sarApi.revalidateLaunch(missionId);
+        if (!revalidation?.launchable) {
+          const blockerText = (revalidation?.blockers || [])
+            .map((blocker) => blocker?.message || blocker?.code)
+            .filter(Boolean)
+            .join('; ');
+          throw new Error(blockerText || revalidation?.message || 'Live revalidation failed');
+        }
+        revalidationToken = revalidation?.token || null;
+      }
+      const response = revalidationToken
+        ? await sarApi.launchMission(missionId, { revalidationToken })
+        : await sarApi.launchMission(missionId);
       await refreshMissionCatalog();
       toast.success(response?.message || 'Mission launched');
       setLaunchReviewOpen(false);
@@ -1054,7 +1154,7 @@ const QuickScoutPage = () => {
     } finally {
       setLaunching(false);
     }
-  }, [missionId, refreshMissionCatalog]);
+  }, [coveragePlan?.requires_revalidation, missionId, refreshMissionCatalog]);
 
   const handlePause = useCallback(async () => {
     if (!missionId) return;
@@ -1301,6 +1401,7 @@ const QuickScoutPage = () => {
               mapboxAccessToken={mapboxToken}
               mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
               style={{ width: '100%', height: '100%' }}
+              onMove={handleMapboxMove}
               onClick={(e) => {
                 if (markingFinding && findingClickRef.current) {
                   findingClickRef.current(e);
@@ -1427,6 +1528,10 @@ const QuickScoutPage = () => {
               zoom={viewport.zoom || 3}
               defaultLayer="esriSatellite"
               style={{ width: '100%', height: '100%' }}
+              eventHandlers={{
+                moveend: handleLeafletMoveEnd,
+                zoomend: handleLeafletMoveEnd,
+              }}
               onClick={(event) => {
                 handlePlanMapPointClick(event?.latlng?.lat, event?.latlng?.lng);
               }}
@@ -1567,6 +1672,8 @@ const QuickScoutPage = () => {
             onMissionBriefChange={setMissionBrief}
             returnBehavior={returnBehavior}
             onReturnBehaviorChange={setReturnBehavior}
+            positionSourceMode={positionSourceMode}
+            onPositionSourceModeChange={handlePositionSourceModeChange}
             missionCatalog={missionCatalog}
             currentMissionId={missionId}
             recoveringMissionId={recoveringMissionId}

@@ -6,6 +6,7 @@ import {
   validateWaypointSequence,
   calculateTrajectoryStats,
 } from './SpeedCalculator';
+import { serializeTrajectoryCsv } from './trajectoryCsv';
 import { TRAJECTORY_ALTITUDE_POLICY } from '../constants/trajectoryMissionPolicy';
 
 /**
@@ -446,43 +447,7 @@ export class TrajectoryStorage {
    * Clean, single-source-of-truth approach: HeadingMode contains all needed info
    */
   convertToCSV(waypoints) {
-    const headers = [
-      'Name', 
-      'Latitude', 
-      'Longitude', 
-      'Altitude_MSL_m', 
-      'TimeFromStart_s', 
-      'EstimatedSpeed_ms', 
-      'Heading_deg',        // Aviation standard: 0-360°
-      'HeadingMode',        // 'auto' or 'manual' - single source of truth
-      'AltitudeReference',
-      'TargetAgl_m',
-      'GroundElevation_m',
-      'TerrainAccurate',
-      'TimingMode',
-      'PreferredSpeed_ms',
-      'CalculatedHeading_deg'
-    ];
-    
-    const rows = waypoints.map(wp => [
-      wp.name,
-      wp.latitude.toFixed(8),
-      wp.longitude.toFixed(8),
-      wp.altitude.toFixed(2),
-      (wp.timeFromStart || 0).toFixed(1),
-      (wp.estimatedSpeed || 0).toFixed(1),
-      (wp.heading || wp.yaw || 0).toFixed(1), // Backwards compatibility with old 'yaw' field
-      wp.headingMode || wp.yawMode || 'auto', // Backwards compatibility with old 'yawMode' field
-      wp.altitudeReference || ALTITUDE_REFERENCE.MSL,
-      Number(wp.targetAgl || 0).toFixed(1),
-      Number(wp.groundElevation || 0).toFixed(1),
-      wp.terrainAccurate !== false ? 'true' : 'false',
-      wp.timingMode || TIMING_MODES.MANUAL_TIME,
-      Number(wp.preferredSpeed || 0).toFixed(1),
-      Number(wp.calculatedHeading || 0).toFixed(1),
-    ]);
-
-    return [headers, ...rows].map(row => row.join(',')).join('\n');
+    return serializeTrajectoryCsv(waypoints);
   }
 
   /**

@@ -1,4 +1,5 @@
 import json
+import shutil
 import sqlite3
 import time
 
@@ -110,6 +111,18 @@ def test_quickscout_store_persists_findings(tmp_path, monkeypatch):
     assert loaded[0].id == "finding-1"
     assert loaded[0].notes == "marker"
     assert loaded[0].summary == "Dock contact"
+
+
+def test_quickscout_store_recreates_runtime_directory_between_connections(tmp_path, monkeypatch):
+    db_path = tmp_path / "runtime_data" / "quickscout" / "quickscout.sqlite3"
+    monkeypatch.setenv("MDS_QUICKSCOUT_DB_PATH", str(db_path))
+    store_module._store_instance = None
+
+    store = store_module.get_quickscout_store()
+    shutil.rmtree(db_path.parent)
+
+    assert list(store.list_operations()) == []
+    assert db_path.exists()
 
 
 def test_quickscout_store_migrates_legacy_poi_rows(tmp_path, monkeypatch):

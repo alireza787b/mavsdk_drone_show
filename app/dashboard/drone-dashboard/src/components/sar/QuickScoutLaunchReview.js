@@ -20,7 +20,7 @@ function getReturnBehaviorLabel(returnBehavior) {
   return 'Return home';
 }
 
-function getLaunchStatus(planNeedsRecompute, launchReadiness) {
+function getLaunchStatus(planNeedsRecompute, launchReadiness, coveragePlan) {
   if (planNeedsRecompute) {
     return {
       tone: 'danger',
@@ -42,6 +42,14 @@ function getLaunchStatus(planNeedsRecompute, launchReadiness) {
       tone: 'warning',
       title: 'Package is ready, but advisories remain',
       detail: 'Live telemetry is available, but the current target set still needs operator review before dispatch.',
+    };
+  }
+
+  if (coveragePlan?.requires_revalidation) {
+    return {
+      tone: 'warning',
+      title: 'Staged plan needs live revalidation',
+      detail: 'This package used configured origin slots. Launch review will recheck live GPS before dispatch.',
     };
   }
 
@@ -78,7 +86,7 @@ const QuickScoutLaunchReview = ({
 
   const profile = getQuickScoutProfile(missionProfileId);
   const profileLabel = profile?.label || (missionProfileId ? missionProfileId.replace(/_/g, ' ') : 'Custom');
-  const status = getLaunchStatus(planNeedsRecompute, launchReadiness);
+  const status = getLaunchStatus(planNeedsRecompute, launchReadiness, coveragePlan);
   const geometryReview = buildQuickScoutGeometrySummary({
     missionTemplate,
     totalAreaSqM: coveragePlan?.total_area_sq_m,
@@ -98,7 +106,16 @@ const QuickScoutLaunchReview = ({
       : []),
     ...((launchReadiness?.blockers) || []),
   ];
-  const warnings = launchReadiness?.warnings || [];
+  const warnings = [
+    ...(coveragePlan?.requires_revalidation
+      ? [{
+        key: 'quickscout-configured-origin-staged',
+        label: 'Origin slots',
+        detail: 'Live GPS revalidation is required immediately before dispatch.',
+      }]
+      : []),
+    ...((launchReadiness?.warnings) || []),
+  ];
   const metrics = [
     {
       label: 'Mission',
@@ -119,6 +136,10 @@ const QuickScoutLaunchReview = ({
     {
       label: 'Assignments',
       value: `${targetHwIds.length} drone${targetHwIds.length === 1 ? '' : 's'}`,
+    },
+    {
+      label: 'Planning',
+      value: coveragePlan?.position_source_mode === 'configured_origin' ? 'Configured origin' : 'Live GPS',
     },
     {
       label: 'End Behavior',

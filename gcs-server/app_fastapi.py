@@ -902,7 +902,7 @@ async def lifespan(app: FastAPI):
 _auth_settings = AuthSettings.from_env()
 _cors_origin_regex = os.environ.get(
     "MDS_CORS_ALLOW_ORIGIN_REGEX",
-    r"https?://[^/]+(:3030|:5030)?",
+    r"https?://(?:(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?|[^/:]+(?::(?:3030|5030))?)",
 )
 
 app = FastAPI(
@@ -921,13 +921,14 @@ app.add_middleware(MDSAuthMiddleware)
 
 # CORS middleware.
 #
-# When auth is enabled we cannot use wildcard origins with credentials. The
-# default regex keeps browser operation portable across localhost/VPS/NetBird
-# hosts while allowing the browser to send the HttpOnly auth cookie.
+# The dashboard sends credentialed API requests in both auth-enabled and
+# auth-disabled modes. Browsers reject `Access-Control-Allow-Origin: *` for
+# credentialed requests, so use a regex that echoes trusted development,
+# reverse-proxy, and standard dashboard/API origins instead of wildcard CORS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[] if _auth_settings.any_auth_enabled else ["*"],
-    allow_origin_regex=_cors_origin_regex if _auth_settings.any_auth_enabled else None,
+    allow_origins=[],
+    allow_origin_regex=_cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

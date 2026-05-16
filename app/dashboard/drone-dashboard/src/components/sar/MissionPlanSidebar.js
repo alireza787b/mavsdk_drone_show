@@ -62,6 +62,8 @@ const MissionPlanSidebar = ({
   onMissionBriefChange,
   returnBehavior,
   onReturnBehaviorChange,
+  positionSourceMode,
+  onPositionSourceModeChange,
   missionCatalog,
   currentMissionId,
   recoveringMissionId,
@@ -232,6 +234,28 @@ const MissionPlanSidebar = ({
                 onClick={() => onReturnBehaviorChange('land_current')}
               >
                 Land
+              </button>
+            </div>
+          </div>
+
+          <div className="qs-config-row qs-config-row-stack">
+            <span className="qs-config-label">Planning Position</span>
+            <div className="qs-choice-row">
+              <button
+                type="button"
+                className={`qs-choice-chip ${positionSourceMode !== 'configured_origin' ? 'active' : ''}`}
+                onClick={() => onPositionSourceModeChange?.('live_drone_positions')}
+                title="Use fresh drone GPS/global position samples. Required for immediately launchable plans."
+              >
+                Live GPS
+              </button>
+              <button
+                type="button"
+                className={`qs-choice-chip ${positionSourceMode === 'configured_origin' ? 'active' : ''}`}
+                onClick={() => onPositionSourceModeChange?.('configured_origin')}
+                title="Use configured origin launch slots for offline draft planning. Launch requires live revalidation."
+              >
+                Origin Slots
               </button>
             </div>
           </div>
@@ -555,6 +579,8 @@ const MissionPlanSidebar = ({
             <div className="qs-launch-summary">
               {planNeedsRecompute
                 ? 'Mission inputs changed after compute — regenerate the package before launch.'
+                : coveragePlan.requires_revalidation
+                  ? `${coveragePlan.plans?.length} drones, staged origin plan`
                 : `${coveragePlan.plans?.length} drones, ~${(coveragePlan.estimated_coverage_time_s / 60).toFixed(1)} min`}
             </div>
           )}

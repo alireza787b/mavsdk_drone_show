@@ -76,6 +76,7 @@ def _build_args(suite, tmp_path, **overrides):
         "integrated_precision_move_start_threshold": 1.0,
         "quickscout_launch_drone_count": 1,
         "quickscout_mission_template": "last_known_point",
+        "quickscout_position_source_mode": "live_drone_positions",
         "quickscout_point_radius_m": 120.0,
         "quickscout_corridor_width_m": 80.0,
         "quickscout_corridor_leg_length_m": 220.0,
@@ -452,6 +453,7 @@ def test_build_suite_steps_supports_quickscout_mode(tmp_path):
     assert "tools/validate_quickscout_runtime.py" in steps[1].command
     assert steps[1].command[steps[1].command.index("--launch-drone-count") + 1] == "2"
     assert steps[1].command[steps[1].command.index("--mission-template") + 1] == "corridor_search"
+    assert steps[1].command[steps[1].command.index("--position-source-mode") + 1] == "live_drone_positions"
     assert steps[1].command[steps[1].command.index("--corridor-width-m") + 1] == "90.0"
     assert steps[1].command[steps[1].command.index("--min-estimated-coverage-s") + 1] == "60.0"
 

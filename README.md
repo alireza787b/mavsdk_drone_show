@@ -2,7 +2,7 @@
 
 **Open-source MAVLink fleet operations for PX4 drones, SITL, drone shows, SAR, and cooperative autonomy.**
 
-[![Version](https://img.shields.io/badge/version-5.4-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.5-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-PolyForm%20Dual-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](docs/guides/python-compatibility.md)
 [![PX4](https://img.shields.io/badge/PX4-MAVLink-005CAF.svg)](https://px4.io/)
@@ -21,7 +21,7 @@ enough for serious multi-drone validation, operations, and custom deployments.
 - **Offline drone shows** with SkyBrush-imported trajectories and synchronized execution
 - **Smart swarm missions** with live leader-follower coordination and runtime control
 - **QuickScout SAR / recon** with multi-drone coverage planning and PX4 Mission Mode execution
-- **Unified operations tooling** with SITL, GCS services, trajectory planning, and live/historical logs
+- **Unified operations tooling** with SITL, GCS services, Swarm Trajectory planning, and live/historical logs
 
 MDS is a field-operations and research platform, not certified avionics. Flight
 testing requires qualified operators, local aviation compliance, geofencing,
@@ -104,7 +104,7 @@ They remain standalone projects and are not required for a first SITL demo.
 
 ## Product Highlights
 
-- **Single operator surface**: React dashboard for monitoring, control, QuickScout, trajectory planning, and log review
+- **Single operator surface**: React dashboard for monitoring, control, QuickScout, Swarm Trajectory, and log review
 - **Modern SITL workflow**: prebuilt PX4 Gazebo SITL image, fast container startup, and reproducible custom-image tooling
 - **Operational visibility**: unified logging across GCS, drones, and frontend error reporting with exportable sessions
 - **Drone Show pipeline**: staged SkyBrush ZIP import, processed trajectory plots, readiness gating, and synchronized launch control
@@ -128,11 +128,11 @@ The dashboard covers:
 
 - live fleet monitoring and control
 - mission upload and execution
-- 3D trajectory planning
+- Swarm Trajectory planning and advanced route editing
 - QuickScout mission planning and monitoring
 - live and historical Log Viewer workflows
 
-Map-heavy features such as trajectory planning and QuickScout require a Mapbox token. See the relevant guides in [Documentation Index](docs/README.md).
+Map-heavy features such as Swarm Trajectory, the Advanced Route Editor, and QuickScout use Mapbox when available and Leaflet fallback otherwise. See the relevant guides in [Documentation Index](docs/README.md).
 
 ## Videos
 

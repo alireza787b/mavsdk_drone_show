@@ -16,16 +16,19 @@ Related docs:
 1. Open `QuickScout`.
 2. Choose the mission template: `Point Dispatch`, `Last Known`, `Area Search`, or `Corridor Search`.
 3. Select aircraft by slot/position ID. Launch resolves those slots to the currently assigned hardware IDs.
-4. Draw or enter the geometry:
+4. Choose the planning position source:
+   - `Live GPS` uses fresh drone global positions and can be launched after normal review.
+   - `Origin Slots` uses the configured origin and launch slots for offline/staged planning.
+5. Draw or enter the geometry:
    - Point dispatch and last-known search use one operator-selected point.
    - Area search uses a polygon.
    - Corridor search uses an ordered polyline with two or more vertices plus corridor width.
-5. Set altitude, terrain following, sweep width, overlap, speed, camera interval, and return behavior.
-6. Click `Compute Plan`.
-7. Watch the planning progress dialog. Long planning uses a bounded job with status, phase text, cancel, retry, and actionable failure messages.
-8. Review the mission package before launch: selected drones, geometry, altitude source, terrain state, estimated duration/distance, warnings, blockers, and return behavior.
-9. Launch from the review dialog.
-10. Monitor progress, findings, handoff/export data, pause/resume availability, and abort/return state from the monitor workspace.
+6. Set altitude, terrain following, sweep width, overlap, speed, camera interval, and return behavior.
+7. Click `Compute Plan`.
+8. Watch the planning progress dialog. Long planning uses a bounded job with status, phase text, cancel, retry, and actionable failure messages.
+9. Review the mission package before launch: selected drones, geometry, altitude source, terrain state, estimated duration/distance, warnings, blockers, and return behavior.
+10. Launch from the review dialog. Staged `Origin Slots` packages run live GPS/slot revalidation before dispatch.
+11. Monitor progress, findings, handoff/export data, pause/resume availability, and abort/return state from the monitor workspace.
 
 The page avoids silent fallbacks. If telemetry, origin, terrain, or geometry is unavailable, the UI shows the specific blocker instead of computing from default coordinates.
 
@@ -48,6 +51,8 @@ QuickScout uses PX4 Mission semantics:
 - PX4 Mission mode requires a valid global 3D position estimate.
 - Local-position, VIO, or baro-only states can be useful for display, but they do not provide a safe map origin for global mission planning.
 - Selected drones require fresh valid global position samples when their position is needed for assignment.
+- `Origin Slots` planning is allowed for offline mission design only. It uses the configured origin and expected launch slots, marks the package as staged, and requires live GPS revalidation before launch.
+- Launch revalidation checks that the configured origin has not changed and that assigned aircraft are near the planned launch slots. The launch token is short lived and single use.
 - Default or placeholder telemetry such as `(0, 0)` is rejected unless the operator explicitly selected that coordinate as mission geometry.
 - Last-known telemetry is treated as last-known, with age/source context, not as fresh position truth.
 
@@ -72,6 +77,8 @@ Abort behavior is explicit:
 | Map tile provider unavailable | The shared map wrapper falls back from Mapbox to Leaflet, then from the default Leaflet satellite layer to OpenStreetMap where possible. |
 | Stale telemetry | Planning blocks selected-drone origin/assignment when freshness cannot be trusted. |
 | No GPS/global position | Global mission planning blocks; local altitude may still display under the telemetry policy. |
+| Aircraft offline during planning | Use `Origin Slots` only for staged design, then revalidate live GPS before launch. |
+| Configured origin missing | `Origin Slots` planning blocks and directs the operator to set origin in Mission Config. |
 | Terrain provider failure | Terrain-following plans block with `quickscout_terrain_unavailable`; fixed-MSL planning remains possible if selected by the operator. |
 | Backend planning takes too long | The planning job shows progress, can be canceled, and returns a bounded failed/expired state. |
 | Degraded connectivity | Existing mission workspace and findings remain recoverable from the GCS store; active drone command state still depends on live command/telemetry links. |
@@ -87,6 +94,7 @@ QuickScout routes intentionally use the stable `/api/sar` subsystem root.
 | `GET` | `/api/sar/mission/plan/jobs/{job_id}` | Read planning job status, progress, result, or error. |
 | `POST` | `/api/sar/mission/plan/jobs/{job_id}/cancel` | Request planning job cancellation. |
 | `GET` | `/api/sar/missions` | List persisted mission workspaces. |
+| `POST` | `/api/sar/mission/{mission_id}/revalidate-launch` | Revalidate live GPS/launch-slot alignment for staged configured-origin packages. |
 | `POST` | `/api/sar/mission/launch` | Launch a reviewed mission package through tracked command dispatch. |
 | `GET` | `/api/sar/mission/{mission_id}/workspace` | Recover mission package, status, controls, and findings. |
 | `GET` | `/api/sar/mission/{mission_id}/status` | Read mission status and drone progress. |

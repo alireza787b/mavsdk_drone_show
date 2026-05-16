@@ -113,7 +113,7 @@ export function buildSwarmTrajectoryStages({ viewModel, recommendation, hasProce
     id: 'upload',
     step: 1,
     title: 'Load Leader Paths',
-    actionLabel: 'Open Trajectory Planning',
+    actionLabel: 'Open Advanced Route Editor',
     actionHref: '/trajectory-planning',
   };
 
