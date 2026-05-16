@@ -1,4 +1,12 @@
 import { serializeTrajectoryCsv } from './trajectoryCsv';
+import {
+  SPEED_THRESHOLDS,
+  TIMING_MODES,
+  YAW_CONSTANTS,
+  calculateWaypointSpeeds,
+} from './SpeedCalculator';
+
+export { TIMING_MODES, YAW_CONSTANTS };
 
 export const SWARM_TRAJECTORY_ALTITUDE_MODES = {
   MSL: 'fixed_msl',
@@ -30,7 +38,7 @@ export function normalizeDraftWaypoint(raw = {}, index = 0) {
     timeFromStart,
     estimatedSpeed,
     heading,
-    headingMode: raw.headingMode || 'auto',
+    headingMode: raw.headingMode || YAW_CONSTANTS.AUTO,
     altitudeReference: raw.altitudeReference || 'MSL',
     targetAgl,
     groundElevation,
@@ -38,10 +46,40 @@ export function normalizeDraftWaypoint(raw = {}, index = 0) {
     terrainSource: raw.terrainSource || raw.source || '',
     terrainConfidence: raw.terrainConfidence || raw.confidence || '',
     terrainSampleTime: raw.terrainSampleTime || raw.sample_time || null,
-    timingMode: raw.timingMode || 'manual_time',
+    timingMode: raw.timingMode || TIMING_MODES.MANUAL_TIME,
     preferredSpeed: toFiniteNumber(raw.preferredSpeed, estimatedSpeed),
     calculatedHeading: toFiniteNumber(raw.calculatedHeading, heading),
   };
+}
+
+export function reflowDraftWaypoints(waypoints = []) {
+  const normalized = waypoints.map((waypoint, index) => {
+    const normalizedWaypoint = normalizeDraftWaypoint(waypoint, index);
+    return {
+      ...normalizedWaypoint,
+      name: `WP${index + 1}`,
+      timingMode: index === 0
+        ? TIMING_MODES.MANUAL_TIME
+        : (normalizedWaypoint.timingMode || TIMING_MODES.AUTO_SPEED),
+      headingMode: index === 0
+        ? YAW_CONSTANTS.MANUAL
+        : (normalizedWaypoint.headingMode || YAW_CONSTANTS.AUTO),
+      preferredSpeed: toFiniteNumber(
+        normalizedWaypoint.preferredSpeed,
+        toFiniteNumber(normalizedWaypoint.estimatedSpeed, 8)
+      ),
+    };
+  });
+
+  return calculateWaypointSpeeds(normalized).map((waypoint, index) => ({
+    ...waypoint,
+    name: `WP${index + 1}`,
+    altitudeReference: waypoint.altitudeReference || 'MSL',
+    terrainAccurate: waypoint.terrainAccurate !== false,
+    preferredSpeed: toFiniteNumber(waypoint.preferredSpeed, index === 0 ? 8 : waypoint.estimatedSpeed),
+    estimatedSpeed: toFiniteNumber(waypoint.estimatedSpeed, index === 0 ? 0 : waypoint.preferredSpeed),
+    calculatedHeading: toFiniteNumber(waypoint.calculatedHeading, waypoint.heading),
+  }));
 }
 
 export function validateDraftWaypoint(waypoint = {}) {
@@ -70,12 +108,30 @@ export function validateDraftWaypoints(waypoints = []) {
     validateDraftWaypoint(waypoint).forEach((error) => {
       errors.push(`Waypoint ${index + 1}: ${error}`);
     });
+    if (index > 0) {
+      const previousWaypoint = waypoints[index - 1];
+      if (
+        Number.isFinite(waypoint.timeFromStart)
+        && Number.isFinite(previousWaypoint.timeFromStart)
+        && waypoint.timeFromStart <= previousWaypoint.timeFromStart
+      ) {
+        errors.push(`Waypoint ${index + 1}: Arrival time must be after waypoint ${index}.`);
+      }
+      if (
+        Number.isFinite(waypoint.estimatedSpeed)
+        && waypoint.estimatedSpeed > SPEED_THRESHOLDS.ABSOLUTE_MAX
+      ) {
+        errors.push(
+          `Waypoint ${index + 1}: Required inbound speed exceeds ${SPEED_THRESHOLDS.ABSOLUTE_MAX} m/s. Increase time or lower preferred speed.`
+        );
+      }
+    }
   });
   return errors;
 }
 
 export function buildSwarmLeaderCsv(waypoints = []) {
-  const normalized = waypoints.map((waypoint, index) => normalizeDraftWaypoint(waypoint, index));
+  const normalized = reflowDraftWaypoints(waypoints);
   const errors = validateDraftWaypoints(normalized);
   if (errors.length) {
     throw new Error(errors.join(' '));

@@ -47,6 +47,8 @@ const buildRouteGeoJson = (waypoints = []) => ({
 const SwarmRouteMapEditor = ({
   waypoints = [],
   onAddWaypoint,
+  onSelectWaypoint,
+  selectedWaypointId = '',
   altitudeLabel = 'MSL',
 }) => {
   const { provider, isMapboxAvailable, mapboxToken } = useMapContext();
@@ -116,8 +118,19 @@ const SwarmRouteMapEditor = ({
                   <CircleMarker
                     key={waypoint.id || index}
                     center={[lat, lng]}
-                    radius={6}
-                    pathOptions={{ color: '#2563eb', fillColor: '#ffffff', fillOpacity: 1, weight: 3 }}
+                    radius={waypoint.id === selectedWaypointId ? 8 : 6}
+                    pathOptions={{
+                      color: waypoint.id === selectedWaypointId ? '#f59e0b' : '#2563eb',
+                      fillColor: '#ffffff',
+                      fillOpacity: 1,
+                      weight: 3,
+                    }}
+                    eventHandlers={{
+                      click: (event) => {
+                        event.originalEvent?.stopPropagation?.();
+                        onSelectWaypoint?.(waypoint);
+                      },
+                    }}
                   />
                 );
               })}
@@ -152,7 +165,17 @@ const SwarmRouteMapEditor = ({
               }
               return (
                 <MapboxMarker key={waypoint.id || index} latitude={lat} longitude={lng} anchor="center">
-                  <span className="swarm-route-map-editor__marker">{index + 1}</span>
+                  <button
+                    type="button"
+                    className={`swarm-route-map-editor__marker ${waypoint.id === selectedWaypointId ? 'is-active' : ''}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectWaypoint?.(waypoint);
+                    }}
+                    aria-label={`Edit waypoint ${index + 1}`}
+                  >
+                    {index + 1}
+                  </button>
                 </MapboxMarker>
               );
             })}

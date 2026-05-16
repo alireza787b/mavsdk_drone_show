@@ -25,7 +25,15 @@ jest.mock('../map/LeafletMapBase', () => ({ children, onClick }) => (
 jest.mock('../map/MapFallbackBanner', () => () => <div data-testid="map-fallback-banner" />);
 jest.mock('../map/MapProviderToggle', () => () => <div data-testid="map-provider-toggle" />);
 jest.mock('react-leaflet', () => ({
-  CircleMarker: () => <div data-testid="leaflet-circle-marker" />,
+  CircleMarker: ({ eventHandlers }) => (
+    <button
+      type="button"
+      data-testid="leaflet-circle-marker"
+      onClick={() => eventHandlers?.click?.({ originalEvent: { stopPropagation: jest.fn() } })}
+    >
+      Leaflet marker
+    </button>
+  ),
   Polyline: () => <div data-testid="leaflet-polyline" />,
 }));
 
@@ -59,10 +67,14 @@ describe('SwarmRouteMapEditor', () => {
 
   it('uses Leaflet fallback and emits clicked waypoint coordinates', () => {
     const onAddWaypoint = jest.fn();
+    const onSelectWaypoint = jest.fn();
+    const waypoint = { id: 'wp-1', latitude: 35, longitude: 51 };
     render(
       <SwarmRouteMapEditor
-        waypoints={[{ id: 'wp-1', latitude: 35, longitude: 51 }]}
+        waypoints={[waypoint]}
         onAddWaypoint={onAddWaypoint}
+        onSelectWaypoint={onSelectWaypoint}
+        selectedWaypointId="wp-1"
         altitudeLabel="Fixed MSL"
       />
     );
@@ -71,6 +83,8 @@ describe('SwarmRouteMapEditor', () => {
     expect(screen.getByText('1 waypoint · Fixed MSL')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Leaflet map click' }));
     expect(onAddWaypoint).toHaveBeenCalledWith({ latitude: 35.1, longitude: 51.2, source: 'map' });
+    fireEvent.click(screen.getByTestId('leaflet-circle-marker'));
+    expect(onSelectWaypoint).toHaveBeenCalledWith(waypoint);
   });
 
   it('uses Mapbox when available and keeps route markers visible', () => {
@@ -80,6 +94,7 @@ describe('SwarmRouteMapEditor', () => {
       mapboxToken: 'token',
     };
     const onAddWaypoint = jest.fn();
+    const onSelectWaypoint = jest.fn();
     render(
       <SwarmRouteMapEditor
         waypoints={[
@@ -87,6 +102,8 @@ describe('SwarmRouteMapEditor', () => {
           { id: 'wp-2', latitude: 35.01, longitude: 51.02 },
         ]}
         onAddWaypoint={onAddWaypoint}
+        onSelectWaypoint={onSelectWaypoint}
+        selectedWaypointId="wp-2"
         altitudeLabel="AGL terrain"
       />
     );
@@ -94,6 +111,8 @@ describe('SwarmRouteMapEditor', () => {
     expect(screen.getByTestId('mapbox-route-map')).toBeInTheDocument();
     expect(screen.getAllByTestId('mapbox-marker')).toHaveLength(2);
     expect(screen.getByText('2 waypoints · AGL terrain')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit waypoint 2' }));
+    expect(onSelectWaypoint).toHaveBeenCalledWith(expect.objectContaining({ id: 'wp-2' }));
     fireEvent.click(screen.getByRole('button', { name: 'Mapbox map click' }));
     expect(onAddWaypoint).toHaveBeenCalledWith({ latitude: 35.3, longitude: 51.4, source: 'map' });
   });

@@ -4,6 +4,8 @@ import {
   FaCheckCircle,
   FaArrowDown,
   FaArrowUp,
+  FaClock,
+  FaCompass,
   FaExclamationTriangle,
   FaGlobeAmericas,
   FaHourglassHalf,
@@ -46,13 +48,17 @@ import {
 } from '../services/droneApiService';
 import {
   SWARM_TRAJECTORY_ALTITUDE_MODES,
+  TIMING_MODES,
+  YAW_CONSTANTS,
   buildSwarmLeaderCsv,
   buildTerrainStatusFromResults,
   normalizeDraftWaypoint,
+  reflowDraftWaypoints,
   toFiniteNumber,
   validateDraftWaypoint,
   validateDraftWaypoints,
 } from '../utilities/swarmTrajectoryDraft';
+import { buildTrajectorySegments } from '../utilities/SpeedCalculator';
 import {
   buildSwarmTrajectoryViewModel,
   getClusterStateMeta,
@@ -107,6 +113,8 @@ const DEFAULT_WAYPOINT_FORM = {
   timeFromStart: 0,
   estimatedSpeed: 8,
   heading: 0,
+  timingMode: TIMING_MODES.AUTO_SPEED,
+  headingMode: YAW_CONSTANTS.AUTO,
 };
 
 const issueMessages = (issues = []) => (issues || []).map((issue) => issue.message || issue.code || String(issue));
@@ -123,6 +131,49 @@ const normalizeJobForDialog = (job = {}) => {
 };
 
 const createWaypointId = () => `wp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const formatSeconds = (seconds = 0) => {
+  const safeSeconds = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
+  if (safeSeconds >= 60) {
+    const minutes = Math.floor(safeSeconds / 60);
+    const remainder = Math.round(safeSeconds % 60);
+    return `${minutes}m ${String(remainder).padStart(2, '0')}s`;
+  }
+  return `${Math.round(safeSeconds)}s`;
+};
+
+const formatHeadingDegrees = (heading = 0) => {
+  const safeHeading = Number.isFinite(Number(heading)) ? Number(heading) : 0;
+  const normalized = ((safeHeading % 360) + 360) % 360;
+  return `${Math.round(normalized).toString().padStart(3, '0')} deg`;
+};
+
+const buildClimbLabel = (segment) => {
+  if (!segment || !Number.isFinite(segment.durationSeconds) || segment.durationSeconds <= 0) {
+    return 'level';
+  }
+  const verticalRate = (Number(segment.toAltitude || 0) - Number(segment.fromAltitude || 0)) / segment.durationSeconds;
+  if (verticalRate > 0.05) {
+    return `climb +${verticalRate.toFixed(1)} m/s`;
+  }
+  if (verticalRate < -0.05) {
+    return `desc ${Math.abs(verticalRate).toFixed(1)} m/s`;
+  }
+  return 'level';
+};
+
+const buildWaypointFormState = (waypoint = {}) => ({
+  latitude: waypoint.latitude,
+  longitude: waypoint.longitude,
+  altitude: waypoint.altitudeReference === 'AGL' ? waypoint.targetAgl : waypoint.altitude,
+  timeFromStart: waypoint.timeFromStart,
+  estimatedSpeed: waypoint.timingMode === TIMING_MODES.AUTO_SPEED
+    ? waypoint.preferredSpeed
+    : waypoint.estimatedSpeed,
+  heading: waypoint.heading,
+  timingMode: waypoint.timingMode || TIMING_MODES.MANUAL_TIME,
+  headingMode: waypoint.headingMode || YAW_CONSTANTS.AUTO,
+});
 
 const SwarmTrajectory = () => {
   const [leaders, setLeaders] = useState([]);
@@ -221,6 +272,11 @@ const SwarmTrajectory = () => {
     color: ROUTE_SKETCH_COLORS[0],
     points: draftWaypoints,
   }], [draftWaypoints]);
+  const draftSegments = useMemo(() => buildTrajectorySegments(draftWaypoints), [draftWaypoints]);
+  const draftSegmentByWaypointId = useMemo(
+    () => new Map(draftSegments.map((segment) => [segment.toWaypointId, segment])),
+    [draftSegments],
+  );
   const draftRouteErrors = useMemo(() => validateDraftWaypoints(draftWaypoints), [draftWaypoints]);
   const workspaceMetricItems = useMemo(() => [
     {
@@ -289,6 +345,17 @@ const SwarmTrajectory = () => {
     viewModel.processedDroneCount,
     viewModel.uploadedLeaderIds.length,
   ]);
+  const editingWaypointIndex = draftWaypoints.findIndex((waypoint) => waypoint.id === editingWaypointId);
+  const formWaypointIndex = editingWaypointIndex >= 0 ? editingWaypointIndex : draftWaypoints.length;
+  const isRouteEntryWaypoint = formWaypointIndex === 0;
+  const formTimingMode = isRouteEntryWaypoint
+    ? TIMING_MODES.MANUAL_TIME
+    : (waypointForm.timingMode || TIMING_MODES.AUTO_SPEED);
+  const formHeadingMode = isRouteEntryWaypoint
+    ? YAW_CONSTANTS.MANUAL
+    : (waypointForm.headingMode || YAW_CONSTANTS.AUTO);
+  const isAutoTiming = formTimingMode === TIMING_MODES.AUTO_SPEED && !isRouteEntryWaypoint;
+  const isAutoHeading = formHeadingMode === YAW_CONSTANTS.AUTO && !isRouteEntryWaypoint;
   const notify = (tone, title, message = '') => {
     const method = toast[tone] || toast.info;
     method(message ? `${title} — ${message}` : title);
@@ -470,11 +537,15 @@ const SwarmTrajectory = () => {
     }
   };
 
-  const resetWaypointForm = (nextIndex = draftWaypoints.length) => {
+  const resetWaypointForm = (nextIndex = draftWaypoints.length, sourceWaypoints = draftWaypoints) => {
     setWaypointForm({
       ...DEFAULT_WAYPOINT_FORM,
       altitude: altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 100 : 100,
-      timeFromStart: nextIndex * 30,
+      timeFromStart: nextIndex === 0
+        ? 0
+        : toFiniteNumber(sourceWaypoints[nextIndex - 1]?.timeFromStart, 0) + 10,
+      timingMode: nextIndex === 0 ? TIMING_MODES.MANUAL_TIME : TIMING_MODES.AUTO_SPEED,
+      headingMode: nextIndex === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO,
     });
     setEditingWaypointId('');
   };
@@ -483,7 +554,30 @@ const SwarmTrajectory = () => {
     setWaypointForm((prev) => ({
       ...prev,
       [field]: value,
+      ...(field === 'timeFromStart' ? { timingMode: TIMING_MODES.MANUAL_TIME } : {}),
+      ...(field === 'estimatedSpeed' ? { timingMode: TIMING_MODES.AUTO_SPEED } : {}),
+      ...(field === 'heading' ? { headingMode: YAW_CONSTANTS.MANUAL } : {}),
     }));
+  };
+
+  const handleWaypointModeChange = (field, value) => {
+    setWaypointForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const selectDraftWaypoint = (waypoint) => {
+    if (!waypoint) {
+      return;
+    }
+    setEditingWaypointId(waypoint.id);
+    setWaypointForm(buildWaypointFormState(waypoint));
+    setAltitudeMode(
+      waypoint.altitudeReference === 'AGL'
+        ? SWARM_TRAJECTORY_ALTITUDE_MODES.AGL
+        : SWARM_TRAJECTORY_ALTITUDE_MODES.MSL
+    );
   };
 
   const resolveWaypointAltitude = async (waypoint) => {
@@ -542,6 +636,10 @@ const SwarmTrajectory = () => {
         preferredSpeed: toFiniteNumber(waypointForm.estimatedSpeed, 8),
         heading: toFiniteNumber(waypointForm.heading, 0),
         calculatedHeading: toFiniteNumber(waypointForm.heading, 0),
+        timingMode: waypointForm.timingMode || TIMING_MODES.AUTO_SPEED,
+        headingMode: waypointIndex === 0
+          ? YAW_CONSTANTS.MANUAL
+          : (waypointForm.headingMode || YAW_CONSTANTS.AUTO),
       };
       const altitudeResolved = await resolveWaypointAltitude(rawWaypoint);
       const nextWaypoint = normalizeDraftWaypoint(altitudeResolved, waypointIndex);
@@ -550,13 +648,18 @@ const SwarmTrajectory = () => {
         throw new Error(waypointErrors.join(' '));
       }
 
-      setDraftWaypoints((prev) => {
-        if (existingIndex >= 0) {
-          return prev.map((waypoint) => (waypoint.id === editingWaypointId ? nextWaypoint : waypoint));
-        }
-        return [...prev, nextWaypoint];
-      });
-      resetWaypointForm(waypointIndex + 1);
+      const nextWaypoints = reflowDraftWaypoints(
+        existingIndex >= 0
+          ? draftWaypoints.map((waypoint) => (waypoint.id === editingWaypointId ? nextWaypoint : waypoint))
+          : [...draftWaypoints, nextWaypoint]
+      );
+      const selectedWaypoint = nextWaypoints.find((waypoint) => waypoint.id === nextWaypoint.id);
+      setDraftWaypoints(nextWaypoints);
+      if (existingIndex >= 0) {
+        selectDraftWaypoint(selectedWaypoint);
+      } else {
+        resetWaypointForm(waypointIndex + 1, nextWaypoints);
+      }
     } catch (error) {
       showNotice('error', 'Waypoint not saved', error.message || 'Check the waypoint fields and terrain state.');
     }
@@ -570,10 +673,14 @@ const SwarmTrajectory = () => {
         latitude: toFiniteNumber(latitude),
         longitude: toFiniteNumber(longitude),
         altitude: toFiniteNumber(waypointForm.altitude, DEFAULT_WAYPOINT_FORM.altitude),
-        timeFromStart: waypointIndex * 30,
+        timeFromStart: waypointIndex === 0
+          ? 0
+          : toFiniteNumber(draftWaypoints[waypointIndex - 1]?.timeFromStart, 0) + 10,
         estimatedSpeed: toFiniteNumber(waypointForm.estimatedSpeed, DEFAULT_WAYPOINT_FORM.estimatedSpeed),
+        preferredSpeed: toFiniteNumber(waypointForm.estimatedSpeed, DEFAULT_WAYPOINT_FORM.estimatedSpeed),
         heading: toFiniteNumber(waypointForm.heading, DEFAULT_WAYPOINT_FORM.heading),
-        headingMode: 'auto',
+        timingMode: waypointIndex === 0 ? TIMING_MODES.MANUAL_TIME : TIMING_MODES.AUTO_SPEED,
+        headingMode: waypointIndex === 0 ? YAW_CONSTANTS.MANUAL : YAW_CONSTANTS.AUTO,
       };
       const normalized = normalizeDraftWaypoint(rawWaypoint, waypointIndex);
       const errors = validateDraftWaypoint(normalized);
@@ -581,14 +688,11 @@ const SwarmTrajectory = () => {
         throw new Error(errors.join(' '));
       }
       const resolved = await resolveWaypointAltitude(normalized);
-      setDraftWaypoints((prev) => [...prev, normalizeDraftWaypoint(resolved, waypointIndex)]);
-      setWaypointForm((prev) => ({
-        ...prev,
-        latitude: '',
-        longitude: '',
-        timeFromStart: (waypointIndex + 1) * 30,
-      }));
-      setEditingWaypointId('');
+      const nextWaypoint = normalizeDraftWaypoint(resolved, waypointIndex);
+      const nextWaypoints = reflowDraftWaypoints([...draftWaypoints, nextWaypoint]);
+      const selectedWaypoint = nextWaypoints.find((waypoint) => waypoint.id === nextWaypoint.id);
+      setDraftWaypoints(nextWaypoints);
+      selectDraftWaypoint(selectedWaypoint);
       setOperatorNotice(null);
     } catch (error) {
       showNotice('error', 'Map waypoint not saved', error.message || 'Check terrain state and waypoint policy.');
@@ -596,44 +700,33 @@ const SwarmTrajectory = () => {
   };
 
   const editDraftWaypoint = (waypoint) => {
-    setEditingWaypointId(waypoint.id);
-    setWaypointForm({
-      latitude: waypoint.latitude,
-      longitude: waypoint.longitude,
-      altitude: waypoint.altitudeReference === 'AGL' ? waypoint.targetAgl : waypoint.altitude,
-      timeFromStart: waypoint.timeFromStart,
-      estimatedSpeed: waypoint.estimatedSpeed,
-      heading: waypoint.heading,
-    });
-    setAltitudeMode(
-      waypoint.altitudeReference === 'AGL'
-        ? SWARM_TRAJECTORY_ALTITUDE_MODES.AGL
-        : SWARM_TRAJECTORY_ALTITUDE_MODES.MSL
-    );
+    selectDraftWaypoint(waypoint);
   };
 
   const deleteDraftWaypoint = (waypointId) => {
-    setDraftWaypoints((prev) => prev.filter((waypoint) => waypoint.id !== waypointId));
+    const nextWaypoints = reflowDraftWaypoints(draftWaypoints.filter((waypoint) => waypoint.id !== waypointId));
+    setDraftWaypoints(nextWaypoints);
     if (editingWaypointId === waypointId) {
-      resetWaypointForm();
+      resetWaypointForm(nextWaypoints.length, nextWaypoints);
+    } else if (editingWaypointId) {
+      selectDraftWaypoint(nextWaypoints.find((waypoint) => waypoint.id === editingWaypointId));
     }
   };
 
   const moveDraftWaypoint = (waypointId, direction) => {
-    setDraftWaypoints((prev) => {
-      const index = prev.findIndex((waypoint) => waypoint.id === waypointId);
-      const targetIndex = index + direction;
-      if (index < 0 || targetIndex < 0 || targetIndex >= prev.length) {
-        return prev;
-      }
-      const next = [...prev];
-      const [item] = next.splice(index, 1);
-      next.splice(targetIndex, 0, item);
-      return next.map((waypoint, waypointIndex) => ({
-        ...waypoint,
-        name: `WP${waypointIndex + 1}`,
-      }));
-    });
+    const index = draftWaypoints.findIndex((waypoint) => waypoint.id === waypointId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= draftWaypoints.length) {
+      return;
+    }
+    const next = [...draftWaypoints];
+    const [item] = next.splice(index, 1);
+    next.splice(targetIndex, 0, item);
+    const nextWaypoints = reflowDraftWaypoints(next);
+    setDraftWaypoints(nextWaypoints);
+    if (editingWaypointId) {
+      selectDraftWaypoint(nextWaypoints.find((waypoint) => waypoint.id === editingWaypointId));
+    }
   };
 
   const uploadDraftToLeader = async () => {
@@ -1221,6 +1314,8 @@ const SwarmTrajectory = () => {
             <SwarmRouteMapEditor
               waypoints={draftWaypoints}
               onAddWaypoint={addDraftWaypointFromMap}
+              onSelectWaypoint={editDraftWaypoint}
+              selectedWaypointId={editingWaypointId}
               altitudeLabel={altitudeMode === SWARM_TRAJECTORY_ALTITUDE_MODES.AGL ? 'AGL terrain' : 'Fixed MSL'}
             />
 
@@ -1229,7 +1324,11 @@ const SwarmTrajectory = () => {
                 <div className="swarm-planner-card__header">
                   <div>
                     <strong>Draft leader path</strong>
-                    <span>{draftWaypoints.length} waypoint{draftWaypoints.length === 1 ? '' : 's'}</span>
+                    <span>
+                      {editingWaypointId ? `Editing WP${formWaypointIndex + 1}` : 'New waypoint'}
+                      {' · '}
+                      {draftWaypoints.length} waypoint{draftWaypoints.length === 1 ? '' : 's'}
+                    </span>
                   </div>
                   <select
                     value={selectedLeaderId}
@@ -1240,6 +1339,49 @@ const SwarmTrajectory = () => {
                       <option key={leaderId} value={leaderId}>Leader {leaderId}</option>
                     ))}
                   </select>
+                </div>
+
+                <div className="swarm-waypoint-mode-strip" aria-label="Waypoint automation modes">
+                  <div className="swarm-segmented-control" role="group" aria-label="Waypoint timing mode">
+                    <button
+                      type="button"
+                      className={isAutoTiming ? 'is-selected' : ''}
+                      onClick={() => handleWaypointModeChange('timingMode', TIMING_MODES.AUTO_SPEED)}
+                      disabled={isRouteEntryWaypoint}
+                      title="Use distance, altitude change, and preferred speed to derive waypoint arrival time."
+                    >
+                      <FaClock aria-hidden="true" />
+                      Auto ETA
+                    </button>
+                    <button
+                      type="button"
+                      className={!isAutoTiming ? 'is-selected' : ''}
+                      onClick={() => handleWaypointModeChange('timingMode', TIMING_MODES.MANUAL_TIME)}
+                      title="Pin waypoint arrival time and calculate the required inbound speed."
+                    >
+                      Fixed time
+                    </button>
+                  </div>
+                  <div className="swarm-segmented-control" role="group" aria-label="Waypoint yaw mode">
+                    <button
+                      type="button"
+                      className={isAutoHeading ? 'is-selected' : ''}
+                      onClick={() => handleWaypointModeChange('headingMode', YAW_CONSTANTS.AUTO)}
+                      disabled={isRouteEntryWaypoint}
+                      title="Align yaw with the inbound route leg."
+                    >
+                      <FaCompass aria-hidden="true" />
+                      Auto yaw
+                    </button>
+                    <button
+                      type="button"
+                      className={!isAutoHeading ? 'is-selected' : ''}
+                      onClick={() => handleWaypointModeChange('headingMode', YAW_CONSTANTS.MANUAL)}
+                      title="Lock the waypoint yaw to the value in the heading field."
+                    >
+                      Manual
+                    </button>
+                  </div>
                 </div>
 
                 <div className="swarm-waypoint-form">
@@ -1269,6 +1411,8 @@ const SwarmTrajectory = () => {
                       step="1"
                       value={waypointForm.timeFromStart}
                       onChange={(event) => handleWaypointFormChange('timeFromStart', event.target.value)}
+                      readOnly={isAutoTiming}
+                      title={isAutoTiming ? 'Derived from distance, altitude change, and preferred speed.' : 'Pinned waypoint arrival time.'}
                     />
                   </label>
                   <label>
@@ -1279,6 +1423,8 @@ const SwarmTrajectory = () => {
                       step="0.1"
                       value={waypointForm.estimatedSpeed}
                       onChange={(event) => handleWaypointFormChange('estimatedSpeed', event.target.value)}
+                      readOnly={!isAutoTiming}
+                      title={isAutoTiming ? 'Preferred inbound speed for automatic ETA.' : 'Calculated from fixed arrival time and route distance.'}
                     />
                   </label>
                   <label>
@@ -1290,6 +1436,8 @@ const SwarmTrajectory = () => {
                       step="1"
                       value={waypointForm.heading}
                       onChange={(event) => handleWaypointFormChange('heading', event.target.value)}
+                      readOnly={isAutoHeading}
+                      title={isAutoHeading ? 'Derived from the inbound route leg.' : 'Operator-owned yaw/heading.'}
                     />
                   </label>
                 </div>
@@ -1344,27 +1492,44 @@ const SwarmTrajectory = () => {
                 </div>
                 <RouteSketch series={draftSeries} emptyLabel="Add waypoints to preview the leader path" />
                 <div className="swarm-waypoint-list" role="list" aria-label="Draft waypoints">
-                  {draftWaypoints.map((waypoint, index) => (
-                    <div key={waypoint.id} className="swarm-waypoint-row" role="listitem">
-                      <button type="button" className="swarm-waypoint-row__main" onClick={() => editDraftWaypoint(waypoint)}>
-                        <strong>{index + 1}. {waypoint.name}</strong>
-                        <span>
-                          {waypoint.latitude.toFixed(5)}, {waypoint.longitude.toFixed(5)} · {waypoint.altitude.toFixed(0)} m MSL
-                        </span>
-                      </button>
-                      <div className="swarm-waypoint-row__actions">
-                        <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, -1)} disabled={index === 0} aria-label={`Move waypoint ${index + 1} up`}>
-                          <FaArrowUp aria-hidden="true" />
+                  {draftWaypoints.map((waypoint, index) => {
+                    const segment = draftSegmentByWaypointId.get(waypoint.id);
+                    const timingLabel = waypoint.timingMode === TIMING_MODES.AUTO_SPEED ? 'auto ETA' : 'fixed time';
+                    const headingLabel = waypoint.headingMode === YAW_CONSTANTS.AUTO ? 'auto yaw' : 'manual yaw';
+                    return (
+                      <div
+                        key={waypoint.id}
+                        className={`swarm-waypoint-row ${editingWaypointId === waypoint.id ? 'is-active' : ''}`}
+                        role="listitem"
+                      >
+                        <button type="button" className="swarm-waypoint-row__main" onClick={() => editDraftWaypoint(waypoint)}>
+                          <strong>{index + 1}. {waypoint.name}</strong>
+                          <span>
+                            {waypoint.latitude.toFixed(5)}, {waypoint.longitude.toFixed(5)} · {waypoint.altitude.toFixed(0)} m MSL
+                          </span>
+                          <span className="swarm-waypoint-row__detail">
+                            {index === 0
+                              ? `T+${formatSeconds(waypoint.timeFromStart)} · entry ${formatHeadingDegrees(waypoint.heading)}`
+                              : `T+${formatSeconds(waypoint.timeFromStart)} · ${Number(waypoint.estimatedSpeed || 0).toFixed(1)} m/s · ${formatHeadingDegrees(waypoint.heading)} · ${buildClimbLabel(segment)}`}
+                          </span>
+                          <span className="swarm-waypoint-row__modes">
+                            {index === 0 ? 'route entry' : `${timingLabel} · ${headingLabel}`}
+                          </span>
                         </button>
-                        <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, 1)} disabled={index === draftWaypoints.length - 1} aria-label={`Move waypoint ${index + 1} down`}>
-                          <FaArrowDown aria-hidden="true" />
-                        </button>
-                        <button type="button" onClick={() => deleteDraftWaypoint(waypoint.id)} aria-label={`Delete waypoint ${index + 1}`}>
-                          <FaTrashAlt aria-hidden="true" />
-                        </button>
+                        <div className="swarm-waypoint-row__actions">
+                          <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, -1)} disabled={index === 0} aria-label={`Move waypoint ${index + 1} up`}>
+                            <FaArrowUp aria-hidden="true" />
+                          </button>
+                          <button type="button" onClick={() => moveDraftWaypoint(waypoint.id, 1)} disabled={index === draftWaypoints.length - 1} aria-label={`Move waypoint ${index + 1} down`}>
+                            <FaArrowDown aria-hidden="true" />
+                          </button>
+                          <button type="button" onClick={() => deleteDraftWaypoint(waypoint.id)} aria-label={`Delete waypoint ${index + 1}`}>
+                            <FaTrashAlt aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             </div>

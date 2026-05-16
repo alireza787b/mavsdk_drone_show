@@ -157,6 +157,28 @@ class CDPClient:
         self.drain_events()
         return rect
 
+    def click_fraction(self, selector: str, x_fraction: float, y_fraction: float) -> dict[str, float]:
+        rect = self.wait_for(
+            f"""(() => {{
+              const el = document.querySelector({json.dumps(selector)});
+              if (!el) return null;
+              let r = el.getBoundingClientRect();
+              if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) {{
+                el.scrollIntoView({{ block: 'center', inline: 'center' }});
+                r = el.getBoundingClientRect();
+              }}
+              if (r.width < 20 || r.height < 20) return null;
+              return {{x: r.left + r.width * {x_fraction}, y: r.top + r.height * {y_fraction}, width: r.width, height: r.height}};
+            }})()""",
+            timeout_s=20,
+        )
+        self.command("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": rect["x"], "y": rect["y"]})
+        self.command("Input.dispatchMouseEvent", {"type": "mousePressed", "x": rect["x"], "y": rect["y"], "button": "left", "clickCount": 1})
+        self.command("Input.dispatchMouseEvent", {"type": "mouseReleased", "x": rect["x"], "y": rect["y"], "button": "left", "clickCount": 1})
+        time.sleep(0.4)
+        self.drain_events()
+        return rect
+
     def hover_center(self, selector: str, text_filter: str | None = None) -> dict[str, float]:
         filter_js = ""
         if text_filter:
@@ -315,8 +337,7 @@ def probe_sidebar(cdp: CDPClient, report: ProbeReport, base_url: str, screenshot
     collapsed = cdp.evaluate("""(() => {
       const button = document.querySelector('button.sidebar-toggle');
       if (!button) return false;
-      const label = button.getAttribute('aria-label') || '';
-      if (label.includes('Collapse')) button.click();
+      if (!document.querySelector('.modern-sidebar-wrapper.collapsed')) button.click();
       return Boolean(document.querySelector('.modern-sidebar-wrapper.collapsed'));
     })()""")
     if not collapsed:
@@ -428,9 +449,63 @@ def probe_swarm_trajectory(cdp: CDPClient, report: ProbeReport, base_url: str, s
         timeout_s=20,
     )
     before = cdp.evaluate("(() => { const m = document.body.innerText.match(/(\\d+) waypoints?/); return m ? Number(m[1]) : null; })()")
-    cdp.click_center(".swarm-route-map-editor .leaflet-container, .swarm-route-map-editor .mapboxgl-map")
+    map_selector = ".swarm-route-map-editor .leaflet-container, .swarm-route-map-editor .mapboxgl-map"
+    cdp.click_fraction(map_selector, 0.45, 0.48)
     after = cdp.wait_for(
         f"(() => {{ const m = document.body.innerText.match(/(\\d+) waypoints?/); return m ? Number(m[1]) > {int(before or 0)} : false; }})()",
+        timeout_s=8,
+    )
+    waypoint_form = cdp.wait_for(
+        """(() => {
+          const findInput = (labelText) => {
+            const label = Array.from(document.querySelectorAll('.swarm-waypoint-form label'))
+              .find((item) => (item.textContent || '').includes(labelText));
+            return label ? label.querySelector('input') : null;
+          };
+          const latitude = findInput('Latitude');
+          const longitude = findInput('Longitude');
+          const time = findInput('Time');
+          const heading = findInput('Heading');
+          if (!latitude || !longitude || !time || !heading) return null;
+          if (!latitude.value || !longitude.value) return null;
+          return {
+            latitude: Number(latitude.value),
+            longitude: Number(longitude.value),
+            time: Number(time.value),
+            heading: Number(heading.value)
+          };
+        })()""",
+        timeout_s=8,
+    )
+    cdp.click_fraction(map_selector, 0.58, 0.54)
+    second_waypoint_form = cdp.wait_for(
+        f"""(() => {{
+          const countMatch = document.body.innerText.match(/(\\d+) waypoints?/);
+          const count = countMatch ? Number(countMatch[1]) : 0;
+          if (count <= {int(before or 0) + 1}) return null;
+          const findInput = (labelText) => {{
+            const label = Array.from(document.querySelectorAll('.swarm-waypoint-form label'))
+              .find((item) => (item.textContent || '').includes(labelText));
+            return label ? label.querySelector('input') : null;
+          }};
+          const latitude = findInput('Latitude');
+          const longitude = findInput('Longitude');
+          const time = findInput('Time');
+          const heading = findInput('Heading');
+          if (!latitude || !longitude || !time || !heading) return null;
+          const payload = {{
+            latitude: Number(latitude.value),
+            longitude: Number(longitude.value),
+            time: Number(time.value),
+            heading: Number(heading.value)
+          }};
+          return Number.isFinite(payload.latitude)
+            && Number.isFinite(payload.longitude)
+            && payload.time > 0
+            && Number.isFinite(payload.heading)
+            ? payload
+            : null;
+        }})()""",
         timeout_s=8,
     )
     cdp.evaluate(
@@ -454,6 +529,9 @@ def probe_swarm_trajectory(cdp: CDPClient, report: ProbeReport, base_url: str, s
         bool(tabs_ready),
         bool(map_ready),
         bool(after),
+        isinstance(waypoint_form, dict)
+        and all(isinstance(waypoint_form.get(key), (int, float)) for key in ("latitude", "longitude", "time", "heading")),
+        isinstance(second_waypoint_form, dict),
         bool(process_panel_ready),
     ]
     add_step(
@@ -461,7 +539,7 @@ def probe_swarm_trajectory(cdp: CDPClient, report: ProbeReport, base_url: str, s
         ProbeStep(
             name="swarm_trajectory_map_waypoint",
             passed=all(checks),
-            detail=f"checks={checks} before={before}",
+            detail=f"checks={checks} before={before} form={waypoint_form} second={second_waypoint_form}",
             screenshot=capture_step(cdp, screenshot_dir, "swarm-trajectory-map-waypoint"),
         ),
     )

@@ -244,6 +244,51 @@
   gap: var(--spacing-sm);
 }
 
+.swarm-waypoint-mode-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.swarm-segmented-control {
+  display: inline-flex;
+  min-width: 0;
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  overflow: hidden;
+  background: var(--color-bg-primary);
+}
+
+.swarm-segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  min-height: 34px;
+  padding: 0 var(--spacing-sm);
+  border: 0;
+  border-right: 1px solid var(--color-border-primary);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.swarm-segmented-control button:last-child {
+  border-right: 0;
+}
+
+.swarm-segmented-control button.is-selected {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.swarm-segmented-control button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .swarm-waypoint-form label {
   display: flex;
   flex-direction: column;
@@ -260,6 +305,11 @@
   border-radius: var(--border-radius-base);
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
+}
+
+.swarm-waypoint-form input[readonly] {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-tertiary);
 }
 
 .swarm-planner-actions {
@@ -297,6 +347,11 @@
   background: var(--color-bg-primary);
 }
 
+.swarm-waypoint-row.is-active {
+  border-color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
 .swarm-waypoint-row__main {
   min-width: 0;
   padding: 0;
@@ -316,6 +371,15 @@
 .swarm-waypoint-row__main span {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
+}
+
+.swarm-waypoint-row__detail {
+  color: var(--color-text-primary) !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-waypoint-row__modes {
+  color: var(--color-text-tertiary) !important;
 }
 
 .swarm-waypoint-row__actions {
@@ -2434,6 +2498,16 @@
 
   .swarm-waypoint-form {
     grid-template-columns: 1fr;
+  }
+
+  .swarm-waypoint-mode-strip,
+  .swarm-segmented-control {
+    width: 100%;
+  }
+
+  .swarm-segmented-control button {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .swarm-planner-card__header,

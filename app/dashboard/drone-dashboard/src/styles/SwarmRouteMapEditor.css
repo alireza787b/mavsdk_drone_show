@@ -50,6 +50,15 @@
   font-size: 0.72rem;
   font-weight: 800;
   box-shadow: var(--shadow-md);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.swarm-route-map-editor__marker.is-active {
+  color: #92400e;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25), var(--shadow-md);
 }
 
 .swarm-route-map-editor__hint {

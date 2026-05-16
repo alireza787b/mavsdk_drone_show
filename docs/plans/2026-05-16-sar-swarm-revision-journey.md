@@ -392,3 +392,42 @@ Next:
 
 - Commit/tag/push official public release.
 - Cherry-pick public-safe changes into the private repository, deploy the private GCS, verify live REAL mode, and prepare the PM report.
+
+## Route Authoring Feedback Slice
+
+Status: implementation and remote validation complete; official/private release and deploy remain next.
+
+Feedback addressed:
+
+- Swarm Trajectory map-created waypoints now become the selected editable waypoint immediately. The latitude, longitude, altitude, time, speed, and heading fields update from the actual waypoint state after each map click.
+- Draft route authoring now reflows waypoint timing, required/preferred speed, calculated arrival yaw, and climb/descent summaries after add, edit, delete, and reorder operations.
+- Normal route authoring defaults to automatic ETA and automatic yaw after the route-entry anchor. Operators can switch compact controls to fixed arrival time or manual yaw only when needed.
+- The first waypoint is treated as the route-entry anchor with explicit entry heading and zero inbound speed; later waypoints own their inbound leg ETA, speed, yaw, and vertical profile.
+- Route rows now expose concise operational summaries: `T+`, speed, heading, climb/descent, and timing/yaw modes.
+- Map markers can select existing waypoints for editing in Mapbox and Leaflet modes.
+- Swarm Trajectory docs now state that AGL authoring uses the backend elevation endpoint, so Mapbox and Leaflet share the same terrain contract; terrain failure blocks AGL save instead of substituting an estimate.
+- The dashboard browser probe now verifies two Swarm route map clicks and asserts the second waypoint produces nonzero ETA and computed heading in the form.
+
+Validation:
+
+- Local non-Node checks: `git diff --check` passed; `python3 -m py_compile tools/probe_dashboard_mission_ui.py` passed.
+- remote frontend unit tests: `CI=true npm test -- --runInBand --watchAll=false --runTestsByPath src/pages/SwarmTrajectory.test.js src/components/trajectory/SwarmRouteMapEditor.test.js src/utilities/swarmTrajectoryDraft.test.js` passed: 3 suites, 13 tests.
+- remote production dashboard build: `REACT_APP_GCS_PORT=5130 npm run build` passed. The existing large-bundle advisory remains.
+- remote desktop browser probe passed with no console errors or runtime exceptions. Swarm route click 1 populated the form; click 2 produced `time=480.3` and `heading=83`.
+- remote mobile browser probe passed with no console errors or runtime exceptions. Swarm route click 2 produced `time=180.3` and `heading=115.5`.
+- remote backend route/service sanity suite passed in a disposable validation venv: `tests/test_swarm_trajectory_service.py tests/test_gcs_swarm_trajectory_routes.py`, 34 passed.
+
+Reviewer notes:
+
+- Operator/SAR: The route editor now behaves like an operational planning tool: map clicks create selected editable points, and route summaries expose ETA, speed, yaw, and vertical profile without long page prose.
+- UI/UX: Automation controls are compact segmented controls, not long instructions. Mobile browser probing confirms the tabbed workflow and route authoring still fit without horizontal overflow.
+- Frontend maintainer: Reflow logic is centralized in `swarmTrajectoryDraft` and reuses the existing trajectory timing/yaw calculator from the advanced editor instead of duplicating formulas.
+- Backend/API maintainer: No backend contract changed. The generated CSV still carries the existing compatibility columns plus timing/heading metadata.
+- Flight safety: Fixed-time legs that require speed above the configured absolute envelope are blocked before upload. AGL terrain failure remains explicit and blocking.
+- DevOps/release: Node/npm/build/browser validation stayed on the remote validation host. A broad validation rsync exclude accidentally omitted `src/components/logs`; the validation sync was corrected to exclude only root `/logs`.
+- Docs/test maintainer: Public docs and reusable browser probes now cover waypoint field population, map selection, timing/yaw modes, and Mapbox/Leaflet terrain semantics.
+
+Next:
+
+- Commit/tag/push official public release.
+- Cherry-pick public-safe changes into the private repository, deploy the private GCS, verify live REAL mode, stop validation-only services, and prepare the updated PM handoff report.

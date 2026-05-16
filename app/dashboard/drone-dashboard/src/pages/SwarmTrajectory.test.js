@@ -36,6 +36,19 @@ jest.mock('../components/trajectory/SwarmRouteMapEditor', () => (props) => (
     >
       Map click route point
     </button>
+    <button
+      type="button"
+      onClick={() => props.onAddWaypoint?.({ latitude: 35.04, longitude: 51.06 })}
+    >
+      Map click second route point
+    </button>
+    <button
+      type="button"
+      onClick={() => props.onSelectWaypoint?.(props.waypoints?.[0])}
+      disabled={!props.waypoints?.[0]}
+    >
+      Select first route point
+    </button>
   </div>
 ));
 jest.mock('../services/droneApiService', () => ({
@@ -363,7 +376,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
 
     fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.01' } });
     fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '51.02' } });
-    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '30' } });
+    fireEvent.change(screen.getByLabelText('Time'), { target: { value: '300' } });
     fireEvent.click(screen.getByRole('button', { name: /add waypoint/i }));
 
     await waitFor(() => {
@@ -394,6 +407,24 @@ describe('SwarmTrajectory git writeback messaging', () => {
     await waitFor(() => {
       expect(screen.getByText(/35.03000, 51.04000/i)).toBeInTheDocument();
     });
+    expect(screen.getByLabelText('Latitude')).toHaveValue(35.03);
+    expect(screen.getByLabelText('Longitude')).toHaveValue(51.04);
+    expect(screen.getByLabelText('Time')).toHaveValue(0);
+    expect(screen.getByLabelText('Heading')).toHaveValue(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Map click second route point' }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/35.04000, 51.06000/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText('Latitude')).toHaveValue(35.04);
+    expect(screen.getByLabelText('Longitude')).toHaveValue(51.06);
+    expect(Number(screen.getByLabelText('Time').value)).toBeGreaterThan(0);
+    expect(Number(screen.getByLabelText('Heading').value)).toBeGreaterThan(0);
+    expect(screen.getByText(/auto ETA .* auto yaw/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Select first route point/i }));
+    expect(screen.getByLabelText('Latitude')).toHaveValue(35.03);
     expect(getSwarmTrajectoryElevationBatch).not.toHaveBeenCalled();
   });
 
