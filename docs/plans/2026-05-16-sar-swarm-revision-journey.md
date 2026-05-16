@@ -356,3 +356,39 @@ Reviewer notes:
 - Flight safety: The drone-side mission-state race fix remains the selected solution; no API-side scheduler shortcut is present.
 - Devops/release: Validation-only runtime state was cleaned up earlier and the live deployment remained available for the downstream release step.
 - Docs/test maintainer: The journey log records the final release gate and the specific regressions found by the full suite.
+
+## Post-Release PM Feedback Slice
+
+Status: implementation and Hetzner validation complete; official/private release and deploy remain next.
+
+Feedback addressed:
+
+- QuickScout no longer labels configured-only or stale-GPS slots as online. The visible slot state now distinguishes `Offline`, `No GPS`, `Stale GPS`, and `Live GPS` using the shared runtime telemetry clock.
+- QuickScout now polls configured origin status and shows an origin setup link when Origin Slots are selected without a usable origin.
+- Live GPS planning failures caused by unavailable drone positions now suggest Origin Slots as the safe offline draft path, while preserving live revalidation before launch.
+- Swarm Trajectory was reorganized into a tabbed single-page workflow: `Route`, `Leaders`, `Process`, and `Review`. Only one task surface is visible at a time, and detailed policy/plots/destructive actions are behind disclosures.
+- The reusable mission UI browser probe now understands the Swarm Trajectory tabs and explicitly switches QuickScout back to Plan mode before checking the planning controls.
+
+Validation:
+
+- Hetzner frontend unit tests: `CI=true npm test -- --runInBand --watchAll=false --runTestsByPath src/pages/QuickScoutPage.test.js src/components/sar/MissionPlanSidebar.test.js src/pages/SwarmTrajectory.test.js src/components/SidebarMenu.test.js src/components/trajectory/SwarmRouteMapEditor.test.js` passed: 5 suites, 33 tests.
+- Hetzner dashboard build: `REACT_APP_GCS_PORT=5130 npm run build` passed.
+- Hetzner desktop browser probe: `tools/probe_dashboard_mission_ui.py --viewport desktop` passed. It verified collapsed sidebar tooltip, QuickScout Plan + Leaflet fallback + Origin Slots controls, Swarm Route waypoint insertion through the tabbed UI, and Advanced Route Editor label.
+- Hetzner mobile browser probe: `tools/probe_dashboard_mission_ui.py --viewport mobile` passed. It verified mobile navigation, QuickScout Plan + Leaflet fallback + Origin Slots controls, Swarm Route waypoint insertion, and Advanced Route Editor label.
+- Hetzner backend/API targeted suite in a disposable validation venv passed: `pytest tests/test_sar_api.py tests/test_gcs_sar_routes.py tests/test_gcs_swarm_trajectory_routes.py tests/test_swarm_trajectory_service.py -q`, 80 passed.
+- Validation-only dashboard/backend ports were stopped after probes; live runtime ports remained up.
+
+Reviewer notes:
+
+- Operator/SAR: QuickScout slot state now matches operational readiness for planning, and the offline planning path is visible without weakening the no-fabricated-position rule.
+- UI/UX: Swarm Trajectory mobile scan path is substantially shorter because route, leader import, processing, and review are separate tabs.
+- Frontend maintainer: Existing Swarm behavior is preserved while reducing visible complexity; probe coverage was updated to match the new workflow.
+- Backend/API maintainer: No backend API contract changed in this feedback slice; existing SAR/Swarm route tests still pass.
+- Flight safety: Origin-slot planning remains staged and cannot bypass live GPS revalidation.
+- Devops/release: Node/npm/build/browser validation stayed on Hetzner. Temporary validation services were stopped after validation.
+- Docs/test maintainer: New component tests cover origin setup and selected-slot Live GPS guidance; browser probe now protects the tabbed Swarm UI.
+
+Next:
+
+- Commit/tag/push official public release.
+- Cherry-pick public-safe changes into the private repository, deploy the private GCS, verify live REAL mode, and prepare the PM report.

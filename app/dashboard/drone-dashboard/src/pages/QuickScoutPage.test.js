@@ -1,10 +1,12 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { toast } from 'react-toastify';
 import QuickScoutPage from './QuickScoutPage';
 import * as sarApi from '../services/sarApiService';
 import {
   getFleetConfigResponse,
   getFleetTelemetryResponse,
+  getOriginResponse,
   unwrapFleetTelemetryPayload,
 } from '../services/gcsApiService';
 
@@ -61,6 +63,7 @@ jest.mock('../services/sarApiService', () => ({
 jest.mock('../services/gcsApiService', () => ({
   getFleetConfigResponse: jest.fn(),
   getFleetTelemetryResponse: jest.fn(),
+  getOriginResponse: jest.fn(),
   unwrapFleetTelemetryPayload: jest.fn(),
 }));
 
@@ -131,6 +134,15 @@ jest.mock('../components/sar/MissionPlanSidebar', () => (props) => (
     <div data-testid="plan-needs-recompute">{String(props.planNeedsRecompute)}</div>
     <div data-testid="plan-launch-ready">{String(props.launchReadiness?.canLaunch ?? false)}</div>
     <div data-testid="plan-target-count">{props.targetHwIds?.length || 0}</div>
+    <div data-testid="origin-state">{props.originStatus?.state || ''}</div>
+    <div data-testid="origin-message">{props.originStatus?.message || ''}</div>
+    <div data-testid="drone-statuses">
+      {(props.drones || []).map((drone) => (
+        <span key={drone.hw_ID || drone.hw_id}>
+          {drone.pos_id ?? drone.pos_ID}:{drone.quickScoutStatus?.label || 'none'}
+        </span>
+      ))}
+    </div>
     <button
       type="button"
       onClick={() => props.onRecoverMission(props.missionCatalog[0]?.mission_id)}
@@ -369,9 +381,10 @@ describe('QuickScoutPage', () => {
       realConsoleError(...args);
     });
 
-    getFleetTelemetryResponse.mockResolvedValue({ data: {} });
+    getFleetTelemetryResponse.mockResolvedValue({ data: {}, headers: {} });
     unwrapFleetTelemetryPayload.mockReturnValue({});
     getFleetConfigResponse.mockResolvedValue({ data: [] });
+    getOriginResponse.mockResolvedValue({ data: { lat: null, lon: null } });
     sarApi.computePlan.mockResolvedValue({
       mission_id: 'mission-ready',
       plans: [],
@@ -584,6 +597,93 @@ describe('QuickScoutPage', () => {
       )
     );
     expect(screen.getByTestId('plan-position-source-mode')).toHaveTextContent('configured_origin');
+  });
+
+  it('does not mark configured or stale GPS rows as live for QuickScout planning', async () => {
+    const now = Date.now();
+    getFleetConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: '1', pos_id: 1 },
+        { hw_id: '2', pos_id: 2 },
+      ],
+    });
+    getFleetTelemetryResponse.mockResolvedValue({
+      data: {
+        '1': {
+          hw_ID: '1',
+          hw_id: '1',
+          pos_id: 1,
+          position_lat: 37.0,
+          position_long: -122.0,
+          global_position_valid: true,
+          global_position_age_ms: 120_000,
+          update_time: now,
+          timestamp: now,
+          heartbeat_last_seen: now,
+        },
+      },
+      headers: {},
+    });
+    unwrapFleetTelemetryPayload.mockImplementation((payload) => payload);
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('drone-statuses')).toHaveTextContent('1:Stale GPS');
+      expect(screen.getByTestId('drone-statuses')).toHaveTextContent('2:Offline');
+      expect(screen.getByTestId('drone-statuses')).not.toHaveTextContent('1:Live GPS');
+      expect(screen.getByTestId('drone-statuses')).not.toHaveTextContent('2:Live GPS');
+    });
+  });
+
+  it('shows configured-origin missing state when no origin is set', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    getOriginResponse.mockResolvedValue({ data: { lat: null, lon: null } });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Use origin slots' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('origin-state')).toHaveTextContent('missing');
+      expect(screen.getByTestId('origin-message')).toHaveTextContent('Set an origin before using Origin Slots.');
+    });
+  });
+
+  it('suggests Origin Slots when Live GPS planning has no connected drone position', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [{ hw_id: '1', pos_id: 1 }],
+    });
+    sarApi.listMissions.mockResolvedValue({ missions: [], count: 0 });
+    sarApi.createPlanningJob.mockRejectedValue({
+      response: {
+        data: {
+          detail: {
+            code: 'quickscout_position_unavailable',
+            message: 'No fresh valid drone global positions are available for QuickScout planning.',
+          },
+        },
+      },
+    });
+
+    await renderPage();
+    await flushAsyncState();
+
+    await waitFor(() => expect(screen.getByTestId('plan-sidebar')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Select drone 1' }));
+    await flushAsyncState();
+    fireEvent.click(screen.getByRole('button', { name: 'Compute plan' }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      expect.stringContaining('Use Origin Slots to draft from the configured launch origin')
+    ));
   });
 
   it('sends a point-centered request for last known point missions', async () => {

@@ -658,11 +658,107 @@
   border: 1px solid var(--color-border-primary);
 }
 
+.status-card--compact {
+  padding: var(--spacing-base);
+  margin-bottom: var(--spacing-base);
+}
+
 .status-card h2 {
   margin: 0 0 var(--spacing-xl) 0;
   color: var(--color-text-primary);
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
+}
+
+.swarm-status-details {
+  margin-top: var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-primary);
+}
+
+.swarm-status-details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-base);
+  min-height: 42px;
+  padding: 0 var(--spacing-base);
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-status-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.swarm-status-details > summary small {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.swarm-status-details[open] > summary {
+  border-bottom: 1px solid var(--color-border-primary);
+}
+
+.swarm-status-details .swarm-workspace-summary {
+  padding: var(--spacing-base);
+  margin-top: 0;
+}
+
+.swarm-workflow-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0 0 var(--spacing-base);
+}
+
+.swarm-workflow-tab {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: var(--spacing-sm);
+  min-height: 58px;
+  padding: var(--spacing-sm) var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-base);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-base);
+}
+
+.swarm-workflow-tab svg {
+  grid-row: 1 / span 2;
+  color: var(--color-primary);
+}
+
+.swarm-workflow-tab span {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-workflow-tab small {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.swarm-workflow-tab:hover,
+.swarm-workflow-tab.is-active {
+  border-color: var(--color-primary);
+  background: var(--color-bg-tertiary);
+}
+
+.swarm-workflow-tab.is-active {
+  box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 
 .swarm-workspace-summary {
@@ -1012,14 +1108,38 @@
 }
 
 /* Workflow Steps */
+.swarm-panel[hidden] {
+  display: none;
+}
+
 .workflow-step {
   background: var(--color-bg-secondary);
   border-radius: var(--border-radius-lg);
   padding: var(--spacing-xl);
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: var(--spacing-base);
   box-shadow: var(--shadow-base);
   border-left: 4px solid var(--color-primary);
   border: 1px solid var(--color-border-primary);
+}
+
+.swarm-empty-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xl);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.swarm-empty-panel svg {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xl);
+}
+
+.swarm-empty-panel strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
 }
 
 .step-header h3 {
@@ -2257,7 +2377,7 @@
 
 @media (max-width: 768px) {
   .swarm-trajectory {
-    padding: var(--spacing-base);
+    padding: var(--spacing-sm);
   }
 
   .swarm-trajectory__header {
@@ -2265,6 +2385,8 @@
     gap: var(--spacing-base);
     align-items: stretch;
     text-align: left;
+    padding: var(--spacing-base);
+    margin-bottom: var(--spacing-sm);
   }
 
   .swarm-trajectory__header-tools {
@@ -2272,8 +2394,42 @@
   }
 
   .status-card {
+    padding: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .swarm-status-details > summary {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: var(--spacing-sm);
+  }
+
+  .swarm-workflow-tabs {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: var(--spacing-xs);
+    scrollbar-width: thin;
+  }
+
+  .swarm-workflow-tab {
+    flex: 0 0 112px;
+    min-height: 54px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .workflow-step {
     padding: var(--spacing-base);
-    margin-bottom: var(--spacing-lg);
+    border-left: 0;
+  }
+
+  .step-header h3 {
+    font-size: var(--font-size-base);
+  }
+
+  .step-number {
+    width: 24px;
+    height: 24px;
+    font-size: var(--font-size-sm);
   }
 
   .swarm-waypoint-form {

@@ -245,8 +245,9 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Review and Prepare Launch')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /review/i })).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByRole('tab', { name: /review/i }));
 
     expect(screen.getByRole('button', { name: 'Commit Outputs Locally' })).toBeInTheDocument();
     expect(screen.getByText(/optionally commit for traceability/i)).toBeInTheDocument();
@@ -312,12 +313,13 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Review and Prepare Launch')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /review/i })).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByRole('tab', { name: /review/i }));
 
     expect(screen.getByText(/outputs generated, review still required/i)).toBeInTheDocument();
     expect(screen.getByText(/resolve attention items and reprocess/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /open mission trigger/i }).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByRole('link', { name: /open mission trigger/i }).length).toBeGreaterThanOrEqual(1);
   });
 
   test('uses compact operator-flow and workspace-review summaries on mobile', async () => {
@@ -330,11 +332,13 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Workspace review & policy')).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /route/i })).toHaveAttribute('aria-selected', 'true');
     });
 
-    expect(screen.getAllByRole('link', { name: 'Open Swarm Design' }).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByRole('link', { name: 'Open Mission Trigger' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Workspace review & policy').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('tab', { name: /leaders/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /process/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /review/i })).toBeInTheDocument();
   });
 
   test('assigns a drafted leader route from the single-page workflow', async () => {
@@ -345,7 +349,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Plan or Import Leader Route')).toBeInTheDocument();
+      expect(screen.getByTestId('swarm-route-map-editor')).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '35.0' } });
@@ -416,7 +420,7 @@ describe('SwarmTrajectory git writeback messaging', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Plan or Import Leader Route')).toBeInTheDocument();
+      expect(screen.getByTestId('swarm-route-map-editor')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /AGL Terrain based/i }));

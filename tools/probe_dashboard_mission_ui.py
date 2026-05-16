@@ -380,10 +380,20 @@ def probe_mobile_navigation(cdp: CDPClient, report: ProbeReport, base_url: str, 
 
 def probe_quickscout(cdp: CDPClient, report: ProbeReport, base_url: str, screenshot_dir: Path | None) -> None:
     cdp.navigate(route_url(base_url, "/quickscout"))
-    text = cdp.evaluate("document.body.innerText")
+    cdp.evaluate(
+        """(() => {
+          const planButton = Array.from(document.querySelectorAll('button')).find((el) => (el.textContent || '').trim() === 'Plan');
+          if (planButton) planButton.click();
+          return true;
+        })()"""
+    )
     map_ready = cdp.wait_for(
         "(() => { const el = document.querySelector('.leaflet-container, .mapboxgl-map'); if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 200 && r.height > 180; })()",
         timeout_s=20,
+    )
+    text = cdp.wait_for(
+        "(() => { const text = document.body.innerText || ''; return text.includes('QuickScout') && text.includes('Origin Slots') ? text : ''; })()",
+        timeout_s=10,
     )
     checks = [
         "QuickScout" in text,
@@ -406,22 +416,45 @@ def probe_quickscout(cdp: CDPClient, report: ProbeReport, base_url: str, screens
 def probe_swarm_trajectory(cdp: CDPClient, report: ProbeReport, base_url: str, screenshot_dir: Path | None) -> None:
     cdp.navigate(route_url(base_url, "/swarm-trajectory"))
     text = cdp.evaluate("document.body.innerText")
+    tabs_ready = cdp.wait_for(
+        """(() => {
+          const labels = Array.from(document.querySelectorAll('[role="tab"]')).map((el) => el.textContent || '');
+          return ['Route', 'Leaders', 'Process', 'Review'].every((label) => labels.some((text) => text.includes(label)));
+        })()""",
+        timeout_s=12,
+    )
     map_ready = cdp.wait_for(
         "(() => { const el = document.querySelector('.swarm-route-map-editor .leaflet-container, .swarm-route-map-editor .mapboxgl-map'); if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 200 && r.height > 180; })()",
         timeout_s=20,
     )
     before = cdp.evaluate("(() => { const m = document.body.innerText.match(/(\\d+) waypoints?/); return m ? Number(m[1]) : null; })()")
-    cdp.click_center(".swarm-route-map-editor__map")
+    cdp.click_center(".swarm-route-map-editor .leaflet-container, .swarm-route-map-editor .mapboxgl-map")
     after = cdp.wait_for(
         f"(() => {{ const m = document.body.innerText.match(/(\\d+) waypoints?/); return m ? Number(m[1]) > {int(before or 0)} : false; }})()",
+        timeout_s=8,
+    )
+    cdp.evaluate(
+        """(() => {
+          const tab = Array.from(document.querySelectorAll('[role="tab"]')).find((el) => (el.textContent || '').includes('Process'));
+          if (!tab) return false;
+          tab.click();
+          return true;
+        })()"""
+    )
+    process_panel_ready = cdp.wait_for(
+        """(() => {
+          const text = document.body.innerText || '';
+          return text.includes('Process') && (text.includes('Upload at least one leader CSV') || text.includes('Advanced processing') || text.includes('Ready to process'));
+        })()""",
         timeout_s=8,
     )
     checks = [
         "Swarm Trajectory" in text,
         "Leader route map" in text,
-        "Advanced processing" in text,
+        bool(tabs_ready),
         bool(map_ready),
         bool(after),
+        bool(process_panel_ready),
     ]
     add_step(
         report,

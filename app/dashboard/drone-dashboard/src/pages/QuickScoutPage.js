@@ -12,8 +12,11 @@ import * as sarApi from '../services/sarApiService';
 import {
   getFleetConfigResponse,
   getFleetTelemetryResponse,
+  getOriginResponse,
   unwrapFleetTelemetryPayload,
 } from '../services/gcsApiService';
+import { extractServerNowMs, normalizeTelemetryResponse } from '../constants/fieldMappings';
+import { getDroneRuntimeStatus } from '../utilities/droneRuntimeStatus';
 
 // SAR components
 import PlanMonitorToggle from '../components/sar/PlanMonitorToggle';
@@ -109,6 +112,11 @@ const QUICKSCOUT_POSITION_SOURCE_MODES = {
 const ACTIVE_MISSION_STATES = new Set(['executing', 'paused']);
 const MONITOR_MISSION_STATES = new Set(['executing', 'paused', 'completed', 'aborted']);
 const PLANNING_JOB_TERMINAL_STATES = new Set(['succeeded', 'failed', 'canceled', 'expired']);
+const MAX_QUICKSCOUT_PLANNING_POSITION_AGE_MS = 30_000;
+const QUICKSCOUT_POSITION_UNAVAILABLE_CODES = new Set([
+  'quickscout_position_unavailable',
+  'quickscout_planning_position_unavailable',
+]);
 
 const getMissionStateTone = (state) => {
   switch (state) {
@@ -165,11 +173,110 @@ const getApiErrorMessage = (error, fallback = 'Request failed') => (
   || fallback
 );
 
+const getApiErrorCode = (error) => {
+  const detail = error?.response?.data?.detail;
+  if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+    return detail.code || detail.error_code || '';
+  }
+  return error?.response?.data?.code || '';
+};
+
+const shouldSuggestOriginSlots = (error, message = '') => {
+  const code = getApiErrorCode(error);
+  return QUICKSCOUT_POSITION_UNAVAILABLE_CODES.has(code)
+    || /fresh valid (drone )?global position/i.test(message)
+    || /fresh valid drone global positions/i.test(message)
+    || /selected drones do not have fresh/i.test(message);
+};
+
+const withOriginSlotSuggestion = (message, error, positionSourceMode) => {
+  if (positionSourceMode !== QUICKSCOUT_POSITION_SOURCE_MODES.LIVE_DRONE_POSITIONS) {
+    return message;
+  }
+  if (!shouldSuggestOriginSlots(error, message)) {
+    return message;
+  }
+  return `${message} Use Origin Slots to draft from the configured launch origin while aircraft are offline, then revalidate live GPS before launch.`;
+};
+
 const hasDronePosition = (drone) => (
   hasFiniteCoordinate(drone?.position_lat) && hasFiniteCoordinate(drone?.position_long)
   && drone?.global_position_valid !== false
   && (Math.abs(Number(drone.position_lat)) > 0.000001 || Math.abs(Number(drone.position_long)) > 0.000001)
 );
+
+const getGlobalPositionAgeMs = (drone) => {
+  const ageMs = Number(drone?.global_position_age_ms);
+  return Number.isFinite(ageMs) && ageMs >= 0 ? ageMs : null;
+};
+
+const hasFreshDronePosition = (drone) => {
+  if (!hasDronePosition(drone)) {
+    return false;
+  }
+  const ageMs = getGlobalPositionAgeMs(drone);
+  return ageMs === null || ageMs <= MAX_QUICKSCOUT_PLANNING_POSITION_AGE_MS;
+};
+
+const buildQuickScoutDroneStatus = (drone, nowMs = Date.now()) => {
+  if (!drone) {
+    return {
+      key: 'offline',
+      label: 'Offline',
+      className: 'offline',
+      title: 'No telemetry row is available.',
+      gpsReady: false,
+      linkReady: false,
+    };
+  }
+
+  const runtimeStatus = getDroneRuntimeStatus(drone, nowMs);
+  const linkReady = runtimeStatus.level === 'online' || runtimeStatus.level === 'degraded';
+  const ageMs = getGlobalPositionAgeMs(drone);
+  const hasPosition = hasDronePosition(drone);
+
+  if (!linkReady) {
+    return {
+      key: runtimeStatus.level === 'unknown' ? 'offline' : runtimeStatus.level,
+      label: runtimeStatus.label === 'Never seen' ? 'Offline' : runtimeStatus.label,
+      className: 'offline',
+      title: runtimeStatus.tooltip || 'No recent telemetry or heartbeat.',
+      gpsReady: false,
+      linkReady: false,
+    };
+  }
+
+  if (!hasPosition) {
+    return {
+      key: 'no-gps',
+      label: 'No GPS',
+      className: 'no-gps',
+      title: 'Connected, but no valid non-default global GPS position is available for Live GPS planning.',
+      gpsReady: false,
+      linkReady,
+    };
+  }
+
+  if (ageMs !== null && ageMs > MAX_QUICKSCOUT_PLANNING_POSITION_AGE_MS) {
+    return {
+      key: 'stale-gps',
+      label: 'Stale GPS',
+      className: 'stale',
+      title: `Global position is ${Math.round(ageMs / 1000)}s old. Live GPS planning requires a fresh position.`,
+      gpsReady: false,
+      linkReady,
+    };
+  }
+
+  return {
+    key: 'live-gps',
+    label: 'Live GPS',
+    className: 'online',
+    title: runtimeStatus.tooltip || 'Fresh global GPS position is available.',
+    gpsReady: true,
+    linkReady,
+  };
+};
 
 // Create simple drone icon for Leaflet markers
 const createDroneIcon = (hwId) =>
@@ -220,6 +327,7 @@ const QuickScoutPage = () => {
   const [loadingMissionCatalog, setLoadingMissionCatalog] = useState(false);
   const [missionCatalog, setMissionCatalog] = useState([]);
   const [recoveringMissionId, setRecoveringMissionId] = useState(null);
+  const [originStatus, setOriginStatus] = useState({ state: 'checking', message: 'Checking origin' });
   const [lastPlannedSignature, setLastPlannedSignature] = useState(null);
   const [planningJob, setPlanningJob] = useState(null);
   const [planningJobDialogOpen, setPlanningJobDialogOpen] = useState(false);
@@ -480,7 +588,13 @@ const QuickScoutPage = () => {
     const fetchTelemetry = async () => {
       try {
         const response = await getFleetTelemetryResponse();
-        const telemetry = unwrapFleetTelemetryPayload(response.data);
+        const telemetry = normalizeTelemetryResponse(
+          unwrapFleetTelemetryPayload(response.data),
+          {
+            receivedAtMs: Date.now(),
+            serverNowMs: extractServerNowMs(response.headers || {}),
+          }
+        );
         const dronesArray = Object.keys(telemetry).map((hw_ID) => ({
           hw_ID, ...telemetry[hw_ID],
         }));
@@ -492,6 +606,52 @@ const QuickScoutPage = () => {
     fetchTelemetry();
     const interval = setInterval(fetchTelemetry, 2000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Configured origin polling for staged/offline planning guidance
+  useEffect(() => {
+    let active = true;
+
+    const fetchOriginStatus = async () => {
+      try {
+        const response = await getOriginResponse();
+        const origin = response?.data || {};
+        const lat = Number(origin.lat);
+        const lon = Number(origin.lon);
+        const originReady = Number.isFinite(lat)
+          && Number.isFinite(lon)
+          && (Math.abs(lat) > 0.000001 || Math.abs(lon) > 0.000001);
+
+        if (!active) {
+          return;
+        }
+
+        setOriginStatus(originReady
+          ? {
+            state: 'ready',
+            message: `Origin ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
+          }
+          : {
+            state: 'missing',
+            message: 'Set an origin before using Origin Slots.',
+          });
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setOriginStatus({
+          state: 'unavailable',
+          message: 'Origin status unavailable.',
+        });
+      }
+    };
+
+    fetchOriginStatus();
+    const interval = setInterval(fetchOriginStatus, 10000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Persisted mission catalog / recovery polling
@@ -547,21 +707,32 @@ const QuickScoutPage = () => {
     const merged = configDrones.map((cfg) => {
       const hwId = String(cfg.hw_id);
       const telemetry = drones.find((d) => String(d.hw_ID) === hwId);
+      const quickScoutStatus = buildQuickScoutDroneStatus(telemetry || null);
       return {
         hw_ID: hwId,
         hw_id: hwId,
         pos_id: cfg.pos_id,
         pos_ID: cfg.pos_id,
         ip: cfg.ip,
-        online: !!telemetry,
         ...(telemetry || {}),
+        online: quickScoutStatus.gpsReady,
+        linkReady: quickScoutStatus.linkReady,
+        gpsReady: quickScoutStatus.gpsReady,
+        quickScoutStatus,
       };
     });
     // Add any telemetry drones not in config
     for (const d of drones) {
       const inConfig = configDrones.some((c) => String(c.hw_id) === String(d.hw_ID));
       if (!inConfig) {
-        merged.push({ ...d, online: true });
+        const quickScoutStatus = buildQuickScoutDroneStatus(d);
+        merged.push({
+          ...d,
+          online: quickScoutStatus.gpsReady,
+          linkReady: quickScoutStatus.linkReady,
+          gpsReady: quickScoutStatus.gpsReady,
+          quickScoutStatus,
+        });
       }
     }
     return merged;
@@ -826,7 +997,7 @@ const QuickScoutPage = () => {
     setCoveragePlan(null);
     setLastPlannedSignature(null);
     if ((templateId === 'last_known_point' || templateId === 'point_dispatch') && !searchCenter) {
-      const onlineDrone = mergedDrones.find((drone) => drone.online && hasDronePosition(drone));
+      const onlineDrone = mergedDrones.find((drone) => drone.gpsReady && hasFreshDronePosition(drone));
       if (onlineDrone) {
         setSearchCenter({
           lat: onlineDrone.position_lat,
@@ -1009,13 +1180,14 @@ const QuickScoutPage = () => {
         try {
           await applyPlanningJobResult(job, signature);
         } catch (error) {
+          const message = withOriginSlotSuggestion(error.message, error, request.position_source_mode);
           setPlanningJob((current) => ({
             ...(current || job),
             status: 'failed',
             phase: 'finalizing',
-            error_message: error.message,
+            error_message: message,
           }));
-          toast.error(`Planning failed: ${error.message}`);
+          toast.error(`Planning failed: ${message}`);
         }
         return;
       }
@@ -1025,7 +1197,11 @@ const QuickScoutPage = () => {
         return;
       }
 
-      const message = job.error_message || job.message || 'Planning job failed';
+      const message = withOriginSlotSuggestion(
+        job.error_message || job.message || 'Planning job failed',
+        null,
+        request.position_source_mode
+      );
       toast.error(`Planning failed: ${message}`);
     };
 
@@ -1048,7 +1224,11 @@ const QuickScoutPage = () => {
         } catch (error) {
           clearPlanningJobPoll();
           setComputing(false);
-          const message = getApiErrorMessage(error, 'Unable to read planning job status');
+          const message = withOriginSlotSuggestion(
+            getApiErrorMessage(error, 'Unable to read planning job status'),
+            error,
+            request.position_source_mode
+          );
           setPlanningJob((current) => ({
             ...(current || createdJob),
             status: 'failed',
@@ -1064,7 +1244,11 @@ const QuickScoutPage = () => {
     } catch (error) {
       clearPlanningJobPoll();
       setComputing(false);
-      const message = getApiErrorMessage(error, 'Unable to start planning job');
+      const message = withOriginSlotSuggestion(
+        getApiErrorMessage(error, 'Unable to start planning job'),
+        error,
+        request.position_source_mode
+      );
       setPlanningJob((current) => ({
         ...(current || {}),
         status: 'failed',
@@ -1508,8 +1692,8 @@ const QuickScoutPage = () => {
                 onFindingSelect={setSelectedFinding}
               />
 
-              {/* Drone position markers (online drones only) */}
-              {mergedDrones.filter((d) => d.online && hasDronePosition(d)).map((drone) => (
+              {/* Drone position markers (fresh live-GPS drones only) */}
+              {mergedDrones.filter((d) => d.gpsReady && hasFreshDronePosition(d)).map((drone) => (
                 <Marker
                   key={drone.hw_ID}
                   latitude={drone.position_lat}
@@ -1613,8 +1797,8 @@ const QuickScoutPage = () => {
                 onFindingSelect={setSelectedFinding}
               />
 
-              {/* Drone position markers (online drones only) */}
-              {mergedDrones.filter((d) => d.online && hasDronePosition(d)).map((drone) => (
+              {/* Drone position markers (fresh live-GPS drones only) */}
+              {mergedDrones.filter((d) => d.gpsReady && hasFreshDronePosition(d)).map((drone) => (
                 <LeafletMarker
                   key={drone.hw_ID}
                   position={[drone.position_lat, drone.position_long]}
@@ -1700,6 +1884,7 @@ const QuickScoutPage = () => {
             launchReadiness={launchReadiness}
             planNeedsRecompute={planNeedsRecompute}
             currentMissionState={currentMissionState}
+            originStatus={originStatus}
           />
         ) : (
           <MissionMonitorSidebar

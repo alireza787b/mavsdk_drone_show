@@ -337,6 +337,60 @@
     color: var(--color-text-tertiary);
 }
 
+.qs-drone-status.no-gps {
+    background: var(--color-warning-light);
+    color: var(--color-warning);
+}
+
+.qs-drone-status.stale {
+    background: var(--color-danger-light);
+    color: var(--color-danger);
+}
+
+.qs-origin-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 9px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border-primary);
+    background: var(--color-bg-tertiary);
+    color: var(--color-text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.qs-origin-status--ready {
+    border-color: var(--color-success-light);
+    background: var(--color-success-light);
+    color: var(--color-success);
+}
+
+.qs-origin-status--missing,
+.qs-origin-status--unavailable,
+.qs-origin-status--advisory {
+    border-color: var(--color-warning-light);
+    background: var(--color-warning-light);
+    color: var(--color-warning);
+}
+
+.qs-inline-link {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.qs-inline-link--button {
+    padding: 0;
+    font: inherit;
+}
+
 /* === Action Buttons === */
 .qs-btn {
     padding: 8px 16px;

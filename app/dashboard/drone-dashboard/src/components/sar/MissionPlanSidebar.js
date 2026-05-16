@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FaChevronDown, FaChevronUp } from 'react-icons/fa';
 import MissionRecoveryPanel from './MissionRecoveryPanel';
 import QuickScoutLaunchReview from './QuickScoutLaunchReview';
@@ -76,9 +77,15 @@ const MissionPlanSidebar = ({
   launchReadiness,
   planNeedsRecompute,
   currentMissionState,
+  originStatus = { state: 'checking', message: 'Checking origin' },
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showMissionBrief, setShowMissionBrief] = useState(false);
+  const selectedDroneRows = drones.filter((drone) =>
+    selectedDrones.includes(drone.pos_id ?? drone.pos_ID)
+  );
+  const liveGpsCandidateRows = selectedDroneRows.length > 0 ? selectedDroneRows : drones;
+  const hasLiveGpsCandidate = liveGpsCandidateRows.some((drone) => drone.gpsReady);
   const isPointMode = missionTemplate === 'last_known_point' || missionTemplate === 'point_dispatch';
   const hasSearchCenter = isFiniteInputNumber(searchCenter?.lat)
     && isFiniteInputNumber(searchCenter?.lng);
@@ -258,6 +265,24 @@ const MissionPlanSidebar = ({
                 Origin Slots
               </button>
             </div>
+            {positionSourceMode === 'configured_origin' ? (
+              <div className={`qs-origin-status qs-origin-status--${originStatus.state || 'checking'}`}>
+                <span>{originStatus.message || 'Origin status unavailable.'}</span>
+                {originStatus.state !== 'ready' ? (
+                  <Link to="/mission-config" className="qs-inline-link">
+                    Set origin
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
+            {positionSourceMode !== 'configured_origin' && !hasLiveGpsCandidate ? (
+              <div className="qs-origin-status qs-origin-status--advisory">
+                <span>No selected slot has fresh Live GPS. Use Origin Slots for draft planning.</span>
+                <button type="button" className="qs-inline-link qs-inline-link--button" onClick={() => onPositionSourceModeChange?.('configured_origin')}>
+                  Origin Slots
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -417,8 +442,11 @@ const MissionPlanSidebar = ({
                     `H${drone.hw_ID || drone.hw_id || '?'}`
                   )}
                 </span>
-                <span className={`qs-drone-status ${drone.online ? 'online' : 'offline'}`}>
-                  {drone.online ? 'Online' : 'Offline'}
+                <span
+                  className={`qs-drone-status ${drone.quickScoutStatus?.className || (drone.online ? 'online' : 'offline')}`}
+                  title={drone.quickScoutStatus?.title || ''}
+                >
+                  {drone.quickScoutStatus?.label || (drone.online ? 'Live GPS' : 'Offline')}
                 </span>
               </label>
             ))}

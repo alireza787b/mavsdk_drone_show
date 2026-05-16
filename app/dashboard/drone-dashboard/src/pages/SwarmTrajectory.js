@@ -151,6 +151,7 @@ const SwarmTrajectory = () => {
   const [draftWaypoints, setDraftWaypoints] = useState([]);
   const [waypointForm, setWaypointForm] = useState(DEFAULT_WAYPOINT_FORM);
   const [editingWaypointId, setEditingWaypointId] = useState('');
+  const [activePanel, setActivePanel] = useState('route');
   const [altitudeMode, setAltitudeMode] = useState(SWARM_TRAJECTORY_ALTITUDE_MODES.MSL);
   const [terrainStatus, setTerrainStatus] = useState({
     status: 'neutral',
@@ -158,24 +159,12 @@ const SwarmTrajectory = () => {
     detail: 'Fixed MSL route authoring.',
   });
   const [uploadingDraft, setUploadingDraft] = useState(false);
-  const [isCompactViewport, setIsCompactViewport] = useState(
-    () => typeof window !== 'undefined' ? window.innerWidth <= 1024 : false
-  );
   const { data: gcsConfig } = useFetch(GCS_ROUTE_KEYS.gcsConfig);
 
   useEffect(() => {
     // This screen intentionally boots once, then refreshes from explicit operator actions.
     initializeComponent();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsCompactViewport(window.innerWidth <= 1024);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const viewModel = useMemo(
@@ -262,6 +251,41 @@ const SwarmTrajectory = () => {
     leaders.length,
     viewModel.clusterSummary.cluster_count,
     viewModel.clusterSummary.ready_cluster_count,
+    viewModel.processedDroneCount,
+    viewModel.uploadedLeaderIds.length,
+  ]);
+  const workflowTabs = useMemo(() => [
+    {
+      id: 'route',
+      label: 'Route',
+      meta: `${draftWaypoints.length} WP`,
+      Icon: FaPlus,
+    },
+    {
+      id: 'leaders',
+      label: 'Leaders',
+      meta: `${viewModel.uploadedLeaderIds.length}/${viewModel.expectedLeaderIds.length || leaders.length}`,
+      Icon: FaUpload,
+    },
+    {
+      id: 'process',
+      label: 'Process',
+      meta: `${viewModel.clusterSummary.ready_cluster_count}/${viewModel.clusterSummary.cluster_count || leaders.length}`,
+      Icon: FaHourglassHalf,
+    },
+    {
+      id: 'review',
+      label: 'Review',
+      meta: hasProcessedOutputs ? `${viewModel.processedDroneCount} out` : 'None',
+      Icon: FaCheckCircle,
+    },
+  ], [
+    draftWaypoints.length,
+    hasProcessedOutputs,
+    leaders.length,
+    viewModel.clusterSummary.cluster_count,
+    viewModel.clusterSummary.ready_cluster_count,
+    viewModel.expectedLeaderIds.length,
     viewModel.processedDroneCount,
     viewModel.uploadedLeaderIds.length,
   ]);
@@ -434,6 +458,7 @@ const SwarmTrajectory = () => {
 
       setOperatorNotice(null);
       await refreshOperationalState();
+      setActivePanel('process');
       showNotice(
         'success',
         `Leader ${leaderId} CSV uploaded`,
@@ -631,6 +656,7 @@ const SwarmTrajectory = () => {
         uploadFn: uploadSwarmTrajectory,
       });
       await refreshOperationalState();
+      setActivePanel('process');
       showNotice(
         'success',
         `Leader ${selectedLeaderId} route assigned`,
@@ -682,6 +708,7 @@ const SwarmTrajectory = () => {
 
       setResults(result);
       await refreshOperationalState();
+      setActivePanel('review');
 
       if (result.success) {
         const detailLines = [];
@@ -801,6 +828,7 @@ const SwarmTrajectory = () => {
 
           setResults(null);
           await refreshOperationalState();
+          setActivePanel('process');
           showNotice('success', 'Processed outputs cleared', result.message || 'Processed outputs removed.');
         } catch (error) {
           console.error('Clear error:', error);
@@ -834,6 +862,7 @@ const SwarmTrajectory = () => {
           }
 
           await refreshOperationalState();
+          setActivePanel('leaders');
           showNotice('success', `Leader ${leaderId} removed`, result.message || 'Leader CSV removed.');
         } catch (error) {
           console.error('Remove error:', error);
@@ -864,6 +893,7 @@ const SwarmTrajectory = () => {
 
           setResults(null);
           await refreshOperationalState({ reloadStructure: true });
+          setActivePanel('route');
           showNotice('success', 'Swarm trajectory workspace cleared', result.message || 'All files cleared.');
         } catch (error) {
           console.error('Clear error:', error);
@@ -1110,9 +1140,7 @@ const SwarmTrajectory = () => {
         </div>
       </div>
 
-      <div className="status-card">
-        <h2>Workspace Status</h2>
-
+      <div className="status-card status-card--compact">
         <MetricStrip
           items={workspaceMetricItems}
           label="Swarm trajectory workspace status"
@@ -1152,19 +1180,42 @@ const SwarmTrajectory = () => {
           </OperatorNotice>
         ) : null}
 
-        <SwarmTrajectoryWorkspaceSummary
-          workspaceStatus={workspaceStatus}
-          stages={workflowStages}
-          session={viewModel.session}
-          compact={isCompactViewport}
-        />
+        <details className="swarm-status-details">
+          <summary>
+            <span>Workspace review & policy</span>
+            <small>Status, doctrine, and links</small>
+          </summary>
+          <SwarmTrajectoryWorkspaceSummary
+            workspaceStatus={workspaceStatus}
+            stages={workflowStages}
+            session={viewModel.session}
+            compact={false}
+          />
+        </details>
       </div>
 
       {leaders.length > 0 ? (
         <>
-          <div className="workflow-step workflow-step--planner">
+          <div className="swarm-workflow-tabs" role="tablist" aria-label="Swarm trajectory workflow">
+            {workflowTabs.map(({ id, label, meta, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={activePanel === id}
+                className={`swarm-workflow-tab ${activePanel === id ? 'is-active' : ''}`}
+                onClick={() => setActivePanel(id)}
+              >
+                <Icon aria-hidden="true" />
+                <span>{label}</span>
+                <small>{meta}</small>
+              </button>
+            ))}
+          </div>
+
+          <div className={`workflow-step workflow-step--planner swarm-panel ${activePanel === 'route' ? 'is-active' : ''}`} hidden={activePanel !== 'route'}>
             <div className="step-header">
-              <h3><span className="step-number">1</span>Plan or Import Leader Route</h3>
+              <h3><span className="step-number">1</span>Route</h3>
             </div>
 
             <SwarmRouteMapEditor
@@ -1319,10 +1370,9 @@ const SwarmTrajectory = () => {
             </div>
           </div>
 
-          <div className="workflow-step">
+          <div className={`workflow-step swarm-panel ${activePanel === 'leaders' ? 'is-active' : ''}`} hidden={activePanel !== 'leaders'}>
             <div className="step-header">
-              <h3><span className="step-number">2</span>Upload Leader CSVs</h3>
-              <p>Use this for externally prepared top-leader paths. Followers are generated from the current swarm hierarchy.</p>
+              <h3><span className="step-number">2</span>Leaders</h3>
             </div>
 
             <div className="leaders-grid">
@@ -1411,10 +1461,9 @@ const SwarmTrajectory = () => {
             </div>
           </div>
 
-          <div className="workflow-step">
+          <div className={`workflow-step swarm-panel ${activePanel === 'process' ? 'is-active' : ''}`} hidden={activePanel !== 'process'}>
             <div className="step-header">
-              <h3><span className="step-number">3</span>Generate Cluster Outputs</h3>
-              <p>Run processing to create follower trajectories, plots, and the current review package for launch preflight.</p>
+              <h3><span className="step-number">3</span>Process</h3>
             </div>
 
             <div className="process-summary">
@@ -1502,10 +1551,9 @@ const SwarmTrajectory = () => {
           </div>
 
           {hasProcessedOutputs ? (
-          <div className="workflow-step">
+          <div className={`workflow-step swarm-panel ${activePanel === 'review' ? 'is-active' : ''}`} hidden={activePanel !== 'review'}>
             <div className="step-header">
               <h3><span className="step-number">4</span>Review and Prepare Launch</h3>
-              <p>Inspect generated cluster outputs, confirm readiness, then optionally record the mission package to git before launch.</p>
             </div>
 
               <div className={`success-card ${viewModel.currentOutcome === 'partial' ? 'success-card--warning' : ''}`}>
@@ -1617,7 +1665,7 @@ const SwarmTrajectory = () => {
                 </div>
 
                 <div className="advanced-section">
-                  <details className="trajectory-preview" open={viewModel.clusterSummary.ready_cluster_count > 0}>
+                  <details className="trajectory-preview">
                     <summary className="preview-toggle">
                       Review processed cluster plots and downloads
                     </summary>
@@ -1807,6 +1855,19 @@ const SwarmTrajectory = () => {
                     </div>
                   </details>
                 </div>
+              </div>
+            </div>
+          ) : null}
+
+          {!hasProcessedOutputs && activePanel === 'review' ? (
+            <div className="workflow-step swarm-panel is-active">
+              <div className="step-header">
+                <h3><span className="step-number">4</span>Review</h3>
+              </div>
+              <div className="swarm-empty-panel">
+                <FaCheckCircle aria-hidden="true" />
+                <strong>No package yet</strong>
+                <span>Assign a leader route, process outputs, then review the launch package.</span>
               </div>
             </div>
           ) : null}
