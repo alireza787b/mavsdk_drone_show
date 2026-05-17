@@ -93,6 +93,8 @@ describe('SwarmDesign', () => {
     expect(screen.getByRole('list', { name: 'Smart Swarm topology summary' })).toBeInTheDocument();
     expect(screen.getByTestId('swarm-runtime-controls')).toBeInTheDocument();
     expect(screen.getByTestId('swarm-graph')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /export smart swarm assignments as csv/i })).toBeEnabled();
+    const exportButtons = screen.getAllByRole('button', { name: /export smart swarm assignments as csv/i });
+    expect(exportButtons.length).toBeGreaterThan(0);
+    exportButtons.forEach((button) => expect(button).toBeEnabled());
   });
 });
