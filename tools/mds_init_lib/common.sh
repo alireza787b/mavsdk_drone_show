@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Common Utilities
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file
 # Description: Core utilities for mds_node_init.sh - colors, logging, state, branding
 # Author: MDS Team
 # =============================================================================
@@ -23,7 +23,11 @@ fi
 # CONSTANTS
 # =============================================================================
 
-readonly MDS_VERSION="4.5.0"
+if [[ -f "${MDS_REPO_ROOT}/VERSION" ]]; then
+    readonly MDS_VERSION="$(tr -d '[:space:]' < "${MDS_REPO_ROOT}/VERSION")"
+else
+    readonly MDS_VERSION="5.5"
+fi
 readonly MDS_STATE_DIR="/var/lib/mds"
 readonly MDS_STATE_FILE="${MDS_STATE_DIR}/init_state.json"
 readonly MDS_CONFIG_DIR="/etc/mds"

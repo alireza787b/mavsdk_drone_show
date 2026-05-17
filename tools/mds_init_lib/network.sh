@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Network Configuration
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: NTP time sync, static IP, and Netbird VPN configuration
 # Author: MDS Team
 # =============================================================================

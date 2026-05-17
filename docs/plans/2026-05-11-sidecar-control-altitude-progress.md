@@ -39,7 +39,7 @@ Older `v5.3.61` and `v5.3.67` entries below are historical breadcrumbs.
 | User-requested workspace `/opt/mavsdk_drone_show` | Work from path per prompt | Dirty `main-candidate`, behind `origin/main-candidate`, many pre-existing changes/deletions/untracked files | Preserved; not used for implementation |
 | Smart Wi-Fi Manager audit repo `/tmp/audit_smart_wifi_manager_20260510` | `b81937abf10c2cbec050c62337d0f3076e2aad89` / `v2.1.9` | Released `v2.1.10` at `95cc7c2` with dashboard assets | Public sidecar release complete |
 | MAVLink Anywhere audit repo `/tmp/audit_mavlink_anywhere_20260510` | `fd80c48c5e723641360ab11ef2004786a0641111` / `v3.0.8` | Released `v3.0.9` at `35f74ba` with dashboard assets | Public sidecar release complete |
-| Private MDS worktree `/tmp/mds_private_current_20260510` | `c82c325001e23c9860254f197c4bb8e74a37e271` | Official release cherry-picked onto private branch `catchadrone-sidecar-altitude-20260512`; private-only operational config preserved | Pending lockfile patch, push, deploy, SITL |
+| Private downstream integration | Private anchor retained outside the public repo | Official release cherry-picked into the downstream branch; private-only operational config preserved | Pending downstream push, deploy, SITL |
 
 ## Security Rules In Force
 
@@ -262,15 +262,14 @@ Validation:
 - `python3 -m py_compile src/drone_api_routes.py src/drone_api_server.py gcs-server/api_routes/fleet_sidecars.py` passed.
 - `pytest tests/test_gcs_fleet_sidecars_routes.py tests/test_drone_api_http.py::TestSidecarProfileProxy -q` passed: 19 tests.
 - `git diff --check` passed.
-- Private integration started:
-  - Created branch `catchadrone-sidecar-altitude-20260512` from the private
-    anchor.
+- Private downstream integration started:
+  - Created an integration branch from the private anchor.
   - Cherry-picked the official sidecar/altitude release as `3f88f1b8`.
   - Resolved only `config.json` and `deployment/defaults.env`, preserving
     private operational values while updating sidecar defaults to
     Smart Wi-Fi Manager `v2.1.10`, mode `fleet-merge`, MAVLink Anywhere
     `v3.0.9`, and MAVLink management mode `local`.
-  - Confirmed private-only Catch-A-Drone assets remained present.
+  - Confirmed private-only downstream assets remained present.
 - Dependency-audit hardening found during private verification:
   - Ran `npm audit fix` without `--force` in official MDS dashboard.
   - Dashboard lockfile now uses fixed runtime/transitive packages including

@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Companion Node Bootstrap Installer
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file when run from a checkout
 # Description: Bootstrap installer for a fresh companion-computer setup
 #              Downloads and runs mds_node_init.sh
 # Author: MDS Team
@@ -230,7 +230,7 @@ print_banner() {
     echo ""
     echo -e "${WHITE}MAVSDK Drone Show - Companion Node Bootstrap${NC}"
     echo "================================================================"
-    echo -e "Version:  ${WHITE}4.5.0${NC}"
+    echo -e "Version:  ${WHITE}${MDS_VERSION:-5.5}${NC}"
     echo -e "Branch:   ${WHITE}$BRANCH${NC}"
     echo "================================================================"
     echo -e "${DIM}           Enterprise Drone Swarm Platform${NC}"
@@ -607,7 +607,7 @@ run_init_script() {
 
 show_help() {
     cat <<EOF
-MDS Companion Node Bootstrap Installer (v4.5.0)
+MDS Companion Node Bootstrap Installer (v${MDS_VERSION:-5.5})
 
 USAGE:
     curl -fsSL <url> | sudo bash

@@ -12,6 +12,8 @@ from api_errors import DEFAULT_ERROR_RESPONSES
 from .schemas import (
     QuickScoutMissionRequest, CoveragePlanResponse, MissionStatus,
     QuickScoutFinding, QuickScoutFindingCreate, QuickScoutFindingUpdate, DroneProgressReport,
+    QuickScoutElevationBatchResponse,
+    QuickScoutElevationPoint,
     QuickScoutMissionHandoff,
     QuickScoutMissionCatalogResponse,
     QuickScoutMissionControlResponse,
@@ -21,8 +23,9 @@ from .schemas import (
     QuickScoutPlanningJobResponse,
     QuickScoutMissionWorkspaceResponse,
     SurveyState,
+    ReturnBehavior,
 )
-from .terrain import batch_get_elevations
+from .terrain import batch_get_elevation_results
 from .service import get_quickscout_service
 
 from mds_logging import get_logger
@@ -120,9 +123,9 @@ def create_sar_router(deps: Any) -> APIRouter:
     async def abort_mission(
         mission_id: str,
         pos_ids: Optional[List[int]] = Query(None),
-        return_behavior: str = Query("return_home"),
+        return_behavior: ReturnBehavior = Query(ReturnBehavior.RETURN_HOME),
     ):
-        return await get_quickscout_service().abort_and_command(deps, mission_id, pos_ids, return_behavior)
+        return await get_quickscout_service().abort_and_command(deps, mission_id, pos_ids, return_behavior.value)
 
     @router.post("/mission/{mission_id}/progress")
     async def report_progress(mission_id: str, report: DroneProgressReport):
@@ -153,11 +156,10 @@ def create_sar_router(deps: Any) -> APIRouter:
     router.add_api_route("/findings/{finding_id}", _update_finding, methods=["PATCH"], response_model=QuickScoutFinding)
     router.add_api_route("/findings/{finding_id}", _delete_finding, methods=["DELETE"])
 
-    @router.post("/elevation/batch")
-    async def batch_elevation(points: List[dict]):
+    @router.post("/elevation/batch", response_model=QuickScoutElevationBatchResponse)
+    async def batch_elevation(points: List[QuickScoutElevationPoint] = Body(..., min_length=1, max_length=500)):
         try:
-            elevations = await batch_get_elevations(points)
-            return {"elevations": elevations, "count": len(elevations)}
+            return await batch_get_elevation_results([point.model_dump() for point in points])
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Elevation query failed: {str(exc)}") from exc
 

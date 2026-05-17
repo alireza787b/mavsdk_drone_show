@@ -11,6 +11,33 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ---
 
+## [5.5] - 2026-05-17
+
+### Added
+- QuickScout single-page SAR mission workflow with typed planning jobs,
+  launch review, mission monitoring, findings, handoff summary, and terrain
+  elevation status.
+- Swarm Trajectory single-page route-authoring workflow with shared route
+  editor components, leader/follower package review, async processing, preview,
+  validation, and commit handoff.
+- Reusable mission-planning UI primitives for operator dialogs, workspace
+  layout, altitude controls, and long-running job progress.
+
+### Changed
+- Companion-node bootstrap now reads the project `VERSION` file instead of
+  reporting a stale hard-coded node version.
+- QuickScout and Swarm Trajectory APIs now expose stricter typed contracts for
+  abort behavior, elevation lookup, and unsafe route input validation.
+
+### Fixed
+- Map fallback handling now reliably uses Leaflet when Mapbox is unavailable.
+- Mission job dialogs no longer hide active jobs behind a close action before
+  cancellation or completion.
+- Swarm Trajectory cancellation is reported as a canceled job instead of an
+  operator-facing failure.
+
+---
+
 ## [5.4] - 2026-05-14
 
 ### Added

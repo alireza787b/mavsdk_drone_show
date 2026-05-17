@@ -76,7 +76,14 @@ def _is_admin_path(path: str) -> bool:
 
 
 def _is_machine_endpoint(method: str, path: str) -> bool:
-    return (method.upper(), path) in MACHINE_ENDPOINTS
+    normalized_method = method.upper()
+    if (normalized_method, path) in MACHINE_ENDPOINTS:
+        return True
+    return (
+        normalized_method == "POST"
+        and path.startswith("/api/sar/mission/")
+        and path.endswith("/progress")
+    )
 
 
 def _role_allows_request(role: str, method: str, path: str) -> tuple[bool, str | None]:

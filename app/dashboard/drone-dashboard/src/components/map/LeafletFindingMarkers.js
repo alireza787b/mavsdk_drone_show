@@ -69,7 +69,11 @@ const LeafletFindingMarkers = ({
             weight: selectedFindingId === finding.id ? 3 : 2,
           }}
           eventHandlers={{
-            click: () => onFindingSelect?.(finding),
+            click: (event) => {
+              event.originalEvent?.stopPropagation?.();
+              event.originalEvent?.preventDefault?.();
+              onFindingSelect?.(finding);
+            },
           }}
         >
           {selectedFindingId === finding.id ? (

@@ -133,7 +133,11 @@ const normalizeNoticeTone = (tone = 'info') => {
 const TrajectoryPlanning = () => {
   const navigate = useNavigate();
   const { provider, isMapboxAvailable: ctxMapboxAvailable } = useMapContext();
-  const useLeaflet = provider === 'leaflet' || !ctxMapboxAvailable;
+  const mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN ||
+                     process.env.REACT_APP_MAPBOX_TOKEN ||
+                     process.env.REACT_APP_MAP_TOKEN;
+  const hasMapboxToken = Boolean(mapboxToken);
+  const useLeaflet = provider === 'leaflet' || !ctxMapboxAvailable || !mapboxAvailable || !hasMapboxToken;
   const trajectoryThemeColors = getPlotThemeColors();
 
   // Enhanced state management with state manager
@@ -183,11 +187,6 @@ const TrajectoryPlanning = () => {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingWaypointPosition, setPendingWaypointPosition] = useState(null);
-
-  // Mapbox token management
-  const mapboxToken = process.env.REACT_APP_MAPBOX_ACCESS_TOKEN || 
-                     process.env.REACT_APP_MAPBOX_TOKEN ||
-                     process.env.REACT_APP_MAP_TOKEN;
 
   // Default viewport settings
   const [viewState, setViewState] = useState({
@@ -1335,7 +1334,7 @@ const TrajectoryPlanning = () => {
   );
 
   // Leaflet fallback: show Leaflet map when Mapbox unavailable
-  if (useLeaflet || (!mapboxAvailable && !mapboxToken) || !mapboxToken) {
+  if (useLeaflet) {
     return (
       <div className="trajectory-planning">
         <input

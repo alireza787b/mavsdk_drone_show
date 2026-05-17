@@ -763,7 +763,7 @@ Residual drift intentionally deferred to the next slice:
   as one uncommitted checkpoint and must be committed/pushed before private sync
 - the private/client repo still needs the official generic connectivity/runtime
   convergence applied cleanly
-- Arnaud hardware workflow still needs the downstream official->private sync
+- downstream hardware workflow still needs the downstream official->private sync
   before real-node 0-100 bootstrap/enrollment validation resumes
 
 ## Slice 10
@@ -1020,7 +1020,7 @@ Residual drift after this slice:
 
 - official/private repos still need this doc-only slice committed and pushed
 - Smart Wi-Fi Manager fleet-profile integration is still a planned next slice,
-  not a live Arnaud-board capability yet
+  not a live downstream-board capability yet
 - hardware convergence remains blocked on private token approval from the
   private client org
 

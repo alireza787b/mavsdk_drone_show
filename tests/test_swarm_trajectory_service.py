@@ -158,6 +158,36 @@ def test_save_uploaded_trajectory_rejects_non_top_leader():
     assert '1, 5' in exc_info.value.message
 
 
+def test_save_uploaded_trajectory_rejects_default_zero_global_coordinates(monkeypatch, tmp_path):
+    """Uploaded leader CSVs must not carry unsafe 0,0 placeholder coordinates."""
+    structure = {
+        'top_leaders': [1],
+        'hierarchies': {1: []},
+        'swarm_config': {1: {'follow': 0}},
+    }
+    folders = {
+        'base': str(tmp_path),
+        'raw': str(tmp_path / 'raw'),
+        'processed': str(tmp_path / 'processed'),
+        'plots': str(tmp_path / 'plots'),
+    }
+    content = (
+        'Name,Latitude,Longitude,Altitude_MSL_m,TimeFromStart_s,EstimatedSpeed_ms,Heading_deg,HeadingMode\n'
+        'WP1,0,0,100,0,5,0,auto\n'
+        'WP2,35,51,100,10,5,0,auto\n'
+    ).encode('utf-8')
+
+    monkeypatch.setattr('functions.swarm_trajectory_service._load_swarm_structure', lambda: structure)
+    monkeypatch.setattr('functions.swarm_trajectory_service.get_swarm_trajectory_folders', lambda: folders)
+
+    with pytest.raises(SwarmTrajectoryError) as exc_info:
+        save_uploaded_trajectory(1, 'test.csv', content)
+
+    assert exc_info.value.status_code == 400
+    assert 'unsafe default coordinate 0,0' in exc_info.value.message
+    assert not (tmp_path / 'raw' / 'Drone 1.csv').exists()
+
+
 def test_processing_status_reports_truthful_cluster_readiness(monkeypatch, tmp_path):
     """Status payload must reflect real per-cluster upload/processed state."""
     folders = {

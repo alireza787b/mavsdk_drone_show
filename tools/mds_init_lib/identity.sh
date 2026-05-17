@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Hardware Identity
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: Hardware identity, node manifest, and local runtime configuration
 # Author: MDS Team
 # =============================================================================

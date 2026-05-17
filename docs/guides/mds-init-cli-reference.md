@@ -410,4 +410,4 @@ curl -fsSL ... | sudo bash -s -- --branch develop -d 1 --netbird-key "XXXXX" -y
 
 ---
 
-**Version:** 4.5.0 | **Last Updated:** April 2026
+**Version:** 5.5 | **Last Updated:** May 2026

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import math
+import io
 import tempfile
 import threading
 import time
@@ -25,6 +26,7 @@ from functions.swarm_trajectory_processor import (
     clear_processed_data,
     get_processing_recommendation,
     process_swarm_trajectories,
+    validate_leader_trajectory_dataframe,
 )
 from functions.swarm_trajectory_utils import get_project_root, get_swarm_trajectory_folders
 from src.params import Params
@@ -639,6 +641,11 @@ def save_uploaded_trajectory(leader_id: int, filename: str, content: bytes) -> D
     raw_dir = Path(folders["raw"])
     raw_dir.mkdir(parents=True, exist_ok=True)
     filepath = raw_dir / f"Drone {leader_id}.csv"
+    try:
+        validate_leader_trajectory_dataframe(pd.read_csv(io.BytesIO(content)), leader_id)
+    except Exception as exc:
+        raise SwarmTrajectoryError(f"Invalid leader trajectory CSV: {exc}", status_code=400) from exc
+
     filepath.write_bytes(content)
 
     return {

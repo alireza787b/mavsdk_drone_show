@@ -331,13 +331,35 @@ class QuickScoutService:
         try:
             drones_config = deps.load_config()
             hw_ids = []
+            matched_pos_ids = set()
             for drone in drones_config:
                 pid = int(drone.get("pos_id", -1))
                 if pid in pos_ids:
-                    hw_ids.append(str(drone.get("hw_id", "")))
-            return hw_ids if hw_ids else [str(pos_id) for pos_id in pos_ids]
+                    hw_id = str(drone.get("hw_id", "")).strip()
+                    if hw_id:
+                        hw_ids.append(hw_id)
+                        matched_pos_ids.add(pid)
+            missing_pos_ids = sorted(set(int(pos_id) for pos_id in pos_ids) - matched_pos_ids)
+            if missing_pos_ids:
+                raise HTTPException(
+                    status_code=400,
+                    detail=self._problem_detail(
+                        "quickscout_unknown_pos_ids",
+                        "One or more requested QuickScout position IDs are not configured; refusing to target raw IDs.",
+                        details={"missing_pos_ids": missing_pos_ids},
+                    ),
+                )
+            return hw_ids
+        except HTTPException:
+            raise
         except Exception:
-            return [str(pos_id) for pos_id in pos_ids]
+            raise HTTPException(
+                status_code=503,
+                detail=self._problem_detail(
+                    "quickscout_target_resolution_unavailable",
+                    "Unable to load the drone configuration for QuickScout command target resolution.",
+                ),
+            )
 
     @staticmethod
     def _build_operator_label(action: str, mission_id: str, hw_id: Optional[str] = None) -> str:
@@ -2146,7 +2168,17 @@ class QuickScoutService:
         if operation is None:
             raise HTTPException(status_code=404, detail=f"Mission {mission_id} not found")
 
-        resolved_return_behavior = ReturnBehavior(return_behavior)
+        try:
+            resolved_return_behavior = ReturnBehavior(return_behavior)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=self._problem_detail(
+                    "quickscout_invalid_return_behavior",
+                    "Invalid QuickScout abort return behavior.",
+                    details={"allowed": [behavior.value for behavior in ReturnBehavior]},
+                ),
+            ) from exc
         hw_ids = self._resolve_pos_ids_to_hw_ids(
             deps,
             pos_ids,

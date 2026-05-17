@@ -790,6 +790,11 @@ const SwarmTrajectory = () => {
       setProcessJob(createdJob);
       const completedJob = await pollProcessingJob(createdJob.job_id);
 
+      if (completedJob.status === 'canceled') {
+        showNotice('warning', 'Processing canceled', completedJob.message || 'Swarm Trajectory processing was canceled.');
+        return;
+      }
+
       if (completedJob.status !== 'succeeded') {
         throw new Error(completedJob.error_message || completedJob.message || 'Processing did not complete.');
       }

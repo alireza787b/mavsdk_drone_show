@@ -66,6 +66,7 @@ function ModalShell({
   tone = 'neutral',
   onClose,
   closeLabel = 'Close dialog',
+  dismissible = true,
 }) {
   const titleId = useId();
 
@@ -76,7 +77,7 @@ function ModalShell({
 
     const previousOverflow = document.body.style.overflow;
     const handleEscape = (event) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && dismissible) {
         onClose?.();
       }
     };
@@ -87,7 +88,7 @@ function ModalShell({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [onClose, open]);
+  }, [dismissible, onClose, open]);
 
   if (!open) {
     return null;
@@ -98,7 +99,7 @@ function ModalShell({
       className="mission-dialog"
       role="presentation"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (dismissible && event.target === event.currentTarget) {
           onClose?.();
         }
       }}
@@ -111,14 +112,16 @@ function ModalShell({
       >
         <header className="mission-dialog__header">
           <h2 id={titleId}>{title}</h2>
-          <button
-            type="button"
-            className="mission-dialog__close"
-            onClick={onClose}
-            aria-label={closeLabel}
-          >
-            <FaTimes aria-hidden="true" />
-          </button>
+          {dismissible ? (
+            <button
+              type="button"
+              className="mission-dialog__close"
+              onClick={onClose}
+              aria-label={closeLabel}
+            >
+              <FaTimes aria-hidden="true" />
+            </button>
+          ) : null}
         </header>
         <div className="mission-dialog__body">{children}</div>
         {footer ? <footer className="mission-dialog__footer">{footer}</footer> : null}
@@ -136,6 +139,7 @@ ModalShell.propTypes = {
   tone: PropTypes.oneOf(['neutral', 'warning', 'danger']),
   onClose: PropTypes.func,
   closeLabel: PropTypes.string,
+  dismissible: PropTypes.bool,
 };
 
 export function MissionMapWorkspace({
@@ -421,6 +425,7 @@ export function MissionJobProgressDialog({
   const status = job.status || 'running';
   const failed = ['failed', 'timeout', 'canceled'].includes(status);
   const complete = ['succeeded', 'completed'].includes(status);
+  const terminal = failed || complete;
   const progressValue = Math.max(0, Math.min(100, Number(job.progressPercent ?? job.progress ?? 0)));
   const tone = failed ? 'danger' : complete ? 'neutral' : 'warning';
 
@@ -430,9 +435,10 @@ export function MissionJobProgressDialog({
       title={title}
       tone={tone}
       onClose={onClose}
+      dismissible={terminal}
       footer={(
         <>
-          {onCancel && !failed && !complete ? (
+          {onCancel && !terminal ? (
             <button type="button" className="operator-button operator-button--ghost" onClick={onCancel}>
               Cancel
             </button>
@@ -442,9 +448,11 @@ export function MissionJobProgressDialog({
               Retry
             </button>
           ) : null}
-          <button type="button" className="operator-button operator-button--primary" onClick={onClose}>
-            {complete ? 'Done' : 'Close'}
-          </button>
+          {terminal ? (
+            <button type="button" className="operator-button operator-button--primary" onClick={onClose}>
+              {complete ? 'Done' : 'Close'}
+            </button>
+          ) : null}
         </>
       )}
     >

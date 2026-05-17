@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Optional Connectivity Backends
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: Optional connectivity-service integration (smart-wifi-manager)
 # =============================================================================
 

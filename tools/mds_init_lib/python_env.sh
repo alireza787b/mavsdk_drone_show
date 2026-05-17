@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Python Environment
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: Python virtual environment setup and requirements installation
 # Author: MDS Team
 # =============================================================================

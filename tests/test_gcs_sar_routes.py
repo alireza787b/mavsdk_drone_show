@@ -401,6 +401,39 @@ def test_sar_abort_respects_hold_position_behavior():
     assert payload["effect"] == "command_accepted"
 
 
+def test_sar_abort_rejects_invalid_return_behavior():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=_plan_request())
+        mission_id = planned.json()["mission_id"]
+        response = client.post(
+            f"/api/sar/mission/{mission_id}/abort",
+            params={"return_behavior": "manual_override"},
+        )
+
+    assert response.status_code == 422
+
+
+def test_sar_abort_rejects_unknown_pos_id_instead_of_raw_target():
+    deps = _make_deps()
+    app = FastAPI()
+    app.include_router(create_sar_router(deps))
+
+    with TestClient(app) as client:
+        planned = client.post("/api/sar/mission/plan", json=_plan_request())
+        mission_id = planned.json()["mission_id"]
+        response = client.post(
+            f"/api/sar/mission/{mission_id}/abort",
+            params={"pos_ids": [99]},
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "quickscout_unknown_pos_ids"
+
+
 def test_sar_resume_returns_replan_guidance():
     deps = _make_deps()
     app = FastAPI()

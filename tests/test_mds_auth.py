@@ -47,6 +47,10 @@ def _make_app():
     async def origin_bootstrap_get():
         return {"lat": 0.0, "lon": 0.0, "alt": 0.0}
 
+    @app.post("/api/sar/mission/{mission_id}/progress")
+    async def quickscout_progress_post(mission_id: str):
+        return {"success": True, "mission_id": mission_id}
+
     return app
 
 
@@ -173,6 +177,7 @@ def test_machine_endpoint_open_until_api_auth_enabled(monkeypatch, tmp_path):
 
     assert client.post("/api/v1/fleet/heartbeats").status_code == 200
     assert client.get("/api/v1/origin/bootstrap").status_code == 200
+    assert client.post("/api/sar/mission/mission-1/progress").status_code == 200
 
 
 def test_machine_endpoint_requires_bearer_when_api_auth_enabled(monkeypatch, tmp_path):
@@ -184,7 +189,10 @@ def test_machine_endpoint_requires_bearer_when_api_auth_enabled(monkeypatch, tmp
 
     assert client.post("/api/v1/fleet/heartbeats").status_code == 401
     assert client.get("/api/v1/origin/bootstrap").status_code == 401
+    assert client.post("/api/sar/mission/mission-1/progress").status_code == 401
     response = client.post("/api/v1/fleet/heartbeats", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     response = client.get("/api/v1/origin/bootstrap", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    response = client.post("/api/sar/mission/mission-1/progress", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200

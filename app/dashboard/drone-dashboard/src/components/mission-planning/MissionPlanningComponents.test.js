@@ -156,6 +156,8 @@ describe('mission planning shared components', () => {
 
     expect(screen.getByRole('dialog', { name: /planning mission/i })).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '35');
+    expect(screen.queryByRole('button', { name: /close dialog/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^close$/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
 
@@ -170,6 +172,7 @@ describe('mission planning shared components', () => {
     );
 
     expect(screen.getByText('No live GPS position')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /close dialog/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(onRetry).toHaveBeenCalledTimes(1);
   });

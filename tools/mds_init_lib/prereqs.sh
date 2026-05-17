@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Prerequisites Check
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: System prerequisites validation and package installation
 # Author: MDS Team
 # =============================================================================

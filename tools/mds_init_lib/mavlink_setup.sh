@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: MAVLink Router Setup
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: Automated mavlink-anywhere installation and configuration
 # Author: MDS Team
 # =============================================================================

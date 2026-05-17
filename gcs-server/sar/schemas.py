@@ -3,7 +3,7 @@ QuickScout SAR Module - Pydantic Schemas
 """
 
 from pydantic import BaseModel, Field, ConfigDict, model_validator
-from typing import Any, Optional, List, Dict
+from typing import Any, Optional, List, Dict, Literal
 from enum import Enum
 
 from schemas import SubmitCommandResponse
@@ -154,7 +154,7 @@ class SearchArea(BaseModel):
 
 class SurveyConfig(BaseModel):
     """Survey configuration parameters"""
-    algorithm: str = Field(default="boustrophedon", description="Coverage algorithm")
+    algorithm: Literal["boustrophedon"] = Field(default="boustrophedon", description="Coverage algorithm")
     sweep_width_m: float = Field(default=30.0, gt=0, le=500, description="Sweep width in meters")
     overlap_percent: float = Field(default=10.0, ge=0, le=50, description="Overlap between sweeps (%)")
     cruise_altitude_msl: float = Field(
@@ -189,6 +189,39 @@ class QuickScoutMissionRequest(BaseModel):
     mission_profile: Optional[str] = Field(None, max_length=64, description="Selected planning profile identifier")
     mission_brief: Optional[str] = Field(None, max_length=500, description="Optional operator mission brief")
     return_behavior: ReturnBehavior = Field(default=ReturnBehavior.RETURN_HOME, description="End-of-mission behavior")
+
+
+class QuickScoutElevationPoint(BaseModel):
+    """Coordinate requested for QuickScout terrain context."""
+
+    id: Optional[str] = Field(None, max_length=80, description="Caller-supplied point ID")
+    lat: float = Field(..., ge=-90, le=90, description="Latitude")
+    lng: float = Field(..., ge=-180, le=180, description="Longitude")
+
+
+class QuickScoutElevationResult(BaseModel):
+    """Per-point terrain/elevation lookup result."""
+
+    id: Optional[str] = Field(None, description="Caller-supplied point ID")
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+    elevation_m: Optional[float] = Field(None, description="Resolved ground elevation MSL")
+    status: Literal["ok", "unavailable"] = Field(..., description="Lookup status")
+    source: str = Field(..., description="Elevation provider/source")
+    provider: Optional[str] = Field(None, description="Normalized backend terrain provider")
+    confidence: Optional[str] = Field(None, description="Provider confidence or quality hint")
+    message: Optional[str] = Field(None, description="Operator-facing provider status")
+    sample_time: Optional[Any] = Field(None, description="Provider sample timestamp when available")
+
+
+class QuickScoutElevationBatchResponse(BaseModel):
+    """Batch terrain/elevation lookup response with explicit unavailable state."""
+
+    success: Literal[True] = Field(True, description="Always true for successful batch responses")
+    elevations: List[Optional[float]] = Field(default_factory=list, description="Backward-compatible elevation list")
+    results: List[QuickScoutElevationResult] = Field(default_factory=list)
+    summary: Dict[str, Any] = Field(default_factory=dict, description="Lookup summary")
+    count: int = Field(..., ge=0, description="Number of points processed")
 
 
 # --- Internal/Response Models ---

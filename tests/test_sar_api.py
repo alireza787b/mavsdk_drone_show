@@ -641,9 +641,45 @@ class TestFindingEndpoints:
 class TestElevationBatch:
     def test_batch_elevation(self, client):
         """POST /elevation/batch should return elevations."""
-        with patch('sar.routes.batch_get_elevations', return_value=[500.0, 501.0]):
+        with patch('sar.routes.batch_get_elevation_results', return_value={
+            "success": True,
+            "elevations": [500.0, 501.0],
+            "results": [
+                {
+                    "id": None,
+                    "lat": 47.0,
+                    "lng": 8.0,
+                    "elevation_m": 500.0,
+                    "status": "ok",
+                    "source": "test",
+                    "provider": "test",
+                    "confidence": "reported",
+                    "message": None,
+                    "sample_time": None,
+                },
+                {
+                    "id": None,
+                    "lat": 47.001,
+                    "lng": 8.001,
+                    "elevation_m": 501.0,
+                    "status": "ok",
+                    "source": "test",
+                    "provider": "test",
+                    "confidence": "reported",
+                    "message": None,
+                    "sample_time": None,
+                },
+            ],
+            "summary": {"requested": 2, "resolved": 2, "unavailable": 0, "status": "ok"},
+            "count": 2,
+        }):
             points = [{"lat": 47.0, "lng": 8.0}, {"lat": 47.001, "lng": 8.001}]
             resp = client.post("/api/sar/elevation/batch", json=points)
             assert resp.status_code == 200
             data = resp.json()
             assert len(data["elevations"]) == 2
+            assert data["results"][0]["status"] == "ok"
+
+    def test_batch_elevation_rejects_malformed_points(self, client):
+        resp = client.post("/api/sar/elevation/batch", json=[{"lat": 91.0, "lng": 8.0}])
+        assert resp.status_code == 422

@@ -130,8 +130,8 @@ Merge to main
 # Test what would happen (dry-run)
 python3 tools/bump_version.py --dry-run --type auto
 
-# Manually bump to 3.8
-python3 tools/bump_version.py --manual 3.8
+# Manually bump to the next project version
+python3 tools/bump_version.py --manual 5.6
 
 # Auto-detect and bump
 python3 tools/bump_version.py --type auto
@@ -155,13 +155,13 @@ f"{type}: {description}"
 ### **When bumping versions manually:**
 ```bash
 # Read current version
-cat VERSION  # Returns: 3.7
+cat VERSION  # Returns current project version, for example 5.5
 
 # Bump version
-python3 tools/bump_version.py --manual 3.8
+python3 tools/bump_version.py --manual 5.6
 
 # Verify
-cat VERSION  # Returns: 3.8
+cat VERSION  # Returns the updated version
 ```
 
 ### **File locations:**
@@ -214,7 +214,7 @@ python3 tools/generate_release_notes.py
 python3 tools/validate_commits.py
 
 # Manual version bump
-python3 tools/bump_version.py --manual 3.8
+python3 tools/bump_version.py --manual 5.6
 
 # Run version sync
 python3 tools/version_sync.py

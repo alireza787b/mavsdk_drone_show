@@ -4,6 +4,7 @@ Orchestrates the complete swarm trajectory processing pipeline
 """
 import os
 import logging
+import math
 import pandas as pd
 from typing import Dict, Any, List
 
@@ -18,6 +19,70 @@ from src.params import Params
 
 logger = logging.getLogger(__name__)
 
+LEADER_TRAJECTORY_REQUIRED_COLUMNS = [
+    'Name',
+    'Latitude',
+    'Longitude',
+    'Altitude_MSL_m',
+    'TimeFromStart_s',
+    'EstimatedSpeed_ms',
+    'Heading_deg',
+    'HeadingMode',
+]
+
+LEADER_TRAJECTORY_NUMERIC_COLUMNS = [
+    'Latitude',
+    'Longitude',
+    'Altitude_MSL_m',
+    'TimeFromStart_s',
+    'EstimatedSpeed_ms',
+    'Heading_deg',
+]
+
+
+def validate_leader_trajectory_dataframe(trajectory_df: pd.DataFrame, leader_id: int | str = "unknown") -> pd.DataFrame:
+    """Validate a leader CSV before it can drive global swarm trajectory generation."""
+    missing_columns = [
+        column for column in LEADER_TRAJECTORY_REQUIRED_COLUMNS
+        if column not in trajectory_df.columns
+    ]
+    if missing_columns:
+        raise ValueError(f"Leader {leader_id} CSV missing required columns: {missing_columns}")
+    if trajectory_df.empty:
+        raise ValueError(f"Leader {leader_id} CSV has no waypoint rows")
+
+    normalized_df = trajectory_df.copy()
+    invalid_columns: List[str] = []
+    for column in LEADER_TRAJECTORY_NUMERIC_COLUMNS:
+        normalized_df[column] = pd.to_numeric(normalized_df[column], errors='coerce')
+        if normalized_df[column].isna().any() or not normalized_df[column].map(math.isfinite).all():
+            invalid_columns.append(column)
+    if invalid_columns:
+        raise ValueError(f"Leader {leader_id} CSV has invalid numeric values in: {invalid_columns}")
+
+    invalid_lat = ~normalized_df['Latitude'].between(-90.0, 90.0)
+    invalid_lon = ~normalized_df['Longitude'].between(-180.0, 180.0)
+    if invalid_lat.any() or invalid_lon.any():
+        raise ValueError(f"Leader {leader_id} CSV contains out-of-range global coordinates")
+
+    zero_global = (
+        normalized_df['Latitude'].abs().lt(1e-9)
+        & normalized_df['Longitude'].abs().lt(1e-9)
+    )
+    if zero_global.any():
+        rows = [int(index) + 2 for index in normalized_df.index[zero_global].tolist()]
+        raise ValueError(
+            f"Leader {leader_id} CSV contains unsafe default coordinate 0,0 at row(s): {rows}"
+        )
+
+    if len(normalized_df) < 2:
+        raise ValueError(f"Leader {leader_id} CSV requires at least two waypoints")
+    if not normalized_df['TimeFromStart_s'].is_monotonic_increasing:
+        raise ValueError(f"Leader {leader_id} CSV TimeFromStart_s must be monotonic")
+
+    return normalized_df
+
+
 def load_leader_trajectories(raw_dir: str, top_leaders: list) -> Dict[int, pd.DataFrame]:
     """Load drone trajectory CSV files from raw directory"""
     leader_trajectories = {}
@@ -30,14 +95,7 @@ def load_leader_trajectories(raw_dir: str, top_leaders: list) -> Dict[int, pd.Da
             try:
                 trajectory_df = pd.read_csv(csv_path)
                 
-                # Validate CSV format (should match UI export format)
-                required_columns = ['Name', 'Latitude', 'Longitude', 'Altitude_MSL_m', 
-                                  'TimeFromStart_s', 'EstimatedSpeed_ms', 'Heading_deg', 'HeadingMode']
-                
-                if not all(col in trajectory_df.columns for col in required_columns):
-                    logger.error(f"Leader {leader_id} CSV missing required columns")
-                    missing_leaders.append(leader_id)
-                    continue
+                trajectory_df = validate_leader_trajectory_dataframe(trajectory_df, leader_id)
                 
                 leader_trajectories[leader_id] = trajectory_df
                 logger.info(f"Loaded drone {leader_id} trajectory with {len(trajectory_df)} waypoints")

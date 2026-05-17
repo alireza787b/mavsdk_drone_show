@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Candidate Announce
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: Canonical node -> GCS candidate announce helpers
 # =============================================================================
 

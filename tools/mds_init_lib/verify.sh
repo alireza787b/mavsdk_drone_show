@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Initialization Library: Verification
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file via common.sh
 # Description: Component verification, health checks, and summary reporting
 # Author: MDS Team
 # =============================================================================

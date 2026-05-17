@@ -2,7 +2,7 @@
 # =============================================================================
 # MDS Companion Node Bootstrap Script
 # =============================================================================
-# Version: 4.5.0
+# Version: Reads from VERSION file
 # Description: Production-ready, enterprise-grade initialization for drone swarm nodes
 # Author: MDS Team
 # Repository: https://github.com/alireza787b/mavsdk_drone_show
@@ -164,9 +164,8 @@ enable_non_interactive_without_tty() {
 # =============================================================================
 
 show_help() {
+    printf 'MDS Companion Node Bootstrap Script v%s\n\n' "${MDS_VERSION}"
     cat << 'EOF'
-MDS Companion Node Bootstrap Script v4.5.0
-
 USAGE:
     sudo ./mds_node_init.sh [OPTIONS]
 
