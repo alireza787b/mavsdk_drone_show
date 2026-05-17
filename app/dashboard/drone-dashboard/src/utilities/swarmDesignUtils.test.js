@@ -60,8 +60,8 @@ describe('swarmDesignUtils', () => {
     expect(viewModel.dronesById['2'].role).toBe('relayLeader');
     expect(viewModel.dronesById['3'].role).toBe('follower');
     expect(viewModel.dronesById['2'].isRoleSwap).toBe(true);
-    expect(viewModel.dronesById['2'].title).toBe('Drone 2');
-    expect(viewModel.dronesById['2'].subtitle).toBe('Show Slot 9');
+    expect(viewModel.dronesById['2'].title).toBe('VIPER-2');
+    expect(viewModel.dronesById['2'].subtitle).toBe('Drone 2 · Show Slot 9');
     expect(viewModel.dronesById['2'].alias).toBe('VIPER-2');
     expect(viewModel.followOptions[0].label).toContain('P1|H1');
     expect(viewModel.dronesById['4'].warnings.map((warning) => warning.code)).toContain('missing-leader');

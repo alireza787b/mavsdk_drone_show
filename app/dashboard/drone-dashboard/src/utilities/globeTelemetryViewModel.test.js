@@ -75,8 +75,8 @@ describe('globeTelemetryViewModel', () => {
     expect(result[0]).toMatchObject({
       noMapFix: true,
       altitude: 1280.4,
-      altitude_source: 'gps_raw',
-      altitude_label: 'GPS MSL',
+      altitude_source: 'absolute_msl',
+      altitude_label: 'MSL',
       altitude_available: true,
     });
   });
@@ -98,8 +98,8 @@ describe('globeTelemetryViewModel', () => {
     expect(result[0]).toMatchObject({
       noMapFix: true,
       altitude: 4.25,
-      altitude_source: 'local_position',
-      altitude_label: 'Local',
+      altitude_source: 'local_ned',
+      altitude_label: 'LCL',
       altitude_available: true,
     });
   });

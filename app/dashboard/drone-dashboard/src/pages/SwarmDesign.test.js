@@ -81,7 +81,7 @@ describe('SwarmDesign', () => {
     expect(screen.getByRole('heading', { name: 'Operational Swarm Design' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /smart swarm guide/i })).toHaveAttribute(
       'href',
-      'docs/features/smart-swarm.md'
+      'https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/features/smart-swarm.md'
     );
 
     await waitFor(() => {
