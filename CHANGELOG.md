@@ -9,6 +9,10 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Changed
+- Refreshed the public MEGA SITL image link for the official image rebuilt from
+  commit `e1eb69d`.
+
 ---
 
 ## [5.5] - 2026-05-17
