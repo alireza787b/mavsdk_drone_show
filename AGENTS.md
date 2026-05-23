@@ -45,6 +45,7 @@ Before substantial work, inspect the current repo state and then read only the d
    - full SITL agent loop: `docs/superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md`
    - Drone Show: `docs/features/drone-show.md`
    - Smart Swarm: `docs/features/smart-swarm.md`
+   - Simurgh Operator / agent-safe MCP foundation: `docs/guides/simurgh-operator.md`, `docs/agent-context/README.md`
    - origin/coordinates: `docs/features/origin-system.md`, `docs/control-modes-and-coordinates.md`
    - logs/debugging: `docs/guides/logging-system.md`
    - GCS/API behavior: `docs/apis/gcs-api-server.md`, `docs/apis/drone-api-server.md`
@@ -170,6 +171,8 @@ Otherwise, make the best technical decision, document it, and continue.
 ## Repo Conventions for Agent Context
 
 - Canonical repo-wide agent instructions live in this file: `AGENTS.md`
+- Simurgh Operator runtime context lives under `docs/agent-context/` and must
+  stay aligned with `config/agent_policy.yaml` and `config/agent_tools.yaml`
 - Detailed SITL audit/debug/release companion spec lives at:
   - `docs/superpowers/specs/2026-03-26-ai-agent-sitl-audit-loop.md`
 - Vendor shims may exist at repo root:

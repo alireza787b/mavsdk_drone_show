@@ -1,0 +1,155 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  boundary: gcs-only
+  purpose: >
+    Provider-neutral assistant defaults for deterministic mock responses and
+    advisory-only model adapter context assembly.
+provider: mock
+max_message_chars: 4000
+max_context_bytes: 64000
+provider_instructions: >
+  You are Simurgh Operator, an advisory assistant for the MDS GCS. Use only the
+  supplied public MDS context and the operator message. Explain status, setup,
+  safety boundaries, troubleshooting, and next safe checks. Do not claim that
+  you commanded drones, changed configuration, launched missions, uploaded
+  plans, rebooted systems, or executed any external tool. If the operator asks
+  for an operational action, refuse that action and suggest safe observation,
+  verification, or human-controlled GCS steps. For QGC, PX4, MAVLink, RTK,
+  NetBird, or field-connectivity troubleshooting, prefer observation-first
+  checks: vehicle identity and PX4 SYS_ID, MAVLink stream configuration, GCS
+  routing path, link quality, RTK correction status, and comparison with a
+  known-good vehicle. For field logs or incident reports, use sanitized
+  patterns only; do not ask operators to paste private logs, ULog archives, QGC
+  logs, screenshots, chat exports, credentials, exact coordinates, or private
+  network details into prompts, docs, commits, or eval fixtures. Do not change
+  PX4 parameters, update production services, merge repos, or mutate deployments
+  from the assistant.
+provider_input_template: |
+  Public MDS context:
+  {context_blocks}
+
+  Operator message:
+  {message}
+
+  Return concise, practical guidance. Keep the answer advisory-only.
+default_context_resource_ids:
+  - simurgh.system_guidelines
+  - simurgh.operator_guidelines
+  - simurgh.safety_policy
+  - simurgh.tool_usage
+  - simurgh.field_log_review
+blocked_intent_terms:
+  - arm
+  - launch
+  - takeoff
+  - land
+  - rtl
+  - return to launch
+  - kill
+  - reboot
+  - upload mission
+  - start mission
+  - deploy
+  - update service
+  - commit raw logs
+  - commit private logs
+  - paste private logs
+sensitive_input_terms:
+  - raw logs
+  - private logs
+  - customer logs
+  - ulog archive
+  - ulog excerpt
+  - qgc logs
+  - qgc log archive
+  - companion logs
+  - mavlink logs
+  - raw mavlink
+  - raw telemetry
+  - chat export
+  - netbird peer
+  - netbird peer id
+  - peer ids
+  - exact coordinates
+  - private network details
+  - private repo path
+  - private repository path
+  - ticket id
+  - device serial
+  - serial number
+  - screenshot
+  - screenshots
+  - raw log excerpt
+  - pasted log
+  - customer identifier
+  - site identifier
+  - mission name
+sensitive_input_patterns:
+  - label: field vehicle label
+    regex: '\bAIRFRAME-\d+\b'
+  - label: exact coordinate pair
+    regex: '\b-?\d{1,2}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}\b'
+  - label: private IPv4 address
+    regex: '\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})\b'
+  - label: international phone-like number
+    regex: '\+\d{1,3}(?:[\s().-]?\d){7,}\b'
+  - label: secret assignment
+    regex: '\b(?:authorization\s*:\s*bearer\s+[A-Za-z0-9._~+/=-]{8,}|(?:api[_ -]?key|token|password|secret)\s*(?::|=|\bis\b)\s*[A-Za-z0-9._~+/=-]{6,})(?=\s|$|[,;.)])'
+  - label: ULog artifact
+    regex: '(?:\bulog\b|\.ulg\b)'
+  - label: QGroundControl log artifact
+    regex: '\b(?:qgroundcontrol|qgc)\s+logs?\b'
+  - label: companion log artifact
+    regex: '\bcompanion\s+logs?\b'
+  - label: MAVLink log artifact
+    regex: '\b(?:mavlink\s+logs?|raw\s+mavlink)\b'
+  - label: customer flight log artifact
+    regex: '\bcustomer\b.{0,40}\bflight\s+logs?\b|\bflight\s+logs?\b.{0,40}\bcustomer\b'
+  - label: private repository path
+    regex: '\b(?:git@|ssh://git@|https://(?:github\.com|gitlab\.com|bitbucket\.org)/)[^\s]+(?:\.git)?\b'
+  - label: ticket identifier
+    regex: '\b(?:ticket|issue|case)\s*[:#-]?\s*[A-Z]{2,}-?\d{2,}\b|\b[A-Z]{2,}-\d{2,}\b'
+  - label: device serial identifier
+    regex: '\b(?:serial|s/n|sn)\s*[:#-]?\s*[A-Z0-9][A-Z0-9_-]{5,}\b'
+  - label: NetBird peer identifier
+    regex: '\b(?:netbird\s+)?peer\s+id(?:\s*[:=]\s*|\s+)[A-Za-z0-9_-]{6,}\b'
+  - label: exact timestamp
+    regex: '\b\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?\b'
+  - label: mission name
+    regex: '\bmission\s+name\s*[:=]\s*[A-Za-z0-9_. -]{3,80}\b'
+  - label: customer or site identifier
+    regex: '\b(?:customer|site)\s+(?:name|id|identifier)\s*[:=]\s*[A-Za-z0-9_. -]{3,80}\b'
+  - label: pasted log body
+    regex: '(?m)^\s*(?:INFO|WARN|WARNING|ERROR|DEBUG)\b.{20,}$|^\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\b'
+response_template:
+  preamble: >
+    Simurgh Operator mock assistant is active. This deterministic foundation
+    can inspect configured context and explain safe next steps, but it does not
+    execute tools or contact a model provider.
+  blocked_action_notice: >
+    The message appears to reference a blocked or operational action. This
+    slice cannot command drones, submit raw GCS commands, mutate deployments,
+    or perform real-world operations.
+  sensitive_input_notice: >
+    The message appears to reference sensitive field evidence. Keep raw field
+    artifacts outside the official repo and provider prompts, record a private
+    source hash, convert the lesson into sanitized patterns only, and update
+    docs, prompt context, tests, or eval fixtures without customer names,
+    coordinates, peer IDs, tokens, or raw log excerpts.
+  no_action_notice: >
+    No executable action was attempted. This response is generated from local
+    versioned context only.
+  suggested_next_steps:
+    - Review the loaded context resource list.
+    - Use GCS metadata endpoints for observation.
+    - Add eval examples before enabling any provider adapter.
+providers:
+  openai:
+    model: gpt-5.5
+    api_key_file: ""
+    base_url: https://api.openai.com/v1
+    timeout_seconds: 30
+    max_output_tokens: 900
+    reasoning_effort: medium
+    text_verbosity: low

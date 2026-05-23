@@ -15,6 +15,7 @@ DEFAULT_ENV_REGISTRY_PATH = REPO_ROOT / "resources" / "config" / "mds_env_regist
 
 VALID_SCOPES = {"deployment", "gcs", "node", "frontend", "bootstrap", "agent"}
 VALID_DOMAINS = {
+    "agent",
     "auth",
     "connectivity",
     "frontend",

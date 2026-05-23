@@ -11,6 +11,8 @@ from starlette.requests import Request
 
 from src.security.auth import AUTH_DOCS_URL, SESSION_COOKIE_NAME, build_auth_service
 
+from agent_runtime.mcp_metadata import MCP_ENDPOINT_PATH, mcp_bearer_challenge
+
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 PUBLIC_PATHS = {
@@ -33,6 +35,7 @@ ADMIN_PREFIXES = (
     "/api/v1/auth/users",
     "/api/v1/auth/tokens",
     "/api/v1/system/gcs-config",
+    "/api/v1/system/env",
     "/api/v1/system/runtime-update",
     "/api/v1/system/sitl",
     "/api/v1/git/sync-operations",
@@ -42,7 +45,13 @@ SELF_SERVICE_MUTATION_PATHS = {
 }
 
 
-def _auth_error(status_code: int, error: str, message: str, recovery_hint: str | None = None) -> JSONResponse:
+def _auth_error(
+    status_code: int,
+    error: str,
+    message: str,
+    recovery_hint: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
     payload: dict[str, Any] = {
         "error": error,
         "message": message,
@@ -50,7 +59,7 @@ def _auth_error(status_code: int, error: str, message: str, recovery_hint: str |
     }
     if recovery_hint:
         payload["recovery_hint"] = recovery_hint
-    return JSONResponse(status_code=status_code, content=payload)
+    return JSONResponse(status_code=status_code, content=payload, headers=headers)
 
 
 def _extract_bearer_token(value: str | None) -> str | None:
@@ -65,6 +74,8 @@ def _extract_bearer_token(value: str | None) -> str | None:
 
 def _is_public_path(path: str) -> bool:
     if path in PUBLIC_PATHS:
+        return True
+    if path == "/.well-known/oauth-protected-resource" or path.startswith("/.well-known/oauth-protected-resource/"):
         return True
     if path.startswith("/api/v1/auth/") and path in {"/api/v1/auth/login", "/api/v1/auth/status"}:
         return True
@@ -139,11 +150,21 @@ class MDSAuthMiddleware(BaseHTTPMiddleware):
             recovery = None
             if service.setup_required():
                 recovery = "Auth is enabled but no admin user exists. SSH to the GCS and run sudo tools/mds_auth_admin.py add-user admin."
+            headers = None
+            if path == MCP_ENDPOINT_PATH:
+                headers = {
+                    "WWW-Authenticate": mcp_bearer_challenge(
+                        str(request.base_url).rstrip("/"),
+                        error="invalid_token",
+                        error_description="MCP requires a bearer token with agent scope.",
+                    )
+                }
             return _auth_error(
                 401,
                 "authentication_required",
                 "Login session or bearer token required.",
                 recovery_hint=recovery,
+                headers=headers,
             )
 
         allowed, reason = _role_allows_request(str(auth_context.get("role", "viewer")), method, path)

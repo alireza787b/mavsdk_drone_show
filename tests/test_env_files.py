@@ -44,6 +44,15 @@ def test_env_files_persist_updates_preserves_comments_and_appends(tmp_path):
     ]
 
 
+def test_env_files_new_files_are_owner_private(tmp_path):
+    env_file = tmp_path / "gcs.env"
+
+    result = persist_env_updates(env_file, {"MDS_MODE": "real"})
+
+    assert result.changed is True
+    assert env_file.stat().st_mode & 0o777 == 0o600
+
+
 def test_env_files_persist_noop_does_not_rewrite(tmp_path):
     env_file = tmp_path / "gcs.env"
     env_file.write_text("MDS_MODE=real\n", encoding="utf-8")

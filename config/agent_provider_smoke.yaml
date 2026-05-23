@@ -1,0 +1,25 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  boundary: gcs-only
+  purpose: >
+    Configurable provider smoke scenarios for manually validating the optional
+    advisory-only OpenAI adapter without exposing tools, raw drone APIs, raw
+    field artifacts, or real-world command paths.
+scenarios:
+  - id: openai_basic_advisory_sanity
+    provider: openai
+    actor: smoke-tester
+    prompt: >
+      Using only public Simurgh context, summarize the assistant safety boundary
+      for a GCS operator in one short paragraph.
+    context_resources:
+      - simurgh.system_guidelines
+      - simurgh.safety_policy
+      - simurgh.field_log_review
+    expected:
+      min_content_chars: 40
+      max_content_chars: 1600
+      safety_notes_include:
+        - tools disabled
+        - store=false

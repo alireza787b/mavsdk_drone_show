@@ -104,6 +104,28 @@ const envPayload = {
       replacement: null,
       notes: '',
     },
+    {
+      name: 'MDS_AGENT_ACTION_CIRCUIT_BREAKER',
+      title: 'Simurgh non-action circuit breaker',
+      scope: 'agent',
+      domain: 'agent',
+      source_of_truth: '/etc/mds/gcs.env',
+      value_type: 'boolean',
+      value: 'true',
+      value_present: true,
+      secret: false,
+      secret_configured: false,
+      default: true,
+      editable: true,
+      ui_visibility: 'operator',
+      restart_required: 'gcs',
+      apply_action: 'restart_gcs',
+      allowed_values: [true, false],
+      docs: 'docs/guides/simurgh-operator.md',
+      deprecated: false,
+      replacement: null,
+      notes: 'Primary field safety switch.',
+    },
   ],
 };
 
@@ -231,6 +253,7 @@ describe('EnvironmentsPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /environments/i })).toBeInTheDocument();
     expect(await screen.findByText('/etc/mds/gcs.env')).toBeInTheDocument();
     expect(await screen.findByText('Runtime mode')).toBeInTheDocument();
+    expect(screen.getByText('Simurgh non-action circuit breaker')).toBeInTheDocument();
     expect(screen.getByText('Dashboard auth')).toBeInTheDocument();
     expect(screen.queryByText('Auth users file')).not.toBeInTheDocument();
     expect(screen.getByText(/unregistered keys/i)).toBeInTheDocument();
@@ -250,6 +273,16 @@ describe('EnvironmentsPage', () => {
       expect(mockUpdateGcsEnvResponse).toHaveBeenCalledWith({ updates: { MDS_MODE: 'real' } });
     });
     expect(await screen.findByText(/apply pending/i)).toBeInTheDocument();
+  });
+
+  test('identifies which environment metadata endpoint failed', async () => {
+    mockGetEnvRegistryResponse.mockResolvedValueOnce({ data: registryPayload });
+    mockGetGcsEnvResponse.mockRejectedValueOnce(new Error('server exploded'));
+
+    renderPage();
+
+    expect(await screen.findByText('Environment registry unavailable')).toBeInTheDocument();
+    expect(screen.getByText(/GCS env: server exploded/i)).toBeInTheDocument();
   });
 
   test('schedules the GCS env apply restart', async () => {

@@ -17,6 +17,10 @@ describe('routeDocs', () => {
       feature: 'dashboard',
       docPath: 'docs/guides/dashboard-operator.md',
     });
+    expect(getRouteDoc('/simurgh')).toMatchObject({
+      label: 'Simurgh guide',
+      docPath: 'docs/guides/simurgh-operator.md',
+    });
   });
 
   test('normalizes route paths before lookup', () => {

@@ -42,6 +42,7 @@ jest.mock('./pages/SwarmTrajectory', () => ({ __esModule: true, default: () => <
 jest.mock('./pages/TrajectoryPlanning', () => ({ __esModule: true, default: () => <div data-testid="trajectory-planning" /> }));
 jest.mock('./pages/QuickScoutPage', () => ({ __esModule: true, default: () => <div data-testid="quickscout" /> }));
 jest.mock('./pages/FleetEnrollmentPage', () => ({ __esModule: true, default: () => <div data-testid="fleet-enrollment" /> }));
+jest.mock('./pages/SimurghOperatorPage', () => ({ __esModule: true, default: () => <div data-testid="simurgh-operator" /> }));
 jest.mock('./pages/LogViewer', () => ({ __esModule: true, default: () => <div data-testid="log-viewer" /> }));
 jest.mock('./components/DroneDetail', () => ({ __esModule: true, default: () => <div data-testid="drone-detail" /> }));
 
@@ -72,6 +73,7 @@ describe('App', () => {
 
   afterEach(() => {
     window.innerWidth = originalInnerWidth;
+    window.history.pushState({}, '', '/');
   });
 
   test('renders without crashing', async () => {
@@ -112,5 +114,16 @@ describe('App', () => {
     expect(screen.queryByLabelText('Open GCS Runtime')).not.toBeInTheDocument();
     expect(sidebar).toHaveAttribute('data-open', 'true');
     expect(await screen.findByTestId('overview')).toBeInTheDocument();
+  });
+
+  test('routes to the Simurgh Operator dashboard', async () => {
+    window.history.pushState({}, '', '/simurgh');
+    render(<App />);
+
+    expect(await screen.findByTestId('simurgh-operator')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /simurgh guide/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/docs/guides/simurgh-operator.md')
+    );
   });
 });

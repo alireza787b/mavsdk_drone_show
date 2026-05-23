@@ -1121,7 +1121,7 @@
         "src/security/auth.py",
         "gcs-server/auth_runtime.py"
       ],
-      "notes": "Enables browser login sessions. API bearer tokens are controlled separately.",
+      "notes": "Enables browser login sessions. API bearer tokens are controlled separately. External Simurgh assistant providers require an operator/admin session or an agent/operator/admin scoped bearer before HTTP turns are accepted.",
       "owner": "security"
     },
     {
@@ -2483,6 +2483,673 @@
       "consumers": [],
       "notes": "Use MDS_VENV_PATH.",
       "owner": "platform"
+    },
+    {
+      "name": "MDS_AGENT_ENABLED",
+      "title": "Simurgh agent runtime enabled",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "boolean",
+      "default": true,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Enables the provider-neutral Simurgh runtime. MCP remains separately disabled unless MDS_MCP_ENABLED is true.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_MCP_ENABLED",
+      "title": "Simurgh MCP exposure enabled",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "boolean",
+      "default": false,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Controls future MCP adapter exposure. It does not bypass the Simurgh policy engine.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_MCP_ALLOWED_ORIGINS",
+      "title": "Simurgh MCP allowed browser origins",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "csv",
+      "default": "",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mcp_metadata.py"
+      ],
+      "notes": "Optional comma-separated Origin allowlist for the Simurgh Streamable HTTP MCP endpoint. Empty keeps localhost-only browser origins.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_MCP_REQUIRE_AUTH",
+      "title": "Simurgh MCP bearer auth required",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "boolean",
+      "default": true,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mcp_metadata.py",
+        "gcs-server/api_routes/simurgh.py"
+      ],
+      "notes": "Requires accepted bearer auth before the Simurgh MCP endpoint processes requests. Keep true for production; set false only for isolated local development.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_MCP_REQUIRED_SCOPES",
+      "title": "Simurgh MCP required bearer scopes",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "csv",
+      "default": "agent,admin",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        "agent",
+        "admin"
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mcp_metadata.py",
+        "gcs-server/api_routes/simurgh.py"
+      ],
+      "notes": "Comma-separated bearer-token scopes accepted by the Simurgh MCP endpoint when MDS auth is enabled. Values are ORed, but only agent and admin are accepted; weaker scopes such as drone, operator, or viewer cannot grant MCP access.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_MCP_AUTHORIZATION_SERVERS",
+      "title": "Simurgh MCP authorization server issuers",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "csv",
+      "default": "",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mcp_metadata.py"
+      ],
+      "notes": "Optional comma-separated OAuth authorization server issuer URLs advertised in Simurgh MCP protected-resource metadata. When empty and MCP auth is required, metadata derives an issuer from the canonical public origin.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_MCP_RESOURCE_URL",
+      "title": "Simurgh MCP canonical resource URL",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "url",
+      "default": "",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/mcp_metadata.py"
+      ],
+      "notes": "Optional canonical MCP resource identifier used in protected-resource metadata and WWW-Authenticate resource_metadata challenges, useful when MDS is served behind a reverse proxy. Empty derives the URL from the incoming request base URL.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_MODE",
+      "title": "Simurgh policy profile",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "string",
+      "default": "read_only",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        "read_only",
+        "sitl",
+        "real"
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Advanced policy profile for Simurgh risk evaluation. It does not change MDS_MODE, the real/SITL GCS environment, or authorize real-world commands by itself.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ACTION_CIRCUIT_BREAKER",
+      "title": "Simurgh non-action circuit breaker",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "boolean",
+      "default": true,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Primary field safety switch. When true, Simurgh denies every non-read-only tool regardless of policy profile. This does not affect human dashboard controls or MDS_MODE.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION",
+      "title": "Simurgh always confirm actions",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "boolean",
+      "default": true,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Future action-capable adapters must ask for operator approval before non-read-only tool execution when this is true. Current production slice still exposes advisory-only assistant behavior.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_PROVIDER",
+      "title": "Simurgh provider adapter",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "string",
+      "default": "mock",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        "mock",
+        "openai"
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Provider selection for advisory assistant turns. Default mock is local and deterministic; openai is optional, advisory-only, and requires an operator/admin MDS session or agent/operator/admin scoped bearer for deployed HTTP assistant turns.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_API_KEY_FILE",
+      "title": "Simurgh OpenAI API key file",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Absolute path to a root/service-readable OpenAI API key file for the optional advisory-only provider. Store the key in the file, not in env/config/docs.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_MODEL",
+      "title": "Simurgh OpenAI model",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "string",
+      "default": "gpt-5.5",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "operator",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "OpenAI Responses model for advisory assistant text. Current OpenAI guidance used gpt-5.5 as the default.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_BASE_URL",
+      "title": "Simurgh OpenAI base URL",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "url",
+      "default": "https://api.openai.com/v1",
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        "https://api.openai.com/v1"
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Pinned official OpenAI Responses API base URL for the optional advisory provider. Custom OpenAI-compatible gateways are rejected in this slice to prevent API key egress.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_TIMEOUT_SEC",
+      "title": "Simurgh OpenAI timeout seconds",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "float",
+      "default": 30,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Timeout for advisory OpenAI Responses requests. Provider errors are sanitized before returning to clients.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS",
+      "title": "Simurgh OpenAI max output tokens",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 900,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Maximum output tokens for advisory OpenAI Responses requests. Includes visible and reasoning tokens as enforced by the API.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_REASONING_EFFORT",
+      "title": "Simurgh OpenAI reasoning effort",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "string",
+      "default": "medium",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        "none",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Reasoning effort for advisory OpenAI Responses requests. Keep eval-driven; higher is not automatically safer or better.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_OPENAI_TEXT_VERBOSITY",
+      "title": "Simurgh OpenAI text verbosity",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "string",
+      "default": "low",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Text verbosity for advisory OpenAI Responses requests. Default low keeps dashboard answers concise.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_REAL_COMMANDS_ENABLED",
+      "title": "Simurgh real-command guard override",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "boolean",
+      "default": false,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "hidden",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [
+        true,
+        false
+      ],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Defense-in-depth guard for future curated real-command wrappers. Keep false in production; operator-facing non-action control is MDS_AGENT_ACTION_CIRCUIT_BREAKER.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_POLICY_FILE",
+      "title": "Simurgh policy file",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "config/agent_policy.yaml",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/policy.py"
+      ],
+      "notes": "Editable policy artifact path. Keep policy changes reviewed, tested, and documented.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_TOOL_REGISTRY_FILE",
+      "title": "Simurgh tool registry file",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "config/agent_tools.yaml",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/tool_registry.py"
+      ],
+      "notes": "Editable curated tool metadata path. Unknown tools are denied.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_CONTEXT_INDEX_FILE",
+      "title": "Simurgh context index file",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "docs/agent-context/context-index.yaml",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/context.py"
+      ],
+      "notes": "Editable resource index for agent-readable docs and prompt context.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ASSISTANT_FILE",
+      "title": "Simurgh assistant config file",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "config/agent_assistant.yaml",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Editable provider-neutral assistant defaults for mock responses and OpenAI adapter context assembly.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ASSISTANT_HISTORY_FILE",
+      "title": "Simurgh assistant history file",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "path",
+      "default": "runtime_data/simurgh/assistant_turns.jsonl",
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Runtime-owned JSONL transcript store for assistant turns. It is not exposed through MCP resources and should remain outside git-tracked paths.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS",
+      "title": "Simurgh assistant history max age days",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 30,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Maximum age, in days, for retained assistant transcript records. Set to 0 to disable age-based retention while keeping max-record bounding.",
+      "owner": "simurgh"
+    },
+    {
+      "name": "MDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS",
+      "title": "Simurgh assistant history max records",
+      "scope": "agent",
+      "domain": "agent",
+      "source_of_truth": "/etc/mds/gcs.env",
+      "value_type": "integer",
+      "default": 200,
+      "secret": false,
+      "editable": true,
+      "ui_visibility": "advanced",
+      "restart_required": "gcs",
+      "apply_action": "restart_gcs",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/simurgh-operator.md",
+      "consumers": [
+        "gcs-server/agent_runtime/assistant.py"
+      ],
+      "notes": "Maximum assistant transcript records retained in the bounded runtime history file.",
+      "owner": "simurgh"
     }
   ]
 }

@@ -440,6 +440,10 @@ def test_management_router_env_registry_and_gcs_env(monkeypatch, tmp_path):
     assert mode_entry["value"] == "real"
     assert mode_entry["editable"] is True
     assert mode_entry["allowed_values"] == ["real", "sitl"]
+    agent_entry = next(entry for entry in env_data["values"] if entry["name"] == "MDS_AGENT_ACTION_CIRCUIT_BREAKER")
+    assert agent_entry["scope"] == "agent"
+    assert agent_entry["value_type"] == "boolean"
+    assert agent_entry["ui_visibility"] == "operator"
 
 
 def test_management_router_gcs_env_update_validates_and_persists(monkeypatch, tmp_path):
@@ -457,7 +461,14 @@ def test_management_router_gcs_env_update_validates_and_persists(monkeypatch, tm
         )
         response = client.put(
             "/api/v1/system/env/gcs",
-            json={"updates": {"MDS_AUTH_ENABLED": True, "MDS_AUTH_SESSION_TTL_HOURS": "24"}},
+            json={
+                "updates": {
+                    "MDS_AUTH_ENABLED": True,
+                    "MDS_AUTH_SESSION_TTL_HOURS": "24",
+                    "MDS_AGENT_PROVIDER": "mock",
+                    "MDS_AGENT_ACTION_CIRCUIT_BREAKER": True,
+                }
+            },
         )
 
     assert dry_run.status_code == 200
@@ -466,10 +477,17 @@ def test_management_router_gcs_env_update_validates_and_persists(monkeypatch, tm
 
     assert response.status_code == 200
     data = response.json()
-    assert data["changed_keys"] == ["MDS_AUTH_ENABLED", "MDS_AUTH_SESSION_TTL_HOURS"]
+    assert data["changed_keys"] == [
+        "MDS_AUTH_ENABLED",
+        "MDS_AUTH_SESSION_TTL_HOURS",
+        "MDS_AGENT_PROVIDER",
+        "MDS_AGENT_ACTION_CIRCUIT_BREAKER",
+    ]
     assert data["restart_required"] is True
     assert "MDS_AUTH_ENABLED=true" in gcs_env.read_text(encoding="utf-8")
     assert "MDS_AUTH_SESSION_TTL_HOURS=24" in gcs_env.read_text(encoding="utf-8")
+    assert "MDS_AGENT_PROVIDER=mock" in gcs_env.read_text(encoding="utf-8")
+    assert "MDS_AGENT_ACTION_CIRCUIT_BREAKER=true" in gcs_env.read_text(encoding="utf-8")
 
 
 def test_management_router_gcs_env_update_rejects_unknown_or_unsafe(monkeypatch, tmp_path):

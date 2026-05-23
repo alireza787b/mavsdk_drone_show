@@ -136,7 +136,7 @@ def _build_gcs_env_response() -> GCSRuntimeEnvResponse:
     classified = registry.classify_keys(values)
     gcs_entries = [
         entry
-        for entry in registry.list_entries(scope="gcs", include_hidden=False)
+        for entry in registry.list_entries(include_hidden=False)
         if "/etc/mds/gcs.env" in entry.source_of_truth or entry.source_of_truth == "/etc/mds/gcs.env"
     ]
     warnings: list[str] = []
@@ -170,8 +170,10 @@ def _validate_gcs_env_updates(updates: dict[str, Any]) -> tuple[dict[str, str], 
         entry = registry.get(key)
         if entry is None:
             raise HTTPException(status_code=422, detail=f"{key} is not registered in the MDS environment registry")
-        if entry.scope != "gcs":
+        if entry.scope not in {"gcs", "agent"}:
             raise HTTPException(status_code=422, detail=f"{key} is a {entry.scope} key and cannot be written to GCS env")
+        if "/etc/mds/gcs.env" not in entry.source_of_truth and entry.source_of_truth != "/etc/mds/gcs.env":
+            raise HTTPException(status_code=422, detail=f"{key} is not sourced from the GCS env file")
         if entry.deprecated:
             replacement = f"; use {entry.replacement}" if entry.replacement else ""
             raise HTTPException(status_code=422, detail=f"{key} is deprecated{replacement}")

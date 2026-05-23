@@ -55,6 +55,7 @@ const LogViewer = lazy(() => import('./pages/LogViewer'));
 const SitlControlPage = lazy(() => import('./pages/SitlControlPage'));
 const RuntimeAdminPage = lazy(() => import('./pages/RuntimeAdminPage'));
 const EnvironmentsPage = lazy(() => import('./pages/EnvironmentsPage'));
+const SimurghOperatorPage = lazy(() => import('./pages/SimurghOperatorPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 
 /**
@@ -242,6 +243,7 @@ const AppShell = () => {
                       {/* System */}
                       <Route path="/runtime-admin" element={<RuntimeAdminPage />} />
                       <Route path="/environments" element={<EnvironmentsPage />} />
+                      <Route path="/simurgh" element={<SimurghOperatorPage />} />
                       <Route path="/logs" element={<LogViewer />} />
                       <Route path="/sitl-control" element={<SitlControlPage />} />
 

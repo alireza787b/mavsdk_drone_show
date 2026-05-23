@@ -189,6 +189,7 @@ const SidebarMenu = ({
           attentionTone: runtimeStatus.restartRequired ? 'warning' : 'neutral',
         },
         { to: '/environments', icon: FaSlidersH, label: 'Environments' },
+        { to: '/simurgh', icon: FaUserShield, label: 'Simurgh Operator' },
         { to: '/sitl-control', icon: FaDocker, label: 'SITL Control' },
         { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
       ],

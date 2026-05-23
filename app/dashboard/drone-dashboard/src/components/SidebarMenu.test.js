@@ -62,6 +62,7 @@ describe('SidebarMenu', () => {
     expect(screen.queryByText('Restart pending')).not.toBeInTheDocument();
     expect(screen.getByText('Apply')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
+    expect(screen.getByRole('link', { name: /simurgh operator/i })).toHaveAttribute('href', '/simurgh');
     expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 

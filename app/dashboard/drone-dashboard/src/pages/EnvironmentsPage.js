@@ -38,6 +38,7 @@ import {
 import '../styles/EnvironmentsPage.css';
 
 const DOMAIN_LABELS = {
+  agent: 'Simurgh',
   auth: 'Auth',
   connectivity: 'Connectivity',
   frontend: 'Frontend',
@@ -616,16 +617,28 @@ export default function EnvironmentsPage() {
 
   const refresh = useCallback(async ({ preserveNotice = false } = {}) => {
     setLoading(true);
+    const [registryResult, envResult] = await Promise.allSettled([
+      getEnvRegistryResponse(),
+      getGcsEnvResponse(),
+    ]);
     try {
-      const [registryResponse, envResponse] = await Promise.all([
-        getEnvRegistryResponse(),
-        getGcsEnvResponse(),
-      ]);
+      const failures = [];
+      if (registryResult.status === 'fulfilled') {
+        setRegistry(registryResult.value?.data || null);
+      } else {
+        failures.push(`registry: ${normalizeError(registryResult.reason, 'request failed')}`);
+      }
+      if (envResult.status === 'fulfilled') {
+        setGcsEnv(envResult.value?.data || null);
+      } else {
+        failures.push(`GCS env: ${normalizeError(envResult.reason, 'request failed')}`);
+      }
+      if (failures.length) {
+        throw new Error(failures.join(' | '));
+      }
       getUnifiedGitStatusResponse()
         .then((response) => setFleetStatus(response?.data || null))
         .catch(() => setFleetStatus(null));
-      setRegistry(registryResponse?.data || null);
-      setGcsEnv(envResponse?.data || null);
       if (!preserveNotice) {
         setNotice(null);
       }

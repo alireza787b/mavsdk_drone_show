@@ -1,0 +1,82 @@
+version: 1
+resources:
+  - id: simurgh.system_guidelines
+    title: Simurgh system guidelines
+    path: docs/agent-context/system-guidelines.md
+    mime_type: text/markdown
+    audience: agent
+    sensitivity: public
+    summary: Standing model and agent behavior constraints.
+    tags: [simurgh, system, safety]
+  - id: simurgh.operator_guidelines
+    title: Simurgh operator guidelines
+    path: docs/agent-context/operator-guidelines.md
+    mime_type: text/markdown
+    audience: operator
+    sensitivity: public
+    summary: Operator-facing defaults, approval expectations, and blocked-action behavior.
+    tags: [simurgh, operator]
+  - id: simurgh.safety_policy
+    title: Simurgh safety policy
+    path: docs/agent-context/safety-policy.md
+    mime_type: text/markdown
+    audience: agent
+    sensitivity: public
+    summary: Human-readable companion to the enforced policy artifact.
+    tags: [simurgh, policy, safety]
+  - id: simurgh.tool_usage
+    title: Simurgh tool usage guidelines
+    path: docs/agent-context/tool-usage-guidelines.md
+    mime_type: text/markdown
+    audience: agent
+    sensitivity: public
+    summary: Tool registry semantics and adapter expectations.
+    tags: [simurgh, tools, mcp]
+  - id: simurgh.default_operator_prompt
+    title: Default operator prompt template
+    path: docs/agent-context/prompts/default-operator.md
+    mime_type: text/markdown
+    audience: agent
+    sensitivity: public
+    summary: Editable default prompt scaffold for future assistant adapters.
+    tags: [simurgh, prompts]
+  - id: simurgh.field_log_review
+    title: Simurgh field log review workflow
+    path: docs/agent-context/field-log-review-workflow.md
+    mime_type: text/markdown
+    audience: developer
+    sensitivity: public
+    summary: Sanitized field-log intake, redaction, evidence, and eval-conversion workflow.
+    tags: [simurgh, field, logs, privacy, evals]
+  - id: simurgh.provider_smoke_workflow
+    title: Simurgh provider smoke workflow
+    path: docs/agent-context/provider-smoke-workflow.md
+    mime_type: text/markdown
+    audience: developer
+    sensitivity: public
+    summary: Dry-run and live-provider smoke workflow for advisory-only OpenAI adapter validation.
+    tags: [simurgh, provider, smoke, safety, openai]
+  - id: simurgh.provider_smoke_suite
+    title: Simurgh provider smoke suite
+    path: config/agent_provider_smoke.yaml
+    mime_type: application/yaml
+    audience: developer
+    sensitivity: public
+    summary: Configurable advisory-only provider smoke scenarios.
+    tags: [simurgh, provider, smoke, config]
+  - id: simurgh.foundation_evals
+    title: Simurgh foundation eval seed
+    path: docs/agent-context/evals/simurgh-foundation.yaml
+    mime_type: application/yaml
+    audience: developer
+    sensitivity: public
+    summary: Initial safety and policy scenarios for future model/adapter evals.
+    tags: [simurgh, evals, safety]
+  - id: simurgh.advisory_provider_evals
+    title: Simurgh advisory provider evals
+    path: docs/agent-context/evals/simurgh-advisory-provider.yaml
+    mime_type: application/yaml
+    audience: developer
+    sensitivity: public
+    summary: Runnable offline assistant-provider scenarios for advisory regression checks.
+    tags: [simurgh, evals, safety, provider]

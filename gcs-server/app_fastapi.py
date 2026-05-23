@@ -107,6 +107,7 @@ from api_routes.management import create_management_router
 from api_routes.origin import create_origin_router
 from api_routes.px4_params import create_px4_params_router
 from api_routes.show_management import create_show_management_router
+from api_routes.simurgh import create_simurgh_router
 from api_routes.sitl_control import create_sitl_control_router
 from api_routes.static_assets import create_static_assets_router
 from api_routes.swarm import create_swarm_router
@@ -949,6 +950,7 @@ app.include_router(create_management_router(sys.modules[__name__]), responses=DE
 app.include_router(create_origin_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_px4_params_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_show_management_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
+app.include_router(create_simurgh_router(), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_sitl_control_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_static_assets_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)
 app.include_router(create_swarm_router(sys.modules[__name__]), responses=DEFAULT_ERROR_RESPONSES)

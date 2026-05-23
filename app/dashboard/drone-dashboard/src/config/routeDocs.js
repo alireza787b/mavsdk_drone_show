@@ -71,6 +71,12 @@ export const ROUTE_DOCS = Object.freeze([
     feature: 'environments',
   },
   {
+    path: '/simurgh',
+    label: 'Simurgh guide',
+    docPath: 'docs/guides/simurgh-operator.md',
+    feature: 'simurgh',
+  },
+  {
     path: '/sitl-control',
     label: 'SITL control guide',
     docPath: 'docs/guides/sitl-control.md',

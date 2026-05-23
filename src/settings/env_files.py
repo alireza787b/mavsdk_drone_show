@@ -66,7 +66,7 @@ def format_env_value(value: Any) -> str:
     return str(value)
 
 
-def persist_env_updates(path: str | Path, updates: dict[str, Any], *, file_mode: int = 0o644) -> EnvFileUpdateResult:
+def persist_env_updates(path: str | Path, updates: dict[str, Any], *, file_mode: int = 0o600) -> EnvFileUpdateResult:
     """Persist env updates atomically while preserving unrelated lines."""
     env_path = Path(path)
     env_path.parent.mkdir(parents=True, exist_ok=True)

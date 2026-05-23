@@ -18,6 +18,7 @@ import {
   applyFleetGitSyncResponse,
   applyRuntimeUpdateResponse,
   changeOwnPasswordResponse,
+  createSimurghAssistantTurnResponse,
   getEnvRegistryResponse,
   getFleetNodeEnvResponse,
   getGcsConfigResponse,
@@ -37,6 +38,13 @@ import {
   getFleetTelemetryResponse,
   getRecentCommandsResponse,
   getRuntimeStatusResponse,
+  getSimurghAssistantTurnsResponse,
+  getSimurghAuditResponse,
+  getSimurghContextResponse,
+  getSimurghPolicyResponse,
+  getSimurghSessionsResponse,
+  getSimurghStatusResponse,
+  getSimurghToolsResponse,
   importCustomShowResponse,
   importShowResponse,
   planFleetEnvResponse,
@@ -140,6 +148,13 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/process')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryProcess);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/process/jobs')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryProcessJobs);
     expect(resolveGcsRouteKey('/api/v1/swarm-trajectories/clear-processed')).toBe(GCS_ROUTE_KEYS.swarmTrajectoryClearProcessed);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/status')).toBe(GCS_ROUTE_KEYS.simurghStatus);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/policy')).toBe(GCS_ROUTE_KEYS.simurghPolicy);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/tools')).toBe(GCS_ROUTE_KEYS.simurghTools);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/context')).toBe(GCS_ROUTE_KEYS.simurghContext);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/sessions')).toBe(GCS_ROUTE_KEYS.simurghSessions);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/audit')).toBe(GCS_ROUTE_KEYS.simurghAudit);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/assistant/turns')).toBe(GCS_ROUTE_KEYS.simurghAssistantTurns);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
@@ -639,6 +654,60 @@ describe('gcsApiService', () => {
     expect(axios.get).toHaveBeenCalledWith(
       'http://gcs.test:5030/api/v1/system/runtime-status',
       authConfig({ timeout: 900 })
+    );
+  });
+
+  it('uses canonical routes for Simurgh metadata and assistant turns', async () => {
+    axios.get.mockResolvedValue({ data: {} });
+
+    await getSimurghStatusResponse({ timeout: 700 });
+    await getSimurghPolicyResponse({ timeout: 710 });
+    await getSimurghToolsResponse({ includeExcluded: false }, { timeout: 720 });
+    await getSimurghContextResponse({ timeout: 730 });
+    await getSimurghSessionsResponse({ includeClosed: false }, { timeout: 740 });
+    await getSimurghAuditResponse({ sessionId: 'sess/1' }, { timeout: 750 });
+    await getSimurghAssistantTurnsResponse({ sessionId: 'sess/1', actor: 'dashboard', limit: 12 }, { timeout: 755 });
+    await createSimurghAssistantTurnResponse({ message: 'status?' }, { timeout: 760 });
+
+    expect(axios.get).toHaveBeenNthCalledWith(
+      1,
+      'http://gcs.test:5030/api/v1/simurgh/status',
+      authConfig({ timeout: 700 })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      2,
+      'http://gcs.test:5030/api/v1/simurgh/policy',
+      authConfig({ timeout: 710 })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      3,
+      'http://gcs.test:5030/api/v1/simurgh/tools',
+      authConfig({ timeout: 720, params: { include_excluded: 'false' } })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      4,
+      'http://gcs.test:5030/api/v1/simurgh/context',
+      authConfig({ timeout: 730 })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      5,
+      'http://gcs.test:5030/api/v1/simurgh/sessions',
+      authConfig({ timeout: 740, params: { include_closed: 'false' } })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      6,
+      'http://gcs.test:5030/api/v1/simurgh/audit',
+      authConfig({ timeout: 750, params: { session_id: 'sess/1' } })
+    );
+    expect(axios.get).toHaveBeenNthCalledWith(
+      7,
+      'http://gcs.test:5030/api/v1/simurgh/assistant/turns',
+      authConfig({ timeout: 755, params: { session_id: 'sess/1', actor: 'dashboard', limit: 12 } })
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/simurgh/assistant/turns',
+      { message: 'status?' },
+      authConfig({ timeout: 760 })
     );
   });
 
