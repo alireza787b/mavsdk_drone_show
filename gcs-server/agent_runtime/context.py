@@ -112,7 +112,7 @@ class AgentContextIndex:
             raise KeyError(f"unknown context resource id: {resource_id}")
         return resource
 
-    def read_text(self, resource_id: str, *, max_bytes: int = 128_000) -> str:
+    def read_text(self, resource_id: str, *, max_bytes: int = 1_000_000) -> str:
         resource = self.require(resource_id)
         full_path = _resolve_repo_resource_path(self.repo_root, resource.path)
         data = full_path.read_bytes()

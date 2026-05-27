@@ -9,9 +9,7 @@ Default state:
 - `MDS_MCP_ENABLED=false`
 - `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`
 - `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`
-- `MDS_AGENT_MODE=read_only`
 - `MDS_AGENT_PROVIDER=mock`
-- `MDS_AGENT_REAL_COMMANDS_ENABLED=false`
 - `MDS_MCP_REQUIRE_AUTH=true`
 - `MDS_MCP_REQUIRED_SCOPES=agent,admin`
 
@@ -26,11 +24,12 @@ Non-negotiable boundaries:
   enough for MCP access.
 - Raw GCS command submission is not exposed to models.
 - Unknown tools and unknown routes are denied.
-- The Simurgh action circuit breaker denies every non-read-only tool while it
-  is enabled. It is independent from `MDS_MODE`; real hardware operation can
-  continue for human operators while Simurgh remains advisory-only.
-- `MDS_AGENT_MODE` is an advanced policy profile, not the GCS real/SITL runtime
-  switch. `MDS_MODE` remains the canonical runtime environment source.
+- The Simurgh action circuit breaker is the final execution stop for every
+  non-read-only tool while it is enabled. Planning and approval layers may
+  still produce a dry-run explanation of what would be called, but the executor
+  must not perform the action. It is independent from `MDS_MODE`; real hardware
+  operation can continue for human operators while Simurgh remains advisory-only.
+- `MDS_MODE` is the canonical real/SITL runtime source for Simurgh policy posture; there is no separate user-facing Simurgh mode or real-command override. Invalid `MDS_MODE` fails closed for Simurgh policy.
 - Assistant transcript history is not an MCP resource and does not authorize
   future tool calls.
 - Provider adapters are advisory-only in this phase. OpenAI Responses requests
@@ -64,7 +63,7 @@ Default decisions:
 - Read-only `plan` tools require approval in the default read-only policy.
 - Non-read-only planning tools are denied in `read_only` mode even when their
   risk class is otherwise known.
-- `simulate` is denied in read-only mode and approval-gated in SITL mode.
+- `simulate` is denied in read-only mode and approval-gated in SITL mode; when the circuit breaker is on, approved simulation tools still stop at dry-run/no-execute.
 - `operate`, `admin`, and `destructive` are denied by default.
 
 Changing prompt text does not change enforcement. To change policy, update the

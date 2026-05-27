@@ -42,7 +42,7 @@ This checkpoint resumes from the recovered operator UI state on `7a5279e7` and a
 
 ## Hetzner Validation
 
-Host: `204.168.181.45`
+Host: `203.0.113.10`
 
 Runtime repo:
 - `/root/mavsdk_drone_show_main_candidate_runtime_https`

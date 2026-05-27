@@ -11,11 +11,41 @@ from typing import Mapping
 from .models import AgentRuntimeError, AgentSession, utc_now
 
 
-SAFE_SESSION_METADATA_KEYS = {"channel", "source"}
+SAFE_SESSION_METADATA_KEYS = {"channel", "source", "last_domain", "last_intent", "last_response_mode"}
 SAFE_SESSION_METADATA_VALUE_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+PRIVATE_CONTEXT_KEYS = {
+    "last_assistant_content",
+    "last_assistant_provider",
+    "last_assistant_model",
+    "last_domain",
+    "last_intent",
+    "last_response_mode",
+}
+MAX_PRIVATE_CONTEXT_VALUE_CHARS = 6000
 SAFE_SESSION_METADATA_VALUES = {
     "channel": {"assistant", "dashboard"},
     "source": {"simurgh-dashboard", "simurgh-ui"},
+    "last_domain": {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"},
+    "last_intent": {
+        "action_capability",
+        "add_drone_workflow",
+        "backend_log_summary",
+        "board_setup_help",
+        "capability_catalog",
+        "companion_setup_help",
+        "docs_help",
+        "fleet_connectivity",
+        "fleet_summary",
+        "mission_mode_comparison",
+        "operator_help",
+        "runtime_summary",
+        "show_modes_help",
+        "show_summary",
+        "show_upload_help",
+        "sitl_help",
+        "swarm_topology",
+    },
+    "last_response_mode": {"status", "interpret", "workflow", "compare", "capability", "clarify"},
 }
 
 
@@ -42,6 +72,7 @@ class AgentSessionStore:
             raise AgentRuntimeError("session ttl_seconds must be positive")
         self.ttl_seconds = ttl_seconds
         self._sessions: dict[str, AgentSession] = {}
+        self._private_contexts: dict[str, dict[str, str]] = {}
 
     def create(self, *, actor: str, mode: str, metadata: Mapping[str, object] | None = None) -> AgentSession:
         actor = actor.strip()
@@ -57,7 +88,19 @@ class AgentSessionStore:
             metadata=sanitize_session_metadata(metadata),
         )
         self._sessions[session.id] = session
+        self._private_contexts[session.id] = {}
         return session
+
+    def update_metadata(self, session_id: str, metadata: Mapping[str, object]) -> AgentSession:
+        """Merge safe short-lived session metadata into an existing session."""
+
+        session = self.require(session_id)
+        if session.closed:
+            raise AgentRuntimeError("assistant session is closed")
+        merged = {**dict(session.metadata), **sanitize_session_metadata(metadata)}
+        updated = replace(session, metadata=merged)
+        self._sessions[session_id] = updated
+        return updated
 
     def require(self, session_id: str) -> AgentSession:
         session = self._sessions.get(session_id)
@@ -74,7 +117,38 @@ class AgentSessionStore:
             return session
         closed = replace(session, closed_at=utc_now())
         self._sessions[session_id] = closed
+        self._private_contexts.pop(session_id, None)
         return closed
+
+    def get_private_context(self, session_id: str) -> dict[str, str]:
+        """Return bounded in-memory context that is never serialized to API/MCP responses."""
+
+        self.require(session_id)
+        return dict(self._private_contexts.get(session_id, {}))
+
+    def update_private_context(self, session_id: str, values: Mapping[str, object]) -> dict[str, str]:
+        """Merge private conversation state for follow-up resolution.
+
+        This intentionally bypasses public metadata sanitization because it is
+        not exposed by session/list, audit, history, or MCP resources. It is
+        still bounded and key-scoped to avoid turning the session store into an
+        unreviewed transcript database.
+        """
+
+        self.require(session_id)
+        current = dict(self._private_contexts.get(session_id, {}))
+        for key, raw_value in values.items():
+            if key not in PRIVATE_CONTEXT_KEYS:
+                continue
+            value = str(raw_value or "").strip()
+            if len(value) > MAX_PRIVATE_CONTEXT_VALUE_CHARS:
+                value = value[:MAX_PRIVATE_CONTEXT_VALUE_CHARS].rstrip()
+            if value:
+                current[key] = value
+            else:
+                current.pop(key, None)
+        self._private_contexts[session_id] = current
+        return dict(current)
 
     def list_sessions(self, *, include_closed: bool = True) -> list[AgentSession]:
         values = [self.require(session_id) for session_id in list(self._sessions)]

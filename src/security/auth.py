@@ -564,8 +564,10 @@ class AuthService:
         scopes = set(token_record.get("scopes", []))
         if "admin" in scopes:
             role = "admin"
-        elif "operator" in scopes or "agent" in scopes or "drone" in scopes:
+        elif "operator" in scopes or "drone" in scopes:
             role = "operator"
+        elif "agent" in scopes:
+            role = "agent"
         return {
             "kind": "bearer",
             "username": token_record.get("name") or token_record.get("id"),

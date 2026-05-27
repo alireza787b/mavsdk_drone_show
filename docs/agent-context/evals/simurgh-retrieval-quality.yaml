@@ -1,0 +1,114 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  purpose: >
+    Offline query-planning and public-docs retrieval quality checks for Simurgh.
+    These cases do not call model providers, MCP tools, direct drone APIs, or raw
+    GCS command submission. They measure whether operator prompts route to the
+    expected domain/mode and retrieve the right public docs from the generated
+    docs index.
+cases:
+  - id: show_upload_workflow_docs
+    prompt: "How to upload skybrush drone show"
+    expected:
+      domain: drone_show
+      response_mode: workflow
+      tags_any: [show, skybrush]
+      top_resource_any: [mds.drone_show]
+      resources_any: [mds.drone_show]
+      within_rank: 5
+      min_top_score: 40
+
+  - id: show_uploaded_ready_status_docs
+    prompt: "is there a drone show uploaded ready?"
+    expected:
+      domain: drone_show
+      response_mode: status
+      tags_any: [show, skybrush]
+      top_resource_any: [mds.drone_show]
+      resources_any: [mds.drone_show]
+      within_rank: 5
+      min_top_score: 30
+
+  - id: companion_setup_docs
+    prompt: "setup new companion computer raspberry pi"
+    expected:
+      domain: setup
+      response_mode: workflow
+      tags_any: [setup, fleet, environment]
+      top_resource_any: [mds.raspberry_pi_services, mds.init_setup]
+      resources_any: [mds.raspberry_pi_services, mds.init_setup]
+      within_rank: 5
+      min_top_score: 40
+
+  - id: sitl_demo_docs
+    prompt: "how do I create a SITL demo"
+    expected:
+      domain: sitl
+      response_mode: workflow
+      tags_any: [sitl]
+      top_resource_any: [mds.advanced_sitl, mds.sitl_comprehensive]
+      resources_any: [mds.advanced_sitl, mds.sitl_comprehensive]
+      within_rank: 5
+      min_top_score: 25
+
+  - id: mcp_client_connection_docs
+    prompt: "connect n8n or claude desktop to simurgh mcp"
+    expected:
+      domain: mcp
+      response_mode: workflow
+      tags_any: [mcp, tools, simurgh]
+      top_resource_any: [simurgh.mcp_client_recipes, simurgh.tool_usage]
+      resources_any: [simurgh.mcp_client_recipes]
+      within_rank: 5
+      min_top_score: 35
+
+  - id: mcp_client_capability_menu_docs
+    prompt: "what interfaces are exposed to clients like n8n and claude"
+    expected:
+      domain: mcp
+      response_mode: status
+      tags_any: [mcp, tools, simurgh]
+      top_resource_any: [simurgh.mcp_client_recipes, simurgh.tool_usage]
+      resources_any: [simurgh.mcp_client_recipes, simurgh.tool_usage]
+      within_rank: 5
+      min_top_score: 30
+
+  - id: quickscout_vs_swarm_docs
+    prompt: "what is the difference between quick scout and swarm trajectory"
+    expected:
+      domain: swarm
+      response_mode: compare
+      tags_any: [swarm, trajectory]
+      resources_all: [mds.quickscout, mds.swarm_trajectory]
+      within_rank: 8
+      min_top_score: 40
+
+  - id: typo_show_launch_modes_docs
+    prompt: "whay are differnt launch modes for drone shows"
+    expected:
+      domain: drone_show
+      response_mode: compare
+      tags_any: [show, skybrush]
+      resources_any: [mds.drone_show, mds.origin_system]
+      within_rank: 8
+      min_top_score: 30
+
+  - id: runtime_controls_docs
+    prompt: "environment variables openai key circuit breaker always confirm"
+    expected:
+      domain: runtime
+      response_mode: status
+      tags_any: [runtime, environment, simurgh]
+      top_resource_any: [mds.environment_registry, simurgh.operator_guide]
+      resources_any: [mds.environment_registry, simurgh.operator_guide]
+      within_rank: 5
+      min_top_score: 35
+
+  - id: low_signal_prompt_no_retrieval_requirement
+    prompt: "qrxzz blnk"
+    expected:
+      domain: general
+      response_mode: clarify
+      unclear: true
+      require_results: false

@@ -89,11 +89,11 @@ top of the already validated runtime slice:
 ## Tester Targets
 
 - Dashboard root:
-  - `http://204.168.181.45:3030`
+  - `http://203.0.113.10:3030`
 - PX4 Parameters page:
-  - `http://204.168.181.45:3030/px4-parameters`
+  - `http://203.0.113.10:3030/px4-parameters`
 - Health:
-  - `http://204.168.181.45:5000/api/v1/system/health`
+  - `http://203.0.113.10:5000/api/v1/system/health`
 
 ## Recommended Tester Flows
 

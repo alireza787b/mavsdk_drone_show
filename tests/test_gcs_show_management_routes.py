@@ -66,6 +66,7 @@ def test_show_management_router_registers_expected_routes():
     assert "/api/v1/shows/custom" in routes
     assert "/api/v1/shows/custom/import" in routes
     assert "/api/v1/shows/skybrush/metrics" in routes
+    assert "/api/v1/shows/skybrush/metrics/snapshot" in routes
     assert "/api/v1/shows/skybrush/safety-report" in routes
     assert "/api/v1/shows/skybrush/validation" in routes
     assert "/api/v1/shows/skybrush/deployments" in routes
@@ -85,6 +86,56 @@ def test_show_management_router_registers_expected_routes():
     assert "/get-show-plots" not in routes
     assert "/get-show-plots/{filename}" not in routes
     assert "/get-custom-show-image" not in routes
+
+
+def test_show_management_router_metrics_snapshot_does_not_refresh():
+    deps = _make_deps()
+    refresh_calls = []
+    deps._load_saved_metrics_if_current = lambda: {"basic_metrics": {"drone_count": 2}}
+
+    def fail_refresh(*args, **kwargs):
+        refresh_calls.append((args, kwargs))
+        raise AssertionError("snapshot route must not refresh metrics")
+
+    deps._refresh_saved_show_metrics = fail_refresh
+    app = FastAPI()
+    app.include_router(create_show_management_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/shows/skybrush/metrics/snapshot")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["available"] is True
+    assert payload["snapshot_only"] is True
+    assert payload["cache_current"] is True
+    assert payload["metrics"]["basic_metrics"]["drone_count"] == 2
+    assert refresh_calls == []
+
+
+def test_show_management_router_metrics_snapshot_reports_missing_cache_without_refresh():
+    deps = _make_deps()
+    refresh_calls = []
+    deps._load_saved_metrics_if_current = lambda: None
+
+    def fail_refresh(*args, **kwargs):
+        refresh_calls.append((args, kwargs))
+        raise AssertionError("snapshot route must not refresh metrics")
+
+    deps._refresh_saved_show_metrics = fail_refresh
+    app = FastAPI()
+    app.include_router(create_show_management_router(deps))
+
+    with TestClient(app) as client:
+        response = client.get("/api/v1/shows/skybrush/metrics/snapshot")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["available"] is False
+    assert payload["snapshot_only"] is True
+    assert payload["cache_current"] is False
+    assert "No current cached SkyBrush metrics snapshot" in payload["detail"]
+    assert refresh_calls == []
 
 
 def test_show_management_router_get_show_info_uses_live_directory_after_router_creation(tmp_path):

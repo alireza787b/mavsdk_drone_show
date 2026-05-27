@@ -235,7 +235,7 @@ At the time, the working theories were:
 
 ## Environment Details
 
-- **Remote server**: `root@204.168.181.45`
+- **Remote server**: `root@203.0.113.10`
 - **Docker image**: `mavsdk-drone-show-sitl:v5` (also tagged as `mavsdk-drone-show-sitl:latest`)
 - **Container**: Created via `bash multiple_sitl/create_dockers.sh 1`
 - **startup_sitl.sh** runs inside container at `/tmp/mds_startup_sitl.sh`

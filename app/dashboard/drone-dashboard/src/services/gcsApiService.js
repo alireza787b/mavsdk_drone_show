@@ -92,10 +92,13 @@ export const GCS_ROUTE_KEYS = Object.freeze({
   simurghStatus: 'simurghStatus',
   simurghPolicy: 'simurghPolicy',
   simurghTools: 'simurghTools',
+  simurghToolCandidates: 'simurghToolCandidates',
   simurghContext: 'simurghContext',
   simurghSessions: 'simurghSessions',
   simurghAudit: 'simurghAudit',
   simurghAssistantTurns: 'simurghAssistantTurns',
+  simurghRuntimeSettings: 'simurghRuntimeSettings',
+  simurghProviderCredentials: 'simurghProviderCredentials',
   logsBase: 'logsBase',
   sarBase: 'sarBase',
 });
@@ -187,10 +190,13 @@ export const GCS_ROUTES = Object.freeze({
   [GCS_ROUTE_KEYS.simurghStatus]: '/api/v1/simurgh/status',
   [GCS_ROUTE_KEYS.simurghPolicy]: '/api/v1/simurgh/policy',
   [GCS_ROUTE_KEYS.simurghTools]: '/api/v1/simurgh/tools',
+  [GCS_ROUTE_KEYS.simurghToolCandidates]: '/api/v1/simurgh/tool-candidates',
   [GCS_ROUTE_KEYS.simurghContext]: '/api/v1/simurgh/context',
   [GCS_ROUTE_KEYS.simurghSessions]: '/api/v1/simurgh/sessions',
   [GCS_ROUTE_KEYS.simurghAudit]: '/api/v1/simurgh/audit',
   [GCS_ROUTE_KEYS.simurghAssistantTurns]: '/api/v1/simurgh/assistant/turns',
+  [GCS_ROUTE_KEYS.simurghRuntimeSettings]: '/api/v1/simurgh/runtime-settings',
+  [GCS_ROUTE_KEYS.simurghProviderCredentials]: '/api/v1/simurgh/provider-credentials',
   [GCS_ROUTE_KEYS.logsBase]: '/api/logs',
   [GCS_ROUTE_KEYS.sarBase]: '/api/sar',
 });
@@ -285,10 +291,13 @@ const ROUTE_KEY_BY_PATH = Object.freeze({
   '/api/v1/simurgh/status': GCS_ROUTE_KEYS.simurghStatus,
   '/api/v1/simurgh/policy': GCS_ROUTE_KEYS.simurghPolicy,
   '/api/v1/simurgh/tools': GCS_ROUTE_KEYS.simurghTools,
+  '/api/v1/simurgh/tool-candidates': GCS_ROUTE_KEYS.simurghToolCandidates,
   '/api/v1/simurgh/context': GCS_ROUTE_KEYS.simurghContext,
   '/api/v1/simurgh/sessions': GCS_ROUTE_KEYS.simurghSessions,
   '/api/v1/simurgh/audit': GCS_ROUTE_KEYS.simurghAudit,
   '/api/v1/simurgh/assistant/turns': GCS_ROUTE_KEYS.simurghAssistantTurns,
+  '/api/v1/simurgh/runtime-settings': GCS_ROUTE_KEYS.simurghRuntimeSettings,
+  '/api/v1/simurgh/provider-credentials': GCS_ROUTE_KEYS.simurghProviderCredentials,
 });
 
 export function resolveGcsRoute(routeOrPath) {
@@ -802,6 +811,20 @@ export async function getSimurghToolsResponse({ includeExcluded = true } = {}, c
   });
 }
 
+export async function getSimurghToolCandidatesResponse({ eligibleReadOnly = null, riskClass = '', search = '', limit = 50, offset = 0 } = {}, config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.simurghToolCandidates, {
+    ...config,
+    params: {
+      ...(eligibleReadOnly === null || eligibleReadOnly === undefined ? {} : { eligible_read_only: eligibleReadOnly ? 'true' : 'false' }),
+      ...(riskClass ? { risk_class: riskClass } : {}),
+      ...(search ? { search } : {}),
+      limit,
+      offset,
+      ...(config.params || {}),
+    },
+  });
+}
+
 export async function getSimurghContextResponse(config = {}) {
   return fetchGcsResource(GCS_ROUTE_KEYS.simurghContext, config);
 }
@@ -840,6 +863,22 @@ export async function getSimurghAssistantTurnsResponse({ sessionId = null, actor
 
 export async function createSimurghAssistantTurnResponse(payload = {}, config = {}) {
   return postGcsResource(GCS_ROUTE_KEYS.simurghAssistantTurns, payload, config);
+}
+
+export async function getSimurghRuntimeSettingsResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.simurghRuntimeSettings, config);
+}
+
+export async function updateSimurghRuntimeSettingsResponse(payload = {}, config = {}) {
+  return putGcsResource(GCS_ROUTE_KEYS.simurghRuntimeSettings, payload, config);
+}
+
+export async function getSimurghProviderCredentialsResponse(config = {}) {
+  return fetchGcsResource(GCS_ROUTE_KEYS.simurghProviderCredentials, config);
+}
+
+export async function updateSimurghProviderCredentialsResponse(payload = {}, config = {}) {
+  return putGcsResource(GCS_ROUTE_KEYS.simurghProviderCredentials, payload, config);
 }
 
 export async function computeOriginResponse(payload, config = {}) {

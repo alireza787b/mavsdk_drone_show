@@ -94,8 +94,8 @@ def test_advisory_eval_suite_is_hermetic_against_openai_env_overrides(monkeypatc
 
     assert report.passed is True
     results = {result.scenario_id: result for result in report.results}
-    assert results["openai_blocks_rtl_without_provider_request"].model == "gpt-5.5"
-    assert results["openai_fixture_sar_briefing_is_text_only"].model == "gpt-5.5"
+    assert results["openai_blocks_rtl_without_provider_request"].model == "gpt-5.4-mini"
+    assert results["openai_fixture_sar_briefing_is_text_only"].model == "gpt-5.4-mini"
 
 
 def test_fixture_backed_evals_stay_offline_when_live_provider_allowed(monkeypatch):
@@ -143,8 +143,13 @@ def test_no_provider_request_evals_stay_offline_when_live_provider_allowed(tmp_p
 def test_advisory_eval_runner_asserts_openai_request_invariants(monkeypatch):
     original_request_payload = OpenAIResponsesAssistantAdapter._request_payload
 
-    def unsafe_request_payload(self, *, message, context_documents):  # noqa: ANN001
-        payload = original_request_payload(self, message=message, context_documents=context_documents)
+    def unsafe_request_payload(self, *, message, context_documents, language_profile=None):  # noqa: ANN001
+        payload = original_request_payload(
+            self,
+            message=message,
+            context_documents=context_documents,
+            language_profile=language_profile,
+        )
         payload["store"] = True
         payload["tools"] = [{"type": "function", "name": "unsafe"}]
         payload["tool_choice"] = "auto"
@@ -231,7 +236,7 @@ def test_field_eval_scenarios_reject_sensitive_identifiers(tmp_path):
                         "id": "field_privacy_regression",
                         "provider": "mock",
                         "tags": ["field", "privacy"],
-                        "prompt": "The affected AIRFRAME-01 stopped streaming on 192.168.1.10.",
+                        "prompt": "The affected CM4-99 stopped streaming on 192.168.1.10.",
                         "expected": {"provider": "mock"},
                     }
                 ],
@@ -258,7 +263,7 @@ def test_eval_scenarios_reject_sensitive_identifiers_without_privacy_tags(tmp_pa
                     {
                         "id": "untagged_privacy_regression",
                         "provider": "mock",
-                        "prompt": "The affected AIRFRAME-01 stopped streaming on 192.168.1.10.",
+                        "prompt": "The affected CM4-99 stopped streaming on 192.168.1.10.",
                         "expected": {"provider": "mock"},
                     }
                 ],
@@ -279,17 +284,17 @@ def test_eval_scenarios_reject_sensitive_identifiers_without_privacy_tags(tmp_pa
     ("sample", "expected_label"),
     (
         ("Use git@github.com:customer/private-flight.git as the reference.", "private repository path"),
-        ("ticket: SAR-1234 tracks the issue.", "ticket identifier"),
+        ("ticket: TST-1234 tracks the issue.", "ticket identifier"),
         ("serial: PX4SERIAL12345 is the affected board.", "device serial identifier"),
-        ("NetBird peer id peer_abcdef123 is online.", "NetBird peer identifier"),
+        ("NetBird peer id peer_example123 is online.", "NetBird peer identifier"),
         ("The screenshot shows the failure.", "screenshot"),
         ("2026-05-19 17:32:00 was the exact failure time.", "exact timestamp"),
         ("mission name: harbor-alpha-test should be inspected.", "mission name"),
         ("customer id: CUSTOMER-1234 reported the problem.", "customer or site identifier"),
         ("ERROR field controller emitted a long private diagnostic line.", "pasted log body"),
         ("The customer flight log is pasted below.", "customer flight log artifact"),
-        ("Authorization: Bearer mds_test_secret_12345", "secret assignment"),
-        ("The api key is sk-test-redacted-12345.", "secret assignment"),
+        ("".join(("Authorization: Bearer ", "mds_test_secret_12345")), "secret assignment"),
+        ("".join(("The api key is ", "sk-", "test-redacted-12345.")), "secret assignment"),
         ("The password is fieldtest12345.", "secret assignment"),
     ),
 )

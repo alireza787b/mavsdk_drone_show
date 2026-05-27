@@ -452,8 +452,6 @@ def run_provider_smoke_scenario(
                 "MDS_AGENT_PROVIDER": OPENAI_ASSISTANT_PROVIDER,
                 OPENAI_API_KEY_FILE_ENV: str(key_path),
                 OPENAI_BASE_URL_ENV: DEFAULT_OPENAI_BASE_URL,
-                "MDS_AGENT_MODE": "read_only",
-                "MDS_AGENT_REAL_COMMANDS_ENABLED": "false",
                 "MDS_MCP_ENABLED": "false",
             }
             with _temporary_env(env_updates):

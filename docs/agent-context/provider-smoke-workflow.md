@@ -10,13 +10,12 @@ Default rule:
   the exact OpenAI Responses request invariants, and does not contact OpenAI.
 - Run live mode only from a validation host or maintenance window after offline
   tests pass.
-- Keep `MDS_AGENT_MODE=read_only`, `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`,
-  `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`,
-  `MDS_AGENT_REAL_COMMANDS_ENABLED=false`, and `MDS_MCP_ENABLED=false` during
-  provider smoke.
+- Keep `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`,
+  `MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`, and `MDS_MCP_ENABLED=false`
+  during provider smoke.
 - Do not change deployment `MDS_MODE` for this workflow. A production GCS may
-  remain `MDS_MODE=real`; the Simurgh assistant circuit breaker is controlled
-  by the separate `MDS_AGENT_*` and `MDS_MCP_ENABLED` variables above.
+  remain `MDS_MODE=real`; the Simurgh assistant circuit breaker controls
+  Simurgh non-read-only actions independently from human GCS operation.
 - Keep deployed assistant endpoints on `MDS_AGENT_PROVIDER=mock` unless MDS auth
   is enabled and operators authenticate with an operator/admin session or a
   bearer token scoped for `agent`, `operator`, or `admin`. Drone-only bearer

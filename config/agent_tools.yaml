@@ -1,480 +1,1303 @@
 version: 1
 metadata:
   owner: simurgh-operator
-  mcp_protocol_family: "2025-11-25"
+  mcp_protocol_family: '2025-11-25'
   boundary: gcs-only
   notes:
-    - Drone-side APIs are explicitly excluded in this phase.
-    - Raw command routes are not exposed to models or MCP clients.
-    - Guarded tools require policy approval before any adapter may execute them.
+  - Drone-side APIs are explicitly excluded in this phase.
+  - Raw command routes are not exposed to models or MCP clients.
+  - Guarded tools require policy approval before any adapter may execute them.
 tools:
-  - id: mds.system.health.read
-    title: Read GCS health
-    description: Read the GCS health endpoint for service availability.
-    exposure: allow
-    risk_class: observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/system/health
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: []
-    tags: [system, health]
-    docs: [docs/apis/gcs-api-server.md, docs/agent-context/tool-usage-guidelines.md]
-    safety_notes:
-      - Health checks are observational and do not imply flight readiness.
-
-  - id: mds.system.runtime_status.read
-    title: Read runtime status
-    description: Read GCS runtime mode, repo, auth, and fleet-default status.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/system/runtime-status
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [deployment, topology]
-    tags: [system, runtime]
-    docs: [docs/guides/runtime-config-sources.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Treat repo, mode, and host details as deployment-sensitive context.
-
-  - id: mds.system.env_registry.read
-    title: Read env registry
-    description: Read the public environment registry metadata without raw secrets.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/system/env/registry
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [configuration]
-    tags: [system, configuration]
-    docs: [docs/reference/mds-environment-registry.generated.md]
-    safety_notes:
-      - Secret values must remain redacted before exposure to models.
-
-  - id: mds.fleet.telemetry.read
-    title: Read fleet telemetry
-    description: Read latest fleet telemetry from the GCS.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/fleet/telemetry
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [location, fleet_identity, mission_state]
-    tags: [fleet, telemetry]
-    docs: [docs/apis/gcs-api-server.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Telemetry may include live coordinates and must not be published in public reports.
-      - Stale telemetry is not truth for command decisions.
-
-  - id: mds.fleet.heartbeats.read
-    title: Read fleet heartbeats
-    description: Read drone heartbeat and presence state as seen by the GCS.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/fleet/heartbeats
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [fleet_identity, topology]
-    tags: [fleet, presence]
-    docs: [docs/apis/gcs-api-server.md]
-    safety_notes:
-      - Heartbeats indicate presence, not safety to command.
-
-  - id: mds.fleet.network_status.read
-    title: Read fleet network status
-    description: Read GCS-owned network status observations for the fleet.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/fleet/network-status
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [network, topology]
-    tags: [fleet, network]
-    docs: [docs/apis/gcs-api-server.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Network topology can be customer-sensitive.
-
-  - id: mds.commands.recent.read
-    title: Read recent commands
-    description: Read recent tracked commands from GCS command history.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/commands/recent
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [mission_history, fleet_identity]
-    tags: [commands, audit]
-    docs: [docs/apis/gcs-api-server.md, docs/agent-context/tool-usage-guidelines.md]
-    safety_notes:
-      - Command history is audit evidence and may contain mission-sensitive details.
-
-  - id: mds.commands.active.read
-    title: Read active commands
-    description: Read active tracked commands from the GCS command tracker.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/commands/active
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [mission_state, fleet_identity]
-    tags: [commands, audit]
-    docs: [docs/apis/gcs-api-server.md]
-    safety_notes:
-      - Active command state must be interpreted with live telemetry and operator context.
-
-  - id: mds.commands.precision_move_policy.read
-    title: Read precision move policy
-    description: Read the GCS precision-move command policy.
-    exposure: allow
-    risk_class: observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/commands/policy/precision-move
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: []
-    tags: [commands, policy]
-    docs: [docs/apis/gcs-api-server.md]
-    safety_notes:
-      - Reading command policy does not grant authority to execute commands.
-
-  - id: mds.git.status.read
-    title: Read repository status
-    description: Read GCS repository status without applying sync operations.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/git/status
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [repository, deployment]
-    tags: [git, deployment]
-    docs: [docs/features/git-sync.md, docs/guides/fleet-sync-and-secrets.md]
-    safety_notes:
-      - Repo URLs and branch names can reveal customer deployment information.
-
-  - id: mds.logs.sources.read
-    title: Read log sources
-    description: Read available log sources without retrieving full log content.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/logs/sources
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [logs, topology]
-    tags: [logs, diagnostics]
-    docs: [docs/guides/logging-system.md]
-    safety_notes:
-      - Full log content requires redaction and size limits before model exposure.
-
-  - id: mds.sitl.policy.read
-    title: Read SITL policy
-    description: Read the GCS SITL control policy and feature flags.
-    exposure: allow
-    risk_class: observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/system/sitl/policy
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: []
-    tags: [sitl, policy]
-    docs: [docs/guides/sitl-control.md]
-    safety_notes:
-      - SITL policy explains simulation capability but does not authorize mutation.
-
-  - id: mds.sitl.instances.read
-    title: Read SITL instances
-    description: Read current SITL instance state from the GCS.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/system/sitl/instances
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [host_resources, topology]
-    tags: [sitl, runtime]
-    docs: [docs/guides/sitl-control.md]
-    safety_notes:
-      - Instance state may include host resource and port details.
-
-  - id: mds.sar.missions.read
-    title: Read SAR missions
-    description: Read QuickScout/SAR mission catalog and status summaries.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/sar/missions
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [sar, location, findings, mission_state]
-    tags: [sar, quickscout, missions]
-    docs: [docs/quickscout.md, docs/features/mission-planning-workspace.md]
-    safety_notes:
-      - SAR mission data can include coordinates, findings, and handoff details.
-
-  - id: mds.swarm_trajectories.status.read
-    title: Read swarm trajectory status
-    description: Read swarm trajectory processing and validation status.
-    exposure: allow
-    risk_class: sensitive_observe
-    boundary: gcs
-    read_only: true
-    route:
-      method: GET
-      path: /api/v1/swarm-trajectories/status
-    required_role: viewer
-    runtime_modes: [read_only, sitl, real]
-    side_effects: []
-    sensitivity: [mission_assets, fleet_identity]
-    tags: [swarm, trajectory]
-    docs: [docs/features/smart-swarm.md, docs/apis/gcs-api-server.md]
-    safety_notes:
-      - Mission assets and drone assignments may be deployment-sensitive.
-
-  - id: mds.sar.mission.plan
-    title: Plan SAR mission
-    description: Generate a QuickScout/SAR plan without launching drones.
-    exposure: guarded
-    risk_class: plan
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/sar/mission/plan
-    required_role: operator
-    requires_approval: true
-    runtime_modes: [sitl]
-    side_effects: [creates_planning_job]
-    sensitivity: [sar, location, fleet_identity]
-    tags: [sar, quickscout, planning]
-    docs: [docs/quickscout.md, docs/features/mission-planning-workspace.md]
-    safety_notes:
-      - Planning must not silently use stale telemetry or fallback coordinates.
-      - Launch, pause, resume, and abort remain separate excluded operations.
-    input_schema:
-      type: object
-      additionalProperties: true
-
-  - id: mds.sitl.instances.create
-    title: Create SITL instance
-    description: Create a new SITL instance through the GCS simulation control API.
-    exposure: guarded
-    risk_class: simulate
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/v1/system/sitl/instances
-    required_role: admin
-    requires_approval: true
-    runtime_modes: [sitl]
-    side_effects: [starts_container, allocates_ports]
-    sensitivity: [host_resources, topology]
-    tags: [sitl, simulation]
-    docs: [docs/guides/sitl-control.md]
-    safety_notes:
-      - Simulation mutation is never valid in read-only mode.
-
-  - id: mds.commands.raw_submit
-    title: Raw GCS command submission
-    description: Raw command submission endpoint. This is deliberately excluded from Simurgh exposure.
-    exposure: exclude
-    risk_class: operate
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/v1/commands
-    required_role: operator
-    requires_approval: true
-    runtime_modes: []
-    side_effects: [flight_command]
-    sensitivity: [flight_control, fleet_identity]
-    tags: [commands, excluded]
-    docs: [docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Future mission tools must use curated wrappers, never this raw endpoint.
-
-  - id: mds.drone.commands.raw_submit
-    title: Raw drone-local command submission
-    description: Drone-local command submission endpoint. Direct drone MCP exposure is forbidden in this phase.
-    exposure: exclude
-    risk_class: operate
-    boundary: drone
-    read_only: false
-    route:
-      method: POST
-      path: /api/v1/drone/commands
-    required_role: operator
-    requires_approval: true
-    runtime_modes: []
-    side_effects: [flight_command]
-    sensitivity: [flight_control, fleet_identity]
-    tags: [commands, drone-api, excluded]
-    docs: [docs/agent-context/safety-policy.md]
-    safety_notes:
-      - MCP clients must not talk directly to drone-local APIs.
-
-  - id: mds.auth.tokens.create
-    title: Create API auth token
-    description: Auth token creation is excluded from model-driven tooling.
-    exposure: exclude
-    risk_class: admin
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/v1/auth/tokens
-    required_role: admin
-    requires_approval: true
-    runtime_modes: []
-    side_effects: [creates_credential]
-    sensitivity: [auth, credentials]
-    tags: [auth, excluded]
-    docs: [docs/guides/gcs-auth.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Credential creation remains a human/admin workflow.
-
-  - id: mds.sar.mission.launch
-    title: Launch SAR mission
-    description: Launching a SAR mission can move real aircraft and is excluded in this foundation slice.
-    exposure: exclude
-    risk_class: operate
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/sar/mission/launch
-    required_role: operator
-    requires_approval: true
-    runtime_modes: []
-    side_effects: [flight_command, mission_launch]
-    sensitivity: [sar, flight_control, location]
-    tags: [sar, quickscout, excluded]
-    docs: [docs/quickscout.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Real command wrappers require a later safety case and live preflight evidence.
-
-  - id: mds.runtime.env.apply
-    title: Apply runtime environment changes
-    description: Runtime env apply/restart actions are excluded from model-driven tooling in this phase.
-    exposure: exclude
-    risk_class: admin
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/v1/system/env/gcs/apply
-    required_role: admin
-    requires_approval: true
-    runtime_modes: []
-    side_effects: [runtime_restart, configuration_mutation]
-    sensitivity: [configuration, deployment]
-    tags: [runtime, excluded]
-    docs: [docs/guides/runtime-config-sources.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Runtime mutation belongs behind explicit human-admin workflows.
-
-  - id: mds.fleet.git_sync.apply
-    title: Apply fleet git sync
-    description: Fleet git-sync apply can change deployed code and is excluded from this foundation slice.
-    exposure: exclude
-    risk_class: admin
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/v1/fleet/git-sync/apply
-    required_role: admin
-    requires_approval: true
-    runtime_modes: []
-    side_effects: [code_deploy, repository_mutation]
-    sensitivity: [repository, deployment, fleet_identity]
-    tags: [git, deployment, excluded]
-    docs: [docs/features/git-sync.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Code deployment requires a separate release and rollback safety flow.
-
-  - id: mds.ulog.erase_all
-    title: Erase onboard ULog files
-    description: Erasing onboard logs is destructive and excluded from model-driven tooling.
-    exposure: exclude
-    risk_class: destructive
-    boundary: gcs
-    read_only: false
-    route:
-      method: POST
-      path: /api/logs/drone/{drone_id}/ulog/erase-all
-    required_role: admin
-    requires_approval: true
-    destructive: true
-    runtime_modes: []
-    side_effects: [data_deletion]
-    sensitivity: [logs, evidence]
-    tags: [logs, destructive, excluded]
-    docs: [docs/guides/logging-system.md, docs/agent-context/safety-policy.md]
-    safety_notes:
-      - Logs are operational evidence and must not be erased by an agent.
+- id: mds.operator.question.answer
+  title: Answer operator MDS question
+  description: Answer one operator question using Simurgh's read-only MDS advisory
+    context, public docs, and approved GCS observations. Use this for conceptual or
+    mixed MDS questions before selecting lower-level status tools.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - assistant
+  - advisory
+  - docs
+  - operator
+  docs:
+  - docs/guides/simurgh-operator.md
+  - docs/agent-context/tool-usage-guidelines.md
+  safety_notes:
+  - This is a read-only advisory wrapper; it does not mutate GCS state or command
+    drones.
+  - Direct operational actions are blocked before execution and must not be converted
+    into raw API calls.
+  - Prefer this tool for natural-language MDS questions; use lower-level status tools
+    only when the user asks for current state.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - question
+    properties:
+      question:
+        type: string
+        minLength: 1
+        maxLength: 4000
+        description: Natural-language MDS operator question to answer with read-only
+          context.
+      conversation_topic:
+        type: string
+        enum:
+        - drone_show
+        - fleet
+        - swarm
+        - sitl
+        - setup
+        - logs
+        - runtime
+        - capabilities
+        description: Optional safe short-lived conversation topic from dashboard chat
+          session memory, used only to resolve ambiguous follow-up questions.
+- id: mds.docs.search
+  title: Search public MDS docs
+  description: Search the generated public Simurgh/MDS documentation index and return
+    bounded chunks with doc paths and dashboard route hints.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - docs
+  - search
+  - mcp
+  - generated
+  docs:
+  - docs/agent-context/README.md
+  - docs/guides/simurgh-operator.md
+  safety_notes:
+  - Searches only the generated public docs index sourced from context-index resources.
+  - Does not embed private logs, telemetry, raw field evidence, secrets, or customer-only
+    artifacts.
+  - Use mds.docs.chunk.read to retrieve one bounded result chunk after search.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - query
+    properties:
+      query:
+        type: string
+        minLength: 2
+        maxLength: 500
+        description: Public MDS documentation search query.
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 8
+        description: Maximum number of search results to return.
+      tags:
+        type: string
+        minLength: 1
+        maxLength: 160
+        pattern: '^[A-Za-z0-9_,: .-]+$'
+        description: Optional comma-separated tag filter, such as sitl, show, setup,
+          logs, mcp.
+      audience:
+        type: string
+        enum:
+        - agent
+        - operator
+        - developer
+        description: Optional audience filter for indexed public docs.
+  output_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - query
+    - limit
+    - tags
+    - audience
+    - source_context_index
+    - index_path
+    - resource_count
+    - chunk_count
+    - results
+    properties:
+      query:
+        type: string
+      limit:
+        type: integer
+      tags:
+        type: array
+        items:
+          type: string
+      audience:
+        type:
+        - string
+        - 'null'
+      source_context_index:
+        type: string
+      index_path:
+        type: string
+      resource_count:
+        type: integer
+      chunk_count:
+        type: integer
+      results:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required:
+          - id
+          - resource_id
+          - title
+          - heading
+          - path
+          - route_hint
+          - audience
+          - summary
+          - tags
+          - links
+          - canonical_url
+          - content_hash
+          - snippet
+          - score
+          properties:
+            id:
+              type: string
+            resource_id:
+              type: string
+            title:
+              type: string
+            heading:
+              type: string
+            path:
+              type: string
+            route_hint:
+              type:
+              - string
+              - 'null'
+            audience:
+              type: string
+            summary:
+              type: string
+            tags:
+              type: array
+              items:
+                type: string
+            links:
+              type: array
+              items:
+                type: string
+            canonical_url:
+              type: string
+            content_hash:
+              type: string
+            snippet:
+              type: string
+            score:
+              type: number
+- id: mds.docs.chunk.read
+  title: Read public MDS docs chunk
+  description: Read one bounded chunk from the generated public Simurgh/MDS documentation
+    index.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - docs
+  - search
+  - mcp
+  - generated
+  docs:
+  - docs/agent-context/README.md
+  - docs/guides/simurgh-operator.md
+  safety_notes:
+  - Reads only chunks from the generated public docs index.
+  - Content is bounded by max_chars and never grants authority to execute actions.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - chunk_id
+    properties:
+      chunk_id:
+        type: string
+        minLength: 1
+        maxLength: 160
+        pattern: ^[A-Za-z0-9_.:-]+$
+        description: Chunk id returned by mds.docs.search.
+      max_chars:
+        type: integer
+        minimum: 1
+        maximum: 8000
+        description: Maximum characters of chunk text to return.
+  output_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - chunk
+    - text
+    - truncated
+    - max_chars
+    - index_path
+    properties:
+      chunk:
+        type: object
+        additionalProperties: false
+        required:
+        - id
+        - resource_id
+        - title
+        - heading
+        - path
+        - route_hint
+        - audience
+        - summary
+        - tags
+        - links
+        - canonical_url
+        - content_hash
+        properties:
+          id:
+            type: string
+          resource_id:
+            type: string
+          title:
+            type: string
+          heading:
+            type: string
+          path:
+            type: string
+          route_hint:
+            type:
+            - string
+            - 'null'
+          audience:
+            type: string
+          summary:
+            type: string
+          tags:
+            type: array
+            items:
+              type: string
+          links:
+            type: array
+            items:
+              type: string
+          canonical_url:
+            type: string
+          content_hash:
+            type: string
+      text:
+        type: string
+      truncated:
+        type: boolean
+      max_chars:
+        type: integer
+      index_path:
+        type: string
+- id: mds.system.health.read
+  title: Read GCS health
+  description: Read the GCS health endpoint for service availability.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/system/health
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - system
+  - health
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/agent-context/tool-usage-guidelines.md
+  safety_notes:
+  - Health checks are observational and do not imply flight readiness.
+- id: mds.system.runtime_status.read
+  title: Read runtime status
+  description: Read GCS runtime mode, repo, auth, and fleet-default status.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/system/runtime-status
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - deployment
+  - topology
+  tags:
+  - system
+  - runtime
+  docs:
+  - docs/guides/runtime-config-sources.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Treat repo, mode, and host details as deployment-sensitive context.
+- id: mds.system.env_registry.read
+  title: Read env registry
+  description: Read the public environment registry metadata without raw secrets.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/system/env/registry
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - configuration
+  tags:
+  - system
+  - configuration
+  docs:
+  - docs/reference/mds-environment-registry.generated.md
+  safety_notes:
+  - Secret values must remain redacted before exposure to models.
+- id: mds.fleet.telemetry.read
+  title: Read fleet telemetry
+  description: Read latest fleet telemetry from the GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/fleet/telemetry
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - location
+  - fleet_identity
+  - mission_state
+  tags:
+  - fleet
+  - telemetry
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Telemetry may include live coordinates and must not be published in public reports.
+  - Stale telemetry is not truth for command decisions.
+- id: mds.fleet.heartbeats.read
+  title: Read fleet heartbeats
+  description: Read drone heartbeat and presence state as seen by the GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/fleet/heartbeats
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - topology
+  tags:
+  - fleet
+  - presence
+  docs:
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - Heartbeats indicate presence, not safety to command.
+- id: mds.fleet.network_status.read
+  title: Read fleet network status
+  description: Read GCS-owned network status observations for the fleet.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/fleet/network-status
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - network
+  - topology
+  tags:
+  - fleet
+  - network
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Network topology can be customer-sensitive.
+- id: mds.commands.recent.read
+  title: Read recent commands
+  description: Read recent tracked commands from GCS command history.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/commands/recent
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_history
+  - fleet_identity
+  tags:
+  - commands
+  - audit
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/agent-context/tool-usage-guidelines.md
+  safety_notes:
+  - Command history is audit evidence and may contain mission-sensitive details.
+- id: mds.commands.active.read
+  title: Read active commands
+  description: Read active tracked commands from the GCS command tracker.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/commands/active
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  - fleet_identity
+  tags:
+  - commands
+  - audit
+  docs:
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - Active command state must be interpreted with live telemetry and operator context.
+- id: mds.commands.precision_move_policy.read
+  title: Read precision move policy
+  description: Read the GCS precision-move command policy.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/commands/policy/precision-move
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - commands
+  - policy
+  docs:
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - Reading command policy does not grant authority to execute commands.
+- id: mds.git.status.read
+  title: Read repository status
+  description: Read GCS repository status without applying sync operations.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/git/status
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - repository
+  - deployment
+  tags:
+  - git
+  - deployment
+  docs:
+  - docs/features/git-sync.md
+  - docs/guides/fleet-sync-and-secrets.md
+  safety_notes:
+  - Repo URLs and branch names can reveal customer deployment information.
+- id: mds.logs.sources.read
+  title: Read log sources
+  description: Read available log sources without retrieving full log content.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/sources
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - logs
+  - topology
+  tags:
+  - logs
+  - diagnostics
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - Full log content requires redaction and size limits before model exposure.
+- id: mds.sitl.policy.read
+  title: Read SITL policy
+  description: Read the GCS SITL control policy and feature flags.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/system/sitl/policy
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - sitl
+  - policy
+  docs:
+  - docs/guides/sitl-control.md
+  safety_notes:
+  - SITL policy explains simulation capability but does not authorize mutation.
+- id: mds.sitl.instances.read
+  title: Read SITL instances
+  description: Read current SITL instance state from the GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/system/sitl/instances
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - host_resources
+  - topology
+  tags:
+  - sitl
+  - runtime
+  docs:
+  - docs/guides/sitl-control.md
+  safety_notes:
+  - Instance state may include host resource and port details.
+- id: mds.sar.missions.read
+  title: Read SAR missions
+  description: Read QuickScout/SAR mission catalog and status summaries.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/sar/missions
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - sar
+  - location
+  - findings
+  - mission_state
+  tags:
+  - sar
+  - quickscout
+  - missions
+  docs:
+  - docs/quickscout.md
+  - docs/features/mission-planning-workspace.md
+  safety_notes:
+  - SAR mission data can include coordinates, findings, and handoff details.
+- id: mds.swarm_trajectories.status.read
+  title: Read swarm trajectory status
+  description: Read swarm trajectory processing and validation status.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/swarm-trajectories/status
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_assets
+  - fleet_identity
+  tags:
+  - swarm
+  - trajectory
+  docs:
+  - docs/features/smart-swarm.md
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - Mission assets and drone assignments may be deployment-sensitive.
+- id: mds.sar.mission.plan
+  title: Plan SAR mission
+  description: Generate a QuickScout/SAR plan without launching drones.
+  exposure: guarded
+  risk_class: plan
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/sar/mission/plan
+  required_role: operator
+  requires_approval: true
+  runtime_modes:
+  - sitl
+  side_effects:
+  - creates_planning_job
+  sensitivity:
+  - sar
+  - location
+  - fleet_identity
+  tags:
+  - sar
+  - quickscout
+  - planning
+  docs:
+  - docs/quickscout.md
+  - docs/features/mission-planning-workspace.md
+  safety_notes:
+  - Planning must not silently use stale telemetry or fallback coordinates.
+  - Launch, pause, resume, and abort remain separate excluded operations.
+  input_schema:
+    type: object
+    additionalProperties: true
+- id: mds.sitl.instances.create
+  title: Create SITL instance
+  description: Create a new SITL instance through the GCS simulation control API.
+  exposure: guarded
+  risk_class: simulate
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/v1/system/sitl/instances
+  required_role: admin
+  requires_approval: true
+  runtime_modes:
+  - sitl
+  side_effects:
+  - starts_container
+  - allocates_ports
+  sensitivity:
+  - host_resources
+  - topology
+  tags:
+  - sitl
+  - simulation
+  docs:
+  - docs/guides/sitl-control.md
+  safety_notes:
+  - Simulation mutation is never valid in read-only mode.
+- id: mds.commands.raw_submit
+  title: Raw GCS command submission
+  description: Raw command submission endpoint. This is deliberately excluded from
+    Simurgh exposure.
+  exposure: exclude
+  risk_class: operate
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/v1/commands
+  required_role: operator
+  requires_approval: true
+  runtime_modes: []
+  side_effects:
+  - flight_command
+  sensitivity:
+  - flight_control
+  - fleet_identity
+  tags:
+  - commands
+  - excluded
+  docs:
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Future mission tools must use curated wrappers, never this raw endpoint.
+- id: mds.drone.commands.raw_submit
+  title: Raw drone-local command submission
+  description: Drone-local command submission endpoint. Direct drone MCP exposure
+    is forbidden in this phase.
+  exposure: exclude
+  risk_class: operate
+  boundary: drone
+  read_only: false
+  route:
+    method: POST
+    path: /api/v1/drone/commands
+  required_role: operator
+  requires_approval: true
+  runtime_modes: []
+  side_effects:
+  - flight_command
+  sensitivity:
+  - flight_control
+  - fleet_identity
+  tags:
+  - commands
+  - drone-api
+  - excluded
+  docs:
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - MCP clients must not talk directly to drone-local APIs.
+- id: mds.auth.tokens.create
+  title: Create API auth token
+  description: Auth token creation is excluded from model-driven tooling.
+  exposure: exclude
+  risk_class: admin
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/v1/auth/tokens
+  required_role: admin
+  requires_approval: true
+  runtime_modes: []
+  side_effects:
+  - creates_credential
+  sensitivity:
+  - auth
+  - credentials
+  tags:
+  - auth
+  - excluded
+  docs:
+  - docs/guides/gcs-auth.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Credential creation remains a human/admin workflow.
+- id: mds.sar.mission.launch
+  title: Launch SAR mission
+  description: Launching a SAR mission can move real aircraft and is excluded in this
+    foundation slice.
+  exposure: exclude
+  risk_class: operate
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/sar/mission/launch
+  required_role: operator
+  requires_approval: true
+  runtime_modes: []
+  side_effects:
+  - flight_command
+  - mission_launch
+  sensitivity:
+  - sar
+  - flight_control
+  - location
+  tags:
+  - sar
+  - quickscout
+  - excluded
+  docs:
+  - docs/quickscout.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Real command wrappers require a later safety case and live preflight evidence.
+- id: mds.runtime.env.apply
+  title: Apply runtime environment changes
+  description: Runtime env apply/restart actions are excluded from model-driven tooling
+    in this phase.
+  exposure: exclude
+  risk_class: admin
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/v1/system/env/gcs/apply
+  required_role: admin
+  requires_approval: true
+  runtime_modes: []
+  side_effects:
+  - runtime_restart
+  - configuration_mutation
+  sensitivity:
+  - configuration
+  - deployment
+  tags:
+  - runtime
+  - excluded
+  docs:
+  - docs/guides/runtime-config-sources.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Runtime mutation belongs behind explicit human-admin workflows.
+- id: mds.fleet.git_sync.apply
+  title: Apply fleet git sync
+  description: Fleet git-sync apply can change deployed code and is excluded from
+    this foundation slice.
+  exposure: exclude
+  risk_class: admin
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/v1/fleet/git-sync/apply
+  required_role: admin
+  requires_approval: true
+  runtime_modes: []
+  side_effects:
+  - code_deploy
+  - repository_mutation
+  sensitivity:
+  - repository
+  - deployment
+  - fleet_identity
+  tags:
+  - git
+  - deployment
+  - excluded
+  docs:
+  - docs/features/git-sync.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Code deployment requires a separate release and rollback safety flow.
+- id: mds.ulog.erase_all
+  title: Erase onboard ULog files
+  description: Erasing onboard logs is destructive and excluded from model-driven
+    tooling.
+  exposure: exclude
+  risk_class: destructive
+  boundary: gcs
+  read_only: false
+  route:
+    method: POST
+    path: /api/logs/drone/{drone_id}/ulog/erase-all
+  required_role: admin
+  requires_approval: true
+  destructive: true
+  runtime_modes: []
+  side_effects:
+  - data_deletion
+  sensitivity:
+  - logs
+  - evidence
+  tags:
+  - logs
+  - destructive
+  - excluded
+  docs:
+  - docs/guides/logging-system.md
+  - docs/agent-context/safety-policy.md
+  safety_notes:
+  - Logs are operational evidence and must not be erased by an agent.
+- id: mds.config.fleet.read
+  title: Read fleet configuration
+  description: Read configured fleet entries, identities, and connection metadata
+    from the GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/config/fleet
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - topology
+  tags:
+  - fleet
+  - configuration
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/guides/fleet-ops.md
+  safety_notes:
+  - Fleet configuration is not live readiness evidence.
+- id: mds.config.positions.read
+  title: Read launch positions
+  description: Read configured fleet launch/trajectory start positions.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/config/fleet/trajectory-start-positions
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - location
+  tags:
+  - fleet
+  - geometry
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/swarm-trajectory.md
+  safety_notes:
+  - Configured positions can differ from live aircraft positions.
+- id: mds.config.swarm.read
+  title: Read swarm configuration
+  description: Read follow relationships, offsets, and swarm assignments from the
+    GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/config/swarm
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - mission_state
+  tags:
+  - swarm
+  - configuration
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/swarm-trajectory.md
+  safety_notes:
+  - Swarm configuration is planned data, not live spacing.
+- id: mds.shows.skybrush.read
+  title: Read SkyBrush show summary
+  description: Read processed SkyBrush show summary from the GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/skybrush
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  tags:
+  - show
+  - skybrush
+  docs:
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - Loaded show files must be verified by the operator before flight.
+- id: mds.shows.skybrush.metrics_snapshot.read
+  title: Read SkyBrush metrics snapshot
+  description: Read the current cached comprehensive metrics snapshot for the processed
+    SkyBrush show package without recalculating or writing metrics.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/skybrush/metrics/snapshot
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  - safety_analysis
+  tags:
+  - show
+  - skybrush
+  - metrics
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/drone-show.md
+  safety_notes:
+  - This route reads only the current cached metrics snapshot and does not refresh,
+    import, deploy, download, plot, launch, or command a show.
+  - If no current cache exists, the tool reports unavailable instead of recalculating
+    through MCP.
+- id: mds.shows.skybrush.safety_report.read
+  title: Read SkyBrush show safety report
+  description: Read the GCS safety-analysis report for the currently processed SkyBrush
+    show package.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/skybrush/safety-report
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  - safety_analysis
+  tags:
+  - show
+  - skybrush
+  - safety
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/drone-show.md
+  safety_notes:
+  - Safety-report output is advisory evidence for operator review, not autonomous
+    launch authorization.
+  - This tool does not import, deploy, download, or command a show.
+- id: mds.shows.skybrush.validation.read
+  title: Read SkyBrush show validation snapshot
+  description: Read the current validation snapshot for the processed SkyBrush show
+    package.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/skybrush/validation
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  - safety_analysis
+  tags:
+  - show
+  - skybrush
+  - validation
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/drone-show.md
+  safety_notes:
+  - Validation describes currently processed show files only; operators must still
+    verify live readiness and selected runtime before flight.
+  - This tool does not import, deploy, download, or command a show.
+- id: mds.shows.custom.read
+  title: Read custom show summary
+  description: Read active custom CSV show summary from the GCS.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/shows/custom
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - mission_state
+  tags:
+  - show
+  - custom
+  docs:
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - Custom show files must be verified by the operator before flight.
+- id: mds.logs.session.read
+  title: Read one GCS log session
+  description: Read bounded content from one GCS log session with optional filters.
+    Use only when the operator asks for current/recent log details, not for general
+    logging documentation.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/sessions/{session_id}
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - logs
+  - deployment
+  tags:
+  - logs
+  - diagnostics
+  - typed_args
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - Session log content may include sensitive operational details and must remain
+    bounded and redacted before sharing externally.
+  - Do not use this for raw flight logs, ULog archives, drone-local erase/download
+    actions, or private customer evidence.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - session_id
+    - limit
+    properties:
+      session_id:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9_.-]+$
+        description: GCS log session id from mds.logs.sessions.read.
+      level:
+        type: string
+        enum:
+        - DEBUG
+        - INFO
+        - WARNING
+        - ERROR
+        - CRITICAL
+        description: Optional minimum/exact log level filter supported by the log
+          API.
+      component:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: ^[A-Za-z0-9_.:-]+$
+        description: Optional component/logger filter.
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 200
+        description: Maximum number of lines to return.
+      offset:
+        type: integer
+        minimum: 0
+        maximum: 100000
+        description: Offset into the filtered session lines.
+      since:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: ^[A-Za-z0-9:_.+TZ -]+$
+        description: Optional timestamp filter passed to the log API.
+- id: mds.logs.sessions.read
+  title: Read log sessions
+  description: Read available GCS log sessions without pulling full log content.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/sessions
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - logs
+  - deployment
+  tags:
+  - logs
+  - diagnostics
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - Full log content remains bounded and redacted before model exposure.

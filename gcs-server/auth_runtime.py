@@ -12,6 +12,7 @@ from starlette.requests import Request
 from src.security.auth import AUTH_DOCS_URL, SESSION_COOKIE_NAME, build_auth_service
 
 from agent_runtime.mcp_metadata import MCP_ENDPOINT_PATH, mcp_bearer_challenge
+from simurgh_internal_auth import INTERNAL_TOOL_CALL_HEADER, INTERNAL_TOOL_CALL_VALUE, INTERNAL_TOOL_CLIENT_HOST
 
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -97,10 +98,22 @@ def _is_machine_endpoint(method: str, path: str) -> bool:
     )
 
 
+def _is_internal_tool_call(request: Request) -> bool:
+    return bool(
+        request.client
+        and request.client.host == INTERNAL_TOOL_CLIENT_HOST
+        and request.headers.get(INTERNAL_TOOL_CALL_HEADER) == INTERNAL_TOOL_CALL_VALUE
+    )
+
+
 def _role_allows_request(role: str, method: str, path: str) -> tuple[bool, str | None]:
     normalized_role = (role or "viewer").lower()
     if normalized_role == "admin":
         return True, None
+    if normalized_role == "agent":
+        if path == MCP_ENDPOINT_PATH or path.startswith("/api/v1/simurgh/"):
+            return True, None
+        return False, "Agent bearer tokens are restricted to Simurgh/MCP endpoints."
     if _is_admin_path(path):
         return False, "Admin role required for security/runtime administration."
     if path in SELF_SERVICE_MUTATION_PATHS:
@@ -121,6 +134,14 @@ class MDSAuthMiddleware(BaseHTTPMiddleware):
 
         request.state.mds_auth_context = {"kind": "disabled", "role": "admin", "username": "auth-disabled"}
         request.state.mds_auth_settings = settings
+
+        if _is_internal_tool_call(request):
+            request.state.mds_auth_context = {
+                "kind": "internal",
+                "role": "admin",
+                "username": "simurgh-tool-executor",
+            }
+            return await call_next(request)
 
         if not settings.any_auth_enabled:
             return await call_next(request)

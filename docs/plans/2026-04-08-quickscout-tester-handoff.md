@@ -89,8 +89,8 @@ These are explicit post-v1 items, not hidden defects:
 
 Current tester endpoints:
 
-- Dashboard: `http://204.168.181.45:3030`
-- Health: `http://204.168.181.45:5000/api/v1/system/health`
+- Dashboard: `http://203.0.113.10:3030`
+- Health: `http://203.0.113.10:5000/api/v1/system/health`
 
 Expected live baseline before testing:
 

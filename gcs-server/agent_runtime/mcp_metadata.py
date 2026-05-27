@@ -115,7 +115,7 @@ def mcp_required_scopes() -> tuple[str, ...]:
     """Return accepted bearer-token scopes for the MCP endpoint.
 
     The values are ORed: a token with any one required scope may use the
-    metadata-only endpoint. The challenge advertises the least-privilege
+    read-only MCP endpoint. The challenge advertises the least-privilege
     `agent` scope by default even though `admin` tokens are also accepted.
     Weaker scopes such as `drone`, `operator`, or `viewer` are ignored so an
     unsafe environment override cannot widen MCP access.
@@ -234,7 +234,7 @@ def mcp_protected_resource_metadata(base_url: str) -> dict[str, Any]:
         "scopes_supported": sorted(set(mcp_required_scopes())),
         "mds_auth_required": is_mcp_auth_required(),
         "mds_boundary": "gcs-only",
-        "mds_execution": "none",
+        "mds_execution": "read_only_tools",
     }
     authorization_servers = _mcp_authorization_servers(base_url)
     if authorization_servers:
@@ -260,17 +260,17 @@ def mcp_server_info() -> dict[str, Any]:
         "name": "mds-simurgh-operator",
         "title": "MDS Simurgh Operator",
         "version": "0.1.0",
-        "description": "Metadata-only MCP surface for GCS-owned Simurgh context and policy.",
+        "description": "GCS-owned Simurgh MCP surface for read-only context and policy-allowed tools.",
     }
 
 
 def mcp_server_instructions() -> str:
-    """Return short model-facing instructions for this metadata-only MCP server."""
+    """Return short model-facing instructions for the Simurgh MCP server."""
 
     return (
-        "This Simurgh MCP endpoint exposes read-only GCS metadata and public "
-        "context resources. It exposes no MCP tools and cannot command drones, "
-        "submit raw GCS commands, mutate sessions, or perform real-world actions."
+        "This Simurgh MCP endpoint exposes read-only GCS metadata, public context resources, "
+        "operator prompt templates, and policy-allowed read-only GCS tools. It cannot command "
+        "drones, submit raw GCS commands, mutate sessions, or perform real-world actions in this release."
     )
 
 
@@ -297,7 +297,7 @@ class SimurghMcpResourceProvider:
             self._resource(
                 "tool-registry",
                 title="Simurgh Tool Registry Metadata",
-                description="Curated tool metadata only. This MCP server does not expose callable tools.",
+                description="Curated tool metadata used to expose policy-allowed MCP tools.",
             ),
             self._resource(
                 "context-index",
@@ -402,7 +402,8 @@ class SimurghMcpResourceProvider:
             "mode": policy.mode,
             "action_circuit_breaker_enabled": policy.action_circuit_breaker_enabled,
             "always_confirm_before_action": policy.always_confirm_before_action,
-            "real_commands_enabled": policy.real_commands_enabled,
+            "actions_blocked": policy.action_circuit_breaker_enabled,
+            "action_policy_source": "circuit_breaker_and_mds_mode",
             "tool_registry_version": registry.version,
             "tool_count": len(tools),
             "allowed_tool_count": len([tool for tool in tools if tool.exposure.value == "allow"]),
@@ -433,7 +434,8 @@ class SimurghMcpResourceProvider:
             "mode": policy.mode,
             "action_circuit_breaker_enabled": policy.action_circuit_breaker_enabled,
             "always_confirm_before_action": policy.always_confirm_before_action,
-            "real_commands_enabled": policy.real_commands_enabled,
+            "actions_blocked": policy.action_circuit_breaker_enabled,
+            "action_policy_source": "circuit_breaker_and_mds_mode",
             "allow_drone_api_exposure": policy.allow_drone_api_exposure,
             "unknown_tool_policy": policy.unknown_tool_policy,
             "approval_ttl_seconds": policy.approval_ttl_seconds,
@@ -466,8 +468,9 @@ class SimurghMcpResourceProvider:
             "tools": [self._tool_payload(tool) for tool in visible_tools],
             "execution": "none",
             "note": (
-                "This MCP endpoint exposes registry metadata as resources, not callable MCP tools. "
-                "Excluded, drone-boundary, destructive, and non-read-only entries are filtered."
+                "This MCP endpoint exposes registry metadata as resources and selected policy-allowed "
+                "entries as callable tools. Excluded, drone-boundary, destructive, and non-read-only "
+                "entries are filtered."
             ),
         }
 

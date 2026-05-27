@@ -1,97 +1,166 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FaBan,
-  FaBookOpen,
   FaCheckCircle,
-  FaClock,
-  FaFileAlt,
-  FaHistory,
-  FaLock,
-  FaNetworkWired,
+  FaCog,
+  FaCopy,
+  FaComments,
+  FaExclamationTriangle,
+  FaEllipsisH,
   FaPaperPlane,
+  FaPlus,
   FaRobot,
-  FaServer,
+  FaSave,
   FaShieldAlt,
-  FaSyncAlt,
-  FaTools,
+  FaStop,
+  FaTimes,
+  FaTrash,
   FaUserShield,
 } from 'react-icons/fa';
 
 import {
   ActionIconButton,
-  EmptyState,
-  MetricStrip,
   OperatorNotice,
-  PageActionBar,
   PageShell,
   StatusBadge,
 } from '../components/ui';
 import {
   createSimurghAssistantTurnResponse,
-  getSimurghAssistantTurnsResponse,
-  getSimurghAuditResponse,
-  getSimurghContextResponse,
-  getSimurghPolicyResponse,
-  getSimurghSessionsResponse,
+  getSimurghRuntimeSettingsResponse,
   getSimurghStatusResponse,
-  getSimurghToolsResponse,
+  getSimurghToolCandidatesResponse,
+  updateSimurghProviderCredentialsResponse,
+  updateSimurghRuntimeSettingsResponse,
 } from '../services/gcsApiService';
 import '../styles/SimurghOperatorPage.css';
 
-const VIEW_TABS = [
-  { id: 'overview', label: 'Overview', icon: FaShieldAlt },
-  { id: 'assistant', label: 'Assistant', icon: FaRobot },
-  { id: 'tools', label: 'Tools', icon: FaTools },
-  { id: 'context', label: 'Context', icon: FaBookOpen },
-  { id: 'audit', label: 'Audit', icon: FaHistory },
+const STORAGE_KEY = 'mds.simurgh.chat.v2';
+const DASHBOARD_ACTOR = 'dashboard';
+const MAX_CONVERSATIONS = 30;
+const DEFAULT_MODEL = 'gpt-5.4-mini';
+const STARTERS = [
+  'How many drones do we have configured?',
+  'Is there any drone connected?',
+  'What formation swarm is defined right now?',
 ];
-
-const INITIAL_DATA = Object.freeze({
-  status: null,
-  policy: null,
-  tools: [],
-  contextResources: [],
-  sessions: [],
-  auditEvents: [],
+const INLINE_MARKDOWN_PATTERN = /(\[([^\]\n]+)\]\(([^)\s]+)\)|`([^`\n]+)`|\*\*([^*\n]+)\*\*)/g;
+const AUTO_LINK_PATTERN = /(https:\/\/[^\s)\]]+|docs\/[A-Za-z0-9_./-]+\.md|\/[A-Za-z0-9][A-Za-z0-9/_{}.-]*)/g;
+const LINKABLE_DASHBOARD_ROUTES = Object.freeze([
+  '/environments',
+  '/fleet-enrollment',
+  '/fleet-ops',
+  '/logs',
+  '/manage-drone-show',
+  '/mission-config',
+  '/quickscout',
+  '/simurgh',
+  '/sitl-control',
+  '/swarm-design',
+  '/swarm-trajectory',
+]);
+const LINKABLE_DASHBOARD_ROUTE_PREFIXES = Object.freeze([
+  '/fleet-ops/',
+]);
+const LINKABLE_DOC_ROUTE_PATTERN = /^\/api\/v1\/simurgh\/context\/[A-Za-z0-9_.-]+\/markdown$/;
+const TRAILING_LINK_PUNCTUATION_PATTERN = /[.,;:]+$/;
+const DOC_PATH_LINKS = Object.freeze({
+  'docs/apis/gcs-api-server.md': '/api/v1/simurgh/context/mds.gcs_api/markdown',
+  'docs/agent-context/safety-policy.md': '/api/v1/simurgh/context/simurgh.safety_policy/markdown',
+  'docs/agent-context/tool-usage-guidelines.md': '/api/v1/simurgh/context/simurgh.tool_usage/markdown',
+  'docs/features/drone-show.md': '/api/v1/simurgh/context/mds.drone_show/markdown',
+  'docs/features/swarm-trajectory.md': '/api/v1/simurgh/context/mds.swarm_trajectory/markdown',
+  'docs/guides/logging-system.md': '/api/v1/simurgh/context/mds.logging_system/markdown',
+  'docs/guides/simurgh-operator.md': '/api/v1/simurgh/context/simurgh.operator_guide/markdown',
+  'docs/guides/simurgh-mcp-clients.md': '/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown',
+  'docs/reference/mds-environment-registry.generated.md': '/api/v1/simurgh/context/mds.environment_registry/markdown',
 });
 
-const DASHBOARD_ASSISTANT_ACTOR = 'dashboard';
+const DEFAULT_SETTINGS = Object.freeze({
+  agent_enabled: true,
+  mcp_enabled: false,
+  action_circuit_breaker_enabled: true,
+  always_confirm_before_action: true,
+  provider: 'mock',
+  openai_model: DEFAULT_MODEL,
+});
 
-const EXPOSURE_TONES = {
-  allow: 'success',
-  guarded: 'warning',
-  exclude: 'danger',
-};
-
-const RISK_TONES = {
-  observe: 'success',
-  sensitive_observe: 'warning',
-  plan: 'info',
-  simulate: 'warning',
-  operate: 'danger',
-  admin: 'danger',
-  destructive: 'danger',
-};
-
-function boolLabel(value, on = 'Enabled', off = 'Disabled') {
-  return value ? on : off;
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function formatToken(value) {
-  return String(value || 'unknown').replace(/_/g, ' ');
+function newConversation() {
+  return {
+    id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    backendSessionId: '',
+    title: 'New chat',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    messages: [],
+  };
 }
 
-function formatCount(value) {
-  return Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '0';
+function normalizeError(error, fallback = 'Simurgh request failed.') {
+  return error?.response?.data?.detail
+    || error?.response?.data?.message
+    || error?.message
+    || fallback;
 }
 
-function formatDateTime(value) {
+function readStoredConversations() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
+    const conversations = Array.isArray(parsed.conversations) ? parsed.conversations : [];
+    return conversations
+      .filter((conversation) => conversation && conversation.id)
+      .map((conversation) => ({
+        id: String(conversation.id),
+        backendSessionId: String(conversation.backendSessionId || ''),
+        title: String(conversation.title || 'New chat').slice(0, 80),
+        createdAt: conversation.createdAt || nowIso(),
+        updatedAt: conversation.updatedAt || conversation.createdAt || nowIso(),
+        messages: Array.isArray(conversation.messages)
+          ? conversation.messages.filter((message) => message && message.role && message.content)
+          : [],
+      }))
+      .slice(0, MAX_CONVERSATIONS);
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeStoredConversations(conversations) {
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ schema: 2, conversations: conversations.slice(0, MAX_CONVERSATIONS) })
+    );
+  } catch (error) {
+    // Local chat history is a convenience cache only.
+  }
+}
+
+function clearStoredConversations() {
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch (error) {
+    // Local chat history is a convenience cache only.
+  }
+}
+
+function titleFromMessage(message) {
+  const normalized = message.trim().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return 'New chat';
+  }
+  return normalized.length > 54 ? `${normalized.slice(0, 51)}...` : normalized;
+}
+
+function formatConversationTime(value) {
   if (!value) {
-    return 'n/a';
+    return '';
   }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return '';
   }
   return new Intl.DateTimeFormat(undefined, {
     month: 'short',
@@ -101,1033 +170,1087 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-function shortHash(value) {
+function normalizeProvider(value) {
+  const provider = String(value || '').trim().toLowerCase();
+  return provider === 'openai' ? 'openai' : 'mock';
+}
+
+function normalizeSettings(payload = {}) {
+  const provider = normalizeProvider(payload.provider || payload.assistant_provider || DEFAULT_SETTINGS.provider);
+  const openaiModel = String(payload.openai_model || payload.model || payload.assistant_model || DEFAULT_MODEL).trim();
+  return {
+    agent_enabled: Boolean(payload.agent_enabled ?? DEFAULT_SETTINGS.agent_enabled),
+    mcp_enabled: Boolean(payload.mcp_enabled ?? DEFAULT_SETTINGS.mcp_enabled),
+    action_circuit_breaker_enabled: Boolean(
+      payload.action_circuit_breaker_enabled ?? DEFAULT_SETTINGS.action_circuit_breaker_enabled
+    ),
+    always_confirm_before_action: Boolean(
+      payload.always_confirm_before_action ?? DEFAULT_SETTINGS.always_confirm_before_action
+    ),
+    provider,
+    openai_model: openaiModel && openaiModel !== 'mock-local' ? openaiModel : DEFAULT_MODEL,
+  };
+}
+
+function conversationPreview(conversation) {
+  const lastMessage = [...(conversation.messages || [])].reverse().find((message) => message.content);
+  return lastMessage?.content || 'No messages yet';
+}
+
+function SafetyChips({ status }) {
+  const agentEnabled = Boolean(status?.agent_enabled);
+  const circuitBreaker = Boolean(status?.action_circuit_breaker_enabled);
+  const mcpEnabled = Boolean(status?.mcp_enabled);
+  const gcsMode = status?.gcs_mode ? String(status.gcs_mode).toUpperCase() : 'UNKNOWN';
+  const providerReady = status?.provider_ready !== false;
+
+  return (
+    <div className="simurgh-chat__chips" aria-label="Simurgh posture">
+      <StatusBadge tone={agentEnabled ? 'success' : 'muted'} icon={<FaRobot />}>
+        {agentEnabled ? 'Agent on' : 'Agent off'}
+      </StatusBadge>
+      <StatusBadge tone={gcsMode === 'REAL' ? 'warning' : 'info'} icon={<FaShieldAlt />}>
+        {gcsMode}
+      </StatusBadge>
+      <StatusBadge tone={circuitBreaker ? 'success' : 'danger'} icon={circuitBreaker ? <FaCheckCircle /> : <FaExclamationTriangle />}>
+        {circuitBreaker ? 'Circuit breaker on' : 'Circuit breaker off'}
+      </StatusBadge>
+      <StatusBadge tone={mcpEnabled ? 'warning' : 'muted'}>
+        {mcpEnabled ? 'MCP on' : 'MCP off'}
+      </StatusBadge>
+      <StatusBadge tone={providerReady ? 'success' : 'warning'}>
+        {providerReady ? 'Provider ready' : 'Provider key missing'}
+      </StatusBadge>
+    </div>
+  );
+}
+
+function CandidateReviewSummary({ review }) {
+  if (!review) {
+    return null;
+  }
+  const summary = review.summary || {};
+  const total = Number(summary.total || review.candidate_count || 0);
+  const eligible = Number(summary.eligible_read_only_mcp_candidates || 0);
+  const promoted = Number(summary.promoted_registry_route_matches || 0);
+  const guarded = Number(summary.candidate_exclude_or_guard_after_review || 0);
+  return (
+    <section className="simurgh-chat__candidate-review" aria-label="MCP candidate review">
+      <header>
+        <span>MCP review</span>
+        <a href="/api/v1/simurgh/tool-candidates?limit=200" target="_blank" rel="noopener noreferrer">
+          Open
+        </a>
+      </header>
+      <dl>
+        <div>
+          <dt>Discovered</dt>
+          <dd>{Number.isFinite(total) ? total : 0}</dd>
+        </div>
+        <div>
+          <dt>Eligible</dt>
+          <dd>{Number.isFinite(eligible) ? eligible : 0}</dd>
+        </div>
+        <div>
+          <dt>Active</dt>
+          <dd>{Number.isFinite(promoted) ? promoted : 0}</dd>
+        </div>
+        <div>
+          <dt>Guarded</dt>
+          <dd>{Number.isFinite(guarded) ? guarded : 0}</dd>
+        </div>
+      </dl>
+      <small>{review.artifact_path || 'Generated candidates are review-only until registry and policy approval.'}</small>
+    </section>
+  );
+}
+
+function SettingsPanel({
+  open,
+  settings,
+  status,
+  candidateReview,
+  busy,
+  notice,
+  credentialDraft,
+  onCredentialDraftChange,
+  onChange,
+  onSave,
+  onClose,
+}) {
+  if (!open) {
+    return null;
+  }
+  const availableModels = status?.available_models?.length ? status.available_models : ['gpt-5.5', DEFAULT_MODEL, 'gpt-5.4-nano'];
+  const openAiCredential = status?.credentials?.openai || {};
+  const keyReady = Boolean(openAiCredential.ready || status?.openai_key_file_ready);
+  const keyFingerprint = openAiCredential.fingerprint || status?.openai_key_fingerprint || '';
+
+  return (
+    <aside className="simurgh-chat__settings" aria-label="Simurgh settings">
+      <header>
+        <h2>Settings</h2>
+        <button type="button" onClick={onClose} aria-label="Close Simurgh settings">
+          <FaTimes aria-hidden="true" />
+        </button>
+      </header>
+      {notice ? <OperatorNotice tone={notice.tone} title={notice.title}>{notice.detail}</OperatorNotice> : null}
+      <div className="simurgh-chat__settings-grid">
+        <label className="simurgh-chat__toggle">
+          <input
+            type="checkbox"
+            checked={settings.agent_enabled}
+            disabled={busy}
+            onChange={(event) => onChange({ agent_enabled: event.target.checked })}
+          />
+          <span>Simurgh agent</span>
+        </label>
+        <label className="simurgh-chat__toggle">
+          <input
+            type="checkbox"
+            checked={settings.mcp_enabled}
+            disabled={busy}
+            onChange={(event) => onChange({ mcp_enabled: event.target.checked })}
+          />
+          <span>MCP exposure</span>
+        </label>
+        <label className="simurgh-chat__toggle">
+          <input
+            type="checkbox"
+            checked={settings.action_circuit_breaker_enabled}
+            disabled={busy}
+            onChange={(event) => onChange({ action_circuit_breaker_enabled: event.target.checked })}
+          />
+          <span>Circuit breaker</span>
+        </label>
+        <label className="simurgh-chat__toggle">
+          <input
+            type="checkbox"
+            checked={settings.always_confirm_before_action}
+            disabled={busy}
+            onChange={(event) => onChange({ always_confirm_before_action: event.target.checked })}
+          />
+          <span>Always confirm</span>
+        </label>
+      </div>
+      <label className="simurgh-chat__field">
+        <span>Provider</span>
+        <select
+          aria-label="Simurgh provider"
+          value={settings.provider}
+          disabled={busy}
+          onChange={(event) => onChange({ provider: normalizeProvider(event.target.value) })}
+        >
+          <option value="mock">Mock</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </label>
+      <label className="simurgh-chat__field">
+        <span>Model</span>
+        {settings.provider === 'openai' ? (
+          <select
+            aria-label="OpenAI model"
+            value={settings.openai_model}
+            disabled={busy}
+            onChange={(event) => onChange({ openai_model: event.target.value })}
+          >
+            {!availableModels.includes(settings.openai_model) ? (
+              <option value={settings.openai_model}>{settings.openai_model}</option>
+            ) : null}
+            {availableModels.map((model) => (
+              <option key={model} value={model}>{model}</option>
+            ))}
+          </select>
+        ) : (
+          <input aria-label="OpenAI model" value="mock-local" disabled readOnly />
+        )}
+      </label>
+      <label className="simurgh-chat__field">
+        <span>OpenAI API key</span>
+        <input
+          aria-label="OpenAI API key"
+          type="password"
+          value={credentialDraft}
+          autoComplete="off"
+          disabled={busy}
+          placeholder={keyReady ? `Configured (${keyFingerprint || 'ready'})` : 'Paste key to store on GCS'}
+          onChange={(event) => onCredentialDraftChange(event.target.value)}
+        />
+        <small className={keyReady ? 'is-ready' : 'is-warning'}>
+          {keyReady ? 'Stored server-side; raw key is never returned.' : 'Key missing for OpenAI provider.'}
+        </small>
+      </label>
+      <CandidateReviewSummary review={candidateReview} />
+      <footer>
+        <ActionIconButton
+          icon={<FaSave />}
+          label="Save Simurgh settings"
+          onClick={onSave}
+          disabled={busy}
+        >
+          {busy ? 'Saving' : 'Save'}
+        </ActionIconButton>
+      </footer>
+    </aside>
+  );
+}
+
+function ConversationList({ conversations, activeConversationId, onSelect, onNewChat, onClearChats, onDeleteChat }) {
+  const [openActionsId, setOpenActionsId] = useState('');
+
+  const closeActions = useCallback(() => setOpenActionsId(''), []);
+
+  return (
+    <aside className="simurgh-chat__history" aria-label="Simurgh chat history">
+      <div className="simurgh-chat__history-header">
+        <h2>Chats</h2>
+        <div>
+          <ActionIconButton icon={<FaPlus />} label="Start new Simurgh chat" size="sm" onClick={() => { closeActions(); onNewChat(); }}>
+            New
+          </ActionIconButton>
+          <ActionIconButton icon={<FaTrash />} label="Clear all local Simurgh chats" size="sm" tone="danger" onClick={() => { closeActions(); onClearChats(); }}>
+            Clear all
+          </ActionIconButton>
+        </div>
+      </div>
+      <div className="simurgh-chat__history-list">
+        {conversations.map((conversation) => {
+          const active = conversation.id === activeConversationId;
+          return (
+            <div
+              key={conversation.id}
+              className={`simurgh-chat__history-item${active ? ' is-active' : ''}`}
+            >
+              <button
+                type="button"
+                className="simurgh-chat__history-select"
+                onClick={() => { closeActions(); onSelect(conversation.id); }}
+                aria-pressed={active}
+              >
+                <strong>{conversation.title}</strong>
+                <span>{conversationPreview(conversation)}</span>
+                <small>{formatConversationTime(conversation.updatedAt)}</small>
+              </button>
+              <button
+                type="button"
+                className="simurgh-chat__history-action"
+                aria-label={`Chat actions: ${conversation.title}`}
+                title="Chat actions"
+                aria-expanded={openActionsId === conversation.id}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpenActionsId((current) => (current === conversation.id ? '' : conversation.id));
+                }}
+              >
+                <FaEllipsisH aria-hidden="true" />
+              </button>
+              {openActionsId === conversation.id ? (
+                <div className="simurgh-chat__history-menu" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      closeActions();
+                      onDeleteChat(conversation.id);
+                    }}
+                  >
+                    <FaTrash aria-hidden="true" />
+                    Delete chat
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+function isSafeMarkdownHref(href = '') {
+  if (!href) {
+    return false;
+  }
+  if (href.startsWith('/')) {
+    return isLinkableInternalHref(href);
+  }
+  try {
+    const url = new URL(href);
+    return ['https:'].includes(url.protocol)
+      && ['developers.openai.com', 'platform.openai.com', 'modelcontextprotocol.io'].includes(url.hostname);
+  } catch (error) {
+    return false;
+  }
+}
+
+function isLinkableInternalHref(href = '') {
+  if (!href.startsWith('/') || href.startsWith('//')) {
+    return false;
+  }
+  if (LINKABLE_DOC_ROUTE_PATTERN.test(href)) {
+    return true;
+  }
+  return LINKABLE_DASHBOARD_ROUTES.includes(href)
+    || LINKABLE_DASHBOARD_ROUTE_PREFIXES.some((prefix) => href.startsWith(prefix));
+}
+
+function SafeMarkdownLink({ href, children }) {
+  if (!isSafeMarkdownHref(href)) {
+    return <span>{children}</span>;
+  }
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
+
+function splitTrailingLinkPunctuation(value) {
+  const trailing = value.match(TRAILING_LINK_PUNCTUATION_PATTERN)?.[0] || '';
+  if (!trailing) {
+    return { core: value, trailing: '' };
+  }
+  return { core: value.slice(0, -trailing.length), trailing };
+}
+
+function hrefForAutoLinkToken(token) {
+  const { core, trailing } = splitTrailingLinkPunctuation(String(token || ''));
+  return {
+    href: DOC_PATH_LINKS[core] || core,
+    label: core,
+    trailing,
+  };
+}
+
+function renderPlainTextSegment(text, keyPrefix) {
+  const value = String(text || '');
   if (!value) {
-    return 'n/a';
-  }
-  return String(value).slice(0, 12);
-}
-
-function normalizedAssistantProvider(provider) {
-  return String(provider || 'mock').trim().toLowerCase() || 'mock';
-}
-
-function routeLabel(tool) {
-  const method = tool?.route?.method || 'n/a';
-  const path = tool?.route?.path || 'unbound';
-  return `${method} ${path}`;
-}
-
-function errorMessage(error) {
-  return error?.response?.data?.detail || error?.message || 'Unable to load Simurgh metadata.';
-}
-
-function sessionIdForTurn(turn) {
-  return turn?.session?.id || turn?.session_id || '';
-}
-
-function isActiveDashboardAssistantSession(session) {
-  return Boolean(
-    session
-    && !session.closed
-    && session.metadata?.channel === 'assistant'
-    && session.metadata?.source === 'simurgh-dashboard'
-  );
-}
-
-function activeDefaultDashboardAssistantSessionId(sessions = []) {
-  const activeSessions = sessions.filter((session) => (
-    session.actor === DASHBOARD_ASSISTANT_ACTOR && isActiveDashboardAssistantSession(session)
-  ));
-  return activeSessions.length ? activeSessions[activeSessions.length - 1].id : '';
-}
-
-function hasActiveDashboardAssistantSession(sessions = [], sessionId = '') {
-  return Boolean(sessionId && sessions.some((session) => session.id === sessionId && isActiveDashboardAssistantSession(session)));
-}
-
-function PreservedText({ children }) {
-  return <p className="simurgh-page__assistant-text">{children}</p>;
-}
-
-function BadgeList({ values = [], tone = 'muted', empty = 'none' }) {
-  if (!values.length) {
-    return <span className="simurgh-page__muted">{empty}</span>;
-  }
-  return (
-    <span className="simurgh-page__badge-list">
-      {values.map((value) => (
-        <StatusBadge key={value} tone={tone}>{formatToken(value)}</StatusBadge>
-      ))}
-    </span>
-  );
-}
-
-function DetailGrid({ items = [] }) {
-  return (
-    <dl className="simurgh-page__detail-grid">
-      {items.map((item) => (
-        <div key={item.label}>
-          <dt>{item.label}</dt>
-          <dd>{item.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function PolicyOverview({ policy, status }) {
-  if (!policy) {
-    return (
-      <EmptyState
-        icon={<FaShieldAlt />}
-        title="Policy unavailable"
-        detail="The policy endpoint did not return metadata."
-      />
-    );
+    return [];
   }
 
-  const items = [
-    {
-      label: 'Agent',
-      value: (
-        <StatusBadge tone={policy.agent_enabled ? 'success' : 'muted'}>
-          {boolLabel(policy.agent_enabled)}
-        </StatusBadge>
-      ),
-    },
-    {
-      label: 'MCP',
-      value: (
-        <StatusBadge tone={policy.mcp_enabled ? 'success' : 'muted'}>
-          {boolLabel(policy.mcp_enabled)}
-        </StatusBadge>
-      ),
-    },
-    {
-      label: 'Drone API',
-      value: (
-        <StatusBadge tone={policy.allow_drone_api_exposure ? 'danger' : 'success'}>
-          {policy.allow_drone_api_exposure ? 'Exposed' : 'GCS only'}
-        </StatusBadge>
-      ),
-    },
-    {
-      label: 'Circuit breaker',
-      value: (
-        <StatusBadge tone={policy.action_circuit_breaker_enabled ? 'success' : 'danger'}>
-          {policy.action_circuit_breaker_enabled ? 'No actions' : 'Actions possible'}
-        </StatusBadge>
-      ),
-    },
-    {
-      label: 'Always confirm',
-      value: (
-        <StatusBadge tone={policy.always_confirm_before_action ? 'success' : 'warning'}>
-          {policy.always_confirm_before_action ? 'Enabled' : 'Policy driven'}
-        </StatusBadge>
-      ),
-    },
-    {
-      label: 'Real-command guard',
-      value: (
-        <StatusBadge tone={policy.real_commands_enabled ? 'danger' : 'success'}>
-          {policy.real_commands_enabled ? 'Enabled' : 'Blocked'}
-        </StatusBadge>
-      ),
-    },
-    {
-      label: 'Unknown tools',
-      value: <StatusBadge tone={policy.unknown_tool_policy === 'deny' ? 'success' : 'warning'}>{policy.unknown_tool_policy}</StatusBadge>,
-    },
-    {
-      label: 'Approval TTL',
-      value: `${policy.approval_ttl_seconds}s`,
-    },
-    {
-      label: 'Approval risks',
-      value: <BadgeList values={policy.approval_required_risks || []} tone="warning" />,
-    },
-    {
-      label: 'Registry version',
-      value: status?.tool_registry_version ? `v${status.tool_registry_version}` : `v${policy.version}`,
-    },
-  ];
+  const nodes = [];
+  let lastIndex = 0;
+  AUTO_LINK_PATTERN.lastIndex = 0;
+  value.replace(AUTO_LINK_PATTERN, (match, token, offset) => {
+    if (offset > lastIndex) {
+      nodes.push(value.slice(lastIndex, offset));
+    }
+    const { href, label, trailing } = hrefForAutoLinkToken(token || match);
+    const key = `${keyPrefix}-autolink-${offset}`;
+    if (label && isSafeMarkdownHref(href)) {
+      nodes.push(<SafeMarkdownLink key={key} href={href}>{label}</SafeMarkdownLink>);
+    } else {
+      nodes.push(label || match);
+    }
+    if (trailing) {
+      nodes.push(trailing);
+    }
+    lastIndex = offset + match.length;
+    return match;
+  });
 
-  return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-policy-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-policy-heading">Policy Posture</h2>
-      </div>
-      <div className="simurgh-page__fact-grid">
-        {items.map((item) => (
-          <article className="simurgh-page__fact" key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function RuntimeModes({ policy }) {
-  const modes = Object.entries(policy?.runtime_modes || {});
-  if (!modes.length) {
-    return null;
+  if (lastIndex < value.length) {
+    nodes.push(value.slice(lastIndex));
   }
-
-  return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-modes-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-modes-heading">Runtime Modes</h2>
-      </div>
-      <div className="simurgh-page__mode-grid">
-        {modes.map(([mode, modePolicy]) => (
-          <article className="simurgh-page__mode-card" key={mode}>
-            <header>
-              <h3>{formatToken(mode)}</h3>
-              {mode === policy.mode ? <StatusBadge tone="info">Active</StatusBadge> : null}
-            </header>
-            <DetailGrid
-              items={[
-                { label: 'Allowed', value: <BadgeList values={modePolicy.allowed_risks || []} tone="success" /> },
-                { label: 'Approval', value: <BadgeList values={modePolicy.approval_required_risks || []} tone="warning" /> },
-                { label: 'Denied', value: <BadgeList values={modePolicy.denied_risks || []} tone="danger" /> },
-              ]}
-            />
-          </article>
-        ))}
-      </div>
-    </section>
-  );
+  return nodes.length ? nodes : [value];
 }
 
-function ArtifactPaths({ status }) {
-  if (!status) {
-    return null;
-  }
-  const paths = [
-    { label: 'Policy', value: status.policy_path },
-    { label: 'Tools', value: status.tool_registry_path },
-    { label: 'Context', value: status.context_index_path },
-  ];
-  return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-artifacts-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-artifacts-heading">Artifacts</h2>
-      </div>
-      <div className="simurgh-page__artifact-list">
-        {paths.map((item) => (
-          <article className="simurgh-page__artifact" key={item.label}>
-            <FaFileAlt aria-hidden="true" />
-            <span>{item.label}</span>
-            <code>{item.value}</code>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
+function renderInlineMarkdown(text, keyPrefix) {
+  const value = String(text || '');
+  const nodes = [];
+  let lastIndex = 0;
 
-function ToolsView({ tools }) {
-  if (!tools.length) {
-    return (
-      <EmptyState
-        icon={<FaTools />}
-        title="No tools registered"
-        detail="The registry endpoint returned an empty tool list."
-      />
-    );
-  }
-
-  return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-tools-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-tools-heading">Tool Registry</h2>
-      </div>
-      <div className="simurgh-page__tool-grid">
-        {tools.map((tool) => (
-          <article className="simurgh-page__tool-card" key={tool.id}>
-            <header>
-              <div>
-                <h3>{tool.title}</h3>
-                <code>{tool.id}</code>
-              </div>
-              <span className="simurgh-page__tool-badges">
-                <StatusBadge tone={EXPOSURE_TONES[tool.exposure] || 'neutral'}>{formatToken(tool.exposure)}</StatusBadge>
-                <StatusBadge tone={RISK_TONES[tool.risk_class] || 'neutral'}>{formatToken(tool.risk_class)}</StatusBadge>
-              </span>
-            </header>
-            <p>{tool.description}</p>
-            <DetailGrid
-              items={[
-                { label: 'Route', value: <code>{routeLabel(tool)}</code> },
-                { label: 'Boundary', value: tool.boundary },
-                { label: 'Role', value: tool.required_role },
-                { label: 'Read only', value: boolLabel(tool.read_only, 'yes', 'no') },
-                { label: 'Modes', value: <BadgeList values={tool.runtime_modes || []} tone="info" /> },
-                { label: 'Sensitivity', value: <BadgeList values={tool.sensitivity || []} tone="warning" /> },
-              ]}
-            />
-            {tool.safety_notes?.length ? (
-              <ul className="simurgh-page__note-list">
-                {tool.safety_notes.slice(0, 2).map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
-            ) : null}
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ContextView({ resources }) {
-  if (!resources.length) {
-    return (
-      <EmptyState
-        icon={<FaBookOpen />}
-        title="No context resources"
-        detail="The context index endpoint returned an empty resource list."
-      />
-    );
-  }
-
-  return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-context-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-context-heading">Context Index</h2>
-      </div>
-      <div className="simurgh-page__resource-grid">
-        {resources.map((resource) => (
-          <article className="simurgh-page__resource-card" key={resource.id}>
-            <header>
-              <div>
-                <h3>{resource.title}</h3>
-                <code>{resource.id}</code>
-              </div>
-              <StatusBadge tone={resource.sensitivity === 'public' ? 'success' : 'warning'}>
-                {resource.sensitivity}
-              </StatusBadge>
-            </header>
-            <p>{resource.summary}</p>
-            <DetailGrid
-              items={[
-                { label: 'Audience', value: resource.audience },
-                { label: 'Type', value: resource.mime_type },
-                { label: 'Path', value: <code>{resource.path}</code> },
-                { label: 'Hash', value: <code>{shortHash(resource.content_hash)}</code> },
-                { label: 'Tags', value: <BadgeList values={resource.tags || []} tone="info" /> },
-              ]}
-            />
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SessionList({ sessions }) {
-  if (!sessions.length) {
-    return (
-      <EmptyState
-        icon={<FaUserShield />}
-        title="No sessions"
-        detail="No Simurgh agent sessions are active or recorded."
-      />
-    );
-  }
-
-  return (
-    <div className="simurgh-page__record-list">
-      {sessions.map((session) => (
-        <article className="simurgh-page__record" key={session.id}>
-          <header>
-            <h3>{session.actor}</h3>
-            <StatusBadge tone={session.closed ? 'muted' : 'success'}>{session.closed ? 'Closed' : 'Active'}</StatusBadge>
-          </header>
-          <DetailGrid
-            items={[
-              { label: 'Session', value: <code>{session.id}</code> },
-              { label: 'Mode', value: formatToken(session.mode) },
-              { label: 'Created', value: formatDateTime(session.created_at) },
-              { label: 'Expires', value: formatDateTime(session.expires_at) },
-            ]}
-          />
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function AuditList({ events }) {
-  if (!events.length) {
-    return (
-      <EmptyState
-        icon={<FaHistory />}
-        title="No audit events"
-        detail="The Simurgh audit sink has not recorded events in this process."
-      />
-    );
-  }
-
-  return (
-    <div className="simurgh-page__record-list">
-      {events.map((event) => (
-        <article className="simurgh-page__record" key={event.id}>
-          <header>
-            <h3>{formatToken(event.event_type)}</h3>
-            {event.decision ? <StatusBadge tone={event.decision === 'allow' ? 'success' : 'warning'}>{event.decision}</StatusBadge> : null}
-          </header>
-          <DetailGrid
-            items={[
-              { label: 'Event', value: <code>{event.id}</code> },
-              { label: 'Actor', value: event.actor || 'n/a' },
-              { label: 'Tool', value: event.tool_id || 'n/a' },
-              { label: 'Created', value: formatDateTime(event.created_at) },
-              { label: 'Payload', value: <code>{shortHash(event.payload_hash)}</code> },
-            ]}
-          />
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function AuditView({ sessions, auditEvents }) {
-  return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-audit-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-audit-heading">Sessions And Audit</h2>
-      </div>
-      <div className="simurgh-page__audit-grid">
-        <div>
-          <h3>Sessions</h3>
-          <SessionList sessions={sessions} />
-        </div>
-        <div>
-          <h3>Events</h3>
-          <AuditList events={auditEvents} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AssistantTurnList({ turns }) {
-  if (!turns.length) {
-    return (
-      <EmptyState
-        icon={<FaRobot />}
-        title="No assistant turns"
-        detail="No turns have been created from this dashboard session."
-      />
-    );
-  }
-
-  return (
-    <div className="simurgh-page__assistant-turn-list">
-      {turns.map((turn) => {
-        const blockedIntents = turn.blocked_intents || [];
-        const contextIds = (turn.context_resources || []).map((resource) => resource.id || resource);
-        return (
-          <article className="simurgh-page__assistant-turn" key={turn.id}>
-            <header>
-              <div>
-                <h3>{formatToken(turn.provider || 'assistant')}</h3>
-                <code>{turn.id}</code>
-              </div>
-              <StatusBadge tone={blockedIntents.length ? 'warning' : 'success'}>
-                {blockedIntents.length ? 'Guarded' : 'No execution'}
-              </StatusBadge>
-            </header>
-            {turn.message ? (
-              <div className="simurgh-page__assistant-message">
-                <span>Operator</span>
-                <PreservedText>{turn.message}</PreservedText>
-              </div>
-            ) : null}
-            <PreservedText>{turn.content}</PreservedText>
-            <DetailGrid
-              items={[
-                { label: 'Session', value: <code>{sessionIdForTurn(turn) || 'n/a'}</code> },
-                { label: 'Audit', value: <code>{turn.audit_event_id || 'n/a'}</code> },
-                { label: 'Created', value: formatDateTime(turn.created_at) },
-                { label: 'Prompt', value: turn.message_hash ? <code>{shortHash(turn.message_hash)}</code> : 'n/a' },
-                { label: 'Context', value: <BadgeList values={contextIds} tone="info" empty="default" /> },
-                { label: 'Blocked intents', value: <BadgeList values={blockedIntents} tone="warning" /> },
-              ]}
-            />
-            {turn.safety_notes?.length ? (
-              <ul className="simurgh-page__note-list">
-                {turn.safety_notes.slice(0, 3).map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
-            ) : null}
-          </article>
+  value.replace(
+    INLINE_MARKDOWN_PATTERN,
+    (match, _token, linkLabel, href, codeValue, strongValue, offset) => {
+      if (offset > lastIndex) {
+        nodes.push(...renderPlainTextSegment(value.slice(lastIndex, offset), `${keyPrefix}-text-${lastIndex}`));
+      }
+      const key = `${keyPrefix}-${offset}`;
+      if (linkLabel && href) {
+        nodes.push(
+          <SafeMarkdownLink key={key} href={href}>
+            {linkLabel}
+          </SafeMarkdownLink>
         );
+      } else if (codeValue) {
+        nodes.push(<code key={key}>{codeValue}</code>);
+      } else if (strongValue) {
+        nodes.push(<strong key={key}>{strongValue}</strong>);
+      }
+      lastIndex = offset + match.length;
+      return match;
+    }
+  );
+
+  if (lastIndex < value.length) {
+    nodes.push(...renderPlainTextSegment(value.slice(lastIndex), `${keyPrefix}-text-${lastIndex}`));
+  }
+  return nodes.length ? nodes : value;
+}
+
+async function writeClipboardText(value) {
+  const text = String(value || '');
+  if (!text) {
+    return;
+  }
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textarea);
+}
+
+function CopyButton({ text, label, className = '' }) {
+  const [copied, setCopied] = useState(false);
+  const copyText = useCallback(async () => {
+    try {
+      await writeClipboardText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch (error) {
+      setCopied(false);
+    }
+  }, [text]);
+
+  return (
+    <button
+      type="button"
+      className={`simurgh-chat__copy-button ${className}`.trim()}
+      aria-label={copied ? 'Copied' : label}
+      title={copied ? 'Copied' : label}
+      onClick={copyText}
+    >
+      <FaCopy aria-hidden="true" />
+    </button>
+  );
+}
+
+function parseTableCells(line, { dropEmpty = false } = {}) {
+  let value = String(line || '').trim();
+  if (value.startsWith('|')) {
+    value = value.slice(1);
+  }
+  if (value.endsWith('|')) {
+    value = value.slice(0, -1);
+  }
+  const cells = value.split('|').map((cell) => cell.trim());
+  return dropEmpty ? cells.filter((cell) => cell.length > 0) : cells;
+}
+
+function isTableRow(line) {
+  const value = String(line || '').trim();
+  return value.startsWith('|') && value.endsWith('|') && parseTableCells(value).length >= 2;
+}
+
+function isTableDivider(line) {
+  const cells = parseTableCells(line);
+  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function canonicalTableRow(cells) {
+  return `| ${cells.map((cell) => String(cell || '').trim()).join(' | ')} |`;
+}
+
+function expandCollapsedTableLine(line) {
+  const value = String(line || '').trim();
+  if (!value.startsWith('|') || !value.includes('---')) {
+    return [line];
+  }
+  const dividerMatch = value.match(/\|(?:\s*:?-{3,}:?\s*\|)+/);
+  if (!dividerMatch || !dividerMatch.index) {
+    return [line];
+  }
+
+  const headerCells = parseTableCells(value.slice(0, dividerMatch.index), { dropEmpty: true });
+  const dividerCells = parseTableCells(dividerMatch[0], { dropEmpty: true });
+  const columnCount = dividerCells.length;
+  if (columnCount < 2 || headerCells.length !== columnCount || !dividerCells.every((cell) => /^:?-{3,}:?$/.test(cell))) {
+    return [line];
+  }
+
+  const bodyCells = parseTableCells(value.slice(dividerMatch.index + dividerMatch[0].length), { dropEmpty: true });
+  const rows = [canonicalTableRow(headerCells), canonicalTableRow(Array(columnCount).fill('---'))];
+  for (let index = 0; index < bodyCells.length; index += columnCount) {
+    const row = bodyCells.slice(index, index + columnCount);
+    if (row.length === columnCount) {
+      rows.push(canonicalTableRow(row));
+    }
+  }
+  return rows.length > 2 ? rows : [line];
+}
+
+function normalizeMarkdownContent(content) {
+  return String(content || '')
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .flatMap((line) => expandCollapsedTableLine(line))
+    .join('\n');
+}
+
+function getFenceLanguage(line) {
+  const language = String(line || '').trim().replace(/^```/, '').trim().split(/\s+/)[0] || '';
+  return language.replace(/[^A-Za-z0-9_+.#-]/g, '').slice(0, 32);
+}
+
+function isBlockBoundary(lines, index) {
+  const line = lines[index] || '';
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return true;
+  }
+  if (trimmed.startsWith('```') || /^#{1,4}\s+/.test(trimmed) || /^>\s+/.test(trimmed)) {
+    return true;
+  }
+  if (/^\s*[-*]\s+/.test(line) || /^\s*\d+[.)]\s+/.test(line)) {
+    return true;
+  }
+  return isTableRow(trimmed) && isTableDivider(lines[index + 1] || '');
+}
+
+function parseMarkdownBlocks(content) {
+  const lines = normalizeMarkdownContent(content).split('\n');
+  const blocks = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith('```')) {
+      const codeLines = [];
+      const language = getFenceLanguage(trimmed);
+      index += 1;
+      while (index < lines.length && !lines[index].trim().startsWith('```')) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      blocks.push({ type: 'code', content: codeLines.join('\n'), language });
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      blocks.push({ type: 'heading', depth: heading[1].length, content: heading[2].trim() });
+      index += 1;
+      continue;
+    }
+
+    if (isTableRow(trimmed) && isTableDivider(lines[index + 1] || '')) {
+      const headers = parseTableCells(trimmed);
+      index += 2;
+      const rows = [];
+      while (index < lines.length && isTableRow(lines[index])) {
+        const cells = parseTableCells(lines[index]);
+        rows.push(headers.map((_, cellIndex) => cells[cellIndex] || ''));
+        index += 1;
+      }
+      blocks.push({ type: 'table', headers, rows });
+      continue;
+    }
+
+    const quote = trimmed.match(/^>\s+(.+)$/);
+    if (quote) {
+      const quoteLines = [];
+      while (index < lines.length) {
+        const quoteMatch = lines[index].trim().match(/^>\s?(.*)$/);
+        if (!quoteMatch) {
+          break;
+        }
+        quoteLines.push(quoteMatch[1].trim());
+        index += 1;
+      }
+      blocks.push({ type: 'quote', content: quoteLines.join(' ') });
+      continue;
+    }
+
+    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (unordered || ordered) {
+      const type = unordered ? 'ul' : 'ol';
+      const items = [];
+      while (index < lines.length) {
+        const itemMatch = type === 'ul'
+          ? lines[index].match(/^\s*[-*]\s+(.+)$/)
+          : lines[index].match(/^\s*\d+[.)]\s+(.+)$/);
+        if (!itemMatch) {
+          break;
+        }
+        items.push(itemMatch[1].trim());
+        index += 1;
+      }
+      blocks.push({ type, items });
+      continue;
+    }
+
+    const paragraphLines = [trimmed];
+    index += 1;
+    while (index < lines.length && !isBlockBoundary(lines, index)) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+    blocks.push({ type: 'p', content: paragraphLines.join(' ') });
+  }
+
+  return blocks;
+}
+
+function CodeBlock({ content, language, blockId }) {
+  return (
+    <div className="simurgh-chat__code-block">
+      <div className="simurgh-chat__code-header">
+        <span>{language || 'code'}</span>
+        <CopyButton text={content} label="Copy code snippet" className="simurgh-chat__copy-button--code" />
+      </div>
+      <pre><code className={language ? `language-${language}` : undefined}>{content}</code></pre>
+    </div>
+  );
+}
+
+function MarkdownTable({ headers, rows, blockId }) {
+  return (
+    <div className="simurgh-chat__table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {headers.map((header, headerIndex) => (
+              <th key={`${blockId}-header-${headerIndex}`}>{renderInlineMarkdown(header, `${blockId}-header-${headerIndex}`)}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, rowIndex) => (
+            <tr key={`${blockId}-row-${rowIndex}`}>
+              {headers.map((_, cellIndex) => (
+                <td key={`${blockId}-cell-${rowIndex}-${cellIndex}`}>
+                  {renderInlineMarkdown(row[cellIndex] || '', `${blockId}-cell-${rowIndex}-${cellIndex}`)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MessageContent({ content }) {
+  const blocks = parseMarkdownBlocks(content);
+  return (
+    <div className="simurgh-chat__markdown">
+      {blocks.map((block, index) => {
+        const blockId = `block-${index}`;
+        if (block.type === 'heading') {
+          const HeadingTag = block.depth <= 2 ? 'h2' : block.depth === 3 ? 'h3' : 'h4';
+          return <HeadingTag key={`heading-${index}`}>{renderInlineMarkdown(block.content, `heading-${index}`)}</HeadingTag>;
+        }
+        if (block.type === 'code') {
+          return <CodeBlock key={`code-${index}`} content={block.content} language={block.language} blockId={blockId} />;
+        }
+        if (block.type === 'table') {
+          return <MarkdownTable key={`table-${index}`} headers={block.headers} rows={block.rows} blockId={blockId} />;
+        }
+        if (block.type === 'quote') {
+          return <blockquote key={`quote-${index}`}>{renderInlineMarkdown(block.content, `quote-${index}`)}</blockquote>;
+        }
+        if (block.type === 'ul' || block.type === 'ol') {
+          const ListTag = block.type;
+          return (
+            <ListTag key={`list-${index}`}>
+              {block.items.map((item, itemIndex) => (
+                <li key={`item-${index}-${itemIndex}`}>
+                  {renderInlineMarkdown(item, `item-${index}-${itemIndex}`)}
+                </li>
+              ))}
+            </ListTag>
+          );
+        }
+        return <p key={`p-${index}`}>{renderInlineMarkdown(block.content, `p-${index}`)}</p>;
       })}
     </div>
   );
 }
 
-function AssistantView({
-  enabled,
-  resources,
-  message,
-  selectedContextIds,
-  turns,
-  submitting,
-  error,
-  historyLoading,
-  historyError,
-  activeSessionId,
-  provider,
-  externalProviderAuthRequired,
-  onMessageChange,
-  onToggleContext,
-  onNewConversation,
-  onSubmit,
-}) {
-  const selectableResources = resources.filter((resource) => resource.sensitivity === 'public');
-  const canSubmit = enabled && !submitting && message.trim().length > 0;
-  const assistantProvider = normalizedAssistantProvider(provider);
-  const usesExternalProvider = assistantProvider !== 'mock';
-
+function MessageBubble({ message }) {
+  const roleLabel = message.role === 'assistant' ? 'Simurgh' : 'You';
+  const copyLabel = message.role === 'assistant' ? 'Copy Simurgh message' : 'Copy your message';
   return (
-    <section className="simurgh-page__section" aria-labelledby="simurgh-assistant-heading">
-      <div className="simurgh-page__section-heading">
-        <h2 id="simurgh-assistant-heading">Assistant Shell</h2>
-        <StatusBadge tone={enabled ? 'success' : 'muted'}>{enabled ? 'Enabled' : 'Disabled'}</StatusBadge>
+    <article className={`simurgh-chat__message simurgh-chat__message--${message.role}`}>
+      <div className="simurgh-chat__avatar" aria-hidden="true">
+        {message.role === 'assistant' ? <FaRobot /> : <FaUserShield />}
       </div>
-
-      {!enabled ? (
-        <OperatorNotice tone="info" title="Assistant runtime disabled">
-          Assistant turns are unavailable while the Simurgh agent runtime is disabled.
-        </OperatorNotice>
-      ) : null}
-
-      {error ? (
-        <OperatorNotice tone="danger" title="Assistant turn failed" role="alert">
-          {error}
-        </OperatorNotice>
-      ) : null}
-
-      {historyError ? (
-        <OperatorNotice tone="warning" title="Assistant history unavailable">
-          {historyError}
-        </OperatorNotice>
-      ) : null}
-
-      {enabled ? (
-        <OperatorNotice tone="info" title="Advisory only">
-          {usesExternalProvider
-            ? 'Assistant replies do not execute tools, call MCP tools, or submit drone commands. Operator text may be sent to the configured OpenAI provider; do not enter raw field artifacts, customer identifiers, coordinates, peer IDs, screenshots, logs, or secrets.'
-            : 'Assistant replies stay local in mock mode and do not execute tools, call MCP tools, submit drone commands, or contact a model provider.'}
-          {externalProviderAuthRequired
-            ? ' External providers require an authenticated MDS operator session or bearer token.'
-            : ''}
-        </OperatorNotice>
-      ) : null}
-
-      <form className="simurgh-page__assistant-form" onSubmit={onSubmit}>
-        <label htmlFor="simurgh-assistant-message">Operator message</label>
-        <span className="simurgh-page__badge-list">
-          <StatusBadge tone="success">No commands executed</StatusBadge>
-          <StatusBadge tone={usesExternalProvider ? 'warning' : 'success'}>
-            {usesExternalProvider ? 'OpenAI provider' : 'Mock local'}
-          </StatusBadge>
-        </span>
-        <textarea
-          id="simurgh-assistant-message"
-          value={message}
-          onChange={(event) => onMessageChange(event.target.value)}
-          disabled={!enabled || submitting}
-          rows={5}
-        />
-        <div className="simurgh-page__assistant-actions">
-          <span className="simurgh-page__muted">
-            {activeSessionId ? `Session ${activeSessionId.slice(0, 18)}` : 'New advisory session'} · {formatCount(message.length)} chars
-          </span>
-          <ActionIconButton
-            icon={<FaSyncAlt />}
-            label="Start new assistant session"
-            onClick={onNewConversation}
-            disabled={!enabled || submitting || !activeSessionId}
-          >
-            New Session
-          </ActionIconButton>
-          <ActionIconButton
-            type="submit"
-            icon={<FaPaperPlane />}
-            label="Generate advisory reply"
-            disabled={!canSubmit}
-          >
-            {submitting ? 'Generating' : 'Generate advisory reply'}
-          </ActionIconButton>
+      <div className="simurgh-chat__bubble">
+        <div className="simurgh-chat__bubble-header">
+          <span>{roleLabel}</span>
+          <CopyButton text={message.content} label={copyLabel} className="simurgh-chat__copy-button--message" />
         </div>
-      </form>
-
-      <div className="simurgh-page__assistant-layout">
-        <section className="simurgh-page__assistant-context" aria-labelledby="simurgh-assistant-context-heading">
-          <h3 id="simurgh-assistant-context-heading">Context</h3>
-          <span className="simurgh-page__muted">
-            {selectedContextIds.length ? `${formatCount(selectedContextIds.length)} selected` : 'Default configured context'}
-          </span>
-          {selectableResources.length ? (
-            <div className="simurgh-page__context-checklist">
-              {selectableResources.map((resource) => (
-                <label className="simurgh-page__context-option" key={resource.id}>
-                  <input
-                    type="checkbox"
-                    checked={selectedContextIds.includes(resource.id)}
-                    disabled={!enabled || submitting}
-                    onChange={() => onToggleContext(resource.id)}
-                  />
-                  <span>
-                    <strong>{resource.title}</strong>
-                    <code>{resource.id}</code>
-                  </span>
-                </label>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              icon={<FaBookOpen />}
-              title="No public context"
-              detail="The context index did not return selectable public resources."
-            />
-          )}
-        </section>
-
-        <section className="simurgh-page__assistant-turns" aria-labelledby="simurgh-assistant-turns-heading">
-          <h3 id="simurgh-assistant-turns-heading">{historyLoading ? 'Loading Turns' : 'Recent Turns'}</h3>
-          <AssistantTurnList turns={turns} />
-        </section>
+        <MessageContent content={message.content} />
       </div>
-    </section>
+    </article>
   );
 }
 
-function SimurghOperatorPage() {
-  const [data, setData] = useState(INITIAL_DATA);
+function EmptyChat({ onPickPrompt }) {
+  return (
+    <div className="simurgh-chat__empty">
+      <FaComments aria-hidden="true" />
+      <h2>Simurgh</h2>
+      <div className="simurgh-chat__starters" aria-label="Prompt starters">
+        {STARTERS.map((prompt) => (
+          <button key={prompt} type="button" onClick={() => onPickPrompt(prompt)}>
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function SimurghOperatorPage() {
+  const [status, setStatus] = useState(null);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [activeView, setActiveView] = useState('overview');
-  const [assistantMessage, setAssistantMessage] = useState('');
-  const [assistantContextIds, setAssistantContextIds] = useState([]);
-  const [assistantTurns, setAssistantTurns] = useState([]);
-  const [assistantSessionId, setAssistantSessionId] = useState('');
-  const [assistantHistoryLoading, setAssistantHistoryLoading] = useState(false);
-  const [assistantSubmitting, setAssistantSubmitting] = useState(false);
-  const [assistantError, setAssistantError] = useState('');
-  const [assistantHistoryError, setAssistantHistoryError] = useState('');
+  const [pageError, setPageError] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsBusy, setSettingsBusy] = useState(false);
+  const [settingsNotice, setSettingsNotice] = useState(null);
+  const [candidateReview, setCandidateReview] = useState(null);
+  const [credentialDraft, setCredentialDraft] = useState('');
+  const [conversations, setConversations] = useState(() => {
+    const stored = readStoredConversations();
+    return stored.length ? stored : [newConversation()];
+  });
+  const [activeConversationId, setActiveConversationId] = useState(() => readStoredConversations()[0]?.id || '');
+  const [draft, setDraft] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const abortRef = useRef(null);
+  const transcriptRef = useRef(null);
 
-  const loadSimurgh = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [
-        statusResponse,
-        policyResponse,
-        toolsResponse,
-        contextResponse,
-        sessionsResponse,
-        auditResponse,
-      ] = await Promise.all([
-        getSimurghStatusResponse(),
-        getSimurghPolicyResponse(),
-        getSimurghToolsResponse({ includeExcluded: true }),
-        getSimurghContextResponse(),
-        getSimurghSessionsResponse({ includeClosed: true }),
-        getSimurghAuditResponse(),
-      ]);
-
-      const nextData = {
-        status: statusResponse?.data || null,
-        policy: policyResponse?.data || null,
-        tools: toolsResponse?.data?.tools || [],
-        contextResources: contextResponse?.data?.resources || [],
-        sessions: sessionsResponse?.data?.sessions || [],
-        auditEvents: auditResponse?.data?.events || [],
-      };
-      setData(nextData);
-      setAssistantSessionId((current) => {
-        if (hasActiveDashboardAssistantSession(nextData.sessions, current)) {
-          return current;
-        }
-        return activeDefaultDashboardAssistantSessionId(nextData.sessions);
-      });
-    } catch (loadError) {
-      setData(INITIAL_DATA);
-      setError(errorMessage(loadError));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadAssistantHistory = useCallback(async () => {
-    setAssistantHistoryLoading(true);
-    setAssistantHistoryError('');
-    try {
-      const response = await getSimurghAssistantTurnsResponse({ limit: 20 });
-      const turns = response?.data?.turns || [];
-      setAssistantTurns(turns);
-    } catch (historyLoadError) {
-      setAssistantHistoryError(errorMessage(historyLoadError));
-    } finally {
-      setAssistantHistoryLoading(false);
-    }
-  }, []);
+  const activeConversation = useMemo(
+    () => conversations.find((conversation) => conversation.id === activeConversationId) || conversations[0],
+    [activeConversationId, conversations]
+  );
 
   useEffect(() => {
-    loadSimurgh();
-    loadAssistantHistory();
-  }, [loadAssistantHistory, loadSimurgh]);
+    if (!activeConversationId && conversations[0]?.id) {
+      setActiveConversationId(conversations[0].id);
+    }
+  }, [activeConversationId, conversations]);
 
-  const assistantEnabled = Boolean(data.status?.agent_enabled);
+  useEffect(() => {
+    writeStoredConversations(conversations);
+  }, [conversations]);
 
-  const toggleAssistantContext = useCallback((resourceId) => {
-    setAssistantContextIds((current) => (
-      current.includes(resourceId)
-        ? current.filter((id) => id !== resourceId)
-        : [...current, resourceId]
-    ));
-  }, []);
-
-  const submitAssistantTurn = useCallback(async (event) => {
-    event.preventDefault();
-    const message = assistantMessage.trim();
-    if (!assistantEnabled || !message || assistantSubmitting) {
+  useEffect(() => {
+    const transcript = transcriptRef.current;
+    if (!transcript) {
       return;
     }
+    transcript.scrollTop = transcript.scrollHeight;
+  }, [activeConversation?.messages?.length, submitting]);
 
-    setAssistantSubmitting(true);
-    setAssistantError('');
+  const loadCandidateReview = useCallback(async () => {
     try {
-      const availableContextIds = new Set(data.contextResources.map((resource) => resource.id));
-      const contextResourceIds = assistantContextIds.filter((resourceId) => availableContextIds.has(resourceId));
-      const reusableSessionId = hasActiveDashboardAssistantSession(data.sessions, assistantSessionId)
-        ? assistantSessionId
-        : '';
-      const payload = {
-        actor: DASHBOARD_ASSISTANT_ACTOR,
-        message,
-        ...(reusableSessionId ? { session_id: reusableSessionId } : {}),
-        metadata: {
-          source: 'simurgh-dashboard',
-        },
-        ...(contextResourceIds.length ? { context_resource_ids: contextResourceIds } : {}),
-      };
-      const response = await createSimurghAssistantTurnResponse(payload);
-      const nextSessionId = response?.data?.session?.id || assistantSessionId;
-      setAssistantSessionId(nextSessionId);
-      setAssistantMessage('');
-      await Promise.all([loadSimurgh(), loadAssistantHistory()]);
-    } catch (submitError) {
-      setAssistantError(errorMessage(submitError));
+      const response = await getSimurghToolCandidatesResponse({ limit: 8 });
+      setCandidateReview(response?.data || null);
+    } catch (error) {
+      setCandidateReview(null);
+    }
+  }, []);
+
+  const loadStatus = useCallback(async () => {
+    setLoading(true);
+    setPageError('');
+    try {
+      const runtimeResponse = await getSimurghRuntimeSettingsResponse();
+      const runtimeStatus = runtimeResponse?.data || null;
+      setStatus(runtimeStatus);
+      setSettings(normalizeSettings(runtimeStatus));
+    } catch (runtimeError) {
+      try {
+        const statusResponse = await getSimurghStatusResponse();
+        const legacyStatus = statusResponse?.data || null;
+        setStatus(legacyStatus);
+        setSettings(normalizeSettings(legacyStatus));
+        setPageError(normalizeError(runtimeError, 'Runtime settings are unavailable; showing status only.'));
+      } catch (statusError) {
+        setPageError(normalizeError(statusError, 'Could not load Simurgh status.'));
+      }
     } finally {
-      setAssistantSubmitting(false);
+      await loadCandidateReview();
+      setLoading(false);
     }
-  }, [
-    assistantContextIds,
-    assistantEnabled,
-    assistantMessage,
-    assistantSessionId,
-    assistantSubmitting,
-    data.contextResources,
-    data.sessions,
-    loadAssistantHistory,
-    loadSimurgh,
-  ]);
+  }, [loadCandidateReview]);
 
-  const startNewAssistantSession = useCallback(() => {
-    setAssistantSessionId('');
-    setAssistantError('');
+  useEffect(() => {
+    loadStatus();
+    return () => abortRef.current?.abort();
+  }, [loadStatus]);
+
+  const updateConversation = useCallback((conversationId, updater) => {
+    setConversations((current) => current.map((conversation) => (
+      conversation.id === conversationId ? updater(conversation) : conversation
+    )));
   }, []);
 
-  const focusTab = useCallback((tabId) => {
-    setActiveView(tabId);
-    window.requestAnimationFrame(() => {
-      document.getElementById(`simurgh-tab-${tabId}`)?.focus();
+  const handleNewChat = useCallback(() => {
+    const conversation = newConversation();
+    setConversations((current) => [conversation, ...current].slice(0, MAX_CONVERSATIONS));
+    setActiveConversationId(conversation.id);
+    setDraft('');
+    setChatError('');
+  }, []);
+
+  const handleClearChats = useCallback(() => {
+    const conversation = newConversation();
+    clearStoredConversations();
+    setConversations([conversation]);
+    setActiveConversationId(conversation.id);
+    setDraft('');
+    setChatError('');
+  }, []);
+
+  const handleDeleteChat = useCallback((conversationId) => {
+    setConversations((current) => {
+      const remaining = current.filter((conversation) => conversation.id !== conversationId);
+      return remaining.length ? remaining : [newConversation()];
     });
+    setActiveConversationId((activeId) => (activeId === conversationId ? '' : activeId));
+    setDraft('');
+    setChatError('');
   }, []);
 
-  const handleTabKeyDown = useCallback((event) => {
-    const currentIndex = VIEW_TABS.findIndex((tab) => tab.id === activeView);
-    if (currentIndex < 0) {
-      return;
-    }
-    let nextIndex = currentIndex;
-    if (['ArrowRight', 'ArrowDown'].includes(event.key)) {
-      nextIndex = (currentIndex + 1) % VIEW_TABS.length;
-    } else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) {
-      nextIndex = (currentIndex - 1 + VIEW_TABS.length) % VIEW_TABS.length;
-    } else if (event.key === 'Home') {
-      nextIndex = 0;
-    } else if (event.key === 'End') {
-      nextIndex = VIEW_TABS.length - 1;
-    } else {
-      return;
-    }
-    event.preventDefault();
-    focusTab(VIEW_TABS[nextIndex].id);
-  }, [activeView, focusTab]);
+  const handleSettingsChange = useCallback((patch) => {
+    setSettings((current) => {
+      const next = { ...current, ...patch };
+      next.provider = normalizeProvider(next.provider);
+      if (!next.openai_model || next.openai_model === 'mock-local') {
+        next.openai_model = DEFAULT_MODEL;
+      }
+      return next;
+    });
+    setSettingsNotice(null);
+  }, []);
 
-  const metrics = useMemo(() => {
-    const { status, policy, tools, contextResources, sessions, auditEvents } = data;
-    return [
-      {
-        key: 'agent',
-        label: 'Agent',
-        value: boolLabel(status?.agent_enabled),
-        tone: status?.agent_enabled ? 'success' : 'muted',
-        icon: <FaRobot />,
-      },
-      {
-        key: 'mcp',
-        label: 'MCP',
-        value: boolLabel(status?.mcp_enabled),
-        tone: status?.mcp_enabled ? 'success' : 'muted',
-        icon: <FaNetworkWired />,
-      },
-      {
-        key: 'provider',
-        label: 'Provider',
-        value: formatToken(status?.assistant_provider || 'mock'),
-        detail: status?.assistant_external_provider
-          ? (status?.assistant_external_provider_auth_required ? 'External API, auth required' : 'External API')
-          : 'Local mock',
-        tone: status?.assistant_external_provider ? 'warning' : 'success',
-        icon: <FaRobot />,
-      },
-      {
-        key: 'circuit',
-        label: 'Circuit',
-        value: status?.action_circuit_breaker_enabled ? 'No actions' : 'Actions possible',
-        detail: status?.always_confirm_before_action ? 'Always confirm' : 'Policy confirms',
-        tone: status?.action_circuit_breaker_enabled ? 'success' : 'danger',
-        icon: <FaShieldAlt />,
-      },
-      {
-        key: 'gcs-mode',
-        label: 'GCS Mode',
-        value: formatToken(status?.gcs_mode),
-        detail: status?.gcs_mode_source || 'MDS_MODE',
-        tone: status?.gcs_mode === 'real' ? 'warning' : 'info',
-        icon: <FaServer />,
-      },
-      {
-        key: 'mode',
-        label: 'Policy Profile',
-        value: formatToken(status?.mode || policy?.mode),
-        detail: 'advanced',
-        tone: 'info',
-        icon: <FaServer />,
-      },
-      {
-        key: 'tools',
-        label: 'Tools',
-        value: formatCount(status?.tool_count ?? tools.length),
-        detail: `${formatCount(status?.allowed_tool_count)} allow / ${formatCount(status?.guarded_tool_count)} guarded`,
-        icon: <FaTools />,
-      },
-      {
-        key: 'excluded',
-        label: 'Excluded',
-        value: formatCount(status?.excluded_tool_count),
-        detail: 'Blocked registry entries',
+  const saveSettings = useCallback(async () => {
+    setSettingsBusy(true);
+    setSettingsNotice(null);
+    try {
+      if (credentialDraft.trim()) {
+        await updateSimurghProviderCredentialsResponse({
+          openai_api_key: credentialDraft.trim(),
+          set_provider_openai: settings.provider === 'openai',
+          openai_model: settings.openai_model,
+        });
+      }
+      const response = await updateSimurghRuntimeSettingsResponse(settings);
+      const nextStatus = response?.data || null;
+      setStatus(nextStatus);
+      setSettings(normalizeSettings(nextStatus));
+      setCredentialDraft('');
+      setSettingsNotice({
+        tone: 'success',
+        title: 'Settings applied',
+        detail: credentialDraft.trim()
+          ? 'Settings were saved and the OpenAI key was stored server-side.'
+          : 'Simurgh runtime settings were hot-applied and saved to the GCS environment.',
+      });
+    } catch (error) {
+      setSettingsNotice({
         tone: 'danger',
-        icon: <FaBan />,
-      },
-      {
-        key: 'context',
-        label: 'Context',
-        value: formatCount(status?.context_resource_count ?? contextResources.length),
-        detail: 'Model-readable resources',
-        icon: <FaBookOpen />,
-      },
-      {
-        key: 'sessions',
-        label: 'Sessions',
-        value: formatCount(status?.active_session_count ?? sessions.filter((session) => !session.closed).length),
-        detail: 'Active agent sessions',
-        icon: <FaUserShield />,
-      },
-      {
-        key: 'audit',
-        label: 'Audit',
-        value: formatCount(status?.audit_event_count ?? auditEvents.length),
-        detail: 'Recorded events',
-        icon: <FaHistory />,
-      },
-    ];
-  }, [data]);
+        title: 'Settings not saved',
+        detail: normalizeError(error, 'Could not update Simurgh settings.'),
+      });
+    } finally {
+      setSettingsBusy(false);
+    }
+  }, [credentialDraft, settings]);
 
-  const statusBadge = data.status ? (
-    <StatusBadge
-      tone={data.status.agent_enabled ? 'success' : 'muted'}
-      icon={data.status.agent_enabled ? <FaCheckCircle /> : <FaLock />}
-    >
-      {boolLabel(data.status.agent_enabled)}
-    </StatusBadge>
-  ) : (
-    <StatusBadge tone={loading ? 'info' : 'muted'} icon={<FaClock />}>
-      {loading ? 'Loading' : 'Unknown'}
-    </StatusBadge>
-  );
+  const handleSubmit = useCallback(async (event) => {
+    event.preventDefault();
+    const message = draft.trim();
+    if (!message || submitting || !activeConversation) {
+      return;
+    }
 
-  const actions = (
-    <PageActionBar
-      primary={[
-        <ActionIconButton
-          key="refresh"
-          icon={<FaSyncAlt />}
-          label="Refresh Simurgh status"
-          onClick={loadSimurgh}
-          disabled={loading}
-        >
-          {loading ? 'Refreshing' : 'Refresh'}
-        </ActionIconButton>,
-      ]}
-    />
-  );
+    const conversationId = activeConversation.id;
+    const userMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: message,
+      createdAt: nowIso(),
+    };
+    setDraft('');
+    setSubmitting(true);
+    setChatError('');
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      title: conversation.messages.length ? conversation.title : titleFromMessage(message),
+      updatedAt: nowIso(),
+      messages: [...conversation.messages, userMessage],
+    }));
+
+    try {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const payload = {
+        actor: DASHBOARD_ACTOR,
+        message,
+        metadata: { source: 'simurgh-dashboard' },
+      };
+      if (activeConversation.backendSessionId) {
+        payload.session_id = activeConversation.backendSessionId;
+      }
+      const response = await createSimurghAssistantTurnResponse(payload, { signal: controller.signal });
+      const data = response?.data || {};
+      const assistantMessage = {
+        id: data.id || `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: data.content || 'No Simurgh response content was returned.',
+        createdAt: data.created_at || nowIso(),
+        provider: data.provider,
+        model: data.model,
+      };
+      updateConversation(conversationId, (conversation) => ({
+        ...conversation,
+        backendSessionId: data.session?.id || conversation.backendSessionId,
+        updatedAt: nowIso(),
+        messages: [...conversation.messages, assistantMessage],
+      }));
+      await loadStatus();
+    } catch (error) {
+      if (error.name !== 'CanceledError' && error.code !== 'ERR_CANCELED') {
+        const detail = normalizeError(error);
+        setChatError(detail);
+        updateConversation(conversationId, (conversation) => ({
+          ...conversation,
+          updatedAt: nowIso(),
+          messages: [
+            ...conversation.messages,
+            {
+              id: `assistant-error-${Date.now()}`,
+              role: 'assistant',
+              content: detail,
+              createdAt: nowIso(),
+            },
+          ],
+        }));
+      }
+    } finally {
+      setSubmitting(false);
+      abortRef.current = null;
+    }
+  }, [activeConversation, draft, loadStatus, submitting, updateConversation]);
+
+  const stopRequest = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  const activeMessages = activeConversation?.messages || [];
+  const canSend = draft.trim().length > 0 && !submitting && Boolean(status?.agent_enabled);
+  const subtitle = status
+    ? `${status.provider || status.assistant_provider || 'mock'} / ${status.openai_model || status.model || status.assistant_model || 'mock-local'}`
+    : loading ? 'Loading runtime' : 'Runtime unavailable';
 
   return (
     <PageShell
-      className="simurgh-page"
-      eyebrow="Simurgh Operator"
-      title="Agent Control Plane"
-      subtitle="GCS-only agent posture, policy registry, context, sessions, and audit."
-      icon={<FaUserShield />}
-      docsRoute="/simurgh"
-      actions={actions}
-      status={statusBadge}
+      className="simurgh-chat-page"
+      eyebrow="Simurgh"
+      title="Operator Chat"
+      subtitle={subtitle}
+      icon={<FaRobot />}
+      status={<SafetyChips status={status} />}
+      actions={(
+        <ActionIconButton
+          icon={<FaCog />}
+          label="Open Simurgh settings"
+          active={settingsOpen}
+          onClick={() => setSettingsOpen((open) => !open)}
+        />
+      )}
     >
-      <MetricStrip items={metrics} label="Simurgh status summary" />
-
-      {error ? (
-        <OperatorNotice tone="danger" title="Simurgh metadata unavailable" role="alert">
-          {error}
-        </OperatorNotice>
-      ) : null}
-
-      {!error && data.status && !data.status.agent_enabled ? (
-        <OperatorNotice tone="info" title="Agent runtime disabled">
-          Execution adapters are not enabled from this dashboard.
-        </OperatorNotice>
-      ) : null}
-
-      {!error && data.status?.warnings?.length ? (
-        <OperatorNotice tone="warning" title="Simurgh posture warnings">
-          {data.status.warnings.join(' ')}
-        </OperatorNotice>
-      ) : null}
-
-      {!error && !data.status && loading ? (
-        <OperatorNotice tone="info" title="Loading Simurgh control plane">
-          Reading GCS metadata endpoints.
-        </OperatorNotice>
-      ) : null}
-
-      <div className="simurgh-page__tabs" role="tablist" aria-label="Simurgh views">
-        {VIEW_TABS.map((tab) => {
-          const Icon = tab.icon;
-          const selected = activeView === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`simurgh-tab-${tab.id}`}
-              aria-controls={`simurgh-panel-${tab.id}`}
-              aria-selected={selected}
-              tabIndex={selected ? 0 : -1}
-              className={selected ? 'is-active' : ''}
-              onClick={() => setActiveView(tab.id)}
-              onKeyDown={handleTabKeyDown}
-            >
-              <Icon aria-hidden="true" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {activeView === 'overview' ? (
-        <div
-          id="simurgh-panel-overview"
-          role="tabpanel"
-          aria-labelledby="simurgh-tab-overview"
-          className="simurgh-page__panel"
-        >
-          <PolicyOverview policy={data.policy} status={data.status} />
-          <RuntimeModes policy={data.policy} />
-          <ArtifactPaths status={data.status} />
-        </div>
-      ) : null}
-      {activeView === 'assistant' ? (
-        <div
-          id="simurgh-panel-assistant"
-          role="tabpanel"
-          aria-labelledby="simurgh-tab-assistant"
-          className="simurgh-page__panel"
-        >
-          <AssistantView
-            enabled={assistantEnabled}
-            resources={data.contextResources}
-            message={assistantMessage}
-            selectedContextIds={assistantContextIds}
-            turns={assistantTurns}
-            submitting={assistantSubmitting}
-            error={assistantError}
-            historyLoading={assistantHistoryLoading}
-            historyError={assistantHistoryError}
-            activeSessionId={assistantSessionId}
-            provider={data.status?.assistant_provider}
-            externalProviderAuthRequired={data.status?.assistant_external_provider_auth_required}
-            onMessageChange={setAssistantMessage}
-            onToggleContext={toggleAssistantContext}
-            onNewConversation={startNewAssistantSession}
-            onSubmit={submitAssistantTurn}
-          />
-        </div>
-      ) : null}
-      {activeView === 'tools' ? (
-        <div
-          id="simurgh-panel-tools"
-          role="tabpanel"
-          aria-labelledby="simurgh-tab-tools"
-          className="simurgh-page__panel"
-        >
-          <ToolsView tools={data.tools} />
-        </div>
-      ) : null}
-      {activeView === 'context' ? (
-        <div
-          id="simurgh-panel-context"
-          role="tabpanel"
-          aria-labelledby="simurgh-tab-context"
-          className="simurgh-page__panel"
-        >
-          <ContextView resources={data.contextResources} />
-        </div>
-      ) : null}
-      {activeView === 'audit' ? (
-        <div
-          id="simurgh-panel-audit"
-          role="tabpanel"
-          aria-labelledby="simurgh-tab-audit"
-          className="simurgh-page__panel"
-        >
-          <AuditView sessions={data.sessions} auditEvents={data.auditEvents} />
-        </div>
-      ) : null}
+      {pageError ? <OperatorNotice tone="warning" title="Runtime notice">{pageError}</OperatorNotice> : null}
+      <section className="simurgh-chat">
+        <ConversationList
+          conversations={conversations}
+          activeConversationId={activeConversation?.id || ''}
+          onSelect={setActiveConversationId}
+          onNewChat={handleNewChat}
+          onClearChats={handleClearChats}
+          onDeleteChat={handleDeleteChat}
+        />
+        <section className="simurgh-chat__main" aria-label="Simurgh assistant">
+          <div className="simurgh-chat__transcript" ref={transcriptRef}>
+            {activeMessages.length === 0 ? <EmptyChat onPickPrompt={setDraft} /> : null}
+            {activeMessages.map((message) => <MessageBubble key={message.id} message={message} />)}
+            {submitting ? (
+              <article className="simurgh-chat__message simurgh-chat__message--assistant">
+                <div className="simurgh-chat__avatar" aria-hidden="true"><FaRobot /></div>
+                <div className="simurgh-chat__bubble">
+                  <span>Simurgh</span>
+                  <div className="simurgh-chat__markdown"><p>Thinking...</p></div>
+                </div>
+              </article>
+            ) : null}
+          </div>
+          {chatError ? <div className="simurgh-chat__error" role="alert">{chatError}</div> : null}
+          <form className="simurgh-chat__composer" onSubmit={handleSubmit}>
+            <textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  handleSubmit(event);
+                }
+              }}
+              rows={1}
+              placeholder={status?.agent_enabled ? 'Message Simurgh' : 'Simurgh agent is disabled'}
+              aria-label="Message Simurgh"
+              disabled={!status?.agent_enabled}
+            />
+            {submitting ? (
+              <ActionIconButton icon={<FaStop />} label="Stop Simurgh response" onClick={stopRequest}>
+                Stop
+              </ActionIconButton>
+            ) : (
+              <ActionIconButton icon={<FaPaperPlane />} label="Send Simurgh message" type="submit" disabled={!canSend}>
+                Send
+              </ActionIconButton>
+            )}
+          </form>
+        </section>
+        <SettingsPanel
+          open={settingsOpen}
+          settings={settings}
+          status={status}
+          candidateReview={candidateReview}
+          busy={settingsBusy}
+          notice={settingsNotice}
+          credentialDraft={credentialDraft}
+          onCredentialDraftChange={setCredentialDraft}
+          onChange={handleSettingsChange}
+          onSave={saveSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      </section>
     </PageShell>
   );
 }
-
-export default SimurghOperatorPage;

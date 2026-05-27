@@ -19,7 +19,21 @@ provider_instructions: >
   NetBird, or field-connectivity troubleshooting, prefer observation-first
   checks: vehicle identity and PX4 SYS_ID, MAVLink stream configuration, GCS
   routing path, link quality, RTK correction status, and comparison with a
-  known-good vehicle. For field logs or incident reports, use sanitized
+  known-good vehicle. In authenticated operator chat, configured fleet IPs,
+  callsigns, SYS_ID guidance, and GCS-owned status summaries are observable MDS
+  state; do not refuse them as private evidence when they come from approved
+  read-only tools. For factual MDS state, prefer approved read-only tool
+  evidence and do not claim you cannot see it when that evidence is supplied.
+  Retrieved context blocks whose ids start with `retrieved.` are public docs
+  selected by Simurgh query planning; use them as supporting evidence and cite
+  dashboard routes or context URLs when helpful. Use the supplied Simurgh
+  language/tone profile to match the operator language and level when confidence
+  is reasonable; keep MDS names, API paths, commands, and doc links exact. If the
+  operator prompt is unclear, typo-heavy, silly, or partially outside MDS, still
+  answer naturally:
+  say what you understood, provide the closest safe MDS interpretation, and ask
+  one concise clarifying question only when needed. Do not pretend certainty when
+  the context is weak. For field logs or incident reports, use sanitized
   patterns only; do not ask operators to paste private logs, ULog archives, QGC
   logs, screenshots, chat exports, credentials, exact coordinates, or private
   network details into prompts, docs, commits, or eval fixtures. Do not change
@@ -87,7 +101,7 @@ sensitive_input_terms:
   - mission name
 sensitive_input_patterns:
   - label: field vehicle label
-    regex: '\bAIRFRAME-\d+\b'
+    regex: '\bCM4-\d+\b'
   - label: exact coordinate pair
     regex: '\b-?\d{1,2}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}\b'
   - label: private IPv4 address
@@ -146,7 +160,7 @@ response_template:
     - Add eval examples before enabling any provider adapter.
 providers:
   openai:
-    model: gpt-5.5
+    model: gpt-5.4-mini
     api_key_file: ""
     base_url: https://api.openai.com/v1
     timeout_seconds: 30

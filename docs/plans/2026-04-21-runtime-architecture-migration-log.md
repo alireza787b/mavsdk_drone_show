@@ -391,7 +391,7 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for:
   - `tools/install_companion.sh`
   - `tools/install_mds_node.sh`
@@ -472,14 +472,14 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for the same four shell entrypoints
 - same targeted remote regression suite passed
 - result: 134 passed
 
 Live auth audit captured during this slice:
 
-- `CM4-01`
+- `CM4-99`
   - `/etc/mds/local.env` points at the public official repo over HTTPS
   - no MDS deploy key is currently present under `/home/droneshow/.ssh`
 - Hetzner GCS
@@ -570,7 +570,7 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for the same five shell entrypoints
 - same targeted remote regression suite passed
 - result: 135 passed
@@ -650,7 +650,7 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for:
   - `app/linux_dashboard_start.sh`
 - same targeted remote regression suite passed
@@ -751,7 +751,7 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for the same five shell entrypoints
 - remote targeted regression suite passed after creating a temporary isolated
   venv under `/tmp/mds_runtime_arch_phase1_remote/.venv-test/`
@@ -825,7 +825,7 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for the same shell entrypoints
 - recreated a temporary isolated venv under:
   - `/tmp/mds_runtime_arch_phase1_remote/.venv-test/`
@@ -902,7 +902,7 @@ Local verification:
 Hetzner verification:
 
 - synced worktree to:
-  - `root@204.168.181.45:/tmp/mds_runtime_arch_phase1_remote/`
+  - `root@203.0.113.10:/tmp/mds_runtime_arch_phase1_remote/`
 - remote shell validation passed for the same shell entrypoints
 - recreated the temporary isolated venv under:
   - `/tmp/mds_runtime_arch_phase1_remote/.venv-test/`
@@ -975,12 +975,12 @@ Verification:
   - `tests/test_bootstrap_installers.py` → 52 passed
   - `tests/test_mds_git_access_check.py` → 3 passed
 - live proof target after commit:
-  - rerun private-token bootstrap on `CM4-02`
+  - rerun private-token bootstrap on `CM4-98`
 
 Residual drift after this slice:
 
 - official/private repos still need this askpass-path fix committed and pushed
-- `CM4-02` private bootstrap must be retried against the new code
+- `CM4-98` private bootstrap must be retried against the new code
 - the temporary read-only token used for this validation should be rotated after
   the test because it was pasted into chat
 

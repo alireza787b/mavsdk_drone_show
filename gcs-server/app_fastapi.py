@@ -977,7 +977,7 @@ async def log_requests(request: Request, call_next):
     duration = time.time() - start_time
 
     path = str(request.url.path)
-    level = get_request_log_level(path, response.status_code)
+    level = get_request_log_level(path, response.status_code, method=request.method)
     log_system_event(
         f"API {request.method} {path} → {response.status_code} ({duration:.3f}s)",
         level, "api"

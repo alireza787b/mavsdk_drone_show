@@ -33,10 +33,10 @@
 - GCS restarted in tmux session `MDS-GCS`
 - 3-drone SITL fleet restaged successfully
 - verification:
-  - `http://204.168.181.45:3030` returns `200`
-  - `http://204.168.181.45:5000/health` returns `{"status":"ok"}`
-  - `http://204.168.181.45:5000/api/telemetry` shows drones `1,2,3` online and `ready`
-  - `http://204.168.181.45:5000/git-status` shows GCS and drones `1,2,3` synced on `65db8652`
+  - `http://203.0.113.10:3030` returns `200`
+  - `http://203.0.113.10:5000/health` returns `{"status":"ok"}`
+  - `http://203.0.113.10:5000/api/telemetry` shows drones `1,2,3` online and `ready`
+  - `http://203.0.113.10:5000/git-status` shows GCS and drones `1,2,3` synced on `65db8652`
 
 ## Screenshot Notes
 

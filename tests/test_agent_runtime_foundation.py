@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -69,6 +70,21 @@ def test_gcs_backed_tool_routes_match_frozen_inventory():
         expected_paths = GCS_EXPECTED_HTTP.get(tool.route_method, set())
         if tool.route_path not in expected_paths:
             missing.append((tool.id, tool.route_method, tool.route_path))
+
+    assert missing == []
+
+
+def test_allowed_route_tools_with_path_params_have_input_schema():
+    registry = load_default_tool_registry()
+
+    missing = []
+    for tool in registry.list_tools(exposure=ToolExposure.ALLOW):
+        if tool.boundary != "gcs" or not tool.route_path or "{" not in tool.route_path:
+            continue
+        required = set(tool.input_schema.get("required", [])) if isinstance(tool.input_schema, dict) else set()
+        path_params = set(re.findall(r"{([A-Za-z_][A-Za-z0-9_]*)}", tool.route_path))
+        if not path_params.issubset(required):
+            missing.append((tool.id, sorted(path_params), sorted(required)))
 
     assert missing == []
 
@@ -177,15 +193,20 @@ def test_mcp_channel_requires_separate_mcp_enablement():
     assert enabled.evaluate_tool(tool, channel="mcp").status is PolicyDecisionStatus.ALLOW
 
 
-def test_sitl_policy_approval_gate_can_be_satisfied_without_real_commands():
+def test_sitl_policy_approval_gate_runs_before_final_circuit_breaker_stop():
     registry = load_default_tool_registry()
     policy = AgentPolicy.from_mapping(_enabled_policy_payload(mode="sitl"), path=POLICY_PATH)
     tool = registry.require("mds.sitl.instances.create")
 
     assert policy.action_circuit_breaker_enabled is True
-    blocked = policy.evaluate_tool(tool)
+    approval = policy.evaluate_tool(tool)
+    assert approval.status is PolicyDecisionStatus.REQUIRE_APPROVAL
+    assert approval.approval_required is True
+
+    blocked = policy.evaluate_tool(tool, approved=True)
     assert blocked.status is PolicyDecisionStatus.DENY
     assert "Simurgh action circuit breaker is enabled" in blocked.reasons
+    assert "circuit breaker is the final execution stop" in blocked.reasons
 
     payload = _enabled_policy_payload(mode="sitl")
     payload["defaults"]["action_circuit_breaker_enabled"] = False
@@ -206,6 +227,13 @@ def test_policy_env_overrides_action_circuit_and_confirmation(monkeypatch):
 
     assert policy.action_circuit_breaker_enabled is False
     assert policy.always_confirm_before_action is False
+
+
+def test_policy_env_runtime_mode_fails_closed_on_invalid_mds_mode(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "unexpected")
+
+    with pytest.raises(AgentRuntimeError, match="invalid canonical MDS_MODE"):
+        AgentPolicy.from_mapping(_enabled_policy_payload(), path=POLICY_PATH, apply_env=True)
 
 
 def test_approval_broker_binds_approval_to_session_tool_and_input():
@@ -270,7 +298,7 @@ def test_session_store_creates_and_closes_sessions():
         metadata={
             "channel": "dashboard",
             "source": "simurgh-ui",
-            "raw_prompt": "AIRFRAME-01 stopped streaming on 192.168.1.10",
+            "raw_prompt": "CM4-99 stopped streaming on 192.168.1.10",
             "unsafe": "contains spaces",
         },
     )

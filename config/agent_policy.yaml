@@ -14,7 +14,6 @@ defaults:
   mode: read_only
   action_circuit_breaker_enabled: true
   always_confirm_before_action: true
-  real_commands_enabled: false
   allow_drone_api_exposure: false
   unknown_tool_policy: deny
   approval_ttl_seconds: 300

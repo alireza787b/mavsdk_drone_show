@@ -102,8 +102,8 @@ Validated private customer runtime:
 - backend serving on `5000`
 
 Current live URLs:
-- dashboard: `http://204.168.181.45:3030`
-- health: `http://204.168.181.45:5000/api/v1/system/health`
+- dashboard: `http://203.0.113.10:3030`
+- health: `http://203.0.113.10:5000/api/v1/system/health`
 
 ## Hardware Validation Status
 

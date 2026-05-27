@@ -20,6 +20,10 @@ Primary artifacts:
 - `context-index.yaml`: resource index loaded by `agent_runtime.context`.
 - `config/agent_provider_smoke.yaml`: configurable provider smoke scenarios.
 - `prompts/`: editable prompt templates.
+- `generated/simurgh-openapi-tool-candidates.yaml`: generated, non-callable
+  OpenAPI capability candidates for reviewer promotion into the registry.
+- `generated/simurgh-docs-index.json`: generated public documentation chunk
+  index used by MCP/docs search tools.
 - `evals/simurgh-foundation.yaml`: seed safety and policy scenarios.
 - `evals/simurgh-advisory-provider.yaml`: runnable offline assistant-provider
   scenarios for advisory regression checks.
@@ -36,11 +40,29 @@ Run the provider smoke workflow without live provider calls:
 python3 tools/run_simurgh_provider_smoke.py
 ```
 
+Refresh the OpenAPI candidate menu after GCS API changes:
+
+```bash
+python3 tools/generate_simurgh_tool_candidates.py
+```
+
+Refresh the public docs search index after changing public context resources or
+operator docs:
+
+```bash
+python3 tools/generate_simurgh_docs_index.py
+```
+
+Use `--check` for CI/reviewer verification. Only resources explicitly marked
+`searchable: true` or `docs_search: include` in `context-index.yaml` are indexed.
+Generated files also require both `docs_search: include` and
+`generated_safe_for_search: true`; the environment registry is the current
+approved generated-reference exception. Other generated artifacts, evals,
+`docs/plans/`, private/sensitive resources, and raw secret patterns are denied.
+
 Live provider smoke is manual and requires an absolute, restricted key file via
-`--api-key-file`. Keep `MDS_AGENT_MODE=read_only`,
-`MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`,
-`MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`,
-`MDS_AGENT_REAL_COMMANDS_ENABLED=false`, and `MDS_MCP_ENABLED=false`.
+`--api-key-file`. Keep `MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`,
+`MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true`, and `MDS_MCP_ENABLED=false`.
 
 Scenarios that use provider fixtures must remain advisory-only and must not
 require raw API keys, MCP tools, direct drone APIs, or real command execution.

@@ -1,0 +1,150 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  purpose: >-
+    Config-driven operator query adaptation for typo-heavy, multilingual, and
+    follow-up Simurgh questions. These rules are for safe routing and retrieval;
+    they are not a translation system and they must not bypass policy, approval,
+    or the action circuit breaker.
+  notes:
+  - Keep this file small, reviewed, and evidence-backed by evals.
+  - Add aliases here instead of hardcoding one-off demo prompts in Python.
+  - Rules may introduce canonical English routing hints, but traces must expose
+    only rule ids and metadata, never raw private prompts.
+max_rule_applications: 80
+term_replacements:
+  - id: typo.waht
+    aliases: [waht, whta, whay]
+    canonical: what
+  - id: typo.different
+    aliases: [differnt, differnet, deiffernt]
+    canonical: different
+  - id: typo.answer
+    aliases: [acnwer, acnwers]
+    canonical: answer
+  - id: typo.this
+    aliases: [thsi, tihs]
+    canonical: this
+  - id: typo.something
+    aliases: [sth, smth, sometihgn, somethign]
+    canonical: something
+  - id: typo.check
+    aliases: [cehck]
+    canonical: check
+  - id: typo.drone
+    aliases: [doren, droen, droens]
+    canonical: drone
+  - id: typo.gcs
+    aliases: [gxs, qgs]
+    canonical: gcs
+  - id: typo.scout
+    aliases: [scoute, scoutee]
+    canonical: scout
+  - id: typo.uploaded
+    aliases: [uplaoded]
+    canonical: uploaded
+  - id: typo.upload
+    aliases: [uplaod]
+    canonical: upload
+  - id: typo.third
+    aliases: [thrird, thrid]
+    canonical: third
+  - id: typo.should
+    aliases: [shold, shuld]
+    canonical: should
+  - id: typo.there
+    aliases: [ther]
+    canonical: there
+  - id: typo.operation
+    aliases: [operatin, oepration]
+    canonical: operation
+  - id: typo.worth_mentioning
+    aliases: [worthmetniotnig, metniotnig]
+    canonical: worth mentioning
+  - id: typo.warning
+    aliases: [warnign, warnirng]
+    canonical: warning
+  - id: typo.circuit_breaker
+    aliases: [circuit brake, circuit break, cb]
+    canonical: circuit breaker
+  - id: concept.how_many
+    aliases: [combien, cuantos, cuántos, quantos, quanti, چند]
+    canonical: how many
+  - id: concept.what
+    aliases: [quel, quelle, quels, quelles, que, qué, cual, cuál, qual, quais, quale, quali, چیست, چه]
+    canonical: what
+  - id: concept.where
+    aliases: [où, ou, donde, dónde, onde, کجا]
+    canonical: where
+  - id: concept.how
+    aliases: [comment, como, cómo, come, چطور, چگونه]
+    canonical: how
+  - id: concept.drone
+    aliases: [drone, drones, droni, dron, پهپاد, پهپادها]
+    canonical: drone
+  - id: concept.configured
+    aliases: [configure, configures, configuré, configurés, configurado, configurados, configurato, configurati, تنظیم, تنظیم شده]
+    canonical: configured
+  - id: concept.connected
+    aliases: [connecte, connecté, connectés, conectado, conectados, connesso, connected, آنلاین, متصل]
+    canonical: connected
+  - id: concept.ip
+    aliases: [adresse ip, direccion ip, dirección ip, indirizzo ip, ip address, آی پی]
+    canonical: ip
+  - id: concept.logs
+    aliases: [journal, journaux, registro, registros, log, logs, لاگ, گزارش]
+    canonical: logs
+  - id: concept.warning
+    aliases: [avertissement, avertissements, advertencia, advertencias, aviso, هشدار]
+    canonical: warning
+  - id: concept.error
+    aliases: [erreur, erreurs, erro, erros, error, errores, خطا, ارور]
+    canonical: error
+  - id: concept.swarm
+    aliases: [essaim, enjambre, enxame, sciame, swarm, گروه پهپاد, دسته پهپاد]
+    canonical: swarm
+  - id: concept.formation
+    aliases: [formation, formacion, formación, formação, هندسه, آرایش]
+    canonical: formation
+  - id: concept.drone_show
+    aliases: [drone show, spectacle de drones, show de drones, espectáculo de drones, espetaculo de drones, espetáculo de drones, نمایش پهپاد, نمایش پهپادی]
+    canonical: drone show
+  - id: concept.skybrush
+    aliases: [skybrush, sky brush]
+    canonical: skybrush
+  - id: concept.uploaded
+    aliases: [uploaded, loaded, charge, chargé, chargée, subido, carregado, caricato, بارگذاری شده, آپلود شده]
+    canonical: uploaded loaded
+  - id: concept.ready
+    aliases: [ready, pret, prêt, lista, listo, pronto, آماده]
+    canonical: ready
+  - id: concept.duration
+    aliases: [duration, duree, durée, duracion, duración, quanto dura, how long, چقدر طول, مدت]
+    canonical: duration how long
+  - id: concept.setup
+    aliases: [setup, set up, install, installer, instalar, configurare, راه اندازی, نصب]
+    canonical: setup
+  - id: concept.companion
+    aliases: [ordinateur compagnon, computadora companera, computadora compañera, کامپیوتر همراه]
+    canonical: companion computer
+  - id: concept.sitl
+    aliases: [sitl, simulation, simulator, simulateur, simulador, شبیه ساز, شبیه‌ساز]
+    canonical: sitl simulation
+  - id: concept.mcp
+    aliases: [mcp, mcps, mcp s]
+    canonical: mcp
+  - id: concept.runtime
+    aliases: [real mode, sitl mode, زمان اجرا]
+    canonical: runtime mode
+  - id: action.launch
+    aliases: [launch, lancer, lanzar, lançar, avviare, پرتاب, شروع پرواز]
+    canonical: launch
+  - id: action.takeoff
+    aliases: [takeoff, take off, décoller, decolle, despegar, decolar, برخاست]
+    canonical: takeoff
+  - id: action.land
+    aliases: [land, landing, atterrir, aterrizar, pousar, فرود]
+    canonical: land
+  - id: action.return
+    aliases: [rtl, return to launch, retourner, volver, بازگشت]
+    canonical: rtl return

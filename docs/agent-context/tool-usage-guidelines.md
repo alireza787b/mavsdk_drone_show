@@ -11,6 +11,7 @@ Tool registry entries must define:
 - risk class
 - GCS/drone/external boundary
 - route method and path when route-backed
+- input schema for every callable argument, including path/query parameters
 - role expectation
 - side effects
 - sensitivity labels
@@ -30,9 +31,103 @@ Interpretation rules:
 - A model must not infer permission from a raw API route that is not in the
   registry.
 - A model must not translate a blocked request into a lower-level route call.
+- OpenAPI discovery output is a candidate menu, not an authorization decision.
+  Generated candidates are not callable until promoted into
+  `config/agent_tools.yaml`, reviewed against `config/agent_policy.yaml`, tested,
+  documented, and approved.
+- A route-backed tool without `input_schema` accepts no arguments. Any path or
+  query parameter support must be explicit, bounded, and validated before the
+  internal ASGI request is built.
 - MCP authentication is not tool authorization. Metadata-only MCP access
   requires bearer auth by default, and every future tool call must still pass
   registry and policy checks.
 
 Adapters should return structured errors for denied or approval-required tools
 so operators can see the exact policy reason.
+
+Current callable argument scope:
+
+- `mds.operator.question.answer` accepts one bounded `question` string and an
+  optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.
+  Its structured result may include `response_mode` (`status`, `interpret`,
+  `workflow`, `compare`, or `capability`) so the same evidence source can answer
+  fresh status prompts and interpretive follow-ups without exposing raw
+  transcript text. It stays read-only/advisory and must not execute actions.
+- `mds.docs.search` accepts a bounded public documentation query plus optional
+  tag/audience filters and returns generated index chunks with canonical
+  context URLs.
+- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a
+  bounded `max_chars` value. It reads only from the generated public docs index.
+- `mds.logs.session.read` accepts a required sanitized `session_id`, required
+  bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight
+  logs, ULog archives, drone-local log actions, or private evidence exports.
+- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,
+  `mds.shows.skybrush.safety_report.read`, and
+  `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current
+  processed show package. They do not import, deploy, download, plot, launch, or
+  command a show. Dashboard show-readiness answers derive from the current
+  metrics snapshot when available so chat stays read-only and responsive.
+- `mds.shows.skybrush.metrics_snapshot.read` uses
+  `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current
+  cached metrics snapshot and reports unavailable if no current cache exists.
+- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a
+  read-only MCP tool because the current route can refresh and write cached
+  metrics.
+
+The docs index artifact is
+`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with
+`tools/generate_simurgh_docs_index.py` after approved public docs/context
+changes and verify with `--check`. The generator is explicit-include and skips
+private resources, evals, generated artifacts, `docs/plans/`, and raw secret
+patterns.
+
+The provider-side retrieval context uses the same generated docs index and
+`agent_runtime.retrieval` interface as `mds.docs.search` and
+`mds.docs.chunk.read`, but it is not itself an executable tool call. Query
+planning selects domain tags and rewritten search queries, retrieves bounded
+public chunks, and injects them as `retrieved.*` context documents before an
+external provider is called. This layer must never bypass the registry, policy,
+or MCP authorization rules; factual live/configured GCS state still comes from
+reviewed read-only tools, not from documentation search. Future vector, hybrid,
+rerank, managed-search, or GraphRAG adapters must preserve the `RetrievalQuery` /
+`RetrievalHit` contract and add eval coverage before becoming default.
+
+The OpenAPI candidate artifact is
+`docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`. Treat it as
+review input for PM, MCP, safety, backend, and field-ops reviewers.
+
+## Language And Query Adaptation
+
+Simurgh treats language adaptation as an orchestration concern, not a collection of hardcoded demo phrases. Each assistant turn gets a safe language/tone profile before routing. Provider turns receive explicit guidance to answer in the operator language when confidence is reasonable, while preserving exact MDS identifiers, routes, APIs, commands, and document links.
+
+Current query adaptation uses `config/agent_query_adaptation.yaml` and `agent_runtime.query_adaptation` to produce canonical routing text for deterministic classifiers and retrieval. Add typos, aliases, and multilingual routing hints in that config, not inside answer templates. Every new rule needs focused eval coverage because a bad alias can route a real operator question to the wrong evidence source.
+
+Current contract:
+
+- Run sensitive-input and blocked-action detection against both original operator text and adapted routing text.
+- Keep adapted routing text out of trace/history; expose only language, strategy, confidence, and applied rule ids.
+- Evaluate routing quality separately from generation quality.
+- Prefer structured rewrite/adaptation output: detected language, normalized intent, domain, response mode, confidence, and refusal/safety notes.
+- Do not let localization bypass policy, confirmation, or circuit-breaker layers.
+- Do not send local GCS state such as fleet IPs, logs, or runtime config to an external provider purely for translation unless a future approved data-egress policy explicitly permits it.
+
+## Answer Composition Contract
+
+Local MDS tools should separate evidence collection from answer rendering. Use `AnswerComposer` for Markdown that must render cleanly in the dashboard and MCP clients. Do not build new one-off answer templates when a reusable section, bullet list, numbered workflow, or table can express the same evidence.
+
+Follow-up handling must be topic-aware and policy-neutral. A session topic can change response mode from `status` to `interpret`, but it must not authorize actions, weaken blocked-intent checks, or expose secrets. Circuit breaker and approval decisions remain downstream of understanding/composition.
+
+The local MDS router has two layers:
+
+- exact deterministic intent rules for high-confidence fleet, show, swarm, logs, setup, runtime, SITL, MCP, and safety/capability questions;
+- a bounded query-plan fallback for real operator questions/requests that exact rules miss.
+
+Do not use the fallback as a catch-all. Generic provider prompts, such as provider-auth test prompts, must still reach the provider-auth gate. The fallback exists to route safe MDS questions like “what interfaces are exposed to clients like n8n and Claude?” or topic follow-ups like “and the scout IP?” to reviewed read-only tools. Keep word-boundary matching for short domain terms to avoid false positives.
+
+### Composer Migration Status
+
+Current local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.
+
+The current external-protocol alignment remains:
+- MCP tools expose schema-described operations and may return links/resources as context; MDS keeps actions out of the callable set until policy, schema, docs, and tests approve them. Reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+- OpenAI Responses provider calls remain tool-disabled for advisory generation in this slice; local/MCP tool execution is handled by MDS policy gates, not by free-form provider tool calls. Reference: https://developers.openai.com/api/reference/resources/responses/methods/create

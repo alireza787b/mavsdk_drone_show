@@ -512,6 +512,36 @@ def build_comprehensive_metrics_payload(
     return refresh_saved_show_metrics_func()
 
 
+def build_metrics_snapshot_payload(
+    *,
+    metrics_available: bool,
+    load_saved_metrics_if_current_func: Callable[[], Optional[Dict[str, Any]]],
+) -> Dict[str, Any]:
+    """Read the current metrics cache without recalculating or writing files."""
+
+    if not metrics_available:
+        raise HTTPException(status_code=503, detail="Enhanced metrics engine not available")
+
+    metrics_data = load_saved_metrics_if_current_func()
+    if metrics_data is None:
+        return {
+            "available": False,
+            "snapshot_only": True,
+            "cache_current": False,
+            "detail": (
+                "No current cached SkyBrush metrics snapshot is available. "
+                "Use the reviewed metrics refresh/import workflow before relying on metrics through MCP."
+            ),
+        }
+
+    return {
+        "available": True,
+        "snapshot_only": True,
+        "cache_current": True,
+        "metrics": metrics_data,
+    }
+
+
 def build_safety_report_payload(
     *,
     metrics_available: bool,

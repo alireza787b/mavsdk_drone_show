@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -55,7 +56,7 @@ def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, t
     config = load_default_assistant_config()
 
     assert config.provider == "openai"
-    assert config.openai.model == "gpt-5.5"
+    assert config.openai.model == "gpt-5.4-mini"
     assert config.openai.read_api_key() == "test-openai-key"
 
 
@@ -157,7 +158,7 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     )
 
     assert record.turn.provider == "openai"
-    assert record.turn.model == "gpt-5.5"
+    assert record.turn.model == "gpt-5.4-mini"
     assert record.turn.adapter_version == "openai-responses-v1"
     assert record.turn.content == "Advisory response."
     assert captured["api_key"] == "test-openai-key"
@@ -174,6 +175,701 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     assert "simurgh.safety_policy" in str(captured["input"])
     assert "No tool execution" in record.turn.safety_notes[0]
     assert audit.list_events()[0].metadata["provider"] == "openai"
+
+
+def test_openai_response_parser_accepts_reasoning_items(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    adapter = OpenAIResponsesAssistantAdapter(config=load_default_assistant_config())
+
+    text = adapter._extract_response_text(
+        {
+            "output": [
+                {"type": "reasoning", "summary": []},
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "Reasoned answer."}],
+                },
+            ],
+        }
+    )
+
+    assert text == "Reasoned answer."
+
+
+def test_assistant_turn_answers_mds_fleet_prompt_with_local_tools(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="How many drones do we have configured?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.turn.model == "local-read-only"
+    assert "configured drone" in record.turn.content.lower()
+    assert "No direct drone API" in record.turn.safety_notes[1]
+    assert record.audit_event.metadata["tool_intent"] == "fleet_summary"
+
+
+def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_MCP_ENABLED", "false")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="What MCP tools and API capabilities can Simurgh expose?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert "curated registry and policy layer" in record.turn.content
+    assert "tools/list" in record.turn.content
+    assert "MCP endpoint: disabled" in record.turn.content
+    assert "mds.fleet.telemetry.read" in record.turn.content
+    assert record.audit_event.metadata["tool_intent"] == "capability_catalog"
+
+
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_intent", "required_phrases", "forbidden_phrases"),
+    (
+        (
+            "can you give me link to the doc so where I can read about how to setup new board and setup its env and keys",
+            "board_setup_help",
+            ("/fleet-enrollment", "/api/v1/simurgh/context/mds.init_setup/markdown", "/environments"),
+            ("Connectivity from GCS state",),
+        ),
+        (
+            "can you give me link to read about creating sitl demo?",
+            "sitl_help",
+            ("app/linux_dashboard_start.sh --sitl", "/sitl-control", "/api/v1/simurgh/context/mds.advanced_sitl/markdown"),
+            ("Connectivity from GCS state",),
+        ),
+        (
+            "what runtime we are now? if I want to change to sitl what should I do if not currently?",
+            "sitl_help",
+            ("Current GCS mode", "--prod --sitl", "No drone command was sent"),
+            ("Simurgh Operator mock assistant",),
+        ),
+        (
+            "can you check log and see what warning we have in backend?",
+            "backend_log_summary",
+            ("Backend warning/error summary", "/logs", "/api/v1/simurgh/context/mds.logging_system/markdown"),
+            ("I can’t inspect backend logs directly here",),
+        ),
+        (
+            "if I want to send drone 1 to takeoff 5 m then wait 10s then 6m north then return, can you do that? do you have the tools? what actions APIs you gonna use if I allow you and disable the circuit brake?",
+            "action_capability",
+            ("cannot execute", "circuit breaker alone", "excluded from Simurgh/MCP tools", "future approved action wrapper"),
+            ("Simurgh Operator mock assistant is active",),
+        ),
+        (
+            "What's the difference of quick scoute and swarm trajectory mode",
+            "mission_mode_comparison",
+            ("QuickScout and Swarm Trajectory are different", "PX4 Mission-style", "Mission Type 4", "/api/v1/simurgh/context/mds.quickscout/markdown", "/api/v1/simurgh/context/mds.mission_planning_workspace/markdown"),
+            ("Configured/planned swarm geometry", "Cluster roots/leaders", "Loaded show state"),
+        ),
+        (
+            "what is swarm formation planned now?",
+            "swarm_topology",
+            ("Configured/planned swarm geometry", "/swarm-design", "/api/v1/simurgh/context/mds.swarm_trajectory/markdown"),
+            ("Loaded show state",),
+        ),
+        (
+            "what are different modes of drone show and their different launch modes?",
+            "show_modes_help",
+            (
+                "Drone Show has two workflow families",
+                "Normal Drone Show / SkyBrush ZIP",
+                "Custom CSV Drone Show",
+                "GLOBAL with Auto Global Launch Corrector",
+                "LOCAL mode",
+                "/api/v1/simurgh/context/mds.drone_show/markdown",
+            ),
+            ("Blocked intent signals", "Loaded show state", "SkyBrush show upload workflow"),
+        ),
+        (
+            "what drone show is planned now? how long it will take?",
+            "show_summary",
+            ("Loaded show state", "operator-selected package", "/manage-drone-show", "/swarm-trajectory"),
+            ("Connectivity from GCS state",),
+        ),
+        (
+            "Whay drone show is uploaded now and how long it takes?",
+            "show_summary",
+            ("Loaded show state", "operator-selected package", "/manage-drone-show"),
+            ("SkyBrush show upload workflow", "Upload the SkyBrush ZIP"),
+        ),
+        (
+            "is ther a doren show uplaoded ready ?",
+            "show_summary",
+            ("Loaded show state", "Readiness signals", "Uploaded/loaded does not by itself mean fly-ready"),
+            ("I can’t confirm readiness", "SkyBrush show upload workflow"),
+        ),
+        (
+            "waht is the scoute droen IP?",
+            "fleet_summary",
+            ("I do not see a configured drone matching", "scout", "Configured drone count"),
+            ("I can’t see or provide", "private network details"),
+        ),
+        (
+            "if I want to add a thrird drone now , waht shold I do and what workflow must be done?",
+            "add_drone_workflow",
+            ("Add-drone workflow", "Fleet Enrollment", "Environment registry", "No drone command, config write"),
+            ("Fleet status from GCS configuration", "This is a read-only dashboard answer"),
+        ),
+        (
+            "How to upload skybrush drone show",
+            "show_upload_help",
+            ("SkyBrush show upload workflow", "/manage-drone-show", "POST /api/v1/shows/skybrush/import", "/api/v1/simurgh/context/mds.drone_show/markdown"),
+            ("Loaded show state", "Connectivity from GCS state"),
+        ),
+        (
+            "if I want to build new drone 3 on a raspberry pi what should I do? do we have docs so give me link to read or any script?",
+            "companion_setup_help",
+            ("tools/install_mds_node.sh", "tools/install_companion.sh", "/api/v1/simurgh/context/mds.init_setup/markdown", "/fleet-enrollment"),
+            ("Useful MDS references", "generic checklist"),
+        ),
+        (
+            "I mean for setup new companion computer what should I do?",
+            "companion_setup_help",
+            ("node bootstrap path", "tools/mds_node_init.sh", "Raspberry Pi services", "No drone command was sent"),
+            ("Install only approved software",),
+        ),
+        (
+            "Combien de drones sont configurés maintenant ?",
+            "fleet_summary",
+            ("Fleet status from GCS configuration", "configured drone"),
+            ("Provider answer", "I can’t see"),
+        ),
+        (
+            "Quel est l'adresse IP du drone scout ?",
+            "fleet_summary",
+            ("I do not see a configured drone matching", "scout", "Configured drone count"),
+            ("private network details", "I can’t see"),
+        ),
+        (
+            "نمایش پهپاد آپلود شده و آماده است؟",
+            "show_summary",
+            ("Loaded show state", "Readiness signals", "operator-selected package"),
+            ("I can’t confirm readiness", "SkyBrush show upload workflow"),
+        ),
+    ),
+)
+def test_assistant_turn_answers_pm_followup_prompts_with_local_mds_tools(
+    monkeypatch,
+    message,
+    expected_intent,
+    required_phrases,
+    forbidden_phrases,
+):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message=message,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.turn.model == "local-read-only"
+    assert record.audit_event.metadata["tool_intent"] == expected_intent
+    for phrase in required_phrases:
+        assert phrase in record.turn.content
+    for phrase in forbidden_phrases:
+        assert phrase not in record.turn.content
+
+def test_assistant_turn_uses_session_topic_for_ambiguous_show_followup(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="what drone show is planned now?",
+    )
+    assert first.audit_event.metadata["tool_intent"] == "show_summary"
+    assert first.session.metadata["last_domain"] == "drone_show"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="is there any uploaded?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "show_summary"
+    assert "Loaded show state" in followup.turn.content
+    assert "I can’t see uploads from here" not in followup.turn.content
+
+
+def test_assistant_turn_interprets_show_followup_from_session_context(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="is ther a doren show uplaoded ready ?",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.audit_event.metadata["tool_intent"] == "show_summary"
+    assert first.audit_event.metadata["response_mode"] == "status"
+    assert first.session.metadata["last_domain"] == "drone_show"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="what does it mean? you cant keep history?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "show_summary"
+    assert followup.audit_event.metadata["response_mode"] == "interpret"
+    assert "I can keep short chat context" in followup.turn.content
+    assert "How to read the current drone-show state" in followup.turn.content
+    assert "Uploaded/loaded means show files exist" in followup.turn.content
+    assert "Loaded show state from GCS show-management files" not in followup.turn.content
+
+
+def test_assistant_turn_interprets_log_followup_from_session_context(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    def fake_recent_warning_events(self, **_kwargs):  # noqa: ANN001
+        return (
+            [
+                {
+                    "ts": "2026-05-26T08:51:00Z",
+                    "level": "WARNING",
+                    "source": "/var/log/mds-gcs.log",
+                    "message": "08:51:00 WARNING [api] API GET /api/v1/commands/active -> 401 (0.001s)",
+                },
+                {
+                    "ts": "2026-05-26T08:51:01Z",
+                    "level": "WARNING",
+                    "source": "/var/log/mds-gcs.log",
+                    "message": "08:51:01 WARNING [api] API POST /api/v1/simurgh/assistant/turns -> 401 (0.001s)",
+                },
+            ],
+            ["/var/log/mds-gcs.log"],
+        )
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_recent_warning_events", fake_recent_warning_events)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="cehck any latest logs and report anythign worthmetniotnig for operatin",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.session.metadata["last_domain"] == "logs"
+    assert first.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert first.audit_event.metadata["response_mode"] == "interpret"
+    assert "HTTP authorization warnings" in first.turn.content
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="what does it mean?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert followup.audit_event.metadata["response_mode"] == "interpret"
+    assert "Operational interpretation of backend warnings" in followup.turn.content
+    assert "HTTP authorization warnings" in followup.turn.content
+    assert "not a MAVLink" in followup.turn.content
+    assert "Most recent entries:" not in followup.turn.content
+
+
+def test_assistant_turn_interprets_typo_log_followup_without_repeating_table(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    def fake_recent_warning_events(self, **_kwargs):  # noqa: ANN001
+        return (
+            [
+                {
+                    "ts": "03:17:15.633",
+                    "level": "WARNING",
+                    "source": "/var/log/mds-gcs.log",
+                    "message": "03:17:15.633 WARNING [api] API GET /api/v1/commands/active -> 401 (0.001s)",
+                },
+                {
+                    "ts": "03:19:09.908",
+                    "level": "WARNING",
+                    "source": "/var/log/mds-gcs.log",
+                    "message": "03:19:09.908 WARNING [api] API POST /api/v1/simurgh/assistant/turns -> 401 (0.000s)",
+                },
+            ],
+            ["/var/log/mds-gcs.log"],
+        )
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_recent_warning_events", fake_recent_warning_events)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="check latest logs tell me whats going on",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.session.metadata["last_domain"] == "logs"
+    assert "Most recent entries:" in first.turn.content
+    assert "03:17:15.633" in first.turn.content
+    assert "time n/a" not in first.turn.content
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="does thsi mean sth is wrong?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert followup.audit_event.metadata["response_mode"] == "interpret"
+    assert "Short answer: this does not look like a drone" in followup.turn.content
+    assert "Fix priority: low for flight readiness" in followup.turn.content
+    assert "Most recent entries:" not in followup.turn.content
+    assert "time n/a" not in followup.turn.content
+
+
+def test_text_log_timestamp_parser_accepts_time_only_entries():
+    from agent_runtime.mds_read_tools import _extract_log_timestamp
+
+    assert _extract_log_timestamp("03:17:15.633 WARNING [api] API GET /x -> 401") == "03:17:15.633"
+    assert _extract_log_timestamp("2026-05-27T03:17:15.633Z WARNING [api] API GET /x -> 401") == "2026-05-27T03:17:15.633Z"
+
+
+def test_backend_log_summary_filters_routine_auth_polling_noise():
+    from agent_runtime.mds_read_tools import _is_routine_auth_noise_event
+
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "WARNING",
+            "message": "API GET /api/v1/commands/active -> 401 (0.001s)",
+        }
+    ) is True
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "WARNING",
+            "message": "API GET /api/v1/git/status -> 403 (0.001s)",
+        }
+    ) is True
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "WARNING",
+            "message": "API POST /api/v1/simurgh/assistant/turns -> 401 (0.001s)",
+        }
+    ) is False
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "WARNING",
+            "message": "API GET /api/v1/system/env/gcs -> 401 (0.001s)",
+        }
+    ) is False
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "ERROR",
+            "message": "API GET /api/v1/commands/active -> 500 (0.001s)",
+        }
+    ) is False
+
+
+def test_backend_log_summary_skips_stale_fallback_log_files(tmp_path):
+    from agent_runtime.mds_read_tools import FALLBACK_LOG_STALE_GRACE_SECONDS, _include_fallback_log_file
+
+    fallback = tmp_path / "mds-gcs.log"
+    fallback.write_text("03:17:15 WARNING [api] stale\n", encoding="utf-8")
+    fallback_mtime = 1_800_000_000.0
+    os.utime(fallback, (fallback_mtime, fallback_mtime))
+
+    assert _include_fallback_log_file(fallback, newest_session_mtime=None) is True
+    assert _include_fallback_log_file(
+        fallback,
+        newest_session_mtime=fallback_mtime + FALLBACK_LOG_STALE_GRACE_SECONDS,
+    ) is True
+    assert _include_fallback_log_file(
+        fallback,
+        newest_session_mtime=fallback_mtime + FALLBACK_LOG_STALE_GRACE_SECONDS + 1,
+    ) is False
+
+
+def test_assistant_turn_routes_fleet_followup_from_session_context(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="How many drones do we have configured?",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.session.metadata["last_domain"] == "fleet"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="and the scout IP?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "fleet_summary"
+    assert "I do not see a configured drone matching" in followup.turn.content
+    assert "scout" in followup.turn.content
+    assert "private network details" not in followup.turn.content
+
+
+def test_assistant_turn_translates_previous_answer_instead_of_capability_catalog(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "هیچ پهپادی در حال حاضر متصل دیده نمی‌شود. هیچ فرمانی به پهپاد ارسال نشد.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="wat droens are connected?",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.audit_event.metadata["tool_intent"] == "fleet_connectivity"
+    assert first.session.metadata["last_domain"] == "fleet"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="can you say it in persian",
+    )
+
+    assert followup.turn.provider == "openai"
+    assert followup.audit_event.metadata["tool_intent"] == "conversation_transform"
+    assert followup.audit_event.metadata["response_mode"] == "transform"
+    assert "MCP endpoint" not in followup.turn.content
+    assert "capability registry" not in followup.turn.content
+    assert "session.previous_assistant_answer" in str(captured["input"])
+    assert "Connectivity from GCS state" in str(captured["input"])
+
+
+def test_assistant_turn_routes_can_you_warning_request_to_logs_not_capabilities(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="wat droens are connected?",
+    )
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="can you report any warnign if exist last 30 minutes in gcs?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert followup.audit_event.metadata["query_domain"] == "logs"
+    assert "Backend warning/error summary" in followup.turn.content
+    assert "Simurgh capabilities" not in followup.turn.content
+    assert "MCP endpoint" not in followup.turn.content
+
+
+def test_assistant_turn_routes_setup_followup_to_bootstrap_guidance(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="if I want to add a third drone now, what workflow must be done?",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.session.metadata["last_domain"] == "setup"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="what scripts and docs should I use now?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "companion_setup_help"
+    assert "tools/install_mds_node.sh" in followup.turn.content
+    assert "Fleet Enrollment" in followup.turn.content
+    assert "generic checklist" not in followup.turn.content
+
+
+def test_assistant_turn_routes_capability_followup_from_session_context(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="What MCP tools and API capabilities can Simurgh expose?",
+    )
+
+    assert first.turn.provider == "mds-tools"
+    assert first.session.metadata["last_domain"] == "capabilities"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="can n8n use that same menu too?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "capability_catalog"
+    assert "MCP endpoint" in followup.turn.content
+    assert "config/agent_tools.yaml" in followup.turn.content
+
+
+def test_assistant_turn_uses_query_plan_fallback_for_client_api_prompt(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="what interfaces are exposed to clients like n8n and claude?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "capability_catalog"
+    assert "MCP endpoint" in record.turn.content
+    assert "hardcoded chat-only tools" in record.turn.content
+
+
+def test_assistant_turn_includes_generated_docs_sources_for_docs_questions(monkeypatch):
+    from agent_runtime.docs_index import build_docs_search_payload
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="can you give me link to read about creating sitl demo?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert "Sources:" in record.turn.content
+    assert "chunk `" in record.turn.content
+    assert "/api/v1/simurgh/context/mds.advanced_sitl/markdown" in record.turn.content
+    docs_payload = build_docs_search_payload("creating sitl demo", tags="sitl", limit=3)
+    assert docs_payload["results"]
+    assert any(
+        item["canonical_url"] in record.turn.content
+        for item in docs_payload["results"]
+    )
+
+
+def test_assistant_turn_records_query_adaptation_trace_for_multilingual_local_tool(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="Combien de drones sont configurés maintenant ?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    adaptation = record.audit_event.metadata["query_adaptation"]
+    assert adaptation["input_language"] == "fr"
+    assert adaptation["routing_language"] == "en"
+    assert adaptation["strategy"] == "config-governed-cross-language-routing"
+    assert adaptation["applied_rule_count"] >= 2
+    assert "Combien" not in str(adaptation)
+    assert record.session.metadata["last_domain"] == "fleet"
+    assert record.session.metadata["last_intent"] == "fleet_summary"
 
 
 def test_openai_assistant_turn_blocks_operational_intent_before_provider_call(monkeypatch, tmp_path):
@@ -200,6 +896,30 @@ def test_openai_assistant_turn_blocks_operational_intent_before_provider_call(mo
     assert "No provider request was made" in record.turn.safety_notes[0]
 
 
+def test_openai_assistant_turn_still_blocks_direct_drone_show_launch(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("provider should not be called for blocked operational intent")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="Can you launch the drone show now?",
+    )
+
+    assert record.turn.provider == "openai"
+    assert "launch" in record.turn.blocked_intents
+    assert "no provider request was made" in record.turn.content
+    assert "Drone Show has two workflow families" not in record.turn.content
+
+
 @pytest.mark.parametrize(
     ("message", "expected_signal"),
     (
@@ -207,18 +927,18 @@ def test_openai_assistant_turn_blocks_operational_intent_before_provider_call(mo
         ("The customer .ulg flight log is pasted below.", "ULog artifact"),
         ("The customer flight log is pasted below.", "customer flight log artifact"),
         ("Attach the QGroundControl log from the customer flight.", "QGroundControl log artifact"),
-        ("AIRFRAME-01 stopped streaming on 192.168.1.10.", "field vehicle label"),
+        ("CM4-99 stopped streaming on 192.168.1.10.", "field vehicle label"),
         ("Private repo path git@github.com:customer/mds-private.git", "private repository path"),
-        ("Ticket ID SAR-1042 includes the field notes.", "ticket identifier"),
+        ("Ticket ID TST-1042 includes the field notes.", "ticket identifier"),
         ("Serial SN:ABC123456 was visible in the screenshot.", "device serial identifier"),
-        ("NetBird peer id peer_abcdef12345 is in the report.", "NetBird peer identifier"),
+        ("NetBird peer id peer_example12345 is in the report.", "NetBird peer identifier"),
         ("Screenshot from the customer field test is attached.", "screenshot"),
         ("2026-05-19 17:32:15 field log line was pasted.", "exact timestamp"),
-        ("Mission name: South Harbor Recovery should be redacted.", "mission name"),
-        ("Customer identifier: CoastTeamAlpha should be private.", "customer or site identifier"),
+        ("Mission name: Example Harbor Recovery should be redacted.", "mission name"),
+        ("Customer identifier: ExampleSiteAlpha should be private.", "customer or site identifier"),
         ("INFO mavlink-router forwarded packet details from a private field run", "pasted log body"),
-        ("Authorization: Bearer mds_test_secret_12345 should not leave the GCS.", "secret assignment"),
-        ("The api key is sk-test-redacted-12345.", "secret assignment"),
+        ("".join(("Authorization: Bearer ", "mds_test_secret_12345 should not leave the GCS.")), "secret assignment"),
+        ("".join(("The api key is ", "sk-", "test-redacted-12345.")), "secret assignment"),
         ("The password is fieldtest12345.", "secret assignment"),
     ),
 )
@@ -343,6 +1063,109 @@ def test_openai_provider_prompt_template_is_config_driven(monkeypatch, tmp_path)
     assert "MESSAGE=Summarize." in str(captured["input"])
 
 
+def test_openai_provider_receives_retrieved_docs_context_for_unexpected_prompt(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {"output": [{"type": "message", "content": [{"type": "output_text", "text": "Context-aware answer."}]}]}
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="The assistant feels robotic; how should I think about the Simurgh chat page and context memory?",
+    )
+
+    input_text = str(captured["input"])
+    assert record.turn.provider == "openai"
+    assert record.audit_event.metadata["query_domain"] in {"ui", "capabilities", "general"}
+    assert record.audit_event.metadata["retrieved_context_count"] > 0
+    assert "### retrieved." in input_text
+    assert "Retrieved query:" in input_text
+    assert "Simurgh" in input_text
+
+
+def test_openai_provider_gets_clarify_mode_for_low_signal_prompt(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {"output": [{"type": "message", "content": [{"type": "output_text", "text": "I need a clearer MDS question."}]}]}
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="qrxzz blnk",
+    )
+
+    assert record.turn.provider == "openai"
+    assert record.audit_event.metadata["query_domain"] == "general"
+    assert record.audit_event.metadata["query_unclear"] is True
+    assert record.audit_event.metadata["response_mode"] == "clarify"
+    assert "Public MDS context" in str(captured["input"])
+
+
+def test_assistant_turn_records_language_profile_without_raw_prompt(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="How many drones do we have configured?",
+    )
+
+    profile = record.audit_event.metadata["language_profile"]
+    assert profile["language"] == "en"
+    assert profile["script"] == "latin"
+    assert profile["localization_strategy"] == "english-direct"
+    assert record.audit_event.metadata["input_language"] == "en"
+    assert "How many drones" not in str(record.audit_event.to_json_dict())
+
+
+def test_openai_provider_receives_language_profile_guidance(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {"output": [{"type": "message", "content": [{"type": "output_text", "text": "Réponse."}]}]}
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="Combien de pages Simurgh sont utiles maintenant ?",
+    )
+
+    assert record.turn.provider == "openai"
+    assert record.audit_event.metadata["language_profile"]["language"] == "fr"
+    input_text = str(captured["input"])
+    assert "Simurgh language/tone profile" in input_text
+    assert "Detected language: fr" in input_text
+    assert "answer in that same language" in input_text
+
+
 def test_openai_assistant_rejects_tool_outputs(monkeypatch, tmp_path):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
@@ -411,7 +1234,7 @@ def test_assistant_session_metadata_keeps_only_safe_source(monkeypatch):
         message="Summarize safety policy.",
         metadata={
             "source": "simurgh-dashboard",
-            "raw_prompt": "AIRFRAME-01 stopped streaming on 192.168.1.10",
+            "raw_prompt": "CM4-99 stopped streaming on 192.168.1.10",
             "notes": "customer field evidence",
         },
     )
@@ -427,7 +1250,7 @@ def test_assistant_session_metadata_rejects_sensitive_source_value(monkeypatch):
         audit=InMemoryAuditSink(),
         actor="operator",
         message="Summarize safety policy.",
-        metadata={"source": "AIRFRAME-01"},
+        metadata={"source": "CM4-99"},
     )
 
     assert record.session.metadata == {"channel": "assistant"}

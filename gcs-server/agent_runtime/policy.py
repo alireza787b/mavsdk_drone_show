@@ -161,10 +161,7 @@ class AgentPolicy:
     def with_env_overrides(self) -> "AgentPolicy":
         """Apply host-local env toggles without changing the policy artifact."""
 
-        mode = os.environ.get("MDS_AGENT_MODE", self.mode).strip() or self.mode
-        if mode not in self.runtime_modes:
-            raise AgentRuntimeError(f"MDS_AGENT_MODE references unknown Simurgh mode: {mode}")
-
+        mode = self._canonical_runtime_policy_mode()
         return AgentPolicy(
             version=self.version,
             path=self.path,
@@ -179,13 +176,36 @@ class AgentPolicy:
                 "MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION",
                 self.always_confirm_before_action,
             ),
-            real_commands_enabled=_bool_env("MDS_AGENT_REAL_COMMANDS_ENABLED", self.real_commands_enabled),
+            # Deprecated compatibility field. The operator-facing execution stop
+            # is MDS_AGENT_ACTION_CIRCUIT_BREAKER; real-vs-SITL posture follows
+            # canonical MDS_MODE through _canonical_runtime_policy_mode().
+            # Do not read the legacy real-command override here.
+            real_commands_enabled=False,
             allow_drone_api_exposure=self.allow_drone_api_exposure,
             unknown_tool_policy=self.unknown_tool_policy,
             approval_ttl_seconds=self.approval_ttl_seconds,
             runtime_modes=self.runtime_modes,
             approval_required_risks=self.approval_required_risks,
         )
+
+    def _canonical_runtime_policy_mode(self) -> str:
+        """Map Simurgh risk policy to the actual GCS runtime mode."""
+
+        try:
+            from src.settings.runtime import resolve_runtime_mode
+
+            runtime = resolve_runtime_mode()
+        except Exception as exc:
+            raise AgentRuntimeError("failed to resolve canonical MDS_MODE for Simurgh policy") from exc
+
+        raw_mode = os.environ.get("MDS_MODE")
+        if raw_mode and runtime.source != "env:MDS_MODE":
+            raise AgentRuntimeError(f"invalid canonical MDS_MODE for Simurgh policy: {raw_mode!r}")
+
+        runtime_mode = runtime.mode
+        if runtime_mode in self.runtime_modes:
+            return runtime_mode
+        raise AgentRuntimeError(f"canonical runtime mode {runtime_mode!r} has no Simurgh policy entry")
 
     def evaluate_tool(
         self,
@@ -211,10 +231,6 @@ class AgentPolicy:
             reasons.append("non-GCS tool boundary is disabled")
         if tool.exposure is ToolExposure.EXCLUDE:
             reasons.append("tool is explicitly excluded")
-        if self.action_circuit_breaker_enabled and not tool.read_only:
-            reasons.append("Simurgh action circuit breaker is enabled")
-        if tool.risk_class is ToolRiskClass.OPERATE and not self.real_commands_enabled:
-            reasons.append("real-world command tools are disabled")
         if tool.runtime_modes and self.mode not in tool.runtime_modes:
             reasons.append(f"tool is not available in mode {self.mode!r}")
         if self.mode == "read_only" and not tool.read_only:
@@ -252,6 +268,16 @@ class AgentPolicy:
                 tool_id=tool.id,
                 reasons=("human approval required",),
                 approval_required=True,
+            )
+
+        if self.action_circuit_breaker_enabled and not tool.read_only:
+            return PolicyDecision(
+                status=PolicyDecisionStatus.DENY,
+                tool_id=tool.id,
+                reasons=(
+                    "Simurgh action circuit breaker is enabled",
+                    "circuit breaker is the final execution stop",
+                ),
             )
 
         return PolicyDecision(status=PolicyDecisionStatus.ALLOW, tool_id=tool.id)

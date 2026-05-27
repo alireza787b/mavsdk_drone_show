@@ -20,8 +20,21 @@ import yaml
 
 from .audit import InMemoryAuditSink
 from .context import AgentContextIndex, load_default_context_index
+from .language import LanguageProfile, detect_language_profile, provider_language_guidance
+from .mds_read_tools import (
+    READ_TOOL_ADAPTER_VERSION,
+    READ_TOOL_MODEL,
+    READ_TOOL_PROVIDER,
+    classify_mds_read_intent,
+    infer_mds_read_topic,
+    is_safe_blocked_term_read_only_intent,
+)
 from .models import AgentRuntimeError, AgentSession, AuditEvent, ContextResource, stable_payload_hash, utc_now
 from .policy import load_default_policy
+from .query_adaptation import adapt_operator_query
+from .query_understanding import AssistantQueryPlan, build_assistant_query_plan
+from .tool_executor import ADVISORY_ANSWER_TOOL_ID, execute_policy_allowed_advisory_tool
+from .retrieval import load_default_retriever, search_retriever_queries
 from .sessions import AgentSessionStore, sanitize_session_metadata
 
 
@@ -49,13 +62,16 @@ ASSISTANT_HISTORY_SCHEMA_VERSION = 1
 MOCK_ASSISTANT_ADAPTER_VERSION = "mock-v1"
 MOCK_ASSISTANT_MODEL = "mock-local"
 OPENAI_ASSISTANT_ADAPTER_VERSION = "openai-responses-v1"
-DEFAULT_OPENAI_MODEL = "gpt-5.5"
+DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 ALLOWED_OPENAI_BASE_URLS = (DEFAULT_OPENAI_BASE_URL,)
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 30.0
 DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 900
 DEFAULT_OPENAI_REASONING_EFFORT = "medium"
 DEFAULT_OPENAI_TEXT_VERBOSITY = "low"
+DEFAULT_RETRIEVED_CONTEXT_LIMIT = 4
+DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS = 2200
+DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES = 14000
 SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 SUPPORTED_OPENAI_TEXT_VERBOSITY = {"low", "medium", "high"}
 
@@ -854,7 +870,13 @@ class OpenAIResponsesAssistantAdapter:
     def __init__(self, *, config: AssistantConfig):
         self.config = config
 
-    def generate(self, *, message: str, context_documents: tuple[AssistantContextDocument, ...]) -> AssistantTurnResult:
+    def generate(
+        self,
+        *,
+        message: str,
+        context_documents: tuple[AssistantContextDocument, ...],
+        language_profile: LanguageProfile | None = None,
+    ) -> AssistantTurnResult:
         mock_adapter = MockAssistantAdapter(config=self.config)
         sensitive_input_terms = mock_adapter._sensitive_input_terms(message)
         blocked_intents = tuple(sorted(set(mock_adapter._blocked_intents(message) + sensitive_input_terms)))
@@ -866,7 +888,11 @@ class OpenAIResponsesAssistantAdapter:
                 sensitive_input_terms=sensitive_input_terms,
             )
 
-        request_payload = self._request_payload(message=message, context_documents=context_documents)
+        request_payload = self._request_payload(
+            message=message,
+            context_documents=context_documents,
+            language_profile=language_profile,
+        )
         response_payload = self._post_response(request_payload, api_key=self.config.openai.read_api_key())
         content = self._extract_response_text(response_payload)
 
@@ -929,11 +955,13 @@ class OpenAIResponsesAssistantAdapter:
         *,
         message: str,
         context_documents: tuple[AssistantContextDocument, ...],
+        language_profile: LanguageProfile | None = None,
     ) -> dict[str, Any]:
         context_blocks = self._context_blocks(context_documents)
+        provider_message = _provider_message_with_language_guidance(message, language_profile)
         try:
             input_text = self.config.provider_input_template.format(
-                message=message,
+                message=provider_message,
                 context_blocks=context_blocks,
             )
         except KeyError as exc:
@@ -1030,6 +1058,8 @@ class OpenAIResponsesAssistantAdapter:
             if not isinstance(item, dict):
                 raise AgentRuntimeError("OpenAI assistant response included an invalid output item")
             item_type = item.get("type")
+            if item_type == "reasoning":
+                continue
             if item_type != "message":
                 raise AgentRuntimeError("OpenAI assistant response included non-text output")
             for content in item.get("content") or ():
@@ -1053,6 +1083,175 @@ def _safe_assistant_session_metadata(metadata: Mapping[str, object] | None) -> d
     return safe
 
 
+def _context_bytes(documents: tuple[AssistantContextDocument, ...]) -> int:
+    return sum(len(document.text.encode("utf-8")) for document in documents)
+
+
+def _retrieved_context_documents(
+    *,
+    query_plan: AssistantQueryPlan,
+    existing_documents: tuple[AssistantContextDocument, ...],
+) -> tuple[AssistantContextDocument, ...]:
+    """Return bounded public docs chunks for provider context assembly."""
+
+    try:
+        retriever = load_default_retriever()
+    except AgentRuntimeError:
+        return ()
+
+    search_queries = query_plan.search_queries or (query_plan.normalized_message,)
+    try:
+        ranked = search_retriever_queries(
+            retriever,
+            search_queries,
+            limit=DEFAULT_RETRIEVED_CONTEXT_LIMIT,
+            tags=query_plan.tags,
+        )
+    except AgentRuntimeError:
+        return ()
+
+    existing_ids = {document.id for document in existing_documents}
+    documents: list[AssistantContextDocument] = []
+    budget = DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES
+    used = 0
+    for hit in ranked[: DEFAULT_RETRIEVED_CONTEXT_LIMIT * 2]:
+        chunk = hit.chunk
+        document_id = "retrieved." + re.sub(r"[^A-Za-z0-9_.:-]+", ".", chunk.id).strip(".")
+        if not document_id or document_id in existing_ids:
+            continue
+        text = _retrieved_chunk_text(
+            chunk_text=chunk.text,
+            canonical_url=chunk.canonical_url,
+            route_hint=chunk.route_hint,
+            search_query=hit.query,
+            max_chars=DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS,
+        )
+        next_bytes = len(text.encode("utf-8"))
+        if used + next_bytes > budget and documents:
+            break
+        used += next_bytes
+        documents.append(
+            AssistantContextDocument(
+                id=document_id,
+                title=f"Retrieved docs: {chunk.title}" + (f" - {chunk.heading}" if chunk.heading else ""),
+                uri=chunk.canonical_url or f"mds://simurgh/docs/{chunk.id}",
+                mime_type=chunk.mime_type,
+                summary=(
+                    f"Retrieved public docs context for domain={query_plan.domain}, "
+                    f"mode={query_plan.response_mode}, score={hit.score:.1f}. {chunk.summary}"
+                ),
+                tags=tuple(dict.fromkeys(("retrieved", "rag", query_plan.domain, *chunk.tags))),
+                content_hash=chunk.content_hash,
+                text=text,
+            )
+        )
+        if len(documents) >= DEFAULT_RETRIEVED_CONTEXT_LIMIT:
+            break
+    return tuple(documents)
+
+def _retrieved_chunk_text(
+    *,
+    chunk_text: str,
+    canonical_url: str,
+    route_hint: str | None,
+    search_query: str,
+    max_chars: int,
+) -> str:
+    text = str(chunk_text or "").strip()
+    if len(text) > max_chars:
+        text = text[:max_chars].rstrip() + "\n...[truncated by Simurgh retrieval context budget]"
+    lines = [f"Retrieved query: {search_query}"]
+    if canonical_url:
+        lines.append(f"Source: {canonical_url}")
+    if route_hint:
+        lines.append(f"Dashboard route: {route_hint}")
+    lines.extend(["", text])
+    return "\n".join(lines)
+
+
+def _provider_message_with_language_guidance(
+    message: str,
+    language_profile: LanguageProfile | None,
+) -> str:
+    """Append safe language/tone guidance for provider turns without mutating stored prompts."""
+
+    if language_profile is None:
+        return message
+    return message + "\n\n" + provider_language_guidance(language_profile)
+
+
+def _conversation_transform_kind(message: str) -> str | None:
+    """Return the requested previous-answer transform, if the turn is referential.
+
+    This is a generic conversation-state primitive, not an MDS domain intent. It
+    prevents polite follow-ups like "can you say it in Persian" from being
+    stolen by capability or fleet routing before the provider can transform the
+    actual previous answer.
+    """
+
+    normalized = re.sub(r"\s+", " ", str(message or "").strip().casefold())
+    if not normalized:
+        return None
+    language_markers = (
+        "persian",
+        "farsi",
+        "فارسی",
+        "français",
+        "french",
+        "spanish",
+        "español",
+        "arabic",
+        "عربی",
+        "english",
+    )
+    transform_markers = (
+        "say it in",
+        "say this in",
+        "translate",
+        "translation",
+        "same in",
+        "answer in",
+        "write it in",
+        "rewrite it in",
+        "به فارسی",
+        "in persian",
+        "in farsi",
+    )
+    if any(marker in normalized for marker in transform_markers) and any(
+        marker in normalized for marker in language_markers
+    ):
+        return "translate_previous_answer"
+    if any(marker in normalized for marker in ("shorter", "more concise", "simpler", "summarize that", "summarise that")):
+        return "rewrite_previous_answer"
+    return None
+
+
+def _previous_answer_context_document(previous_answer: str) -> AssistantContextDocument:
+    content = str(previous_answer or "").strip()
+    return AssistantContextDocument(
+        id="session.previous_assistant_answer",
+        title="Previous Simurgh answer in this chat",
+        uri="mds://simurgh/session/previous-assistant-answer",
+        mime_type="text/markdown",
+        summary="Bounded private session context used only to transform the previous answer for the current operator.",
+        tags=("session", "conversation", "previous-answer"),
+        content_hash=stable_payload_hash({"previous_assistant_answer": content}),
+        text=content[:DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS],
+    )
+
+
+def _previous_answer_transform_message(*, operator_message: str, transform_kind: str) -> str:
+    return "\n".join(
+        [
+            f"Operator follow-up: {operator_message}",
+            f"Conversation task: {transform_kind}.",
+            "Use the context document `session.previous_assistant_answer` as the source answer.",
+            "Do not retrieve new facts, do not change numbers/IPs/routes/safety caveats, and do not claim any action was executed.",
+            "Return only the transformed answer in the operator-requested language or style.",
+        ]
+    )
+
+
 def create_assistant_turn(
     *,
     sessions: AgentSessionStore,
@@ -1065,7 +1264,7 @@ def create_assistant_turn(
     metadata: Mapping[str, object] | None = None,
     force_provider: str | None = None,
 ) -> AssistantTurnRecord:
-    """Create one assistant turn without executing tools."""
+    """Create one assistant turn without command or mutation execution."""
 
     policy = load_default_policy()
     if not policy.agent_enabled:
@@ -1084,6 +1283,8 @@ def create_assistant_turn(
     if len(normalized_message) > config.max_message_chars:
         raise AgentRuntimeError("assistant message exceeds max_message_chars")
 
+    language_profile = detect_language_profile(normalized_message)
+
     if session_id:
         session = sessions.require(session_id)
         if session.closed:
@@ -1101,10 +1302,146 @@ def create_assistant_turn(
         )
 
     context_documents = AssistantContextAssembler(config=config).assemble(context_resource_ids)
-    turn = _adapter_for_config(config).generate(
-        message=normalized_message,
-        context_documents=context_documents,
+    conversation_topic = str(session.metadata.get("last_domain") or "")
+    query_adaptation = adapt_operator_query(
+        normalized_message,
+        language_profile=language_profile,
+        conversation_topic=conversation_topic,
     )
+    routing_message = query_adaptation.routing_text or normalized_message
+    query_plan = build_assistant_query_plan(routing_message, conversation_topic=conversation_topic)
+    retrieved_context_count = 0
+    blocked_matches = tuple(
+        sorted(
+            set(
+                blocked_intent_matches(config, normalized_message)
+                + blocked_intent_matches(config, routing_message)
+            )
+        )
+    )
+    sensitive_matches = tuple(
+        sorted(
+            set(
+                sensitive_input_matches(config, normalized_message)
+                + sensitive_input_matches(config, routing_message)
+            )
+        )
+    )
+    local_intent = None
+    tool_result = None
+    tool_intent = None
+    tool_response_mode = None
+    tool_ids: list[str] = []
+    previous_context = sessions.get_private_context(session.id)
+    transform_kind = _conversation_transform_kind(routing_message)
+    transform_answer = previous_context.get("last_assistant_content") if transform_kind else ""
+    if force_provider is None and transform_kind and transform_answer and not blocked_matches and not sensitive_matches:
+        adapter = _adapter_for_config(config)
+        if isinstance(adapter, OpenAIResponsesAssistantAdapter):
+            previous_document = _previous_answer_context_document(transform_answer)
+            context_documents = (*context_documents, previous_document)
+            retrieved_context_count = 1
+            turn = adapter.generate(
+                message=_previous_answer_transform_message(
+                    operator_message=normalized_message,
+                    transform_kind=transform_kind,
+                ),
+                context_documents=context_documents,
+                language_profile=language_profile,
+            )
+            tool_intent = "conversation_transform"
+            tool_response_mode = "transform"
+        else:
+            tool_result = None
+
+    if force_provider is None and tool_intent is None:
+        local_intent = classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
+        safe_read_only_blocked_term = is_safe_blocked_term_read_only_intent(routing_message, local_intent)
+        if local_intent is not None and (
+            local_intent == "action_capability"
+            or (not sensitive_matches and (not blocked_matches or safe_read_only_blocked_term))
+        ):
+            tool_arguments = {"question": routing_message}
+            if conversation_topic:
+                tool_arguments["conversation_topic"] = conversation_topic
+            tool_result = execute_policy_allowed_advisory_tool(
+                name=ADVISORY_ANSWER_TOOL_ID,
+                arguments=tool_arguments,
+                channel="agent",
+                policy=policy,
+            )
+            if tool_result.is_error:
+                tool_result = None
+
+    if tool_intent == "conversation_transform":
+        pass
+    elif tool_result is not None:
+        structured = tool_result.structured_content if isinstance(tool_result.structured_content, Mapping) else {}
+        raw_safety_notes = structured.get("safety_notes") if isinstance(structured, Mapping) else None
+        safety_notes = tuple(str(note) for note in raw_safety_notes) if isinstance(raw_safety_notes, list) else (
+            "Read-only Simurgh advisory registry tool was executed.",
+            "No direct drone API or raw GCS command was exposed.",
+        )
+        tool_intent = structured.get("intent") if isinstance(structured, Mapping) else None
+        raw_tool_ids = structured.get("tool_ids") if isinstance(structured, Mapping) else None
+        tool_ids = [str(tool_id) for tool_id in raw_tool_ids] if isinstance(raw_tool_ids, list) else []
+        tool_response_mode = structured.get("response_mode") if isinstance(structured, Mapping) else None
+        turn = AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=READ_TOOL_PROVIDER,
+            model=READ_TOOL_MODEL,
+            adapter_version=READ_TOOL_ADAPTER_VERSION,
+            content=tool_result.text,
+            context_documents=context_documents,
+            blocked_intents=(),
+            safety_notes=safety_notes,
+        )
+    else:
+        if config.provider != "mock" and not blocked_matches and not sensitive_matches:
+            retrieved_documents = _retrieved_context_documents(
+                query_plan=query_plan,
+                existing_documents=context_documents,
+            )
+            if retrieved_documents:
+                context_documents = (*context_documents, *retrieved_documents)
+                retrieved_context_count = len(retrieved_documents)
+        adapter = _adapter_for_config(config)
+        if isinstance(adapter, OpenAIResponsesAssistantAdapter):
+            turn = adapter.generate(
+                message=normalized_message,
+                context_documents=context_documents,
+                language_profile=language_profile,
+            )
+        else:
+            turn = adapter.generate(
+                message=normalized_message,
+                context_documents=context_documents,
+            )
+
+    final_response_mode = str(tool_response_mode or query_plan.response_mode)
+    next_topic = infer_mds_read_topic(routing_message, intent=str(tool_intent or local_intent or ""))
+    if next_topic:
+        session = sessions.update_metadata(
+            session.id,
+            {
+                "last_domain": next_topic,
+                "last_intent": str(tool_intent or local_intent or ""),
+                "last_response_mode": final_response_mode,
+            },
+        )
+    sessions.update_private_context(
+        session.id,
+        {
+            "last_assistant_content": turn.content,
+            "last_assistant_provider": turn.provider,
+            "last_assistant_model": turn.model,
+            "last_domain": str(next_topic or session.metadata.get("last_domain") or ""),
+            "last_intent": str(tool_intent or local_intent or session.metadata.get("last_intent") or ""),
+            "last_response_mode": final_response_mode,
+        },
+    )
+
     event = audit.record(
         "assistant_turn_created",
         session_id=session.id,
@@ -1122,6 +1459,24 @@ def create_assistant_turn(
             "mode": session.mode,
             "context_count": len(context_documents),
             "blocked_intent_count": len(turn.blocked_intents),
+            "tool_intent": tool_intent,
+            "tool_id": ADVISORY_ANSWER_TOOL_ID if tool_result is not None else None,
+            "tool_ids": tool_ids,
+            "response_mode": final_response_mode,
+            "query_domain": query_plan.domain,
+            "query_confidence": round(float(query_plan.confidence), 3),
+            "query_unclear": query_plan.unclear,
+            "query_reason": query_plan.reason,
+            "retrieved_context_count": retrieved_context_count,
+            "query_adaptation": query_adaptation.public_metadata(),
+            "routing_strategy": query_adaptation.strategy,
+            "routing_language": query_adaptation.routing_language,
+            "routing_rule_count": len(query_adaptation.applied_rules),
+            "language_profile": language_profile.public_metadata(),
+            "input_language": language_profile.language,
+            "input_script": language_profile.script,
+            "input_tone": language_profile.tone,
+            "localization_strategy": language_profile.localization_strategy,
         },
     )
     return AssistantTurnRecord(session=session, turn=turn, audit_event=event)

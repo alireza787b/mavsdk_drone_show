@@ -15,6 +15,7 @@ from schemas import (
 )
 from show_management import (
     build_comprehensive_metrics_payload,
+    build_metrics_snapshot_payload,
     build_custom_show_info_payload,
     build_safety_report_payload,
     build_show_info_payload,
@@ -140,6 +141,19 @@ def create_show_management_router(deps: Any) -> APIRouter:
             raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Error calculating comprehensive metrics: {exc}") from exc
+
+    @router.get("/api/v1/shows/skybrush/metrics/snapshot", tags=["Show Management"])
+    async def get_metrics_snapshot():
+        """Read the cached metrics snapshot without recalculating or writing metrics."""
+        try:
+            return JSONResponse(content=build_metrics_snapshot_payload(
+                metrics_available=bool(deps.METRICS_AVAILABLE),
+                load_saved_metrics_if_current_func=deps._load_saved_metrics_if_current,
+            ))
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Error reading comprehensive metrics snapshot: {exc}") from exc
 
     @router.get("/api/v1/shows/skybrush/safety-report", tags=["Show Management"])
     async def get_safety_report():

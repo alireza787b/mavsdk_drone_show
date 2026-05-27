@@ -1,82 +1,345 @@
 version: 1
 resources:
-  - id: simurgh.system_guidelines
-    title: Simurgh system guidelines
-    path: docs/agent-context/system-guidelines.md
-    mime_type: text/markdown
-    audience: agent
-    sensitivity: public
-    summary: Standing model and agent behavior constraints.
-    tags: [simurgh, system, safety]
-  - id: simurgh.operator_guidelines
-    title: Simurgh operator guidelines
-    path: docs/agent-context/operator-guidelines.md
-    mime_type: text/markdown
-    audience: operator
-    sensitivity: public
-    summary: Operator-facing defaults, approval expectations, and blocked-action behavior.
-    tags: [simurgh, operator]
-  - id: simurgh.safety_policy
-    title: Simurgh safety policy
-    path: docs/agent-context/safety-policy.md
-    mime_type: text/markdown
-    audience: agent
-    sensitivity: public
-    summary: Human-readable companion to the enforced policy artifact.
-    tags: [simurgh, policy, safety]
-  - id: simurgh.tool_usage
-    title: Simurgh tool usage guidelines
-    path: docs/agent-context/tool-usage-guidelines.md
-    mime_type: text/markdown
-    audience: agent
-    sensitivity: public
-    summary: Tool registry semantics and adapter expectations.
-    tags: [simurgh, tools, mcp]
-  - id: simurgh.default_operator_prompt
-    title: Default operator prompt template
-    path: docs/agent-context/prompts/default-operator.md
-    mime_type: text/markdown
-    audience: agent
-    sensitivity: public
-    summary: Editable default prompt scaffold for future assistant adapters.
-    tags: [simurgh, prompts]
-  - id: simurgh.field_log_review
-    title: Simurgh field log review workflow
-    path: docs/agent-context/field-log-review-workflow.md
-    mime_type: text/markdown
-    audience: developer
-    sensitivity: public
-    summary: Sanitized field-log intake, redaction, evidence, and eval-conversion workflow.
-    tags: [simurgh, field, logs, privacy, evals]
-  - id: simurgh.provider_smoke_workflow
-    title: Simurgh provider smoke workflow
-    path: docs/agent-context/provider-smoke-workflow.md
-    mime_type: text/markdown
-    audience: developer
-    sensitivity: public
-    summary: Dry-run and live-provider smoke workflow for advisory-only OpenAI adapter validation.
-    tags: [simurgh, provider, smoke, safety, openai]
-  - id: simurgh.provider_smoke_suite
-    title: Simurgh provider smoke suite
-    path: config/agent_provider_smoke.yaml
-    mime_type: application/yaml
-    audience: developer
-    sensitivity: public
-    summary: Configurable advisory-only provider smoke scenarios.
-    tags: [simurgh, provider, smoke, config]
-  - id: simurgh.foundation_evals
-    title: Simurgh foundation eval seed
-    path: docs/agent-context/evals/simurgh-foundation.yaml
-    mime_type: application/yaml
-    audience: developer
-    sensitivity: public
-    summary: Initial safety and policy scenarios for future model/adapter evals.
-    tags: [simurgh, evals, safety]
-  - id: simurgh.advisory_provider_evals
-    title: Simurgh advisory provider evals
-    path: docs/agent-context/evals/simurgh-advisory-provider.yaml
-    mime_type: application/yaml
-    audience: developer
-    sensitivity: public
-    summary: Runnable offline assistant-provider scenarios for advisory regression checks.
-    tags: [simurgh, evals, safety, provider]
+- id: simurgh.system_guidelines
+  title: Simurgh system guidelines
+  path: docs/agent-context/system-guidelines.md
+  mime_type: text/markdown
+  audience: agent
+  sensitivity: public
+  summary: Standing model and agent behavior constraints.
+  tags:
+  - simurgh
+  - system
+  - safety
+- id: simurgh.operator_guidelines
+  title: Simurgh operator guidelines
+  path: docs/agent-context/operator-guidelines.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Operator-facing defaults, approval expectations, and blocked-action behavior.
+  tags:
+  - simurgh
+  - operator
+  searchable: true
+- id: simurgh.safety_policy
+  title: Simurgh safety policy
+  path: docs/agent-context/safety-policy.md
+  mime_type: text/markdown
+  audience: agent
+  sensitivity: public
+  summary: Human-readable companion to the enforced policy artifact.
+  tags:
+  - simurgh
+  - policy
+  - safety
+  searchable: true
+- id: simurgh.tool_usage
+  title: Simurgh tool usage guidelines
+  path: docs/agent-context/tool-usage-guidelines.md
+  mime_type: text/markdown
+  audience: agent
+  sensitivity: public
+  summary: Tool registry semantics and adapter expectations.
+  tags:
+  - simurgh
+  - tools
+  - mcp
+  searchable: true
+- id: simurgh.default_operator_prompt
+  title: Default operator prompt template
+  path: docs/agent-context/prompts/default-operator.md
+  mime_type: text/markdown
+  audience: agent
+  sensitivity: public
+  summary: Editable default prompt scaffold for future assistant adapters.
+  tags:
+  - simurgh
+  - prompts
+- id: simurgh.field_log_review
+  title: Simurgh field log review workflow
+  path: docs/agent-context/field-log-review-workflow.md
+  mime_type: text/markdown
+  audience: developer
+  sensitivity: public
+  summary: Sanitized field-log intake, redaction, evidence, and eval-conversion workflow.
+  tags:
+  - simurgh
+  - field
+  - logs
+  - privacy
+  - evals
+- id: simurgh.provider_smoke_workflow
+  title: Simurgh provider smoke workflow
+  path: docs/agent-context/provider-smoke-workflow.md
+  mime_type: text/markdown
+  audience: developer
+  sensitivity: public
+  summary: Dry-run and live-provider smoke workflow for advisory-only OpenAI adapter
+    validation.
+  tags:
+  - simurgh
+  - provider
+  - smoke
+  - safety
+  - openai
+- id: simurgh.provider_smoke_suite
+  title: Simurgh provider smoke suite
+  path: config/agent_provider_smoke.yaml
+  mime_type: application/yaml
+  audience: developer
+  sensitivity: public
+  summary: Configurable advisory-only provider smoke scenarios.
+  tags:
+  - simurgh
+  - provider
+  - smoke
+  - config
+- id: simurgh.foundation_evals
+  title: Simurgh foundation eval seed
+  path: docs/agent-context/evals/simurgh-foundation.yaml
+  mime_type: application/yaml
+  audience: developer
+  sensitivity: public
+  summary: Initial safety and policy scenarios for future model/adapter evals.
+  tags:
+  - simurgh
+  - evals
+  - safety
+- id: simurgh.advisory_provider_evals
+  title: Simurgh advisory provider evals
+  path: docs/agent-context/evals/simurgh-advisory-provider.yaml
+  mime_type: application/yaml
+  audience: developer
+  sensitivity: public
+  summary: Runnable offline assistant-provider scenarios for advisory regression checks.
+  tags:
+  - simurgh
+  - evals
+  - safety
+  - provider
+- id: simurgh.openapi_tool_candidates
+  title: Simurgh OpenAPI tool candidates
+  path: docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml
+  mime_type: application/yaml
+  audience: developer
+  sensitivity: public
+  summary: Generated non-callable OpenAPI route candidates for MCP registry review.
+  tags:
+  - simurgh
+  - mcp
+  - openapi
+  - candidates
+  - generated
+- id: simurgh.docs_index
+  title: Simurgh generated docs index
+  path: docs/agent-context/generated/simurgh-docs-index.json
+  mime_type: application/json
+  audience: agent
+  sensitivity: public
+  summary: Generated public documentation chunk index used by read-only docs search
+    tools.
+  tags:
+  - simurgh
+  - docs
+  - search
+  - generated
+- id: simurgh.operator_guide
+  title: Simurgh operator guide
+  path: docs/guides/simurgh-operator.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Dashboard, provider, MCP, safety, and field-use guide for Simurgh.
+  tags:
+  - simurgh
+  - operator
+  - dashboard
+  searchable: true
+- id: simurgh.mcp_client_recipes
+  title: Simurgh MCP client recipes
+  path: docs/guides/simurgh-mcp-clients.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: External MCP client setup guidance for n8n, Claude, VS Code, and bridge modes.
+  tags:
+  - simurgh
+  - mcp
+  - clients
+  - integrations
+  searchable: true
+- id: mds.init_setup
+  title: MDS init setup
+  path: docs/guides/mds-init-setup.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Setup workflow for MDS nodes and companion computers.
+  tags:
+  - setup
+  - companion
+  - bootstrap
+  searchable: true
+- id: mds.node_bootstrap_design
+  title: Node bootstrap and fleet enrollment design
+  path: docs/plans/2026-04-10-node-bootstrap-and-fleet-enrollment-design-brief.md
+  mime_type: text/markdown
+  audience: developer
+  sensitivity: public
+  summary: Design brief for node bootstrap and fleet enrollment.
+  tags:
+  - setup
+  - companion
+  - fleet
+  - design
+- id: mds.fleet_ops
+  title: Fleet Ops guide
+  path: docs/guides/fleet-ops.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Fleet operations, status, sync, and sidecar workflows.
+  tags:
+  - fleet
+  - operations
+  searchable: true
+- id: mds.raspberry_pi_services
+  title: Raspberry Pi services guide
+  path: docs/guides/raspberry-pi-services.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Raspberry Pi service expectations for MDS companion computers.
+  tags:
+  - raspberry-pi
+  - companion
+  - services
+  searchable: true
+- id: mds.advanced_sitl
+  title: Advanced SITL guide
+  path: docs/guides/advanced-sitl.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Advanced SITL setup and operations.
+  tags:
+  - sitl
+  - simulation
+  searchable: true
+- id: mds.sitl_comprehensive
+  title: SITL comprehensive guide
+  path: docs/guides/sitl-comprehensive.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Comprehensive SITL setup and validation workflow.
+  tags:
+  - sitl
+  - simulation
+  searchable: true
+- id: mds.gcs_api
+  title: GCS API server guide
+  path: docs/apis/gcs-api-server.md
+  mime_type: text/markdown
+  audience: developer
+  sensitivity: public
+  summary: GCS API surface and integration guide.
+  tags:
+  - api
+  - gcs
+  searchable: true
+- id: mds.quickscout
+  title: QuickScout guide
+  path: docs/quickscout.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: QuickScout SAR, surveillance, and reconnaissance planning workflow.
+  tags:
+  - quickscout
+  - sar
+  - mission
+  - static_doc
+  searchable: true
+- id: mds.mission_planning_workspace
+  title: Mission Planning Workspace guide
+  path: docs/features/mission-planning-workspace.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Shared mission-planning concepts and mode differences across QuickScout
+    and Swarm Trajectory.
+  tags:
+  - mission
+  - planning
+  - quickscout
+  - swarm
+  - trajectory
+  - static_doc
+  searchable: true
+- id: mds.drone_show
+  title: Drone Show guide
+  path: docs/features/drone-show.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: SkyBrush ZIP import, show processing, readiness, and launch workflow.
+  tags:
+  - show
+  - skybrush
+  - mission
+  searchable: true
+- id: mds.origin_system
+  title: Origin System guide
+  path: docs/features/origin-system.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Formation origin, launch positions, global/local execution modes, and origin
+    correction design.
+  tags:
+  - origin
+  - launch
+  - show
+  - geometry
+  - static_doc
+  searchable: true
+- id: mds.swarm_trajectory
+  title: Swarm Trajectory guide
+  path: docs/features/swarm-trajectory.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Swarm trajectory authoring, leader uploads, processing, validation, and
+    downloads.
+  tags:
+  - swarm
+  - trajectory
+  - mission
+  - static_doc
+  searchable: true
+- id: mds.environment_registry
+  title: MDS environment registry reference
+  path: docs/reference/mds-environment-registry.generated.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Generated environment registry reference.
+  tags:
+  - environment
+  - config
+  searchable: true
+  docs_search: include
+  generated_safe_for_search: true
+- id: mds.logging_system
+  title: MDS logging system guide
+  path: docs/guides/logging-system.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: Unified logging system guide.
+  tags:
+  - logs
+  - diagnostics
+  searchable: true

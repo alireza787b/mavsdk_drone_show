@@ -8,7 +8,7 @@
 
 ## Hetzner Release Host
 
-- host: `204.168.181.45`
+- host: `203.0.113.10`
 - runtime repo: `/root/mavsdk_drone_show_main_candidate_runtime_https`
 - release output dir: `/root/sitl_release_2026-04-02`
 

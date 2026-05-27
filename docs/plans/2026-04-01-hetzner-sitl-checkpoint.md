@@ -2,7 +2,7 @@
 
 Commit: `9b4b9b4b` (`Gate drone show validator on live launch probes`)
 Branch: `main-candidate`
-Runtime host: `root@204.168.181.45`
+Runtime host: `root@203.0.113.10`
 Runtime repo: `/root/mavsdk_drone_show_main_candidate_runtime_https`
 
 ## What Passed
@@ -38,8 +38,8 @@ Runtime repo: `/root/mavsdk_drone_show_main_candidate_runtime_https`
 
 The server was restaged after validation and the dashboard stack was relaunched in production-style SITL mode.
 
-- Dashboard URL: `http://204.168.181.45:3030`
-- GCS health: `http://204.168.181.45:5000/health`
+- Dashboard URL: `http://203.0.113.10:3030`
+- GCS health: `http://203.0.113.10:5000/health`
 - tmux session: `MDS-GCS`
 
 Verified after launch:
@@ -80,5 +80,5 @@ bash app/linux_dashboard_start.sh --prod --sitl
 
 ## Next Suggested Step
 
-- Use the browser against `http://204.168.181.45:3030` and test the operator workflow.
+- Use the browser against `http://203.0.113.10:3030` and test the operator workflow.
 - Keep `tmux attach -t MDS-GCS` open on the host if live backend logs are needed during browser testing.

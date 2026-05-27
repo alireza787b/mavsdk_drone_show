@@ -1211,6 +1211,47 @@ class TestShowManagementEndpoints:
         assert response.json()['basic_metrics']['drone_count'] == 5
         assert refresh_calls == [None]
 
+    def test_get_comprehensive_metrics_snapshot_does_not_refresh_stale_cache(self, test_client, monkeypatch, tmp_path):
+        import app_fastapi
+
+        swarm_dir = tmp_path / "shapes_sitl" / "swarm"
+        processed = swarm_dir / "processed"
+        processed.mkdir(parents=True, exist_ok=True)
+
+        for drone_id in range(1, 6):
+            (processed / f"Drone {drone_id}.csv").write_text("idx,t,px,py,pz\n0,0,0,0,0\n", encoding="utf-8")
+
+        stale_metrics = {
+            "basic_metrics": {
+                "drone_count": 6,
+                "duration_seconds": 12.0,
+                "max_altitude_m": 9.0,
+            }
+        }
+        metrics_file = swarm_dir / "comprehensive_metrics.json"
+        metrics_file.write_text(json.dumps(stale_metrics), encoding="utf-8")
+        refresh_calls = []
+
+        monkeypatch.setattr(app_fastapi, "shapes_dir", str(tmp_path / "shapes_sitl"))
+        monkeypatch.setattr(app_fastapi, "processed_dir", str(processed))
+        monkeypatch.setattr(app_fastapi, "METRICS_AVAILABLE", True)
+
+        def fake_refresh(show_filename=None):
+            refresh_calls.append(show_filename)
+            return {"basic_metrics": {"drone_count": 5}}
+
+        monkeypatch.setattr(app_fastapi, "_refresh_saved_show_metrics", fake_refresh)
+
+        response = test_client.get("/api/v1/shows/skybrush/metrics/snapshot")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["available"] is False
+        assert payload["snapshot_only"] is True
+        assert payload["cache_current"] is False
+        assert refresh_calls == []
+
+
     def test_validate_trajectory_preserves_fail_status_when_warnings_also_exist(self, test_client, monkeypatch, tmp_path):
         """GET /api/v1/shows/skybrush/validation must preserve FAIL when warnings also exist."""
         import app_fastapi

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -24,7 +26,9 @@ def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_r
     assert payload["mcp_enabled"] is False
     assert payload["gcs_mode"] == "real"
     assert payload["gcs_mode_source"] == "env:MDS_MODE"
-    assert payload["mode"] == "read_only"
+    assert payload["mode"] == "real"
+    assert payload["actions_blocked"] is True
+    assert payload["action_policy_source"] == "circuit_breaker_and_mds_mode"
     assert payload["action_circuit_breaker_enabled"] is True
     assert payload["always_confirm_before_action"] is True
     assert payload["tool_count"] >= 20
@@ -59,6 +63,40 @@ def test_simurgh_tools_expose_registry_metadata_without_executing_tools():
     assert missing_response.status_code == 404
 
 
+def test_simurgh_tool_candidates_are_review_only_and_filterable():
+    client = _client()
+
+    response = client.get(
+        "/api/v1/simurgh/tool-candidates",
+        params={"eligible_read_only": "true", "limit": "5"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["artifact"] == "simurgh_openapi_tool_candidates"
+    assert payload["artifact_path"] == "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
+    assert payload["policy"]["runtime_loaded"] is False
+    assert payload["policy"]["default_callable"] is False
+    assert payload["candidate_count"] > 100
+    assert payload["filtered_count"] >= payload["returned_count"]
+    assert payload["returned_count"] <= 5
+    assert payload["summary"]["eligible_read_only_mcp_candidates"] > 0
+    assert "promoted_registry_route_matches" in payload["summary"]
+    assert all(candidate["callable"] is False for candidate in payload["candidates"])
+    assert all(candidate["classification"]["eligible_read_only_mcp_candidate"] is True for candidate in payload["candidates"])
+
+    command_response = client.get(
+        "/api/v1/simurgh/tool-candidates",
+        params={"search": "/api/v1/commands", "limit": "20"},
+    )
+    assert command_response.status_code == 200
+    command_payload = command_response.json()
+    assert any(
+        "command/control route" in candidate["classification"]["review_reasons"]
+        for candidate in command_payload["candidates"]
+    )
+
+
 def test_simurgh_context_lists_and_reads_public_context():
     client = _client()
 
@@ -73,8 +111,57 @@ def test_simurgh_context_lists_and_reads_public_context():
     assert content_response.status_code == 200
     assert "Raw GCS command submission" in content_response.json()["content"]
 
+    markdown_response = client.get("/api/v1/simurgh/context/mds.init_setup/markdown")
+    assert markdown_response.status_code == 200
+    assert "companion" in markdown_response.text.lower()
+    assert markdown_response.headers["content-type"].startswith("text/markdown")
+
     missing_response = client.get("/api/v1/simurgh/context/not-a-resource")
     assert missing_response.status_code == 404
+
+
+def test_simurgh_context_list_and_read_hide_private_resources(monkeypatch, tmp_path):
+    context_file = tmp_path / "context-index.yaml"
+    context_file.write_text(
+        """version: 1
+resources:
+  - id: public.fixture
+    title: Public Fixture
+    path: docs/agent-context/system-guidelines.md
+    mime_type: text/markdown
+    audience: agent
+    sensitivity: public
+    summary: Public fixture.
+    tags: [test]
+  - id: private.fixture
+    title: Private Fixture
+    path: docs/agent-context/system-guidelines.md
+    mime_type: text/markdown
+    audience: agent
+    sensitivity: private
+    summary: Private fixture.
+    tags: [test]
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MDS_AGENT_CONTEXT_INDEX_FILE", str(context_file))
+    client = _client()
+
+    list_response = client.get("/api/v1/simurgh/context")
+
+    assert list_response.status_code == 200
+    ids = {resource["id"] for resource in list_response.json()["resources"]}
+    assert "public.fixture" in ids
+    assert "private.fixture" not in ids
+
+    public_response = client.get("/api/v1/simurgh/context/public.fixture")
+    assert public_response.status_code == 200
+
+    private_response = client.get("/api/v1/simurgh/context/private.fixture")
+    assert private_response.status_code == 403
+
+    private_markdown_response = client.get("/api/v1/simurgh/context/private.fixture/markdown")
+    assert private_markdown_response.status_code == 403
 
 
 def test_simurgh_session_lifecycle_records_audit_events(monkeypatch):
@@ -89,7 +176,7 @@ def test_simurgh_session_lifecycle_records_audit_events(monkeypatch):
     assert create_response.status_code == 200
     session = create_response.json()
     assert session["actor"] == "operator"
-    assert session["mode"] == "read_only"
+    assert session["mode"] == "sitl"
     assert session["closed"] is False
 
     list_response = client.get("/api/v1/simurgh/sessions", params={"include_closed": "false"})
@@ -122,7 +209,7 @@ def test_simurgh_session_creation_sanitizes_metadata(monkeypatch):
             "metadata": {
                 "channel": "dashboard",
                 "source": "simurgh-ui",
-                "raw_prompt": "AIRFRAME-01 stopped streaming on 192.168.1.10",
+                "raw_prompt": "CM4-99 stopped streaming on 192.168.1.10",
                 "notes": "customer field evidence",
             },
         },
@@ -136,7 +223,7 @@ def test_simurgh_session_creation_sanitizes_metadata(monkeypatch):
     assert list_response.status_code == 200
     serialized = str(list_response.json())
     assert "raw_prompt" not in serialized
-    assert "AIRFRAME-01" not in serialized
+    assert "CM4-99" not in serialized
     assert "192.168.1.10" not in serialized
 
 
@@ -149,7 +236,7 @@ def test_simurgh_session_metadata_rejects_sensitive_allowed_key_values(monkeypat
         json={
             "actor": "operator",
             "metadata": {
-                "channel": "AIRFRAME-01",
+                "channel": "CM4-99",
                 "source": "192.168.1.10",
             },
         },
@@ -159,7 +246,7 @@ def test_simurgh_session_metadata_rejects_sensitive_allowed_key_values(monkeypat
     assert create_response.json()["metadata"] == {}
     list_response = client.get("/api/v1/simurgh/sessions")
     serialized = str(list_response.json())
-    assert "AIRFRAME-01" not in serialized
+    assert "CM4-99" not in serialized
     assert "192.168.1.10" not in serialized
 
 
@@ -172,22 +259,95 @@ def test_simurgh_status_reports_external_assistant_provider(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["assistant_provider"] == "openai"
-    assert payload["assistant_model"] == "gpt-5.5"
+    assert payload["assistant_model"] == "gpt-5.4-mini"
     assert payload["assistant_external_provider"] is True
     assert payload["assistant_external_provider_auth_required"] is True
 
 
-def test_simurgh_status_warns_when_policy_profile_diverges_from_real_gcs(monkeypatch):
+def test_simurgh_runtime_settings_hot_apply_and_persist(monkeypatch, tmp_path):
+    env_file = tmp_path / "gcs.env"
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(env_file))
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setenv("MDS_MCP_ENABLED", "false")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
+    monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
+    client = _client()
+
+    response = client.put(
+        "/api/v1/simurgh/runtime-settings",
+        json={
+            "provider": "openai",
+            "model": "gpt-5.4-nano",
+            "mcp_enabled": True,
+            "action_circuit_breaker_enabled": True,
+            "always_confirm_before_action": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "openai"
+    assert payload["openai_model"] == "gpt-5.4-nano"
+    assert payload["mcp_enabled"] is True
+    assert payload["restart_required"] is False
+    assert payload["restart_would_have_been_required"] is True
+    assert os.environ["MDS_AGENT_PROVIDER"] == "openai"
+    assert "MDS_AGENT_PROVIDER=openai" in env_file.read_text(encoding="utf-8")
+
+
+
+def test_simurgh_provider_credentials_store_secret_server_side(monkeypatch, tmp_path):
+    env_file = tmp_path / "gcs.env"
+    key_file = tmp_path / "openai_api_key"
+    fake_openai_key = "-".join(("sk", "test", "123456789012345678901234"))
+    monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(env_file))
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(key_file))
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    client = _client()
+
+    response = client.put(
+        "/api/v1/simurgh/provider-credentials",
+        json={
+            "openai_api_key": fake_openai_key,
+            "set_provider_openai": True,
+            "openai_model": "gpt-5.4-mini",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    serialized = str(payload)
+    assert "sk-test" not in serialized
+    assert payload["credentials"]["openai"]["ready"] is True
+    assert payload["credentials"]["openai"]["fingerprint"]
+    assert key_file.read_text(encoding="utf-8").strip() == fake_openai_key
+    assert key_file.stat().st_mode & 0o777 == 0o600
+    env_text = env_file.read_text(encoding="utf-8")
+    assert "MDS_AGENT_OPENAI_API_KEY_FILE=" in env_text
+    assert "MDS_AGENT_PROVIDER=openai" in env_text
+    assert "sk-test" not in env_text
+
+    status_response = client.get("/api/v1/simurgh/provider-credentials")
+    assert status_response.status_code == 200
+    assert status_response.json()["openai"]["ready"] is True
+
+
+def test_simurgh_status_warns_when_real_gcs_circuit_breaker_is_off(monkeypatch):
     monkeypatch.setenv("MDS_MODE", "real")
-    monkeypatch.setenv("MDS_AGENT_MODE", "sitl")
+    monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "false")
     client = _client()
 
     response = client.get("/api/v1/simurgh/status")
 
     assert response.status_code == 200
-    warnings = response.json()["warnings"]
-    assert any("not read_only" in warning for warning in warnings)
-    assert any("GCS is in real mode" in warning for warning in warnings)
+    payload = response.json()
+    assert payload["mode"] == "real"
+    assert payload["actions_blocked"] is False
+    warnings = payload["warnings"]
+    assert any("circuit breaker is off" in warning for warning in warnings)
+    assert not any("policy profile" in warning for warning in warnings)
 
 
 def test_simurgh_session_creation_requires_enabled_runtime(monkeypatch):
@@ -208,11 +368,14 @@ def test_simurgh_session_rejects_unknown_mode(monkeypatch):
     assert response.status_code == 400
 
 
-def test_simurgh_status_reports_invalid_mode_as_config_error(monkeypatch):
-    monkeypatch.setenv("MDS_AGENT_MODE", "unsafe")
+def test_simurgh_status_uses_canonical_mds_mode(monkeypatch):
+    monkeypatch.setenv("MDS_MODE", "sitl")
     client = _client()
 
     response = client.get("/api/v1/simurgh/status")
 
-    assert response.status_code == 500
-    assert "unknown Simurgh mode" in response.json()["detail"]
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["gcs_mode"] == "sitl"
+    assert payload["mode"] == "sitl"
+    assert payload["warnings"] == []

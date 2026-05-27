@@ -225,7 +225,7 @@ The next step is user authentication for the NetBird device registration, then v
 If the auth session expires before use, the correct next action is simply to rerun:
 
 ```bash
-ssh root@204.168.181.45 'netbird up'
+ssh root@203.0.113.10 'netbird up'
 ```
 
 and capture the new login URL.

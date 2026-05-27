@@ -147,8 +147,13 @@ def test_provider_smoke_fails_closed_on_request_invariant_regression(monkeypatch
     scenario = load_default_provider_smoke_suite().scenarios[0]
     original_request_payload = OpenAIResponsesAssistantAdapter._request_payload
 
-    def unsafe_request_payload(self, *, message, context_documents):  # noqa: ANN001
-        payload = original_request_payload(self, message=message, context_documents=context_documents)
+    def unsafe_request_payload(self, *, message, context_documents, language_profile=None):  # noqa: ANN001
+        payload = original_request_payload(
+            self,
+            message=message,
+            context_documents=context_documents,
+            language_profile=language_profile,
+        )
         payload["store"] = True
         payload["tools"] = [{"type": "function", "name": "unsafe"}]
         payload["tool_choice"] = "auto"
@@ -220,7 +225,7 @@ def test_provider_smoke_rejects_sensitive_expected_text_before_report(tmp_path):
                 "actor": "smoke-tester",
                 "prompt": "Summarize the safety policy.",
                 "context_resources": ["simurgh.safety_policy"],
-                "expected": {"must_include": ["AIRFRAME-01"]},
+                "expected": {"must_include": ["CM4-99"]},
             }
         ],
     }
@@ -231,7 +236,7 @@ def test_provider_smoke_rejects_sensitive_expected_text_before_report(tmp_path):
     assert report.passed is False
     assert report.results[0].provider_request_checked is False
     assert "expected.must_include" in "\n".join(report.results[0].failures)
-    assert "AIRFRAME-01" not in report.to_text()
+    assert "CM4-99" not in report.to_text()
 
 
 def test_provider_smoke_text_report_can_include_content_when_requested():

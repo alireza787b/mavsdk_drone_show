@@ -49,7 +49,7 @@ ADVISORY_FORBIDDEN_CLAIMS = (
     "tools/call succeeded",
 )
 OFFLINE_OPENAI_ENV_DEFAULTS = {
-    OPENAI_MODEL_ENV: "gpt-5.5",
+    OPENAI_MODEL_ENV: "gpt-5.4-mini",
     OPENAI_BASE_URL_ENV: "https://api.openai.com/v1",
     OPENAI_TIMEOUT_SECONDS_ENV: "30",
     OPENAI_MAX_OUTPUT_TOKENS_ENV: "900",
@@ -76,7 +76,7 @@ OFFLINE_OPENAI_FORBIDDEN_REQUEST_KEYS = (
     "vector_store_ids",
 )
 FIELD_PRIVACY_PATTERNS = (
-    ("field vehicle label", re.compile(r"\bAIRFRAME-\d+\b", re.IGNORECASE)),
+    ("field vehicle label", re.compile(r"\bCM4-\d+\b", re.IGNORECASE)),
     (
         "exact coordinate pair",
         re.compile(r"\b-?\d{1,2}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}\b"),
