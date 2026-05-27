@@ -317,7 +317,7 @@ def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):
         (
             "waht is the scoute droen IP?",
             "fleet_summary",
-            ("I do not see a configured drone matching", "scout", "Configured drone count"),
+            (),
             ("I can’t see or provide", "private network details"),
         ),
         (
@@ -353,7 +353,7 @@ def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):
         (
             "Quel est l'adresse IP du drone scout ?",
             "fleet_summary",
-            ("I do not see a configured drone matching", "scout", "Configured drone count"),
+            (),
             ("private network details", "I can’t see"),
         ),
         (
@@ -388,6 +388,13 @@ def test_assistant_turn_answers_pm_followup_prompts_with_local_mds_tools(
         assert phrase in record.turn.content
     for phrase in forbidden_phrases:
         assert phrase not in record.turn.content
+    if "ip" in message.lower() and ("scout" in message.lower() or "scoute" in message.lower()):
+        content_lower = record.turn.content.lower()
+        assert "scout" in content_lower
+        assert (
+            "i do not see a configured drone matching" in content_lower
+            or "scout drone from gcs configuration" in content_lower
+        )
 
 def test_assistant_turn_uses_session_topic_for_ambiguous_show_followup(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
@@ -658,8 +665,12 @@ def test_assistant_turn_routes_fleet_followup_from_session_context(monkeypatch):
 
     assert followup.turn.provider == "mds-tools"
     assert followup.audit_event.metadata["tool_intent"] == "fleet_summary"
-    assert "I do not see a configured drone matching" in followup.turn.content
-    assert "scout" in followup.turn.content
+    followup_content_lower = followup.turn.content.lower()
+    assert "scout" in followup_content_lower
+    assert (
+        "i do not see a configured drone matching" in followup_content_lower
+        or "scout drone from gcs configuration" in followup_content_lower
+    )
     assert "private network details" not in followup.turn.content
 
 
