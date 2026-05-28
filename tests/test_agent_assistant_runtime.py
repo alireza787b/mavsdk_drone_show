@@ -216,6 +216,53 @@ def test_assistant_turn_answers_mds_fleet_prompt_with_local_tools(monkeypatch):
     assert record.audit_event.metadata["tool_intent"] == "fleet_summary"
 
 
+def test_assistant_turn_does_not_reuse_fleet_topic_for_general_distance_question(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="How many drones do we have configured?",
+    )
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="How many kilometers is that from Tehran to New York?",
+    )
+
+    assert first.audit_event.metadata["tool_intent"] == "fleet_summary"
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "public_geography"
+    assert followup.audit_event.metadata["query_domain"] == "general"
+    assert "9,855 km" in followup.turn.content
+    assert "Fleet status from GCS configuration" not in followup.turn.content
+
+
+def test_assistant_turn_does_not_route_geography_flight_math_to_swarm_tool(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="What is lat and long of Damavand peak and if I want to create a flight around it at 10 distance around how long would be the flight",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "public_geography"
+    assert record.audit_event.metadata["query_domain"] == "general"
+    assert "35.9515, 52.1094" in record.turn.content
+    assert "62.8 km" in record.turn.content
+    assert "Configured/planned swarm geometry" not in record.turn.content
+
+
 def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")

@@ -36,6 +36,7 @@ READ_TOOL_ADAPTER_VERSION = "mds-read-tools-v1"
 DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
 DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
 DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
+DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 MDS_CONVERSATION_TOPICS = frozenset(
     {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"}
@@ -68,6 +69,10 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return None
     if _looks_like_weather_question(normalized) or _looks_like_general_knowledge_question(normalized):
         return "general_knowledge"
+    if _looks_like_public_geography_question(normalized):
+        return "public_geography"
+    if _looks_like_non_mds_general_question(normalized):
+        return None
 
     if topic == "logs" and _looks_like_contextual_log_followup(normalized):
         return "backend_log_summary"
@@ -232,6 +237,8 @@ def answer_mds_read_only_question(
         return tools.action_capability()
     if intent == "general_knowledge":
         return tools.general_knowledge(message)
+    if intent == "public_geography":
+        return tools.public_geography(message)
     return None
 
 
@@ -398,6 +405,91 @@ class MdsReadOnlyTools:
             safety_notes=(
                 "No deterministic curated answer matched this general prompt.",
                 "No live GCS state, external data source, drone API, or command path was used.",
+            ),
+        )
+
+    def public_geography(self, message: str) -> MdsReadToolAnswer:
+        normalized = _normalize_text(message)
+        places = _matching_public_places(normalized, _load_public_places_config())
+        composer = AnswerComposer()
+        if not places:
+            composer.line("I understand this as a public geography/calculation question, but I do not have the place in the reviewed local place registry yet.")
+            composer.line("If web search/geocoding is enabled later, Simurgh can resolve new public places with citations; for now I will not invent coordinates.")
+            composer.line("No drone command was sent.")
+            return self._answer(
+                "public_geography",
+                composer.render(),
+                ("simurgh.public_places.read",),
+                response_mode="interpret",
+                safety_notes=(
+                    "No reviewed public place matched the prompt.",
+                    "No web search, GCS mutation, drone API, or command path was used.",
+                ),
+            )
+
+        distance_km = _extract_public_distance_km(normalized)
+        distance_pair_requested = len(places) >= 2 and _has_domain_signal(
+            normalized,
+            ("how far", "how many km", "how many kilometer", "distance from", "distance between", "from", " to ", "kilometer", "kilometers"),
+        )
+        if distance_pair_requested:
+            first, second = places[0], places[1]
+            distance = _great_circle_distance_km(first, second)
+            first_title = str(first["title"])
+            second_title = str(second["title"])
+            first_latitude = float(first["latitude"])
+            first_longitude = float(first["longitude"])
+            second_latitude = float(second["latitude"])
+            second_longitude = float(second["longitude"])
+            composer.line(
+                f"The straight-line great-circle distance from **{first_title}** to **{second_title}** is about **{distance:,.0f} km**."
+            )
+            composer.blank().table(
+                ("Place", "Latitude", "Longitude"),
+                (
+                    (first_title, f"{first_latitude:.4f}", f"{first_longitude:.4f}"),
+                    (second_title, f"{second_latitude:.4f}", f"{second_longitude:.4f}"),
+                ),
+            )
+            composer.blank().line("This is a public geodesy calculation, not an MDS flight route or range check. No drone command was sent.")
+            return self._answer(
+                "public_geography",
+                composer.render(),
+                ("simurgh.public_places.read", "simurgh.geodesy.calculate"),
+                response_mode="interpret",
+                safety_notes=(
+                    "Answered from reviewed public place coordinates and deterministic geodesy math.",
+                    "No live GCS state, web search, drone API, or command path was used.",
+                ),
+            )
+
+        place = places[0]
+        place_title = str(place["title"])
+        place_latitude = float(place["latitude"])
+        place_longitude = float(place["longitude"])
+        composer.line(f"**{place_title}** reference coordinate: **{place_latitude:.4f}, {place_longitude:.4f}**.")
+        note = str(place.get("source_note") or "Public reference coordinate; verify before operations.").strip()
+        if note:
+            composer.line(note)
+        if distance_km is not None and _has_domain_signal(normalized, ("around", "circle", "loop", "radius", "orbit")):
+            circumference = 2.0 * math.pi * distance_km
+            diameter_circumference = math.pi * distance_km
+            composer.blank().line(
+                f"If **{distance_km:g} km** means radius around the point, the loop circumference is about **{circumference:,.1f} km**."
+            )
+            composer.line(
+                f"If **{distance_km:g} km** means diameter, the loop is about **{diameter_circumference:,.1f} km**."
+            )
+            composer.line("For an actual flight plan, terrain clearance, airspace, weather, vehicle endurance, comms, and local permission are separate checks.")
+        composer.blank().line("This is public calculation guidance only; no route was uploaded and no drone command was sent.")
+        return self._answer(
+            "public_geography",
+            composer.render(),
+            ("simurgh.public_places.read", "simurgh.geodesy.calculate"),
+            response_mode="interpret",
+            safety_notes=(
+                "Answered from reviewed public place coordinates and deterministic geodesy math.",
+                "No live GCS state, web search, drone API, route upload, or command path was used.",
             ),
         )
 
@@ -2258,6 +2350,159 @@ def _looks_like_general_knowledge_question(normalized: str) -> bool:
     return _matching_general_concept(normalized, knowledge) is not None
 
 
+def _looks_like_public_geography_question(normalized: str) -> bool:
+    if not normalized:
+        return False
+    if _has_domain_signal(
+        normalized,
+        (
+            "mds",
+            "simurgh",
+            "fleet",
+            "swarm",
+            "drone show",
+            "skybrush",
+            "qgc",
+            "px4",
+            "mavlink",
+            "sys_id",
+            "telemetry",
+            "heartbeat",
+            "netbird",
+            "gcs",
+            "dashboard",
+            "sitl",
+            "logs",
+            "runtime",
+            "mcp",
+            "scout drone",
+            "drone 1",
+            "drone 2",
+            "drone 3",
+        ),
+    ):
+        return False
+    try:
+        places = _matching_public_places(normalized, _load_public_places_config())
+    except AgentRuntimeError:
+        return False
+    if not places:
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "how far",
+            "how many km",
+            "how many kilometer",
+            "how many kilometers",
+            "kilometer",
+            "kilometers",
+            "distance from",
+            "distance between",
+            "latitude",
+            "longitude",
+            "lat and long",
+            "lat/long",
+            "coordinates",
+            "coordinate",
+            "around",
+            "circle",
+            "loop",
+            "radius",
+            "orbit",
+            "flight around",
+        ),
+    )
+
+
+def _looks_like_non_mds_general_question(normalized: str) -> bool:
+    """Detect normal assistant questions that must not inherit an MDS topic.
+
+    Session topic is helpful for short follow-ups like "what does that mean?";
+    it is harmful when the operator has clearly moved to geography, math,
+    public facts, or web-style questions. Returning None lets the provider lane
+    answer naturally instead of forcing a stale fleet/swarm/status tool.
+    """
+
+    if not normalized:
+        return False
+    if _has_domain_signal(
+        normalized,
+        (
+            "mds",
+            "simurgh",
+            "fleet",
+            "swarm",
+            "drone show",
+            "skybrush",
+            "show design",
+            "qgc",
+            "px4",
+            "mavlink",
+            "sys_id",
+            "telemetry",
+            "heartbeat",
+            "netbird",
+            "gcs",
+            "dashboard",
+            "sitl",
+            "logs",
+            "runtime",
+            "circuit breaker",
+            "mcp",
+            "scout drone",
+            "drone 1",
+            "drone 2",
+            "drone 3",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "how far",
+            "how many km",
+            "how many kilometer",
+            "how many kilometers",
+            "kilometer",
+            "kilometers",
+            " km",
+            " miles",
+            "distance from",
+            "distance between",
+            "latitude",
+            "longitude",
+            "lat and long",
+            "lat/long",
+            "coordinates",
+            "coordinate of",
+            "mountain",
+            "peak",
+            "damavand",
+            "tehran",
+            "new york",
+            "capital of",
+            "population of",
+            "country is",
+            "city is",
+            "who is",
+            "when is",
+            "where is",
+            "calculate",
+            "math",
+            "convert",
+            "regulation",
+            "regulations",
+            "law",
+            "rules",
+            "internet",
+            "web search",
+            "search the web",
+            "search internet",
+        ),
+    )
+
+
 def _looks_like_previous_answer_transform(normalized: str) -> bool:
     language_markers = (
         "persian",
@@ -2684,6 +2929,100 @@ def _load_general_knowledge_config() -> Mapping[str, Any]:
     if int(payload.get("version") or 0) != 1:
         raise AgentRuntimeError("unsupported Simurgh general knowledge config version")
     return payload
+
+
+def _load_public_places_config() -> Mapping[str, Any]:
+    try:
+        payload = yaml.safe_load(DEFAULT_PUBLIC_PLACES_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    except FileNotFoundError as exc:
+        raise AgentRuntimeError(f"Simurgh public places config not found: {DEFAULT_PUBLIC_PLACES_CONFIG_PATH}") from exc
+    except yaml.YAMLError as exc:
+        raise AgentRuntimeError("Simurgh public places config is invalid YAML") from exc
+    if not isinstance(payload, Mapping):
+        raise AgentRuntimeError("Simurgh public places config root must be an object")
+    if int(payload.get("version") or 0) != 1:
+        raise AgentRuntimeError("unsupported Simurgh public places config version")
+    return payload
+
+
+def _matching_public_places(normalized: str, config: Mapping[str, Any]) -> list[dict[str, Any]]:
+    raw_places = config.get("places")
+    if not isinstance(raw_places, list):
+        return []
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for raw in raw_places:
+        if not isinstance(raw, Mapping):
+            continue
+        aliases = tuple(str(alias or "").strip() for alias in raw.get("aliases") or () if str(alias or "").strip())
+        if not aliases:
+            continue
+        positions = [_alias_position(normalized, alias) for alias in aliases]
+        positions = [position for position in positions if position >= 0]
+        if not positions:
+            continue
+        try:
+            latitude = float(raw.get("latitude"))
+            longitude = float(raw.get("longitude"))
+        except (TypeError, ValueError):
+            continue
+        if not (-90.0 <= latitude <= 90.0 and -180.0 <= longitude <= 180.0):
+            continue
+        matches.append(
+            (
+                min(positions),
+                {
+                    "id": str(raw.get("id") or raw.get("title") or "place").strip(),
+                    "title": str(raw.get("title") or raw.get("id") or "Place").strip(),
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "source_note": str(raw.get("source_note") or "").strip(),
+                },
+            )
+        )
+    seen: set[str] = set()
+    ordered: list[dict[str, Any]] = []
+    for _position, place in sorted(matches, key=lambda item: item[0]):
+        place_id = str(place.get("id") or "")
+        if place_id in seen:
+            continue
+        seen.add(place_id)
+        ordered.append(place)
+    return ordered
+
+
+def _alias_position(normalized: str, alias: str) -> int:
+    marker = _normalize_text(alias)
+    if not marker:
+        return -1
+    if re.fullmatch(r"[a-z0-9_-]+", marker):
+        match = re.search(rf"\b{re.escape(marker)}\b", normalized)
+        return match.start() if match else -1
+    return normalized.find(marker)
+
+
+def _great_circle_distance_km(first: Mapping[str, Any], second: Mapping[str, Any]) -> float:
+    lat1 = math.radians(float(first["latitude"]))
+    lon1 = math.radians(float(first["longitude"]))
+    lat2 = math.radians(float(second["latitude"]))
+    lon2 = math.radians(float(second["longitude"]))
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat / 2.0) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2.0) ** 2
+    return 6371.0088 * 2.0 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
+
+
+def _extract_public_distance_km(normalized: str) -> float | None:
+    match = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:km|kilometer|kilometers)\b", normalized)
+    if match:
+        return float(match.group(1))
+    match = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:mi|mile|miles)\b", normalized)
+    if match:
+        return float(match.group(1)) * 1.609344
+    if _has_domain_signal(normalized, ("around", "circle", "loop", "radius", "orbit", "distance")):
+        match = re.search(r"\b(\d+(?:\.\d+)?)\b", normalized)
+        if match:
+            return float(match.group(1))
+    return None
 
 
 def _matching_general_concept(normalized: str, knowledge: Mapping[str, Any]) -> tuple[str, str, tuple[str, ...]] | None:

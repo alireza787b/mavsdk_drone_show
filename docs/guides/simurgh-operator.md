@@ -28,6 +28,7 @@ Core artifacts:
 - `config/agent_tools.yaml`
 - `config/agent_assistant.yaml`
 - `config/agent_general_knowledge.yaml`
+- `config/agent_public_places.yaml`
 - `config/agent_provider_smoke.yaml`
 - `docs/agent-context/context-index.yaml`
 - `docs/agent-context/system-guidelines.md`
@@ -250,6 +251,14 @@ not put private field facts, credentials, network maps, or operator transcripts
 there. If a new general topic becomes PM-critical, add it to that config, add an
 eval/test, and keep the answer conversational while clearly separating general
 knowledge from live vehicle or flight-readiness evidence.
+
+Public geography/distance prompts use `config/agent_public_places.yaml` plus
+deterministic geodesy math before falling back to the provider. This prevents a
+general model from guessing coordinates or distances for reviewed demo/operator
+places. Keep it limited to public, non-sensitive references; never add private
+mission coordinates, customer sites, launch positions, or field logs. If a place
+is missing and exact public data matters, use the future web/geocoding slice with
+citations instead of inventing a value.
 
 ## Query Planning And Retrieval Context
 

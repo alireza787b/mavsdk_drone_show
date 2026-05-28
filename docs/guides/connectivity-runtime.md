@@ -114,6 +114,13 @@ If Fleet Ops shows the dashboard icon as local-only, the node is probably still
 reporting `127.0.0.1:9080`; use SSH tunneling or change the listen address
 through the node-local env workflow.
 
+Remote Smart Wi-Fi dashboard mutation is intentionally stricter than viewing the
+page. Smart Wi-Fi Manager allows writes from loopback, but remote writes require
+`SMART_WIFI_MANAGER_API_TOKEN` and a token-aware client header. If a field
+operator can open the dashboard but deleting or saving a profile returns
+`SMART_WIFI_MANAGER_API_TOKEN is required for remote mutating requests`, use
+Fleet Ops Wi-Fi or an SSH tunnel for that board instead of disabling the guard.
+
 ## Transport And Internet Reporting
 
 Heartbeat network metadata distinguishes:

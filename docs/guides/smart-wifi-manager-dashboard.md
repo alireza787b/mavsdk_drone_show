@@ -21,6 +21,33 @@ If the icon is disabled or the URL does not open, check that the node reports
 `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN=0.0.0.0:9080` and that your operator
 device can reach the node over the local network or VPN.
 
+Direct browser access to `:9080` is primarily a node-local diagnostic surface.
+Smart Wi-Fi Manager deliberately blocks remote mutating requests when no
+`SMART_WIFI_MANAGER_API_TOKEN` is configured. That means a remote browser may
+load the page but still fail on **Save**, **Remove Profile**, or other changes
+with:
+
+```json
+{"error":"SMART_WIFI_MANAGER_API_TOKEN is required for remote mutating requests"}
+```
+
+That error is a security guard, not a GCS/Simurgh failure. For field recovery,
+prefer one of these paths:
+
+1. Use **Fleet Ops Wi-Fi** from the GCS for profile dry-run/apply. The node API
+   proxies approved profile operations to the sidecar over node loopback.
+2. Use an SSH tunnel for one board so the dashboard sees the request as
+   loopback:
+
+   ```bash
+   ssh -L 9080:127.0.0.1:9080 <operator>@<node-netbird-ip>
+   ```
+
+   Then open `http://127.0.0.1:9080/` on the operator machine.
+3. Use direct `http://<node-ip>:9080/` only on a trusted NetBird/local network,
+   and only for remote changes after the dashboard client and service are both
+   configured to send/accept the mutation token.
+
 ## Add Or Update A Wi-Fi Profile
 
 1. Keep a known-good access path active first, such as Ethernet, NetBird, or the
@@ -126,6 +153,13 @@ operator intentionally resets that node profile set.
 ## Troubleshooting
 
 - Dashboard opens but status is empty: check `smart-wifi-manager.service`.
+- Dashboard URL does not open while another sidecar port on the same node works:
+  check `smart-wifi-manager-dashboard.service`, confirm it is listening on the
+  expected address with `ss -ltnp`, and verify
+  `MDS_SMART_WIFI_MANAGER_DASHBOARD_LISTEN` in `/etc/mds/local.env`.
+- Remove/save returns `SMART_WIFI_MANAGER_API_TOKEN is required for remote
+  mutating requests`: use Fleet Ops Wi-Fi or an SSH tunnel, or deploy a
+  token-aware remote dashboard path. Do not disable this guard for field nodes.
 - Save succeeds but nothing changes: click **Trigger Scan** or wait for the next
   scan interval.
 - Node disappears after a bad Wi-Fi change: recover through Ethernet, console,

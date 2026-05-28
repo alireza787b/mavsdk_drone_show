@@ -1,0 +1,27 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  purpose: >-
+    Public, non-sensitive place references for deterministic Simurgh geography
+    and distance calculations. Keep this file small, reviewed, and free of
+    private mission coordinates. Add entries only when they are useful reusable
+    public references for operator guidance or demo prompts.
+places:
+  - id: tehran
+    title: Tehran
+    aliases: [tehran, teheran]
+    latitude: 35.6892
+    longitude: 51.3890
+    source_note: Public city-center reference coordinate; not a flight waypoint.
+  - id: new_york_city
+    title: New York City
+    aliases: [new york, new york city, nyc]
+    latitude: 40.7128
+    longitude: -74.0060
+    source_note: Public city-center reference coordinate; not a flight waypoint.
+  - id: damavand_peak
+    title: Mount Damavand peak
+    aliases: [damavand, damavand peak, mount damavand]
+    latitude: 35.9515
+    longitude: 52.1094
+    source_note: Public peak reference coordinate; verify against approved aviation data before planning.

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 735,
+  "chunk_count": 736,
   "chunks": [
     {
       "audience": "operator",
@@ -231,7 +231,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "3a95e964adf48b488bbce1ad9be31ca41624e3552bdb5236354f8245b45f9c90",
+      "content_hash": "619f150b0e706709d41e208f19371c0c158a0f3d30f5b5a64643e9508323bcd2",
       "heading": "Configuration Files",
       "id": "simurgh.operator_guide:002-01-configuration-files",
       "links": [
@@ -259,7 +259,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Configuration Files\n\nCore artifacts:\n\n- `config/agent_policy.yaml`\n- `config/agent_tools.yaml`\n- `config/agent_assistant.yaml`\n- `config/agent_general_knowledge.yaml`\n- `config/agent_provider_smoke.yaml`\n- `docs/agent-context/context-index.yaml`\n- `docs/agent-context/system-guidelines.md`\n- `docs/agent-context/operator-guidelines.md`\n- `docs/agent-context/safety-policy.md`\n- `docs/agent-context/tool-usage-guidelines.md`\n- `docs/agent-context/field-log-review-workflow.md`\n- `docs/agent-context/provider-smoke-workflow.md`\n- `docs/agent-context/prompts/default-operator.md`\n- `docs/agent-context/evals/simurgh-foundation.yaml`\n- `docs/agent-context/evals/simurgh-advisory-provider.yaml`\n- `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`\n- `docs/agent-context/generated/simurgh-docs-index.json`\n- `docs/guides/simurgh-mcp-clients.md`\n\nDo not hardcode prompt text, policy text, or tool rules in provider adapters. Add\nor change the artifact first, then update tests and docs in the same slice.",
+      "text": "## Configuration Files\n\nCore artifacts:\n\n- `config/agent_policy.yaml`\n- `config/agent_tools.yaml`\n- `config/agent_assistant.yaml`\n- `config/agent_general_knowledge.yaml`\n- `config/agent_public_places.yaml`\n- `config/agent_provider_smoke.yaml`\n- `docs/agent-context/context-index.yaml`\n- `docs/agent-context/system-guidelines.md`\n- `docs/agent-context/operator-guidelines.md`\n- `docs/agent-context/safety-policy.md`\n- `docs/agent-context/tool-usage-guidelines.md`\n- `docs/agent-context/field-log-review-workflow.md`\n- `docs/agent-context/provider-smoke-workflow.md`\n- `docs/agent-context/prompts/default-operator.md`\n- `docs/agent-context/evals/simurgh-foundation.yaml`\n- `docs/agent-context/evals/simurgh-advisory-provider.yaml`\n- `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`\n- `docs/agent-context/generated/simurgh-docs-index.json`\n- `docs/guides/simurgh-mcp-clients.md`\n\nDo not hardcode prompt text, policy text, or tool rules in provider adapters. Add\nor change the artifact first, then update tests and docs in the same slice.",
       "title": "Simurgh operator guide"
     },
     {
@@ -387,6 +387,26 @@
         "dashboard"
       ],
       "text": "Before a provider is called, Simurgh first routes common operator questions\nthrough local read-only MDS/GCS tools. Fleet count, drone IP lookup, live\npresence, swarm formation/cluster geometry, show upload/readiness, show\nduration, Simurgh runtime posture, board/setup documentation links,\ncompanion-computer bootstrap guidance, add-drone workflow guidance, SITL startup\nguidance, backend warning/error summaries, action-capability explanations, and\ncapability-menu answers are produced locally and do not require OpenAI auth.\nDashboard sessions keep only safe short-lived routing metadata such as\n`last_domain=drone_show` or `last_domain=logs`; they do not store raw transcript\ntext. The local wrapper also infers a response mode, for example `status`,\n`interpret`, `workflow`, `compare`, or `capability`, so follow-ups like `is\nthere any uploaded?` or `what does it mean?` can reuse the right evidence source\nwithout repeating the previous template. Prompts outside those curated read-only\nintents use the configured provider subject to the auth and safety gates above.\n\nGeneral robotics/MDS-adjacent answers that should not be misrouted to live GCS\ntools are curated in `config/agent_general_knowledge.yaml`. Keep that file small\nand public-safe: it is for definitions such as drone/MAVLink and external-data\nfallbacks such as weather when no live weather evidence source is connected. Do\nnot put private field facts, credentials, network maps, or operator transcripts\nthere. If a new general topic becomes PM-critical, add it to that config, add an\neval/test, and keep the answer conversational while clearly separating general\nknowledge from live vehicle or flight-readiness evidence.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "68bf9ecf8f8c10e1882d1a0d23ebb45b5dba651b3ee6b55d87c01e24e16e49f1",
+      "heading": "Environment Variables",
+      "id": "simurgh.operator_guide:005-05-environment-variables",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "Public geography/distance prompts use `config/agent_public_places.yaml` plus\ndeterministic geodesy math before falling back to the provider. This prevents a\ngeneral model from guessing coordinates or distances for reviewed demo/operator\nplaces. Keep it limited to public, non-sensitive references; never add private\nmission coordinates, customer sites, launch positions, or field logs. If a place\nis missing and exact public data matters, use the future web/geocoding slice with\ncitations instead of inventing a value.",
       "title": "Simurgh operator guide"
     },
     {
@@ -14709,8 +14729,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 25,
-      "content_hash": "ede932164ef41060f53058bd9aae76283ae8cd6c17cd7a90c9b639daf6c3c803",
+      "chunk_count": 26,
+      "content_hash": "2729efae741af3f375aa439adf7a53a9f686fede1dbbd74e390ee7110c4f8906",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

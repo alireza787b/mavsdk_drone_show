@@ -311,12 +311,87 @@ def _looks_like_general_information_query(normalized: str) -> bool:
         return False
     if _has_any(normalized, ("weather", "forecast", "wind today", "rain today")):
         return True
+    if _looks_like_external_reference_query(normalized):
+        return True
     if not _has_any(
         normalized,
         ("what is", "what are", "define", "definition", "meaning of", "explain", "tell me about"),
     ):
         return False
     return _has_any(normalized, ("drone", "drones", "uav", "uavs", "uas", "mavlink", "mavlink protocol"))
+
+
+def _looks_like_external_reference_query(normalized: str) -> bool:
+    if _has_any(
+        normalized,
+        (
+            "mds",
+            "simurgh",
+            "fleet",
+            "swarm",
+            "drone show",
+            "skybrush",
+            "qgc",
+            "px4",
+            "mavlink",
+            "sys_id",
+            "telemetry",
+            "heartbeat",
+            "netbird",
+            "gcs",
+            "dashboard",
+            "sitl",
+            "logs",
+            "runtime",
+            "mcp",
+            "scout drone",
+            "drone 1",
+            "drone 2",
+            "drone 3",
+        ),
+    ):
+        return False
+    return _has_any(
+        normalized,
+        (
+            "how far",
+            "how many km",
+            "how many kilometer",
+            "how many kilometers",
+            "kilometer",
+            "kilometers",
+            " km",
+            " miles",
+            "distance from",
+            "distance between",
+            "latitude",
+            "longitude",
+            "lat and long",
+            "lat/long",
+            "coordinates",
+            "coordinate of",
+            "mountain",
+            "peak",
+            "damavand",
+            "tehran",
+            "new york",
+            "capital of",
+            "population of",
+            "who is",
+            "when is",
+            "where is",
+            "calculate",
+            "convert",
+            "regulation",
+            "regulations",
+            "law",
+            "rules",
+            "internet",
+            "web search",
+            "search the web",
+            "search internet",
+        ),
+    )
 
 
 def _signal_in_query(value: str, signal: str) -> bool:
