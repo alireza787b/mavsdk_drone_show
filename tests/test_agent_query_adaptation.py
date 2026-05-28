@@ -58,3 +58,4 @@ def test_normalize_operator_query_text_is_legacy_safe():
     assert normalize_operator_query_text("whay are the differnt modes?") == "what are the different modes"
     assert normalize_operator_query_text("does thsi mean sth is wrong?") == "does this mean something is wrong"
     assert "warning" in normalize_operator_query_text("report any warnign in gcs")
+    assert "fleet status" in normalize_operator_query_text("current flee status")

@@ -1,0 +1,37 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  purpose: >-
+    Curated public conversational answers for common robotics/MDS-adjacent
+    questions that should not be misrouted to live GCS status tools. Keep this
+    file small and reviewed; add terms here when PM/operator tests reveal a
+    reusable concept gap.
+concepts:
+  - id: drone
+    title: Drone
+    aliases: [drone, drones, unmanned aerial vehicle, uav, uavs, uas]
+    summary: >-
+      A drone is an unmanned aircraft that can be manually piloted, follow an
+      onboard autopilot plan, or fly as part of a supervised system.
+    operator_notes:
+      - In MDS, a configured drone is one vehicle entry with identity, network/MAVLink path, launch position, and swarm/show assignment data.
+      - For real operations, treat the aircraft, autopilot state, link quality, GPS/RTK, battery, and mission readiness as separate checks.
+  - id: mavlink
+    title: MAVLink
+    aliases: [mavlink, mavlink protocol, micro air vehicle link]
+    summary: >-
+      MAVLink is the lightweight message protocol commonly used between an
+      autopilot, companion computer, and ground control station for telemetry,
+      commands, parameters, missions, and status messages.
+    operator_notes:
+      - In this GCS, MAVLink is part of the telemetry/control path that lets QGC/MDS observe vehicle state and route approved commands.
+      - If QGC cannot see a vehicle, check SYS_ID uniqueness, the expected MAVLink stream/port, routing/UDP endpoints, and whether heartbeats are fresh.
+external_questions:
+  weather:
+    aliases: [weather, forecast, wind today, wind, rain, raining, temperature, visibility]
+    summary: >-
+      I do not have a live weather feed or a location-specific weather tool
+      connected in this MDS chat yet, so I should not invent today's weather.
+    operator_notes:
+      - For drone operations, check wind and gusts, precipitation, visibility, ceiling/cloud base, temperature, GNSS/space-weather advisories, and local restrictions in the approved field weather source.
+      - If a weather API is added later, Simurgh can use it as another read-only evidence source and then help interpret the result for flight readiness.

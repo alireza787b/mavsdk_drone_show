@@ -185,6 +185,8 @@ def normalize_query_text(value: str) -> str:
 
 
 def _infer_domain(normalized: str, tokens: tuple[str, ...], *, topic: str) -> tuple[str, float, str]:
+    if _looks_like_general_information_query(normalized):
+        return "general", 0.85, "general information question"
     scores: dict[str, float] = {domain: 0.0 for domain in DOMAIN_SIGNALS}
     for domain, signals in DOMAIN_SIGNALS.items():
         for signal in signals:
@@ -209,6 +211,8 @@ def _infer_domain(normalized: str, tokens: tuple[str, ...], *, topic: str) -> tu
 
 
 def _infer_response_mode(normalized: str, *, domain: str, token_count: int) -> str:
+    if domain == "general" and _looks_like_general_information_query(normalized):
+        return "interpret"
     if token_count <= 1:
         return "clarify"
     if _has_any(normalized, ("what does", "what mean", "meaning", "explain", "why", "impact", "should i worry")):
@@ -280,6 +284,39 @@ def _has_any(value: str, terms: tuple[str, ...]) -> bool:
         if term in value:
             return True
     return False
+
+
+def _looks_like_general_information_query(normalized: str) -> bool:
+    if _has_any(
+        normalized,
+        (
+            "status",
+            "current status",
+            "configured",
+            "connected",
+            "online",
+            "offline",
+            "heartbeat",
+            "telemetry",
+            "ip",
+            "fleet",
+            "swarm",
+            "drone show",
+            "logs",
+            "warning",
+            "error",
+            "runtime",
+        ),
+    ):
+        return False
+    if _has_any(normalized, ("weather", "forecast", "wind today", "rain today")):
+        return True
+    if not _has_any(
+        normalized,
+        ("what is", "what are", "define", "definition", "meaning of", "explain", "tell me about"),
+    ):
+        return False
+    return _has_any(normalized, ("drone", "drones", "uav", "uavs", "uas", "mavlink", "mavlink protocol"))
 
 
 def _signal_in_query(value: str, signal: str) -> bool:

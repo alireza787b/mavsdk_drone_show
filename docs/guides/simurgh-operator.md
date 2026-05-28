@@ -27,6 +27,7 @@ Core artifacts:
 - `config/agent_policy.yaml`
 - `config/agent_tools.yaml`
 - `config/agent_assistant.yaml`
+- `config/agent_general_knowledge.yaml`
 - `config/agent_provider_smoke.yaml`
 - `docs/agent-context/context-index.yaml`
 - `docs/agent-context/system-guidelines.md`
@@ -240,6 +241,15 @@ text. The local wrapper also infers a response mode, for example `status`,
 there any uploaded?` or `what does it mean?` can reuse the right evidence source
 without repeating the previous template. Prompts outside those curated read-only
 intents use the configured provider subject to the auth and safety gates above.
+
+General robotics/MDS-adjacent answers that should not be misrouted to live GCS
+tools are curated in `config/agent_general_knowledge.yaml`. Keep that file small
+and public-safe: it is for definitions such as drone/MAVLink and external-data
+fallbacks such as weather when no live weather evidence source is connected. Do
+not put private field facts, credentials, network maps, or operator transcripts
+there. If a new general topic becomes PM-critical, add it to that config, add an
+eval/test, and keep the answer conversational while clearly separating general
+knowledge from live vehicle or flight-readiness evidence.
 
 ## Query Planning And Retrieval Context
 

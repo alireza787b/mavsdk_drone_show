@@ -729,6 +729,133 @@ def test_assistant_turn_translates_previous_answer_instead_of_capability_catalog
     assert "Connectivity from GCS state" in str(captured["input"])
 
 
+def test_assistant_turn_translates_immediate_fleet_answer_for_persian_followup(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "وضعیت ناوگان از پیکربندی GCS: ۲ پهپاد تنظیم شده‌اند. هیچ فرمانی ارسال نشد.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="what is the current fleet status and info?",
+    )
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="فارسی بگو همینو",
+    )
+
+    assert followup.turn.provider == "openai"
+    assert followup.audit_event.metadata["tool_intent"] == "conversation_transform"
+    assert "Fleet status from GCS configuration" in str(captured["input"])
+    assert "MCP endpoint" not in followup.turn.content
+
+
+def test_assistant_turn_explicit_fleet_status_overrides_log_topic(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="check last 1 hour logs is there anything I need to know?",
+    )
+    assert first.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert first.session.metadata["last_domain"] == "logs"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="what is the current flee status and info?",
+    )
+
+    assert followup.turn.provider == "mds-tools"
+    assert followup.audit_event.metadata["tool_intent"] == "fleet_summary"
+    assert followup.audit_event.metadata["query_domain"] == "fleet"
+    assert "Fleet status from GCS configuration" in followup.turn.content
+    assert "Backend warning/error summary" not in followup.turn.content
+
+
+def test_assistant_turn_answers_general_robotics_and_weather_without_fleet_tables(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="any drone connected?",
+    )
+    assert first.session.metadata["last_domain"] == "fleet"
+
+    drone = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="what is a drone?",
+    )
+    assert drone.turn.provider == "mds-tools"
+    assert drone.audit_event.metadata["tool_intent"] == "general_knowledge"
+    assert "unmanned aircraft" in drone.turn.content
+    assert "Fleet status from GCS configuration" not in drone.turn.content
+
+    mavlink = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="what is mavlink?",
+    )
+    assert mavlink.audit_event.metadata["tool_intent"] == "general_knowledge"
+    assert "MAVLink" in mavlink.turn.content
+    assert "Connectivity from GCS state" not in mavlink.turn.content
+
+    weather = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="how is the weather today?",
+    )
+    assert weather.audit_event.metadata["tool_intent"] == "general_knowledge"
+    assert "do not have a live weather feed" in weather.turn.content
+    assert "Fleet status from GCS configuration" not in weather.turn.content
+
+
 def test_assistant_turn_routes_can_you_warning_request_to_logs_not_capabilities(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")

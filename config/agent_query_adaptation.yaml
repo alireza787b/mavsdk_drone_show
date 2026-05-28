@@ -34,6 +34,9 @@ term_replacements:
   - id: typo.drone
     aliases: [doren, droen, droens]
     canonical: drone
+  - id: typo.fleet
+    aliases: [flee, fleed, fleat]
+    canonical: fleet
   - id: typo.gcs
     aliases: [gxs, qgs]
     canonical: gcs

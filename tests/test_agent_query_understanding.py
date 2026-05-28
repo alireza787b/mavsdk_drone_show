@@ -115,6 +115,24 @@ from agent_runtime.query_understanding import build_assistant_query_plan, normal
             ("qrxzz", "blnk"),
             True,
         ),
+        (
+            "what is a drone?",
+            "fleet",
+            "general",
+            "interpret",
+            (),
+            ("drone",),
+            False,
+        ),
+        (
+            "how is the weather today?",
+            "fleet",
+            "general",
+            "interpret",
+            (),
+            ("weather",),
+            False,
+        ),
     ),
 )
 def test_query_planner_routes_operator_prompts(

@@ -19,12 +19,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+import yaml
 from fastapi import HTTPException
 
 from request_logging import is_routine_auth_noise_path
 
 from .answer_composer import AnswerComposer
-from .models import utc_now
+from .models import AgentRuntimeError, utc_now
 from .query_adaptation import normalize_operator_query_text
 
 
@@ -34,6 +35,7 @@ READ_TOOL_MODEL = "local-read-only"
 READ_TOOL_ADAPTER_VERSION = "mds-read-tools-v1"
 DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
 DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
+DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 MDS_CONVERSATION_TOPICS = frozenset(
     {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"}
@@ -64,6 +66,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return None
     if _looks_like_previous_answer_transform(normalized):
         return None
+    if _looks_like_weather_question(normalized) or _looks_like_general_knowledge_question(normalized):
+        return "general_knowledge"
 
     if topic == "logs" and _looks_like_contextual_log_followup(normalized):
         return "backend_log_summary"
@@ -226,6 +230,8 @@ def answer_mds_read_only_question(
         return tools.backend_log_summary(response_mode=response_mode, message=message)
     if intent == "action_capability":
         return tools.action_capability()
+    if intent == "general_knowledge":
+        return tools.general_knowledge(message)
     return None
 
 
@@ -280,6 +286,8 @@ def infer_mds_response_mode(
         return "workflow"
     if normalized_intent in {"action_capability", "capability_catalog"}:
         return "capability"
+    if normalized_intent == "general_knowledge":
+        return "interpret"
     return "status"
 
 
@@ -334,6 +342,64 @@ class MdsReadOnlyTools:
 
     def __init__(self, *, deps: Any | None = None):
         self.deps = deps
+
+    def general_knowledge(self, message: str) -> MdsReadToolAnswer:
+        normalized = _normalize_text(message)
+        knowledge = _load_general_knowledge_config()
+        composer = AnswerComposer()
+
+        external = _matching_external_question(normalized, knowledge)
+        if external:
+            title, summary, notes = external
+            composer.line(summary)
+            composer.blank().line("For MDS operators:")
+            composer.bullets(notes)
+            composer.blank().line("This is general guidance only; no live weather, GCS mutation, or drone command was used.")
+            return self._answer(
+                "general_knowledge",
+                composer.render(),
+                ("simurgh.general_knowledge.read",),
+                response_mode="interpret",
+                safety_notes=(
+                    "Answered from curated public Simurgh general-knowledge context.",
+                    "No live external data source, GCS mutation, drone API, or command path was used.",
+                    f"General topic: {title}.",
+                ),
+            )
+
+        concept = _matching_general_concept(normalized, knowledge)
+        if concept:
+            title, summary, notes = concept
+            composer.line(f"{title}: {summary}")
+            if notes:
+                composer.blank().line("In MDS/operator terms:")
+                composer.bullets(notes)
+            composer.blank().line("This is a general explanation, not live vehicle status. No drone command was sent.")
+            return self._answer(
+                "general_knowledge",
+                composer.render(),
+                ("simurgh.general_knowledge.read",),
+                response_mode="interpret",
+                safety_notes=(
+                    "Answered from curated public Simurgh general-knowledge context.",
+                    "No live GCS state, drone API, or command path was used.",
+                    f"General topic: {title}.",
+                ),
+            )
+
+        composer.line("I can help with that as a general question, but I do not have a curated local answer for it yet.")
+        composer.line("For MDS work, I can still help with fleet, show, swarm, logs, SITL, setup, MCP, and runtime questions.")
+        composer.line("No drone command was sent.")
+        return self._answer(
+            "general_knowledge",
+            composer.render(),
+            ("simurgh.general_knowledge.read",),
+            response_mode="interpret",
+            safety_notes=(
+                "No deterministic curated answer matched this general prompt.",
+                "No live GCS state, external data source, drone API, or command path was used.",
+            ),
+        )
 
     def fleet_summary(self, message: str = "") -> MdsReadToolAnswer:
         config = self._fleet_config()
@@ -1336,13 +1402,14 @@ class MdsReadOnlyTools:
         tool_ids: tuple[str, ...],
         *,
         response_mode: str = "status",
+        safety_notes: tuple[str, ...] | None = None,
     ) -> MdsReadToolAnswer:
         normalized_mode = response_mode if response_mode in MDS_RESPONSE_MODES else "status"
         return MdsReadToolAnswer(
             intent=intent,
             content=content,
             tool_ids=tool_ids,
-            safety_notes=(
+            safety_notes=safety_notes or (
                 "Answered by local read-only MDS/GCS context tools.",
                 "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
                 f"Tool intent: {intent}.",
@@ -2131,6 +2198,66 @@ def _looks_like_contextual_log_followup(normalized: str) -> bool:
     )
 
 
+def _looks_like_weather_question(normalized: str) -> bool:
+    return _has_domain_signal(
+        normalized,
+        (
+            "weather",
+            "forecast",
+            "wind today",
+            "weather today",
+            "rain today",
+            "visibility today",
+            "temperature today",
+        ),
+    )
+
+
+def _looks_like_general_knowledge_question(normalized: str) -> bool:
+    if not normalized:
+        return False
+    if _has_domain_signal(
+        normalized,
+        (
+            "status",
+            "current status",
+            "configured",
+            "connected",
+            "online",
+            "offline",
+            "heartbeat",
+            "telemetry",
+            "ip",
+            "fleet",
+            "swarm",
+            "drone show",
+            "logs",
+            "warning",
+            "error",
+            "runtime",
+        ),
+    ):
+        return False
+    if not _has_domain_signal(
+        normalized,
+        (
+            "what is",
+            "what are",
+            "define",
+            "definition",
+            "meaning of",
+            "explain",
+            "tell me about",
+        ),
+    ):
+        return False
+    try:
+        knowledge = _load_general_knowledge_config()
+    except AgentRuntimeError:
+        return False
+    return _matching_general_concept(normalized, knowledge) is not None
+
+
 def _looks_like_previous_answer_transform(normalized: str) -> bool:
     language_markers = (
         "persian",
@@ -2154,10 +2281,18 @@ def _looks_like_previous_answer_transform(normalized: str) -> bool:
         "write it in",
         "rewrite it in",
         "به فارسی",
+        "فارسی بگو",
+        "فارسی بنویس",
+        "همینو فارسی",
+        "همین رو فارسی",
+        "همین را فارسی",
         "in persian",
         "in farsi",
     )
-    if any(marker in normalized for marker in transform_markers) and any(marker in normalized for marker in language_markers):
+    persian_same_answer = "فارسی" in normalized and _has_any(normalized, ("همینو", "همین رو", "همین را", "این رو", "این را"))
+    if persian_same_answer or (
+        any(marker in normalized for marker in transform_markers) and any(marker in normalized for marker in language_markers)
+    ):
         return True
     return _has_any(normalized, ("shorter", "more concise", "simpler", "summarize that", "summarise that"))
 
@@ -2535,6 +2670,56 @@ def _default_show_dirs() -> dict[str, str]:
         "skybrush_dir": str(REPO_ROOT / "shapes" / "swarm" / "skybrush"),
         "processed_dir": str(REPO_ROOT / "shapes" / "swarm" / "processed"),
     }
+
+
+def _load_general_knowledge_config() -> Mapping[str, Any]:
+    try:
+        payload = yaml.safe_load(DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    except FileNotFoundError as exc:
+        raise AgentRuntimeError(f"Simurgh general knowledge config not found: {DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH}") from exc
+    except yaml.YAMLError as exc:
+        raise AgentRuntimeError("Simurgh general knowledge config is invalid YAML") from exc
+    if not isinstance(payload, Mapping):
+        raise AgentRuntimeError("Simurgh general knowledge config root must be an object")
+    if int(payload.get("version") or 0) != 1:
+        raise AgentRuntimeError("unsupported Simurgh general knowledge config version")
+    return payload
+
+
+def _matching_general_concept(normalized: str, knowledge: Mapping[str, Any]) -> tuple[str, str, tuple[str, ...]] | None:
+    concepts = knowledge.get("concepts")
+    if not isinstance(concepts, list):
+        return None
+    for raw in concepts:
+        if not isinstance(raw, Mapping):
+            continue
+        aliases = tuple(str(alias or "").strip() for alias in raw.get("aliases") or () if str(alias or "").strip())
+        if not _has_domain_signal(normalized, aliases):
+            continue
+        title = str(raw.get("title") or raw.get("id") or "General topic").strip()
+        summary = str(raw.get("summary") or "").strip()
+        notes = tuple(str(note).strip() for note in raw.get("operator_notes") or () if str(note).strip())
+        if summary:
+            return title, summary, notes
+    return None
+
+
+def _matching_external_question(normalized: str, knowledge: Mapping[str, Any]) -> tuple[str, str, tuple[str, ...]] | None:
+    external_questions = knowledge.get("external_questions")
+    if not isinstance(external_questions, Mapping):
+        return None
+    for key, raw in external_questions.items():
+        if not isinstance(raw, Mapping):
+            continue
+        aliases = tuple(str(alias or "").strip() for alias in raw.get("aliases") or () if str(alias or "").strip())
+        if not _has_domain_signal(normalized, aliases):
+            continue
+        title = str(key or "external question").replace("_", " ").title()
+        summary = str(raw.get("summary") or "").strip()
+        notes = tuple(str(note).strip() for note in raw.get("operator_notes") or () if str(note).strip())
+        if summary:
+            return title, summary, notes
+    return None
 
 
 def _normalize_text(value: str) -> str:

@@ -290,6 +290,66 @@ def test_simurgh_assistant_turn_uses_adapted_routing_for_local_auth_gate(monkeyp
     assert "Simurgh capabilities" not in payload["content"]
 
 
+def test_simurgh_assistant_turn_explicit_fleet_prompt_overrides_log_session_topic(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    client = _client()
+
+    first = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "check last 1 hour logs is there anything I need to know?"},
+    )
+    assert first.status_code == 200
+    first_payload = first.json()
+    assert first_payload["trace"]["tool"]["intent"] == "backend_log_summary"
+
+    followup = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": first_payload["session"]["id"],
+            "message": "what is the current flee status and info?",
+        },
+    )
+
+    assert followup.status_code == 200
+    payload = followup.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["query"]["domain"] == "fleet"
+    assert payload["trace"]["tool"]["intent"] == "fleet_summary"
+    assert "Fleet status from GCS configuration" in payload["content"]
+    assert "Backend warning/error summary" not in payload["content"]
+
+
+def test_simurgh_assistant_turn_answers_general_questions_without_inheriting_fleet_topic(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    client = _client()
+
+    first = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "wat droens are connected?"},
+    )
+    assert first.status_code == 200
+    session_id = first.json()["session"]["id"]
+
+    for message, expected, blocked in (
+        ("what is a drone?", "unmanned aircraft", "Fleet status from GCS configuration"),
+        ("what is mavlink?", "MAVLink", "Connectivity from GCS state"),
+        ("how is the weather today?", "do not have a live weather feed", "Fleet status from GCS configuration"),
+    ):
+        response = client.post(
+            "/api/v1/simurgh/assistant/turns",
+            json={"actor": "operator", "session_id": session_id, "message": message},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["provider"] == "mds-tools"
+        assert payload["trace"]["tool"]["intent"] == "general_knowledge"
+        assert expected in payload["content"]
+        assert blocked not in payload["content"]
+
+
 @pytest.mark.parametrize(
     ("message", "expected"),
     [

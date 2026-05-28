@@ -1214,12 +1214,21 @@ def _conversation_transform_kind(message: str) -> str | None:
         "write it in",
         "rewrite it in",
         "به فارسی",
+        "فارسی بگو",
+        "فارسی بنویس",
+        "همینو فارسی",
+        "همین رو فارسی",
+        "همین را فارسی",
         "in persian",
         "in farsi",
     )
-    if any(marker in normalized for marker in transform_markers) and any(
+    persian_same_answer = "فارسی" in normalized and any(
+        marker in normalized for marker in ("همینو", "همین رو", "همین را", "این رو", "این را")
+    )
+    marker_transform = any(marker in normalized for marker in transform_markers) and any(
         marker in normalized for marker in language_markers
-    ):
+    )
+    if persian_same_answer or marker_transform:
         return "translate_previous_answer"
     if any(marker in normalized for marker in ("shorter", "more concise", "simpler", "summarize that", "summarise that")):
         return "rewrite_previous_answer"
