@@ -3,7 +3,6 @@ import {
   FaCheckCircle,
   FaCog,
   FaCopy,
-  FaComments,
   FaExclamationTriangle,
   FaEllipsisH,
   FaPaperPlane,
@@ -31,6 +30,7 @@ import {
   updateSimurghProviderCredentialsResponse,
   updateSimurghRuntimeSettingsResponse,
 } from '../services/gcsApiService';
+import simurghMark from '../assets/simurgh-mark.svg';
 import '../styles/SimurghOperatorPage.css';
 
 const STORAGE_KEY = 'mds.simurgh.chat.v2';
@@ -69,6 +69,7 @@ const DOC_PATH_LINKS = Object.freeze({
   'docs/features/drone-show.md': '/api/v1/simurgh/context/mds.drone_show/markdown',
   'docs/features/swarm-trajectory.md': '/api/v1/simurgh/context/mds.swarm_trajectory/markdown',
   'docs/guides/logging-system.md': '/api/v1/simurgh/context/mds.logging_system/markdown',
+  'docs/guides/mavlink-routing-setup.md': '/api/v1/simurgh/context/mds.mavlink_routing_setup/markdown',
   'docs/guides/simurgh-operator.md': '/api/v1/simurgh/context/simurgh.operator_guide/markdown',
   'docs/guides/simurgh-mcp-clients.md': '/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown',
   'docs/reference/mds-environment-registry.generated.md': '/api/v1/simurgh/context/mds.environment_registry/markdown',
@@ -225,6 +226,31 @@ function SafetyChips({ status }) {
       </StatusBadge>
     </div>
   );
+}
+
+function SimurghMark({ className = '' }) {
+  return <img className={['simurgh-chat__mark', className].filter(Boolean).join(' ')} src={simurghMark} alt="" />;
+}
+
+function inferPendingSteps(message, settings) {
+  const normalized = String(message || '').toLowerCase();
+  const steps = ['Understanding request'];
+  const localSignals = [
+    'mds', 'fleet', 'drone', 'drones', 'board', 'boards', 'cm4', 'telemetry', 'gps',
+    'logs', 'warning', 'error', 'swarm', 'drone show', 'skybrush', 'runtime', 'mcp', 'px4', 'mavlink',
+  ];
+  const publicSignals = [
+    'weather', 'today', 'latest', 'current', 'where is', 'how far', 'distance', 'latitude', 'longitude', 'country',
+  ];
+
+  if (localSignals.some((signal) => normalized.includes(signal))) {
+    steps.push('Checking MDS context');
+  }
+  if (settings?.web_search_enabled && publicSignals.some((signal) => normalized.includes(signal))) {
+    steps.push('Checking public references');
+  }
+  steps.push('Composing reply');
+  return steps;
 }
 
 function CandidateReviewSummary({ review }) {
@@ -903,7 +929,7 @@ function MessageBubble({ message }) {
   return (
     <article className={`simurgh-chat__message simurgh-chat__message--${message.role}`}>
       <div className="simurgh-chat__avatar" aria-hidden="true">
-        {message.role === 'assistant' ? <FaRobot /> : <FaUserShield />}
+        {message.role === 'assistant' ? <SimurghMark /> : <FaUserShield />}
       </div>
       <div className="simurgh-chat__bubble">
         <div className="simurgh-chat__bubble-header">
@@ -916,10 +942,30 @@ function MessageBubble({ message }) {
   );
 }
 
+function PendingAssistantBubble({ message, settings }) {
+  const steps = inferPendingSteps(message, settings);
+  return (
+    <article className="simurgh-chat__message simurgh-chat__message--assistant simurgh-chat__message--pending">
+      <div className="simurgh-chat__avatar" aria-hidden="true"><SimurghMark /></div>
+      <div className="simurgh-chat__bubble">
+        <div className="simurgh-chat__bubble-header">
+          <span>Simurgh</span>
+        </div>
+        <div className="simurgh-chat__progress" role="status" aria-live="polite">
+          <span className="simurgh-chat__thinking">Thinking</span>
+          <div className="simurgh-chat__progress-steps">
+            {steps.map((step) => <span key={step}>{step}</span>)}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function EmptyChat({ onPickPrompt }) {
   return (
     <div className="simurgh-chat__empty">
-      <FaComments aria-hidden="true" />
+      <SimurghMark className="simurgh-chat__mark--empty" />
       <h2>Simurgh</h2>
       <div className="simurgh-chat__starters" aria-label="Prompt starters">
         {STARTERS.map((prompt) => (
@@ -1174,6 +1220,7 @@ export default function SimurghOperatorPage() {
   }, []);
 
   const activeMessages = activeConversation?.messages || [];
+  const pendingPrompt = [...activeMessages].reverse().find((message) => message.role === 'user')?.content || draft;
   const canSend = draft.trim().length > 0 && !submitting && Boolean(status?.agent_enabled);
   const subtitle = status
     ? `${status.provider || status.assistant_provider || 'mock'} / ${status.openai_model || status.model || status.assistant_model || 'mock-local'}`
@@ -1185,7 +1232,7 @@ export default function SimurghOperatorPage() {
       eyebrow="Simurgh"
       title="Operator Chat"
       subtitle={subtitle}
-      icon={<FaRobot />}
+      icon={<SimurghMark className="simurgh-chat__mark--shell" />}
       status={<SafetyChips status={status} />}
       actions={(
         <ActionIconButton
@@ -1196,7 +1243,9 @@ export default function SimurghOperatorPage() {
         />
       )}
     >
-      {pageError ? <OperatorNotice tone="warning" title="Runtime notice">{pageError}</OperatorNotice> : null}
+      <div className="simurgh-chat__notice-slot">
+        {pageError ? <OperatorNotice tone="warning" title="Runtime notice">{pageError}</OperatorNotice> : null}
+      </div>
       <section className="simurgh-chat">
         <ConversationList
           conversations={conversations}
@@ -1210,15 +1259,7 @@ export default function SimurghOperatorPage() {
           <div className="simurgh-chat__transcript" ref={transcriptRef}>
             {activeMessages.length === 0 ? <EmptyChat onPickPrompt={setDraft} /> : null}
             {activeMessages.map((message) => <MessageBubble key={message.id} message={message} />)}
-            {submitting ? (
-              <article className="simurgh-chat__message simurgh-chat__message--assistant">
-                <div className="simurgh-chat__avatar" aria-hidden="true"><FaRobot /></div>
-                <div className="simurgh-chat__bubble">
-                  <span>Simurgh</span>
-                  <div className="simurgh-chat__markdown"><p>Thinking...</p></div>
-                </div>
-              </article>
-            ) : null}
+            {submitting ? <PendingAssistantBubble message={pendingPrompt} settings={settings} /> : null}
           </div>
           {chatError ? <div className="simurgh-chat__error" role="alert">{chatError}</div> : null}
           <form className="simurgh-chat__composer" onSubmit={handleSubmit}>

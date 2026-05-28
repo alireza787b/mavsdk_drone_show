@@ -189,6 +189,12 @@ def normalize_operator_query_text(message: str) -> str:
     return adapt_operator_query(message).routing_text
 
 
+def normalize_matching_text(value: str) -> str:
+    """Return cheap deterministic normalization for static aliases and labels."""
+
+    return _normalize_for_matching(value)
+
+
 def _apply_replacement_rules(value: str, config: QueryAdaptationConfig) -> tuple[str, list[str]]:
     routed = value
     applied: list[str] = []

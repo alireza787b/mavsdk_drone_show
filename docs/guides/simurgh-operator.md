@@ -20,6 +20,24 @@ usable read-only operator slice:
 - no real-world command execution
 - no direct drone API exposure
 
+## Current Autopilot Support
+
+MDS is currently **PX4-first and PX4-validated**. The production assumptions in
+the GCS, companion workflows, readiness checks, MAVSDK command paths, PX4
+parameter guidance, SYS_ID guidance, show execution, QuickScout, and Swarm
+Trajectory flows are built and tested against PX4.
+
+ArduPilot is a future integration candidate because it can also expose MAVLink,
+but it is **not currently a supported or validated MDS flight-stack target** for
+command/control. Before MDS advertises ArduPilot support, the project needs an
+explicit adapter and review path for parameter names, flight modes, mission
+semantics, offboard/control behavior, SITL coverage, bench tests, field tests,
+operator docs, and safety policy.
+
+Operator answer to give today: use PX4 for current MDS deployments; do not treat
+ArduPilot as production-supported until an ArduPilot adapter has passed the same
+tests and documentation gate.
+
 ## Configuration Files
 
 Core artifacts:

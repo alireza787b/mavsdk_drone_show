@@ -26,7 +26,7 @@ from request_logging import is_routine_auth_noise_path
 
 from .answer_composer import AnswerComposer
 from .models import AgentRuntimeError, utc_now
-from .query_adaptation import normalize_operator_query_text
+from .query_adaptation import normalize_matching_text, normalize_operator_query_text
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +42,53 @@ READ_CONVERSATION_TOPICS = frozenset(
     {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"}
 )
 READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability"})
+FLEET_LIVE_TERMS = (
+    "connected",
+    "connect",
+    "online",
+    "offline",
+    "heartbeat",
+    "telemetry",
+    "reachable",
+    "streaming",
+    "link quality",
+    "network link",
+    "live",
+    "gps",
+    "coordinate",
+    "coordinates",
+    "lat",
+    "latitude",
+    "long",
+    "longitude",
+    "alt",
+    "altitude",
+    "location",
+    "country",
+    "where are",
+    "where is",
+    "boards",
+    "board",
+    "cm4",
+    "companion",
+    "vehicle",
+    "vehicles",
+)
+FLEET_POSITION_TERMS = (
+    "gps",
+    "coordinate",
+    "coordinates",
+    "lat",
+    "latitude",
+    "long",
+    "longitude",
+    "alt",
+    "altitude",
+    "location",
+    "country",
+    "where are",
+    "where is",
+)
 
 @dataclass(frozen=True)
 class MdsReadToolAnswer:
@@ -71,6 +118,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "general_knowledge"
     if _looks_like_public_geography_question(normalized):
         return "public_geography"
+    if _looks_like_autopilot_support_question(normalized):
+        return "autopilot_support"
     if _looks_like_non_mds_general_question(normalized):
         return None
 
@@ -159,10 +208,7 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     )
     if show_requested:
         return "show_summary"
-    if _has_any(
-        normalized,
-        ("connected", "connect", "online", "offline", "heartbeat", "telemetry", "reachable", "streaming", "link quality", "network link"),
-    ):
+    if _looks_like_live_fleet_state_question(normalized):
         return "fleet_connectivity"
     if _has_any(normalized, ("swarm", "formation", "cluster", "offset", "follow", "geometry", "distance")):
         return "swarm_topology"
@@ -204,7 +250,7 @@ def answer_mds_read_only_question(
     if intent == "fleet_summary":
         return tools.fleet_summary(message)
     if intent == "fleet_connectivity":
-        return tools.fleet_connectivity()
+        return tools.fleet_connectivity(message=message)
     if intent == "swarm_topology":
         return tools.swarm_topology()
     if intent == "mission_mode_comparison":
@@ -239,6 +285,8 @@ def answer_mds_read_only_question(
         return tools.general_knowledge(message)
     if intent == "public_geography":
         return tools.public_geography(message)
+    if intent == "autopilot_support":
+        return tools.autopilot_support()
     return None
 
 
@@ -557,11 +605,12 @@ class MdsReadOnlyTools:
             ("mds.config.fleet.read", "mds.config.positions.read", "mds.config.swarm.read"),
         )
 
-    def fleet_connectivity(self) -> MdsReadToolAnswer:
+    def fleet_connectivity(self, message: str = "") -> MdsReadToolAnswer:
         config = self._fleet_config()
         heartbeats = self._heartbeat_snapshot()
         telemetry = self._telemetry_snapshot()
         telemetry_success_times = self._telemetry_success_times()
+        wants_position = _wants_fleet_position_details(_normalize_text(message))
 
         try:
             from params import Params
@@ -582,7 +631,7 @@ class MdsReadOnlyTools:
         )
         config_lookup = {_as_str(drone.get("hw_id")): drone for drone in config}
         live_count = 0
-        rows: list[tuple[str, str, str, str]] = []
+        rows: list[tuple[str, ...]] = []
         now = time.time()
         for hw_id in all_hw_ids:
             heartbeat = _copy_mapping(heartbeats.get(hw_id) or heartbeats.get(_maybe_int_key(hw_id)))
@@ -608,7 +657,24 @@ class MdsReadOnlyTools:
             if live:
                 live_count += 1
             ip = heartbeat.get("ip") or telemetry_row.get("ip") or config_lookup.get(hw_id, {}).get("ip", "unknown")
-            rows.append((f"Drone {hw_id}", str(state), str(ip), str(detail)))
+            role = config_lookup.get(hw_id, {}).get("callsign") or config_lookup.get(hw_id, {}).get("role") or "-"
+            if wants_position:
+                lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
+                country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
+                rows.append(
+                    (
+                        f"Drone {hw_id}",
+                        str(state),
+                        gps_label,
+                        _fmt_coordinate(lat),
+                        _fmt_coordinate(lon),
+                        _fmt_altitude_m(alt),
+                        country,
+                        str(detail),
+                    )
+                )
+            else:
+                rows.append((f"Drone {hw_id}", str(role), str(state), str(ip), str(detail)))
 
         composer = AnswerComposer()
         if not all_hw_ids:
@@ -616,13 +682,52 @@ class MdsReadOnlyTools:
             composer.line("This is a read-only presence check; no drone command was sent.")
         else:
             composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
-            composer.blank().table(("Drone", "Presence", "IP", "Evidence"), rows)
+            if wants_position:
+                composer.blank().table(
+                    ("Drone", "Presence", "GPS", "Latitude", "Longitude", "Altitude", "Country", "Evidence"),
+                    rows,
+                )
+                composer.blank().line(
+                    "Coordinates and GPS status come from the latest GCS telemetry snapshot. `unavailable` means this runtime does not currently have a valid global-position sample for that drone."
+                )
+            else:
+                composer.blank().table(("Drone", "Role", "Presence", "IP", "Evidence"), rows)
             composer.blank().line("Use this as operator presence evidence only; it is not a readiness-to-fly decision.")
             composer.line("No drone command was sent.")
         return self._answer(
             "fleet_connectivity",
             composer.render(),
             ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+        )
+
+    def autopilot_support(self) -> MdsReadToolAnswer:
+        composer = AnswerComposer()
+        composer.line("Current MDS flight-stack support is **PX4-first and PX4-validated**.")
+        composer.blank()
+        composer.table(
+            ("Stack", "MDS status", "Operational meaning"),
+            (
+                (
+                    "PX4",
+                    "Supported/validated target",
+                    "MDS tooling, docs, readiness checks, SYS_ID guidance, MAVSDK/PX4 assumptions, mission/offboard flows, and field tests are built around PX4 today.",
+                ),
+                (
+                    "ArduPilot",
+                    "Not currently supported/validated for MDS command/control",
+                    "ArduPilot also speaks MAVLink, but it needs an explicit adapter, parameter/mode/mission mapping, SITL tests, bench tests, docs, and safety review before we present it as supported.",
+                ),
+            ),
+        )
+        composer.blank()
+        composer.line("So the safe answer for operators is: use PX4 for current MDS deployments; treat ArduPilot as a future integration candidate, not a ready production path.")
+        composer.line("Relevant docs: " + _doc_link("Simurgh operator guide", "simurgh.operator_guide") + ", " + _doc_link("GCS API surface", "mds.gcs_api") + ", " + _doc_link("MAVLink routing setup", "mds.mavlink_routing_setup") + ".")
+        composer.line("No drone command was sent.")
+        return self._answer(
+            "autopilot_support",
+            composer.render(),
+            ("mds.docs.operator_workflow.read", "mds.docs.mavlink_routing.read"),
+            response_mode="capability",
         )
 
     def swarm_topology(self) -> MdsReadToolAnswer:
@@ -2040,20 +2145,7 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
     if not topic or _mentions_other_domain(normalized, topic):
         return None
     if topic == "fleet":
-        if _has_any(
-            normalized,
-            (
-                "connected",
-                "online",
-                "offline",
-                "heartbeat",
-                "telemetry",
-                "link",
-                "live",
-                "any connected",
-                "any online",
-            ),
-        ):
+        if _looks_like_live_fleet_state_question(normalized):
             return "fleet_connectivity"
         if _has_any(
             normalized,
@@ -2130,7 +2222,7 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
             return "show_modes_help"
         return "show_summary"
     if domain == "fleet":
-        if _has_any(normalized, ("connected", "online", "offline", "heartbeat", "telemetry", "link", "live")):
+        if _looks_like_live_fleet_state_question(normalized):
             return "fleet_connectivity"
         return "fleet_summary"
     if domain == "swarm":
@@ -2158,6 +2250,126 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
     if domain == "docs" and mode == "workflow":
         return "docs_help"
     return None
+
+
+def _looks_like_autopilot_support_question(normalized: str) -> bool:
+    if not _has_domain_signal(normalized, ("ardupilot", "px4", "autopilot", "flight stack", "firmware stack")):
+        return False
+    return _has_domain_signal(
+        normalized,
+        ("mds", "simurgh", "support", "supports", "supported", "compatible", "work with", "works with", "currently", "today", "now"),
+    )
+
+
+def _looks_like_live_fleet_state_question(normalized: str) -> bool:
+    if not _has_domain_signal(normalized, FLEET_LIVE_TERMS):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "fleet",
+            "drone",
+            "drones",
+            "board",
+            "boards",
+            "cm4",
+            "vehicle",
+            "vehicles",
+            "their",
+            "they",
+            "them",
+            "connected",
+            "online",
+            "gps",
+            "coordinate",
+            "coordinates",
+            "latitude",
+            "longitude",
+            "altitude",
+            "country",
+            "location",
+        ),
+    )
+
+
+def _wants_fleet_position_details(normalized: str) -> bool:
+    return _has_domain_signal(normalized, FLEET_POSITION_TERMS)
+
+
+def _fleet_position_summary(telemetry_row: Mapping[str, Any]) -> tuple[float | None, float | None, float | None, str]:
+    lat = _finite_or_none(_first_present(telemetry_row, ("position_lat", "latitude", "lat", "latitude_deg")))
+    lon = _finite_or_none(_first_present(telemetry_row, ("position_long", "position_lon", "longitude", "lon", "longitude_deg")))
+    alt = _finite_or_none(
+        _first_present(
+            telemetry_row,
+            ("relative_altitude_m", "position_alt", "altitude_m", "gps_raw_altitude_m", "altitude"),
+        )
+    )
+    valid = bool(telemetry_row.get("global_position_valid") or telemetry_row.get("gps_raw_valid"))
+    fix_type = _as_int(telemetry_row.get("gps_fix_type"))
+    satellites = _as_int(telemetry_row.get("satellites_visible") or telemetry_row.get("gps_satellites_visible"))
+    if not _valid_coordinate(lat, lon):
+        lat = None
+        lon = None
+        valid = False
+    if fix_type is not None:
+        gps = f"fix {fix_type}"
+        if satellites is not None:
+            gps += f", {satellites} sats"
+        if not valid:
+            gps += "; no valid global position"
+    elif valid:
+        gps = "valid global position"
+    else:
+        gps = "unavailable"
+    return lat, lon, alt, gps
+
+
+def _first_present(mapping: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key in mapping and mapping.get(key) not in (None, ""):
+            return mapping.get(key)
+    return None
+
+
+def _finite_or_none(value: Any) -> float | None:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
+def _valid_coordinate(lat: float | None, lon: float | None) -> bool:
+    if lat is None or lon is None:
+        return False
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return False
+    return not (abs(lat) < 1e-9 and abs(lon) < 1e-9)
+
+
+def _fmt_coordinate(value: float | None) -> str:
+    return "unavailable" if value is None else f"{value:.7f}"
+
+
+def _fmt_altitude_m(value: float | None) -> str:
+    return "unavailable" if value is None else f"{value:.1f} m"
+
+
+def _country_from_coordinates(lat: float, lon: float) -> str:
+    # Lightweight operator hint only. It avoids external geocoding and returns
+    # unknown instead of inventing precision outside the common MDS test regions.
+    regions = (
+        ("France", 41.0, 51.5, -5.5, 10.0),
+        ("Taiwan", 21.8, 25.5, 119.0, 122.5),
+        ("Iran", 24.0, 40.5, 44.0, 64.5),
+        ("United States", 24.0, 49.5, -125.0, -66.0),
+        ("Switzerland", 45.6, 47.9, 5.8, 10.6),
+    )
+    for label, min_lat, max_lat, min_lon, max_lon in regions:
+        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
+            return label
+    return "unknown"
 
 
 def _looks_like_generic_contextual_followup(normalized: str) -> bool:
@@ -2995,7 +3207,7 @@ def _matching_public_places(normalized: str, config: Mapping[str, Any]) -> list[
 
 
 def _alias_position(normalized: str, alias: str) -> int:
-    marker = _normalize_text(alias)
+    marker = normalize_matching_text(alias)
     if not marker:
         return -1
     if re.fullmatch(r"[a-z0-9_-]+", marker):

@@ -343,3 +343,15 @@ resources:
   - logs
   - diagnostics
   searchable: true
+- id: mds.mavlink_routing_setup
+  title: MAVLink routing setup
+  path: docs/guides/mavlink-routing-setup.md
+  mime_type: text/markdown
+  audience: operator
+  sensitivity: public
+  summary: GCS and sidecar MAVLink routing setup and port expectations.
+  tags:
+  - mavlink
+  - routing
+  - setup
+  searchable: true

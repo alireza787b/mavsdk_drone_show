@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -877,6 +879,67 @@ def test_assistant_turn_routes_fleet_followup_from_session_context(monkeypatch):
         or "scout drone from gcs configuration" in followup_content_lower
     )
     assert "private network details" not in followup.turn.content
+
+
+def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question, classify_mds_read_intent
+
+    now = time.time()
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "100.82.72.33",
+                "mavlink_port": 14550,
+            }
+        ],
+        get_all_drone_positions=lambda: [],
+        load_swarm=lambda: [],
+        get_all_heartbeats=lambda: {"1": {"timestamp": int(now * 1000), "ip": "100.82.72.33"}},
+        telemetry_data_all_drones={
+            "1": {
+                "telemetry_available": True,
+                "position_lat": 47.397742,
+                "position_long": 8.545594,
+                "relative_altitude_m": 8.4,
+                "global_position_valid": True,
+                "gps_fix_type": 3,
+                "satellites_visible": 12,
+                "timestamp": int(now * 1000),
+            }
+        },
+        last_telemetry_time={"1": now},
+        data_lock=None,
+    )
+
+    assert classify_mds_read_intent("what boards are connected now?") == "fleet_connectivity"
+
+    answer = answer_mds_read_only_question(
+        "what is their gps status and coordinate?",
+        deps=deps,
+        conversation_topic="fleet",
+    )
+
+    assert answer is not None
+    assert answer.intent == "fleet_connectivity"
+    assert "Latitude" in answer.content
+    assert "47.3977420" in answer.content
+    assert "8.4 m" in answer.content
+    assert "Fleet status from GCS configuration" not in answer.content
+
+
+def test_read_tools_answer_mds_autopilot_support_boundary():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    answer = answer_mds_read_only_question("does MDS support ArduPilot?")
+
+    assert answer is not None
+    assert answer.intent == "autopilot_support"
+    assert "PX4-first" in answer.content
+    assert "not currently supported" in answer.content.lower()
+    assert "ArduPilot" in answer.content
 
 
 def test_assistant_turn_translates_previous_answer_instead_of_capability_catalog(monkeypatch, tmp_path):

@@ -9,9 +9,20 @@ and this project uses simple two-part versioning: `X.Y` (Major.Minor).
 
 ## [Unreleased]
 
+### Added
+- Simurgh chat UI branding, stable pending-progress state, markdown rendering
+  polish, and hover-only copy controls for a cleaner operator experience.
+- Simurgh documentation/context coverage for PX4-first MDS support boundaries,
+  MAVLink routing, and read-only fleet/telemetry guidance.
+
 ### Changed
 - Refreshed the public MEGA SITL image link for the official image rebuilt from
   commit `e1eb69d`.
+- Simurgh fleet questions now distinguish configured fleet inventory from live
+  connectivity/GPS/position evidence, including board/CM4 follow-up wording.
+- Static public-place alias matching now uses a lightweight normalizer instead
+  of the full query-adaptation path, avoiding repeated config loads during
+  geography-style general questions.
 
 ---
 
