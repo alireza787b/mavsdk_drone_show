@@ -33,6 +33,7 @@ const runtimePayload = {
   provider: 'mock',
   model: 'mock-local',
   openai_model: 'gpt-5.4-mini',
+  web_search_enabled: false,
   available_providers: ['mock', 'openai'],
   available_models: ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'],
   provider_ready: true,
@@ -84,6 +85,7 @@ describe('SimurghOperatorPage', () => {
         provider: 'openai',
         model: 'gpt-5.4-nano',
         openai_model: 'gpt-5.4-nano',
+        web_search_enabled: true,
       },
     });
     mockUpdateSimurghProviderCredentialsResponse.mockResolvedValue({
@@ -198,6 +200,7 @@ describe('SimurghOperatorPage', () => {
     expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/api/v1/simurgh/tool-candidates?limit=200');
     fireEvent.change(screen.getByLabelText(/simurgh provider/i), { target: { value: 'openai' } });
     fireEvent.change(screen.getByLabelText(/openai model/i), { target: { value: 'gpt-5.4-nano' } });
+    fireEvent.click(screen.getByLabelText(/web search/i));
     fireEvent.change(screen.getByLabelText(/openai api key/i), { target: { value: fakeOpenAiKey } });
     fireEvent.click(screen.getByRole('button', { name: /save simurgh settings/i }));
 
@@ -210,6 +213,7 @@ describe('SimurghOperatorPage', () => {
       expect(mockUpdateSimurghRuntimeSettingsResponse).toHaveBeenCalledWith(expect.objectContaining({
         provider: 'openai',
         openai_model: 'gpt-5.4-nano',
+        web_search_enabled: true,
         action_circuit_breaker_enabled: true,
         always_confirm_before_action: true,
       }));
@@ -333,7 +337,7 @@ describe('SimurghOperatorPage', () => {
         model: 'local-read-only',
         adapter_version: 'mds-read-tools-v1',
         created_at: '2026-05-24T00:00:00Z',
-        content: '[good](/logs) [bad](//evil.example) [js](javascript:alert(1))',
+        content: '[good](/logs) [source](https://example.com/report) [bad](//evil.example) [js](javascript:alert(1))',
         session: { id: 'sess_unsafe_links', actor: 'dashboard', mode: 'read_only', closed: false },
         actor: 'dashboard',
         mode: 'read_only',
@@ -355,6 +359,9 @@ describe('SimurghOperatorPage', () => {
     const goodLink = await screen.findByRole('link', { name: 'good' });
     expect(goodLink).toHaveAttribute('href', '/logs');
     expect(goodLink).toHaveAttribute('target', '_blank');
+    const sourceLink = screen.getByRole('link', { name: 'source' });
+    expect(sourceLink).toHaveAttribute('href', 'https://example.com/report');
+    expect(sourceLink).toHaveAttribute('target', '_blank');
     expect(screen.queryByRole('link', { name: 'bad' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'js' })).not.toBeInTheDocument();
   });

@@ -167,3 +167,9 @@ providers:
     max_output_tokens: 900
     reasoning_effort: medium
     text_verbosity: low
+    web_search:
+      enabled: false
+      search_context_size: medium
+      external_web_access: true
+      allowed_domains: []
+      blocked_domains: []

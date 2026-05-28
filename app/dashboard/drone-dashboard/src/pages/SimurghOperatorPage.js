@@ -81,6 +81,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   always_confirm_before_action: true,
   provider: 'mock',
   openai_model: DEFAULT_MODEL,
+  web_search_enabled: false,
 });
 
 function nowIso() {
@@ -189,6 +190,7 @@ function normalizeSettings(payload = {}) {
     ),
     provider,
     openai_model: openaiModel && openaiModel !== 'mock-local' ? openaiModel : DEFAULT_MODEL,
+    web_search_enabled: Boolean(payload.web_search_enabled ?? DEFAULT_SETTINGS.web_search_enabled),
   };
 }
 
@@ -331,6 +333,15 @@ function SettingsPanel({
             onChange={(event) => onChange({ always_confirm_before_action: event.target.checked })}
           />
           <span>Always confirm</span>
+        </label>
+        <label className="simurgh-chat__toggle">
+          <input
+            type="checkbox"
+            checked={settings.web_search_enabled}
+            disabled={busy || settings.provider !== "openai"}
+            onChange={(event) => onChange({ web_search_enabled: event.target.checked })}
+          />
+          <span>Web search</span>
         </label>
       </div>
       <label className="simurgh-chat__field">
@@ -477,8 +488,7 @@ function isSafeMarkdownHref(href = '') {
   }
   try {
     const url = new URL(href);
-    return ['https:'].includes(url.protocol)
-      && ['developers.openai.com', 'platform.openai.com', 'modelcontextprotocol.io'].includes(url.hostname);
+    return url.protocol === 'https:';
   } catch (error) {
     return false;
   }

@@ -57,6 +57,7 @@ def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, t
 
     assert config.provider == "openai"
     assert config.openai.model == "gpt-5.4-mini"
+    assert config.openai.web_search.enabled is False
     assert config.openai.read_api_key() == "test-openai-key"
 
 
@@ -196,6 +197,163 @@ def test_openai_response_parser_accepts_reasoning_items(monkeypatch, tmp_path):
     )
 
     assert text == "Reasoned answer."
+
+
+def test_openai_response_parser_preserves_web_search_citation_sources(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    adapter = OpenAIResponsesAssistantAdapter(config=load_default_assistant_config())
+
+    text = adapter._extract_response_text(
+        {
+            "output": [
+                {
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {"type": "search", "query": "weather today"},
+                },
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Public weather answer.",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://example.com/weather",
+                                    "title": "Example Weather",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ],
+        }
+    )
+
+    assert "Public weather answer." in text
+    assert "Sources:" in text
+    assert "[Example Weather](https://example.com/weather)" in text
+
+
+def test_openai_response_parser_falls_back_to_web_search_call_sources(monkeypatch, tmp_path):
+    adapter = OpenAIResponsesAssistantAdapter(config=load_default_assistant_config())
+
+    text = adapter._extract_response_text(
+        {
+            "output": [
+                {
+                    "type": "web_search_call",
+                    "status": "completed",
+                    "action": {
+                        "type": "search",
+                        "sources": [
+                            {
+                                "url": "https://example.com/weather",
+                                "title": "Example Weather",
+                            }
+                        ],
+                    },
+                },
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Public weather answer.",
+                            "annotations": [],
+                        }
+                    ],
+                },
+            ],
+        }
+    )
+
+    assert "Public weather answer." in text
+    assert "Sources:" in text
+    assert "[Example Weather](https://example.com/weather)" in text
+
+
+def test_openai_assistant_turn_uses_web_search_only_for_public_general_queries(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setenv("MDS_AGENT_WEB_SEARCH_ENABLED", "true")
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {
+            "output": [
+                {"type": "web_search_call", "status": "completed", "action": {"type": "search"}},
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Use a local aviation weather source before flight.",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://example.com/weather",
+                                    "title": "Example Weather",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="how is the weather today in Taipei?",
+    )
+
+    assert record.turn.provider == "openai"
+    assert record.audit_event.metadata["web_search_enabled"] is True
+    assert captured["tools"] == [
+        {
+            "type": "web_search",
+            "search_context_size": "medium",
+            "external_web_access": True,
+        }
+    ]
+    assert captured["include"] == ["web_search_call.action.sources"]
+    assert captured["tool_choice"] == "required"
+    assert "Sources:" in record.turn.content
+    assert "https://example.com/weather" in record.turn.content
+
+
+def test_openai_web_search_does_not_steal_mds_fleet_queries(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setenv("MDS_AGENT_WEB_SEARCH_ENABLED", "true")
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("web/provider should not be called for local fleet state")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="How many drones do we have configured?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "fleet_summary"
+    assert record.audit_event.metadata["web_search_enabled"] is False
 
 
 def test_assistant_turn_answers_mds_fleet_prompt_with_local_tools(monkeypatch):

@@ -38,10 +38,10 @@ DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
 DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
-MDS_CONVERSATION_TOPICS = frozenset(
+READ_CONVERSATION_TOPICS = frozenset(
     {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"}
 )
-MDS_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability"})
+READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability"})
 
 @dataclass(frozen=True)
 class MdsReadToolAnswer:
@@ -701,7 +701,7 @@ class MdsReadOnlyTools:
         metrics = self._show_metrics_snapshot()
         safety = self._show_safety_report()
         validation = self._show_validation()
-        normalized_mode = response_mode if response_mode in MDS_RESPONSE_MODES else "status"
+        normalized_mode = response_mode if response_mode in READ_RESPONSE_MODES else "status"
         normalized_message = _normalize_text(message)
         if normalized_mode == "interpret":
             content = self._show_summary_interpretation_content(
@@ -1160,7 +1160,7 @@ class MdsReadOnlyTools:
         events, scanned = self._recent_warning_events(window_seconds=window_seconds)
         window_label = _format_duration_seconds(window_seconds) if window_seconds else "recent scanned window"
         window_phrase = f"last {window_label}" if window_seconds else window_label
-        normalized_mode = response_mode if response_mode in MDS_RESPONSE_MODES else "status"
+        normalized_mode = response_mode if response_mode in READ_RESPONSE_MODES else "status"
         if normalized_mode == "interpret":
             lines = self._backend_log_interpretation_lines(events, scanned, window_seconds=window_seconds)
             content = AnswerComposer(lines=lines).render()
@@ -1496,7 +1496,7 @@ class MdsReadOnlyTools:
         response_mode: str = "status",
         safety_notes: tuple[str, ...] | None = None,
     ) -> MdsReadToolAnswer:
-        normalized_mode = response_mode if response_mode in MDS_RESPONSE_MODES else "status"
+        normalized_mode = response_mode if response_mode in READ_RESPONSE_MODES else "status"
         return MdsReadToolAnswer(
             intent=intent,
             content=content,
@@ -1545,6 +1545,9 @@ def build_runtime_settings_payload() -> dict[str, Any]:
         "provider": config.provider,
         "model": config.openai.model if config.provider == "openai" else "mock-local",
         "openai_model": config.openai.model,
+        "web_search_enabled": config.openai.web_search.enabled,
+        "web_search_context_size": config.openai.web_search.search_context_size,
+        "web_search_external_access": config.openai.web_search.external_web_access,
         "available_providers": ["mock", "openai"],
         "available_models": list(DEFAULT_OPENAI_CHAT_MODELS),
         "provider_ready": config.provider != "openai" or key_ready,
@@ -1737,6 +1740,7 @@ def apply_runtime_settings(payload: Mapping[str, Any]) -> dict[str, Any]:
         "provider": "MDS_AGENT_PROVIDER",
         "openai_model": "MDS_AGENT_OPENAI_MODEL",
         "model": "MDS_AGENT_OPENAI_MODEL",
+        "web_search_enabled": "MDS_AGENT_WEB_SEARCH_ENABLED",
     }
     for field, env_key in field_map.items():
         if field in payload and payload[field] is not None:
@@ -2022,7 +2026,7 @@ def _truncate_text(text: str, limit: int) -> str:
 
 def _normalize_conversation_topic(value: str | None) -> str | None:
     normalized = _normalize_text(value or "")
-    return normalized if normalized in MDS_CONVERSATION_TOPICS else None
+    return normalized if normalized in READ_CONVERSATION_TOPICS else None
 
 
 def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str | None:

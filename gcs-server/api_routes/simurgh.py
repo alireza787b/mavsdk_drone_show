@@ -255,6 +255,7 @@ class SimurghRuntimeSettingsRequest(BaseModel):
     provider: str | None = None
     model: str | None = None
     openai_model: str | None = None
+    web_search_enabled: bool | None = None
     dry_run: bool = False
 
 

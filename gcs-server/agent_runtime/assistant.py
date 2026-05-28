@@ -9,7 +9,7 @@ import re
 import stat
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -56,6 +56,11 @@ OPENAI_TIMEOUT_SECONDS_ENV = "MDS_AGENT_OPENAI_TIMEOUT_SEC"
 OPENAI_MAX_OUTPUT_TOKENS_ENV = "MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS"
 OPENAI_REASONING_EFFORT_ENV = "MDS_AGENT_OPENAI_REASONING_EFFORT"
 OPENAI_TEXT_VERBOSITY_ENV = "MDS_AGENT_OPENAI_TEXT_VERBOSITY"
+OPENAI_WEB_SEARCH_ENABLED_ENV = "MDS_AGENT_WEB_SEARCH_ENABLED"
+OPENAI_WEB_SEARCH_CONTEXT_SIZE_ENV = "MDS_AGENT_WEB_SEARCH_CONTEXT_SIZE"
+OPENAI_WEB_SEARCH_EXTERNAL_ACCESS_ENV = "MDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS"
+OPENAI_WEB_SEARCH_ALLOWED_DOMAINS_ENV = "MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS"
+OPENAI_WEB_SEARCH_BLOCKED_DOMAINS_ENV = "MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS"
 DEFAULT_ASSISTANT_HISTORY_MAX_AGE_DAYS = 30
 DEFAULT_ASSISTANT_HISTORY_MAX_RECORDS = 200
 ASSISTANT_HISTORY_SCHEMA_VERSION = 1
@@ -69,11 +74,13 @@ DEFAULT_OPENAI_TIMEOUT_SECONDS = 30.0
 DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 900
 DEFAULT_OPENAI_REASONING_EFFORT = "medium"
 DEFAULT_OPENAI_TEXT_VERBOSITY = "low"
+DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE = "medium"
 DEFAULT_RETRIEVED_CONTEXT_LIMIT = 4
 DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS = 2200
 DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES = 14000
 SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
 SUPPORTED_OPENAI_TEXT_VERBOSITY = {"low", "medium", "high"}
+SUPPORTED_OPENAI_WEB_SEARCH_CONTEXT_SIZE = {"low", "medium", "high"}
 
 
 def _string_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
@@ -147,6 +154,43 @@ def _env_float(name: str, default: float) -> float:
         raise AgentRuntimeError(f"{name} must be a number") from exc
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw in (None, ""):
+        return default
+    return _coerce_bool(raw, field_name=name)
+
+
+def _coerce_bool(value: object, *, field_name: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in {0, 1}:
+        return bool(value)
+    raw = str(value).strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise AgentRuntimeError(f"{field_name} must be a boolean")
+
+
+def _env_csv_tuple(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.environ.get(name)
+    if raw in (None, ""):
+        return default
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
+def _string_or_csv_tuple(value: object, *, field_name: str) -> tuple[str, ...]:
+    if value in (None, ""):
+        return ()
+    if isinstance(value, str):
+        return tuple(item.strip() for item in value.split(",") if item.strip())
+    if isinstance(value, list):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    raise AgentRuntimeError(f"{field_name} must be a list or comma-separated string")
+
+
 def validate_openai_api_key_file(
     path: str | Path,
     *,
@@ -207,6 +251,97 @@ class AssistantResponseTemplate:
 
 
 @dataclass(frozen=True)
+class OpenAIWebSearchConfig:
+    """Responses API web-search settings for public/general assistant prompts."""
+
+    enabled: bool = False
+    search_context_size: str = DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE
+    external_web_access: bool = True
+    allowed_domains: tuple[str, ...] = ()
+    blocked_domains: tuple[str, ...] = ()
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, object] | None) -> "OpenAIWebSearchConfig":
+        values = dict(payload or {})
+        config = cls(
+            enabled=_coerce_bool(
+                values.get("enabled", False),
+                field_name="providers.openai.web_search.enabled",
+            ),
+            search_context_size=str(values.get("search_context_size") or DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE)
+            .strip()
+            .lower(),
+            external_web_access=_coerce_bool(
+                values.get("external_web_access", True),
+                field_name="providers.openai.web_search.external_web_access",
+            ),
+            allowed_domains=_string_or_csv_tuple(
+                values.get("allowed_domains"),
+                field_name="providers.openai.web_search.allowed_domains",
+            ),
+            blocked_domains=_string_or_csv_tuple(
+                values.get("blocked_domains"),
+                field_name="providers.openai.web_search.blocked_domains",
+            ),
+        )
+        return config.with_env_overrides()
+
+    def with_env_overrides(self) -> "OpenAIWebSearchConfig":
+        updated = OpenAIWebSearchConfig(
+            enabled=_env_bool(OPENAI_WEB_SEARCH_ENABLED_ENV, self.enabled),
+            search_context_size=os.environ.get(
+                OPENAI_WEB_SEARCH_CONTEXT_SIZE_ENV,
+                self.search_context_size,
+            ).strip().lower()
+            or self.search_context_size,
+            external_web_access=_env_bool(
+                OPENAI_WEB_SEARCH_EXTERNAL_ACCESS_ENV,
+                self.external_web_access,
+            ),
+            allowed_domains=_env_csv_tuple(OPENAI_WEB_SEARCH_ALLOWED_DOMAINS_ENV, self.allowed_domains),
+            blocked_domains=_env_csv_tuple(OPENAI_WEB_SEARCH_BLOCKED_DOMAINS_ENV, self.blocked_domains),
+        )
+        updated.validate()
+        return updated
+
+    def validate(self) -> None:
+        if self.search_context_size not in SUPPORTED_OPENAI_WEB_SEARCH_CONTEXT_SIZE:
+            raise AgentRuntimeError("OpenAI web search context size is not supported")
+        if self.allowed_domains and self.blocked_domains:
+            raise AgentRuntimeError("OpenAI web search cannot set both allowed_domains and blocked_domains")
+        for label, domains in (
+            ("allowed_domains", self.allowed_domains),
+            ("blocked_domains", self.blocked_domains),
+        ):
+            if len(domains) > 100:
+                raise AgentRuntimeError(f"OpenAI web search {label} supports at most 100 domains")
+            for domain in domains:
+                _validate_web_search_domain(domain, field_name=label)
+
+    def tool_payload(self) -> dict[str, Any]:
+        tool: dict[str, Any] = {
+            "type": "web_search",
+            "search_context_size": self.search_context_size,
+            "external_web_access": self.external_web_access,
+        }
+        if self.allowed_domains:
+            tool["filters"] = {"allowed_domains": list(self.allowed_domains)}
+        elif self.blocked_domains:
+            tool["filters"] = {"blocked_domains": list(self.blocked_domains)}
+        return tool
+
+
+def _validate_web_search_domain(domain: str, *, field_name: str) -> None:
+    value = str(domain or "").strip().lower()
+    if not value:
+        raise AgentRuntimeError(f"OpenAI web search {field_name} includes an empty domain")
+    if "://" in value or "/" in value or "?" in value or "#" in value:
+        raise AgentRuntimeError(f"OpenAI web search {field_name} must contain bare domains only")
+    if len(value) > 253 or not re.fullmatch(r"[a-z0-9*.-]+", value):
+        raise AgentRuntimeError(f"OpenAI web search {field_name} includes an invalid domain")
+
+
+@dataclass(frozen=True)
 class OpenAIProviderConfig:
     """OpenAI Responses API settings for advisory assistant turns."""
 
@@ -218,6 +353,7 @@ class OpenAIProviderConfig:
     reasoning_effort: str = DEFAULT_OPENAI_REASONING_EFFORT
     text_verbosity: str = DEFAULT_OPENAI_TEXT_VERBOSITY
     store: bool = False
+    web_search: OpenAIWebSearchConfig = field(default_factory=OpenAIWebSearchConfig)
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, object] | None) -> "OpenAIProviderConfig":
@@ -232,6 +368,9 @@ class OpenAIProviderConfig:
             max_output_tokens=int(values.get("max_output_tokens") or DEFAULT_OPENAI_MAX_OUTPUT_TOKENS),
             reasoning_effort=str(values.get("reasoning_effort") or DEFAULT_OPENAI_REASONING_EFFORT).strip().lower(),
             text_verbosity=str(values.get("text_verbosity") or DEFAULT_OPENAI_TEXT_VERBOSITY).strip().lower(),
+            web_search=OpenAIWebSearchConfig.from_mapping(
+                values.get("web_search") if isinstance(values.get("web_search"), Mapping) else None
+            ),
         )
         return config.with_env_overrides()
 
@@ -246,6 +385,7 @@ class OpenAIProviderConfig:
             or self.reasoning_effort,
             text_verbosity=os.environ.get(OPENAI_TEXT_VERBOSITY_ENV, self.text_verbosity).strip().lower()
             or self.text_verbosity,
+            web_search=self.web_search.with_env_overrides(),
         )
         updated.validate()
         return updated
@@ -271,6 +411,7 @@ class OpenAIProviderConfig:
             raise AgentRuntimeError("OpenAI assistant text_verbosity is not supported")
         if self.store is not False:
             raise AgentRuntimeError("OpenAI assistant store is fixed false in this slice")
+        self.web_search.validate()
 
     def read_api_key(self) -> str:
         if not self.api_key_file:
@@ -876,6 +1017,7 @@ class OpenAIResponsesAssistantAdapter:
         message: str,
         context_documents: tuple[AssistantContextDocument, ...],
         language_profile: LanguageProfile | None = None,
+        enable_web_search: bool = False,
     ) -> AssistantTurnResult:
         mock_adapter = MockAssistantAdapter(config=self.config)
         sensitive_input_terms = mock_adapter._sensitive_input_terms(message)
@@ -892,9 +1034,11 @@ class OpenAIResponsesAssistantAdapter:
             message=message,
             context_documents=context_documents,
             language_profile=language_profile,
+            enable_web_search=enable_web_search,
         )
         response_payload = self._post_response(request_payload, api_key=self.config.openai.read_api_key())
         content = self._extract_response_text(response_payload)
+        web_search_used = _response_used_web_search(response_payload)
 
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
@@ -907,7 +1051,11 @@ class OpenAIResponsesAssistantAdapter:
             blocked_intents=(),
             safety_notes=(
                 "No tool execution was attempted.",
-                "OpenAI Responses API was called with tools disabled and store=false.",
+                (
+                    "OpenAI Responses API was called with web_search enabled, citations preserved, and store=false."
+                    if web_search_used
+                    else "OpenAI Responses API was called with tools disabled and store=false."
+                ),
                 "No direct drone API or raw GCS command was exposed.",
             ),
         )
@@ -956,6 +1104,7 @@ class OpenAIResponsesAssistantAdapter:
         message: str,
         context_documents: tuple[AssistantContextDocument, ...],
         language_profile: LanguageProfile | None = None,
+        enable_web_search: bool = False,
     ) -> dict[str, Any]:
         context_blocks = self._context_blocks(context_documents)
         provider_message = _provider_message_with_language_guidance(message, language_profile)
@@ -966,6 +1115,14 @@ class OpenAIResponsesAssistantAdapter:
             )
         except KeyError as exc:
             raise AgentRuntimeError("assistant provider_input_template has an unknown placeholder") from exc
+
+        tools: list[dict[str, Any]] = []
+        tool_choice: str = "none"
+        include: list[str] = []
+        if enable_web_search:
+            tools = [self.config.openai.web_search.tool_payload()]
+            tool_choice = "required"
+            include = ["web_search_call.action.sources"]
 
         return {
             "model": self.config.openai.model,
@@ -978,12 +1135,14 @@ class OpenAIResponsesAssistantAdapter:
                 "verbosity": self.config.openai.text_verbosity,
             },
             "store": False,
-            "tools": [],
-            "tool_choice": "none",
+            "include": include,
+            "tools": tools,
+            "tool_choice": tool_choice,
             "parallel_tool_calls": False,
             "metadata": {
                 "mds_component": "simurgh_operator",
                 "mds_execution": "none",
+                "mds_web_search": "enabled" if enable_web_search else "disabled",
             },
         }
 
@@ -1033,9 +1192,10 @@ class OpenAIResponsesAssistantAdapter:
         if error:
             raise AgentRuntimeError("OpenAI assistant response returned an error")
         self._reject_non_text_outputs(payload)
+        citations = _url_citations_from_response(payload)
         output_text = payload.get("output_text")
         if isinstance(output_text, str) and output_text.strip():
-            return output_text.strip()
+            return _append_citation_sources(output_text.strip(), citations)
 
         parts: list[str] = []
         for item in payload.get("output") or ():
@@ -1051,14 +1211,14 @@ class OpenAIResponsesAssistantAdapter:
         text = "\n".join(parts).strip()
         if not text:
             raise AgentRuntimeError("OpenAI assistant response did not include output text")
-        return text
+        return _append_citation_sources(text, citations)
 
     def _reject_non_text_outputs(self, payload: Mapping[str, Any]) -> None:
         for item in payload.get("output") or ():
             if not isinstance(item, dict):
                 raise AgentRuntimeError("OpenAI assistant response included an invalid output item")
             item_type = item.get("type")
-            if item_type == "reasoning":
+            if item_type in {"reasoning", "web_search_call"}:
                 continue
             if item_type != "message":
                 raise AgentRuntimeError("OpenAI assistant response included non-text output")
@@ -1167,6 +1327,206 @@ def _retrieved_chunk_text(
         lines.append(f"Dashboard route: {route_hint}")
     lines.extend(["", text])
     return "\n".join(lines)
+
+
+def _response_used_web_search(payload: Mapping[str, Any]) -> bool:
+    return any(
+        isinstance(item, Mapping) and item.get("type") == "web_search_call"
+        for item in payload.get("output") or ()
+    )
+
+
+def _url_citations_from_response(payload: Mapping[str, Any]) -> list[dict[str, str]]:
+    citations: list[dict[str, str]] = []
+    for item in payload.get("output") or ():
+        if not isinstance(item, Mapping):
+            continue
+        for content in item.get("content") or ():
+            if isinstance(content, Mapping):
+                citations.extend(_url_citations_from_content(content))
+        citations.extend(_url_citations_from_web_search_item(item))
+    return citations
+
+
+def _url_citations_from_web_search_item(item: Mapping[str, Any]) -> list[dict[str, str]]:
+    if item.get("type") != "web_search_call":
+        return []
+    action = item.get("action")
+    if not isinstance(action, Mapping):
+        return []
+    sources = action.get("sources")
+    if not isinstance(sources, list):
+        return []
+    citations: list[dict[str, str]] = []
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        url = str(source.get("url") or source.get("uri") or "").strip()
+        if not _safe_https_url(url):
+            continue
+        title = _citation_title_from_url(url, source.get("title") or source.get("name"))
+        citations.append({"title": title[:160], "url": url})
+    return citations
+
+
+def _url_citations_from_content(content: Mapping[str, Any]) -> list[dict[str, str]]:
+    citations: list[dict[str, str]] = []
+    for annotation in content.get("annotations") or ():
+        if not isinstance(annotation, Mapping) or annotation.get("type") != "url_citation":
+            continue
+        url = str(annotation.get("url") or "").strip()
+        if not _safe_https_url(url):
+            continue
+        title = _citation_title_from_url(url, annotation.get("title"))
+        citations.append({"title": title[:160], "url": url})
+    return citations
+
+
+def _citation_title_from_url(url: str, raw_title: object | None) -> str:
+    title = str(raw_title or "").strip()
+    if title and title.casefold() != "source":
+        return title[:160]
+    try:
+        host = urlparse(url).netloc.lower().removeprefix("www.")
+    except ValueError:
+        host = ""
+    return host[:160] or "Source"
+
+
+def _append_citation_sources(text: str, citations: list[dict[str, str]]) -> str:
+    unique: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for citation in citations:
+        url = citation.get("url", "")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        unique.append(citation)
+    if not unique:
+        return text
+    lines = [text.rstrip(), "", "Sources:"]
+    for citation in unique[:8]:
+        label = _markdown_link_label(citation.get("title") or "Source")
+        url = citation["url"]
+        lines.append(f"- [{label}]({url})")
+    return "\n".join(lines).strip()
+
+
+def _markdown_link_label(value: str) -> str:
+    return re.sub(r"[\[\]\n\r]+", " ", str(value or "Source")).strip()[:160] or "Source"
+
+
+def _safe_https_url(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+    return parsed.scheme == "https" and bool(parsed.netloc)
+
+
+def _should_enable_web_search_for_turn(
+    *,
+    config: AssistantConfig,
+    query_plan: AssistantQueryPlan,
+    normalized_message: str,
+    routing_message: str,
+    local_intent: str | None,
+) -> bool:
+    if config.provider != OPENAI_ASSISTANT_PROVIDER or not config.openai.web_search.enabled:
+        return False
+    if local_intent not in {None, "general_knowledge"}:
+        return False
+    normalized = re.sub(r"\s+", " ", (routing_message or normalized_message).casefold()).strip()
+    if not normalized:
+        return False
+    if _has_mds_private_or_state_signal(normalized):
+        return False
+    if _has_public_current_or_lookup_signal(normalized):
+        return True
+    return local_intent is None and query_plan.domain == "general" and query_plan.confidence < 0.4
+
+
+def _has_mds_private_or_state_signal(normalized: str) -> bool:
+    return _has_any_text(
+        normalized,
+        (
+            "mds",
+            "simurgh",
+            "fleet",
+            "swarm",
+            "drone show",
+            "skybrush",
+            "qgc",
+            "px4",
+            "mavlink",
+            "sys_id",
+            "telemetry",
+            "heartbeat",
+            "netbird",
+            "gcs",
+            "dashboard",
+            "sitl",
+            "logs",
+            "runtime",
+            "mcp",
+            "scout drone",
+            "drone 1",
+            "drone 2",
+            "drone 3",
+            "ip",
+            "connected",
+            "configured",
+        ),
+    )
+
+
+def _has_public_current_or_lookup_signal(normalized: str) -> bool:
+    return _has_any_text(
+        normalized,
+        (
+            "weather",
+            "forecast",
+            "today",
+            "latest",
+            "current",
+            "right now",
+            "news",
+            "internet",
+            "web search",
+            "search the web",
+            "search internet",
+            "who is",
+            "when is",
+            "where is",
+            "capital of",
+            "population of",
+            "latitude",
+            "longitude",
+            "lat and long",
+            "coordinates",
+            "coordinate of",
+            "how far",
+            "distance from",
+            "distance between",
+            "regulation",
+            "regulations",
+            "law",
+            "rules",
+        ),
+    )
+
+
+def _has_any_text(value: str, needles: tuple[str, ...]) -> bool:
+    for needle in needles:
+        marker = str(needle or "").strip()
+        if not marker:
+            continue
+        if re.fullmatch(r"[a-z0-9_]+", marker):
+            if re.search(rf"\b{re.escape(marker)}\b", value):
+                return True
+        elif marker in value:
+            return True
+    return False
 
 
 def _provider_message_with_language_guidance(
@@ -1341,6 +1701,7 @@ def create_assistant_turn(
     tool_intent = None
     tool_response_mode = None
     tool_ids: list[str] = []
+    web_search_enabled_for_turn = False
     previous_context = sessions.get_private_context(session.id)
     transform_kind = _conversation_transform_kind(routing_message)
     transform_answer = previous_context.get("last_assistant_content") if transform_kind else ""
@@ -1365,8 +1726,16 @@ def create_assistant_turn(
 
     if force_provider is None and tool_intent is None:
         local_intent = classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
+        if not blocked_matches and not sensitive_matches:
+            web_search_enabled_for_turn = _should_enable_web_search_for_turn(
+                config=config,
+                query_plan=query_plan,
+                normalized_message=normalized_message,
+                routing_message=routing_message,
+                local_intent=local_intent,
+            )
         safe_read_only_blocked_term = is_safe_blocked_term_read_only_intent(routing_message, local_intent)
-        if local_intent is not None and (
+        if not web_search_enabled_for_turn and local_intent is not None and (
             local_intent == "action_capability"
             or (not sensitive_matches and (not blocked_matches or safe_read_only_blocked_term))
         ):
@@ -1407,7 +1776,13 @@ def create_assistant_turn(
             safety_notes=safety_notes,
         )
     else:
-        if config.provider != "mock" and not blocked_matches and not sensitive_matches:
+        if (
+            config.provider != "mock"
+            and not web_search_enabled_for_turn
+            and query_plan.domain != "general"
+            and not blocked_matches
+            and not sensitive_matches
+        ):
             retrieved_documents = _retrieved_context_documents(
                 query_plan=query_plan,
                 existing_documents=context_documents,
@@ -1421,6 +1796,7 @@ def create_assistant_turn(
                 message=normalized_message,
                 context_documents=context_documents,
                 language_profile=language_profile,
+                enable_web_search=web_search_enabled_for_turn,
             )
         else:
             turn = adapter.generate(
@@ -1477,6 +1853,7 @@ def create_assistant_turn(
             "query_unclear": query_plan.unclear,
             "query_reason": query_plan.reason,
             "retrieved_context_count": retrieved_context_count,
+            "web_search_enabled": web_search_enabled_for_turn,
             "query_adaptation": query_adaptation.public_metadata(),
             "routing_strategy": query_adaptation.strategy,
             "routing_language": query_adaptation.routing_language,

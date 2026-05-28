@@ -131,6 +131,10 @@ Operator-facing controls should stay small:
   Current production assistant turns remain advisory-only.
 - **OpenAI provider/model/key file** map to `MDS_AGENT_PROVIDER`,
   `MDS_AGENT_OPENAI_MODEL`, and `MDS_AGENT_OPENAI_API_KEY_FILE`.
+- **Web search** maps to `MDS_AGENT_WEB_SEARCH_ENABLED`. It is only used for
+  public/general prompts after local MDS tools decline the request; fleet state,
+  logs, private network details, credentials, and operational actions stay out
+  of the web-search lane.
 
 The dashboard Simurgh settings panel hot-applies these operator-facing keys to
 the running GCS process and persists them to `/etc/mds/gcs.env`; a full GCS
@@ -171,6 +175,11 @@ MDS_AGENT_OPENAI_TIMEOUT_SEC=30
 MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900
 MDS_AGENT_OPENAI_REASONING_EFFORT=medium
 MDS_AGENT_OPENAI_TEXT_VERBOSITY=low
+MDS_AGENT_WEB_SEARCH_ENABLED=false
+MDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium
+MDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true
+MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS=
+MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS=
 ```
 
 `MDS_MCP_ALLOWED_ORIGINS` is optional. Empty means browser-origin requests are
@@ -221,12 +230,23 @@ MDS_AGENT_OPENAI_API_KEY_FILE=/etc/mds/secrets/openai_api_key
 
 Do not put raw API keys in environment values, config files, docs, commits,
 tests, Telegram reports, or shell history. The OpenAI adapter uses the Responses
-API with `store=false`, `tools=[]`, `tool_choice="none"`, no conversation state,
-no uploaded files, no streaming, and no background jobs. `store=false` is a
-fixed invariant in this slice, not an operator-configurable setting.
+API with `store=false`, no conversation state, no uploaded files, no streaming,
+and no background jobs. `store=false` is a fixed invariant in this slice, not an
+operator-configurable setting.
 `MDS_AGENT_OPENAI_BASE_URL` is pinned to `https://api.openai.com/v1`; custom
 OpenAI-compatible gateways are rejected in this slice to prevent API key egress
 to unreviewed destinations.
+
+When `MDS_AGENT_WEB_SEARCH_ENABLED=true`, Simurgh may add the official OpenAI
+Responses `web_search` tool only for public/general prompts such as current
+weather, public geography lookup beyond the reviewed local registry, laws/rules,
+or internet-style current facts. The request still uses `store=false`; it does
+not include GCS tool results, fleet telemetry, private logs, credentials, or
+raw operational evidence. Inline web citations returned by OpenAI are preserved
+and rendered as clickable `Sources` links in the dashboard. Use
+`MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS` or `MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS`
+only with bare domains and only when an eval-backed deployment needs source
+control. Do not set both lists at the same time.
 
 Before a provider is called, Simurgh first routes common operator questions
 through local read-only MDS/GCS tools. Fleet count, drone IP lookup, live
@@ -257,8 +277,8 @@ deterministic geodesy math before falling back to the provider. This prevents a
 general model from guessing coordinates or distances for reviewed demo/operator
 places. Keep it limited to public, non-sensitive references; never add private
 mission coordinates, customer sites, launch positions, or field logs. If a place
-is missing and exact public data matters, use the future web/geocoding slice with
-citations instead of inventing a value.
+is missing and exact public data matters, enable the public web-search lane and
+require citations instead of inventing a value.
 
 ## Query Planning And Retrieval Context
 
