@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from agent_runtime import AgentRuntimeError, OpenAIResponsesAssistantAdapter
+from agent_runtime.assistant import _provider_tool_composition_message
 from api_routes.simurgh import create_simurgh_router
 
 
@@ -354,6 +355,17 @@ def test_simurgh_assistant_turn_composes_local_tool_evidence_with_openai_when_au
     assert captured["tool_choice"] == "none"
     assert "session.read_only_mds_evidence" in str(captured["input"])
     assert "Fleet status from GCS configuration" in str(captured["input"])
+
+
+def test_provider_tool_composition_message_has_safe_fallback_labels():
+    message = _provider_tool_composition_message(
+        operator_message="status?",
+        tool_intent="",
+        response_mode="",
+    )
+
+    assert "Read-only tool intent: unknown." in message
+    assert "Response mode: status." in message
 
 
 def test_simurgh_assistant_turn_uses_adapted_routing_for_local_auth_gate(monkeypatch):

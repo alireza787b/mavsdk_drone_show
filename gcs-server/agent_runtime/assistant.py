@@ -1660,12 +1660,14 @@ def _provider_tool_composition_message(
     tool_intent: str,
     response_mode: str,
 ) -> str:
+    intent_label = tool_intent or "unknown"
+    response_mode_label = response_mode or "status"
     return "\n".join(
         [
             f"Operator message: {operator_message}",
             "Conversation task: answer naturally using the read-only MDS evidence context.",
-            f"Read-only tool intent: {tool_intent or unknown}.",
-            f"Response mode: {response_mode or status}.",
+            f"Read-only tool intent: {intent_label}.",
+            f"Response mode: {response_mode_label}.",
             "Use `session.read_only_mds_evidence` as authoritative. Preserve exact counts, IPs, routes, URLs, modes, times, coordinates, safety caveats, and no-action statements from that evidence.",
             "Do not invent live state, do not call or imply any action, and do not add unsupported claims. If the user is asking a short follow-up, answer the follow-up directly instead of repeating the whole evidence dump.",
             "Prefer a concise ChatGPT-style answer: short direct verdict first, then only the useful details. Keep Markdown tables/lists only when they improve scanability.",
