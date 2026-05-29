@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import yaml
 
@@ -39,6 +43,27 @@ def test_provider_smoke_json_omits_content_by_default():
 
     assert payload["passed"] is True
     assert "content" not in payload["results"][0]
+
+
+def test_provider_smoke_cli_bootstraps_repo_import_path_without_pythonpath():
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("MDS_AGENT_OPENAI_API_KEY_FILE", None)
+    env["MDS_MODE"] = "real"
+
+    result = subprocess.run(
+        [sys.executable, "tools/run_simurgh_provider_smoke.py", "--json"],
+        cwd=repo_root,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert json.loads(result.stdout)["passed"] is True
 
 
 def test_provider_smoke_live_requires_absolute_restricted_key_file(monkeypatch, tmp_path):
@@ -147,12 +172,20 @@ def test_provider_smoke_fails_closed_on_request_invariant_regression(monkeypatch
     scenario = load_default_provider_smoke_suite().scenarios[0]
     original_request_payload = OpenAIResponsesAssistantAdapter._request_payload
 
-    def unsafe_request_payload(self, *, message, context_documents, language_profile=None):  # noqa: ANN001
+    def unsafe_request_payload(  # noqa: ANN001
+        self,
+        *,
+        message,
+        context_documents,
+        language_profile=None,
+        enable_web_search=False,
+    ):
         payload = original_request_payload(
             self,
             message=message,
             context_documents=context_documents,
             language_profile=language_profile,
+            enable_web_search=enable_web_search,
         )
         payload["store"] = True
         payload["tools"] = [{"type": "function", "name": "unsafe"}]
