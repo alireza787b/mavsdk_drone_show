@@ -20,12 +20,30 @@ PRIVATE_CONTEXT_KEYS = {
     "last_domain",
     "last_intent",
     "last_response_mode",
+    "last_user_message",
+    "last_routing_message",
+    "last_tool_intent",
 }
 MAX_PRIVATE_CONTEXT_VALUE_CHARS = 6000
 SAFE_SESSION_METADATA_VALUES = {
     "channel": {"assistant", "dashboard"},
     "source": {"simurgh-dashboard", "simurgh-ui"},
-    "last_domain": {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"},
+    "last_domain": {
+        "capabilities",
+        "docs",
+        "drone_show",
+        "fleet",
+        "general",
+        "logs",
+        "mcp",
+        "public_geography",
+        "runtime",
+        "safety",
+        "setup",
+        "sitl",
+        "swarm",
+        "ui",
+    },
     "last_intent": {
         "action_capability",
         "add_drone_workflow",
@@ -38,14 +56,18 @@ SAFE_SESSION_METADATA_VALUES = {
         "fleet_summary",
         "mission_mode_comparison",
         "operator_help",
+        "autopilot_support",
+        "conversation_transform",
         "runtime_summary",
+        "general_knowledge",
+        "public_geography",
         "show_modes_help",
         "show_summary",
         "show_upload_help",
         "sitl_help",
         "swarm_topology",
     },
-    "last_response_mode": {"status", "interpret", "workflow", "compare", "capability", "clarify"},
+    "last_response_mode": {"status", "interpret", "workflow", "compare", "capability", "clarify", "transform"},
 }
 
 

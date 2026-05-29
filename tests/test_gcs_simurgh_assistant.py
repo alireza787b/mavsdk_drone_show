@@ -678,7 +678,7 @@ def test_simurgh_assistant_turn_uses_openai_provider_with_safe_metadata(monkeypa
     assert response.status_code == 200
     payload = response.json()
     assert payload["provider"] == "openai"
-    assert payload["model"] == "gpt-5.4-mini"
+    assert payload["model"] == "gpt-5.5"
     assert payload["adapter_version"] == "openai-responses-v1"
     assert payload["content"] == "Provider answer."
     assert captured["api_key"] == "test-openai-key"
@@ -692,7 +692,7 @@ def test_simurgh_assistant_turn_uses_openai_provider_with_safe_metadata(monkeypa
     assert "Use a provider" not in str(audit_event)
 
     history = client.get("/api/v1/simurgh/assistant/turns", params={"actor": "operator"}).json()["turns"]
-    assert history[0]["model"] == "gpt-5.4-mini"
+    assert history[0]["model"] == "gpt-5.5"
     assert history[0]["adapter_version"] == "openai-responses-v1"
 
 
@@ -740,8 +740,11 @@ def test_simurgh_assistant_turn_returns_safe_openai_failure(monkeypatch, tmp_pat
         json={"actor": "operator", "message": "Use a provider."},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "OpenAI assistant request failed with HTTP 500"
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "openai"
+    assert "could not reach the external assistant provider" in payload["content"].lower()
+    assert "HTTP 500" not in payload["content"]
     assert "test-secret" not in str(response.json())
 
 

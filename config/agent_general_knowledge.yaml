@@ -26,6 +26,17 @@ concepts:
     operator_notes:
       - In this GCS, MAVLink is part of the telemetry/control path that lets QGC/MDS observe vehicle state and route approved commands.
       - If QGC cannot see a vehicle, check SYS_ID uniqueness, the expected MAVLink stream/port, routing/UDP endpoints, and whether heartbeats are fresh.
+  - id: px4_vs_ardupilot
+    title: PX4 vs ArduPilot
+    aliases: [px4 vs ardupilot, px4 and ardupilot, ardupilot vs px4, px4, ardupilot, autopilot stack, flight stack]
+    summary: >-
+      PX4 and ArduPilot are both MAVLink-capable open-source autopilot stacks,
+      but their modes, parameters, mission behavior, tuning workflow, and safety
+      assumptions are not interchangeable.
+    operator_notes:
+      - Current MDS deployments are PX4-first and PX4-validated; use PX4 as the supported production path today.
+      - ArduPilot should be treated as a future integration candidate until MDS has an explicit adapter, parameter/mode mapping, SITL/bench tests, docs, and safety review.
+      - MAVLink compatibility alone is not enough to claim MDS command/control support for another autopilot stack.
 external_questions:
   weather:
     aliases: [weather, forecast, wind today, wind, rain, raining, temperature, visibility]

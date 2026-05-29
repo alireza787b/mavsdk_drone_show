@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
   <title id="title">Simurgh mark</title>
-  <desc id="desc">Minimal Simurgh-inspired wing mark for the MDS assistant.</desc>
-  <path d="M9 60c16.8-2.2 28.6-12.9 36.9-33.5 1.1-2.8 4.9-2.8 6 0C60.3 47.1 72.2 57.8 89 60c-10.7 8.6-24.4 10.2-40 4.3C33.4 70.2 19.7 68.6 9 60z" fill="#f8fbff"/>
-  <path d="M25.2 54.9c8.5-3.3 15.3-12 20.4-26.1 0.9-2.6 4.7-2.6 5.6 0 5.2 14.1 12 22.8 20.6 26.1-7.5 4.5-15.2 5-23.3 1.3-8.1 3.7-15.9 3.2-23.3-1.3z" fill="#5fb9ff"/>
-  <path d="M48 31v43" stroke="#f0b429" stroke-width="5.5" stroke-linecap="round"/>
-  <path d="M38.5 76.5h19L48 88z" fill="#f0b429"/>
-  <circle cx="48" cy="24" r="6" fill="#79d0ff"/>
+  <desc id="desc">A minimal Simurgh-inspired wing and flame mark for the MDS assistant.</desc>
+  <path d="M48 10c9.7 17.2 20.9 27.4 36.6 33.2-9.7 5.2-21.2 5.7-34.4 1.1 8.1 8.6 18.1 14 31.2 16.8-12.4 7.1-25.7 6.4-39.8-2.2C30.1 67.5 18.6 69.7 7 65.5c14.1-5 24.4-12.1 31.7-21.5-10.6 3.3-20.3 2.9-29-1.1C25.4 37.1 38.2 26.8 48 10z" fill="#f8fbff"/>
+  <path d="M48 21.8c6.8 11.3 15.5 19.1 26.9 24.3-8.7 2.2-17.7 0.8-26.9-4.5-8.9 5.1-17.5 6.7-25.9 4.8C33.1 41.4 41.5 33.5 48 21.8z" fill="#62b8ff"/>
+  <path d="M48 43.7c5.3 8.2 12.2 14 21.3 17.5-7.9 2.5-15.1 1.5-21.3-3.2-6.2 4.7-13.4 5.8-21.3 3.2C35.9 57.7 42.8 51.9 48 43.7z" fill="#1d78d3"/>
+  <path d="M48 48v31" stroke="#f2b53f" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M36.8 81.4h22.4L48 91.5 36.8 81.4z" fill="#f2b53f"/>
+  <circle cx="48" cy="18.5" r="5.4" fill="#8fd7ff"/>
 </svg>

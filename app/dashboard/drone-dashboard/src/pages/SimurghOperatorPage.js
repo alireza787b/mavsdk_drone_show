@@ -37,7 +37,7 @@ import '../styles/SimurghOperatorPage.css';
 const STORAGE_KEY = 'mds.simurgh.chat.v2';
 const DASHBOARD_ACTOR = 'dashboard';
 const MAX_CONVERSATIONS = 30;
-const DEFAULT_MODEL = 'gpt-5.4-mini';
+const DEFAULT_MODEL = 'gpt-5.5';
 const STARTERS = [
   'How many drones do we have configured?',
   'Is there any drone connected?',
@@ -311,7 +311,9 @@ function SettingsPanel({
   if (!open) {
     return null;
   }
-  const availableModels = status?.available_models?.length ? status.available_models : ['gpt-5.5', DEFAULT_MODEL, 'gpt-5.4-nano'];
+  const availableModels = Array.from(new Set(
+    status?.available_models?.length ? status.available_models : [DEFAULT_MODEL, 'gpt-5.4-mini', 'gpt-5.4-nano']
+  ));
   const openAiCredential = status?.credentials?.openai || {};
   const keyReady = Boolean(openAiCredential.ready || status?.openai_key_file_ready);
   const keyFingerprint = openAiCredential.fingerprint || status?.openai_key_fingerprint || '';
@@ -926,18 +928,14 @@ function MessageContent({ content }) {
 }
 
 function MessageActivity({ progress = [], streaming = false }) {
-  const steps = progress.length ? progress : (streaming ? ['Thinking'] : []);
-  if (!steps.length && !streaming) {
+  const latestStep = progress.length ? progress[progress.length - 1] : (streaming ? 'Thinking' : '');
+  if (!latestStep && !streaming) {
     return null;
   }
   return (
     <div className="simurgh-chat__progress" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
       <span className="simurgh-chat__thinking">{streaming ? 'Working' : 'Completed'}</span>
-      {steps.length ? (
-        <div className="simurgh-chat__progress-steps">
-          {steps.map((step) => <span key={step}>{step}</span>)}
-        </div>
-      ) : null}
+      {latestStep ? <span className="simurgh-chat__progress-step">{latestStep}</span> : null}
     </div>
   );
 }

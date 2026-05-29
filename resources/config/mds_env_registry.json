@@ -2778,7 +2778,7 @@
       "domain": "agent",
       "source_of_truth": "/etc/mds/gcs.env",
       "value_type": "string",
-      "default": "gpt-5.4-mini",
+      "default": "gpt-5.5",
       "secret": false,
       "editable": true,
       "ui_visibility": "operator",
@@ -2792,7 +2792,7 @@
       "consumers": [
         "gcs-server/agent_runtime/assistant.py"
       ],
-      "notes": "OpenAI Responses model for advisory assistant text. gpt-5.5 is the latest high-quality option; gpt-5.4-mini is the cost-conscious dashboard default.",
+      "notes": "OpenAI Responses model for advisory assistant text. gpt-5.5 is the current high-quality dashboard default; lower-cost model variants may be selected explicitly when validated for the deployment.",
       "owner": "simurgh"
     },
     {

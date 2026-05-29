@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -31,6 +35,27 @@ def test_default_advisory_eval_suite_runs_offline(monkeypatch):
     results = {result.scenario_id: result for result in report.results}
     assert results["openai_blocks_rtl_without_provider_request"].provider_request_made is False
     assert results["openai_fixture_sar_briefing_is_text_only"].provider_request_made is True
+
+
+def test_advisory_eval_cli_resolves_repo_imports_without_pythonpath():
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+    env.pop("MDS_AGENT_OPENAI_API_KEY_FILE", None)
+    result = subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools" / "run_simurgh_advisory_evals.py"), "--json"],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["passed"] is True
+    assert payload["failed_count"] == 0
 
 
 def test_field_workflow_eval_scenarios_are_present():
@@ -94,8 +119,8 @@ def test_advisory_eval_suite_is_hermetic_against_openai_env_overrides(monkeypatc
 
     assert report.passed is True
     results = {result.scenario_id: result for result in report.results}
-    assert results["openai_blocks_rtl_without_provider_request"].model == "gpt-5.4-mini"
-    assert results["openai_fixture_sar_briefing_is_text_only"].model == "gpt-5.4-mini"
+    assert results["openai_blocks_rtl_without_provider_request"].model == "gpt-5.5"
+    assert results["openai_fixture_sar_briefing_is_text_only"].model == "gpt-5.5"
 
 
 def test_fixture_backed_evals_stay_offline_when_live_provider_allowed(monkeypatch):
@@ -143,12 +168,20 @@ def test_no_provider_request_evals_stay_offline_when_live_provider_allowed(tmp_p
 def test_advisory_eval_runner_asserts_openai_request_invariants(monkeypatch):
     original_request_payload = OpenAIResponsesAssistantAdapter._request_payload
 
-    def unsafe_request_payload(self, *, message, context_documents, language_profile=None):  # noqa: ANN001
+    def unsafe_request_payload(  # noqa: ANN001
+        self,
+        *,
+        message,
+        context_documents,
+        language_profile=None,
+        enable_web_search=False,
+    ):
         payload = original_request_payload(
             self,
             message=message,
             context_documents=context_documents,
             language_profile=language_profile,
+            enable_web_search=enable_web_search,
         )
         payload["store"] = True
         payload["tools"] = [{"type": "function", "name": "unsafe"}]

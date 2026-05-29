@@ -25,6 +25,8 @@ from .mds_read_tools import (
     READ_TOOL_ADAPTER_VERSION,
     READ_TOOL_MODEL,
     READ_TOOL_PROVIDER,
+    MdsReadToolAnswer,
+    answer_mds_read_only_question,
     classify_mds_read_intent,
     infer_mds_read_topic,
     is_safe_blocked_term_read_only_intent,
@@ -67,7 +69,7 @@ ASSISTANT_HISTORY_SCHEMA_VERSION = 1
 MOCK_ASSISTANT_ADAPTER_VERSION = "mock-v1"
 MOCK_ASSISTANT_MODEL = "mock-local"
 OPENAI_ASSISTANT_ADAPTER_VERSION = "openai-responses-v1"
-DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
+DEFAULT_OPENAI_MODEL = "gpt-5.5"
 DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
 ALLOWED_OPENAI_BASE_URLS = (DEFAULT_OPENAI_BASE_URL,)
 DEFAULT_OPENAI_TIMEOUT_SECONDS = 30.0
@@ -1502,9 +1504,16 @@ def _has_public_current_or_lookup_signal(normalized: str) -> bool:
             "population of",
             "latitude",
             "longitude",
+            "lat long",
+            "lat lon",
+            "lat/lon",
             "lat and long",
             "coordinates",
             "coordinate of",
+            "wgs84",
+            "altitude",
+            "elevation",
+            "height",
             "how far",
             "distance from",
             "distance between",
@@ -1682,6 +1691,142 @@ def _safe_provider_composition_error(exc: Exception) -> str:
     return re.sub(r"[^A-Za-z0-9 .:_/-]+", "", message)[:160]
 
 
+def _looks_like_public_geography_frame_reply(message: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(message or "").strip().casefold())
+    if not normalized or len(normalized) > 140:
+        return False
+    return _has_any_text(
+        normalized,
+        (
+            "yes",
+            "yeah",
+            "ok",
+            "correct",
+            "meter",
+            "meters",
+            "metre",
+            "metres",
+            "wgs84",
+            "decimal degree",
+            "decimal degrees",
+            "altitude",
+            "elevation",
+            "msl",
+            "asl",
+            "above sea level",
+        ),
+    )
+
+
+def _frame_bound_routing_message(
+    *,
+    routing_message: str,
+    original_message: str,
+    conversation_topic: str,
+    previous_context: Mapping[str, str],
+) -> str:
+    """Bind very short slot-filling replies to the active task frame.
+
+    This is the missing state layer that prevents a reply like "yes, WGS84 and
+    meters" from being interpreted against an older swarm/fleet topic. It only
+    rewrites the internal routing text; the provider still sees the original
+    user message and the final answer is based on retrieved evidence.
+    """
+
+    if conversation_topic != "public_geography":
+        return routing_message
+    if _conversation_transform_kind(original_message):
+        return routing_message
+    if not _looks_like_public_geography_frame_reply(original_message):
+        return routing_message
+    previous_question = (
+        previous_context.get("last_routing_message")
+        or previous_context.get("last_user_message")
+        or ""
+    ).strip()
+    if not previous_question:
+        return routing_message
+    return f"{previous_question}\nFollow-up answer from operator: {routing_message}"
+
+
+def _provider_failure_turn(
+    *,
+    exc: Exception,
+    config: AssistantConfig,
+    context_documents: tuple[AssistantContextDocument, ...],
+    local_fallback: MdsReadToolAnswer | None = None,
+) -> AssistantTurnResult:
+    safe_error = _safe_provider_composition_error(exc)
+    if local_fallback is not None:
+        content = "\n\n".join(
+            (
+                local_fallback.content,
+                "Provider note: external model/search composition was unavailable for this turn, so Simurgh returned the deterministic read-only evidence instead of a raw transport failure.",
+            )
+        )
+        return AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=READ_TOOL_PROVIDER,
+            model=READ_TOOL_MODEL,
+            adapter_version=READ_TOOL_ADAPTER_VERSION,
+            content=content,
+            context_documents=context_documents,
+            blocked_intents=(),
+            safety_notes=(
+                "External assistant provider failed after routing; deterministic local read-only evidence was returned.",
+                f"Provider failure class: {safe_error or provider-unavailable}.",
+                "No direct drone API, raw command, GCS mutation, or mission action was exposed.",
+            ),
+        )
+    content = (
+        "I could not reach the external assistant provider/search service for that turn. "
+        "The chat state was kept, and no GCS mutation or drone command was attempted. "
+        "Please retry, or ask for an MDS read-only status/tool answer that can be resolved locally."
+    )
+    return AssistantTurnResult(
+        id=f"turn-{uuid.uuid4().hex}",
+        created_at=utc_now().isoformat(),
+        provider=config.provider,
+        model=config.openai.model if config.provider == OPENAI_ASSISTANT_PROVIDER else MOCK_ASSISTANT_MODEL,
+        adapter_version="provider-fallback-v1",
+        content=content,
+        context_documents=context_documents,
+        blocked_intents=(),
+        safety_notes=(
+            "External assistant provider failed; Simurgh returned a bounded fallback instead of exposing raw transport errors.",
+            f"Provider failure class: {safe_error or provider-unavailable}.",
+            "No direct drone API, raw command, GCS mutation, or mission action was exposed.",
+        ),
+    )
+
+
+def _is_provider_runtime_recoverable(exc: Exception) -> bool:
+    """Return whether a provider error should become a chat fallback.
+
+    Configuration errors, schema violations, unsafe tool outputs, and unsupported
+    provider behavior should still fail tests loudly. Transport/service failures
+    should not surface to operators as raw network errors.
+    """
+
+    message = str(exc or "").casefold()
+    return any(
+        marker in message
+        for marker in (
+            "network",
+            "timeout",
+            "timed out",
+            "connection",
+            "request failed",
+            "rate limit",
+            "service unavailable",
+            "temporarily unavailable",
+            "bad gateway",
+            "gateway timeout",
+        )
+    )
+
+
 def create_assistant_turn(
     *,
     sessions: AgentSessionStore,
@@ -1733,13 +1878,20 @@ def create_assistant_turn(
         )
 
     context_documents = AssistantContextAssembler(config=config).assemble(context_resource_ids)
-    conversation_topic = str(session.metadata.get("last_domain") or "")
+    previous_context = sessions.get_private_context(session.id)
+    conversation_topic = str(session.metadata.get("last_domain") or previous_context.get("last_domain") or "")
     query_adaptation = adapt_operator_query(
         normalized_message,
         language_profile=language_profile,
         conversation_topic=conversation_topic,
     )
     routing_message = query_adaptation.routing_text or normalized_message
+    routing_message = _frame_bound_routing_message(
+        routing_message=routing_message,
+        original_message=normalized_message,
+        conversation_topic=conversation_topic,
+        previous_context=previous_context,
+    )
     query_plan = build_assistant_query_plan(routing_message, conversation_topic=conversation_topic)
     retrieved_context_count = 0
     blocked_matches = tuple(
@@ -1766,7 +1918,6 @@ def create_assistant_turn(
     web_search_enabled_for_turn = False
     provider_composed_from_tool = False
     provider_composition_error = ""
-    previous_context = sessions.get_private_context(session.id)
     transform_kind = _conversation_transform_kind(routing_message)
     transform_answer = previous_context.get("last_assistant_content") if transform_kind else ""
     if force_provider is None and transform_kind and transform_answer and not blocked_matches and not sensitive_matches:
@@ -1775,14 +1926,23 @@ def create_assistant_turn(
             previous_document = _previous_answer_context_document(transform_answer)
             context_documents = (*context_documents, previous_document)
             retrieved_context_count = 1
-            turn = adapter.generate(
-                message=_previous_answer_transform_message(
-                    operator_message=normalized_message,
-                    transform_kind=transform_kind,
-                ),
-                context_documents=context_documents,
-                language_profile=language_profile,
-            )
+            try:
+                turn = adapter.generate(
+                    message=_previous_answer_transform_message(
+                        operator_message=normalized_message,
+                        transform_kind=transform_kind,
+                    ),
+                    context_documents=context_documents,
+                    language_profile=language_profile,
+                )
+            except AgentRuntimeError as exc:
+                if not _is_provider_runtime_recoverable(exc):
+                    raise
+                turn = _provider_failure_turn(
+                    exc=exc,
+                    config=config,
+                    context_documents=context_documents,
+                )
             tool_intent = "conversation_transform"
             tool_response_mode = "transform"
         else:
@@ -1896,12 +2056,28 @@ def create_assistant_turn(
                 retrieved_context_count = len(retrieved_documents)
         adapter = _adapter_for_config(config)
         if isinstance(adapter, OpenAIResponsesAssistantAdapter):
-            turn = adapter.generate(
-                message=normalized_message,
-                context_documents=context_documents,
-                language_profile=language_profile,
-                enable_web_search=web_search_enabled_for_turn,
-            )
+            try:
+                turn = adapter.generate(
+                    message=normalized_message,
+                    context_documents=context_documents,
+                    language_profile=language_profile,
+                    enable_web_search=web_search_enabled_for_turn,
+                )
+            except AgentRuntimeError as exc:
+                if not _is_provider_runtime_recoverable(exc):
+                    raise
+                local_fallback = None
+                if not blocked_matches and not sensitive_matches:
+                    local_fallback = answer_mds_read_only_question(
+                        routing_message,
+                        conversation_topic=conversation_topic,
+                    )
+                turn = _provider_failure_turn(
+                    exc=exc,
+                    config=config,
+                    context_documents=context_documents,
+                    local_fallback=local_fallback,
+                )
         else:
             turn = adapter.generate(
                 message=normalized_message,
@@ -1910,6 +2086,8 @@ def create_assistant_turn(
 
     final_response_mode = str(tool_response_mode or query_plan.response_mode)
     next_topic = infer_mds_read_topic(routing_message, intent=str(tool_intent or local_intent or ""))
+    if not next_topic and query_plan.domain == "general":
+        next_topic = query_plan.domain
     if next_topic:
         session = sessions.update_metadata(
             session.id,
@@ -1928,6 +2106,9 @@ def create_assistant_turn(
             "last_domain": str(next_topic or session.metadata.get("last_domain") or ""),
             "last_intent": str(tool_intent or local_intent or session.metadata.get("last_intent") or ""),
             "last_response_mode": final_response_mode,
+            "last_user_message": normalized_message,
+            "last_routing_message": routing_message,
+            "last_tool_intent": str(tool_intent or local_intent or ""),
         },
     )
 

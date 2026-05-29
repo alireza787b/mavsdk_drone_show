@@ -22,6 +22,8 @@ places:
   - id: damavand_peak
     title: Mount Damavand peak
     aliases: [damavand, damavand peak, mount damavand]
-    latitude: 35.9515
-    longitude: 52.1094
-    source_note: Public peak reference coordinate; verify against approved aviation data before planning.
+    latitude: 35.9555
+    longitude: 52.1101
+    elevation_m: 5609
+    elevation_datum: meters above sea level; common public reference value varies slightly by source
+    source_note: Public peak reference coordinate/elevation from reviewed public references; verify against approved aviation data before planning.

@@ -34,7 +34,7 @@ const runtimePayload = {
   action_policy_source: 'circuit_breaker_and_mds_mode',
   provider: 'mock',
   model: 'mock-local',
-  openai_model: 'gpt-5.4-mini',
+  openai_model: 'gpt-5.5',
   web_search_enabled: false,
   available_providers: ['mock', 'openai'],
   available_models: ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.4-nano'],

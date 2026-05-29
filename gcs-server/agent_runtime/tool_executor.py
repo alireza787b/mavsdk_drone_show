@@ -23,8 +23,32 @@ DEFAULT_TOOL_MAX_RESPONSE_CHARS = 24000
 ADVISORY_ANSWER_TOOL_ID = "mds.operator.question.answer"
 DOCS_SEARCH_TOOL_ID = "mds.docs.search"
 DOCS_CHUNK_READ_TOOL_ID = "mds.docs.chunk.read"
-ADVISORY_TOOL_IDS = frozenset({ADVISORY_ANSWER_TOOL_ID})
-LOCAL_TOOL_IDS = frozenset({ADVISORY_ANSWER_TOOL_ID, DOCS_SEARCH_TOOL_ID, DOCS_CHUNK_READ_TOOL_ID})
+GENERAL_KNOWLEDGE_TOOL_ID = "simurgh.general_knowledge.read"
+PUBLIC_PLACES_TOOL_ID = "simurgh.public_places.read"
+GEODESY_TOOL_ID = "simurgh.geodesy.calculate"
+ADVISORY_TOOL_IDS = frozenset(
+    {
+        ADVISORY_ANSWER_TOOL_ID,
+        GENERAL_KNOWLEDGE_TOOL_ID,
+        PUBLIC_PLACES_TOOL_ID,
+        GEODESY_TOOL_ID,
+    }
+)
+LOCAL_TOOL_IDS = frozenset(
+    {
+        ADVISORY_ANSWER_TOOL_ID,
+        DOCS_SEARCH_TOOL_ID,
+        DOCS_CHUNK_READ_TOOL_ID,
+        GENERAL_KNOWLEDGE_TOOL_ID,
+        PUBLIC_PLACES_TOOL_ID,
+        GEODESY_TOOL_ID,
+    }
+)
+LOCAL_TOOL_INTENT_FILTERS = {
+    GENERAL_KNOWLEDGE_TOOL_ID: frozenset({"general_knowledge", "autopilot_support"}),
+    PUBLIC_PLACES_TOOL_ID: frozenset({"public_geography"}),
+    GEODESY_TOOL_ID: frozenset({"public_geography"}),
+}
 
 
 @dataclass(frozen=True)
@@ -394,7 +418,7 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any]) -> R
 
     raw_question = arguments.get("question")
     if not isinstance(raw_question, str) or not raw_question.strip():
-        return ReadOnlyToolCallResult.error("mds.operator.question.answer requires a non-empty string argument: question")
+        return ReadOnlyToolCallResult.error(f"{tool.id} requires a non-empty string argument: question")
 
     from .assistant import blocked_intent_matches, load_default_assistant_config, sensitive_input_matches
     from .language import detect_language_profile
@@ -450,6 +474,23 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any]) -> R
             is_error=False,
             structured_content={
                 "intent": None,
+                "execution": "none",
+                "query_adaptation": query_adaptation.public_metadata(),
+            },
+        )
+
+    allowed_intents = LOCAL_TOOL_INTENT_FILTERS.get(tool.id)
+    if allowed_intents and answer.intent not in allowed_intents:
+        return ReadOnlyToolCallResult(
+            text=(
+                f"{tool.id} did not match this question. "
+                "Use tools/list to choose the right Simurgh read-only tool, or call "
+                f"{ADVISORY_ANSWER_TOOL_ID} for general operator question routing."
+            ),
+            is_error=False,
+            structured_content={
+                "intent": answer.intent,
+                "matched": False,
                 "execution": "none",
                 "query_adaptation": query_adaptation.public_metadata(),
             },

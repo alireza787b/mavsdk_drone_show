@@ -349,7 +349,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "ae99bec0a450e1e2245caba72ac18b81918fa73c3986196d8f0e4112e7d10595",
+      "content_hash": "783e4d77a7a6c93e7b1f8c4b8f277d47ed400fd06355e64958913bcc2a8a1e1b",
       "heading": "Environment Variables",
       "id": "simurgh.operator_guide:006-02-environment-variables",
       "links": [
@@ -366,7 +366,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "`MDS_MODE` is the only real-vs-SITL GCS runtime environment switch and Simurgh\nuses it for policy posture. There is no separate user-facing Simurgh mode or\nreal-command override. If the circuit breaker is on, Simurgh may still produce\na dry-run explanation of the tool and arguments it would use, but the final\nexecutor layer must not perform the action. If the circuit breaker is off, the\ncurrent `MDS_MODE`, tool risk policy, and human-confirmation rules still apply.\n\nKeep `MDS_AGENT_PROVIDER=mock` on unauthenticated or field-reachable GCS\nservices. If `MDS_AGENT_PROVIDER=openai` is enabled for advisory text, the\nassistant API refuses turns unless the request has an authenticated MDS\noperator/admin session or a bearer token with `agent`, `operator`, or `admin`\nscope. Drone-only bearer tokens are not accepted for external provider calls.\nThis prevents an exposed GCS or lower-privilege machine token from becoming an\nexternal-provider, cost, or data-egress surface.\n\nAdvanced paths:\n\n```text\nMDS_AGENT_POLICY_FILE=config/agent_policy.yaml\nMDS_AGENT_TOOL_REGISTRY_FILE=config/agent_tools.yaml\nMDS_AGENT_CONTEXT_INDEX_FILE=docs/agent-context/context-index.yaml\nMDS_AGENT_ASSISTANT_FILE=config/agent_assistant.yaml\nMDS_AGENT_ASSISTANT_HISTORY_FILE=runtime_data/simurgh/assistant_turns.jsonl\nMDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=30\nMDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS=200\nMDS_AGENT_DOCS_INDEX_FILE=docs/agent-context/generated/simurgh-docs-index.json\nMDS_AGENT_OPENAI_API_KEY_FILE=\nMDS_AGENT_OPENAI_MODEL=gpt-5.4-mini\nMDS_AGENT_OPENAI_BASE_URL=https://api.openai.com/v1\nMDS_AGENT_OPENAI_TIMEOUT_SEC=30\nMDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900\nMDS_AGENT_OPENAI_REASONING_EFFORT=medium\nMDS_AGENT_OPENAI_TEXT_VERBOSITY=low\nMDS_AGENT_WEB_SEARCH_ENABLED=false\nMDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium\nMDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true\nMDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS=\nMDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS=\n```\n\n`MDS_MCP_ALLOWED_ORIGINS` is optional. Empty means browser-origin requests are\naccepted only from localhost-style origins. For a deployed MCP browser client,\nset a comma-separated exact Origin allowlist, for example:",
+      "text": "`MDS_MODE` is the only real-vs-SITL GCS runtime environment switch and Simurgh\nuses it for policy posture. There is no separate user-facing Simurgh mode or\nreal-command override. If the circuit breaker is on, Simurgh may still produce\na dry-run explanation of the tool and arguments it would use, but the final\nexecutor layer must not perform the action. If the circuit breaker is off, the\ncurrent `MDS_MODE`, tool risk policy, and human-confirmation rules still apply.\n\nKeep `MDS_AGENT_PROVIDER=mock` on unauthenticated or field-reachable GCS\nservices. If `MDS_AGENT_PROVIDER=openai` is enabled for advisory text, the\nassistant API refuses turns unless the request has an authenticated MDS\noperator/admin session or a bearer token with `agent`, `operator`, or `admin`\nscope. Drone-only bearer tokens are not accepted for external provider calls.\nThis prevents an exposed GCS or lower-privilege machine token from becoming an\nexternal-provider, cost, or data-egress surface.\n\nAdvanced paths:\n\n```text\nMDS_AGENT_POLICY_FILE=config/agent_policy.yaml\nMDS_AGENT_TOOL_REGISTRY_FILE=config/agent_tools.yaml\nMDS_AGENT_CONTEXT_INDEX_FILE=docs/agent-context/context-index.yaml\nMDS_AGENT_ASSISTANT_FILE=config/agent_assistant.yaml\nMDS_AGENT_ASSISTANT_HISTORY_FILE=runtime_data/simurgh/assistant_turns.jsonl\nMDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=30\nMDS_AGENT_ASSISTANT_HISTORY_MAX_RECORDS=200\nMDS_AGENT_DOCS_INDEX_FILE=docs/agent-context/generated/simurgh-docs-index.json\nMDS_AGENT_OPENAI_API_KEY_FILE=\nMDS_AGENT_OPENAI_MODEL=gpt-5.5\nMDS_AGENT_OPENAI_BASE_URL=https://api.openai.com/v1\nMDS_AGENT_OPENAI_TIMEOUT_SEC=30\nMDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS=900\nMDS_AGENT_OPENAI_REASONING_EFFORT=medium\nMDS_AGENT_OPENAI_TEXT_VERBOSITY=low\nMDS_AGENT_WEB_SEARCH_ENABLED=false\nMDS_AGENT_WEB_SEARCH_CONTEXT_SIZE=medium\nMDS_AGENT_WEB_SEARCH_EXTERNAL_ACCESS=true\nMDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS=\nMDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS=\n```\n\n`MDS_MCP_ALLOWED_ORIGINS` is optional. Empty means browser-origin requests are\naccepted only from localhost-style origins. For a deployed MCP browser client,\nset a comma-separated exact Origin allowlist, for example:",
       "title": "Simurgh operator guide"
     },
     {
@@ -11443,7 +11443,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "a49451c9395ed4e1f3c1b96786cec9d817d9b3be13127a80dcfff5b66405ce69",
+      "content_hash": "05dad6c1434e26b29bb3907e70cddbc39c4032beb3991739019c2e4f5f5226b9",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-01-generated-mds-environment-registry",
       "links": [],
@@ -11456,7 +11456,7 @@
         "environment",
         "config"
       ],
-      "text": "# Generated MDS Environment Registry\n\n<!-- Generated by tools/generate_mds_env_reference.py; do not edit manually. -->\n\nRegistry version: `1`\nRegistry hash: `58860dc9c10d4a71502d4b9fe2a88aed08203498587df82d279f2adb9a75eb4f`",
+      "text": "# Generated MDS Environment Registry\n\n<!-- Generated by tools/generate_mds_env_reference.py; do not edit manually. -->\n\nRegistry version: `1`\nRegistry hash: `6f3726050185b59a0546250b095d3ff1290d28d22bb8041f2fea831080499225`",
       "title": "MDS environment registry reference"
     },
     {
@@ -11484,7 +11484,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "61263828343ff5740c1dff01a191253da7b548c3339ab1fe94a3b123d7628129",
+      "content_hash": "f01d411ee84ed6617aca96c4051dca8d563a47e1d5def18085e43467fbb0aa90",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-03-generated-mds-environment-registry",
       "links": [
@@ -11499,7 +11499,7 @@
         "environment",
         "config"
       ],
-      "text": "-key-file) | agent | agent | path | - | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_BASE_URL`](#env-mds-agent-openai-base-url) | agent | agent | url | `https://api.openai.com/v1` | no | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS`](#env-mds-agent-openai-max-output-tokens) | agent | agent | integer | `900` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_MODEL`](#env-mds-agent-openai-model) | agent | agent | string | `gpt-5.4-mini` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_REASONING_EFFORT`](#env-mds-agent-openai-reasoning-effort) | agent | agent | string | `medium` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_TEXT_VERBOSITY`](#env-mds-agent-openai-text-verbosity) | agent | agent | string | `low` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_TIMEOUT_SEC`](#env-mds-agent-openai-timeout-sec) | agent | agent | float | `30` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_POLICY_FILE`](#env-mds-agent-policy-file) | agent | agent | path | `config/agent_policy.yaml` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_PROVIDER`](#env-mds-agent-provider) | agent | agent | string | `mock` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_QUERY_ADAPTATION_FILE`](#env-mds-agent-query-adaptation-file) | agent | agent | path | `config/agent_query_adaptation.yaml` | no | gcs | process env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_TOOL_CANDIDATE_FILE`](#env-mds-agent-tool-candidate-file) | agent | agent | path | `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml` | no | gcs | process env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_TOOL_REGISTRY_FILE`](#env-mds-agent-tool-registry-file) | agent | agent | path | `config/agent_tools.yaml` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n|",
+      "text": "-key-file) | agent | agent | path | - | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_BASE_URL`](#env-mds-agent-openai-base-url) | agent | agent | url | `https://api.openai.com/v1` | no | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_MAX_OUTPUT_TOKENS`](#env-mds-agent-openai-max-output-tokens) | agent | agent | integer | `900` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_MODEL`](#env-mds-agent-openai-model) | agent | agent | string | `gpt-5.5` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_REASONING_EFFORT`](#env-mds-agent-openai-reasoning-effort) | agent | agent | string | `medium` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_TEXT_VERBOSITY`](#env-mds-agent-openai-text-verbosity) | agent | agent | string | `low` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_OPENAI_TIMEOUT_SEC`](#env-mds-agent-openai-timeout-sec) | agent | agent | float | `30` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_POLICY_FILE`](#env-mds-agent-policy-file) | agent | agent | path | `config/agent_policy.yaml` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_PROVIDER`](#env-mds-agent-provider) | agent | agent | string | `mock` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_QUERY_ADAPTATION_FILE`](#env-mds-agent-query-adaptation-file) | agent | agent | path | `config/agent_query_adaptation.yaml` | no | gcs | process env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_TOOL_CANDIDATE_FILE`](#env-mds-agent-tool-candidate-file) | agent | agent | path | `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml` | no | gcs | process env | [guide](../guides/simurgh-operator.md) |\n| [`MDS_AGENT_TOOL_REGISTRY_FILE`](#env-mds-agent-tool-registry-file) | agent | agent | path | `config/agent_tools.yaml` | yes | gcs | /etc/mds/gcs.env | [guide](../guides/simurgh-operator.md) |\n|",
       "title": "MDS environment registry reference"
     },
     {
@@ -11984,7 +11984,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "9231ab5da95987a3d4e1f43073d385ce23c4a35f69e294b7a4ebfbe572ac732f",
+      "content_hash": "07f3b2d3b100267d00223cd7c802c57d7c3ec1041c6b848a723f5aee6383ce31",
       "heading": "`MDS_AGENT_OPENAI_MODEL`",
       "id": "mds.environment_registry:015-01-mds-agent-openai-model",
       "links": [],
@@ -11997,7 +11997,7 @@
         "environment",
         "config"
       ],
-      "text": "### `MDS_AGENT_OPENAI_MODEL`\n\n- Title: Simurgh OpenAI model\n- Scope: `agent`\n- Domain: `agent`\n- Type: `string`\n- Default: `gpt-5.4-mini`\n- Editable: yes\n- Restart: `gcs`\n- Source of truth: `/etc/mds/gcs.env`\n- Apply action: `restart_gcs`\n- Docs: [guide](../guides/simurgh-operator.md)\n- Notes: OpenAI Responses model for advisory assistant text. gpt-5.5 is the latest high-quality option; gpt-5.4-mini is the cost-conscious dashboard default.\n\n<a id=\"env-mds-agent-openai-reasoning-effort\"></a>",
+      "text": "### `MDS_AGENT_OPENAI_MODEL`\n\n- Title: Simurgh OpenAI model\n- Scope: `agent`\n- Domain: `agent`\n- Type: `string`\n- Default: `gpt-5.5`\n- Editable: yes\n- Restart: `gcs`\n- Source of truth: `/etc/mds/gcs.env`\n- Apply action: `restart_gcs`\n- Docs: [guide](../guides/simurgh-operator.md)\n- Notes: OpenAI Responses model for advisory assistant text. gpt-5.5 is the current high-quality dashboard default; lower-cost model variants may be selected explicitly when validated for the deployment.\n\n<a id=\"env-mds-agent-openai-reasoning-effort\"></a>",
       "title": "MDS environment registry reference"
     },
     {
@@ -15670,7 +15670,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 28,
-      "content_hash": "7e4eefbf055a36e184a16d1c6f6ce537af6a9eaf286237dbe1caac3bc2fd29d6",
+      "content_hash": "38c5a14d6ced5f83015ceb989d1a2df0424a3465824d67fd2393d5b3a24a4391",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -15895,7 +15895,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
       "chunk_count": 147,
-      "content_hash": "4a2dbb4b2bdc927bfe050a0f993201e08d90f0a0e49510c7d105df72c05c0537",
+      "content_hash": "2a2186452fb8ac9255ccf6cc334b436b357597801f17a00a9efed75f18dfeea4",
       "id": "mds.environment_registry",
       "mime_type": "text/markdown",
       "path": "docs/reference/mds-environment-registry.generated.md",

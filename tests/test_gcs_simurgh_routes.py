@@ -259,7 +259,7 @@ def test_simurgh_status_reports_external_assistant_provider(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["assistant_provider"] == "openai"
-    assert payload["assistant_model"] == "gpt-5.4-mini"
+    assert payload["assistant_model"] == "gpt-5.5"
     assert payload["assistant_external_provider"] is True
     assert payload["assistant_external_provider_auth_required"] is True
 
@@ -268,7 +268,7 @@ def test_simurgh_runtime_settings_hot_apply_and_persist(monkeypatch, tmp_path):
     env_file = tmp_path / "gcs.env"
     monkeypatch.setenv("MDS_GCS_SYSTEM_CONFIG", str(env_file))
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
-    monkeypatch.setenv("MDS_AGENT_OPENAI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_MODEL", "gpt-5.5")
     monkeypatch.setenv("MDS_MCP_ENABLED", "false")
     monkeypatch.setenv("MDS_AGENT_ACTION_CIRCUIT_BREAKER", "true")
     monkeypatch.setenv("MDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION", "true")
@@ -311,7 +311,7 @@ def test_simurgh_provider_credentials_store_secret_server_side(monkeypatch, tmp_
         json={
             "openai_api_key": fake_openai_key,
             "set_provider_openai": True,
-            "openai_model": "gpt-5.4-mini",
+            "openai_model": "gpt-5.5",
         },
     )
 

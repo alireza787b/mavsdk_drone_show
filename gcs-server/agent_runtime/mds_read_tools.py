@@ -39,7 +39,22 @@ DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_kn
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 READ_CONVERSATION_TOPICS = frozenset(
-    {"drone_show", "fleet", "swarm", "sitl", "setup", "logs", "runtime", "capabilities"}
+    {
+        "capabilities",
+        "docs",
+        "drone_show",
+        "fleet",
+        "general",
+        "logs",
+        "mcp",
+        "public_geography",
+        "runtime",
+        "safety",
+        "setup",
+        "sitl",
+        "swarm",
+        "ui",
+    }
 )
 READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability"})
 FLEET_LIVE_TERMS = (
@@ -310,6 +325,10 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "runtime"
     if normalized_intent == "capability_catalog":
         return "capabilities"
+    if normalized_intent == "public_geography":
+        return "public_geography"
+    if normalized_intent in {"general_knowledge", "autopilot_support"}:
+        return "general"
     return None
 
 
@@ -515,10 +534,22 @@ class MdsReadOnlyTools:
         place_title = str(place["title"])
         place_latitude = float(place["latitude"])
         place_longitude = float(place["longitude"])
-        composer.line(f"**{place_title}** reference coordinate: **{place_latitude:.4f}, {place_longitude:.4f}**.")
+        place_elevation = _finite_or_none(place.get("elevation_m"))
+        place_elevation_datum = str(place.get("elevation_datum") or "").strip()
+        composer.line(f"**{place_title}** public reference:")
+        rows: list[tuple[str, str]] = [
+            ("Latitude", f"{place_latitude:.4f}"),
+            ("Longitude", f"{place_longitude:.4f}"),
+            ("Horizontal datum", "WGS84 decimal degrees"),
+        ]
+        if place_elevation is not None:
+            rows.append(("Elevation", f"{place_elevation:,.0f} m"))
+            if place_elevation_datum:
+                rows.append(("Elevation note", place_elevation_datum))
+        composer.blank().table(("Field", "Value"), rows)
         note = str(place.get("source_note") or "Public reference coordinate; verify before operations.").strip()
         if note:
-            composer.line(note)
+            composer.blank().line(note)
         if distance_km is not None and _has_domain_signal(normalized, ("around", "circle", "loop", "radius", "orbit")):
             circumference = 2.0 * math.pi * distance_km
             diameter_circumference = math.pi * distance_km
@@ -2196,6 +2227,16 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
     if topic == "sitl":
         if _has_any(normalized, ("how", "where", "switch", "change", "setup", "demo", "doc", "docs", "link")) or _looks_like_generic_contextual_followup(normalized):
             return "sitl_help"
+    if topic == "public_geography":
+        if _looks_like_public_geography_slot_followup(normalized) or _looks_like_public_geography_question(normalized):
+            return "public_geography"
+    if topic == "general":
+        if _looks_like_weather_question(normalized) or _looks_like_general_knowledge_question(normalized):
+            return "general_knowledge"
+        if _looks_like_public_geography_question(normalized):
+            return "public_geography"
+        if _looks_like_autopilot_support_question(normalized):
+            return "autopilot_support"
     return None
 
 
@@ -2617,8 +2658,18 @@ def _looks_like_public_geography_question(normalized: str) -> bool:
             "distance between",
             "latitude",
             "longitude",
+            "lat long",
+            "lat lon",
+            "lat/lon",
             "lat and long",
             "lat/long",
+            "lng",
+            "wgs84",
+            "altitude",
+            "elevation",
+            "height",
+            "meters above sea level",
+            "masl",
             "coordinates",
             "coordinate",
             "around",
@@ -2627,6 +2678,43 @@ def _looks_like_public_geography_question(normalized: str) -> bool:
             "radius",
             "orbit",
             "flight around",
+        ),
+    )
+
+
+def _looks_like_public_geography_slot_followup(normalized: str) -> bool:
+    """Return whether a short reply is filling a public-geography slot.
+
+    Examples include an operator answering a prior clarification with
+    "yes, meters and WGS84". This should bind to the current geography task,
+    not to an older fleet/swarm topic.
+    """
+
+    if not normalized:
+        return False
+    if len(normalized) > 120:
+        return _looks_like_public_geography_question(normalized)
+    return _has_domain_signal(
+        normalized,
+        (
+            "yes",
+            "yeah",
+            "ok",
+            "correct",
+            "meter",
+            "meters",
+            "metre",
+            "metres",
+            "wgs84",
+            "decimal degree",
+            "decimal degrees",
+            "msl",
+            "asl",
+            "above sea level",
+            "elevation",
+            "altitude",
+            "lat lon",
+            "lat long",
         ),
     )
 
@@ -2688,8 +2776,15 @@ def _looks_like_non_mds_general_question(normalized: str) -> bool:
             "distance between",
             "latitude",
             "longitude",
+            "lat long",
+            "lat lon",
+            "lat/lon",
             "lat and long",
             "lat/long",
+            "wgs84",
+            "altitude",
+            "elevation",
+            "height",
             "coordinates",
             "coordinate of",
             "mountain",
@@ -3191,6 +3286,8 @@ def _matching_public_places(normalized: str, config: Mapping[str, Any]) -> list[
                     "title": str(raw.get("title") or raw.get("id") or "Place").strip(),
                     "latitude": latitude,
                     "longitude": longitude,
+                    "elevation_m": _finite_or_none(raw.get("elevation_m")),
+                    "elevation_datum": str(raw.get("elevation_datum") or "").strip(),
                     "source_note": str(raw.get("source_note") or "").strip(),
                 },
             )

@@ -160,7 +160,7 @@ response_template:
     - Add eval examples before enabling any provider adapter.
 providers:
   openai:
-    model: gpt-5.4-mini
+    model: gpt-5.5
     api_key_file: ""
     base_url: https://api.openai.com/v1
     timeout_seconds: 30

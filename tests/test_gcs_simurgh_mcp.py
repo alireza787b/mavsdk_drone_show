@@ -553,6 +553,9 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert tool_names == executor_tool_names
     assert "mds.system.health.read" in tool_names
     assert "mds.operator.question.answer" in tool_names
+    assert "simurgh.general_knowledge.read" in tool_names
+    assert "simurgh.public_places.read" in tool_names
+    assert "simurgh.geodesy.calculate" in tool_names
     assert "mds.logs.session.read" in tool_names
     assert "mds.shows.skybrush.metrics_snapshot.read" in tool_names
     assert "mds.shows.skybrush.safety_report.read" in tool_names
@@ -742,6 +745,57 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     )
     assert docs_invalid_chunk_response.status_code == 200
     assert docs_invalid_chunk_response.json()["result"]["isError"] is True
+
+    public_places_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "simurgh.public_places.read",
+                "arguments": {"question": "What is the lat long altitude of Damavand Peak in WGS84 meters?"},
+            },
+        ),
+    )
+    assert public_places_response.status_code == 200
+    public_places_result = public_places_response.json()["result"]
+    assert public_places_result["isError"] is False
+    assert public_places_result["structuredContent"]["intent"] == "public_geography"
+    assert "WGS84 decimal degrees" in public_places_result["content"][0]["text"]
+    assert "5,609 m" in public_places_result["content"][0]["text"]
+
+    general_knowledge_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "simurgh.general_knowledge.read",
+                "arguments": {"question": "Does MDS support ArduPilot or is it PX4 first?"},
+            },
+        ),
+    )
+    assert general_knowledge_response.status_code == 200
+    general_knowledge_result = general_knowledge_response.json()["result"]
+    assert general_knowledge_result["isError"] is False
+    assert general_knowledge_result["structuredContent"]["intent"] in {"general_knowledge", "autopilot_support"}
+    assert "PX4-first" in general_knowledge_result["content"][0]["text"]
+
+    geodesy_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={
+                "name": "simurgh.geodesy.calculate",
+                "arguments": {"question": "How many kilometers is it from Tehran to New York?"},
+            },
+        ),
+    )
+    assert geodesy_response.status_code == 200
+    geodesy_result = geodesy_response.json()["result"]
+    assert geodesy_result["isError"] is False
+    assert geodesy_result["structuredContent"]["intent"] == "public_geography"
+    assert "Tehran" in geodesy_result["content"][0]["text"]
+    assert "New York City" in geodesy_result["content"][0]["text"]
+    assert "km" in geodesy_result["content"][0]["text"]
 
     advisory_response = client.post(
         MCP_PATH,

@@ -58,7 +58,7 @@ def test_assistant_config_allows_openai_provider_with_file_secret(monkeypatch, t
     config = load_default_assistant_config()
 
     assert config.provider == "openai"
-    assert config.openai.model == "gpt-5.4-mini"
+    assert config.openai.model == "gpt-5.5"
     assert config.openai.web_search.enabled is False
     assert config.openai.read_api_key() == "test-openai-key"
 
@@ -161,7 +161,7 @@ def test_openai_assistant_turn_builds_non_tool_responses_request(monkeypatch, tm
     )
 
     assert record.turn.provider == "openai"
-    assert record.turn.model == "gpt-5.4-mini"
+    assert record.turn.model == "gpt-5.5"
     assert record.turn.adapter_version == "openai-responses-v1"
     assert record.turn.content == "Advisory response."
     assert captured["api_key"] == "test-openai-key"
@@ -418,9 +418,78 @@ def test_assistant_turn_does_not_route_geography_flight_math_to_swarm_tool(monke
     assert record.turn.provider == "mds-tools"
     assert record.audit_event.metadata["tool_intent"] == "public_geography"
     assert record.audit_event.metadata["query_domain"] == "general"
-    assert "35.9515, 52.1094" in record.turn.content
+    assert "35.9555" in record.turn.content
+    assert "52.1101" in record.turn.content
     assert "62.8 km" in record.turn.content
     assert "Configured/planned swarm geometry" not in record.turn.content
+
+
+def test_assistant_turn_rebinds_public_geography_followup_after_swarm_topic(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="What formation swarm is defined right now?",
+    )
+    assert first.audit_event.metadata["tool_intent"] == "swarm_topology"
+    assert first.session.metadata["last_domain"] == "swarm"
+
+    damavand = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="What is the lat long altitude of damavand peak",
+    )
+    assert damavand.audit_event.metadata["tool_intent"] == "public_geography"
+    assert damavand.session.metadata["last_domain"] == "public_geography"
+    assert "WGS84 decimal degrees" in damavand.turn.content
+    assert "5,609 m" in damavand.turn.content
+    assert "Configured/planned swarm geometry" not in damavand.turn.content
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="Yes meter and wgs84",
+    )
+    assert followup.audit_event.metadata["tool_intent"] == "public_geography"
+    assert followup.session.metadata["last_domain"] == "public_geography"
+    assert "Mount Damavand peak" in followup.turn.content
+    assert "WGS84 decimal degrees" in followup.turn.content
+    assert "Configured/planned swarm geometry" not in followup.turn.content
+
+
+def test_assistant_turn_returns_bounded_provider_failure_for_public_lookup(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setenv("MDS_AGENT_WEB_SEARCH_ENABLED", "true")
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AgentRuntimeError("network error")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="What is the latest weather today in Taipei?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert "network error" not in record.turn.content.lower()
+    assert "provider note" in record.turn.content.lower()
+    assert "deterministic read-only evidence" in record.turn.content.lower()
+    assert record.audit_event.metadata["web_search_enabled"] is True
 
 
 def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):

@@ -62,8 +62,127 @@ tools:
         - logs
         - runtime
         - capabilities
+        - docs
+        - general
+        - mcp
+        - public_geography
+        - safety
+        - ui
         description: Optional safe short-lived conversation topic from dashboard chat
           session memory, used only to resolve ambiguous follow-up questions.
+- id: simurgh.general_knowledge.read
+  title: Read curated general operator knowledge
+  description: Answer common public robotics/MDS-adjacent concepts from reviewed local
+    Simurgh general-knowledge context. Use for concepts such as drone, MAVLink,
+    PX4, ArduPilot, or weather-tool availability.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - assistant
+  - general
+  - knowledge
+  - mcp
+  docs:
+  - docs/guides/simurgh-operator.md
+  - docs/agent-context/operator-guidelines.md
+  safety_notes:
+  - Reads only curated public local knowledge; it does not inspect private runtime
+    state or call external services.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - question
+    properties:
+      question:
+        type: string
+        minLength: 1
+        maxLength: 4000
+        description: Public/general operator question to answer from curated local
+          context.
+- id: simurgh.public_places.read
+  title: Read reviewed public place references
+  description: Answer public place coordinate/elevation questions from reviewed
+    local Simurgh references. This is for public geography facts only, not private
+    mission coordinates.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - assistant
+  - geography
+  - mcp
+  - public
+  docs:
+  - docs/guides/simurgh-operator.md
+  safety_notes:
+  - Public place references are approximate and must be verified against approved
+    aviation data before any operation.
+  - This tool never returns private field coordinates or mission sites.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - question
+    properties:
+      question:
+        type: string
+        minLength: 1
+        maxLength: 4000
+        description: Public place coordinate/elevation question.
+- id: simurgh.geodesy.calculate
+  title: Calculate public geodesy guidance
+  description: Calculate bounded public distance/orbit guidance from reviewed place
+    references. This is conceptual math only, not route planning or mission upload.
+  exposure: allow
+  risk_class: observe
+  boundary: gcs
+  read_only: true
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity: []
+  tags:
+  - assistant
+  - geodesy
+  - mcp
+  - public
+  docs:
+  - docs/guides/simurgh-operator.md
+  safety_notes:
+  - Geodesy output is public calculation guidance only; it does not create,
+    upload, validate, or approve a flight route.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - question
+    properties:
+      question:
+        type: string
+        minLength: 1
+        maxLength: 4000
+        description: Public distance/geodesy question using reviewed place names.
 - id: mds.docs.search
   title: Search public MDS docs
   description: Search the generated public Simurgh/MDS documentation index and return

@@ -49,7 +49,7 @@ ADVISORY_FORBIDDEN_CLAIMS = (
     "tools/call succeeded",
 )
 OFFLINE_OPENAI_ENV_DEFAULTS = {
-    OPENAI_MODEL_ENV: "gpt-5.4-mini",
+    OPENAI_MODEL_ENV: "gpt-5.5",
     OPENAI_BASE_URL_ENV: "https://api.openai.com/v1",
     OPENAI_TIMEOUT_SECONDS_ENV: "30",
     OPENAI_MAX_OUTPUT_TOKENS_ENV: "900",
@@ -471,6 +471,7 @@ def run_assistant_eval_scenario(
     try:
         with tempfile.TemporaryDirectory(prefix="simurgh-eval-") as temp_dir:
             env_updates: dict[str, str | None] = {
+                "MDS_MODE": "sitl",
                 "MDS_AGENT_ENABLED": "true",
                 "MDS_AGENT_PROVIDER": scenario.provider,
             }
