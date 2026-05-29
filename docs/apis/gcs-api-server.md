@@ -2222,6 +2222,15 @@ response shape. This SSE route is not an MCP transport and is not callable from
 the generated OpenAPI candidate menu unless a future reviewed registry/policy
 promotion explicitly approves it.
 
+For authenticated dashboard/operator sessions with `MDS_AGENT_PROVIDER=openai`,
+assistant turns may first execute a policy-approved read-only Simurgh advisory
+tool and then ask OpenAI to compose the final text from a bounded
+`session.read_only_mds_evidence` context document. The route still reports the
+selected local `trace.tool.intent`, does not expose raw prompts in the trace, and
+does not allow provider-side tool execution. Unauthenticated local-tool turns
+remain deterministic `mds-tools` answers so field-visible GCS deployments do not
+turn into an external provider surface.
+
 ---
 
 ## Error Handling

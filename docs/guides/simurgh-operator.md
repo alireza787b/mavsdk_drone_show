@@ -276,6 +276,14 @@ duration, Simurgh runtime posture, board/setup documentation links,
 companion-computer bootstrap guidance, add-drone workflow guidance, SITL startup
 guidance, backend warning/error summaries, action-capability explanations, and
 capability-menu answers are produced locally and do not require OpenAI auth.
+When an authenticated dashboard/operator session has the OpenAI provider
+enabled, Simurgh may run the same read-only local tool first and then ask OpenAI
+to compose the final wording from a bounded `session.read_only_mds_evidence`
+context document. The tool evidence remains authoritative: exact counts, IPs,
+routes, modes, coordinates, safety caveats, and no-action statements must be
+preserved. If provider composition fails or the request is unauthenticated,
+Simurgh falls back to the deterministic local answer rather than losing the
+operator evidence.
 Dashboard sessions keep only safe short-lived routing metadata such as
 `last_domain=drone_show` or `last_domain=logs`; they do not store raw transcript
 text. The local wrapper also infers a response mode, for example `status`,
@@ -741,6 +749,6 @@ Backend log answers distinguish between status and interpretation. A first log c
 
 ### Composer Coverage Expansion
 
-The reusable answer composer now covers the PM-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP.
+The reusable answer composer now covers the PM-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.
 
 Tables are intentional for compact operational comparison, but each answer must remain readable as plain Markdown for clients that do not render rich UI. New local tools should prefer `AnswerComposer` before adding custom string templates.

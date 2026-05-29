@@ -1,10 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
   <title id="title">Simurgh mark</title>
   <desc id="desc">Minimal Simurgh-inspired wing mark for the MDS assistant.</desc>
-  <rect width="96" height="96" rx="22" fill="#09111c"/>
-  <path d="M18 62c15-1 24-9 30-25 6 16 15 24 30 25-11 7-21 8-30 2-9 6-19 5-30-2z" fill="#f8fbff"/>
-  <path d="M30 56c7-2 13-8 18-20 5 12 11 18 18 20-6 3-12 4-18 1-6 3-12 2-18-1z" fill="#5fb9ff"/>
-  <path d="M48 36v38" stroke="#f0b429" stroke-width="5" stroke-linecap="round"/>
-  <path d="M39 76h18l-9 9z" fill="#f0b429"/>
-  <circle cx="48" cy="31" r="5" fill="#79d0ff"/>
+  <path d="M9 60c16.8-2.2 28.6-12.9 36.9-33.5 1.1-2.8 4.9-2.8 6 0C60.3 47.1 72.2 57.8 89 60c-10.7 8.6-24.4 10.2-40 4.3C33.4 70.2 19.7 68.6 9 60z" fill="#f8fbff"/>
+  <path d="M25.2 54.9c8.5-3.3 15.3-12 20.4-26.1 0.9-2.6 4.7-2.6 5.6 0 5.2 14.1 12 22.8 20.6 26.1-7.5 4.5-15.2 5-23.3 1.3-8.1 3.7-15.9 3.2-23.3-1.3z" fill="#5fb9ff"/>
+  <path d="M48 31v43" stroke="#f0b429" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M38.5 76.5h19L48 88z" fill="#f0b429"/>
+  <circle cx="48" cy="24" r="6" fill="#79d0ff"/>
 </svg>

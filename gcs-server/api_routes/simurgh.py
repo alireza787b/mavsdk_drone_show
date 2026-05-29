@@ -549,16 +549,8 @@ def _require_actor_access(request: Request, actor: str) -> None:
 def _require_external_assistant_provider_auth(request: Request, provider: str) -> None:
     if provider == "mock":
         return
-    context = _auth_context(request)
-    if _auth_enabled(context):
-        context_kind = str(context.get("kind") or "").lower()
-        role = str(context.get("role") or "").lower()
-        if context_kind == "session" and role in EXTERNAL_ASSISTANT_PROVIDER_SESSION_ROLES:
-            return
-        if context_kind == "bearer":
-            scopes = {str(scope).strip().lower() for scope in context.get("scopes", []) if str(scope).strip()}
-            if not scopes.isdisjoint(EXTERNAL_ASSISTANT_PROVIDER_BEARER_SCOPES):
-                return
+    if _has_external_assistant_provider_auth(request):
+        return
     raise HTTPException(
         status_code=403,
         detail=(
@@ -567,6 +559,20 @@ def _require_external_assistant_provider_auth(request: Request, provider: str) -
             "Keep MDS_AGENT_PROVIDER=mock when MDS auth is disabled."
         ),
     )
+
+
+def _has_external_assistant_provider_auth(request: Request) -> bool:
+    context = _auth_context(request)
+    if _auth_enabled(context):
+        context_kind = str(context.get("kind") or "").lower()
+        role = str(context.get("role") or "").lower()
+        if context_kind == "session" and role in EXTERNAL_ASSISTANT_PROVIDER_SESSION_ROLES:
+            return True
+        if context_kind == "bearer":
+            scopes = {str(scope).strip().lower() for scope in context.get("scopes", []) if str(scope).strip()}
+            if not scopes.isdisjoint(EXTERNAL_ASSISTANT_PROVIDER_BEARER_SCOPES):
+                return True
+    return False
 
 
 def _bounded_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -1280,8 +1286,10 @@ def create_simurgh_router() -> APIRouter:
                 or sensitive_input_matches(assistant_config, turn_request.message)
                 or sensitive_input_matches(assistant_config, routing_message)
             )
+            provider_auth_allowed = assistant_config.provider != "mock" and _has_external_assistant_provider_auth(http_request)
             if not local_only_turn:
                 _require_external_assistant_provider_auth(http_request, assistant_config.provider)
+                provider_auth_allowed = assistant_config.provider != "mock"
             actor = _resolve_actor(http_request, turn_request.actor)
             record = create_assistant_turn(
                 sessions=sessions,
@@ -1292,6 +1300,7 @@ def create_simurgh_router() -> APIRouter:
                 mode=turn_request.mode,
                 context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
                 metadata=_bounded_metadata(turn_request.metadata),
+                allow_provider_for_local_tools=local_only_turn and provider_auth_allowed,
             )
             history_record = history.append_turn(record=record, message=turn_request.message)
         except PermissionError as exc:

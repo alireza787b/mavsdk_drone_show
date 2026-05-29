@@ -171,7 +171,7 @@
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
   background: var(--color-bg-secondary);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--color-bg-secondary);
   isolation: isolate;
   opacity: 1;
   overflow: hidden;
@@ -235,6 +235,7 @@
   width: 1.25rem;
   height: 1.25rem;
   object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(3, 9, 18, 0.24));
 }
 
 .simurgh-chat__mark--shell {
@@ -713,8 +714,8 @@
   padding: var(--spacing-base);
   border: var(--operator-card-border);
   border-radius: var(--border-radius-base);
-  background: var(--operator-card-background);
-  box-shadow: var(--operator-card-shadow);
+  background: var(--color-bg-secondary);
+  box-shadow: var(--operator-card-shadow-raised), 0 0 0 1px var(--color-bg-secondary);
 }
 
 .simurgh-chat__settings header,

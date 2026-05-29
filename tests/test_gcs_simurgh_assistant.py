@@ -310,6 +310,52 @@ def test_simurgh_assistant_turn_allows_local_mds_tool_answer_without_external_pr
     assert "How many drones" not in str(payload["trace"])
 
 
+def test_simurgh_assistant_turn_composes_local_tool_evidence_with_openai_when_authenticated(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        captured["api_key"] = api_key
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "You have 2 configured drones in the GCS fleet. I used the read-only fleet evidence only; no drone command was sent.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "How many drones do we have configured?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "openai"
+    assert payload["trace"]["tool"]["intent"] == "fleet_summary"
+    assert payload["trace"]["context"]["retrieved_context_count"] == 1
+    assert "2 configured drones" in payload["content"]
+    assert "read-only" in payload["safety_notes"][0].lower()
+    assert captured["api_key"] == "test-openai-key"
+    assert captured["tools"] == []
+    assert captured["tool_choice"] == "none"
+    assert "session.read_only_mds_evidence" in str(captured["input"])
+    assert "Fleet status from GCS configuration" in str(captured["input"])
+
+
 def test_simurgh_assistant_turn_uses_adapted_routing_for_local_auth_gate(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")

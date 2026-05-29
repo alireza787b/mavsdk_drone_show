@@ -1621,6 +1621,65 @@ def _previous_answer_transform_message(*, operator_message: str, transform_kind:
     )
 
 
+def _read_only_tool_evidence_context_document(
+    *,
+    tool_intent: str,
+    tool_ids: list[str],
+    response_mode: str,
+    content: str,
+) -> AssistantContextDocument:
+    evidence = str(content or "").strip()
+    intent = str(tool_intent or "read_only_mds_tool").strip() or "read_only_mds_tool"
+    mode = str(response_mode or "status").strip() or "status"
+    tool_ids_text = ", ".join(tool_ids) or "none"
+    return AssistantContextDocument(
+        id="session.read_only_mds_evidence",
+        title="Read-only MDS evidence for this assistant turn",
+        uri="mds://simurgh/session/read-only-mds-evidence",
+        mime_type="text/markdown",
+        summary=(
+            "Authoritative read-only GCS/MDS tool result selected by the Simurgh policy layer. "
+            f"intent={intent}; response_mode={mode}; tool_ids={tool_ids_text}."
+        ),
+        tags=("session", "tool-evidence", "read-only", intent),
+        content_hash=stable_payload_hash(
+            {
+                "tool_intent": intent,
+                "tool_ids": tool_ids,
+                "response_mode": response_mode,
+                "content": evidence,
+            }
+        ),
+        text=evidence[:DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES],
+    )
+
+
+def _provider_tool_composition_message(
+    *,
+    operator_message: str,
+    tool_intent: str,
+    response_mode: str,
+) -> str:
+    return "\n".join(
+        [
+            f"Operator message: {operator_message}",
+            "Conversation task: answer naturally using the read-only MDS evidence context.",
+            f"Read-only tool intent: {tool_intent or unknown}.",
+            f"Response mode: {response_mode or status}.",
+            "Use `session.read_only_mds_evidence` as authoritative. Preserve exact counts, IPs, routes, URLs, modes, times, coordinates, safety caveats, and no-action statements from that evidence.",
+            "Do not invent live state, do not call or imply any action, and do not add unsupported claims. If the user is asking a short follow-up, answer the follow-up directly instead of repeating the whole evidence dump.",
+            "Prefer a concise ChatGPT-style answer: short direct verdict first, then only the useful details. Keep Markdown tables/lists only when they improve scanability.",
+        ]
+    )
+
+
+def _safe_provider_composition_error(exc: Exception) -> str:
+    message = str(exc or "").strip()
+    if not message:
+        return "provider-composition-failed"
+    return re.sub(r"[^A-Za-z0-9 .:_/-]+", "", message)[:160]
+
+
 def create_assistant_turn(
     *,
     sessions: AgentSessionStore,
@@ -1632,6 +1691,7 @@ def create_assistant_turn(
     context_resource_ids: tuple[str, ...] | None = None,
     metadata: Mapping[str, object] | None = None,
     force_provider: str | None = None,
+    allow_provider_for_local_tools: bool = False,
 ) -> AssistantTurnRecord:
     """Create one assistant turn without command or mutation execution."""
 
@@ -1702,6 +1762,8 @@ def create_assistant_turn(
     tool_response_mode = None
     tool_ids: list[str] = []
     web_search_enabled_for_turn = False
+    provider_composed_from_tool = False
+    provider_composition_error = ""
     previous_context = sessions.get_private_context(session.id)
     transform_kind = _conversation_transform_kind(routing_message)
     transform_answer = previous_context.get("last_assistant_content") if transform_kind else ""
@@ -1764,7 +1826,7 @@ def create_assistant_turn(
         raw_tool_ids = structured.get("tool_ids") if isinstance(structured, Mapping) else None
         tool_ids = [str(tool_id) for tool_id in raw_tool_ids] if isinstance(raw_tool_ids, list) else []
         tool_response_mode = structured.get("response_mode") if isinstance(structured, Mapping) else None
-        turn = AssistantTurnResult(
+        local_tool_turn = AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
             created_at=utc_now().isoformat(),
             provider=READ_TOOL_PROVIDER,
@@ -1775,6 +1837,46 @@ def create_assistant_turn(
             blocked_intents=(),
             safety_notes=safety_notes,
         )
+        turn = local_tool_turn
+        if (
+            allow_provider_for_local_tools
+            and config.provider == OPENAI_ASSISTANT_PROVIDER
+            and not blocked_matches
+            and not sensitive_matches
+        ):
+            adapter = _adapter_for_config(config)
+            if isinstance(adapter, OpenAIResponsesAssistantAdapter):
+                evidence_document = _read_only_tool_evidence_context_document(
+                    tool_intent=str(tool_intent or ""),
+                    tool_ids=tool_ids,
+                    response_mode=str(tool_response_mode or query_plan.response_mode),
+                    content=local_tool_turn.content,
+                )
+                provider_context_documents = (*context_documents, evidence_document)
+                try:
+                    provider_turn = adapter.generate(
+                        message=_provider_tool_composition_message(
+                            operator_message=normalized_message,
+                            tool_intent=str(tool_intent or ""),
+                            response_mode=str(tool_response_mode or query_plan.response_mode),
+                        ),
+                        context_documents=provider_context_documents,
+                        language_profile=language_profile,
+                    )
+                    turn = replace(
+                        provider_turn,
+                        context_documents=provider_context_documents,
+                        safety_notes=(
+                            "Read-only Simurgh advisory registry tool was executed before provider composition.",
+                            "OpenAI Responses API composed the final text from bounded read-only MDS evidence with store=false.",
+                            "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
+                        ),
+                    )
+                    context_documents = provider_context_documents
+                    retrieved_context_count += 1
+                    provider_composed_from_tool = True
+                except AgentRuntimeError as exc:
+                    provider_composition_error = _safe_provider_composition_error(exc)
     else:
         if (
             config.provider != "mock"
@@ -1854,6 +1956,8 @@ def create_assistant_turn(
             "query_reason": query_plan.reason,
             "retrieved_context_count": retrieved_context_count,
             "web_search_enabled": web_search_enabled_for_turn,
+            "provider_composed_from_tool": provider_composed_from_tool,
+            "provider_composition_error": provider_composition_error,
             "query_adaptation": query_adaptation.public_metadata(),
             "routing_strategy": query_adaptation.strategy,
             "routing_language": query_adaptation.routing_language,
