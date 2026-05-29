@@ -46,6 +46,9 @@ def test_default_registry_loads_with_curated_exposure_boundaries():
     assert registry.version == 1
     assert registry.require("mds.system.health.read").exposure is ToolExposure.ALLOW
     assert registry.require("mds.system.health.read").risk_class is ToolRiskClass.OBSERVE
+    assert registry.require("mds.fleet.sidecars.read").risk_class is ToolRiskClass.SENSITIVE_OBSERVE
+    assert registry.require("mds.origin.deviations.read").read_only is True
+    assert registry.require("mds.commands.status.read").input_schema["required"] == ["command_id"]
     assert registry.require("mds.commands.raw_submit").exposure is ToolExposure.EXCLUDE
     assert registry.require("mds.drone.commands.raw_submit").boundary == "drone"
 
@@ -298,7 +301,7 @@ def test_session_store_creates_and_closes_sessions():
         metadata={
             "channel": "dashboard",
             "source": "simurgh-ui",
-            "raw_prompt": "CM4-99 stopped streaming on 192.168.1.10",
+            "raw_prompt": "CM4-99 stopped streaming on 192.0.2.33",
             "unsafe": "contains spaces",
         },
     )

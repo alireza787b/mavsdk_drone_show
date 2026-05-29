@@ -432,7 +432,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "c55320c16aa42f4c7f5c6f8b92e3aa318165002dd3cbbde4c44815981802a495",
+      "content_hash": "7e07a4ac76f680d0dd0558e580dae9b671345a4ab8c1ee04354ee23d13d86457",
       "heading": "Environment Variables",
       "id": "simurgh.operator_guide:006-06-environment-variables",
       "links": [],
@@ -446,7 +446,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "General robotics/MDS-adjacent answers that should not be misrouted to live GCS\ntools are curated in `config/agent_general_knowledge.yaml`. Keep that file small\nand public-safe: it is for definitions such as drone/MAVLink and external-data\nfallbacks such as weather when no live weather evidence source is connected. Do\nnot put private field facts, credentials, network maps, or operator transcripts\nthere. If a new general topic becomes PM-critical, add it to that config, add an\neval/test, and keep the answer conversational while clearly separating general\nknowledge from live vehicle or flight-readiness evidence.\n\nPublic geography/distance prompts use `config/agent_public_places.yaml` plus\ndeterministic geodesy math before falling back to the provider. This prevents a\ngeneral model from guessing coordinates or distances for reviewed demo/operator\nplaces. Keep it limited to public, non-sensitive references; never add private\nmission coordinates, customer sites, launch positions, or field logs. If a place\nis missing and exact public data matters, enable the public web-search lane and\nrequire citations instead of inventing a value.",
+      "text": "General robotics/MDS-adjacent answers that should not be misrouted to live GCS\ntools are curated in `config/agent_general_knowledge.yaml`. Keep that file small\nand public-safe: it is for definitions such as drone/MAVLink and external-data\nfallbacks such as weather when no live weather evidence source is connected. Do\nnot put private field facts, credentials, network maps, or operator transcripts\nthere. If a new general topic becomes review-critical, add it to that config, add an\neval/test, and keep the answer conversational while clearly separating general\nknowledge from live vehicle or flight-readiness evidence.\n\nPublic geography/distance prompts use `config/agent_public_places.yaml` plus\ndeterministic geodesy math before falling back to the provider. This prevents a\ngeneral model from guessing coordinates or distances for reviewed demo/operator\nplaces. Keep it limited to public, non-sensitive references; never add private\nmission coordinates, customer sites, launch positions, or field logs. If a place\nis missing and exact public data matters, enable the public web-search lane and\nrequire citations instead of inventing a value.",
       "title": "Simurgh operator guide"
     },
     {
@@ -474,7 +474,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "e6315c023eaeb1ca970205fdf48f51cac9bd8abb87df658db9418be156729910",
+      "content_hash": "baa5bdf6f7a965fa45d13f158dbd27ec0e6795bbf87c6107426636bc19119dde",
       "heading": "Query Planning And Retrieval Context",
       "id": "simurgh.operator_guide:007-02-query-planning-and-retrieval-context",
       "links": [
@@ -490,7 +490,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "Retrieval quality checks live in\n`docs/agent-context/evals/simurgh-retrieval-quality.yaml` and\n`tests/test_simurgh_retrieval_quality.py`. Keep PM-critical prompts in that eval\nset whenever a retrieval or query-planning change is made.\n\nDesign references for reviewers:\n\n- OpenAI Responses/tool guidance: https://developers.openai.com/api/docs/guides/tools\n- IBM RAG overview: https://www.ibm.com/think/topics/retrieval-augmented-generation\n- IBM mtRAG benchmark: https://research.ibm.com/publications/mtrag-a-multi-turn-conversational-benchmark-for-evaluating-retrieval-augmented-generation-systems--1\n- Microsoft GraphRAG query engine: https://microsoft.github.io/graphrag/query/overview/\n- LangGraph agentic RAG tutorial: https://docs.langchain.com/oss/python/langgraph/agentic-rag\n- MCP tools/resources/security guidance: https://modelcontextprotocol.io/specification/draft/server/tools\n\nPM smoke prompts to keep healthy:\n\n- `How many drones do we have configured?`\n- `What is the swarm formation planned now?`\n- `What drone show is planned now and how long will it take?`\n- `Is there a drone show uploaded and ready?`\n- `Is there any uploaded?` after a drone-show turn\n- `What is the scout drone IP?`\n- `If I want to add a third drone now, what workflow must be done?`\n- `Check latest backend logs and report anything worth mentioning for operation`\n- `What does it mean?` after a logs turn\n- `What runtime are we in, and how do I switch to SITL safely?`\n- `Can you check backend log warnings?`\n- `Give me links for setting up a new board, env, and keys.`\n- `Give me links for creating a SITL demo.`\n- `If I allowed it, what APIs would be needed for takeoff/hold/move/return?`\n\nDoc-link prompts must never fall through to connectivity checks just because\nthey contain the word `link`; this is covered by\n`tests/test_agent_assistant_runtime.py`.",
+      "text": "Retrieval quality checks live in\n`docs/agent-context/evals/simurgh-retrieval-quality.yaml` and\n`tests/test_simurgh_retrieval_quality.py`. Keep review-critical prompts in that eval\nset whenever a retrieval or query-planning change is made.\n\nDesign references for reviewers:\n\n- OpenAI Responses/tool guidance: https://developers.openai.com/api/docs/guides/tools\n- IBM RAG overview: https://www.ibm.com/think/topics/retrieval-augmented-generation\n- IBM mtRAG benchmark: https://research.ibm.com/publications/mtrag-a-multi-turn-conversational-benchmark-for-evaluating-retrieval-augmented-generation-systems--1\n- Microsoft GraphRAG query engine: https://microsoft.github.io/graphrag/query/overview/\n- LangGraph agentic RAG tutorial: https://docs.langchain.com/oss/python/langgraph/agentic-rag\n- MCP tools/resources/security guidance: https://modelcontextprotocol.io/specification/draft/server/tools\n\nReviewer smoke prompts to keep healthy:\n\n- `How many drones do we have configured?`\n- `What is the swarm formation planned now?`\n- `What drone show is planned now and how long will it take?`\n- `Is there a drone show uploaded and ready?`\n- `Is there any uploaded?` after a drone-show turn\n- `What is the scout drone IP?`\n- `If I want to add a third drone now, what workflow must be done?`\n- `Check latest backend logs and report anything worth mentioning for operation`\n- `What does it mean?` after a logs turn\n- `What runtime are we in, and how do I switch to SITL safely?`\n- `Can you check backend log warnings?`\n- `Give me links for setting up a new board, env, and keys.`\n- `Give me links for creating a SITL demo.`\n- `If I allowed it, what APIs would be needed for takeoff/hold/move/return?`\n\nDoc-link prompts must never fall through to connectivity checks just because\nthey contain the word `link`; this is covered by\n`tests/test_agent_assistant_runtime.py`.",
       "title": "Simurgh operator guide"
     },
     {
@@ -622,7 +622,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "4e23ffebe50a44a6b626cb067a9c7c121b2910bb804492452c9079e007d31c65",
+      "content_hash": "ce107cadc2abf22d2f803ccb4d65968d79bf113a580f3c4c5d657cc44def53d0",
       "heading": "Generated OpenAPI Candidates",
       "id": "simurgh.operator_guide:012-01-generated-openapi-candidates",
       "links": [
@@ -638,7 +638,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "### Generated OpenAPI Candidates\n\n`tools/generate_simurgh_tool_candidates.py` reads the FastAPI OpenAPI schema and\nwrites `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`.\nThis artifact is a reviewer menu only. It is not loaded by the runtime registry,\nand every generated entry has `callable: false`.\n\nPromotion path:\n\n```text\nOpenAPI route\n -> generated non-callable candidate\n -> human classification in config/agent_tools.yaml\n -> policy review in config/agent_policy.yaml\n -> typed input/output contract\n -> docs, tests, safety notes, reviewer approval\n -> MCP tools/list and tools/call exposure\n```\n\nThis keeps MDS compatible with FastAPI-MCP, FastMCP, MCPify, or a future better\nadapter without making any adapter the safety boundary. No FastAPI-MCP, FastMCP,\nor MCPify runtime dependency is active in this slice, and no automatic\nOpenAPI-to-MCP route exposure is enabled. Auto-discovery speeds up review; it\ndoes not grant execution rights. Route-specific promotions such as the SkyBrush\nmetrics snapshot are registry entries over auto-discovered API routes, not\nseparate hardcoded chat branches. The dashboard assistant and external MCP\nclients should converge on the same registry/policy/tool executor as capability\ncoverage grows.",
+      "text": "### Generated OpenAPI Candidates\n\n`tools/generate_simurgh_tool_candidates.py` reads the FastAPI OpenAPI schema and\nwrites `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`.\nThis artifact is a reviewer menu only. It is not loaded by the runtime registry,\nand every generated entry has `callable: false`.\n\nPromotion path:\n\n```text\nOpenAPI route\n -> generated non-callable candidate\n -> human classification in config/agent_tools.yaml\n -> policy review in config/agent_policy.yaml\n -> typed input/output contract\n -> docs, tests, safety notes, reviewer approval\n -> MCP tools/list and tools/call exposure\n```\n\nThis keeps MDS compatible with FastAPI-MCP, FastMCP, MCPify, or a future better\nadapter without making any adapter the safety boundary. No FastAPI-MCP, FastMCP,\nor MCPify runtime dependency is active in this slice, and no automatic\nOpenAPI-to-MCP route exposure is enabled. Auto-discovery speeds up review; it\ndoes not grant execution rights. Route-specific promotions such as the SkyBrush\nmetrics snapshot are registry entries over auto-discovered API routes, not\nseparate hardcoded chat branches. The dashboard assistant and external MCP\nclients should converge on the same registry/policy/tool executor as capability\ncoverage grows.\n\nThe review endpoint also reports `summary.registry_coverage`. That section\ncompares generator-eligible read-only routes against `config/agent_tools.yaml`\nand groups any still-unpromoted routes by API/dashboard area. Use it as the\nslice-planning gate for read-only completion: a route may be visible in the\ncandidate menu, but it is not callable through MCP or Simurgh until it is\npromoted with typed arguments, docs, tests, safety notes, and reviewer approval.",
       "title": "Simurgh operator guide"
     },
     {
@@ -726,7 +726,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "fa825de69ef036391fb31cc410e05194386a89d4b95b976ae472f1df3bab472c",
+      "content_hash": "a09d2a72c182a8ae9560b18c333ffd37d66a3bb2a9c783c20bc3982f35d26cff",
       "heading": "Orchestration Trace And Language Profile",
       "id": "simurgh.operator_guide:016-01-orchestration-trace-and-language-profile",
       "links": [],
@@ -740,7 +740,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "### Orchestration Trace And Language Profile\n\nAssistant turn responses include a sanitized `trace` object for PM/test review. It exposes provider/model, session topic, query domain/confidence, selected local tool intent, retrieved-context count, safety posture, and a language/tone profile. It never includes the raw operator message, secrets, or returned provider content.\n\nThe language profile is deterministic metadata from `gcs-server/agent_runtime/language.py`. Current behavior is:\n\n- English/operator prompts continue through deterministic routing and local read-only tools.\n- Non-English prompts are detected by language/script/tone and provider prompts receive same-language response guidance when the turn safely reaches the provider.\n- Query adaptation before tool routing is handled by `gcs-server/agent_runtime/query_adaptation.py` using reviewed rules from `config/agent_query_adaptation.yaml`.\n- The adapter produces a canonical routing text for intent detection and retrieval while trace metadata exposes only language, strategy, and rule ids. Raw operator text is not exposed in trace/history.\n- Local read-only tools can now route common typo-heavy and multilingual fleet/show/log/setup prompts through the same MCP-backed advisory tool path.\n- Local read-only answers are still rendered in English. Full localized rendering for GCS-state answers remains a future slice because sending fleet IPs, logs, or live config to an external model just to translate would be a data-egress risk.\n\nThis keeps the current demo safe while giving the architecture a clean migration path toward broader multilingual query rewrite, hybrid retrieval, local/approved translation adapters, and localized answer rendering.",
+      "text": "### Orchestration Trace And Language Profile\n\nAssistant turn responses include a sanitized `trace` object for reviewer/test review. It exposes provider/model, session topic, query domain/confidence, selected local tool intent, retrieved-context count, safety posture, and a language/tone profile. It never includes the raw operator message, secrets, or returned provider content.\n\nThe language profile is deterministic metadata from `gcs-server/agent_runtime/language.py`. Current behavior is:\n\n- English/operator prompts continue through deterministic routing and local read-only tools.\n- Non-English prompts are detected by language/script/tone and provider prompts receive same-language response guidance when the turn safely reaches the provider.\n- Query adaptation before tool routing is handled by `gcs-server/agent_runtime/query_adaptation.py` using reviewed rules from `config/agent_query_adaptation.yaml`.\n- The adapter produces a canonical routing text for intent detection and retrieval while trace metadata exposes only language, strategy, and rule ids. Raw operator text is not exposed in trace/history.\n- Local read-only tools can now route common typo-heavy and multilingual fleet/show/log/setup prompts through the same MCP-backed advisory tool path.\n- Local read-only answers are still rendered in English. Full localized rendering for GCS-state answers remains a future slice because sending fleet IPs, logs, or live config to an external model just to translate would be a data-egress risk.\n\nThis keeps the current demo safe while giving the architecture a clean migration path toward broader multilingual query rewrite, hybrid retrieval, local/approved translation adapters, and localized answer rendering.",
       "title": "Simurgh operator guide"
     },
     {
@@ -786,7 +786,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "c5245bcb04d6543a9c6b57ff497c19d75889c762e1e965afb085a7fd635340fc",
+      "content_hash": "1b2f14dc95806cd1e865d8d92503a9a2101b81913b930108c3695facab9574bf",
       "heading": "Composer Coverage Expansion",
       "id": "simurgh.operator_guide:018-01-composer-coverage-expansion",
       "links": [],
@@ -800,7 +800,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "### Composer Coverage Expansion\n\nThe reusable answer composer now covers the PM-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.\n\nTables are intentional for compact operational comparison, but each answer must remain readable as plain Markdown for clients that do not render rich UI. New local tools should prefer `AnswerComposer` before adding custom string templates.",
+      "text": "### Composer Coverage Expansion\n\nThe reusable answer composer now covers the operator-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.\n\nTables are intentional for compact operational comparison, but each answer must remain readable as plain Markdown for clients that do not render rich UI. New local tools should prefer `AnswerComposer` before adding custom string templates.",
       "title": "Simurgh operator guide"
     },
     {
@@ -827,7 +827,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "a28b931ab4b63183b26cb97435afa3286fe7f2b4cdd70d5bbe843d24037a7791",
+      "content_hash": "beda7627ba6bc930fb5104e9f7eef907db774d5eba149f95a378b2a8b4a43193",
       "heading": "MDS Endpoint",
       "id": "simurgh.mcp_client_recipes:002-01-mds-endpoint",
       "links": [],
@@ -842,13 +842,13 @@
         "clients",
         "integrations"
       ],
-      "text": "## MDS Endpoint\n\nThe Simurgh MCP endpoint is:\n\n```text\nPOST https://<gcs-host>/api/v1/simurgh/mcp\n```\n\nFor the current Hetzner production demo, the API port is `5030`, but production\nclients should use the approved HTTPS hostname or gateway when available. Do not\npublish a field GCS directly to the internet only to make an MCP client work.\n\nRequired runtime posture for this read-only slice:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=true\nMDS_MCP_REQUIRE_AUTH=true\nMDS_MCP_REQUIRED_SCOPES=agent,admin\nMDS_AGENT_ACTION_CIRCUIT_BREAKER=true\nMDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true\n```\n\n`MDS_MODE` remains the canonical real-vs-SITL GCS runtime switch. MCP does not\nhave a separate real/SITL mode. When the circuit breaker is on, action-capable\nfuture tools must dry-run to the last execution layer and report what would have\nbeen executed instead of mutating GCS state.",
+      "text": "## MDS Endpoint\n\nThe Simurgh MCP endpoint is:\n\n```text\nPOST https://<gcs-host>/api/v1/simurgh/mcp\n```\n\nFor the current production-style demo, the API port is `5030`, but production\nclients should use the approved HTTPS hostname or gateway when available. Do not\npublish a field GCS directly to the internet only to make an MCP client work.\n\nRequired runtime posture for this read-only slice:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=true\nMDS_MCP_REQUIRE_AUTH=true\nMDS_MCP_REQUIRED_SCOPES=agent,admin\nMDS_AGENT_ACTION_CIRCUIT_BREAKER=true\nMDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true\n```\n\n`MDS_MODE` remains the canonical real-vs-SITL GCS runtime switch. MCP does not\nhave a separate real/SITL mode. When the circuit breaker is on, action-capable\nfuture tools must dry-run to the last execution layer and report what would have\nbeen executed instead of mutating GCS state.",
       "title": "Simurgh MCP client recipes"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "1863dc269456284b53f44888742ccc72ecd81bf324ff13e65c935e8c869bfb49",
+      "content_hash": "156e9283f54f991dbb8f8e4e2943fd539b13fc3a6016f2b2042aea9e639a65dd",
       "heading": "Current Tool Surface",
       "id": "simurgh.mcp_client_recipes:003-01-current-tool-surface",
       "links": [],
@@ -863,13 +863,13 @@
         "clients",
         "integrations"
       ],
-      "text": "## Current Tool Surface\n\n`tools/list` exposes reviewed read-only tools only. The important operator-facing\nentries are:\n\n- `mds.operator.question.answer`\n- `mds.docs.search`\n- `mds.docs.chunk.read`\n- `mds.logs.sessions.read`\n- `mds.logs.session.read`\n- approved read-only fleet, show, runtime, and policy status tools\n\nGenerated OpenAPI candidates are available as a review resource, not as callable\ntools. A new FastAPI route is not executable through MCP until it is promoted\nthrough `config/agent_tools.yaml`, `config/agent_policy.yaml`, typed schemas,\ndocs, tests, and reviewer approval.\n\nFor PM/developer review, inspect the generated candidate inventory through:\n\n```http\nGET /api/v1/simurgh/tool-candidates?limit=200\n```\n\nThis endpoint reports generator-inferred eligibility, risk class, sensitivity,\nreview reasons, and existing curated registry matches. It is read-only and does\nnot affect `tools/list`.",
+      "text": "## Current Tool Surface\n\n`tools/list` exposes reviewed read-only tools only. The important operator-facing\nentries are:\n\n- `mds.operator.question.answer`\n- `mds.docs.search`\n- `mds.docs.chunk.read`\n- `mds.logs.sessions.read`\n- `mds.logs.session.read`\n- approved read-only fleet, show, runtime, and policy status tools\n\nGenerated OpenAPI candidates are available as a review resource, not as callable\ntools. A new FastAPI route is not executable through MCP until it is promoted\nthrough `config/agent_tools.yaml`, `config/agent_policy.yaml`, typed schemas,\ndocs, tests, and reviewer approval.\n\nFor reviewer/developer review, inspect the generated candidate inventory through:\n\n```http\nGET /api/v1/simurgh/tool-candidates?limit=200\n```\n\nThis endpoint reports generator-inferred eligibility, risk class, sensitivity,\nreview reasons, and existing curated registry matches. It is read-only and does\nnot affect `tools/list`.\n\nThe same response includes `summary.registry_coverage`, which is the review/dev\ncoverage gate for read-only completion. It shows how many generator-eligible\nread-only routes have already been promoted into `config/agent_tools.yaml`, how\nmany are still unpromoted, and a grouped preview of the remaining API areas.\nUnpromoted candidates are discovery/review items only; external MCP clients\ncannot call them until the curated registry and policy promote them.",
       "title": "Simurgh MCP client recipes"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "eda2bc7a4c1092adb637af395d0527e1de9119f68cd7a27f3faa51f9cfd681cf",
+      "content_hash": "6882a14501a1eef883b817c18dcf06c706ab12e701356a0709505c1cfa03afbd",
       "heading": "Authentication Contract",
       "id": "simurgh.mcp_client_recipes:004-01-authentication-contract",
       "links": [],
@@ -884,7 +884,7 @@
         "clients",
         "integrations"
       ],
-      "text": "## Authentication Contract\n\nProduction MCP access requires an agent/admin bearer token:\n\n```http\nAuthorization: Bearer <agent-or-admin-token>\n```\n\nBearer tokens are deployment secrets. Store them in the client secret store or an\nenvironment variable owned by a local bridge. Do not commit tokens into\n`mcp.json`, n8n workflow JSON, screenshots, prompts, or PM reports.\n\nThe GCS MCP endpoint advertises OAuth protected-resource metadata and rejects\ncookie-session auth for MCP. Agent bearer tokens are scoped to Simurgh/MCP paths\nand cannot be reused as general GCS API tokens.",
+      "text": "## Authentication Contract\n\nProduction MCP access requires an agent/admin bearer token:\n\n```http\nAuthorization: Bearer <agent-or-admin-token>\n```\n\nBearer tokens are deployment secrets. Store them in the client secret store or an\nenvironment variable owned by a local bridge. Do not commit tokens into\n`mcp.json`, n8n workflow JSON, screenshots, prompts, or review reports.\n\nThe GCS MCP endpoint advertises OAuth protected-resource metadata and rejects\ncookie-session auth for MCP. Agent bearer tokens are scoped to Simurgh/MCP paths\nand cannot be reused as general GCS API tokens.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -15670,7 +15670,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 28,
-      "content_hash": "38c5a14d6ced5f83015ceb989d1a2df0424a3465824d67fd2393d5b3a24a4391",
+      "content_hash": "962135af40779e482527c7bd10c3e97ea58fabea813aa75c2a3efafeeee3b907",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -15687,7 +15687,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "chunk_count": 10,
-      "content_hash": "25e29c6e6a58ce5f36be66b0aba1ce6de8d503c0609ead74647cad0c9d8df02f",
+      "content_hash": "d321cc42711037f0717aafc83f68b7e688af79688cf93b135736ab4cdf7f6364",
       "id": "simurgh.mcp_client_recipes",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",

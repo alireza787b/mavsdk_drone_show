@@ -1062,7 +1062,24 @@ class MdsReadOnlyTools:
             guarded = summary.guarded_count
             excluded = summary.excluded_count
 
-            preview = [f"{tool.title} (`{tool.id}`)" for tool in read_only_menu[:12]]
+            preferred_tool_ids = (
+                "mds.fleet.telemetry.read",
+                "mds.fleet.heartbeats.read",
+                "mds.fleet.network_status.read",
+                "mds.config.fleet.read",
+                "mds.shows.skybrush.read",
+                "mds.shows.skybrush.validation.read",
+                "mds.swarm_trajectories.status.read",
+                "mds.swarm_trajectories.validate.read",
+                "mds.logs.sessions.read",
+                "mds.system.runtime_status.read",
+                "mds.docs.search",
+                "mds.simurgh.tool_candidates.read",
+            )
+            tools_by_id = {tool.id: tool for tool in read_only_menu}
+            preview_tools = [tools_by_id[tool_id] for tool_id in preferred_tool_ids if tool_id in tools_by_id]
+            preview_tools.extend(tool for tool in read_only_menu if tool.id not in preferred_tool_ids)
+            preview = [f"{tool.title} (`{tool.id}`)" for tool in preview_tools[:12]]
             if len(read_only_menu) > 12:
                 preview.append(f"{len(read_only_menu) - 12} more read-only registry tools are available in `config/agent_tools.yaml`.")
             if not preview:

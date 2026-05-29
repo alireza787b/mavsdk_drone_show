@@ -13,7 +13,7 @@ The Simurgh MCP endpoint is:
 POST https://<gcs-host>/api/v1/simurgh/mcp
 ```
 
-For the current Hetzner production demo, the API port is `5030`, but production
+For the current production-style demo, the API port is `5030`, but production
 clients should use the approved HTTPS hostname or gateway when available. Do not
 publish a field GCS directly to the internet only to make an MCP client work.
 
@@ -50,7 +50,7 @@ tools. A new FastAPI route is not executable through MCP until it is promoted
 through `config/agent_tools.yaml`, `config/agent_policy.yaml`, typed schemas,
 docs, tests, and reviewer approval.
 
-For PM/developer review, inspect the generated candidate inventory through:
+For reviewer/developer review, inspect the generated candidate inventory through:
 
 ```http
 GET /api/v1/simurgh/tool-candidates?limit=200
@@ -59,6 +59,13 @@ GET /api/v1/simurgh/tool-candidates?limit=200
 This endpoint reports generator-inferred eligibility, risk class, sensitivity,
 review reasons, and existing curated registry matches. It is read-only and does
 not affect `tools/list`.
+
+The same response includes `summary.registry_coverage`, which is the review/dev
+coverage gate for read-only completion. It shows how many generator-eligible
+read-only routes have already been promoted into `config/agent_tools.yaml`, how
+many are still unpromoted, and a grouped preview of the remaining API areas.
+Unpromoted candidates are discovery/review items only; external MCP clients
+cannot call them until the curated registry and policy promote them.
 
 ## Authentication Contract
 
@@ -70,7 +77,7 @@ Authorization: Bearer <agent-or-admin-token>
 
 Bearer tokens are deployment secrets. Store them in the client secret store or an
 environment variable owned by a local bridge. Do not commit tokens into
-`mcp.json`, n8n workflow JSON, screenshots, prompts, or PM reports.
+`mcp.json`, n8n workflow JSON, screenshots, prompts, or review reports.
 
 The GCS MCP endpoint advertises OAuth protected-resource metadata and rejects
 cookie-session auth for MCP. Agent bearer tokens are scoped to Simurgh/MCP paths

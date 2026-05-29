@@ -90,6 +90,65 @@ def _promoted_tool_payloads(source: Mapping[str, Any], registry_by_route: Mappin
     ]
 
 
+def _candidate_group(path: str) -> str:
+    """Return a stable dashboard/API group label for coverage summaries."""
+
+    parts = [part for part in str(path or "").split("/") if part]
+    if len(parts) >= 3 and parts[0] == "api" and parts[1] == "v1":
+        return parts[2]
+    if len(parts) >= 2 and parts[0] == "api":
+        return parts[1]
+    return parts[0] if parts else "root"
+
+
+def _eligible_registry_coverage(
+    candidates: list[Mapping[str, Any]],
+    *,
+    registry_by_route: Mapping[tuple[str, str], list[ToolDefinition]],
+) -> dict[str, Any]:
+    """Summarize reviewed read-only candidates that still need promotion.
+
+    This is a coverage signal only. It does not make any generated candidate
+    callable and it deliberately keeps promotion behind the curated registry.
+    """
+
+    eligible_sources: list[Mapping[str, Any]] = []
+    promoted = 0
+    unpromoted: list[Mapping[str, Any]] = []
+    by_group: Counter[str] = Counter()
+    for candidate in candidates:
+        classification = _candidate_classification(candidate)
+        if not bool(classification.get("eligible_read_only_mcp_candidate")):
+            continue
+        source = _candidate_source(candidate)
+        eligible_sources.append(source)
+        if _source_key(source) in registry_by_route:
+            promoted += 1
+            continue
+        unpromoted.append(source)
+        by_group[_candidate_group(str(source.get("path") or ""))] += 1
+
+    total = len(eligible_sources)
+    coverage = round((promoted / total) * 100.0, 1) if total else 100.0
+    preview = [
+        {
+            "method": str(source.get("method") or "").upper(),
+            "path": str(source.get("path") or ""),
+            "group": _candidate_group(str(source.get("path") or "")),
+            "summary": str(source.get("summary") or ""),
+        }
+        for source in sorted(unpromoted, key=lambda item: (str(item.get("path") or ""), str(item.get("method") or "")))[:20]
+    ]
+    return {
+        "eligible_route_candidates": total,
+        "eligible_promoted_route_matches": promoted,
+        "eligible_unpromoted_route_count": len(unpromoted),
+        "eligible_promotion_coverage_percent": coverage,
+        "eligible_unpromoted_by_group": dict(sorted(by_group.items())),
+        "eligible_unpromoted_routes_preview": preview,
+    }
+
+
 def summarize_tool_candidates(candidates: list[Mapping[str, Any]], *, registry: ToolRegistry | None = None) -> dict[str, Any]:
     """Return reviewer-focused counts without making any candidate callable."""
 
@@ -123,6 +182,7 @@ def summarize_tool_candidates(candidates: list[Mapping[str, Any]], *, registry: 
         if _source_key(source) in registry_route_keys:
             promoted_route_count += 1
 
+    registry_by_route = _registry_by_route(registry)
     return {
         "total": len(candidates),
         "eligible_read_only_mcp_candidates": eligible_count,
@@ -130,6 +190,10 @@ def summarize_tool_candidates(candidates: list[Mapping[str, Any]], *, registry: 
         "non_get_candidates": non_get_count,
         "request_body_candidates": request_body_count,
         "promoted_registry_route_matches": promoted_route_count,
+        "registry_coverage": _eligible_registry_coverage(
+            candidates,
+            registry_by_route=registry_by_route,
+        ),
         "method_counts": dict(sorted(method_counts.items())),
         "risk_counts": dict(sorted(risk_counts.items())),
         "sensitivity_counts": dict(sorted(sensitivity_counts.items())),

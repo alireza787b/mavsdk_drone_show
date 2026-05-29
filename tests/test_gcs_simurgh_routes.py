@@ -82,6 +82,16 @@ def test_simurgh_tool_candidates_are_review_only_and_filterable():
     assert payload["returned_count"] <= 5
     assert payload["summary"]["eligible_read_only_mcp_candidates"] > 0
     assert "promoted_registry_route_matches" in payload["summary"]
+    coverage = payload["summary"]["registry_coverage"]
+    assert coverage["eligible_route_candidates"] == payload["summary"]["eligible_read_only_mcp_candidates"]
+    assert coverage["eligible_promoted_route_matches"] > 0
+    assert coverage["eligible_unpromoted_route_count"] == 0
+    assert coverage["eligible_promotion_coverage_percent"] == 100.0
+    assert coverage["eligible_unpromoted_by_group"] == {}
+    assert all(
+        set(item) == {"method", "path", "group", "summary"}
+        for item in coverage["eligible_unpromoted_routes_preview"]
+    )
     assert all(candidate["callable"] is False for candidate in payload["candidates"])
     assert all(candidate["classification"]["eligible_read_only_mcp_candidate"] is True for candidate in payload["candidates"])
 
@@ -209,7 +219,7 @@ def test_simurgh_session_creation_sanitizes_metadata(monkeypatch):
             "metadata": {
                 "channel": "dashboard",
                 "source": "simurgh-ui",
-                "raw_prompt": "CM4-99 stopped streaming on 192.168.1.10",
+                "raw_prompt": "CM4-99 stopped streaming on 192.0.2.33",
                 "notes": "customer field evidence",
             },
         },
@@ -224,7 +234,7 @@ def test_simurgh_session_creation_sanitizes_metadata(monkeypatch):
     serialized = str(list_response.json())
     assert "raw_prompt" not in serialized
     assert "CM4-99" not in serialized
-    assert "192.168.1.10" not in serialized
+    assert "192.0.2.33" not in serialized
 
 
 def test_simurgh_session_metadata_rejects_sensitive_allowed_key_values(monkeypatch):
@@ -237,7 +247,7 @@ def test_simurgh_session_metadata_rejects_sensitive_allowed_key_values(monkeypat
             "actor": "operator",
             "metadata": {
                 "channel": "CM4-99",
-                "source": "192.168.1.10",
+                "source": "192.0.2.33",
             },
         },
     )
@@ -247,7 +257,7 @@ def test_simurgh_session_metadata_rejects_sensitive_allowed_key_values(monkeypat
     list_response = client.get("/api/v1/simurgh/sessions")
     serialized = str(list_response.json())
     assert "CM4-99" not in serialized
-    assert "192.168.1.10" not in serialized
+    assert "192.0.2.33" not in serialized
 
 
 def test_simurgh_status_reports_external_assistant_provider(monkeypatch):

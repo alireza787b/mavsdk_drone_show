@@ -46,6 +46,18 @@ Refresh the OpenAPI candidate menu after GCS API changes:
 python3 tools/generate_simurgh_tool_candidates.py
 ```
 
+Review read-only MCP promotion coverage through the Simurgh API after a GCS
+route or registry change:
+
+```http
+GET /api/v1/simurgh/tool-candidates?eligible_read_only=true&limit=200
+```
+
+The response `summary.registry_coverage` is the drift report: it compares
+OpenAPI-discovered read-only candidates with the curated registry. A generated
+candidate is never callable until `config/agent_tools.yaml`, policy, tests,
+docs, and reviewers promote it.
+
 Refresh the public docs search index after changing public context resources or
 operator docs:
 

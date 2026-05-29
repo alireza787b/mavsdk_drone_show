@@ -297,7 +297,7 @@ tools are curated in `config/agent_general_knowledge.yaml`. Keep that file small
 and public-safe: it is for definitions such as drone/MAVLink and external-data
 fallbacks such as weather when no live weather evidence source is connected. Do
 not put private field facts, credentials, network maps, or operator transcripts
-there. If a new general topic becomes PM-critical, add it to that config, add an
+there. If a new general topic becomes review-critical, add it to that config, add an
 eval/test, and keep the answer conversational while clearly separating general
 knowledge from live vehicle or flight-readiness evidence.
 
@@ -348,7 +348,7 @@ contract and be gated by retrieval evals before becoming production default.
 
 Retrieval quality checks live in
 `docs/agent-context/evals/simurgh-retrieval-quality.yaml` and
-`tests/test_simurgh_retrieval_quality.py`. Keep PM-critical prompts in that eval
+`tests/test_simurgh_retrieval_quality.py`. Keep review-critical prompts in that eval
 set whenever a retrieval or query-planning change is made.
 
 Design references for reviewers:
@@ -360,7 +360,7 @@ Design references for reviewers:
 - LangGraph agentic RAG tutorial: https://docs.langchain.com/oss/python/langgraph/agentic-rag
 - MCP tools/resources/security guidance: https://modelcontextprotocol.io/specification/draft/server/tools
 
-PM smoke prompts to keep healthy:
+Reviewer smoke prompts to keep healthy:
 
 - `How many drones do we have configured?`
 - `What is the swarm formation planned now?`
@@ -605,6 +605,13 @@ separate hardcoded chat branches. The dashboard assistant and external MCP
 clients should converge on the same registry/policy/tool executor as capability
 coverage grows.
 
+The review endpoint also reports `summary.registry_coverage`. That section
+compares generator-eligible read-only routes against `config/agent_tools.yaml`
+and groups any still-unpromoted routes by API/dashboard area. Use it as the
+slice-planning gate for read-only completion: a route may be visible in the
+candidate menu, but it is not callable through MCP or Simurgh until it is
+promoted with typed arguments, docs, tests, safety notes, and reviewer approval.
+
 ## GCS API Surface
 
 The foundation API exposes metadata/session/audit/assistant routes plus a
@@ -720,7 +727,7 @@ the code before exposing the context to a model or MCP client.
 
 ### Orchestration Trace And Language Profile
 
-Assistant turn responses include a sanitized `trace` object for PM/test review. It exposes provider/model, session topic, query domain/confidence, selected local tool intent, retrieved-context count, safety posture, and a language/tone profile. It never includes the raw operator message, secrets, or returned provider content.
+Assistant turn responses include a sanitized `trace` object for reviewer/test review. It exposes provider/model, session topic, query domain/confidence, selected local tool intent, retrieved-context count, safety posture, and a language/tone profile. It never includes the raw operator message, secrets, or returned provider content.
 
 The language profile is deterministic metadata from `gcs-server/agent_runtime/language.py`. Current behavior is:
 
@@ -749,6 +756,6 @@ Backend log answers distinguish between status and interpretation. A first log c
 
 ### Composer Coverage Expansion
 
-The reusable answer composer now covers the PM-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.
+The reusable answer composer now covers the operator-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.
 
 Tables are intentional for compact operational comparison, but each answer must remain readable as plain Markdown for clients that do not render rich UI. New local tools should prefer `AnswerComposer` before adding custom string templates.
