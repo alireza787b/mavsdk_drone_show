@@ -89,7 +89,7 @@ term_replacements:
     aliases: [configure, configures, configuré, configurés, configurado, configurados, configurato, configurati, تنظیم, تنظیم شده]
     canonical: configured
   - id: concept.connected
-    aliases: [connecte, connecté, connectés, conectado, conectados, connesso, connected, آنلاین, متصل]
+    aliases: [connecte, connected, conencted, conenct, conenction, connecté, connectés, conectado, conectados, connesso, آنلاین, متصل]
     canonical: connected
   - id: concept.ip
     aliases: [adresse ip, direccion ip, dirección ip, indirizzo ip, ip address, آی پی]

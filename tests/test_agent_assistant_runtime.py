@@ -891,13 +891,13 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
                 "hw_id": 1,
                 "pos_id": 1,
                 "callsign": "SCOUT",
-                "ip": "100.82.72.33",
+                "ip": "192.0.2.33",
                 "mavlink_port": 14550,
             }
         ],
         get_all_drone_positions=lambda: [],
         load_swarm=lambda: [],
-        get_all_heartbeats=lambda: {"1": {"timestamp": int(now * 1000), "ip": "100.82.72.33"}},
+        get_all_heartbeats=lambda: {"1": {"timestamp": int(now * 1000), "ip": "192.0.2.33"}},
         telemetry_data_all_drones={
             "1": {
                 "telemetry_available": True,
@@ -915,6 +915,7 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
     )
 
     assert classify_mds_read_intent("what boards are connected now?") == "fleet_connectivity"
+    assert classify_mds_read_intent("what drones are conencted?") == "fleet_connectivity"
 
     answer = answer_mds_read_only_question(
         "what is their gps status and coordinate?",
