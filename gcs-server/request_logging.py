@@ -16,8 +16,14 @@ _ROUTINE_SUCCESS_PATHS = {
     "/api/v1/system/runtime-status",
     "/api/v1/simurgh/policy",
     "/api/v1/simurgh/status",
+    "/api/health",
+    "/api/v1/system/health",
     "/health",
     "/ping",
+}
+
+_ROUTINE_AUTH_ONLY_PATHS = {
+    "/",
 }
 
 _ROUTINE_AUTH_NOISE_METHODS = {"GET", "HEAD", "OPTIONS"}
@@ -51,7 +57,7 @@ def is_routine_auth_noise_path(path: str, method: str | None = None) -> bool:
     if method is not None and method.upper() not in _ROUTINE_AUTH_NOISE_METHODS:
         return False
 
-    return is_routine_success_path(path)
+    return path in _ROUTINE_AUTH_ONLY_PATHS or is_routine_success_path(path)
 
 
 def get_request_log_level(path: str, status_code: int, method: str | None = None) -> str:

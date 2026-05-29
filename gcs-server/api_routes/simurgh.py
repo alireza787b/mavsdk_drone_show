@@ -938,7 +938,7 @@ async def _handle_mcp_jsonrpc(
     return _mcp_error(request_id, code=JSONRPC_METHOD_NOT_FOUND, message=f"unsupported MCP method: {method}")
 
 
-def create_simurgh_router() -> APIRouter:
+def create_simurgh_router(deps: Any | None = None) -> APIRouter:
     """Create the non-executing Simurgh GCS metadata router."""
 
     router = APIRouter(tags=["Simurgh Operator"])
@@ -1296,6 +1296,7 @@ def create_simurgh_router() -> APIRouter:
                 audit=audit,
                 actor=actor,
                 message=turn_request.message,
+                deps=deps,
                 session_id=turn_request.session_id,
                 mode=turn_request.mode,
                 context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),

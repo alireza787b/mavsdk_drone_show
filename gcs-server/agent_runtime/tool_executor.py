@@ -354,6 +354,7 @@ def execute_policy_allowed_advisory_tool(
     name: str,
     arguments: dict[str, Any],
     channel: str,
+    deps: Any | None = None,
     registry: ToolRegistry | None = None,
     policy: AgentPolicy | None = None,
 ) -> ReadOnlyToolCallResult:
@@ -369,10 +370,10 @@ def execute_policy_allowed_advisory_tool(
         return ReadOnlyToolCallResult.error("Simurgh policy denied this tool call: " + "; ".join(decision.reasons))
     if not is_read_only_advisory_tool(tool):
         return ReadOnlyToolCallResult.error("This Simurgh tool is not a local advisory tool.")
-    return _execute_advisory_tool(tool, arguments)
+    return _execute_advisory_tool(tool, arguments, deps=deps)
 
 
-def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any]) -> ReadOnlyToolCallResult:
+def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, deps: Any | None = None) -> ReadOnlyToolCallResult:
     """Execute a route-less local tool from the same registry used by MCP."""
 
     if tool.id not in LOCAL_TOOL_IDS:
@@ -463,7 +464,7 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any]) -> R
             },
         )
 
-    answer = answer_mds_read_only_question(routing_question, conversation_topic=conversation_topic)
+    answer = answer_mds_read_only_question(routing_question, deps=deps, conversation_topic=conversation_topic)
     if answer is None:
         return ReadOnlyToolCallResult(
             text=(

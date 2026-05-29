@@ -17,7 +17,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import yaml
 from fastapi import HTTPException
@@ -38,6 +38,7 @@ DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
 DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
+LATEST_SESSION_GROUP_SECONDS = 15
 READ_CONVERSATION_TOPICS = frozenset(
     {
         "capabilities",
@@ -133,6 +134,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "general_knowledge"
     if _looks_like_public_geography_question(normalized):
         return "public_geography"
+    if _looks_like_px4_params_question(normalized):
+        return "px4_params_summary"
     if _looks_like_autopilot_support_question(normalized):
         return "autopilot_support"
     if _looks_like_non_mds_general_question(normalized):
@@ -148,6 +151,16 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
 
     if _looks_like_action_capability_question(normalized):
         return "action_capability"
+    if _looks_like_command_summary_question(normalized):
+        return "command_summary"
+    if _looks_like_origin_status_question(normalized):
+        return "origin_status"
+    if _looks_like_sidecar_status_question(normalized):
+        return "sidecar_status"
+    if _looks_like_system_status_question(normalized):
+        return "system_status"
+    if _looks_like_environment_summary_question(normalized):
+        return "environment_summary"
     if _has_any(normalized, ("log", "logs", "warning", "warnings", "error", "errors", "backend")) and _has_any(
         normalized,
         ("check", "see", "show", "what", "which", "any", "have", "list", "summary"),
@@ -296,6 +309,18 @@ def answer_mds_read_only_question(
         return tools.backend_log_summary(response_mode=response_mode, message=message)
     if intent == "action_capability":
         return tools.action_capability()
+    if intent == "system_status":
+        return tools.system_status()
+    if intent == "environment_summary":
+        return tools.environment_summary()
+    if intent == "sidecar_status":
+        return tools.sidecar_status()
+    if intent == "px4_params_summary":
+        return tools.px4_params_summary()
+    if intent == "origin_status":
+        return tools.origin_status()
+    if intent == "command_summary":
+        return tools.command_summary(message=message)
     if intent == "general_knowledge":
         return tools.general_knowledge(message)
     if intent == "public_geography":
@@ -321,8 +346,16 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "setup"
     if normalized_intent == "backend_log_summary":
         return "logs"
-    if normalized_intent == "runtime_summary":
+    if normalized_intent in {"runtime_summary", "system_status", "environment_summary"}:
         return "runtime"
+    if normalized_intent == "sidecar_status":
+        return "setup"
+    if normalized_intent == "px4_params_summary":
+        return "safety"
+    if normalized_intent == "origin_status":
+        return "drone_show"
+    if normalized_intent == "command_summary":
+        return "safety"
     if normalized_intent == "capability_catalog":
         return "capabilities"
     if normalized_intent == "public_geography":
@@ -375,6 +408,8 @@ SAFE_BLOCKED_TERM_READ_ONLY_INTENTS = frozenset(
         "companion_setup_help",
         "docs_help",
         "capability_catalog",
+        "origin_status",
+        "command_summary",
     }
 )
 
@@ -1120,6 +1155,257 @@ class MdsReadOnlyTools:
             ("mds.simurgh.tool_registry.read", "mds.simurgh.policy.read"),
         )
 
+    def system_status(self) -> MdsReadToolAnswer:
+        try:
+            from .assistant import load_default_assistant_config
+            from .policy import load_default_policy
+            from src.settings.runtime import resolve_runtime_mode
+
+            config = load_default_assistant_config()
+            policy = load_default_policy()
+            runtime = resolve_runtime_mode()
+            fleet = self._fleet_config()
+            heartbeats = self._heartbeat_snapshot()
+            telemetry = self._telemetry_snapshot()
+            version = str(getattr(self.deps, "MDS_VERSION", "5.5"))
+
+            composer = AnswerComposer()
+            composer.line("Current GCS/Simurgh health summary:")
+            composer.blank().table(
+                ("Area", "Value"),
+                (
+                    ("GCS API", "healthy/readable from the Simurgh process"),
+                    ("MDS version", version),
+                    ("GCS mode", f"{runtime.mode} ({runtime.source})"),
+                    ("Configured drones", str(len(fleet))),
+                    ("Heartbeat rows", str(len(heartbeats))),
+                    ("Telemetry rows", str(len(telemetry))),
+                    ("Simurgh provider", config.provider),
+                    ("MCP", "enabled" if policy.mcp_enabled else "disabled"),
+                    ("Circuit breaker", "on" if policy.action_circuit_breaker_enabled else "off"),
+                ),
+            )
+            composer.blank().line("Use [Logs](/logs), [Environments](/environments), and [Fleet Ops](/fleet-ops) for deeper read-only drill-downs.")
+            composer.line("No drone command was sent.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"GCS/Simurgh health metadata could not be loaded: {exc}"
+        return self._answer(
+            "system_status",
+            content,
+            ("mds.system.health.read", "mds.system.runtime_status.read", "mds.simurgh.status.read"),
+        )
+
+    def environment_summary(self) -> MdsReadToolAnswer:
+        try:
+            from src.settings.env_registry import load_env_registry
+
+            registry = load_env_registry()
+            entries = list(registry.entries.values())
+            editable = [entry for entry in entries if bool(getattr(entry, "editable", False))]
+            restart_required = [entry for entry in editable if str(getattr(entry, "restart_required", "never")) not in {"never", "false", "False"}]
+            raw_secret = [entry for entry in entries if str(getattr(entry, "ui_visibility", "")) == "raw_secret"]
+            domains: dict[str, int] = {}
+            for entry in entries:
+                domain = str(getattr(entry, "domain", "other") or "other")
+                domains[domain] = domains.get(domain, 0) + 1
+
+            composer = AnswerComposer()
+            composer.line("MDS environment registry summary:")
+            composer.blank().table(
+                ("Area", "Value"),
+                (
+                    ("Registry file", "`config/mds_environment_registry.yaml`"),
+                    ("Registered keys", str(len(entries))),
+                    ("Editable keys", str(len(editable))),
+                    ("Restart/apply-sensitive editable keys", str(len(restart_required))),
+                    ("Raw secret keys", str(len(raw_secret))),
+                ),
+            )
+            if domains:
+                composer.blank().line("Registered domains:")
+                composer.bullets(f"{domain}: {count}" for domain, count in sorted(domains.items()))
+            composer.blank().line("Edit safe GCS settings in [Environment registry](/environments). Secrets stay server-side; Simurgh reports readiness/fingerprints, not raw values.")
+            composer.line("No environment value was changed and no drone command was sent.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"Environment registry metadata could not be loaded: {exc}"
+        return self._answer(
+            "environment_summary",
+            content,
+            ("mds.system.env_registry.read", "mds.system.env_gcs.read"),
+            response_mode="interpret",
+        )
+
+    def sidecar_status(self) -> MdsReadToolAnswer:
+        try:
+            from src.managed_runtime_status import build_connectivity_runtime_summary, build_mavlink_runtime_summary
+
+            wifi = build_connectivity_runtime_summary(REPO_ROOT)
+            mavlink = build_mavlink_runtime_summary(REPO_ROOT)
+            composer = AnswerComposer()
+            composer.line("Fleet Ops sidecar dashboard summary:")
+            composer.blank().table(
+                ("Sidecar", "Purpose", "Dashboard", "Status"),
+                (
+                    (
+                        "smart-wifi-manager",
+                        "Wi-Fi profile/status management",
+                        "[Wi-Fi profiles](/fleet-ops/wifi), default node port `9080`",
+                        _sidecar_runtime_status(wifi),
+                    ),
+                    (
+                        "mavlink-anywhere",
+                        "MAVLink routing/status management",
+                        "[MAVLink profiles](/fleet-ops/mavlink), default node port `9070`",
+                        _sidecar_runtime_status(mavlink),
+                    ),
+                ),
+            )
+            composer.blank().line("Use [Fleet Ops](/fleet-ops) for fleet-wide sidecar posture, node drift, and profile sync checks.")
+            composer.line("This is read-only sidecar/runtime inspection; no Wi-Fi, MAVLink, or drone setting was changed.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"Fleet sidecar status could not be loaded: {exc}"
+        return self._answer(
+            "sidecar_status",
+            content,
+            ("mds.fleet.sidecars.read", "mds.fleet.sidecars.connectivity_profile.read"),
+        )
+
+    def px4_params_summary(self) -> MdsReadToolAnswer:
+        try:
+            from params import Params
+            from px4_param_store import build_px4_param_policy_payload, list_repo_profiles
+
+            params_obj = getattr(self.deps, "Params", Params)
+            policy = _model_payload(build_px4_param_policy_payload(params_obj))
+            profiles = _model_payload(list_repo_profiles(params_obj))
+            profile_rows = []
+            for profile in profiles.get("profiles") or []:
+                if not isinstance(profile, Mapping):
+                    continue
+                profile_rows.append(
+                    (
+                        str(profile.get("profile_id") or "profile"),
+                        str(profile.get("name") or "-"),
+                        str(profile.get("entry_count") or 0),
+                        str(profile.get("recommended_scope") or "-"),
+                    )
+                )
+
+            composer = AnswerComposer()
+            composer.line("PX4 parameter support in MDS is read-only/advisory from Simurgh right now.")
+            composer.blank().table(
+                ("Capability", "Current value"),
+                (
+                    ("Profiles available", str(profiles.get("total_profiles", len(profile_rows)))),
+                    ("Supports MDS profiles", str(policy.get("supports_mds_profiles", True))),
+                    ("Snapshot route", "available through GCS API / PX4 Parameters page"),
+                    ("Patch/apply", "not executable by Simurgh in this read-only slice"),
+                ),
+            )
+            if profile_rows:
+                composer.blank().line("Repository profiles:")
+                composer.table(("Profile", "Name", "Entries", "Scope"), profile_rows[:8])
+            composer.blank().line("Use [PX4 Parameters](/px4-params) for snapshots, diffs, reviewed profiles, and patch-job review. Keep PX4 `SYS_ID` unique per vehicle before QGC/MDS tests.")
+            composer.line("No PX4 parameter was read from a drone, changed, imported, or applied by this answer.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"PX4 parameter metadata could not be loaded: {exc}"
+        return self._answer(
+            "px4_params_summary",
+            content,
+            ("mds.px4_params.policy.read", "mds.px4_params.profiles.read"),
+            response_mode="interpret",
+        )
+
+    def origin_status(self) -> MdsReadToolAnswer:
+        origin = self._origin_snapshot()
+        positions = self._positions_by_hw_id()
+        composer = AnswerComposer()
+        composer.line("Origin and launch-position status from GCS configuration:")
+        if origin and origin.get("lat") not in (None, "") and origin.get("lon") not in (None, ""):
+            composer.blank().table(
+                ("Field", "Value"),
+                (
+                    ("Latitude", _fmt_coordinate(_finite_or_none(origin.get("lat")))),
+                    ("Longitude", _fmt_coordinate(_finite_or_none(origin.get("lon")))),
+                    ("Altitude", _fmt_altitude_m(_finite_or_none(origin.get("alt")))),
+                    ("Source", str(origin.get("alt_source") or origin.get("source") or "unknown")),
+                ),
+            )
+        else:
+            composer.blank().line("No mission/global origin is currently set in the GCS origin store.")
+        if positions:
+            composer.blank().line("Configured launch/trajectory start positions:")
+            rows = []
+            for hw_id, item in sorted(positions.items()):
+                rows.append(
+                    (
+                        f"hw {hw_id}",
+                        str(item.get("pos_id", hw_id)),
+                        _fmt_m(item.get("x")),
+                        _fmt_m(item.get("y")),
+                    )
+                )
+            composer.table(("Drone", "Pos", "North", "East"), rows[:12])
+        else:
+            composer.blank().line("No launch/trajectory start positions are visible from the GCS config loader.")
+        composer.blank().line("Edit/check this from [Mission Config](/mission-config) and review deviations at [Origin](/origin) when available.")
+        composer.line("This is read-only configuration inspection; no origin, launch position, route, or drone command was changed.")
+        return self._answer(
+            "origin_status",
+            composer.render(),
+            ("mds.origin.read", "mds.navigation.global_origin.read", "mds.config.positions.read"),
+        )
+
+    def command_summary(self, message: str = "") -> MdsReadToolAnswer:
+        snapshot = self._command_tracker_snapshot()
+        composer = AnswerComposer()
+        composer.line("GCS command tracker summary:")
+        if not snapshot.get("available"):
+            composer.blank().line("The command tracker is not available from this Simurgh process.")
+        else:
+            stats = snapshot.get("stats") if isinstance(snapshot.get("stats"), Mapping) else {}
+            active = snapshot.get("active") if isinstance(snapshot.get("active"), list) else []
+            recent = snapshot.get("recent") if isinstance(snapshot.get("recent"), list) else []
+            composer.blank().table(
+                ("Metric", "Value"),
+                (
+                    ("Active commands", str(len(active))),
+                    ("Recent commands retained", str(len(recent))),
+                    ("Total commands since tracker start", str(stats.get("total_commands", 0))),
+                    ("Successful", str(stats.get("successful_commands", 0))),
+                    ("Failed", str(stats.get("failed_commands", 0))),
+                    ("Partial", str(stats.get("partial_commands", 0))),
+                ),
+            )
+            selected = active if _has_domain_signal(_normalize_text(message), ("active", "running", "in progress")) else recent[:8]
+            if selected:
+                composer.blank().line("Command records:")
+                composer.table(
+                    ("Command", "Mission", "Phase", "Status", "Targets"),
+                    (
+                        (
+                            str(item.get("command_id") or "")[:12],
+                            str(item.get("mission_name") or item.get("mission_type") or "-"),
+                            str(item.get("phase") or "-"),
+                            str(item.get("status") or "-"),
+                            ", ".join(str(target) for target in item.get("target_drones") or ()) or "-",
+                        )
+                        for item in selected
+                    ),
+                )
+            else:
+                composer.blank().line("No active/recent command records are currently retained in the tracker.")
+        composer.blank().line("Open the command/audit UI for full command details. This is read-only tracker inspection; no command was submitted, retried, or cancelled.")
+        return self._answer(
+            "command_summary",
+            composer.render(),
+            ("mds.commands.active.read", "mds.commands.recent.read", "mds.commands.statistics.read"),
+        )
+
     def runtime_summary(self) -> MdsReadToolAnswer:
         try:
             from .assistant import load_default_assistant_config
@@ -1450,7 +1736,10 @@ class MdsReadOnlyTools:
     def _recent_warning_events(self, *, window_seconds: int | None = None) -> tuple[list[dict[str, Any]], list[str]]:
         events: list[dict[str, Any]] = []
         scanned: list[str] = []
-        for candidate in _log_file_candidates():
+        candidates = _log_file_candidates()
+        if window_seconds is None:
+            candidates = _latest_session_log_candidates(candidates)
+        for candidate in candidates:
             if not candidate.is_file():
                 continue
             label = _path_label(candidate)
@@ -1543,6 +1832,42 @@ class MdsReadOnlyTools:
             return {_as_str(key): _copy_mapping(value) for key, value in (get_all_heartbeats() or {}).items()}
         except Exception:
             return {}
+
+    def _origin_snapshot(self) -> dict[str, Any]:
+        loader = getattr(self.deps, "load_origin", None)
+        if callable(loader):
+            try:
+                return _copy_mapping(loader() or {})
+            except Exception:
+                return {}
+        try:
+            from origin import load_origin
+
+            return _copy_mapping(load_origin() or {})
+        except Exception:
+            return {}
+
+    def _command_tracker_snapshot(self) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_command_tracker", None)
+        try:
+            tracker = getter() if callable(getter) else None
+            if tracker is None:
+                from command_tracker import get_command_tracker
+
+                tracker = get_command_tracker()
+            commands = list(getattr(tracker, "_commands", {}).values())
+            stats = dict(getattr(tracker, "_stats", {}) or {})
+        except Exception as exc:
+            return {"available": False, "error": str(exc)}
+
+        recent = [_command_record_public_summary(command) for command in commands[-20:]][::-1]
+        active = [item for item in recent if str(item.get("phase") or "").lower() != "terminal"]
+        return {
+            "available": True,
+            "stats": stats,
+            "active": active,
+            "recent": recent,
+        }
 
     def _show_info(self) -> dict[str, Any]:
         try:
@@ -1994,6 +2319,24 @@ def _log_file_candidates() -> list[Path]:
     ]
 
 
+def _latest_session_log_candidates(candidates: Sequence[Path]) -> list[Path]:
+    session_files = [path for path in candidates if path.suffix == ".jsonl"]
+    if not session_files:
+        return list(candidates)
+    try:
+        newest = max(path.stat().st_mtime for path in session_files)
+    except OSError:
+        return session_files[:1]
+    latest = []
+    for path in session_files:
+        try:
+            if path.stat().st_mtime >= newest - LATEST_SESSION_GROUP_SECONDS:
+                latest.append(path)
+        except OSError:
+            continue
+    return latest or session_files[:1]
+
+
 def _include_fallback_log_file(path: Path, newest_session_mtime: float | None) -> bool:
     try:
         fallback_mtime = path.stat().st_mtime
@@ -2316,6 +2659,134 @@ def _looks_like_autopilot_support_question(normalized: str) -> bool:
     return _has_domain_signal(
         normalized,
         ("mds", "simurgh", "support", "supports", "supported", "compatible", "work with", "works with", "currently", "today", "now"),
+    )
+
+
+def _looks_like_px4_params_question(normalized: str) -> bool:
+    param_terms = (
+        "param",
+        "params",
+        "parameter",
+        "parameters",
+        "profile",
+        "profiles",
+        "snapshot",
+        "snapshots",
+        "diff",
+        "patch",
+        "sys_id",
+        "mav1_config",
+        "mav_",
+    )
+    if not _has_domain_signal(normalized, ("px4", "sys_id", "mav1_config", "mav_", "parameter", "parameters", "param", "params")):
+        return False
+    return _has_domain_signal(normalized, param_terms)
+
+
+def _looks_like_command_summary_question(normalized: str) -> bool:
+    if _looks_like_direct_execution_request(normalized):
+        return False
+    if not _has_domain_signal(normalized, ("command", "commands", "action", "actions")):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "active",
+            "recent",
+            "history",
+            "status",
+            "statistics",
+            "stats",
+            "list",
+            "show",
+            "any",
+            "what",
+            "which",
+            "last",
+            "current",
+        ),
+    )
+
+
+def _looks_like_origin_status_question(normalized: str) -> bool:
+    return _has_domain_signal(
+        normalized,
+        (
+            "origin",
+            "global origin",
+            "mission origin",
+            "launch position",
+            "launch positions",
+            "start position",
+            "start positions",
+            "trajectory start",
+            "deviation",
+            "deviations",
+        ),
+    ) and _has_domain_signal(normalized, ("status", "current", "what", "where", "show", "configured", "loaded", "set"))
+
+
+def _looks_like_sidecar_status_question(normalized: str) -> bool:
+    if not _has_domain_signal(normalized, ("sidecar", "sidecars", "wifi", "wi-fi", "smart wifi", "mavlink-anywhere", "mavlink dashboard", "fleet ops")):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "status",
+            "dashboard",
+            "dashboards",
+            "port",
+            "ports",
+            "profile",
+            "profiles",
+            "sync",
+            "drift",
+            "wifi",
+            "wi-fi",
+            "mavlink",
+            "where",
+            "what",
+            "which",
+            "exist",
+            "available",
+        ),
+    )
+
+
+def _looks_like_system_status_question(normalized: str) -> bool:
+    if _has_domain_signal(normalized, ("fleet status", "drone status", "show status", "swarm status")):
+        return False
+    return _has_domain_signal(
+        normalized,
+        ("gcs health", "system health", "server health", "health check", "gcs status", "system status"),
+    )
+
+
+def _looks_like_environment_summary_question(normalized: str) -> bool:
+    if _has_domain_signal(
+        normalized,
+        (
+            "new board",
+            "third drone",
+            "3rd drone",
+            "companion computer",
+            "raspberry pi",
+            "cm4",
+            "board setup",
+            "setup new board",
+            "setup new drone",
+            "onboard",
+            "onboarding",
+            "provision",
+            "provisioning",
+        ),
+    ):
+        return False
+    if not _has_domain_signal(normalized, ("environment", "environments", "env", "envs", "api key", "api keys", "openai key", "secret", "secrets")):
+        return False
+    return _has_domain_signal(
+        normalized,
+        ("what", "which", "where", "how", "edit", "change", "configure", "configured", "status", "registry", "settings", "keys"),
     )
 
 
@@ -3512,6 +3983,52 @@ def _extract_hw_id(message: str) -> int | None:
 
 def _copy_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _model_payload(value: Any) -> dict[str, Any]:
+    if hasattr(value, "model_dump"):
+        payload = value.model_dump(mode="json")
+        return dict(payload) if isinstance(payload, Mapping) else {}
+    if isinstance(value, Mapping):
+        return dict(value)
+    return {}
+
+
+def _sidecar_runtime_status(payload: Mapping[str, Any]) -> str:
+    if not isinstance(payload, Mapping) or not payload:
+        return "status unavailable"
+    parts: list[str] = []
+    for key, label in (
+        ("service_status", "service"),
+        ("dashboard_service_status", "dashboard"),
+        ("reconcile_status", "reconcile"),
+        ("management_mode", "mode"),
+        ("dashboard_access_mode", "access"),
+    ):
+        value = payload.get(key)
+        if value not in (None, ""):
+            parts.append(f"{label}: {value}")
+    return "; ".join(parts[:5]) or "configured"
+
+
+def _command_record_public_summary(command: Any) -> dict[str, Any]:
+    return {
+        "command_id": _enum_or_value(getattr(command, "command_id", "")),
+        "mission_type": _enum_or_value(getattr(command, "mission_type", "")),
+        "mission_name": _enum_or_value(getattr(command, "mission_name", "")),
+        "phase": _enum_or_value(getattr(command, "phase", "")),
+        "status": _enum_or_value(getattr(command, "status", "")),
+        "outcome": _enum_or_value(getattr(command, "outcome", "")),
+        "target_drones": list(getattr(command, "target_drones", []) or []),
+        "created_at": getattr(command, "created_at", None),
+        "updated_at": getattr(command, "updated_at", None),
+    }
+
+
+def _enum_or_value(value: Any) -> Any:
+    if hasattr(value, "value"):
+        return getattr(value, "value")
+    return value
 
 
 def _as_str(value: Any) -> str:

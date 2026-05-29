@@ -38,9 +38,13 @@ def test_non_routine_success_paths_remain_info():
 def test_routine_dashboard_auth_noise_is_debug_without_weakening_auth():
     assert is_routine_auth_noise_path("/api/v1/git/status", method="GET") is True
     assert is_routine_auth_noise_path("/api/v1/commands/active", method="HEAD") is True
+    assert is_routine_auth_noise_path("/api/health", method="GET") is True
+    assert is_routine_auth_noise_path("/", method="GET") is True
     assert is_routine_auth_noise_path("/api/v1/system/runtime-status", method="GET") is True
     assert get_request_log_level("/api/v1/git/status", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/commands/active", 403, method="GET") == "DEBUG"
+    assert get_request_log_level("/api/health", 401, method="GET") == "DEBUG"
+    assert get_request_log_level("/", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/system/runtime-status", 401, method="GET") == "DEBUG"
     assert get_request_log_level("/api/v1/simurgh/status", 401, method="GET") == "DEBUG"
 

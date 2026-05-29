@@ -806,7 +806,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "96910f67082b769924c7b44d58d08d09cbc70f4042c176d780846ebe25747681",
+      "content_hash": "a5e225eb4429d3005b1351c0f8523c1b301e53d7265c4ccafc3a66241d709919",
       "heading": "Answer Composer And Follow-Up Behavior",
       "id": "simurgh.operator_guide:019-02-answer-composer-and-follow-up-behavior",
       "links": [],
@@ -820,13 +820,13 @@
         "operator",
         "dashboard"
       ],
-      "text": "Backend log answers distinguish between status and interpretation. A first log check may show the latest warning/error table; a follow-up such as “does this mean something is wrong?” should return a direct operational verdict instead of repeating the same table. Requests with explicit windows such as “last 30 minutes” are filtered to that parsed window when timestamps are available. Text log lines with time-only prefixes such as `03:17:15.633`, JSONL `time`/`timestamp` aliases, and embedded clocks are displayed with the best available time rather than `time n/a`. The scanner prefers the newest session JSONL logs, ignores stale fallback text logs when fresh session logs exist, and suppresses routine unauthenticated dashboard polling noise from the operator warning summary while preserving real POST/non-routine auth failures and server errors.",
+      "text": "Backend log answers distinguish between status and interpretation. A first log check may show the latest warning/error table; a follow-up such as “does this mean something is wrong?” should return a direct operational verdict instead of repeating the same table. Without an explicit time window, “latest logs” means the current/newest GCS session so a stale error from an older service run does not look current after a restart. Requests with explicit windows such as “last 30 minutes” are filtered to that parsed window when timestamps are available and may include previous sessions inside that window. Text log lines with time-only prefixes such as `03:17:15.633`, JSONL `time`/`timestamp` aliases, and embedded clocks are displayed with the best available time rather than `time n/a`. The scanner prefers the newest session JSONL logs, ignores stale fallback text logs when fresh session logs exist, and suppresses routine unauthenticated dashboard polling noise from the operator warning summary while preserving real POST/non-routine auth failures and server errors.",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "1b2f14dc95806cd1e865d8d92503a9a2101b81913b930108c3695facab9574bf",
+      "content_hash": "aa19245d1e35fed96c278634d689b249c3d9928fb0e63f9a37a32f22e7953cd6",
       "heading": "Composer Coverage Expansion",
       "id": "simurgh.operator_guide:020-01-composer-coverage-expansion",
       "links": [],
@@ -840,7 +840,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "### Composer Coverage Expansion\n\nThe reusable answer composer now covers the operator-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.\n\nTables are intentional for compact operational comparison, but each answer must remain readable as plain Markdown for clients that do not render rich UI. New local tools should prefer `AnswerComposer` before adding custom string templates.",
+      "text": "### Composer Coverage Expansion\n\nThe reusable answer composer now covers the operator-visible local answer surfaces: fleet/IP summaries, connectivity, runtime posture, GCS/system health, environment registry summaries, Fleet Ops sidecar dashboards, PX4 parameter profile support, origin/launch-position status, command tracker summaries, MCP/capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. These answers still come from read-only GCS/MDS evidence and still flow through the same policy-gated advisory tool used by MCP. Authenticated OpenAI composition is a presentation layer over that evidence, not a separate source of truth and not a model tool-execution path.\n\nRead-only routing for these surfaces must stay semantic rather than prompt-specific. For example, PX4/ArduPilot support questions must not be routed to PX4 parameter profile status unless the operator explicitly asks about parameters/profiles/snapshots/diffs. Board, drone, or companion setup questions must not be routed to the environment registry merely because they mention env keys; they should remain in setup/onboarding guidance and link to the environment page only where relevant.\n\nTables are intentional for compact operational comparison, but each answer must remain readable as plain Markdown for clients that do not render rich UI. New local tools should prefer `AnswerComposer` before adding custom string templates.",
       "title": "Simurgh operator guide"
     },
     {
@@ -15731,7 +15731,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 30,
-      "content_hash": "23088d66e1bfd2a2085272110580937783b1901d8d1eb62b2ea8b33fba00202f",
+      "content_hash": "b9e2bd9f7b7696c26ff5c19c71015021acaf74d7c24075d3ef424f0cbb15051c",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

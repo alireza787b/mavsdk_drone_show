@@ -873,6 +873,18 @@ def test_backend_log_summary_filters_routine_auth_polling_noise():
     assert _is_routine_auth_noise_event(
         {
             "level": "WARNING",
+            "message": "API GET /api/health -> 401 (0.001s)",
+        }
+    ) is True
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "WARNING",
+            "message": "API GET / -> 401 (0.001s)",
+        }
+    ) is True
+    assert _is_routine_auth_noise_event(
+        {
+            "level": "WARNING",
             "message": "API GET /api/v1/git/status -> 403 (0.001s)",
         }
     ) is True
@@ -913,6 +925,21 @@ def test_backend_log_summary_skips_stale_fallback_log_files(tmp_path):
         fallback,
         newest_session_mtime=fallback_mtime + FALLBACK_LOG_STALE_GRACE_SECONDS + 1,
     ) is False
+
+
+def test_backend_log_summary_defaults_to_latest_session_files(tmp_path):
+    from agent_runtime.mds_read_tools import _latest_session_log_candidates
+
+    old_session = tmp_path / "s_old.jsonl"
+    new_session = tmp_path / "s_new.jsonl"
+    fallback = tmp_path / "mds-gcs.log"
+    for path in (old_session, new_session, fallback):
+        path.write_text("", encoding="utf-8")
+    os.utime(old_session, (1_800_000_000.0, 1_800_000_000.0))
+    os.utime(fallback, (1_800_000_050.0, 1_800_000_050.0))
+    os.utime(new_session, (1_800_000_100.0, 1_800_000_100.0))
+
+    assert _latest_session_log_candidates([old_session, new_session, fallback]) == [new_session]
 
 
 def test_assistant_turn_routes_fleet_followup_from_session_context(monkeypatch):
@@ -1010,6 +1037,124 @@ def test_read_tools_answer_mds_autopilot_support_boundary():
     assert "PX4-first" in answer.content
     assert "not currently supported" in answer.content.lower()
     assert "ArduPilot" in answer.content
+
+
+def test_assistant_turn_answers_origin_launch_positions_as_read_only_status(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    deps = SimpleNamespace(
+        load_origin=lambda: {"lat": 35.0, "lon": 51.0, "alt": 1200.0, "alt_source": "fixture"},
+        get_all_drone_positions=lambda: [
+            {"hw_id": 1, "pos_id": 1, "x": -2.5, "y": 10.0},
+            {"hw_id": 2, "pos_id": 2, "x": -2.5, "y": 5.0},
+        ],
+    )
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="what is current origin and launch position status?",
+        deps=deps,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "origin_status"
+    assert record.turn.blocked_intents == ()
+    assert "Origin and launch-position status" in record.turn.content
+    assert "35.0000000" in record.turn.content
+    assert "No origin" not in record.turn.content
+
+
+def test_assistant_turn_answers_sidecar_px4_system_and_environment_read_only(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    sidecar = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="what wifi and mavlink sidecar dashboards exist?",
+    )
+    assert sidecar.turn.provider == "mds-tools"
+    assert sidecar.audit_event.metadata["tool_intent"] == "sidecar_status"
+    assert "smart-wifi-manager" in sidecar.turn.content
+    assert "/fleet-ops/wifi" in sidecar.turn.content
+    assert "mavlink-anywhere" in sidecar.turn.content
+
+    px4 = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="what px4 params support do we have?",
+    )
+    assert px4.turn.provider == "mds-tools"
+    assert px4.audit_event.metadata["tool_intent"] == "px4_params_summary"
+    assert "PX4 parameter support" in px4.turn.content
+    assert "ArduPilot" not in px4.turn.content
+
+    system = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="what is current GCS health and system status?",
+    )
+    assert system.turn.provider == "mds-tools"
+    assert system.audit_event.metadata["tool_intent"] == "system_status"
+    assert "Current GCS/Simurgh health summary" in system.turn.content
+
+    env = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="which environment settings and API keys can I edit?",
+    )
+    assert env.turn.provider == "mds-tools"
+    assert env.audit_event.metadata["tool_intent"] == "environment_summary"
+    assert "Environment registry" in env.turn.content
+    assert "raw values" in env.turn.content.lower()
+
+
+def test_assistant_turn_answers_command_tracker_summary_from_deps(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    command = SimpleNamespace(
+        command_id="cmd-1234567890",
+        mission_type=10,
+        mission_name="TAKE_OFF",
+        phase="pending_execution",
+        status="submitted",
+        outcome=None,
+        target_drones=["1", "2"],
+        created_at=1,
+        updated_at=2,
+    )
+    tracker = SimpleNamespace(
+        _commands={"cmd-1234567890": command},
+        _stats={
+            "total_commands": 1,
+            "successful_commands": 0,
+            "failed_commands": 0,
+            "partial_commands": 0,
+        },
+    )
+    deps = SimpleNamespace(get_command_tracker=lambda: tracker)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="what commands are active or recent?",
+        deps=deps,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "command_summary"
+    assert "GCS command tracker summary" in record.turn.content
+    assert "TAKE_OFF" in record.turn.content
+    assert "No direct drone API" not in record.turn.content
 
 
 def test_assistant_turn_translates_previous_answer_instead_of_capability_catalog(monkeypatch, tmp_path):

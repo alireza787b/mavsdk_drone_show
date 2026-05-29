@@ -1833,6 +1833,7 @@ def create_assistant_turn(
     audit: InMemoryAuditSink,
     actor: str,
     message: str,
+    deps: Any | None = None,
     session_id: str | None = None,
     mode: str | None = None,
     context_resource_ids: tuple[str, ...] | None = None,
@@ -1970,6 +1971,7 @@ def create_assistant_turn(
                 name=ADVISORY_ANSWER_TOOL_ID,
                 arguments=tool_arguments,
                 channel="agent",
+                deps=deps,
                 policy=policy,
             )
             if tool_result.is_error:
@@ -2070,6 +2072,7 @@ def create_assistant_turn(
                 if not blocked_matches and not sensitive_matches:
                     local_fallback = answer_mds_read_only_question(
                         routing_message,
+                        deps=deps,
                         conversation_topic=conversation_topic,
                     )
                 turn = _provider_failure_turn(
@@ -2161,6 +2164,7 @@ def create_mock_assistant_turn(
     audit: InMemoryAuditSink,
     actor: str,
     message: str,
+    deps: Any | None = None,
     session_id: str | None = None,
     mode: str | None = None,
     context_resource_ids: tuple[str, ...] | None = None,
@@ -2173,6 +2177,7 @@ def create_mock_assistant_turn(
         audit=audit,
         actor=actor,
         message=message,
+        deps=deps,
         session_id=session_id,
         mode=mode,
         context_resource_ids=context_resource_ids,
