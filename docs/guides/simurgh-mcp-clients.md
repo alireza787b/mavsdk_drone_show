@@ -85,8 +85,9 @@ Recommended setup:
 1. Add an AI Agent workflow.
 2. Add the MCP Client Tool node as a tool for that agent.
 3. Select Streamable HTTP / HTTP transport if the n8n version offers a transport
-   selector. Do not select SSE unless MDS exposes an SSE endpoint in a later
-   slice.
+   selector. Do not select SSE for MCP; the dashboard assistant has a separate
+   first-party SSE progress route, but the MCP endpoint remains Streamable HTTP
+   request/response JSON in this slice.
 4. Set the MCP endpoint URL to the approved GCS HTTPS URL ending in
    `/api/v1/simurgh/mcp`.
 5. Configure auth with an agent/admin bearer token in n8n credentials or the

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
@@ -31,6 +33,23 @@ def _write_restricted_key(path, value="test-openai-key\n"):
     path.write_text(value, encoding="utf-8")
     path.chmod(0o600)
     return path
+
+
+def _parse_sse_events(body: str):
+    events = []
+    for block in body.strip().split("\n\n"):
+        if not block.strip():
+            continue
+        event_name = "message"
+        data_lines = []
+        for line in block.splitlines():
+            if line.startswith("event:"):
+                event_name = line.split(":", 1)[1].strip() or "message"
+            elif line.startswith("data:"):
+                data_lines.append(line.split(":", 1)[1].lstrip())
+        if data_lines:
+            events.append((event_name, json.loads("\n".join(data_lines))))
+    return events
 
 
 def test_simurgh_assistant_turn_requires_enabled_agent(monkeypatch):
@@ -80,6 +99,38 @@ def test_simurgh_assistant_turn_creates_mock_session_and_audit(monkeypatch):
     assert history[0]["message_hash"]
     assert history[0]["model"] == "mock-local"
     assert history[0]["adapter_version"] == "mock-v1"
+
+
+def test_simurgh_assistant_turn_streams_progress_delta_final_and_history(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client()
+
+    with client.stream(
+        "POST",
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={"actor": "operator", "message": "How many drones do we have configured?"},
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        body = "".join(response.iter_text())
+
+    events = _parse_sse_events(body)
+    event_names = [event for event, _payload in events]
+    assert event_names[:3] == ["progress", "progress", "progress"]
+    assert "delta" in event_names
+    assert "final" in event_names
+    assert event_names[-1] == "done"
+    progress_labels = [payload["label"] for event, payload in events if event == "progress"]
+    assert "Understanding request" in progress_labels
+    assert "Streaming answer" in progress_labels
+    streamed_content = "".join(payload["text"] for event, payload in events if event == "delta")
+    final_payload = next(payload for event, payload in events if event == "final")
+    assert final_payload["provider"] == "mds-tools"
+    assert "configured drone" in streamed_content.lower()
+    assert streamed_content == final_payload["content"]
+
+    history = client.get("/api/v1/simurgh/assistant/turns", params={"actor": "operator"}).json()["turns"]
+    assert [turn["id"] for turn in history] == [final_payload["id"]]
 
 
 def test_simurgh_assistant_turn_can_use_existing_session(monkeypatch):

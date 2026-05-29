@@ -24,6 +24,7 @@ import {
 } from '../components/ui';
 import {
   createSimurghAssistantTurnResponse,
+  streamSimurghAssistantTurnResponse,
   getSimurghRuntimeSettingsResponse,
   getSimurghStatusResponse,
   getSimurghToolCandidatesResponse,
@@ -131,9 +132,22 @@ function readStoredConversations() {
 
 function writeStoredConversations(conversations) {
   try {
+    const persisted = conversations.slice(0, MAX_CONVERSATIONS).map((conversation) => ({
+      ...conversation,
+      messages: (conversation.messages || [])
+        .filter((message) => message && message.role && message.content && !message.streaming)
+        .map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt,
+          provider: message.provider,
+          model: message.model,
+        })),
+    }));
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ schema: 2, conversations: conversations.slice(0, MAX_CONVERSATIONS) })
+      JSON.stringify({ schema: 2, conversations: persisted })
     );
   } catch (error) {
     // Local chat history is a convenience cache only.
@@ -154,6 +168,15 @@ function titleFromMessage(message) {
     return 'New chat';
   }
   return normalized.length > 54 ? `${normalized.slice(0, 51)}...` : normalized;
+}
+
+function appendProgressStep(steps = [], label = '') {
+  const normalized = String(label || '').trim();
+  if (!normalized) {
+    return steps;
+  }
+  const next = [...steps.filter((step) => step !== normalized), normalized];
+  return next.slice(-5);
 }
 
 function formatConversationTime(value) {
@@ -230,27 +253,6 @@ function SafetyChips({ status }) {
 
 function SimurghMark({ className = '' }) {
   return <img className={['simurgh-chat__mark', className].filter(Boolean).join(' ')} src={simurghMark} alt="" />;
-}
-
-function inferPendingSteps(message, settings) {
-  const normalized = String(message || '').toLowerCase();
-  const steps = ['Understanding request'];
-  const localSignals = [
-    'mds', 'fleet', 'drone', 'drones', 'board', 'boards', 'cm4', 'telemetry', 'gps',
-    'logs', 'warning', 'error', 'swarm', 'drone show', 'skybrush', 'runtime', 'mcp', 'px4', 'mavlink',
-  ];
-  const publicSignals = [
-    'weather', 'today', 'latest', 'current', 'where is', 'how far', 'distance', 'latitude', 'longitude', 'country',
-  ];
-
-  if (localSignals.some((signal) => normalized.includes(signal))) {
-    steps.push('Checking MDS context');
-  }
-  if (settings?.web_search_enabled && publicSignals.some((signal) => normalized.includes(signal))) {
-    steps.push('Checking public references');
-  }
-  steps.push('Composing reply');
-  return steps;
 }
 
 function CandidateReviewSummary({ review }) {
@@ -923,11 +925,28 @@ function MessageContent({ content }) {
   );
 }
 
+function MessageActivity({ progress = [], streaming = false }) {
+  const steps = progress.length ? progress : (streaming ? ['Thinking'] : []);
+  if (!steps.length && !streaming) {
+    return null;
+  }
+  return (
+    <div className="simurgh-chat__progress" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
+      <span className="simurgh-chat__thinking">{streaming ? 'Working' : 'Completed'}</span>
+      {steps.length ? (
+        <div className="simurgh-chat__progress-steps">
+          {steps.map((step) => <span key={step}>{step}</span>)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MessageBubble({ message }) {
   const roleLabel = message.role === 'assistant' ? 'Simurgh' : 'You';
   const copyLabel = message.role === 'assistant' ? 'Copy Simurgh message' : 'Copy your message';
   return (
-    <article className={`simurgh-chat__message simurgh-chat__message--${message.role}`}>
+    <article className={`simurgh-chat__message simurgh-chat__message--${message.role}${message.streaming ? ' simurgh-chat__message--streaming' : ''}`}>
       <div className="simurgh-chat__avatar" aria-hidden="true">
         {message.role === 'assistant' ? <SimurghMark /> : <FaUserShield />}
       </div>
@@ -936,27 +955,8 @@ function MessageBubble({ message }) {
           <span>{roleLabel}</span>
           <CopyButton text={message.content} label={copyLabel} className="simurgh-chat__copy-button--message" />
         </div>
-        <MessageContent content={message.content} />
-      </div>
-    </article>
-  );
-}
-
-function PendingAssistantBubble({ message, settings }) {
-  const steps = inferPendingSteps(message, settings);
-  return (
-    <article className="simurgh-chat__message simurgh-chat__message--assistant simurgh-chat__message--pending">
-      <div className="simurgh-chat__avatar" aria-hidden="true"><SimurghMark /></div>
-      <div className="simurgh-chat__bubble">
-        <div className="simurgh-chat__bubble-header">
-          <span>Simurgh</span>
-        </div>
-        <div className="simurgh-chat__progress" role="status" aria-live="polite">
-          <span className="simurgh-chat__thinking">Thinking</span>
-          <div className="simurgh-chat__progress-steps">
-            {steps.map((step) => <span key={step}>{step}</span>)}
-          </div>
-        </div>
+        {message.role === 'assistant' ? <MessageActivity progress={message.progress || []} streaming={Boolean(message.streaming)} /> : null}
+        {message.content ? <MessageContent content={message.content} /> : null}
       </div>
     </article>
   );
@@ -1020,7 +1020,7 @@ export default function SimurghOperatorPage() {
       return;
     }
     transcript.scrollTop = transcript.scrollHeight;
-  }, [activeConversation?.messages?.length, submitting]);
+  }, [activeConversation?.updatedAt, submitting]);
 
   const loadCandidateReview = useCallback(async () => {
     try {
@@ -1065,6 +1065,16 @@ export default function SimurghOperatorPage() {
       conversation.id === conversationId ? updater(conversation) : conversation
     )));
   }, []);
+
+  const updateConversationMessage = useCallback((conversationId, messageId, updater) => {
+    updateConversation(conversationId, (conversation) => ({
+      ...conversation,
+      updatedAt: nowIso(),
+      messages: conversation.messages.map((message) => (
+        message.id === messageId ? updater(message) : message
+      )),
+    }));
+  }, [updateConversation]);
 
   const handleNewChat = useCallback(() => {
     const conversation = newConversation();
@@ -1147,11 +1157,20 @@ export default function SimurghOperatorPage() {
     }
 
     const conversationId = activeConversation.id;
+    const assistantMessageId = `assistant-stream-${Date.now()}`;
     const userMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: message,
       createdAt: nowIso(),
+    };
+    const assistantPlaceholder = {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      createdAt: nowIso(),
+      streaming: true,
+      progress: ['Understanding request'],
     };
     setDraft('');
     setSubmitting(true);
@@ -1160,7 +1179,7 @@ export default function SimurghOperatorPage() {
       ...conversation,
       title: conversation.messages.length ? conversation.title : titleFromMessage(message),
       updatedAt: nowIso(),
-      messages: [...conversation.messages, userMessage],
+      messages: [...conversation.messages, userMessage, assistantPlaceholder],
     }));
 
     try {
@@ -1174,53 +1193,100 @@ export default function SimurghOperatorPage() {
       if (activeConversation.backendSessionId) {
         payload.session_id = activeConversation.backendSessionId;
       }
-      const response = await createSimurghAssistantTurnResponse(payload, { signal: controller.signal });
-      const data = response?.data || {};
-      const assistantMessage = {
-        id: data.id || `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: data.content || 'No Simurgh response content was returned.',
-        createdAt: data.created_at || nowIso(),
-        provider: data.provider,
-        model: data.model,
-      };
+
+      let finalData = null;
+      try {
+        const response = await streamSimurghAssistantTurnResponse(payload, {
+          signal: controller.signal,
+          onEvent: ({ event: streamEvent, data }) => {
+            if (streamEvent === 'progress') {
+              updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+                ...currentMessage,
+                progress: appendProgressStep(currentMessage.progress || [], data?.label),
+              }));
+            } else if (streamEvent === 'delta') {
+              const text = String(data?.text || '');
+              if (text) {
+                updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+                  ...currentMessage,
+                  content: `${currentMessage.content || ''}${text}`,
+                }));
+              }
+            } else if (streamEvent === 'final') {
+              finalData = data || {};
+              updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+                ...currentMessage,
+                id: finalData.id || currentMessage.id,
+                content: finalData.content || currentMessage.content || 'No Simurgh response content was returned.',
+                createdAt: finalData.created_at || currentMessage.createdAt || nowIso(),
+                provider: finalData.provider,
+                model: finalData.model,
+                streaming: false,
+                progress: [],
+              }));
+            }
+          },
+        });
+        finalData = response?.data || finalData || {};
+      } catch (streamError) {
+        const canFallback = /not available|not readable/i.test(streamError?.message || '');
+        if (!canFallback) {
+          throw streamError;
+        }
+        const response = await createSimurghAssistantTurnResponse(payload, { signal: controller.signal });
+        finalData = response?.data || {};
+      }
+
       updateConversation(conversationId, (conversation) => ({
         ...conversation,
-        backendSessionId: data.session?.id || conversation.backendSessionId,
+        backendSessionId: finalData.session?.id || conversation.backendSessionId,
         updatedAt: nowIso(),
-        messages: [...conversation.messages, assistantMessage],
+        messages: conversation.messages.map((currentMessage) => (
+          currentMessage.id === assistantMessageId || currentMessage.id === finalData.id
+            ? {
+              ...currentMessage,
+              id: finalData.id || currentMessage.id,
+              role: 'assistant',
+              content: finalData.content || currentMessage.content || 'No Simurgh response content was returned.',
+              createdAt: finalData.created_at || currentMessage.createdAt || nowIso(),
+              provider: finalData.provider,
+              model: finalData.model,
+              streaming: false,
+              progress: [],
+            }
+            : currentMessage
+        )),
       }));
       await loadStatus();
     } catch (error) {
-      if (error.name !== 'CanceledError' && error.code !== 'ERR_CANCELED') {
+      if (error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+          ...currentMessage,
+          streaming: false,
+          progress: [],
+          content: currentMessage.content || 'Response stopped.',
+        }));
+      } else {
         const detail = normalizeError(error);
         setChatError(detail);
-        updateConversation(conversationId, (conversation) => ({
-          ...conversation,
-          updatedAt: nowIso(),
-          messages: [
-            ...conversation.messages,
-            {
-              id: `assistant-error-${Date.now()}`,
-              role: 'assistant',
-              content: detail,
-              createdAt: nowIso(),
-            },
-          ],
+        updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
+          ...currentMessage,
+          streaming: false,
+          progress: [],
+          content: detail,
         }));
       }
     } finally {
       setSubmitting(false);
       abortRef.current = null;
     }
-  }, [activeConversation, draft, loadStatus, submitting, updateConversation]);
+  }, [activeConversation, draft, loadStatus, submitting, updateConversation, updateConversationMessage]);
 
   const stopRequest = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
   const activeMessages = activeConversation?.messages || [];
-  const pendingPrompt = [...activeMessages].reverse().find((message) => message.role === 'user')?.content || draft;
   const canSend = draft.trim().length > 0 && !submitting && Boolean(status?.agent_enabled);
   const subtitle = status
     ? `${status.provider || status.assistant_provider || 'mock'} / ${status.openai_model || status.model || status.assistant_model || 'mock-local'}`
@@ -1259,7 +1325,6 @@ export default function SimurghOperatorPage() {
           <div className="simurgh-chat__transcript" ref={transcriptRef}>
             {activeMessages.length === 0 ? <EmptyChat onPickPrompt={setDraft} /> : null}
             {activeMessages.map((message) => <MessageBubble key={message.id} message={message} />)}
-            {submitting ? <PendingAssistantBubble message={pendingPrompt} settings={settings} /> : null}
           </div>
           {chatError ? <div className="simurgh-chat__error" role="alert">{chatError}</div> : null}
           <form className="simurgh-chat__composer" onSubmit={handleSubmit}>

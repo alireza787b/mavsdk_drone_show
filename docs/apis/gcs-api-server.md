@@ -2181,6 +2181,9 @@ Simurgh exposes two separate surfaces on purpose:
 
 - reviewed callable tools: `GET /api/v1/simurgh/tools` and
   `POST /api/v1/simurgh/mcp`
+- first-party dashboard assistant turns:
+  `POST /api/v1/simurgh/assistant/turns` and
+  `POST /api/v1/simurgh/assistant/turns/stream`
 - generated review-only candidates: `GET /api/v1/simurgh/tool-candidates`
 
 `GET /api/v1/simurgh/tool-candidates` reads
@@ -2211,6 +2214,13 @@ OpenAPI route
 
 This lets FastAPI-MCP, FastMCP, MCPify, or future adapters help with discovery
 without replacing the MDS safety boundary.
+
+`POST /api/v1/simurgh/assistant/turns/stream` returns `text/event-stream` for
+the dashboard chat UI. It emits `progress`, `delta`, `final`, `done`, and
+sanitized `error` events. The `final` payload matches the normal assistant-turn
+response shape. This SSE route is not an MCP transport and is not callable from
+the generated OpenAPI candidate menu unless a future reviewed registry/policy
+promotion explicitly approves it.
 
 ---
 

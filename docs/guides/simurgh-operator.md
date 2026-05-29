@@ -12,6 +12,7 @@ usable read-only operator slice:
 - approval, audit, session, and context-index helpers
 - editable agent context files
 - ChatGPT-style dashboard operator chat with local history
+- dashboard assistant progress and answer streaming over a GCS-side SSE route
 - optional advisory-only OpenAI Responses adapter
 - optional MCP endpoint with resources and policy-allowed read-only GCS tools
 - typed arguments for reviewed read-only MCP tools where needed
@@ -248,9 +249,11 @@ MDS_AGENT_OPENAI_API_KEY_FILE=/etc/mds/secrets/openai_api_key
 
 Do not put raw API keys in environment values, config files, docs, commits,
 tests, Telegram reports, or shell history. The OpenAI adapter uses the Responses
-API with `store=false`, no conversation state, no uploaded files, no streaming,
-and no background jobs. `store=false` is a fixed invariant in this slice, not an
-operator-configurable setting.
+API with `store=false`, no conversation state, no uploaded files, no
+provider-native streaming, and no background jobs. `store=false` is a fixed
+invariant in this slice, not an operator-configurable setting. The dashboard may
+use the GCS-side assistant SSE endpoint for progress/delta UI, but that stream
+does not expose model tools or change the provider request invariants.
 `MDS_AGENT_OPENAI_BASE_URL` is pinned to `https://api.openai.com/v1`; custom
 OpenAI-compatible gateways are rejected in this slice to prevent API key egress
 to unreviewed destinations.
@@ -624,6 +627,23 @@ Session routes:
 Assistant scaffold route:
 
 - `POST /api/v1/simurgh/assistant/turns`
+- `POST /api/v1/simurgh/assistant/turns/stream`
+
+The stream route returns `text/event-stream` and emits bounded events for the
+dashboard chat UI:
+
+- `progress`: short stage labels such as policy/context/tool/provider work
+- `delta`: text chunks for incremental rendering inside the assistant bubble
+- `final`: the same sanitized assistant-turn payload returned by the normal
+  `POST /api/v1/simurgh/assistant/turns` route
+- `done`: final id/session marker
+- `error`: sanitized status/detail when orchestration fails
+
+The stream route is for first-party dashboard UX. It is generated as an
+OpenAPI/MCP candidate but remains `callable: false`, `exclude`, and
+review-only. External MCP clients should continue to use
+`POST /api/v1/simurgh/mcp`; MCP itself still uses Streamable HTTP request/response
+JSON in this slice, not SSE.
 
 Session creation requires `MDS_AGENT_ENABLED=true`. If an installation disables
 the agent runtime, operators and maintainers can still inspect policy, tool
@@ -667,8 +687,11 @@ events continue to store hashes rather than raw prompts.
 The dashboard route `/simurgh` displays runtime posture, policy locks,
 registered tools, context resources, active or recorded sessions, audit records,
 and the assistant history for the dashboard actor. The current Simurgh Operator
-page is a minimal chat surface with compact runtime settings. It does not expose
-direct drone APIs, raw command submission, or executable flight controls.
+page is a minimal chat surface with compact runtime settings. New assistant
+turns stream progress and answer chunks in the active message bubble, while the
+final saved local history still stores only completed user/assistant messages.
+It does not expose direct drone APIs, raw command submission, or executable
+flight controls.
 
 The navigation label is **Simurgh Operator** under the System section.
 

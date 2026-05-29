@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 const mockCreateSimurghAssistantTurnResponse = jest.fn();
+const mockStreamSimurghAssistantTurnResponse = jest.fn();
 const mockGetSimurghRuntimeSettingsResponse = jest.fn();
 const mockGetSimurghStatusResponse = jest.fn();
 const mockGetSimurghToolCandidatesResponse = jest.fn();
@@ -11,6 +12,7 @@ const mockUpdateSimurghProviderCredentialsResponse = jest.fn();
 
 jest.mock('../services/gcsApiService', () => ({
   createSimurghAssistantTurnResponse: (...args) => mockCreateSimurghAssistantTurnResponse(...args),
+  streamSimurghAssistantTurnResponse: (...args) => mockStreamSimurghAssistantTurnResponse(...args),
   getSimurghRuntimeSettingsResponse: (...args) => mockGetSimurghRuntimeSettingsResponse(...args),
   getSimurghStatusResponse: (...args) => mockGetSimurghStatusResponse(...args),
   getSimurghToolCandidatesResponse: (...args) => mockGetSimurghToolCandidatesResponse(...args),
@@ -60,6 +62,44 @@ const candidateReviewPayload = {
   candidates: [],
 };
 
+function assistantTurnData(overrides = {}) {
+  return {
+    id: 'turn_1',
+    provider: 'mds-tools',
+    model: 'local-read-only',
+    adapter_version: 'mds-read-tools-v1',
+    created_at: '2026-05-24T00:00:00Z',
+    content: 'Fleet status from GCS configuration: 2 configured drone(s).\n\n- [MDS init setup](/api/v1/simurgh/context/mds.init_setup/markdown)',
+    session: {
+      id: 'sess_assist',
+      actor: 'dashboard',
+      mode: 'read_only',
+      closed: false,
+      ...(overrides.session || {}),
+    },
+    actor: 'dashboard',
+    mode: 'read_only',
+    message_hash: 'abcdef1234567890',
+    message_chars: 34,
+    context_resources: [],
+    blocked_intents: [],
+    safety_notes: ['Answered by local read-only MDS/GCS context tools.'],
+    audit_event_id: 'evt_assist',
+    ...overrides,
+  };
+}
+
+function mockStreamResponseOnce(data) {
+  mockStreamSimurghAssistantTurnResponse.mockImplementationOnce(async (payload, config = {}) => {
+    config.onEvent?.({ event: 'progress', data: { label: 'Understanding request' } });
+    config.onEvent?.({ event: 'progress', data: { label: 'Using MDS context' } });
+    config.onEvent?.({ event: 'delta', data: { text: data.content || '' } });
+    config.onEvent?.({ event: 'final', data });
+    config.onEvent?.({ event: 'done', data: { id: data.id, session_id: data.session?.id } });
+    return { data };
+  });
+}
+
 function renderPage() {
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
@@ -94,29 +134,15 @@ describe('SimurghOperatorPage', () => {
         credentials: runtimePayload.credentials,
       },
     });
-    mockCreateSimurghAssistantTurnResponse.mockResolvedValue({
-      data: {
-        id: 'turn_1',
-        provider: 'mds-tools',
-        model: 'local-read-only',
-        adapter_version: 'mds-read-tools-v1',
-        created_at: '2026-05-24T00:00:00Z',
-        content: 'Fleet status from GCS configuration: 2 configured drone(s).\n\n- [MDS init setup](/api/v1/simurgh/context/mds.init_setup/markdown)',
-        session: {
-          id: 'sess_assist',
-          actor: 'dashboard',
-          mode: 'read_only',
-          closed: false,
-        },
-        actor: 'dashboard',
-        mode: 'read_only',
-        message_hash: 'abcdef1234567890',
-        message_chars: 34,
-        context_resources: [],
-        blocked_intents: [],
-        safety_notes: ['Answered by local read-only MDS/GCS context tools.'],
-        audit_event_id: 'evt_assist',
-      },
+    const defaultTurn = assistantTurnData();
+    mockCreateSimurghAssistantTurnResponse.mockResolvedValue({ data: defaultTurn });
+    mockStreamSimurghAssistantTurnResponse.mockImplementation(async (payload, config = {}) => {
+      config.onEvent?.({ event: 'progress', data: { label: 'Understanding request' } });
+      config.onEvent?.({ event: 'progress', data: { label: 'Using MDS context' } });
+      config.onEvent?.({ event: 'delta', data: { text: defaultTurn.content } });
+      config.onEvent?.({ event: 'final', data: defaultTurn });
+      config.onEvent?.({ event: 'done', data: { id: defaultTurn.id, session_id: defaultTurn.session.id } });
+      return { data: defaultTurn };
     });
   });
 
@@ -172,6 +198,20 @@ describe('SimurghOperatorPage', () => {
   });
 
   test('submits a PM read-only prompt as a normal chat turn', async () => {
+    const finalTurn = assistantTurnData({
+      content: 'Fleet status from GCS configuration: 2 configured drone(s).',
+    });
+    let releaseStream;
+    mockStreamSimurghAssistantTurnResponse.mockImplementationOnce(async (payload, config = {}) => {
+      config.onEvent?.({ event: 'progress', data: { label: 'Using MDS context' } });
+      config.onEvent?.({ event: 'delta', data: { text: 'Fleet status from GCS configuration: ' } });
+      await new Promise((resolve) => { releaseStream = resolve; });
+      config.onEvent?.({ event: 'delta', data: { text: '2 configured drone(s).' } });
+      config.onEvent?.({ event: 'final', data: finalTurn });
+      config.onEvent?.({ event: 'done', data: { id: finalTurn.id, session_id: finalTurn.session.id } });
+      return { data: finalTurn };
+    });
+
     renderPage();
 
     const input = await screen.findByRole('textbox', { name: /message simurgh/i });
@@ -179,12 +219,16 @@ describe('SimurghOperatorPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
     await waitFor(() => {
-      expect(mockCreateSimurghAssistantTurnResponse).toHaveBeenCalledWith({
+      expect(mockStreamSimurghAssistantTurnResponse).toHaveBeenCalledWith({
         actor: 'dashboard',
         message: 'How many drones do we have configured?',
         metadata: { source: 'simurgh-dashboard' },
       }, expect.any(Object));
     });
+    expect(await screen.findByText(/using mds context/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/Fleet status from GCS configuration:/i)).length).toBeGreaterThan(0);
+    await waitFor(() => expect(releaseStream).toEqual(expect.any(Function)));
+    releaseStream();
     const fleetMentions = await screen.findAllByText(/2 configured drone/i);
     expect(fleetMentions.length).toBeGreaterThan(0);
     expect(screen.getAllByText('How many drones do we have configured?').length).toBeGreaterThan(0);
@@ -245,25 +289,15 @@ describe('SimurghOperatorPage', () => {
       'mds show validate --dry-run',
       '```',
     ].join('\n');
-    mockCreateSimurghAssistantTurnResponse.mockResolvedValueOnce({
-      data: {
-        id: 'turn_rich_markdown',
-        provider: 'mds-tools',
-        model: 'local-read-only',
-        adapter_version: 'mds-read-tools-v1',
-        created_at: '2026-05-24T00:00:00Z',
-        content: markdownAnswer,
-        session: { id: 'sess_rich', actor: 'dashboard', mode: 'read_only', closed: false },
-        actor: 'dashboard',
-        mode: 'read_only',
-        message_hash: 'rich-markdown',
-        message_chars: markdownAnswer.length,
-        context_resources: [],
-        blocked_intents: [],
-        safety_notes: [],
-        audit_event_id: 'evt_rich',
-      },
-    });
+    mockStreamResponseOnce(assistantTurnData({
+      id: 'turn_rich_markdown',
+      content: markdownAnswer,
+      session: { id: 'sess_rich' },
+      message_hash: 'rich-markdown',
+      message_chars: markdownAnswer.length,
+      safety_notes: [],
+      audit_event_id: 'evt_rich',
+    }));
 
     renderPage();
 
@@ -291,25 +325,15 @@ describe('SimurghOperatorPage', () => {
   });
 
   test('auto-links safe dashboard routes and known docs paths in assistant answers', async () => {
-    mockCreateSimurghAssistantTurnResponse.mockResolvedValueOnce({
-      data: {
-        id: 'turn_links',
-        provider: 'mds-tools',
-        model: 'local-read-only',
-        adapter_version: 'mds-read-tools-v1',
-        created_at: '2026-05-24T00:00:00Z',
-        content: 'Open /manage-drone-show or /quickscout. Read docs/features/drone-show.md and docs/guides/simurgh-mcp-clients.md and call /api/v1/shows/skybrush/import.',
-        session: { id: 'sess_links', actor: 'dashboard', mode: 'read_only', closed: false },
-        actor: 'dashboard',
-        mode: 'read_only',
-        message_hash: 'links',
-        message_chars: 18,
-        context_resources: [],
-        blocked_intents: [],
-        safety_notes: [],
-        audit_event_id: 'evt_links',
-      },
-    });
+    mockStreamResponseOnce(assistantTurnData({
+      id: 'turn_links',
+      content: 'Open /manage-drone-show or /quickscout. Read docs/features/drone-show.md and docs/guides/simurgh-mcp-clients.md and call /api/v1/shows/skybrush/import.',
+      session: { id: 'sess_links' },
+      message_hash: 'links',
+      message_chars: 18,
+      safety_notes: [],
+      audit_event_id: 'evt_links',
+    }));
 
     renderPage();
 
@@ -330,25 +354,15 @@ describe('SimurghOperatorPage', () => {
   });
 
   test('rejects unsafe markdown links in assistant answers', async () => {
-    mockCreateSimurghAssistantTurnResponse.mockResolvedValueOnce({
-      data: {
-        id: 'turn_unsafe_links',
-        provider: 'mds-tools',
-        model: 'local-read-only',
-        adapter_version: 'mds-read-tools-v1',
-        created_at: '2026-05-24T00:00:00Z',
-        content: '[good](/logs) [source](https://example.com/report) [bad](//evil.example) [js](javascript:alert(1))',
-        session: { id: 'sess_unsafe_links', actor: 'dashboard', mode: 'read_only', closed: false },
-        actor: 'dashboard',
-        mode: 'read_only',
-        message_hash: 'unsafe-links',
-        message_chars: 18,
-        context_resources: [],
-        blocked_intents: [],
-        safety_notes: [],
-        audit_event_id: 'evt_unsafe_links',
-      },
-    });
+    mockStreamResponseOnce(assistantTurnData({
+      id: 'turn_unsafe_links',
+      content: '[good](/logs) [source](https://example.com/report) [bad](//evil.example) [js](javascript:alert(1))',
+      session: { id: 'sess_unsafe_links' },
+      message_hash: 'unsafe-links',
+      message_chars: 18,
+      safety_notes: [],
+      audit_event_id: 'evt_unsafe_links',
+    }));
 
     renderPage();
 

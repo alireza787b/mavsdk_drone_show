@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { TextDecoder } from 'util';
 import {
   buildGitStatusWebSocketUrl,
   buildGcsUrl,
@@ -19,6 +20,7 @@ import {
   applyRuntimeUpdateResponse,
   changeOwnPasswordResponse,
   createSimurghAssistantTurnResponse,
+  streamSimurghAssistantTurnResponse,
   getEnvRegistryResponse,
   getFleetNodeEnvResponse,
   getGcsConfigResponse,
@@ -77,6 +79,10 @@ const authConfig = (config = {}) => ({
   ...config,
   withCredentials: true,
 });
+
+if (typeof global.TextDecoder === 'undefined') {
+  global.TextDecoder = TextDecoder;
+}
 
 describe('gcsApiService', () => {
   beforeEach(() => {
@@ -155,6 +161,7 @@ describe('gcsApiService', () => {
     expect(resolveGcsRouteKey('/api/v1/simurgh/sessions')).toBe(GCS_ROUTE_KEYS.simurghSessions);
     expect(resolveGcsRouteKey('/api/v1/simurgh/audit')).toBe(GCS_ROUTE_KEYS.simurghAudit);
     expect(resolveGcsRouteKey('/api/v1/simurgh/assistant/turns')).toBe(GCS_ROUTE_KEYS.simurghAssistantTurns);
+    expect(resolveGcsRouteKey('/api/v1/simurgh/assistant/turns/stream')).toBe(GCS_ROUTE_KEYS.simurghAssistantTurnsStream);
     expect(resolveGcsRouteKey(GCS_ROUTE_KEYS.gitStatus)).toBe(GCS_ROUTE_KEYS.gitStatus);
   });
 
@@ -709,6 +716,53 @@ describe('gcsApiService', () => {
       { message: 'status?' },
       authConfig({ timeout: 760 })
     );
+  });
+
+  it('streams Simurgh assistant turn events from the canonical SSE route', async () => {
+    const chunks = [
+      'event: progress\ndata: {"label":"Understanding request"}\n\n',
+      'event: delta\ndata: {"text":"Done"}\n\n',
+      'event: final\ndata: {"id":"turn_stream","content":"Done","session":{"id":"sess_stream"}}\n\n',
+      'event: done\ndata: {"id":"turn_stream","session_id":"sess_stream"}\n\n',
+    ];
+    const reader = {
+      read: jest.fn()
+        .mockResolvedValueOnce({ value: Buffer.from(chunks[0]), done: false })
+        .mockResolvedValueOnce({ value: Buffer.from(chunks[1]), done: false })
+        .mockResolvedValueOnce({ value: Buffer.from(chunks[2]), done: false })
+        .mockResolvedValueOnce({ value: Buffer.from(chunks[3]), done: false })
+        .mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      body: { getReader: () => reader },
+    });
+    const events = [];
+
+    const response = await streamSimurghAssistantTurnResponse(
+      { message: 'status?' },
+      { fetchImpl, signal: 'test-signal', onEvent: (event) => events.push(event) }
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://gcs.test:5030/api/v1/simurgh/assistant/turns/stream',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        signal: 'test-signal',
+        body: JSON.stringify({ message: 'status?' }),
+      })
+    );
+    expect(fetchImpl.mock.calls[0][1].headers).toEqual(expect.objectContaining({
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    }));
+    expect(events.map((event) => event.event)).toEqual(['progress', 'delta', 'final', 'done']);
+    expect(response.data).toEqual(expect.objectContaining({
+      id: 'turn_stream',
+      content: 'Done',
+      session: { id: 'sess_stream' },
+    }));
   });
 
   it('fetches detailed fleet network metadata from the canonical network-details route', async () => {

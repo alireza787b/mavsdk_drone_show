@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from src.settings.runtime import resolve_runtime_mode
 from agent_runtime.tool_executor import execute_policy_allowed_read_only_tool, list_policy_allowed_read_only_tools
@@ -464,6 +465,51 @@ def _assistant_history_response(record: AssistantTurnHistoryRecord) -> SimurghAs
         message_hash=record.message_hash,
         message_chars=record.message_chars,
     )
+
+
+def _assistant_turn_response_model(record, history_record: AssistantTurnHistoryRecord) -> SimurghAssistantTurnResponse:
+    return SimurghAssistantTurnResponse(
+        id=record.turn.id,
+        created_at=record.turn.created_at,
+        provider=record.turn.provider,
+        model=history_record.model,
+        adapter_version=history_record.adapter_version,
+        session=_session_response(record.session),
+        actor=history_record.actor,
+        mode=history_record.mode,
+        message_hash=history_record.message_hash,
+        message_chars=history_record.message_chars,
+        content=record.turn.content,
+        context_resources=[
+            _assistant_context_response(document) for document in record.turn.context_documents
+        ],
+        blocked_intents=list(record.turn.blocked_intents),
+        safety_notes=list(record.turn.safety_notes),
+        audit_event_id=record.audit_event.id,
+        trace=_assistant_trace_response(record),
+    )
+
+
+def _assistant_turn_response_payload(record, history_record: AssistantTurnHistoryRecord) -> dict[str, Any]:
+    response = _assistant_turn_response_model(record, history_record)
+    if hasattr(response, "model_dump"):
+        return response.model_dump(mode="json")
+    return response.dict()
+
+
+def _assistant_sse_event(event: str, data: dict[str, Any]) -> str:
+    payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+def _assistant_content_chunks(content: str, chunk_size: int = 96):
+    text = str(content or "")
+    if not text:
+        return
+    for line in text.splitlines(keepends=True):
+        while line:
+            yield line[:chunk_size]
+            line = line[chunk_size:]
 
 
 def _auth_context(request: Request) -> dict[str, Any]:
@@ -1217,38 +1263,37 @@ def create_simurgh_router() -> APIRouter:
             events=[_audit_event_response(event) for event in event_values]
         )
 
-    @router.post("/api/v1/simurgh/assistant/turns", response_model=SimurghAssistantTurnResponse)
-    async def create_simurgh_assistant_turn(http_request: Request, request: SimurghAssistantTurnRequest):
+    def _create_assistant_turn_record_for_request(http_request: Request, turn_request: SimurghAssistantTurnRequest):
         try:
             assistant_config = load_default_assistant_config()
             conversation_topic = None
-            if request.session_id:
+            if turn_request.session_id:
                 try:
-                    conversation_topic = str(sessions.require(request.session_id).metadata.get("last_domain") or "")
+                    conversation_topic = str(sessions.require(turn_request.session_id).metadata.get("last_domain") or "")
                 except KeyError:
                     conversation_topic = None
-            routing_message = normalize_operator_query_text(request.message)
+            routing_message = normalize_operator_query_text(turn_request.message)
             local_only_turn = bool(
                 classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
-                or blocked_intent_matches(assistant_config, request.message)
+                or blocked_intent_matches(assistant_config, turn_request.message)
                 or blocked_intent_matches(assistant_config, routing_message)
-                or sensitive_input_matches(assistant_config, request.message)
+                or sensitive_input_matches(assistant_config, turn_request.message)
                 or sensitive_input_matches(assistant_config, routing_message)
             )
             if not local_only_turn:
                 _require_external_assistant_provider_auth(http_request, assistant_config.provider)
-            actor = _resolve_actor(http_request, request.actor)
+            actor = _resolve_actor(http_request, turn_request.actor)
             record = create_assistant_turn(
                 sessions=sessions,
                 audit=audit,
                 actor=actor,
-                message=request.message,
-                session_id=request.session_id,
-                mode=request.mode,
-                context_resource_ids=_bounded_context_resource_ids(request.context_resource_ids),
-                metadata=_bounded_metadata(request.metadata),
+                message=turn_request.message,
+                session_id=turn_request.session_id,
+                mode=turn_request.mode,
+                context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
+                metadata=_bounded_metadata(turn_request.metadata),
             )
-            history_record = history.append_turn(record=record, message=request.message)
+            history_record = history.append_turn(record=record, message=turn_request.message)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except KeyError as exc:
@@ -1262,26 +1307,58 @@ def create_simurgh_router() -> APIRouter:
             else:
                 status_code = 400
             raise HTTPException(status_code=status_code, detail=message) from exc
+        return record, history_record
 
-        return SimurghAssistantTurnResponse(
-            id=record.turn.id,
-            created_at=record.turn.created_at,
-            provider=record.turn.provider,
-            model=history_record.model,
-            adapter_version=history_record.adapter_version,
-            session=_session_response(record.session),
-            actor=history_record.actor,
-            mode=history_record.mode,
-            message_hash=history_record.message_hash,
-            message_chars=history_record.message_chars,
-            content=record.turn.content,
-            context_resources=[
-                _assistant_context_response(document) for document in record.turn.context_documents
-            ],
-            blocked_intents=list(record.turn.blocked_intents),
-            safety_notes=list(record.turn.safety_notes),
-            audit_event_id=record.audit_event.id,
-            trace=_assistant_trace_response(record),
+    @router.post("/api/v1/simurgh/assistant/turns", response_model=SimurghAssistantTurnResponse)
+    async def create_simurgh_assistant_turn(http_request: Request, request: SimurghAssistantTurnRequest):
+        record, history_record = _create_assistant_turn_record_for_request(http_request, request)
+        return _assistant_turn_response_model(record, history_record)
+
+    @router.post("/api/v1/simurgh/assistant/turns/stream")
+    async def stream_simurgh_assistant_turn(http_request: Request, request: SimurghAssistantTurnRequest):
+        async def event_stream():
+            try:
+                yield _assistant_sse_event("progress", {"stage": "understanding", "label": "Understanding request"})
+                await asyncio.sleep(0)
+                yield _assistant_sse_event("progress", {"stage": "policy", "label": "Checking safety and access policy"})
+                await asyncio.sleep(0)
+                yield _assistant_sse_event("progress", {"stage": "context", "label": "Selecting MDS context and tools"})
+                await asyncio.sleep(0)
+                record, history_record = _create_assistant_turn_record_for_request(http_request, request)
+                payload = _assistant_turn_response_payload(record, history_record)
+                trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
+                tool = trace.get("tool") if isinstance(trace.get("tool"), dict) else {}
+                tool_intent = str(tool.get("intent") or "").strip()
+                provider = str(payload.get("provider") or "").strip()
+                if tool_intent:
+                    yield _assistant_sse_event("progress", {"stage": "tool", "label": f"Using {tool_intent.replace('_', ' ')}"})
+                elif provider == "openai":
+                    yield _assistant_sse_event("progress", {"stage": "provider", "label": "Composing with OpenAI provider"})
+                else:
+                    yield _assistant_sse_event("progress", {"stage": "provider", "label": "Composing local response"})
+                await asyncio.sleep(0)
+                content = str(payload.get("content") or "")
+                if content:
+                    yield _assistant_sse_event("progress", {"stage": "answer", "label": "Streaming answer"})
+                    await asyncio.sleep(0)
+                    for chunk in _assistant_content_chunks(content):
+                        yield _assistant_sse_event("delta", {"text": chunk})
+                        await asyncio.sleep(0)
+                yield _assistant_sse_event("final", payload)
+                session = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+                yield _assistant_sse_event("done", {"id": payload.get("id"), "session_id": session.get("id")})
+            except HTTPException as exc:
+                yield _assistant_sse_event("error", {"status_code": exc.status_code, "detail": exc.detail})
+            except Exception:  # pragma: no cover - final guard for streaming clients
+                yield _assistant_sse_event("error", {"status_code": 500, "detail": "Simurgh stream failed."})
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     @router.get("/api/v1/simurgh/assistant/turns", response_model=SimurghAssistantTurnListResponse)

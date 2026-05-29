@@ -1,5 +1,5 @@
 artifact: simurgh_openapi_tool_candidates
-candidate_count: 197
+candidate_count: 198
 candidates:
 - callable: false
   classification:
@@ -6574,6 +6574,40 @@ candidates:
     inferred_sensitivity: []
     recommended_registry_exposure: candidate_exclude_or_guard_after_review
     review_reasons:
+    - keyword:stream
+    - non_get_method
+    - request_body_present
+    - stream/download/binary artifact route
+  has_request_body: true
+  id: candidate.gcs.post.api.v1.simurgh.assistant.turns.stream
+  parameters: []
+  promotion_contract:
+    loaded_by_default_registry: false
+    requires_docs: true
+    requires_human_review: true
+    requires_policy_review: true
+    requires_tests: true
+  registry_candidate:
+    default_callable: false
+    default_exposure: exclude
+    reviewed_registry_entry_required: true
+  response_schema: {}
+  review_status: needs_review
+  source:
+    method: POST
+    operation_id: stream_simurgh_assistant_turn_api_v1_simurgh_assistant_turns_stream_post
+    path: /api/v1/simurgh/assistant/turns/stream
+    summary: Stream Simurgh Assistant Turn
+    tags:
+    - Simurgh Operator
+- callable: false
+  classification:
+    default_registry_exposure: exclude
+    eligible_read_only_mcp_candidate: false
+    inferred_risk_class: operate
+    inferred_sensitivity: []
+    recommended_registry_exposure: candidate_exclude_or_guard_after_review
+    review_reasons:
     - non_get_method
   has_request_body: false
   id: candidate.gcs.post.api.v1.simurgh.mcp
@@ -7650,6 +7684,6 @@ policy:
 schema_version: 1
 source:
   openapi: 3.1.0
-  openapi_sha256: fa338c8374be819eab518e54046aac63d11291cbf95555df84f92fd799a6f32d
+  openapi_sha256: 02ca4c27b95761bc2b5f28797732aa803aaf7993a2885691bd229778e365adac
   title: GCS Server API
   version: '5.5'
