@@ -83,6 +83,41 @@ The GCS MCP endpoint advertises OAuth protected-resource metadata and rejects
 cookie-session auth for MCP. Agent bearer tokens are scoped to Simurgh/MCP paths
 and cannot be reused as general GCS API tokens.
 
+## Scripted Smoke Test
+
+Use the repository smoke client before handing a GCS endpoint to n8n, Claude,
+VS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP
+surface an external client will use, without installing an MCP SDK and without
+printing bearer tokens.
+
+```bash
+python3 tools/simurgh_mcp_smoke_client.py \
+  --base-url https://<gcs-host> \
+  --token-file /path/to/agent-token \
+  --json
+```
+
+For a local validation host, a secret environment variable is also supported:
+
+```bash
+MDS_MCP_BEARER_TOKEN="..." \
+python3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030
+```
+
+Do not commit tokens, paste tokens into prompts, or store tokens in public MCP
+client config files. The smoke validates:
+
+- `initialize` succeeds with the expected MCP protocol version;
+- `tools/list` exposes the expected read-only tools;
+- obvious raw/action/admin tool names are absent;
+- `resources/list` is reachable;
+- `mds.operator.question.answer` can answer a read-only operator question;
+- `mds.docs.search` can retrieve public MDS guidance.
+
+This is the preferred first diagnostic when an external client cannot connect.
+If the smoke fails, fix endpoint/auth/protocol posture before debugging a
+specific n8n, Claude, VS Code, or custom-agent configuration.
+
 ## n8n
 
 Use n8n's MCP Client Tool node when the n8n worker can reach the GCS API endpoint.
@@ -190,6 +225,9 @@ After connecting any client:
    or dry-run only in this read-only slice.
 7. Check `/api/v1/simurgh/status` from the dashboard: real/SITL mode must match
    the intended GCS runtime, and circuit breaker must remain on for field demos.
+
+The scripted smoke test above should pass before any manual client-specific
+checklist is treated as an MCP integration issue.
 
 ## References
 

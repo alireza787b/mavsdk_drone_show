@@ -132,6 +132,21 @@ for provider smoke; if it is enabled for a separate MCP validation, keep
 production GCS can remain `MDS_MODE=real` while the Simurgh assistant path stays
 advisory-only.
 
+## MCP Smoke Client
+
+The external MCP validation client is:
+
+```bash
+python3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json
+```
+
+It validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom
+agents use: `initialize`, `tools/list`, `resources/list`,
+`mds.operator.question.answer`, and `mds.docs.search`. It also fails if the tool
+menu exposes obvious raw/action/admin tool names. Use it before debugging a
+specific external client, and never put bearer tokens in committed MCP client
+configuration.
+
 When field logs produce new lessons, do not paste raw artifacts into eval
 fixtures or context files. Follow
 `docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,
