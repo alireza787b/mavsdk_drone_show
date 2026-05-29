@@ -438,20 +438,75 @@ function SettingsPanel({
 
 function ConversationList({ conversations, activeConversationId, onSelect, onNewChat, onClearChats, onDeleteChat }) {
   const [openActionsId, setOpenActionsId] = useState('');
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const historyRef = useRef(null);
 
-  const closeActions = useCallback(() => setOpenActionsId(''), []);
+  const closeActions = useCallback(() => {
+    setOpenActionsId('');
+    setHeaderMenuOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!openActionsId && !headerMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (historyRef.current?.contains(event.target)) {
+        return;
+      }
+      closeActions();
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        closeActions();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [closeActions, headerMenuOpen, openActionsId]);
 
   return (
-    <aside className="simurgh-chat__history" aria-label="Simurgh chat history">
+    <aside className="simurgh-chat__history" aria-label="Simurgh chat history" ref={historyRef}>
       <div className="simurgh-chat__history-header">
         <h2>Chats</h2>
-        <div>
-          <ActionIconButton icon={<FaPlus />} label="Start new Simurgh chat" size="sm" onClick={() => { closeActions(); onNewChat(); }}>
-            New
-          </ActionIconButton>
-          <ActionIconButton icon={<FaTrash />} label="Clear all local Simurgh chats" size="sm" tone="danger" onClick={() => { closeActions(); onClearChats(); }}>
-            Clear all
-          </ActionIconButton>
+        <div className="simurgh-chat__history-controls">
+          <ActionIconButton icon={<FaPlus />} label="Start new Simurgh chat" size="sm" onClick={() => { closeActions(); onNewChat(); }} />
+          <button
+            type="button"
+            className="simurgh-chat__history-overflow"
+            aria-label="More chat history actions"
+            title="More chat history actions"
+            aria-haspopup="menu"
+            aria-expanded={headerMenuOpen}
+            onClick={() => {
+              setOpenActionsId('');
+              setHeaderMenuOpen((open) => !open);
+            }}
+          >
+            <FaEllipsisH aria-hidden="true" />
+          </button>
+          {headerMenuOpen ? (
+            <div className="simurgh-chat__history-menu simurgh-chat__history-menu--header" role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeActions();
+                  onClearChats();
+                }}
+              >
+                <FaTrash aria-hidden="true" />
+                Clear all chats
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="simurgh-chat__history-list">
@@ -475,11 +530,13 @@ function ConversationList({ conversations, activeConversationId, onSelect, onNew
               <button
                 type="button"
                 className="simurgh-chat__history-action"
-                aria-label={`Chat actions: ${conversation.title}`}
+                aria-label={`More actions for ${conversation.title}`}
                 title="Chat actions"
+                aria-haspopup="menu"
                 aria-expanded={openActionsId === conversation.id}
                 onClick={(event) => {
                   event.stopPropagation();
+                  setHeaderMenuOpen(false);
                   setOpenActionsId((current) => (current === conversation.id ? '' : conversation.id));
                 }}
               >

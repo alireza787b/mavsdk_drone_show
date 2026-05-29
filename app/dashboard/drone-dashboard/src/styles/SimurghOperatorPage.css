@@ -66,10 +66,36 @@
   line-height: var(--line-height-tight);
 }
 
-.simurgh-chat__history-header > div {
+.simurgh-chat__history-controls {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+}
+
+.simurgh-chat__history-overflow {
+  width: var(--button-icon-size-sm);
+  height: var(--button-icon-size-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.simurgh-chat__history-overflow:hover,
+.simurgh-chat__history-overflow:focus-visible,
+.simurgh-chat__history-overflow[aria-expanded='true'] {
+  opacity: 1;
+  border-color: var(--color-border-primary);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  outline: none;
 }
 
 .simurgh-chat__history-list {
@@ -170,11 +196,16 @@
   padding: 0.25rem;
   border: 1px solid var(--color-border-primary);
   border-radius: var(--border-radius-sm);
-  background: var(--color-surface-primary);
+  background: var(--color-bg-secondary);
   box-shadow: 0 18px 40px rgba(3, 9, 18, 0.22), 0 0 0 1px var(--color-border-secondary);
   isolation: isolate;
   opacity: 1;
   overflow: hidden;
+}
+
+.simurgh-chat__history-menu--header {
+  top: calc(100% + 0.35rem);
+  right: 0;
 }
 
 .simurgh-chat__history-menu button {
@@ -308,6 +339,12 @@
   align-self: flex-start;
 }
 
+.simurgh-chat__message--assistant .simurgh-chat__bubble {
+  border-color: transparent;
+  background: transparent;
+  padding-inline: var(--spacing-sm);
+}
+
 .simurgh-chat__avatar {
   width: 2rem;
   height: 2rem;
@@ -334,6 +371,10 @@
 
 .simurgh-chat__message--streaming .simurgh-chat__bubble {
   border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-border-primary));
+}
+
+.simurgh-chat__message--assistant.simurgh-chat__message--streaming .simurgh-chat__bubble {
+  background: color-mix(in srgb, var(--color-bg-secondary) 74%, transparent);
 }
 
 .simurgh-chat__bubble-header {

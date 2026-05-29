@@ -154,7 +154,9 @@ describe('SimurghOperatorPage', () => {
     expect(screen.getByText('REAL')).toBeInTheDocument();
     expect(screen.getByText('Circuit breaker on')).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: /message simurgh/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /clear all local simurgh chats/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /start new simurgh chat/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /more chat history actions/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /clear all local simurgh chats/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
     expect(screen.queryByText(/tool registry/i)).not.toBeInTheDocument();
   });
@@ -187,7 +189,7 @@ describe('SimurghOperatorPage', () => {
     expect(await screen.findByText('Drone status')).toBeInTheDocument();
     expect(screen.getByText('Show check')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /chat actions: drone status/i }));
+    fireEvent.click(screen.getByRole('button', { name: /more actions for drone status/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /delete chat/i }));
 
     await waitFor(() => {
@@ -195,6 +197,35 @@ describe('SimurghOperatorPage', () => {
     });
     expect(screen.getByText('Show check')).toBeInTheDocument();
     expect(JSON.parse(window.localStorage.getItem('mds.simurgh.chat.v2')).conversations.map((conversation) => conversation.id)).toEqual(['chat-show-check']);
+  });
+
+  test('keeps the destructive clear-all action behind the compact history menu', async () => {
+    window.localStorage.setItem('mds.simurgh.chat.v2', JSON.stringify({
+      schema: 2,
+      conversations: [
+        {
+          id: 'chat-a',
+          backendSessionId: 'sess_a',
+          title: 'Fleet check',
+          createdAt: '2026-05-24T00:00:00Z',
+          updatedAt: '2026-05-24T00:00:00Z',
+          messages: [{ id: 'msg_a', role: 'user', content: 'fleet status?' }],
+        },
+      ],
+    }));
+
+    renderPage();
+
+    expect(await screen.findByText('Fleet check')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /clear all chats/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /more chat history actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /clear all chats/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('Fleet check')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('New chat')).toBeInTheDocument();
   });
 
   test('submits a PM read-only prompt as a normal chat turn', async () => {

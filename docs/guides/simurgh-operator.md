@@ -21,6 +21,26 @@ usable read-only operator slice:
 - no real-world command execution
 - no direct drone API exposure
 
+## Dashboard Chat UX Contract
+
+The `/simurgh` dashboard surface should stay chat-first and low-noise:
+
+- local browser history is a convenience cache under `mds.simurgh.chat.v2`, not
+  the authoritative backend session store;
+- each chat row has a quiet hover/focus overflow menu for deleting only that
+  conversation;
+- the destructive clear-all action stays behind the history header overflow
+  menu, not as an always-visible primary action;
+- assistant copy controls and code-snippet copy controls stay hidden until
+  hover/focus or touch interaction;
+- progress and streamed answer deltas stay inside the active assistant message;
+- assistant answers render compact Markdown tables, lists, code, bold text, and
+  only safe clickable dashboard/doc/HTTPS links.
+
+Changing this UX should include a focused Jest test for history actions,
+Markdown rendering, and copy controls. Browser-level visual regression is still
+recommended before conference or field-demo handoff.
+
 ## Current Autopilot Support
 
 MDS is currently **PX4-first and PX4-validated**. The production assumptions in

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 783,
+  "chunk_count": 784,
   "chunks": [
     {
       "audience": "operator",
@@ -231,9 +231,29 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "63586f85827eda2fe134a5901bb5f85ae5b79b587184be55439da0b08ff134d1",
+      "heading": "Dashboard Chat UX Contract",
+      "id": "simurgh.operator_guide:002-01-dashboard-chat-ux-contract",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "## Dashboard Chat UX Contract\n\nThe `/simurgh` dashboard surface should stay chat-first and low-noise:\n\n- local browser history is a convenience cache under `mds.simurgh.chat.v2`, not\n the authoritative backend session store;\n- each chat row has a quiet hover/focus overflow menu for deleting only that\n conversation;\n- the destructive clear-all action stays behind the history header overflow\n menu, not as an always-visible primary action;\n- assistant copy controls and code-snippet copy controls stay hidden until\n hover/focus or touch interaction;\n- progress and streamed answer deltas stay inside the active assistant message;\n- assistant answers render compact Markdown tables, lists, code, bold text, and\n only safe clickable dashboard/doc/HTTPS links.\n\nChanging this UX should include a focused Jest test for history actions,\nMarkdown rendering, and copy controls. Browser-level visual regression is still\nrecommended before conference or field-demo handoff.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "4846b2eeb036bdaf31bca663eb252103e9ff07c4e0f0ed4142906a9d6ed24f4f",
       "heading": "Current Autopilot Support",
-      "id": "simurgh.operator_guide:002-01-current-autopilot-support",
+      "id": "simurgh.operator_guide:003-01-current-autopilot-support",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -253,7 +273,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "619f150b0e706709d41e208f19371c0c158a0f3d30f5b5a64643e9508323bcd2",
       "heading": "Configuration Files",
-      "id": "simurgh.operator_guide:003-01-configuration-files",
+      "id": "simurgh.operator_guide:004-01-configuration-files",
       "links": [
         "docs/agent-context/context-index.yaml",
         "docs/agent-context/evals/simurgh-advisory-provider.yaml",
@@ -287,7 +307,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "11db32ab151c18ed95ea670631016f72702952f851241b58b1f8c2810ba22934",
       "heading": "Advisory Evals",
-      "id": "simurgh.operator_guide:004-01-advisory-evals",
+      "id": "simurgh.operator_guide:005-01-advisory-evals",
       "links": [
         "docs/agent-context/evals/simurgh-advisory-provider.yaml"
       ],
@@ -309,7 +329,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "4eff4cc9bf9c80c94935c987567e9dee700722d49f12ef0d4ee22679e645847f",
       "heading": "Provider Smoke",
-      "id": "simurgh.operator_guide:005-01-provider-smoke",
+      "id": "simurgh.operator_guide:006-01-provider-smoke",
       "links": [
         "docs/agent-context/field-log-review-workflow.md"
       ],
@@ -331,7 +351,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "0153f3231c77786c9e0ab7cae1cfc567d9107d49ac7c51c23fbf8224fc9d6567",
       "heading": "Environment Variables",
-      "id": "simurgh.operator_guide:006-01-environment-variables",
+      "id": "simurgh.operator_guide:007-01-environment-variables",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -351,7 +371,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "783e4d77a7a6c93e7b1f8c4b8f277d47ed400fd06355e64958913bcc2a8a1e1b",
       "heading": "Environment Variables",
-      "id": "simurgh.operator_guide:006-02-environment-variables",
+      "id": "simurgh.operator_guide:007-02-environment-variables",
       "links": [
         "docs/agent-context/context-index.yaml",
         "docs/agent-context/generated/simurgh-docs-index.json"
@@ -374,7 +394,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "694d8231ca137b9be4794251db759e92346699c199494ae9706e16d815a49a25",
       "heading": "Environment Variables",
-      "id": "simurgh.operator_guide:006-03-environment-variables",
+      "id": "simurgh.operator_guide:007-03-environment-variables",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -394,7 +414,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "ba22d5c5d628833e09cd2f01f6adbc18497b574b01c995c16be9aa66d11db7a1",
       "heading": "Environment Variables",
-      "id": "simurgh.operator_guide:006-04-environment-variables",
+      "id": "simurgh.operator_guide:007-04-environment-variables",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -414,7 +434,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "14cf0ba443d64b047352b2fb2fe3fe3784b3f0ca4e88f5932e962a1b110c8743",
       "heading": "Environment Variables",
-      "id": "simurgh.operator_guide:006-05-environment-variables",
+      "id": "simurgh.operator_guide:007-05-environment-variables",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -434,7 +454,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "7e07a4ac76f680d0dd0558e580dae9b671345a4ab8c1ee04354ee23d13d86457",
       "heading": "Environment Variables",
-      "id": "simurgh.operator_guide:006-06-environment-variables",
+      "id": "simurgh.operator_guide:007-06-environment-variables",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -454,7 +474,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "5aa9c2899a179c9bbe5a3148ce4f4f16c198d1ab8aab46701a1c965a86db1872",
       "heading": "Query Planning And Retrieval Context",
-      "id": "simurgh.operator_guide:007-01-query-planning-and-retrieval-context",
+      "id": "simurgh.operator_guide:008-01-query-planning-and-retrieval-context",
       "links": [
         "docs/agent-context/generated/simurgh-docs-index.json"
       ],
@@ -476,7 +496,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "baa5bdf6f7a965fa45d13f158dbd27ec0e6795bbf87c6107426636bc19119dde",
       "heading": "Query Planning And Retrieval Context",
-      "id": "simurgh.operator_guide:007-02-query-planning-and-retrieval-context",
+      "id": "simurgh.operator_guide:008-02-query-planning-and-retrieval-context",
       "links": [
         "docs/agent-context/evals/simurgh-retrieval-quality.yaml"
       ],
@@ -498,7 +518,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "d6dc3af5b937d60d0136dabd530142e418931274685646dfe9616a8f7351de37",
       "heading": "Query Planning And Retrieval Context",
-      "id": "simurgh.operator_guide:007-03-query-planning-and-retrieval-context",
+      "id": "simurgh.operator_guide:008-03-query-planning-and-retrieval-context",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -518,7 +538,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "d43a278ae4ce6b20a7957b997a38acdf7b8c7ca36b395cfa4de9df94385cf1f3",
       "heading": "Safety Boundary",
-      "id": "simurgh.operator_guide:008-01-safety-boundary",
+      "id": "simurgh.operator_guide:009-01-safety-boundary",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -538,7 +558,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "d119d3e7dd526cecb42d23e4958e556f5c8aead9061ddbcdbaba32b9f4234f2a",
       "heading": "MCP Endpoint",
-      "id": "simurgh.operator_guide:009-01-mcp-endpoint",
+      "id": "simurgh.operator_guide:010-01-mcp-endpoint",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -558,7 +578,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "8c2924e241752a70619a5c9ab57a2147ee4aedba42a7f11b07d1de4f1edfc44d",
       "heading": "Production MCP Setup",
-      "id": "simurgh.operator_guide:010-01-production-mcp-setup",
+      "id": "simurgh.operator_guide:011-01-production-mcp-setup",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -578,7 +598,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "f49cfb880bbdf80a8d962ec52ad9d0f38a67a08c4721ecc8a21767363ee5a369",
       "heading": "Production MCP Setup",
-      "id": "simurgh.operator_guide:010-02-production-mcp-setup",
+      "id": "simurgh.operator_guide:011-02-production-mcp-setup",
       "links": [
         "docs/guides/simurgh-mcp-clients.md"
       ],
@@ -600,7 +620,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "9e6a349cdafc3342d176e875d5f52854a21804b13b8794be7ce8c394d0e38777",
       "heading": "Generated Docs Index",
-      "id": "simurgh.operator_guide:011-01-generated-docs-index",
+      "id": "simurgh.operator_guide:012-01-generated-docs-index",
       "links": [
         "docs/agent-context/context-index.yaml",
         "docs/agent-context/generated/simurgh-docs-index.json",
@@ -624,7 +644,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "ce107cadc2abf22d2f803ccb4d65968d79bf113a580f3c4c5d657cc44def53d0",
       "heading": "Generated OpenAPI Candidates",
-      "id": "simurgh.operator_guide:012-01-generated-openapi-candidates",
+      "id": "simurgh.operator_guide:013-01-generated-openapi-candidates",
       "links": [
         "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
       ],
@@ -646,7 +666,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "2a2326dbc9d050bf6451dcaec82af7441e07bd4cc32abdd0d223ae5c4da8cff1",
       "heading": "GCS API Surface",
-      "id": "simurgh.operator_guide:013-01-gcs-api-surface",
+      "id": "simurgh.operator_guide:014-01-gcs-api-surface",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -666,7 +686,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "3b00b2fba90a3df648ce6aca57949a38e7c03643008f6aec858948db4b582640",
       "heading": "GCS API Surface",
-      "id": "simurgh.operator_guide:013-02-gcs-api-surface",
+      "id": "simurgh.operator_guide:014-02-gcs-api-surface",
       "links": [
         "docs/agent-context/context-index.yaml"
       ],
@@ -688,7 +708,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "6a3bfadd31e19759cf5345e57cc3761db60f1c5cbf95ae3fd01cf16ffec090c1",
       "heading": "Dashboard",
-      "id": "simurgh.operator_guide:014-01-dashboard",
+      "id": "simurgh.operator_guide:015-01-dashboard",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -708,7 +728,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "9fd1544e29f405d782334cb965212a6b96b8f1d50e52888b85d6c5db7a50bd38",
       "heading": "Development Notes",
-      "id": "simurgh.operator_guide:015-01-development-notes",
+      "id": "simurgh.operator_guide:016-01-development-notes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -728,7 +748,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "a09d2a72c182a8ae9560b18c333ffd37d66a3bb2a9c783c20bc3982f35d26cff",
       "heading": "Orchestration Trace And Language Profile",
-      "id": "simurgh.operator_guide:016-01-orchestration-trace-and-language-profile",
+      "id": "simurgh.operator_guide:017-01-orchestration-trace-and-language-profile",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -748,7 +768,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "95cd4700deeaa21ed6c189f6dd7a81ea08eea25ca4dea2b6ccf1d1220a613880",
       "heading": "Answer Composer And Follow-Up Behavior",
-      "id": "simurgh.operator_guide:017-01-answer-composer-and-follow-up-behavior",
+      "id": "simurgh.operator_guide:018-01-answer-composer-and-follow-up-behavior",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -768,7 +788,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "96910f67082b769924c7b44d58d08d09cbc70f4042c176d780846ebe25747681",
       "heading": "Answer Composer And Follow-Up Behavior",
-      "id": "simurgh.operator_guide:017-02-answer-composer-and-follow-up-behavior",
+      "id": "simurgh.operator_guide:018-02-answer-composer-and-follow-up-behavior",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -788,7 +808,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "1b2f14dc95806cd1e865d8d92503a9a2101b81913b930108c3695facab9574bf",
       "heading": "Composer Coverage Expansion",
-      "id": "simurgh.operator_guide:018-01-composer-coverage-expansion",
+      "id": "simurgh.operator_guide:019-01-composer-coverage-expansion",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -15669,8 +15689,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 28,
-      "content_hash": "962135af40779e482527c7bd10c3e97ea58fabea813aa75c2a3efafeeee3b907",
+      "chunk_count": 29,
+      "content_hash": "de0a8cd10c9beaed51ddbc2f0894c55091d2dae309ea636d6944adfc899c6038",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
