@@ -8,13 +8,13 @@
 # This allows one file to work on both platforms automatically.
 
 # Core Async/gRPC
-aiogrpc==1.8
-grpcio==1.71.0
-protobuf==5.29.4
+aiogrpc==latest
+grpcio==latest
+protobuf==latest
 
 # Web Framework - FastAPI (Primary)
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
+fastapi==latest
+uvicorn[standard]==latest
 gunicorn==23.0.0
 pydantic==2.10.0
 python-multipart==0.0.20
