@@ -1,5 +1,5 @@
 {
-  "chunk_count": 786,
+  "chunk_count": 787,
   "chunks": [
     {
       "audience": "operator",
@@ -169,7 +169,7 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "8477887d2446231c3a7881181ffa474e3b98b0fbb0b5a088a9a9e5f1af1238a6",
+      "content_hash": "4af26fb3ca0df31fae2a19b843aeb8c1b7a9bc904fc490462316468a87b413a4",
       "heading": "Answer Composition Contract",
       "id": "simurgh.tool_usage:003-01-answer-composition-contract",
       "links": [],
@@ -183,13 +183,13 @@
         "tools",
         "mcp"
       ],
-      "text": "## Answer Composition Contract\n\nLocal MDS tools should separate evidence collection from answer rendering. Use `AnswerComposer` for Markdown that must render cleanly in the dashboard and MCP clients. Do not build new one-off answer templates when a reusable section, bullet list, numbered workflow, or table can express the same evidence.\n\nFollow-up handling must be topic-aware and policy-neutral. A session topic can change response mode from `status` to `interpret`, but it must not authorize actions, weaken blocked-intent checks, or expose secrets. Circuit breaker and approval decisions remain downstream of understanding/composition.\n\nThe local MDS router has two layers:\n\n- exact deterministic intent rules for high-confidence fleet, show, swarm, logs, setup, runtime, SITL, MCP, and safety/capability questions;\n- a bounded query-plan fallback for real operator questions/requests that exact rules miss.\n\nDo not use the fallback as a catch-all. Generic provider prompts, such as provider-auth test prompts, must still reach the provider-auth gate. The fallback exists to route safe MDS questions like “what interfaces are exposed to clients like n8n and Claude?” or topic follow-ups like “and the scout IP?” to reviewed read-only tools. Keep word-boundary matching for short domain terms to avoid false positives.",
+      "text": "## Answer Composition Contract\n\nLocal MDS tools should separate evidence collection from answer rendering. Use `AnswerComposer` for Markdown that must render cleanly in the dashboard and MCP clients. Do not build new one-off answer templates when a reusable section, bullet list, numbered workflow, or table can express the same evidence.\n\nFollow-up handling must be topic-aware and policy-neutral. A session topic can change response mode from `status` to `interpret`, but it must not authorize actions, weaken blocked-intent checks, or expose secrets. Circuit breaker and approval decisions remain downstream of understanding/composition.\n\nThe local MDS router has two layers:\n\n- exact deterministic intent rules for high-confidence fleet, show, swarm, logs, setup, runtime, SITL, MCP, and safety/capability questions;\n- a bounded query-plan fallback for real operator questions/requests that exact rules miss;\n- a registry-domain capability bridge for questions such as “what APIs/tools can Simurgh use for SAR?”, “what can n8n inspect for fleet sidecars?”, or “what read-only SITL tools are available?”.\n\nDo not use the fallback as a catch-all. Generic provider prompts, such as provider-auth test prompts, must still reach the provider-auth gate. The fallback exists to route safe MDS questions like “what interfaces are exposed to clients like n8n and Claude?” or topic follow-ups like “and the scout IP?” to reviewed read-only tools. Keep word-boundary matching for short domain terms to avoid false positives.\n\nThe registry-domain capability bridge must derive its menu from\n`config/agent_tools.yaml` filtered by policy. It may summarize matching domains\nand required arguments, but it must not execute the route, invent arguments,\nor replace onboarding/docs answers. For example, “give me setup docs” should\nstay in setup guidance, while “which MCP tools can inspect setup/fleet state?”\nshould use the registry-domain bridge.",
       "title": "Simurgh tool usage guidelines"
     },
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "8b4fef38267f84271f472f2f040e08d0b8883c85d54d0b2e2a80104558c7140f",
+      "content_hash": "2a61f181177db1271b0b4b48cef979376ccc1946d6d2e1c58794d7159fb7af6c",
       "heading": "Composer Migration Status",
       "id": "simurgh.tool_usage:004-01-composer-migration-status",
       "links": [],
@@ -203,7 +203,7 @@
         "tools",
         "mcp"
       ],
-      "text": "### Composer Migration Status\n\nCurrent local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.\n\nThe current external-protocol alignment remains:\n- MCP tools expose schema-described operations and may return links/resources as context; MDS keeps actions out of the callable set until policy, schema, docs, and tests approve them. Reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools\n- OpenAI Responses provider calls remain tool-disabled for advisory generation in this slice; local/MCP tool execution is handled by MDS policy gates, not by free-form provider tool calls. Reference: https://developers.openai.com/api/reference/resources/responses/methods/create",
+      "text": "### Composer Migration Status\n\nCurrent local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, registry-domain capability summaries, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.\n\nThe current external-protocol alignment remains:\n- MCP tools expose schema-described operations and may return links/resources as context; MDS keeps actions out of the callable set until policy, schema, docs, and tests approve them. Reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools\n- OpenAI Responses provider calls remain tool-disabled for advisory generation in this slice; local/MCP tool execution is handled by MDS policy gates, not by free-form provider tool calls. Reference: https://developers.openai.com/api/reference/resources/responses/methods/create",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -684,7 +684,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "2a2326dbc9d050bf6451dcaec82af7441e07bd4cc32abdd0d223ae5c4da8cff1",
+      "content_hash": "9fdf3ac2db875c44eb549d5a84b3960098c03fdb03f22aaaf9cdb5ce40cea254",
       "heading": "GCS API Surface",
       "id": "simurgh.operator_guide:015-01-gcs-api-surface",
       "links": [],
@@ -698,13 +698,13 @@
         "operator",
         "dashboard"
       ],
-      "text": "## GCS API Surface\n\nThe foundation API exposes metadata/session/audit/assistant routes plus a\nread-only MCP tool executor for policy-allowed GCS `GET` routes. It still does\nnot execute mutation/domain action tools. The dashboard assistant can also\nexplain the registry-backed capability menu in chat so operators understand\nwhat MCP clients can discover when MCP is enabled. Route-backed tools accept\narguments only when their registry entry has an explicit `input_schema`;\notherwise unexpected arguments are rejected.\n\nRead-only routes:\n\n- `GET /api/v1/simurgh/status`\n- `GET /api/v1/simurgh/policy`\n- `GET /api/v1/simurgh/tools`\n- `GET /api/v1/simurgh/tools/{tool_id}`\n- `GET /api/v1/simurgh/context`\n- `GET /api/v1/simurgh/context/{resource_id}`\n- `GET /api/v1/simurgh/sessions`\n- `GET /api/v1/simurgh/audit`\n- `GET /api/v1/simurgh/assistant/turns`\n\nSession routes:\n\n- `POST /api/v1/simurgh/sessions`\n- `DELETE /api/v1/simurgh/sessions/{session_id}`\n\nAssistant scaffold route:\n\n- `POST /api/v1/simurgh/assistant/turns`\n- `POST /api/v1/simurgh/assistant/turns/stream`\n\nThe stream route returns `text/event-stream` and emits bounded events for the\ndashboard chat UI:\n\n- `progress`: short stage labels such as policy/context/tool/provider work\n- `delta`: text chunks for incremental rendering inside the assistant bubble\n- `final`: the same sanitized assistant-turn payload returned by the normal\n `POST /api/v1/simurgh/assistant/turns` route\n- `done`: final id/session marker\n- `error`: sanitized status/detail when orchestration fails\n\nThe stream route is for first-party dashboard UX. It is generated as an\nOpenAPI/MCP candidate but remains `callable: false`, `exclude`, and\nreview-only. External MCP clients should continue to use\n`POST /api/v1/simurgh/mcp`; MCP itself still uses Streamable HTTP request/response\nJSON in this slice, not SSE.\n\nSession creation requires `MDS_AGENT_ENABLED=true`. If an installation disables\nthe agent runtime, operators and maintainers can still inspect policy, tool\nmetadata, and context resources.",
+      "text": "## GCS API Surface\n\nThe foundation API exposes metadata/session/audit/assistant routes plus a\nread-only MCP tool executor for policy-allowed GCS `GET` routes. It still does\nnot execute mutation/domain action tools. The dashboard assistant can also\nexplain the registry-backed capability menu in chat so operators understand\nwhat MCP clients can discover when MCP is enabled. Route-backed tools accept\narguments only when their registry entry has an explicit `input_schema`;\notherwise unexpected arguments are rejected.\n\nThe dashboard assistant has a registry-domain bridge for capability questions.\nWhen an operator asks what Simurgh can inspect, query, or expose for a domain\nsuch as SITL, SAR/QuickScout, fleet sidecars, logs, PX4 params, Drone Show,\nSwarm Trajectory, origin, or runtime, the answer is built from\n`config/agent_tools.yaml` after policy filtering. This is not a separate\nhardcoded chat menu and it does not call routes by itself; it lets dashboard\nchat and external MCP clients describe the same approved read-only capability\nsurface while route-backed execution remains behind `tools/call`, typed\narguments, auth, and policy gates. Registry-domain menu answers stay local-only\neven for authenticated OpenAI sessions so operator capability discovery remains\nfast, deterministic, and identical to the MCP policy-filtered menu.\n\nRead-only routes:\n\n- `GET /api/v1/simurgh/status`\n- `GET /api/v1/simurgh/policy`\n- `GET /api/v1/simurgh/tools`\n- `GET /api/v1/simurgh/tools/{tool_id}`\n- `GET /api/v1/simurgh/context`\n- `GET /api/v1/simurgh/context/{resource_id}`\n- `GET /api/v1/simurgh/sessions`\n- `GET /api/v1/simurgh/audit`\n- `GET /api/v1/simurgh/assistant/turns`\n\nSession routes:\n\n- `POST /api/v1/simurgh/sessions`\n- `DELETE /api/v1/simurgh/sessions/{session_id}`\n\nAssistant scaffold route:\n\n- `POST /api/v1/simurgh/assistant/turns`\n- `POST /api/v1/simurgh/assistant/turns/stream`\n\nThe stream route returns `text/event-stream` and emits bounded events for the\ndashboard chat UI:",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "3b00b2fba90a3df648ce6aca57949a38e7c03643008f6aec858948db4b582640",
+      "content_hash": "b00dfa02c8aee4c46242f2978f81cd285797b828a4bc2514dfc4a945708fdf1d",
       "heading": "GCS API Surface",
       "id": "simurgh.operator_guide:015-02-gcs-api-surface",
       "links": [
@@ -720,7 +720,27 @@
         "operator",
         "dashboard"
       ],
-      "text": "Assistant turns also require `MDS_AGENT_ENABLED=true`. The default adapter is\ndeterministic `mock`. The optional `openai` adapter is advisory-only and calls\nthe OpenAI Responses API after the same policy, actor/session, message-size,\nmetadata-size, and public-context checks pass. Provider adapters assemble public\ncontext from `config/agent_assistant.yaml` and\n`docs/agent-context/context-index.yaml`, record an audit hash, and do not expose\nmodel-driven tools in this slice. Common MDS state questions may be answered\nbefore the provider call by local read-only GCS context tools backed by the same\nregistry/policy direction used for MCP. If `MDS_AGENT_PROVIDER` is set to an\nunsupported provider, the route returns a not-implemented error.\n\n`GET /api/v1/simurgh/status` reports `assistant_provider`,\n`assistant_model`, and `assistant_external_provider` so dashboards and agent\nclients can warn operators when text may leave the GCS for a configured model\nprovider. Operator UI must not describe the assistant as local-only unless the\nreported provider is `mock`.\n\nProvider instructions and input templates live in `config/agent_assistant.yaml`.\nChanging those prompts should be done by editing the config artifact, then\nupdating tests and docs. The adapter must not embed mission policy, tool rules,\nor prompt text in code.\n\nAssistant turns are also written to a bounded JSONL runtime history file. The\ndefault path is `runtime_data/simurgh/assistant_turns.jsonl`, which is ignored\nby git. History records keep prompt hashes, response metadata, context\nmetadata, blocked-intent signals, and safety notes; raw operator prompts and\nassistant response text are omitted from persisted history and from the history\nAPI response. Records are retained by both age and count; set\n`MDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=0` only if an installation needs to\ndisable age-based retention while keeping count-based bounding. The history\nendpoint is filtered by actor and is not exposed as an MCP resource. Audit\nevents continue to store hashes rather than raw prompts.",
+      "text": "- `progress`: short stage labels such as policy/context/tool/provider work\n- `delta`: text chunks for incremental rendering inside the assistant bubble\n- `final`: the same sanitized assistant-turn payload returned by the normal\n `POST /api/v1/simurgh/assistant/turns` route\n- `done`: final id/session marker\n- `error`: sanitized status/detail when orchestration fails\n\nThe stream route is for first-party dashboard UX. It is generated as an\nOpenAPI/MCP candidate but remains `callable: false`, `exclude`, and\nreview-only. External MCP clients should continue to use\n`POST /api/v1/simurgh/mcp`; MCP itself still uses Streamable HTTP request/response\nJSON in this slice, not SSE.\n\nSession creation requires `MDS_AGENT_ENABLED=true`. If an installation disables\nthe agent runtime, operators and maintainers can still inspect policy, tool\nmetadata, and context resources.\n\nAssistant turns also require `MDS_AGENT_ENABLED=true`. The default adapter is\ndeterministic `mock`. The optional `openai` adapter is advisory-only and calls\nthe OpenAI Responses API after the same policy, actor/session, message-size,\nmetadata-size, and public-context checks pass. Provider adapters assemble public\ncontext from `config/agent_assistant.yaml` and\n`docs/agent-context/context-index.yaml`, record an audit hash, and do not expose\nmodel-driven tools in this slice. Common MDS state questions may be answered\nbefore the provider call by local read-only GCS context tools backed by the same\nregistry/policy direction used for MCP. If `MDS_AGENT_PROVIDER` is set to an\nunsupported provider, the route returns a not-implemented error.\n\n`GET /api/v1/simurgh/status` reports `assistant_provider`,\n`assistant_model`, and `assistant_external_provider` so dashboards and agent\nclients can warn operators when text may leave the GCS for a configured model\nprovider. Operator UI must not describe the assistant as local-only unless the\nreported provider is `mock`.\n\nProvider instructions and input templates live in `config/agent_assistant.yaml`.\nChanging those prompts should be done by editing the config artifact, then\nupdating tests and docs. The adapter must not embed mission policy, tool rules,\nor prompt text in code.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "1d3c55261015f96d1c6e37578fa25b884c0ca43dca145792f5f6a5725f1b800a",
+      "heading": "GCS API Surface",
+      "id": "simurgh.operator_guide:015-03-gcs-api-surface",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "Assistant turns are also written to a bounded JSONL runtime history file. The\ndefault path is `runtime_data/simurgh/assistant_turns.jsonl`, which is ignored\nby git. History records keep prompt hashes, response metadata, context\nmetadata, blocked-intent signals, and safety notes; raw operator prompts and\nassistant response text are omitted from persisted history and from the history\nAPI response. Records are retained by both age and count; set\n`MDS_AGENT_ASSISTANT_HISTORY_MAX_AGE_DAYS=0` only if an installation needs to\ndisable age-based retention while keeping count-based bounding. The history\nendpoint is filtered by actor and is not exposed as an MCP resource. Audit\nevents continue to store hashes rather than raw prompts.",
       "title": "Simurgh operator guide"
     },
     {
@@ -15714,7 +15734,7 @@
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
       "chunk_count": 6,
-      "content_hash": "d8d20dfdb0a79ff460e76754e1729b9cc204deb15d0c444747048f92f89b7975",
+      "content_hash": "04ed61b5dc3116cad098adbaf6a015bdc4505ab772b4b45afee3d8dbd32e8a62",
       "id": "simurgh.tool_usage",
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",
@@ -15730,8 +15750,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 30,
-      "content_hash": "b9e2bd9f7b7696c26ff5c19c71015021acaf74d7c24075d3ef424f0cbb15051c",
+      "chunk_count": 31,
+      "content_hash": "88fc44005e947a521548d835d262fb9b279969ff18d01254115432c6d5bf3158",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

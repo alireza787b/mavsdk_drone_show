@@ -357,6 +357,31 @@ def test_simurgh_assistant_turn_composes_local_tool_evidence_with_openai_when_au
     assert "Fleet status from GCS configuration" in str(captured["input"])
 
 
+def test_simurgh_assistant_registry_domain_menu_stays_local_when_authenticated(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("registry-domain capability menus should not wait on provider composition")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+    client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "what can you inspect about SAR and QuickScout mission status?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_domain_tool_summary"
+    assert "mds.sar.mission.status.read" in payload["content"]
+    assert "This answer only describes the approved capability surface" in payload["content"]
+
+
 def test_provider_tool_composition_message_has_safe_fallback_labels():
     message = _provider_tool_composition_message(
         operator_message="status?",

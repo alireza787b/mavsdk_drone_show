@@ -120,13 +120,21 @@ Follow-up handling must be topic-aware and policy-neutral. A session topic can c
 The local MDS router has two layers:
 
 - exact deterministic intent rules for high-confidence fleet, show, swarm, logs, setup, runtime, SITL, MCP, and safety/capability questions;
-- a bounded query-plan fallback for real operator questions/requests that exact rules miss.
+- a bounded query-plan fallback for real operator questions/requests that exact rules miss;
+- a registry-domain capability bridge for questions such as “what APIs/tools can Simurgh use for SAR?”, “what can n8n inspect for fleet sidecars?”, or “what read-only SITL tools are available?”.
 
 Do not use the fallback as a catch-all. Generic provider prompts, such as provider-auth test prompts, must still reach the provider-auth gate. The fallback exists to route safe MDS questions like “what interfaces are exposed to clients like n8n and Claude?” or topic follow-ups like “and the scout IP?” to reviewed read-only tools. Keep word-boundary matching for short domain terms to avoid false positives.
 
+The registry-domain capability bridge must derive its menu from
+`config/agent_tools.yaml` filtered by policy. It may summarize matching domains
+and required arguments, but it must not execute the route, invent arguments,
+or replace onboarding/docs answers. For example, “give me setup docs” should
+stay in setup guidance, while “which MCP tools can inspect setup/fleet state?”
+should use the registry-domain bridge.
+
 ### Composer Migration Status
 
-Current local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.
+Current local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, registry-domain capability summaries, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.
 
 The current external-protocol alignment remains:
 - MCP tools expose schema-described operations and may return links/resources as context; MDS keeps actions out of the callable set until policy, schema, docs, and tests approve them. Reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools

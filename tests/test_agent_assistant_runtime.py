@@ -512,6 +512,54 @@ def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):
     assert record.audit_event.metadata["tool_intent"] == "capability_catalog"
 
 
+@pytest.mark.parametrize(
+    ("message", "expected_phrases", "forbidden_phrases"),
+    (
+        (
+            "what read-only APIs/tools can Simurgh use for SITL status?",
+            ("Registry-backed read-only capability summary", "mds.sitl.policy.read", "mds.sitl.instances.read", "GET /api/v1/system/sitl/instances"),
+            ("Current safe menu preview", "mds.fleet.telemetry.read"),
+        ),
+        (
+            "what can you inspect about SAR and QuickScout mission status?",
+            ("QuickScout/SAR missions", "mds.sar.missions.read", "mds.sar.mission.status.read", "mission_id"),
+            ("Current safe menu preview", "mds.fleet.telemetry.read"),
+        ),
+        (
+            "can n8n use the same MCP menu for fleet telemetry and board sidecar status?",
+            ("fleet telemetry, boards, and sidecars", "mds.fleet.telemetry.read", "mds.fleet.sidecars.read", "tools/list"),
+            ("Current safe menu preview", "Plan SAR mission"),
+        ),
+    ),
+)
+def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
+    monkeypatch,
+    message,
+    expected_phrases,
+    forbidden_phrases,
+):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message=message,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.turn.model == "local-read-only"
+    assert record.audit_event.metadata["tool_intent"] == "registry_domain_tool_summary"
+    assert record.audit_event.metadata["response_mode"] == "capability"
+    assert "config/agent_tools.yaml" in record.turn.content
+    assert "This answer only describes the approved capability surface" in record.turn.content
+    for phrase in expected_phrases:
+        assert phrase in record.turn.content
+    for phrase in forbidden_phrases:
+        assert phrase not in record.turn.content
+
+
 
 
 @pytest.mark.parametrize(

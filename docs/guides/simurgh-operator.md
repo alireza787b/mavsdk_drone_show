@@ -657,6 +657,18 @@ what MCP clients can discover when MCP is enabled. Route-backed tools accept
 arguments only when their registry entry has an explicit `input_schema`;
 otherwise unexpected arguments are rejected.
 
+The dashboard assistant has a registry-domain bridge for capability questions.
+When an operator asks what Simurgh can inspect, query, or expose for a domain
+such as SITL, SAR/QuickScout, fleet sidecars, logs, PX4 params, Drone Show,
+Swarm Trajectory, origin, or runtime, the answer is built from
+`config/agent_tools.yaml` after policy filtering. This is not a separate
+hardcoded chat menu and it does not call routes by itself; it lets dashboard
+chat and external MCP clients describe the same approved read-only capability
+surface while route-backed execution remains behind `tools/call`, typed
+arguments, auth, and policy gates. Registry-domain menu answers stay local-only
+even for authenticated OpenAI sessions so operator capability discovery remains
+fast, deterministic, and identical to the MCP policy-filtered menu.
+
 Read-only routes:
 
 - `GET /api/v1/simurgh/status`

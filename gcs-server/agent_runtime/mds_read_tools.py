@@ -51,6 +51,7 @@ READ_CONVERSATION_TOPICS = frozenset(
         "public_geography",
         "runtime",
         "safety",
+        "sar",
         "setup",
         "sitl",
         "swarm",
@@ -106,6 +107,40 @@ FLEET_POSITION_TERMS = (
     "where is",
 )
 
+REGISTRY_DOMAIN_LABELS: Mapping[str, str] = {
+    "commands": "GCS command tracker",
+    "config": "fleet/swarm configuration",
+    "docs": "MDS documentation retrieval",
+    "fleet": "fleet telemetry, boards, and sidecars",
+    "git": "repository sync/status",
+    "logs": "GCS logs and diagnostics",
+    "operator": "local operator guidance",
+    "origin": "origin and launch-position evidence",
+    "px4_params": "PX4 parameter evidence",
+    "sar": "QuickScout/SAR missions",
+    "shows": "Drone Show/SkyBrush assets",
+    "simurgh": "Simurgh runtime, MCP, and audit",
+    "sitl": "SITL simulation control state",
+    "swarm_trajectories": "swarm trajectory planning state",
+    "system": "GCS system/runtime/environment",
+}
+
+QUERY_DOMAIN_TO_REGISTRY_DOMAINS: Mapping[str, tuple[str, ...]] = {
+    "capabilities": ("simurgh", "docs", "operator"),
+    "docs": ("docs", "simurgh"),
+    "drone_show": ("shows", "swarm_trajectories", "origin"),
+    "fleet": ("fleet", "config"),
+    "logs": ("logs",),
+    "mcp": ("simurgh", "docs", "operator"),
+    "runtime": ("system", "simurgh"),
+    "safety": ("commands", "origin", "px4_params", "simurgh"),
+    "sar": ("sar",),
+    "setup": ("fleet", "system", "docs", "simurgh"),
+    "sitl": ("sitl",),
+    "swarm": ("swarm_trajectories", "config", "origin"),
+    "ui": ("simurgh", "docs"),
+}
+
 @dataclass(frozen=True)
 class MdsReadToolAnswer:
     """Assistant-ready result from a local read-only MDS tool."""
@@ -151,6 +186,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
 
     if _looks_like_action_capability_question(normalized):
         return "action_capability"
+    if _looks_like_registry_domain_tool_question(normalized, topic=topic):
+        return "registry_domain_tool_summary"
     if _looks_like_command_summary_question(normalized):
         return "command_summary"
     if _looks_like_origin_status_question(normalized):
@@ -309,6 +346,8 @@ def answer_mds_read_only_question(
         return tools.backend_log_summary(response_mode=response_mode, message=message)
     if intent == "action_capability":
         return tools.action_capability()
+    if intent == "registry_domain_tool_summary":
+        return tools.registry_domain_tool_summary(message)
     if intent == "system_status":
         return tools.system_status()
     if intent == "environment_summary":
@@ -358,6 +397,8 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "safety"
     if normalized_intent == "capability_catalog":
         return "capabilities"
+    if normalized_intent == "registry_domain_tool_summary":
+        return "capabilities"
     if normalized_intent == "public_geography":
         return "public_geography"
     if normalized_intent in {"general_knowledge", "autopilot_support"}:
@@ -391,7 +432,7 @@ def infer_mds_response_mode(
         "operator_help",
     }:
         return "workflow"
-    if normalized_intent in {"action_capability", "capability_catalog"}:
+    if normalized_intent in {"action_capability", "capability_catalog", "registry_domain_tool_summary"}:
         return "capability"
     if normalized_intent == "general_knowledge":
         return "interpret"
@@ -408,6 +449,7 @@ SAFE_BLOCKED_TERM_READ_ONLY_INTENTS = frozenset(
         "companion_setup_help",
         "docs_help",
         "capability_catalog",
+        "registry_domain_tool_summary",
         "origin_status",
         "command_summary",
     }
@@ -1153,6 +1195,64 @@ class MdsReadOnlyTools:
             "capability_catalog",
             content,
             ("mds.simurgh.tool_registry.read", "mds.simurgh.policy.read"),
+        )
+
+    def registry_domain_tool_summary(self, message: str) -> MdsReadToolAnswer:
+        normalized = _normalize_text(message)
+        try:
+            from .query_understanding import build_assistant_query_plan
+            from .tool_executor import summarize_read_only_tool_catalog
+
+            plan = build_assistant_query_plan(normalized)
+            summary = summarize_read_only_tool_catalog(channel="agent")
+            registry_domains = _registry_domains_for_query(normalized, plan_domain=plan.domain)
+            tools = _matching_registry_tools(summary.allowed_tools, normalized, registry_domains)
+            selected_domains = _registry_domains_from_tools(tools) or registry_domains
+
+            registry_path = summary.registry.path
+            try:
+                registry_label = registry_path.relative_to(REPO_ROOT).as_posix()
+            except ValueError:
+                registry_label = registry_path.as_posix()
+
+            composer = AnswerComposer()
+            domain_label = _registry_domain_summary_label(selected_domains, fallback=plan.domain)
+            composer.line(f"Registry-backed read-only capability summary for {domain_label}:")
+            composer.line(f"Source: `{registry_label}` filtered by current Simurgh policy for the dashboard/agent channel.")
+            composer.blank()
+            if tools:
+                rows = [
+                    (
+                        f"{tool.title} (`{tool.id}`)",
+                        _compact_tool_description(tool.description),
+                        _tool_route_label(tool),
+                        _tool_args_label(tool),
+                    )
+                    for tool in tools[:12]
+                ]
+                composer.table(("Capability", "Reads", "Route / adapter", "Args"), rows)
+                if len(tools) > 12:
+                    composer.blank().line(f"{len(tools) - 12} more matching read-only tools are available through the same registry/MCP menu.")
+            else:
+                composer.line("No policy-allowed read-only registry tools matched that domain yet.")
+            composer.blank()
+            composer.line("How this is used: Dashboard chat and external MCP clients discover the same approved menu; external clients call it with `tools/list` and `tools/call` when MCP auth is valid.")
+            composer.line("This answer only describes the approved capability surface; it did not call a route, mutate config, upload assets, or command a drone.")
+            content = composer.render()
+            tool_ids = tuple(tool.id for tool in tools[:16]) or ("mds.simurgh.tools.read", "mds.simurgh.policy.read")
+        except Exception as exc:
+            content = f"Simurgh registry capability summary could not be loaded: {exc}"
+            tool_ids = ("mds.simurgh.tools.read", "mds.simurgh.policy.read")
+        return self._answer(
+            "registry_domain_tool_summary",
+            content,
+            tool_ids,
+            response_mode="capability",
+            safety_notes=(
+                "Answered from the current policy-filtered Simurgh tool registry.",
+                "No GCS route, drone API, command, or mutation was executed.",
+                "This is the shared capability surface used by dashboard chat and MCP clients.",
+            ),
         )
 
     def system_status(self) -> MdsReadToolAnswer:
@@ -2582,6 +2682,8 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
     if topic == "capabilities":
         if _looks_like_action_capability_question(normalized):
             return "action_capability"
+        if _looks_like_registry_domain_tool_question(normalized, topic=topic):
+            return "registry_domain_tool_summary"
         if _has_any(normalized, ("mcp", "tool", "tools", "api", "apis", "menu", "client", "n8n", "claude", "vscode")) or _looks_like_generic_contextual_followup(normalized):
             return "capability_catalog"
     if topic == "sitl":
@@ -2598,6 +2700,176 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
         if _looks_like_autopilot_support_question(normalized):
             return "autopilot_support"
     return None
+
+
+def _looks_like_registry_domain_tool_question(normalized: str, *, topic: str | None = None) -> bool:
+    if not normalized:
+        return False
+    if _looks_like_direct_execution_request(normalized):
+        return False
+    if _has_any(normalized, ("api key", "api keys", "openai api", "openrouter api", "secret", "secrets")) and not _has_any(
+        normalized,
+        ("tool", "tools", "mcp", "route", "routes", "endpoint", "endpoints", "capability", "capabilities"),
+    ):
+        return False
+    capability_terms = (
+        "tool",
+        "tools",
+        "mcp",
+        "route",
+        "routes",
+        "endpoint",
+        "endpoints",
+        "capability",
+        "capabilities",
+        "menu",
+        "what api",
+        "what apis",
+        "which api",
+        "which apis",
+        "api route",
+        "api routes",
+        "api endpoint",
+        "api endpoints",
+        "can inspect",
+        "can you query",
+        "what can you inspect",
+        "what can you query",
+        "what can you read",
+        "available for",
+        "exposed for",
+        "same menu",
+    )
+    if not _has_any(normalized, capability_terms):
+        return False
+    domains = _registry_domains_for_query(normalized, plan_domain=topic or "")
+    if not domains:
+        return False
+    return any(domain not in {"simurgh", "docs", "operator"} for domain in domains)
+
+
+def _registry_domains_for_query(normalized: str, *, plan_domain: str | None = None) -> tuple[str, ...]:
+    domains: list[str] = []
+
+    def add_many(values: Sequence[str]) -> None:
+        for value in values:
+            if value and value not in domains:
+                domains.append(value)
+
+    add_many(QUERY_DOMAIN_TO_REGISTRY_DOMAINS.get(str(plan_domain or ""), ()))
+    keyword_domains = (
+        (("quickscout", "quick scout", "quick scoute", "sar", "search and rescue", "finding", "findings", "search area", "coverage", "handoff"), ("sar",)),
+        (("sitl", "simulation", "simulator"), ("sitl",)),
+        (("drone show", "skybrush", "show package", "show design", "custom show"), ("shows", "origin")),
+        (("swarm trajectory", "trajectory", "formation", "cluster", "offset", "leader", "follower"), ("swarm_trajectories", "config", "origin")),
+        (("fleet", "drone", "drones", "vehicle", "vehicles", "board", "boards", "cm4", "telemetry", "heartbeat", "connected", "online", "candidate", "enrollment"), ("fleet", "config")),
+        (("sidecar", "wifi", "wi-fi", "mavlink dashboard", "smart wifi", "smart-wifi", "mavlink anywhere"), ("fleet", "system")),
+        (("log", "logs", "warning", "warnings", "error", "errors", "backend", "audit"), ("logs", "simurgh")),
+        (("runtime", "mode", "gcs mode", "real mode", "provider", "model", "circuit breaker", "always confirm", "environment", "env"), ("system", "simurgh")),
+        (("px4", "parameter", "parameters", "param", "params", "sys_id"), ("px4_params", "commands")),
+        (("origin", "launch position", "launch positions", "elevation", "deviation", "deviations"), ("origin",)),
+        (("command", "commands", "action", "actions", "precision move"), ("commands",)),
+        (("git", "repo", "repository", "sync"), ("git",)),
+        (("docs", "doc", "documentation", "guide", "manual", "context"), ("docs", "simurgh")),
+    )
+    for signals, mapped_domains in keyword_domains:
+        if _has_any(normalized, signals):
+            add_many(mapped_domains)
+    return tuple(domains)
+
+
+def _matching_registry_tools(tools: Sequence[Any], normalized: str, registry_domains: Sequence[str]) -> list[Any]:
+    domain_set = set(registry_domains)
+    if not domain_set:
+        return []
+    keyword_terms = tuple(
+        term
+        for term in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", normalized)
+        if term not in {"what", "which", "tools", "tool", "apis", "api", "mcp", "can", "you", "for", "the", "and", "read", "query", "inspect"}
+    )
+    matches: list[tuple[int, str, Any]] = []
+    for tool in tools:
+        tool_domain = _tool_registry_domain(tool)
+        if tool_domain not in domain_set:
+            continue
+        text = _normalize_text(
+            " ".join(
+                str(value or "")
+                for value in (
+                    getattr(tool, "id", ""),
+                    getattr(tool, "title", ""),
+                    getattr(tool, "description", ""),
+                    " ".join(getattr(tool, "tags", ()) or ()),
+                    " ".join(getattr(tool, "docs", ()) or ()),
+                )
+            )
+        )
+        score = 0
+        score += 8
+        score += sum(1 for term in keyword_terms if term in text)
+        if score > 0:
+            matches.append((score, str(getattr(tool, "id", "")), tool))
+    matches.sort(key=lambda item: (-item[0], item[1]))
+    return [tool for _score, _tool_id, tool in matches]
+
+
+def _tool_registry_domain(tool: Any) -> str:
+    tool_id = str(getattr(tool, "id", "") or "")
+    parts = tool_id.split(".")
+    if tool_id.startswith("mds.") and len(parts) >= 3:
+        return parts[1]
+    if tool_id.startswith("simurgh.") and len(parts) >= 2:
+        return parts[1]
+    return ""
+
+
+def _registry_domains_from_tools(tools: Sequence[Any]) -> tuple[str, ...]:
+    domains: list[str] = []
+    for tool in tools:
+        domain = _tool_registry_domain(tool)
+        if domain and domain not in domains:
+            domains.append(domain)
+    return tuple(domains)
+
+
+def _registry_domain_summary_label(domains: Sequence[str], *, fallback: str | None = None) -> str:
+    labels = [REGISTRY_DOMAIN_LABELS.get(domain, domain.replace("_", " ")) for domain in domains[:4] if domain]
+    if not labels and fallback:
+        labels = [str(fallback).replace("_", " ")]
+    if not labels:
+        return "the requested domain"
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels[:-1]) + " and " + labels[-1]
+
+
+def _compact_tool_description(description: str, *, limit: int = 96) -> str:
+    text = re.sub(r"\s+", " ", str(description or "")).strip()
+    return _truncate_text(text, limit)
+
+
+def _tool_route_label(tool: Any) -> str:
+    method = str(getattr(tool, "route_method", "") or "").strip()
+    path = str(getattr(tool, "route_path", "") or "").strip()
+    if method and path:
+        return f"`{method} {path}`"
+    return "local advisory adapter"
+
+
+def _tool_args_label(tool: Any) -> str:
+    schema = getattr(tool, "input_schema", None) or {}
+    if not isinstance(schema, Mapping) or not schema:
+        return "none"
+    required = [str(item) for item in schema.get("required") or []]
+    properties = schema.get("properties") if isinstance(schema.get("properties"), Mapping) else {}
+    optional = [str(name) for name in properties if str(name) not in required]
+    if required and optional:
+        return "required: " + ", ".join(required) + "; optional: " + ", ".join(optional[:3])
+    if required:
+        return "required: " + ", ".join(required)
+    if optional:
+        return "optional: " + ", ".join(optional[:4])
+    return "schema-defined"
 
 
 def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
@@ -2626,6 +2898,10 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
         if _looks_like_live_fleet_state_question(normalized):
             return "fleet_connectivity"
         return "fleet_summary"
+    if domain == "sar":
+        if _looks_like_registry_domain_tool_question(normalized, topic=topic):
+            return "registry_domain_tool_summary"
+        return "docs_help"
     if domain == "swarm":
         if mode == "compare" or _has_any(normalized, ("quickscout", "quick scout", "swarm trajectory", " vs ")):
             return "mission_mode_comparison"
@@ -2647,6 +2923,8 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
             return "sitl_help"
         return "runtime_summary"
     if domain in {"capabilities", "mcp"}:
+        if _looks_like_registry_domain_tool_question(normalized, topic=topic):
+            return "registry_domain_tool_summary"
         return "capability_catalog"
     if domain == "docs" and mode == "workflow":
         return "docs_help"
@@ -2938,6 +3216,7 @@ def _mentions_other_domain(normalized: str, topic: str) -> bool:
         "logs": ("log", "logs", "warning", "error", "backend", "trace"),
         "runtime": ("runtime", "provider", "model", "circuit breaker", "always confirm", "gcs mode"),
         "capabilities": ("capability", "capabilities", "tool", "tools", "api", "apis", "mcp", "n8n", "claude"),
+        "sar": ("sar", "quickscout", "quick scout", "quick scoute", "search and rescue", "finding", "findings", "coverage", "handoff"),
         "sitl": ("sitl", "simulation", "simulator"),
     }
     for domain, terms in domain_terms.items():

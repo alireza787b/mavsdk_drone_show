@@ -78,6 +78,7 @@ DEFAULT_OPENAI_REASONING_EFFORT = "medium"
 DEFAULT_OPENAI_TEXT_VERBOSITY = "low"
 DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE = "medium"
 DEFAULT_RETRIEVED_CONTEXT_LIMIT = 4
+LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS = frozenset({"registry_domain_tool_summary"})
 DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS = 2200
 DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES = 14000
 SUPPORTED_OPENAI_REASONING_EFFORTS = {"none", "minimal", "low", "medium", "high", "xhigh"}
@@ -2007,6 +2008,7 @@ def create_assistant_turn(
             and config.provider == OPENAI_ASSISTANT_PROVIDER
             and not blocked_matches
             and not sensitive_matches
+            and str(tool_intent or "") not in LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS
         ):
             adapter = _adapter_for_config(config)
             if isinstance(adapter, OpenAIResponsesAssistantAdapter):
