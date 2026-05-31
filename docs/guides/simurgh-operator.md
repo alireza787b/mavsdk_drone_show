@@ -714,7 +714,11 @@ Assistant scaffold route:
 The stream route returns `text/event-stream` and emits bounded events for the
 dashboard chat UI:
 
-- `progress`: short stage labels such as policy/context/tool/provider work
+- `progress`: short stage labels such as policy/context/tool/provider work;
+  when a registry read executes, the tool-stage payload includes the selected
+  read-only tool id(s) and reviewed tool title(s), so the dashboard can show
+  concrete steps such as `Read fleet sidecar node` without exposing raw request
+  text or secrets
 - `delta`: text chunks for incremental rendering inside the assistant bubble
 - `final`: the same sanitized assistant-turn payload returned by the normal
   `POST /api/v1/simurgh/assistant/turns` route

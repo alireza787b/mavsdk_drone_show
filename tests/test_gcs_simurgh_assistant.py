@@ -184,6 +184,27 @@ def test_simurgh_assistant_turn_streams_progress_delta_final_and_history(monkeyp
     assert [turn["id"] for turn in history] == [final_payload["id"]]
 
 
+def test_simurgh_assistant_stream_reports_specific_registry_tool_progress(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    with client.stream(
+        "POST",
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={"actor": "operator", "message": "show mavlink-anywhere sidecar node for drone 2 now"},
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(response.iter_text())
+
+    events = _parse_sse_events(body)
+    tool_progress = [payload for event, payload in events if event == "progress" and payload.get("stage") == "tool"]
+    assert tool_progress
+    assert tool_progress[-1]["label"] == "Using read-only MDS tool: Read fleet sidecar node"
+    assert tool_progress[-1]["tool_ids"] == ["mds.fleet.sidecar.node.read"]
+    final_payload = next(payload for event, payload in events if event == "final")
+    assert final_payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecar.node.read"]
+
+
 def test_simurgh_assistant_turn_can_use_existing_session(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     client = _client()

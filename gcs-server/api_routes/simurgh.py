@@ -523,6 +523,46 @@ def _assistant_content_chunks(content: str, chunk_size: int = 96):
             line = line[chunk_size:]
 
 
+def _tool_titles_for_progress(tool_ids: list[str]) -> list[str]:
+    if not tool_ids:
+        return []
+    try:
+        registry = load_default_tool_registry()
+    except AgentRuntimeError:
+        return tool_ids[:3]
+    titles: list[str] = []
+    for tool_id in tool_ids[:3]:
+        tool = registry.get(tool_id)
+        titles.append(tool.title if tool else tool_id)
+    return titles
+
+
+def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
+    tool = trace.get("tool") if isinstance(trace.get("tool"), dict) else {}
+    tool_ids = [str(item).strip() for item in (tool.get("ids") or []) if str(item).strip()]
+    tool_intent = str(tool.get("intent") or "").strip()
+    provider = str(payload.get("provider") or "").strip()
+
+    if tool_ids:
+        titles = _tool_titles_for_progress(tool_ids)
+        joined_titles = "; ".join(titles)
+        if len(tool_ids) > len(titles):
+            joined_titles = f"{joined_titles}; +{len(tool_ids) - len(titles)} more" if joined_titles else f"{len(tool_ids)} tools"
+        label = (
+            f"Using read-only MDS tool: {joined_titles}"
+            if len(tool_ids) == 1
+            else f"Using {len(tool_ids)} read-only MDS tools: {joined_titles}"
+        )
+        return {"stage": "tool", "label": label, "intent": tool_intent, "tool_ids": tool_ids}
+
+    if tool_intent:
+        return {"stage": "tool", "label": f"Using {tool_intent.replace('_', ' ')}", "intent": tool_intent}
+    if provider == "openai":
+        return {"stage": "provider", "label": "Composing with OpenAI provider"}
+    return {"stage": "provider", "label": "Composing local response"}
+
+
 def _auth_context(request: Request) -> dict[str, Any]:
     return dict(getattr(request.state, "mds_auth_context", {}) or {})
 
@@ -1498,16 +1538,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 await asyncio.sleep(0)
                 record, history_record = await _create_assistant_turn_record_for_request(http_request, request)
                 payload = _assistant_turn_response_payload(record, history_record)
-                trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
-                tool = trace.get("tool") if isinstance(trace.get("tool"), dict) else {}
-                tool_intent = str(tool.get("intent") or "").strip()
-                provider = str(payload.get("provider") or "").strip()
-                if tool_intent:
-                    yield _assistant_sse_event("progress", {"stage": "tool", "label": f"Using {tool_intent.replace('_', ' ')}"})
-                elif provider == "openai":
-                    yield _assistant_sse_event("progress", {"stage": "provider", "label": "Composing with OpenAI provider"})
-                else:
-                    yield _assistant_sse_event("progress", {"stage": "provider", "label": "Composing local response"})
+                yield _assistant_sse_event("progress", _assistant_tool_progress_payload(payload))
                 await asyncio.sleep(0)
                 content = str(payload.get("content") or "")
                 if content:
