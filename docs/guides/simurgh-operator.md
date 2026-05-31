@@ -16,7 +16,8 @@ usable read-only operator slice:
 - optional advisory-only OpenAI Responses adapter
 - optional MCP endpoint with resources and policy-allowed read-only GCS tools
 - typed arguments for reviewed read-only MCP tools where needed
-- dashboard chat execution of selected no-argument read-only registry tools
+- dashboard chat execution of selected read-only registry tools, including
+  reviewed typed-argument reads when the operator gives explicit IDs/values,
   through the same internal adapter used by MCP `tools/call`
 - generated OpenAPI candidate inventory that is not runtime-callable by default
 - generated public docs/chunk index with MCP search and bounded chunk retrieval
@@ -671,18 +672,22 @@ arguments, auth, and policy gates. Registry-domain menu answers stay local-only
 even for authenticated OpenAI sessions so operator capability discovery remains
 fast, deterministic, and identical to the MCP policy-filtered menu.
 
-For concrete read-only state prompts, the dashboard assistant can execute a
-small approved subset of no-argument registry tools through the same internal
-adapter used by MCP `tools/call`. The chat planner selects from policy-filtered
-registry entries only; it does not scrape raw OpenAPI routes, invent arguments,
-or bypass registry exposure. Current coverage is intentionally bounded to safe
-status/catalog evidence such as SITL state, SAR/QuickScout mission catalogs,
-fleet sidecar/network summaries, runtime posture, environment registry state,
-PX4 parameter policy/profile summaries, origin/launch-position evidence,
-Swarm Trajectory status/validation/leaders, SkyBrush validation/safety/metrics
-snapshots, fleet candidates, and GCS health. If a registry tool requires path or
-query arguments, dashboard chat leaves it to MCP `tools/call` or a future
-reviewed argument-planning slice.
+For concrete read-only state prompts, the dashboard assistant can execute an
+approved subset of registry tools through the same internal adapter used by MCP
+`tools/call`. The chat planner selects from policy-filtered registry entries
+only; it does not scrape raw OpenAPI routes, invent arguments, or bypass
+registry exposure. No-argument tools execute directly. Required-argument read
+tools execute only when the operator supplied enough explicit, schema-valid
+values in the prompt, such as `session_id`, `sidecar`, `hw_id`, `mission_id`,
+`profile_id`, `chunk_id`, or `lat`/`lon`; missing IDs are not guessed.
+
+Current coverage is intentionally bounded to safe status/catalog evidence such
+as SITL state, SAR/QuickScout mission catalogs or explicit mission status, Fleet
+Ops sidecar/network tables and specific nodes, bounded log-session reads,
+runtime posture, environment registry state, PX4 parameter policy/profile
+summaries, origin/launch-position/elevation evidence, Swarm Trajectory
+status/validation/leaders, SkyBrush validation/safety/metrics snapshots, fleet
+candidates, and GCS health.
 
 Read-only routes:
 

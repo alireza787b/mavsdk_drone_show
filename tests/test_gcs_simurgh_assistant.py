@@ -45,6 +45,37 @@ def _client_with_registry_probe_routes() -> TestClient:
     def sar_missions():
         return {"count": 1, "missions": [{"mission_id": "sar-1", "status": "draft", "finding_count": 0}]}
 
+    @app.get("/api/logs/sessions/{session_id}")
+    def log_session(session_id: str, limit: int, level: str | None = None):
+        return {
+            "session_id": session_id,
+            "limit": limit,
+            "level": level,
+            "entries": [
+                {"level": level or "WARNING", "component": "api", "message": "probe warning"},
+            ],
+        }
+
+    @app.get("/api/v1/fleet/sidecars/{sidecar}")
+    def sidecar_table(sidecar: str):
+        return {"sidecar": sidecar, "nodes": [{"hw_id": "2", "state": "online"}]}
+
+    @app.get("/api/v1/fleet/sidecars")
+    def sidecars_summary():
+        return {"sidecars": ["smart-wifi-manager", "mavlink-anywhere"], "node_count": 2}
+
+    @app.get("/api/v1/fleet/network-status")
+    def fleet_network_status():
+        return {"online": 2, "offline": 0}
+
+    @app.get("/api/v1/fleet/sidecars/{sidecar}/nodes/{hw_id}")
+    def sidecar_node(sidecar: str, hw_id: str):
+        return {"sidecar": sidecar, "hw_id": hw_id, "state": "online", "remote_url": "http://example.invalid"}
+
+    @app.get("/api/v1/origin/elevation")
+    def origin_elevation(lat: float, lon: float):
+        return {"lat": lat, "lon": lon, "elevation_m": 1234.5}
+
     app.include_router(create_simurgh_router())
     return TestClient(app)
 
@@ -440,6 +471,80 @@ def test_simurgh_assistant_executes_registry_read_only_sar_catalog(monkeypatch):
     assert "Read-only registry check for QuickScout/SAR mission catalog" in payload["content"]
     assert "count: 1" in payload["content"]
     assert "mission_id=sar-1" in payload["content"]
+
+
+def test_simurgh_assistant_executes_registry_read_only_typed_sidecar_node(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "show mavlink-anywhere sidecar node for drone 2 now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"][0] == "mds.fleet.sidecar.node.read"
+    assert "sidecar=mavlink-anywhere" in payload["content"]
+    assert "hw_id=2" in payload["content"]
+    assert "state: online" in payload["content"]
+
+
+def test_simurgh_assistant_falls_back_to_no_argument_sidecar_tools_when_typed_id_missing(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "show fleet sidecars now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecars.read", "mds.fleet.network_status.read"]
+    assert "Read-only registry check for fleet sidecar and board connectivity state" in payload["content"]
+    assert "one fleet sidecar table" not in payload["content"]
+    assert "sidecars: 2 item(s)" in payload["content"]
+
+
+def test_simurgh_assistant_executes_registry_read_only_typed_log_session(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "read log session s_20260527_174402 limit 10 warnings"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["ids"] == ["mds.logs.session.read"]
+    assert "session_id=s_20260527_174402" in payload["content"]
+    assert "limit=10" in payload["content"]
+    assert "level=WARNING" in payload["content"]
+    assert "probe warning" in payload["content"]
+
+
+def test_simurgh_assistant_executes_registry_read_only_typed_elevation(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "check terrain elevation for lat 35.95 lon 52.11 now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["ids"] == ["mds.origin.elevation.read"]
+    assert "lat=35.95" in payload["content"]
+    assert "lon=52.11" in payload["content"]
+    assert "elevation_m: 1234.5" in payload["content"]
 
 
 def test_provider_tool_composition_message_has_safe_fallback_labels():

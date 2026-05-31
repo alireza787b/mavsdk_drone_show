@@ -133,16 +133,21 @@ stay in setup guidance, while â€œwhich MCP tools can inspect setup/fleet state?â
 should use the registry-domain bridge.
 
 Concrete current-state prompts may use the registry read-execution bridge when
-the selected registry tools are policy-allowed, read-only, and require no
-arguments. Examples include SITL instance/policy state, QuickScout/SAR mission
-catalogs, fleet sidecar/network state, origin/launch-position evidence,
-environment registry state, PX4 parameter policy/profile summaries, and Drone
-Show validation/safety/metrics snapshots. This is still not a free-form API
-caller: capability questions remain menu-only, mutation/action terms are
-blocked before planning, required-argument tools stay out of chat execution
-until an argument-inference and approval slice is reviewed, and every call goes
-through the same registry, policy, internal ASGI adapter, and audit trail as MCP
-`tools/call`.
+the selected registry tools are policy-allowed and read-only. No-argument tools
+may execute directly. Required-argument read tools may execute only when the
+operator supplies enough explicit, schema-valid identifiers or coordinates in
+the prompt, for example `session_id`, `sidecar`, `hw_id`, `mission_id`,
+`profile_id`, `chunk_id`, or `lat`/`lon`. The planner must never guess missing
+identifiers, select mutation/action tools, scrape raw OpenAPI routes, or bypass
+the registry. Every call still goes through the same registry, policy, internal
+ASGI adapter, schema validation, and audit trail as MCP `tools/call`.
+
+Examples include SITL instance/policy state, QuickScout/SAR mission catalogs or
+explicit mission status, Fleet Ops sidecar tables/nodes, bounded log-session
+reads, origin/launch-position/elevation evidence, environment registry state,
+PX4 parameter policy/profile summaries, and Drone Show validation/safety/metrics
+snapshots. Capability questions remain menu-only, and mutation/action terms are
+blocked before planning.
 
 ### Composer Migration Status
 

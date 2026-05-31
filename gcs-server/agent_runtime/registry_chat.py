@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -73,6 +74,74 @@ _STATE_TERMS = (
     "what's",
 )
 
+_ARGUMENT_STATE_TERMS = _STATE_TERMS + (
+    "details",
+    "detail",
+    "explain",
+    "inspect",
+    "open",
+    "review",
+)
+
+_IDENTIFIER_RE = r"[A-Za-z0-9_.:-]+"
+_BAD_ARGUMENT_VALUES = {
+    "a",
+    "an",
+    "are",
+    "as",
+    "available",
+    "detail",
+    "details",
+    "for",
+    "is",
+    "now",
+    "read",
+    "show",
+    "status",
+    "the",
+}
+
+_SIDECAR_ALIASES: Mapping[str, tuple[str, ...]] = {
+    "smart-wifi-manager": (
+        "smart wifi manager",
+        "smart-wifi-manager",
+        "wifi manager",
+        "wifi sidecar",
+        "wifi dashboard",
+    ),
+    "mavlink-anywhere": (
+        "mavlink anywhere",
+        "mavlink-anywhere",
+        "mavlink dashboard",
+        "mavlink sidecar",
+        "telemetry dashboard",
+    ),
+}
+
+_ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    (("log session", "session_id", "session id", "logs/session"), ("mds.logs.session.read",), "one GCS log session"),
+    (("command_id", "command id", "command status"), ("mds.commands.status.read",), "one command status"),
+    (("position id", "pos_id", "pos id", "launch position"), ("mds.config.position.read",), "one launch position"),
+    (("candidate_id", "candidate id", "fleet candidate"), ("mds.fleet.candidate.read",), "one fleet candidate"),
+    (("sidecar", "wifi manager", "mavlink anywhere", "mavlink dashboard"), ("mds.fleet.sidecar.read",), "one fleet sidecar table"),
+    (("sidecar baseline", "wifi baseline", "mavlink baseline"), ("mds.fleet.sidecar.baseline.read",), "one fleet sidecar baseline"),
+    (("sidecar node", "wifi node", "mavlink node", "board sidecar"), ("mds.fleet.sidecar.node.read",), "one fleet sidecar node"),
+    (("elevation", "terrain altitude", "terrain height"), ("mds.origin.elevation.read",), "origin terrain elevation lookup"),
+    (("px4 profile", "parameter profile", "profile_id", "profile id"), ("mds.px4_params.profile.read",), "one PX4 parameter profile"),
+    (("snapshot_id", "snapshot id", "px4 snapshot"), ("mds.px4_params.snapshot.read", "mds.px4_params.snapshot_rows.read"), "one PX4 parameter snapshot"),
+    (("px4 job", "patch job", "patch_job", "patch-job"), ("mds.px4_params.patch_job.read",), "one PX4 parameter job"),
+    (("sar findings", "mission findings"), ("mds.sar.findings.read",), "one SAR findings set"),
+    (("sar workspace", "mission workspace"), ("mds.sar.mission.workspace.read",), "one SAR mission workspace"),
+    (("sar status", "mission status", "quickscout status"), ("mds.sar.mission.status.read",), "one SAR mission status"),
+    (("sar job", "planning job"), ("mds.sar.plan_job.read",), "one SAR planning job"),
+    (("swarm trajectory job", "trajectory job", "process job"), ("mds.swarm_trajectories.process_job.read",), "one swarm trajectory job"),
+    (("fleet node env", "node environment", "board environment", "drone environment"), ("mds.system.env_fleet_node.read",), "one fleet-node environment posture"),
+    (("sitl operation", "operation_id", "operation id"), ("mds.sitl.operation.read",), "one SITL operation"),
+    (("tool_id", "tool id", "simurgh tool"), ("mds.simurgh.tool.read",), "one Simurgh tool definition"),
+    (("context resource", "resource_id", "resource id"), ("mds.simurgh.context_resource.read", "mds.simurgh.context_markdown.read"), "one Simurgh context resource"),
+    (("chunk_id", "chunk id", "docs chunk"), ("mds.docs.chunk.read",), "one public docs chunk"),
+)
+
 _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("quickscout", "quick scout", "sar", "search and rescue", "scout mission"), ("mds.sar.missions.read",), "QuickScout/SAR mission catalog"),
     (("sitl", "simulator", "simulation instance", "sim instance"), ("mds.sitl.instances.read", "mds.sitl.policy.read"), "SITL runtime state"),
@@ -137,6 +206,8 @@ def plan_registry_read_tool_calls(
             label = candidate_label
             break
 
+    argument_ids, argument_label = _argument_tool_ids_for_query(normalized, domain=plan.domain)
+
     if not selected_ids:
         if plan.domain == "sitl":
             selected_ids = ["mds.sitl.instances.read", "mds.sitl.policy.read"]
@@ -148,17 +219,32 @@ def plan_registry_read_tool_calls(
             selected_ids = ["mds.system.runtime_status.read", "mds.simurgh.status.read"]
             label = "GCS runtime and Simurgh posture"
 
+    base_label = label
+    candidate_groups: list[tuple[list[str], str]] = []
+    if argument_ids:
+        candidate_groups.append((list(argument_ids), argument_label or base_label))
+    candidate_groups.append((list(selected_ids), base_label))
+    selected_label = base_label
     calls: list[RegistryReadCall] = []
-    seen: set[str] = set()
-    for tool_id in selected_ids:
-        tool = allowed_by_id.get(tool_id)
-        if tool is None or tool.id in seen or _required_args(tool):
-            continue
-        calls.append(RegistryReadCall(tool=tool, arguments={}))
-        seen.add(tool.id)
+    for candidate_ids, candidate_label in candidate_groups:
+        candidate_calls: list[RegistryReadCall] = []
+        seen: set[str] = set()
+        for tool_id in candidate_ids:
+            tool = allowed_by_id.get(tool_id)
+            if tool is None or tool.id in seen:
+                continue
+            arguments = _arguments_for_tool(tool, normalized, domain=plan.domain)
+            if arguments is None:
+                continue
+            candidate_calls.append(RegistryReadCall(tool=tool, arguments=arguments))
+            seen.add(tool.id)
+        if candidate_calls:
+            calls = candidate_calls
+            selected_label = candidate_label
+            break
     if not calls:
         return None
-    return RegistryReadPlan(label=label, domain=plan.domain, tool_calls=tuple(calls[:4]))
+    return RegistryReadPlan(label=selected_label, domain=plan.domain, tool_calls=tuple(calls[:4]))
 
 
 def format_registry_read_results(
@@ -180,11 +266,310 @@ def format_registry_read_results(
         status = f"HTTP {item.result.status_code}" if item.result.status_code else "local"
         if item.result.is_error:
             status = f"error ({status})"
-        rows.append((f"{item.tool.title} (`{item.tool.id}`)", status, _result_highlights(item.result)))
-    composer.table(("Tool", "Result", "Highlights"), rows)
+        rows.append(
+            (
+                f"{item.tool.title} (`{item.tool.id}`)",
+                _argument_summary(item.arguments),
+                status,
+                _result_highlights(item.result),
+            )
+        )
+    composer.table(("Tool", "Arguments", "Result", "Highlights"), rows)
     composer.blank()
     composer.line("This was read-only registry execution. No config write, upload, mission action, drone API call, or command was attempted.")
     return composer.render()
+
+
+def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, ...], str]:
+    selected: list[str] = []
+    label = "typed read-only GCS state"
+    for signals, tool_ids, candidate_label in _ARGUMENT_TOOL_HINTS:
+        if _has_any(text, signals):
+            selected.extend(tool_ids)
+            label = candidate_label
+
+    sidecar = _extract_sidecar(text)
+    hw_id = _extract_hw_id(text)
+    if sidecar:
+        if _has_any(text, ("baseline", "approved baseline")):
+            selected.insert(0, "mds.fleet.sidecar.baseline.read")
+            label = "one fleet sidecar baseline"
+        elif hw_id or _has_any(text, ("node", "board", "drone", "cm4", "hardware")):
+            selected.insert(0, "mds.fleet.sidecar.node.read")
+            label = "one fleet sidecar node"
+        else:
+            selected.insert(0, "mds.fleet.sidecar.read")
+            label = "one fleet sidecar table"
+
+    if _extract_log_session_id(text):
+        selected.insert(0, "mds.logs.session.read")
+        label = "one GCS log session"
+
+    if _extract_mission_id(text):
+        if _has_any(text, ("finding", "findings", "detection", "detections")):
+            selected.insert(0, "mds.sar.findings.read")
+            label = "one SAR findings set"
+        elif _has_any(text, ("workspace", "plan workspace")):
+            selected.insert(0, "mds.sar.mission.workspace.read")
+            label = "one SAR mission workspace"
+        elif domain == "sar" or _has_any(text, ("sar", "quickscout", "mission")):
+            selected.insert(0, "mds.sar.mission.status.read")
+            label = "one SAR mission status"
+
+    if hw_id and _has_any(text, ("environment", "env", "registry", "node env", "board env")):
+        selected.insert(0, "mds.system.env_fleet_node.read")
+        label = "one fleet-node environment posture"
+
+    if _extract_lat_lon(text) and _has_any(text, ("elevation", "terrain", "altitude", "height")):
+        selected.insert(0, "mds.origin.elevation.read")
+        label = "origin terrain elevation lookup"
+
+    return tuple(dict.fromkeys(selected)), label
+
+
+def _arguments_for_tool(tool: ToolDefinition, text: str, *, domain: str) -> Mapping[str, Any] | None:
+    schema = tool.input_schema if isinstance(tool.input_schema, Mapping) else {}
+    required = _required_args(tool)
+    if not schema or not required:
+        return {}
+    if not _has_any(text, _ARGUMENT_STATE_TERMS):
+        return None
+    properties = schema.get("properties") if isinstance(schema.get("properties"), Mapping) else {}
+    arguments: dict[str, Any] = {}
+    for name, raw_property_schema in properties.items():
+        if not isinstance(raw_property_schema, Mapping):
+            continue
+        value = _extract_argument_value(str(name), raw_property_schema, text, tool=tool, domain=domain)
+        if value is not None and _value_matches_schema(value, raw_property_schema):
+            arguments[str(name)] = value
+
+    if "limit" in required and "limit" not in arguments and tool.id == "mds.logs.session.read" and "session_id" in arguments:
+        arguments["limit"] = 20
+
+    if all(name in arguments for name in required):
+        return arguments
+    return None
+
+
+def _extract_argument_value(
+    name: str,
+    schema: Mapping[str, Any],
+    text: str,
+    *,
+    tool: ToolDefinition,
+    domain: str,
+) -> Any | None:
+    enum = schema.get("enum")
+    if isinstance(enum, list) and enum:
+        return _extract_enum_value(name, tuple(str(item) for item in enum), text)
+    expected_type = str(schema.get("type") or "")
+    if expected_type == "integer":
+        return _extract_integer_arg(name, text)
+    if expected_type == "number":
+        return _extract_number_arg(name, text)
+    if expected_type != "string":
+        return None
+    if name == "sidecar":
+        return _extract_sidecar(text)
+    if name == "hw_id":
+        return _extract_hw_id(text)
+    if name == "session_id":
+        return _extract_log_session_id(text) or _extract_named_string(name, text)
+    if name == "mission_id":
+        return _extract_mission_id(text) or _extract_named_string(name, text)
+    if name == "resource_id":
+        return _extract_named_string(name, text, aliases=("context resource", "resource"))
+    if name == "tool_id":
+        return _extract_named_string(name, text, aliases=("simurgh tool", "tool"))
+    if name == "profile_id":
+        return _extract_named_string(name, text, aliases=("px4 profile", "parameter profile", "profile"))
+    if name == "snapshot_id":
+        return _extract_named_string(name, text, aliases=("snapshot", "px4 snapshot"))
+    if name == "job_id":
+        return _extract_named_string(name, text, aliases=_job_aliases_for(tool=tool, domain=domain))
+    if name == "candidate_id":
+        return _extract_named_string(name, text, aliases=("fleet candidate", "candidate"))
+    if name == "operation_id":
+        return _extract_named_string(name, text, aliases=("sitl operation", "operation"))
+    if name == "command_id":
+        return _extract_named_string(name, text, aliases=("command", "command status"))
+    if name == "chunk_id":
+        return _extract_named_string(name, text, aliases=("docs chunk", "chunk"))
+    return _extract_named_string(name, text)
+
+
+def _extract_enum_value(name: str, values: tuple[str, ...], text: str) -> str | None:
+    if name == "sidecar":
+        sidecar = _extract_sidecar(text)
+        if sidecar in values:
+            return sidecar
+    for value in values:
+        aliases = {value, value.replace("-", " "), value.replace("_", " ")}
+        if any(alias in text for alias in aliases):
+            return value
+    upper_text = text.upper()
+    for value in values:
+        if value.upper() in upper_text:
+            return value
+    return None
+
+
+def _extract_sidecar(text: str) -> str | None:
+    for sidecar, aliases in _SIDECAR_ALIASES.items():
+        if _has_any(text, aliases):
+            return sidecar
+    return None
+
+
+def _extract_hw_id(text: str) -> str | None:
+    patterns = (
+        r"\b(?:hw|hardware|node)\s*(?:id|number|#)?\s*[:=]?\s*([A-Za-z0-9_.:-]+)\b",
+        r"\b(?:board|drone|vehicle)\s*(?:id|number|#)\s*[:=]?\s*([A-Za-z0-9_.:-]+)\b",
+        r"\b(?:board|drone|vehicle)\s+([0-9][A-Za-z0-9_.:-]*)\b",
+        r"\bcm4[-_ ]?0*([0-9]+)\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            value = match.group(1).strip(".,;()[]{}")
+            if value and value not in _BAD_ARGUMENT_VALUES:
+                return value
+    return None
+
+
+def _extract_log_session_id(text: str) -> str | None:
+    explicit = _extract_named_string("session_id", text, aliases=("log session", "session"))
+    if explicit:
+        return explicit
+    match = re.search(r"\b(s_[0-9A-Za-z_.-]+)\b", text)
+    return match.group(1) if match else None
+
+
+def _extract_mission_id(text: str) -> str | None:
+    return _extract_named_string("mission_id", text, aliases=("sar mission", "quickscout mission", "mission"))
+
+
+def _extract_named_string(name: str, text: str, *, aliases: Sequence[str] = ()) -> str | None:
+    labels = [name, name.replace("_", " "), name.replace("_id", " id")]
+    labels.extend(str(alias) for alias in aliases if str(alias).strip())
+    for label in sorted(set(labels), key=len, reverse=True):
+        escaped = re.escape(label.casefold())
+        label_pattern = rf"(?<![a-z0-9_]){escaped}(?![a-z0-9_])"
+        patterns = (
+            rf"{label_pattern}\s*(?:=|:|is|as|#)\s*({_IDENTIFIER_RE})\b",
+            rf"{label_pattern}\s+(?:id|number)\s*(?:=|:|is|as|#)?\s*({_IDENTIFIER_RE})\b",
+            rf"{label_pattern}\s+({_IDENTIFIER_RE})\b",
+        )
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if match:
+                value = match.group(1).strip(".,;()[]{}")
+                if value and value not in _BAD_ARGUMENT_VALUES and value not in {"id", "number"}:
+                    return value
+    return None
+
+
+def _extract_integer_arg(name: str, text: str) -> int | None:
+    labels = (name, name.replace("_", " "), name.replace("_id", " id"))
+    for label in labels:
+        match = re.search(rf"\b{re.escape(label)}\s*(?:=|:|is|#)?\s*([0-9]+)\b", text)
+        if match:
+            return int(match.group(1))
+    if name == "limit":
+        match = re.search(r"\b(?:limit|last|latest|max)\s+([0-9]+)\b", text)
+        if match:
+            return int(match.group(1))
+    if name == "pos_id":
+        match = re.search(r"\b(?:position|pos)\s*(?:id|number|#)?\s*([0-9]+)\b", text)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _extract_number_arg(name: str, text: str) -> float | None:
+    if name in {"lat", "lon"}:
+        lat_lon = _extract_lat_lon(text)
+        if lat_lon:
+            return lat_lon[0] if name == "lat" else lat_lon[1]
+    labels = (name, name.replace("_", " "))
+    for label in labels:
+        match = re.search(rf"\b{re.escape(label)}\s*(?:=|:|is)?\s*(-?[0-9]+(?:\.[0-9]+)?)\b", text)
+        if match:
+            return float(match.group(1))
+    return None
+
+
+def _extract_lat_lon(text: str) -> tuple[float, float] | None:
+    lat = None
+    lon = None
+    lat_match = re.search(r"\b(?:lat|latitude)\s*(?:=|:|is)?\s*(-?[0-9]+(?:\.[0-9]+)?)\b", text)
+    lon_match = re.search(r"\b(?:lon|lng|longitude)\s*(?:=|:|is)?\s*(-?[0-9]+(?:\.[0-9]+)?)\b", text)
+    if lat_match:
+        lat = float(lat_match.group(1))
+    if lon_match:
+        lon = float(lon_match.group(1))
+    if lat is None or lon is None:
+        pair = re.search(r"\b(-?[0-9]+\.[0-9]+)\s*,\s*(-?[0-9]+\.[0-9]+)\b", text)
+        if pair:
+            lat = float(pair.group(1))
+            lon = float(pair.group(2))
+    if lat is None or lon is None:
+        return None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return lat, lon
+
+
+def _job_aliases_for(*, tool: ToolDefinition, domain: str) -> tuple[str, ...]:
+    if "sar" in tool.id or domain == "sar":
+        return ("sar job", "planning job", "job")
+    if "px4" in tool.id:
+        return ("px4 job", "patch job", "job")
+    if "swarm" in tool.id:
+        return ("trajectory job", "process job", "job")
+    if "sidecar" in tool.id:
+        return ("sidecar job", "job")
+    return ("job",)
+
+
+def _value_matches_schema(value: Any, schema: Mapping[str, Any]) -> bool:
+    expected_type = schema.get("type")
+    if expected_type == "string" and not isinstance(value, str):
+        return False
+    if expected_type == "integer" and (not isinstance(value, int) or isinstance(value, bool)):
+        return False
+    if expected_type == "number" and (not isinstance(value, (int, float)) or isinstance(value, bool)):
+        return False
+    enum = schema.get("enum")
+    if isinstance(enum, list) and enum and value not in enum:
+        return False
+    if isinstance(value, str):
+        min_length = schema.get("minLength")
+        max_length = schema.get("maxLength")
+        if isinstance(min_length, int) and len(value) < min_length:
+            return False
+        if isinstance(max_length, int) and len(value) > max_length:
+            return False
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and not re.fullmatch(pattern, value):
+            return False
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        if isinstance(minimum, (int, float)) and value < minimum:
+            return False
+        if isinstance(maximum, (int, float)) and value > maximum:
+            return False
+    return True
+
+
+def _argument_summary(arguments: Mapping[str, Any]) -> str:
+    if not arguments:
+        return "none"
+    parts = []
+    for key, value in sorted(arguments.items()):
+        parts.append(f"{key}={value}")
+    return ", ".join(parts[:6])
 
 
 def _required_args(tool: ToolDefinition) -> tuple[str, ...]:
@@ -233,7 +618,7 @@ def _first_item_hint(items: Sequence[Any]) -> str:
     first = items[0]
     if isinstance(first, Mapping):
         hints = []
-        for key in ("id", "mission_id", "name", "status", "state", "label"):
+        for key in ("id", "mission_id", "name", "status", "state", "label", "level", "component", "message"):
             value = first.get(key)
             if value not in (None, ""):
                 hints.append(f"{key}={value}")
