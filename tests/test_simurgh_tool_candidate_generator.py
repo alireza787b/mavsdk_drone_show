@@ -171,6 +171,42 @@ def test_openapi_candidate_generation_classifies_safe_and_unsafe_routes():
     assert "stream/download/binary artifact route" in custom_preview["classification"]["review_reasons"]
 
 
+def test_openapi_candidate_generation_reports_registry_coverage():
+    generator = _load_generator()
+    registry_routes = {
+        ("GET", "/api/v1/system/health"): [
+            {"id": "mds.system.health.read", "exposure": "allow", "read_only": True}
+        ],
+        ("GET", "/api/v1/shows/skybrush/metrics/snapshot"): [
+            {"id": "mds.shows.skybrush.metrics_snapshot.read", "exposure": "allow", "read_only": True}
+        ],
+        ("GET", "/api/v1/shows/skybrush/safety-report"): [
+            {"id": "mds.shows.skybrush.safety_report.read", "exposure": "guarded", "read_only": True}
+        ],
+    }
+
+    artifact = generator.build_candidates(
+        _schema(),
+        registry_routes=registry_routes,
+        registry_path=Path("config/agent_tools.yaml"),
+    )
+    coverage = artifact["summary"]["registry_coverage"]
+
+    assert coverage["registry_path"] == "config/agent_tools.yaml"
+    assert coverage["registry_route_count"] == 3
+    assert coverage["eligible_read_only_candidate_count"] == 4
+    assert coverage["promoted_eligible_candidate_count"] == 3
+    assert coverage["unpromoted_eligible_candidate_count"] == 1
+    assert coverage["promoted_eligible_ratio"] == 0.75
+    assert coverage["unpromoted_eligible_by_area"] == [
+        {
+            "area": "logs",
+            "count": 1,
+            "routes": ["GET /api/logs/sessions/{session_id}"],
+        }
+    ]
+
+
 def test_generated_candidate_artifact_is_review_only_and_current():
     generator = _load_generator()
     artifact_path = REPO_ROOT / "docs" / "agent-context" / "generated" / "simurgh-openapi-tool-candidates.yaml"
@@ -181,6 +217,13 @@ def test_generated_candidate_artifact_is_review_only_and_current():
     assert artifact["policy"]["default_callable"] is False
     assert artifact["candidate_count"] == len(artifact["candidates"])
     assert artifact["candidate_count"] > 100
+    coverage = artifact["summary"]["registry_coverage"]
+    assert coverage["registry_path"] == "config/agent_tools.yaml"
+    assert coverage["eligible_read_only_candidate_count"] > 0
+    assert coverage["promoted_eligible_candidate_count"] > 0
+    assert coverage["unpromoted_eligible_candidate_count"] >= 0
+    assert 0 < coverage["promoted_eligible_ratio"] <= 1
+    assert isinstance(coverage["unpromoted_eligible_by_area"], list)
     assert all(candidate["callable"] is False for candidate in artifact["candidates"])
     assert all(candidate["registry_candidate"]["default_exposure"] == "exclude" for candidate in artifact["candidates"])
     assert generator.main(["--check"]) == 0

@@ -7687,3 +7687,12 @@ source:
   openapi_sha256: 02ca4c27b95761bc2b5f28797732aa803aaf7993a2885691bd229778e365adac
   title: GCS Server API
   version: '5.5'
+summary:
+  registry_coverage:
+    eligible_read_only_candidate_count: 78
+    promoted_eligible_candidate_count: 78
+    promoted_eligible_ratio: 1.0
+    registry_path: config/agent_tools.yaml
+    registry_route_count: 88
+    unpromoted_eligible_by_area: []
+    unpromoted_eligible_candidate_count: 0
