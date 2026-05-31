@@ -324,7 +324,12 @@ def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, 
         selected.insert(0, "mds.origin.elevation.read")
         label = "origin terrain elevation lookup"
 
-    return tuple(dict.fromkeys(selected)), label
+    deduped = list(dict.fromkeys(selected))
+    if "mds.fleet.sidecar.node.read" in deduped:
+        deduped = [tool_id for tool_id in deduped if tool_id != "mds.fleet.sidecar.read"]
+    if "mds.fleet.sidecar.baseline.read" in deduped:
+        deduped = [tool_id for tool_id in deduped if tool_id != "mds.fleet.sidecar.read"]
+    return tuple(deduped), label
 
 
 def _arguments_for_tool(tool: ToolDefinition, text: str, *, domain: str) -> Mapping[str, Any] | None:

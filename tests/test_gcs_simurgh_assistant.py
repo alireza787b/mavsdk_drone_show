@@ -486,7 +486,7 @@ def test_simurgh_assistant_executes_registry_read_only_typed_sidecar_node(monkey
     payload = response.json()
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
-    assert payload["trace"]["tool"]["ids"][0] == "mds.fleet.sidecar.node.read"
+    assert payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecar.node.read"]
     assert "sidecar=mavlink-anywhere" in payload["content"]
     assert "hw_id=2" in payload["content"]
     assert "state: online" in payload["content"]
