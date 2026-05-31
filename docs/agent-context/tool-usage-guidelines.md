@@ -132,9 +132,21 @@ or replace onboarding/docs answers. For example, “give me setup docs” should
 stay in setup guidance, while “which MCP tools can inspect setup/fleet state?”
 should use the registry-domain bridge.
 
+Concrete current-state prompts may use the registry read-execution bridge when
+the selected registry tools are policy-allowed, read-only, and require no
+arguments. Examples include SITL instance/policy state, QuickScout/SAR mission
+catalogs, fleet sidecar/network state, origin/launch-position evidence,
+environment registry state, PX4 parameter policy/profile summaries, and Drone
+Show validation/safety/metrics snapshots. This is still not a free-form API
+caller: capability questions remain menu-only, mutation/action terms are
+blocked before planning, required-argument tools stay out of chat execution
+until an argument-inference and approval slice is reviewed, and every call goes
+through the same registry, policy, internal ASGI adapter, and audit trail as MCP
+`tools/call`.
+
 ### Composer Migration Status
 
-Current local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, registry-domain capability summaries, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.
+Current local answers using the shared composer include fleet/IP lookup, connectivity, runtime posture, MCP capability catalog, registry-domain capability summaries, registry read-execution summaries, mission-mode comparison, drone-show status/readiness, and backend log summaries. This keeps response formatting predictable across Dashboard chat and MCP clients.
 
 The current external-protocol alignment remains:
 - MCP tools expose schema-described operations and may return links/resources as context; MDS keeps actions out of the callable set until policy, schema, docs, and tests approve them. Reference: https://modelcontextprotocol.io/specification/2025-06-18/server/tools

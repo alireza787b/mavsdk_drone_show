@@ -30,6 +30,25 @@ def _client(auth_context=None) -> TestClient:
     return TestClient(app)
 
 
+def _client_with_registry_probe_routes() -> TestClient:
+    app = FastAPI()
+
+    @app.get("/api/v1/system/sitl/instances")
+    def sitl_instances():
+        return {"total_instances": 1, "instances": [{"id": "sim-1", "state": "running"}]}
+
+    @app.get("/api/v1/system/sitl/policy")
+    def sitl_policy():
+        return {"enabled": True, "max_instances": 4}
+
+    @app.get("/api/sar/missions")
+    def sar_missions():
+        return {"count": 1, "missions": [{"mission_id": "sar-1", "status": "draft", "finding_count": 0}]}
+
+    app.include_router(create_simurgh_router())
+    return TestClient(app)
+
+
 def _write_restricted_key(path, value="test-openai-key\n"):
     path.write_text(value, encoding="utf-8")
     path.chmod(0o600)
@@ -380,6 +399,47 @@ def test_simurgh_assistant_registry_domain_menu_stays_local_when_authenticated(m
     assert payload["trace"]["tool"]["intent"] == "registry_domain_tool_summary"
     assert "mds.sar.mission.status.read" in payload["content"]
     assert "This answer only describes the approved capability surface" in payload["content"]
+
+
+def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "what SITL instances are running now and what policy is configured?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == ["mds.sitl.instances.read", "mds.sitl.policy.read"]
+    assert "Read-only registry check for SITL runtime state" in payload["content"]
+    assert "mds.sitl.instances.read" in payload["content"]
+    assert "total_instances: 1" in payload["content"]
+    assert "MCP `tools/call`" in payload["content"]
+
+
+def test_simurgh_assistant_executes_registry_read_only_sar_catalog(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "what QuickScout SAR missions are available right now?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["session"]["metadata"]["last_domain"] == "sar"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == ["mds.sar.missions.read"]
+    assert "Read-only registry check for QuickScout/SAR mission catalog" in payload["content"]
+    assert "count: 1" in payload["content"]
+    assert "mission_id=sar-1" in payload["content"]
 
 
 def test_provider_tool_composition_message_has_safe_fallback_labels():

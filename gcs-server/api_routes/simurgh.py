@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -16,9 +17,12 @@ from agent_runtime.tool_executor import execute_policy_allowed_read_only_tool, l
 from agent_runtime import (
     AgentRuntimeError,
     AgentSessionStore,
+    AssistantContextAssembler,
     AssistantContextDocument,
     AssistantHistoryStore,
     AssistantTurnHistoryRecord,
+    AssistantTurnRecord,
+    AssistantTurnResult,
     InMemoryAuditSink,
     MCP_ENDPOINT_PATH,
     MCP_PROTOCOL_VERSION,
@@ -42,6 +46,7 @@ from agent_runtime import (
     require_mcp_runtime_enabled,
     sensitive_input_matches,
 )
+from agent_runtime.assistant import READ_TOOL_ADAPTER_VERSION, READ_TOOL_MODEL, READ_TOOL_PROVIDER
 from agent_runtime.mds_read_tools import (
     apply_runtime_settings,
     build_provider_credentials_payload,
@@ -50,8 +55,14 @@ from agent_runtime.mds_read_tools import (
     delete_provider_credentials,
     update_provider_credentials,
 )
-from agent_runtime.models import AgentSession, AuditEvent, ContextResource, ToolDefinition
+from agent_runtime.models import AgentSession, AuditEvent, ContextResource, ToolDefinition, utc_now
 from agent_runtime.query_adaptation import normalize_operator_query_text
+from agent_runtime.registry_chat import (
+    REGISTRY_READ_EXECUTION_INTENT,
+    RegistryReadToolResult,
+    format_registry_read_results,
+    plan_registry_read_tool_calls,
+)
 from agent_runtime.tool_candidates import candidate_review_payload, load_default_tool_candidate_artifact
 
 
@@ -1269,7 +1280,126 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             events=[_audit_event_response(event) for event in event_values]
         )
 
-    def _create_assistant_turn_record_for_request(http_request: Request, turn_request: SimurghAssistantTurnRequest):
+    async def _create_registry_read_execution_record(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        actor: str,
+        plan,
+    ) -> AssistantTurnRecord:
+        policy = load_default_policy()
+        if not policy.agent_enabled:
+            raise PermissionError("Simurgh agent runtime is disabled")
+        if turn_request.session_id:
+            session = sessions.require(turn_request.session_id)
+            if session.closed:
+                raise AgentRuntimeError("assistant session is closed")
+            if session.actor != actor:
+                raise PermissionError("assistant session belongs to a different actor")
+        else:
+            session_mode = turn_request.mode or policy.mode
+            if session_mode not in policy.runtime_modes:
+                raise AgentRuntimeError(f"unknown Simurgh mode: {session_mode}")
+            session = sessions.create(
+                actor=actor,
+                mode=session_mode,
+                metadata=_bounded_metadata(turn_request.metadata),
+            )
+
+        context_documents = AssistantContextAssembler(config=load_default_assistant_config()).assemble(
+            _bounded_context_resource_ids(turn_request.context_resource_ids)
+        )
+        registry = load_default_tool_registry()
+        try:
+            registry_label = registry.path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            registry_label = registry.path.as_posix()
+
+        results: list[RegistryReadToolResult] = []
+        for call in plan.tool_calls:
+            result = await execute_policy_allowed_read_only_tool(
+                http_request,
+                name=call.tool.id,
+                arguments=dict(call.arguments),
+                channel="agent",
+                registry=registry,
+                policy=policy,
+            )
+            results.append(RegistryReadToolResult(tool=call.tool, arguments=dict(call.arguments), result=result))
+
+        content = format_registry_read_results(plan, results, registry_path=registry_label)
+        tool_ids = [item.tool.id for item in results]
+        turn = AssistantTurnResult(
+            id=f"turn-{uuid.uuid4().hex}",
+            created_at=utc_now().isoformat(),
+            provider=READ_TOOL_PROVIDER,
+            model=READ_TOOL_MODEL,
+            adapter_version=READ_TOOL_ADAPTER_VERSION,
+            content=content,
+            context_documents=tuple(context_documents),
+            blocked_intents=(),
+            safety_notes=(
+                "Policy-allowed read-only Simurgh registry tools were executed through the internal MCP-compatible adapter.",
+                "No direct drone API, command, config write, upload, or mission mutation was exposed.",
+            ),
+        )
+        session = sessions.update_metadata(
+            session.id,
+            {
+                "last_domain": plan.domain,
+                "last_intent": REGISTRY_READ_EXECUTION_INTENT,
+                "last_response_mode": "status",
+            },
+        )
+        sessions.update_private_context(
+            session.id,
+            {
+                "last_assistant_content": turn.content,
+                "last_assistant_provider": turn.provider,
+                "last_assistant_model": turn.model,
+                "last_domain": plan.domain,
+                "last_intent": REGISTRY_READ_EXECUTION_INTENT,
+                "last_response_mode": "status",
+                "last_user_message": turn_request.message,
+                "last_routing_message": normalize_operator_query_text(turn_request.message),
+                "last_tool_intent": REGISTRY_READ_EXECUTION_INTENT,
+            },
+        )
+        event = audit.record(
+            "assistant_turn_created",
+            session_id=session.id,
+            actor=actor,
+            tool_id=tool_ids[0] if tool_ids else None,
+            decision=PolicyDecisionStatus.ALLOW.value,
+            payload={
+                "message": turn_request.message.strip(),
+                "context_resource_ids": [doc.id for doc in context_documents],
+                "metadata": dict(turn_request.metadata or {}),
+            },
+            metadata={
+                "provider": turn.provider,
+                "model": turn.model,
+                "adapter_version": turn.adapter_version,
+                "mode": session.mode,
+                "context_count": len(context_documents),
+                "blocked_intent_count": 0,
+                "tool_intent": REGISTRY_READ_EXECUTION_INTENT,
+                "tool_id": tool_ids[0] if tool_ids else None,
+                "tool_ids": tool_ids,
+                "response_mode": "status",
+                "query_domain": plan.domain,
+                "query_confidence": 1.0,
+                "query_unclear": False,
+                "query_reason": "registry_read_tool_plan",
+                "retrieved_context_count": 0,
+                "web_search_enabled": False,
+                "provider_composed_from_tool": False,
+                "provider_composition_error": "",
+            },
+        )
+        return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
+
+    async def _create_assistant_turn_record_for_request(http_request: Request, turn_request: SimurghAssistantTurnRequest):
         try:
             assistant_config = load_default_assistant_config()
             conversation_topic = None
@@ -1286,23 +1416,55 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 or sensitive_input_matches(assistant_config, turn_request.message)
                 or sensitive_input_matches(assistant_config, routing_message)
             )
+            blocked_matches = tuple(
+                sorted(
+                    set(
+                        blocked_intent_matches(assistant_config, turn_request.message)
+                        + blocked_intent_matches(assistant_config, routing_message)
+                    )
+                )
+            )
+            sensitive_matches = tuple(
+                sorted(
+                    set(
+                        sensitive_input_matches(assistant_config, turn_request.message)
+                        + sensitive_input_matches(assistant_config, routing_message)
+                    )
+                )
+            )
+            registry_plan = None
+            if not blocked_matches and not sensitive_matches:
+                registry_plan = plan_registry_read_tool_calls(
+                    routing_message,
+                    allowed_tools=list_policy_allowed_read_only_tools(channel="agent"),
+                    conversation_topic=conversation_topic,
+                )
+                local_only_turn = local_only_turn or registry_plan is not None
             provider_auth_allowed = assistant_config.provider != "mock" and _has_external_assistant_provider_auth(http_request)
             if not local_only_turn:
                 _require_external_assistant_provider_auth(http_request, assistant_config.provider)
                 provider_auth_allowed = assistant_config.provider != "mock"
             actor = _resolve_actor(http_request, turn_request.actor)
-            record = create_assistant_turn(
-                sessions=sessions,
-                audit=audit,
-                actor=actor,
-                message=turn_request.message,
-                deps=deps,
-                session_id=turn_request.session_id,
-                mode=turn_request.mode,
-                context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
-                metadata=_bounded_metadata(turn_request.metadata),
-                allow_provider_for_local_tools=local_only_turn and provider_auth_allowed,
-            )
+            if registry_plan is not None:
+                record = await _create_registry_read_execution_record(
+                    http_request,
+                    turn_request,
+                    actor=actor,
+                    plan=registry_plan,
+                )
+            else:
+                record = create_assistant_turn(
+                    sessions=sessions,
+                    audit=audit,
+                    actor=actor,
+                    message=turn_request.message,
+                    deps=deps,
+                    session_id=turn_request.session_id,
+                    mode=turn_request.mode,
+                    context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
+                    metadata=_bounded_metadata(turn_request.metadata),
+                    allow_provider_for_local_tools=local_only_turn and provider_auth_allowed,
+                )
             history_record = history.append_turn(record=record, message=turn_request.message)
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -1321,7 +1483,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
 
     @router.post("/api/v1/simurgh/assistant/turns", response_model=SimurghAssistantTurnResponse)
     async def create_simurgh_assistant_turn(http_request: Request, request: SimurghAssistantTurnRequest):
-        record, history_record = _create_assistant_turn_record_for_request(http_request, request)
+        record, history_record = await _create_assistant_turn_record_for_request(http_request, request)
         return _assistant_turn_response_model(record, history_record)
 
     @router.post("/api/v1/simurgh/assistant/turns/stream")
@@ -1334,7 +1496,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 await asyncio.sleep(0)
                 yield _assistant_sse_event("progress", {"stage": "context", "label": "Selecting MDS context and tools"})
                 await asyncio.sleep(0)
-                record, history_record = _create_assistant_turn_record_for_request(http_request, request)
+                record, history_record = await _create_assistant_turn_record_for_request(http_request, request)
                 payload = _assistant_turn_response_payload(record, history_record)
                 trace = payload.get("trace") if isinstance(payload.get("trace"), dict) else {}
                 tool = trace.get("tool") if isinstance(trace.get("tool"), dict) else {}
