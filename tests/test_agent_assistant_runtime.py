@@ -1401,6 +1401,78 @@ def test_assistant_turn_answers_command_tracker_summary_from_deps(monkeypatch):
     assert "No direct drone API" not in record.turn.content
 
 
+def test_assistant_turn_answers_git_status_summary_from_deps(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+
+    class NoopLock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    now_ms = int(time.time() * 1000)
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {"hw_id": 1, "pos_id": 1, "ip": "198.51.100.11"},
+            {"hw_id": 2, "pos_id": 2, "ip": "198.51.100.12"},
+        ],
+        get_gcs_git_report=lambda: {
+            "branch": "main",
+            "commit": "abc123456789",
+            "status": "dirty",
+            "commits_ahead": 1,
+            "commits_behind": 0,
+            "uncommitted_changes": [" M swarm.json"],
+        },
+        get_all_heartbeats=lambda: {
+            "1": {"timestamp": now_ms, "hw_id": "1"},
+            "2": {"timestamp": now_ms, "hw_id": "2"},
+        },
+        git_status_data_all_drones={
+            "1": {
+                "status": "clean",
+                "branch": "main",
+                "commit": "abc123456789",
+                "commits_ahead": 0,
+                "commits_behind": 0,
+                "uncommitted_changes": [],
+                "git_auth_health_status": "healthy",
+            },
+            "2": {
+                "status": "dirty",
+                "branch": "main",
+                "commit": "def987654321",
+                "commits_ahead": 0,
+                "commits_behind": 1,
+                "uncommitted_changes": [" M config.json"],
+                "git_auth_health_status": "warning",
+            },
+        },
+        data_lock_git_status=NoopLock(),
+        _sync_state={"active": False},
+        Params=SimpleNamespace(TELEMETRY_POLLING_TIMEOUT=5),
+    )
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="check git repo status; did the smart swarm commit happen and are boards synced?",
+        deps=deps,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "git_status_summary"
+    assert "GCS repository and fleet sync status" in record.turn.content
+    assert "swarm.json" in record.turn.content
+    assert "pos 1 / hw 1" in record.turn.content
+    assert "pos 2 / hw 2" in record.turn.content
+    assert "needs review" in record.turn.content
+    assert "no git commit, push, pull, node sync" in record.turn.content
+
+
 def test_assistant_turn_translates_previous_answer_instead_of_capability_catalog(monkeypatch, tmp_path):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")

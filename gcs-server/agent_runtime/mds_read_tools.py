@@ -83,6 +83,7 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "fleet_connectivity": ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
     "fleet_summary": ("mds.config.fleet.read", "mds.config.positions.read", "mds.config.swarm.read"),
     "general_knowledge": ("simurgh.general_knowledge.read",),
+    "git_status_summary": ("mds.git.status.read",),
     "mission_mode_comparison": (
         "simurgh.general_knowledge.read",
         "mds.docs.search",
@@ -306,6 +307,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "registry_domain_tool_summary"
     if _looks_like_command_summary_question(normalized):
         return "command_summary"
+    if _looks_like_git_status_question(normalized):
+        return "git_status_summary"
     if _looks_like_origin_status_question(normalized):
         return "origin_status"
     if _looks_like_sidecar_status_question(normalized):
@@ -480,6 +483,8 @@ def answer_mds_read_only_question(
         return tools.origin_status()
     if intent == "command_summary":
         return tools.command_summary(message=message)
+    if intent == "git_status_summary":
+        return tools.git_status_summary(message=message)
     if intent == "general_knowledge":
         return tools.general_knowledge(message)
     if intent == "public_geography":
@@ -515,6 +520,8 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "drone_show"
     if normalized_intent == "command_summary":
         return "safety"
+    if normalized_intent == "git_status_summary":
+        return "setup"
     if normalized_intent == "capability_catalog":
         return "capabilities"
     if normalized_intent == "registry_domain_tool_summary":
@@ -1797,6 +1804,78 @@ class MdsReadOnlyTools:
         except Exception:
             return []
 
+    def _git_status_payload(self) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_git_status_payload", None)
+        if callable(getter):
+            try:
+                return _copy_mapping(getter() or {})
+            except Exception:
+                return {}
+        try:
+            from api_routes.git_status import _build_git_status_response
+
+            return _model_payload(_build_git_status_response(self._git_api_deps()))
+        except Exception:
+            gcs_status = self._gcs_git_report()
+            return {
+                "git_status": {},
+                "total_drones": 0,
+                "synced_count": 0,
+                "needs_sync_count": 0,
+                "gcs_status": gcs_status or None,
+                "sync_in_progress": False,
+                "timestamp": int(time.time() * 1000),
+            }
+
+    def _git_api_deps(self) -> Any:
+        deps = self.deps
+        if (
+            deps is not None
+            and callable(getattr(deps, "load_config", None))
+            and callable(getattr(deps, "get_gcs_git_report", None))
+            and hasattr(deps, "git_status_data_all_drones")
+            and hasattr(deps, "data_lock_git_status")
+        ):
+            if not hasattr(deps, "_sync_state"):
+                deps._sync_state = {"active": False}
+            return deps
+
+        try:
+            from params import Params
+        except Exception:
+            class Params:  # pylint: disable=too-few-public-methods
+                TELEMETRY_POLLING_TIMEOUT = 5
+
+        from threading import RLock
+
+        app_module = sys.modules.get("app_fastapi")
+
+        class LocalGitDeps:  # pylint: disable=too-few-public-methods
+            Params = Params
+            git_status_data_all_drones = getattr(app_module, "git_status_data_all_drones", {}) if app_module else {}
+            data_lock_git_status = getattr(app_module, "data_lock_git_status", None) or RLock()
+            _sync_state = getattr(app_module, "_sync_state", {"active": False}) if app_module else {"active": False}
+
+        local = LocalGitDeps()
+        local.load_config = self._fleet_config
+        local.get_gcs_git_report = self._gcs_git_report
+        local.get_all_heartbeats = self._heartbeat_snapshot
+        return local
+
+    def _gcs_git_report(self) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_gcs_git_report", None)
+        if callable(getter):
+            try:
+                return _copy_mapping(getter() or {})
+            except Exception:
+                return {}
+        try:
+            from config import get_gcs_git_report
+
+            return _copy_mapping(get_gcs_git_report() or {})
+        except Exception:
+            return {}
+
     def px4_params_summary(self) -> MdsReadToolAnswer:
         try:
             from params import Params
@@ -1928,6 +2007,56 @@ class MdsReadOnlyTools:
             "command_summary",
             composer.render(),
             ("mds.commands.active.read", "mds.commands.recent.read", "mds.commands.statistics.read"),
+        )
+
+    def git_status_summary(self, message: str = "") -> MdsReadToolAnswer:
+        payload = self._git_status_payload()
+        gcs_status = _copy_mapping(payload.get("gcs_status"))
+        drone_status = payload.get("git_status") if isinstance(payload.get("git_status"), Mapping) else {}
+        uncommitted = _safe_string_list(gcs_status.get("uncommitted_changes"))
+        wants_commit_detail = _has_domain_signal(_normalize_text(message), ("commit", "uncommitted", "dirty", "push", "pushed", "write-back", "writeback"))
+
+        composer = AnswerComposer()
+        composer.line("GCS repository and fleet sync status from read-only git evidence:")
+        composer.blank().table(
+            ("Area", "Value"),
+            (
+                ("GCS branch", str(gcs_status.get("branch") or "unknown")),
+                ("GCS commit", _short_commit(gcs_status.get("commit"))),
+                ("GCS status", _git_status_label(gcs_status)),
+                ("Uncommitted GCS changes", str(len(uncommitted))),
+                ("Drone git rows", str(payload.get("total_drones", len(drone_status) or 0))),
+                ("Synced online rows", str(payload.get("synced_count", 0))),
+                ("Need sync", str(payload.get("needs_sync_count", 0))),
+                ("Sync in progress", "yes" if payload.get("sync_in_progress") else "no"),
+            ),
+        )
+        if uncommitted:
+            shown_changes = uncommitted[:6]
+            composer.blank().line("Current GCS working-tree changes:")
+            composer.bullets(shown_changes)
+            if len(uncommitted) > len(shown_changes):
+                composer.line(f"Showing {len(shown_changes)} of {len(uncommitted)} change(s).")
+
+        node_rows = _git_node_rows(drone_status)
+        if node_rows:
+            composer.blank().line("Node repository snapshot:")
+            composer.table(("Drone", "Status", "Sync", "Branch", "Commit", "Auth"), node_rows[:8])
+            if len(node_rows) > 8:
+                composer.line(f"Showing 8 of {len(node_rows)} node git row(s); open Fleet Ops for the full table.")
+        else:
+            composer.blank().line("No per-drone git status rows are currently visible to this GCS runtime.")
+
+        if wants_commit_detail and uncommitted:
+            composer.blank().line("Operator meaning: the GCS has saved repo changes that still need commit/write-back before nodes can sync to that exact state.")
+        elif wants_commit_detail:
+            composer.blank().line("Operator meaning: no uncommitted GCS working-tree change is reported in this snapshot.")
+        composer.line("Use [Fleet Ops](/fleet-ops) for node sync details and [Smart Swarm](/swarm-design) or the relevant editor page for the source workflow.")
+        composer.line("This is read-only repository inspection; no git commit, push, pull, node sync, config write, or drone command was executed.")
+        return self._answer(
+            "git_status_summary",
+            composer.render(),
+            ("mds.git.status.read",),
         )
 
     def runtime_summary(self) -> MdsReadToolAnswer:
@@ -3501,6 +3630,57 @@ def _looks_like_command_summary_question(normalized: str) -> bool:
     )
 
 
+def _looks_like_git_status_question(normalized: str) -> bool:
+    if _looks_like_direct_execution_request(normalized):
+        return False
+    if _has_domain_signal(normalized, ("swarm trajectory", "trajectory commit", "show commit")):
+        return False
+
+    repo_terms = (
+        "git",
+        "repo",
+        "repository",
+        "commit",
+        "committed",
+        "push",
+        "pushed",
+        "dirty",
+        "uncommitted",
+        "write-back",
+        "writeback",
+        "branch",
+        "latest code",
+    )
+    sync_terms = (
+        "synced",
+        "sync status",
+        "sync with gcs",
+        "match gcs",
+        "latest commit",
+        "same commit",
+        "boards updated",
+        "drones updated",
+    )
+    query_terms = (
+        "status",
+        "current",
+        "what",
+        "which",
+        "show",
+        "check",
+        "did",
+        "does",
+        "is",
+        "are",
+        "why",
+        "report",
+    )
+    return (
+        _has_domain_signal(normalized, repo_terms)
+        or (_has_domain_signal(normalized, sync_terms) and _has_domain_signal(normalized, ("drone", "drones", "board", "boards", "gcs", "fleet")))
+    ) and _has_domain_signal(normalized, query_terms)
+
+
 def _looks_like_origin_status_question(normalized: str) -> bool:
     return _has_domain_signal(
         normalized,
@@ -4910,6 +5090,12 @@ def _copy_mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
+def _safe_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
 def _model_payload(value: Any) -> dict[str, Any]:
     if hasattr(value, "model_dump"):
         payload = value.model_dump(mode="json")
@@ -4917,6 +5103,52 @@ def _model_payload(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
     return {}
+
+
+def _short_commit(value: Any) -> str:
+    commit = str(value or "").strip()
+    if not commit or commit == "unknown":
+        return "unknown"
+    return commit[:8]
+
+
+def _git_status_label(gcs_status: Mapping[str, Any]) -> str:
+    changes = _safe_string_list(gcs_status.get("uncommitted_changes"))
+    raw_status = str(_enum_or_value(gcs_status.get("status") or ("dirty" if changes else "unknown"))).strip() or "unknown"
+    parts = [raw_status]
+    ahead = _as_int(gcs_status.get("commits_ahead")) or 0
+    behind = _as_int(gcs_status.get("commits_behind")) or 0
+    if ahead:
+        parts.append(f"{ahead} ahead")
+    if behind:
+        parts.append(f"{behind} behind")
+    return ", ".join(parts)
+
+
+def _git_node_rows(drone_status: Mapping[str, Any]) -> list[tuple[str, str, str, str, str, str]]:
+    rows: list[tuple[str, str, str, str, str, str]] = []
+    for key, raw_item in drone_status.items():
+        item = _model_payload(raw_item)
+        if not item:
+            continue
+        hw_id = str(item.get("hw_id") or key)
+        pos_id = str(item.get("pos_id") or hw_id)
+        status = str(_enum_or_value(item.get("status") or "unknown"))
+        sync = "synced" if bool(item.get("in_sync_with_gcs")) else "needs review"
+        uncommitted_count = len(_safe_string_list(item.get("uncommitted_changes")))
+        if uncommitted_count:
+            status = f"{status} ({uncommitted_count} dirty)"
+        rows.append(
+            (
+                f"pos {pos_id} / hw {hw_id}",
+                status,
+                sync,
+                str(item.get("branch") or "unknown"),
+                _short_commit(item.get("commit")),
+                str(item.get("git_auth_health_status") or "unknown"),
+            )
+        )
+    return sorted(rows, key=lambda row: (_as_int(row[0].split("/ hw ")[-1]) or 0, row[0]))
 
 
 def _sidecar_summary_rows(tables: Sequence[tuple[str, Mapping[str, Any]]]) -> list[tuple[str, str, str, str, str, str]]:
