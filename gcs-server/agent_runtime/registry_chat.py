@@ -133,15 +133,30 @@ _BAD_ARGUMENT_VALUES = {
     "are",
     "as",
     "available",
+    "candidates",
     "detail",
     "details",
+    "environment",
+    "events",
     "for",
+    "findings",
     "is",
+    "metadata",
+    "mission",
     "now",
+    "origin",
+    "policy",
+    "position",
+    "positions",
     "read",
+    "registry",
+    "rows",
     "show",
+    "statistics",
     "status",
+    "summary",
     "the",
+    "workspace",
 }
 
 _SIDECAR_ALIASES: Mapping[str, tuple[str, ...]] = {
@@ -218,6 +233,7 @@ _ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] =
 )
 
 _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    (("simurgh status", "assistant status", "agent status"), ("mds.simurgh.status.read",), "Simurgh status"),
     (("quickscout", "quick scout", "sar", "search and rescue", "scout mission"), ("mds.sar.missions.read",), "QuickScout/SAR mission catalog"),
     (("sitl", "simulator", "simulation instance", "sim instance"), ("mds.sitl.instances.read", "mds.sitl.policy.read"), "SITL runtime state"),
     (("sidecar", "wifi manager", "mavlink dashboard", "board dashboard", "board sidecar"), ("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "fleet sidecar and board connectivity state"),
@@ -225,12 +241,30 @@ _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("runtime", "gcs mode", "current mode", "real mode", "environment", "env"), ("mds.system.runtime_status.read", "mds.simurgh.status.read"), "GCS runtime and Simurgh posture"),
     (("env registry", "environment registry", "gcs env", "environment page"), ("mds.system.env_registry.read", "mds.system.env_gcs.read"), "environment registry state"),
     (("px4", "param", "parameter", "params"), ("mds.px4_params.policy.read", "mds.px4_params.profiles.read"), "PX4 parameter read-only evidence"),
-    (("origin", "global origin", "launch position", "launch positions", "deviation", "deviations"), ("mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"), "origin and launch-position evidence"),
+    (("launch position", "launch positions"), ("mds.config.positions.read", "mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"), "origin and launch-position evidence"),
+    (("deviation", "deviations"), ("mds.origin.deviations.read", "mds.origin.read", "mds.navigation.global_origin.read"), "origin deviation evidence"),
+    (("origin", "global origin"), ("mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"), "origin and launch-position evidence"),
     (("swarm trajectory", "trajectory status", "trajectory validation", "trajectory validate", "cluster mission"), ("mds.swarm_trajectories.status.read", "mds.swarm_trajectories.validate.read", "mds.swarm_trajectories.leaders.read"), "swarm trajectory state"),
     (("show validation", "safety report", "show safety", "show metrics", "skybrush validation", "skybrush metrics"), ("mds.shows.skybrush.validation.read", "mds.shows.skybrush.safety_report.read", "mds.shows.skybrush.metrics_snapshot.read"), "Drone Show validation and safety evidence"),
     (("fleet candidate", "fleet candidates", "enrollment", "onboarding queue"), ("mds.fleet.candidates.read",), "fleet enrollment candidates"),
     (("system health", "health check", "server health", "gcs health"), ("mds.system.health.read", "mds.system.runtime_status.read"), "GCS system health"),
 )
+
+_DOMAIN_SEARCH_ALIASES: Mapping[str, tuple[str, ...]] = {
+    "capabilities": ("simurgh", "tool", "tools", "mcp", "api"),
+    "docs": ("docs", "documentation", "context", "simurgh"),
+    "drone_show": ("show", "shows", "skybrush", "custom"),
+    "fleet": ("fleet", "config", "sidecar", "network", "telemetry"),
+    "logs": ("log", "logs", "audit", "diagnostics", "simurgh"),
+    "mcp": ("simurgh", "tool", "tools", "mcp"),
+    "runtime": ("runtime", "system", "simurgh", "environment"),
+    "safety": ("policy", "commands", "origin", "px4", "simurgh"),
+    "sar": ("sar", "quickscout", "mission"),
+    "setup": ("fleet", "system", "docs", "environment"),
+    "sitl": ("sitl", "simulation"),
+    "swarm": ("swarm", "trajectory", "swarm_trajectories", "config", "origin"),
+    "ui": ("simurgh", "dashboard", "context"),
+}
 
 _TYPED_TOOL_DISCOVERY: Mapping[str, tuple[tuple[str, ...], str]] = {
     "mds.commands.status.read": (("mds.commands.active.read", "mds.commands.recent.read"), "Choose a command_id from active/recent command records."),
@@ -312,7 +346,7 @@ def plan_registry_read_tool_calls(
     normalized = " ".join(str(message or "").casefold().split())
     if not normalized:
         return None
-    if _has_any(normalized, _CAPABILITY_TERMS):
+    if _looks_like_capability_catalog_prompt(normalized):
         return None
     if _has_direct_action_term(normalized):
         return None
@@ -333,6 +367,36 @@ def plan_registry_read_tool_calls(
             break
 
     argument_ids, argument_label = _argument_tool_ids_for_query(normalized, domain=plan.domain)
+    had_argument_rule_ids = bool(argument_ids)
+    supplied_typed_metadata_ids, supplied_typed_metadata_label = _metadata_ranked_tool_ids(
+        normalized,
+        allowed_tools,
+        domain=plan.domain,
+        include_typed=True,
+        require_typed_arguments=True,
+        typed_only=True,
+    )
+    missing_typed_metadata_ids: tuple[str, ...] = ()
+    missing_typed_metadata_label = ""
+    if not supplied_typed_metadata_ids:
+        missing_typed_metadata_ids, missing_typed_metadata_label = _metadata_ranked_tool_ids(
+            normalized,
+            allowed_tools,
+            domain=plan.domain,
+            include_typed=True,
+            typed_only=True,
+        )
+    if supplied_typed_metadata_ids:
+        argument_label = supplied_typed_metadata_label or argument_label
+        if had_argument_rule_ids:
+            selection_source = "typed_argument_rules"
+        else:
+            argument_ids = supplied_typed_metadata_ids
+            selection_source = "metadata_typed_ranker"
+    elif missing_typed_metadata_ids and not argument_ids and _looks_like_typed_detail_prompt(normalized):
+        argument_ids = missing_typed_metadata_ids
+        argument_label = missing_typed_metadata_label or "typed read-only GCS state"
+        selection_source = "metadata_typed_discovery"
     if _should_defer_to_advisory(local_intent, normalized, argument_ids=argument_ids):
         return None
 
@@ -370,7 +434,8 @@ def plan_registry_read_tool_calls(
     candidate_groups: list[tuple[list[str], str]] = []
     if argument_ids:
         candidate_groups.append((list(argument_ids), argument_label or base_label))
-        selection_source = "typed_argument_rules"
+        if selection_source == "domain_rules":
+            selection_source = "typed_argument_rules"
     candidate_groups.append((list(selected_ids), base_label))
     selected_label = base_label
     calls: list[RegistryReadCall] = []
@@ -393,7 +458,7 @@ def plan_registry_read_tool_calls(
             selected_label = candidate_label
             break
         if candidate_ids == list(argument_ids):
-            discovery_ids, clarification = _discovery_ids_for_missing_typed_args(candidate_ids)
+            discovery_ids, clarification = _discovery_ids_for_missing_typed_args(candidate_ids, allowed_by_id=allowed_by_id)
             missing_arguments = _required_argument_names(candidate_ids, allowed_by_id)
             discovery_calls = []
             seen_discovery: set[str] = set()
@@ -409,7 +474,8 @@ def plan_registry_read_tool_calls(
             if discovery_calls:
                 calls = discovery_calls
                 selected_label = candidate_label
-                selection_source = "typed_argument_discovery"
+                if selection_source in {"typed_argument_rules", "domain_rules"}:
+                    selection_source = "typed_argument_discovery"
                 break
     if not calls:
         return None
@@ -541,12 +607,69 @@ def _looks_like_docs_or_workflow_prompt(text: str) -> bool:
     return False
 
 
+def _looks_like_typed_detail_prompt(text: str) -> bool:
+    return _has_any(
+        text,
+        (
+            "detail",
+            "details",
+            "specific",
+            "single",
+            "one ",
+            " by id",
+            " for id",
+            " with id",
+        ),
+    )
+
+
+def _looks_like_capability_catalog_prompt(text: str) -> bool:
+    if not _has_any(text, _CAPABILITY_TERMS):
+        return False
+    if _has_any(text, ("tool_id", "tool id", "resource_id", "resource id", "command_id", "command id")):
+        return False
+    if _has_any(text, ("status", "state", "current", "now", "latest", "details", "read", "show", "list", "open")):
+        concrete_registry_terms = (
+            "audit",
+            "candidate",
+            "candidates",
+            "registry",
+            "runtime settings",
+            "provider credentials",
+            "session",
+            "sessions",
+        )
+        if _has_any(text, concrete_registry_terms):
+            return False
+    return _has_any(
+        text,
+        (
+            "what can",
+            "can n8n",
+            "can claude",
+            "capability",
+            "capabilities",
+            "mcp menu",
+            "same menu",
+            "tools/list",
+            "tools/call",
+            "what read-only",
+            "what read only",
+            "which read-only",
+            "which read only",
+        ),
+    )
+
+
 def _metadata_ranked_tool_ids(
     text: str,
     allowed_tools: Sequence[ToolDefinition],
     *,
     domain: str,
     context_tool_ids: Sequence[str] = (),
+    include_typed: bool = False,
+    require_typed_arguments: bool = False,
+    typed_only: bool = False,
 ) -> tuple[tuple[str, ...], str]:
     terms = _query_terms(text)
     if not terms:
@@ -556,12 +679,15 @@ def _metadata_ranked_tool_ids(
     for tool in allowed_tools:
         if tool.route_path is None or tool.route_method != "GET":
             continue
-        if _required_args(tool):
+        required_args = _required_args(tool)
+        if required_args and not include_typed:
+            continue
+        if typed_only and not required_args:
+            continue
+        if required_args and require_typed_arguments and _arguments_for_tool(tool, text, domain=domain) is None:
             continue
         searchable = _tool_search_text(tool)
         if context_prefixes and not any(tool.id.startswith(prefix) for prefix in context_prefixes):
-            continue
-        if not context_prefixes and domain and domain not in {"docs", "general"} and domain not in searchable:
             continue
         score = 0
         for term in terms:
@@ -575,9 +701,12 @@ def _metadata_ranked_tool_ids(
                 score += 2
             elif term in searchable:
                 score += 1
+        domain_match = _searchable_matches_domain(searchable, domain)
+        if not context_prefixes and domain and domain not in {"docs", "general"} and not domain_match and score < 6:
+            continue
         if score < 3:
             continue
-        if domain and domain in searchable:
+        if domain_match:
             score += 3
         ranked.append((score, tool.id, tool))
     ranked.sort(key=lambda item: (-item[0], item[1]))
@@ -588,6 +717,13 @@ def _metadata_ranked_tool_ids(
         return (), ""
     label = _registry_label_from_tools(selected)
     return tuple(tool.id for tool in selected), label
+
+
+def _searchable_matches_domain(searchable: str, domain: str) -> bool:
+    if not domain:
+        return False
+    aliases = _DOMAIN_SEARCH_ALIASES.get(domain, (domain,))
+    return any(alias and alias in searchable for alias in aliases)
 
 
 def _tool_namespace_prefixes(tool_ids: Sequence[str]) -> tuple[str, ...]:
@@ -670,12 +806,21 @@ def _registry_label_from_tools(tools: Sequence[ToolDefinition]) -> str:
     return f"{label} state"
 
 
-def _discovery_ids_for_missing_typed_args(tool_ids: Sequence[str]) -> tuple[tuple[str, ...], str]:
+def _discovery_ids_for_missing_typed_args(
+    tool_ids: Sequence[str],
+    *,
+    allowed_by_id: Mapping[str, ToolDefinition],
+) -> tuple[tuple[str, ...], str]:
     discovery: list[str] = []
     clarifications: list[str] = []
     for tool_id in tool_ids:
         configured = _TYPED_TOOL_DISCOVERY.get(tool_id)
         if not configured:
+            discovery.extend(_generic_discovery_ids_for_tool(tool_id, allowed_by_id=allowed_by_id))
+            tool = allowed_by_id.get(tool_id)
+            if tool is not None:
+                names = ", ".join(_required_args(tool)) or "the required identifier"
+                clarifications.append(f"Choose {names} from the relevant list/status route before reading {tool.title}.")
             continue
         ids, clarification = configured
         discovery.extend(ids)
@@ -686,6 +831,28 @@ def _discovery_ids_for_missing_typed_args(tool_ids: Sequence[str]) -> tuple[tupl
         return (), ""
     message = "I need one more identifier before reading the specific typed record. " + " ".join(clarifications[:2])
     return deduped, message
+
+
+def _generic_discovery_ids_for_tool(
+    tool_id: str,
+    *,
+    allowed_by_id: Mapping[str, ToolDefinition],
+) -> tuple[str, ...]:
+    tool = allowed_by_id.get(tool_id)
+    if tool is None:
+        return ()
+    prefix = _tool_namespace_prefixes((tool_id,))
+    if not prefix:
+        return ()
+    candidates = []
+    for candidate in allowed_by_id.values():
+        if candidate.id == tool_id:
+            continue
+        if candidate.route_method != "GET" or not candidate.route_path or _required_args(candidate):
+            continue
+        if any(candidate.id.startswith(item) for item in prefix):
+            candidates.append(candidate.id)
+    return tuple(sorted(candidates)[:2])
 
 
 def _required_argument_names(tool_ids: Sequence[str], allowed_by_id: Mapping[str, ToolDefinition]) -> tuple[str, ...]:
@@ -716,6 +883,8 @@ def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, 
     label = "typed read-only GCS state"
     for signals, tool_ids, candidate_label in _ARGUMENT_TOOL_HINTS:
         if _has_any(text, signals):
+            if "mds.config.position.read" in tool_ids and _has_any(text, ("launch positions", "positions", "deviations")):
+                continue
             selected.extend(tool_ids)
             label = candidate_label
 
@@ -859,6 +1028,7 @@ def _extract_sidecar(text: str) -> str | None:
 
 def _extract_hw_id(text: str) -> str | None:
     patterns = (
+        r"\bhw_id\s*(?:=|:|is|#)?\s*([A-Za-z0-9_.:-]+)\b",
         r"\b(?:hw|hardware|node)\s*(?:id|number|#)?\s*[:=]?\s*([A-Za-z0-9_.:-]+)\b",
         r"\b(?:board|drone|vehicle)\s*(?:id|number|#)\s*[:=]?\s*([A-Za-z0-9_.:-]+)\b",
         r"\b(?:board|drone|vehicle)\s+([0-9][A-Za-z0-9_.:-]*)\b",
@@ -1019,6 +1189,10 @@ def _has_any(text: str, terms: Iterable[str]) -> bool:
 
 def _has_direct_action_term(text: str) -> bool:
     for term in _DIRECT_ACTION_TERMS:
+        if term == "command" and _looks_like_command_tracker_read(text):
+            continue
+        if term == "launch" and _looks_like_launch_metadata_read(text):
+            continue
         if " " in term:
             if term in text:
                 return True
@@ -1026,6 +1200,40 @@ def _has_direct_action_term(text: str) -> bool:
         if re.search(rf"(?<![a-z0-9_]){re.escape(term)}(?![a-z0-9_])", text):
             return True
     return False
+
+
+def _looks_like_command_tracker_read(text: str) -> bool:
+    return _has_any(
+        text,
+        (
+            "active command",
+            "command history",
+            "command policy",
+            "command statistics",
+            "command status",
+            "command tracker",
+            "commands active",
+            "precision move policy",
+            "recent command",
+            "read command",
+            "show command",
+        ),
+    )
+
+
+def _looks_like_launch_metadata_read(text: str) -> bool:
+    return _has_any(
+        text,
+        (
+            "launch geometry",
+            "launch mode",
+            "launch origin",
+            "launch position",
+            "launch positions",
+            "launch site",
+            "mission origin",
+        ),
+    )
 
 
 def _result_highlights(result: ReadOnlyToolCallResult) -> str:
