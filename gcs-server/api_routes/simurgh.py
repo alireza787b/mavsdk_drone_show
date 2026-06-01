@@ -50,8 +50,8 @@ from agent_runtime.assistant import READ_TOOL_ADAPTER_VERSION, READ_TOOL_MODEL, 
 from agent_runtime.mds_read_tools import (
     apply_runtime_settings,
     build_provider_credentials_payload,
+    build_mds_read_only_plan,
     build_runtime_settings_payload,
-    classify_mds_read_intent,
     delete_provider_credentials,
     update_provider_credentials,
 )
@@ -439,6 +439,11 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
             "unclear": metadata.get("query_unclear"),
             "reason": metadata.get("query_reason"),
             "response_mode": metadata.get("response_mode"),
+            "read_only_plan": (
+                metadata.get("read_only_plan")
+                if isinstance(metadata.get("read_only_plan"), dict)
+                else {}
+            ),
         },
         tool={
             "id": metadata.get("tool_id"),
@@ -1431,6 +1436,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_confidence": 1.0,
                 "query_unclear": False,
                 "query_reason": "registry_read_tool_plan",
+                "read_only_plan": plan.public_metadata(),
                 "retrieved_context_count": 0,
                 "web_search_enabled": False,
                 "provider_composed_from_tool": False,
@@ -1449,7 +1455,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 except KeyError:
                     conversation_topic = None
             routing_message = normalize_operator_query_text(turn_request.message)
-            local_intent = classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
+            read_only_plan = build_mds_read_only_plan(routing_message, conversation_topic=conversation_topic)
+            local_intent = read_only_plan.intent
             local_only_turn = bool(
                 local_intent
                 or blocked_intent_matches(assistant_config, turn_request.message)

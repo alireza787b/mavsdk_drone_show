@@ -156,6 +156,24 @@ def test_simurgh_assistant_turn_creates_mock_session_and_audit(monkeypatch):
     assert history[0]["adapter_version"] == "mock-v1"
 
 
+def test_simurgh_assistant_turn_trace_exposes_read_only_plan(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "what is their battery and gps health?"},
+    )
+
+    assert response.status_code == 200
+    plan = response.json()["trace"]["query"]["read_only_plan"]
+    assert plan["intent"] == "fleet_connectivity"
+    assert plan["execution_layer"] == "local_advisory"
+    assert "mds.fleet.telemetry.read" in plan["tool_ids"]
+    assert "message" not in plan
+    assert "normalized_message" not in plan
+
+
 def test_simurgh_assistant_turn_streams_progress_delta_final_and_history(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     client = _client()
@@ -509,6 +527,12 @@ def test_simurgh_assistant_uses_discovery_when_typed_log_session_id_missing(monk
     assert payload["provider"] == "mds-tools"
     assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
     assert payload["trace"]["tool"]["ids"] == ["mds.logs.sessions.read"]
+    plan = payload["trace"]["query"]["read_only_plan"]
+    assert plan["intent"] == "registry_read_execution"
+    assert plan["execution_layer"] == "registry_read_adapter"
+    assert plan["tool_ids"] == ["mds.logs.sessions.read"]
+    assert plan["missing_arguments"] == ["session_id"]
+    assert "message" not in plan
     assert "I need one more identifier" in payload["content"]
     assert "Choose a session_id" in payload["content"]
     assert "s_20260527_174402" in payload["content"]

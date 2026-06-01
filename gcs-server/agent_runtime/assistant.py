@@ -27,7 +27,7 @@ from .mds_read_tools import (
     READ_TOOL_PROVIDER,
     MdsReadToolAnswer,
     answer_mds_read_only_question,
-    classify_mds_read_intent,
+    build_mds_read_only_plan,
     infer_mds_read_topic,
     is_safe_blocked_term_read_only_intent,
 )
@@ -1929,6 +1929,7 @@ def create_assistant_turn(
         previous_context=previous_context,
     )
     query_plan = build_assistant_query_plan(routing_message, conversation_topic=conversation_topic)
+    read_only_plan = build_mds_read_only_plan(routing_message, conversation_topic=conversation_topic)
     retrieved_context_count = 0
     blocked_matches = tuple(
         sorted(
@@ -1985,7 +1986,7 @@ def create_assistant_turn(
             tool_result = None
 
     if force_provider is None and tool_intent is None:
-        local_intent = classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
+        local_intent = read_only_plan.intent
         if not blocked_matches and not sensitive_matches:
             web_search_enabled_for_turn = _should_enable_web_search_for_turn(
                 config=config,
@@ -2176,6 +2177,7 @@ def create_assistant_turn(
             "query_confidence": round(float(query_plan.confidence), 3),
             "query_unclear": query_plan.unclear,
             "query_reason": query_plan.reason,
+            "read_only_plan": read_only_plan.public_metadata(),
             "retrieved_context_count": retrieved_context_count,
             "web_search_enabled": web_search_enabled_for_turn,
             "provider_composed_from_tool": provider_composed_from_tool,

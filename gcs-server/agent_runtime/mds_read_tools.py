@@ -27,6 +27,7 @@ from request_logging import is_routine_auth_noise_path
 from .answer_composer import AnswerComposer
 from .models import AgentRuntimeError, utc_now
 from .query_adaptation import normalize_matching_text, normalize_operator_query_text
+from .query_understanding import build_assistant_query_plan
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -58,7 +59,53 @@ READ_CONVERSATION_TOPICS = frozenset(
         "ui",
     }
 )
-READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability"})
+READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability", "clarify"})
+READ_ONLY_ACTION_POSTURE = "read-only-local; no action, upload, config mutation, or drone-local API execution"
+
+# Trace-only expected evidence IDs. Execution still records the actual tool IDs
+# returned by the selected local read-only answer.
+LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
+    "action_capability": ("mds.simurgh.policy.read", "mds.simurgh.tools.read"),
+    "add_drone_workflow": (
+        "mds.config.fleet.read",
+        "mds.docs.search",
+        "mds.docs.chunk.read",
+    ),
+    "autopilot_support": ("simurgh.general_knowledge.read", "mds.docs.search"),
+    "backend_log_summary": ("mds.logs.sessions.read", "mds.logs.sources.read"),
+    "board_setup_help": ("mds.docs.search", "mds.system.env_registry.read"),
+    "capability_catalog": ("mds.simurgh.tools.read", "mds.simurgh.policy.read"),
+    "command_summary": ("mds.commands.active.read", "mds.commands.recent.read", "mds.commands.statistics.read"),
+    "companion_setup_help": ("mds.docs.search", "mds.docs.chunk.read"),
+    "docs_help": ("mds.docs.search", "mds.docs.chunk.read"),
+    "environment_summary": ("mds.system.env_registry.read", "mds.system.env_gcs.read"),
+    "fleet_connectivity": ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+    "fleet_summary": ("mds.config.fleet.read", "mds.config.positions.read", "mds.config.swarm.read"),
+    "general_knowledge": ("simurgh.general_knowledge.read",),
+    "mission_mode_comparison": (
+        "simurgh.general_knowledge.read",
+        "mds.docs.search",
+        "mds.docs.chunk.read",
+    ),
+    "operator_help": ("mds.docs.search", "mds.docs.chunk.read"),
+    "origin_status": ("mds.origin.read", "mds.navigation.global_origin.read", "mds.config.positions.read"),
+    "public_geography": ("simurgh.public_places.read", "simurgh.geodesy.calculate"),
+    "px4_params_summary": ("mds.px4_params.policy.read", "mds.px4_params.profiles.read"),
+    "registry_domain_tool_summary": ("mds.simurgh.tools.read", "mds.simurgh.policy.read"),
+    "runtime_summary": ("mds.system.runtime_status.read",),
+    "show_modes_help": ("mds.docs.search", "mds.docs.chunk.read", "mds.shows.skybrush.read"),
+    "show_summary": (
+        "mds.shows.skybrush.read",
+        "mds.shows.custom.read",
+        "mds.shows.skybrush.metrics_snapshot.read",
+        "mds.shows.skybrush.validation.read",
+    ),
+    "show_upload_help": ("mds.docs.search", "mds.shows.skybrush.read"),
+    "sidecar_status": ("mds.fleet.sidecars.read", "mds.fleet.sidecars.connectivity_profile.read"),
+    "sitl_help": ("mds.docs.search", "mds.system.runtime_status.read"),
+    "swarm_topology": ("mds.config.swarm.read", "mds.config.positions.read"),
+    "system_status": ("mds.system.health.read", "mds.system.runtime_status.read", "mds.simurgh.status.read"),
+}
 FLEET_LIVE_TERMS = (
     "arm",
     "armed",
@@ -177,6 +224,38 @@ class MdsReadToolAnswer:
     @property
     def turn_id(self) -> str:
         return f"turn-{uuid.uuid4().hex}"
+
+
+@dataclass(frozen=True)
+class MdsReadOnlyPlan:
+    """Public-safe plan for one local read-only Simurgh advisory turn."""
+
+    intent: str | None
+    response_mode: str
+    topic: str | None
+    query_domain: str
+    confidence: float
+    unclear: bool
+    reason: str
+    tool_ids: tuple[str, ...]
+    missing_arguments: tuple[str, ...]
+    execution_layer: str
+    safety_posture: str
+
+    def public_metadata(self) -> dict[str, Any]:
+        return {
+            "intent": self.intent,
+            "response_mode": self.response_mode,
+            "topic": self.topic,
+            "query_domain": self.query_domain,
+            "confidence": round(float(self.confidence), 3),
+            "unclear": self.unclear,
+            "reason": self.reason,
+            "tool_ids": list(self.tool_ids),
+            "missing_arguments": list(self.missing_arguments),
+            "execution_layer": self.execution_layer,
+            "safety_posture": self.safety_posture,
+        }
 
 
 def classify_mds_read_intent(message: str, *, conversation_topic: str | None = None) -> str | None:
@@ -328,15 +407,12 @@ def answer_mds_read_only_question(
 ) -> MdsReadToolAnswer | None:
     """Answer an MDS prompt using only local read-only GCS context."""
 
-    intent = classify_mds_read_intent(message, conversation_topic=conversation_topic)
+    plan = build_mds_read_only_plan(message, conversation_topic=conversation_topic)
+    intent = plan.intent
     if intent is None:
         return None
 
-    response_mode = infer_mds_response_mode(
-        message,
-        conversation_topic=conversation_topic,
-        intent=intent,
-    )
+    response_mode = plan.response_mode
     tools = MdsReadOnlyTools(deps=deps)
     if intent == "fleet_summary":
         return tools.fleet_summary(message)
@@ -463,6 +539,36 @@ def infer_mds_response_mode(
     if normalized_intent == "general_knowledge":
         return "interpret"
     return "status"
+
+
+def build_mds_read_only_plan(message: str, *, conversation_topic: str | None = None) -> MdsReadOnlyPlan:
+    """Build the sanitized local read-only plan used before advisory execution."""
+
+    normalized_topic = _normalize_conversation_topic(conversation_topic)
+    query_plan = build_assistant_query_plan(message, conversation_topic=normalized_topic)
+    intent = classify_mds_read_intent(message, conversation_topic=normalized_topic)
+    response_mode = (
+        infer_mds_response_mode(message, conversation_topic=normalized_topic, intent=intent)
+        if intent
+        else query_plan.response_mode
+    )
+    topic = infer_mds_read_topic(message, intent=intent) if intent else None
+    if not topic and query_plan.domain in READ_CONVERSATION_TOPICS:
+        topic = query_plan.domain
+    execution_layer = "local_advisory" if intent else "provider_or_clarify"
+    return MdsReadOnlyPlan(
+        intent=intent,
+        response_mode=response_mode if response_mode in READ_RESPONSE_MODES else "status",
+        topic=topic,
+        query_domain=query_plan.domain,
+        confidence=query_plan.confidence,
+        unclear=query_plan.unclear,
+        reason=query_plan.reason,
+        tool_ids=LOCAL_INTENT_TOOL_IDS.get(str(intent or ""), ()),
+        missing_arguments=(),
+        execution_layer=execution_layer,
+        safety_posture=READ_ONLY_ACTION_POSTURE,
+    )
 
 
 SAFE_BLOCKED_TERM_READ_ONLY_INTENTS = frozenset(

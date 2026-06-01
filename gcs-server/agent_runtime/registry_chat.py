@@ -272,6 +272,23 @@ class RegistryReadPlan:
     domain: str
     tool_calls: tuple[RegistryReadCall, ...]
     clarification: str = ""
+    missing_arguments: tuple[str, ...] = ()
+
+    def public_metadata(self) -> dict[str, Any]:
+        return {
+            "intent": REGISTRY_READ_EXECUTION_INTENT,
+            "response_mode": "status",
+            "topic": self.domain,
+            "query_domain": self.domain,
+            "confidence": 1.0,
+            "unclear": bool(self.clarification),
+            "reason": "registry_read_tool_plan",
+            "label": self.label,
+            "tool_ids": [call.tool.id for call in self.tool_calls],
+            "missing_arguments": list(self.missing_arguments),
+            "execution_layer": "registry_read_adapter",
+            "safety_posture": "read-only-registry; policy-filtered MCP-compatible tool execution only",
+        }
 
 
 @dataclass(frozen=True)
@@ -341,6 +358,7 @@ def plan_registry_read_tool_calls(
     selected_label = base_label
     calls: list[RegistryReadCall] = []
     clarification = ""
+    missing_arguments: tuple[str, ...] = ()
     for candidate_ids, candidate_label in candidate_groups:
         candidate_calls: list[RegistryReadCall] = []
         seen: set[str] = set()
@@ -359,6 +377,7 @@ def plan_registry_read_tool_calls(
             break
         if candidate_ids == list(argument_ids):
             discovery_ids, clarification = _discovery_ids_for_missing_typed_args(candidate_ids)
+            missing_arguments = _required_argument_names(candidate_ids, allowed_by_id)
             discovery_calls = []
             seen_discovery: set[str] = set()
             for tool_id in discovery_ids:
@@ -381,6 +400,7 @@ def plan_registry_read_tool_calls(
         domain=plan.domain,
         tool_calls=tuple(calls[:4]),
         clarification=clarification,
+        missing_arguments=missing_arguments,
     )
 
 
@@ -560,6 +580,20 @@ def _discovery_ids_for_missing_typed_args(tool_ids: Sequence[str]) -> tuple[tupl
         return (), ""
     message = "I need one more identifier before reading the specific typed record. " + " ".join(clarifications[:2])
     return deduped, message
+
+
+def _required_argument_names(tool_ids: Sequence[str], allowed_by_id: Mapping[str, ToolDefinition]) -> tuple[str, ...]:
+    names: list[str] = []
+    for tool_id in tool_ids:
+        tool = allowed_by_id.get(tool_id)
+        if tool is None:
+            continue
+        for name in _required_args(tool):
+            if tool.id == "mds.logs.session.read" and name == "limit":
+                continue
+            if name not in names:
+                names.append(name)
+    return tuple(names or ("identifier",))
 
 
 def _arguments_for_discovery_tool(tool: ToolDefinition, text: str) -> Mapping[str, Any] | None:

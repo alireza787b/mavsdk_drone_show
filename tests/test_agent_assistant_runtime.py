@@ -1144,6 +1144,61 @@ def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
     assert "Fleet status from GCS configuration" not in combined.content
 
 
+def test_read_only_plan_exposes_sanitized_fleet_telemetry_selection():
+    from agent_runtime.mds_read_tools import build_mds_read_only_plan
+
+    plan = build_mds_read_only_plan(
+        "what is their location, altitude, battery and arm state?",
+        conversation_topic="fleet",
+    )
+    metadata = plan.public_metadata()
+
+    assert metadata["intent"] == "fleet_connectivity"
+    assert metadata["response_mode"] == "status"
+    assert metadata["topic"] == "fleet"
+    assert metadata["execution_layer"] == "local_advisory"
+    assert "mds.fleet.telemetry.read" in metadata["tool_ids"]
+    assert "message" not in metadata
+    assert "normalized_message" not in metadata
+    assert "no action" in metadata["safety_posture"]
+
+
+def test_read_only_plan_covers_logs_and_docs_workflows():
+    from agent_runtime.mds_read_tools import build_mds_read_only_plan
+
+    logs = build_mds_read_only_plan("check latest backend warnings in the logs")
+    assert logs.intent == "backend_log_summary"
+    assert logs.topic == "logs"
+    assert logs.public_metadata()["tool_ids"] == ["mds.logs.sessions.read", "mds.logs.sources.read"]
+
+    docs = build_mds_read_only_plan("can you give me link to read about creating SITL demo?")
+    assert docs.intent == "sitl_help"
+    assert docs.response_mode == "workflow"
+    assert docs.topic == "sitl"
+    assert "mds.docs.search" in docs.public_metadata()["tool_ids"]
+
+
+def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    record = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="what is mavlink?",
+    )
+
+    plan = record.audit_event.metadata["read_only_plan"]
+    assert plan["intent"] == "general_knowledge"
+    assert plan["response_mode"] == "interpret"
+    assert plan["execution_layer"] == "local_advisory"
+    assert plan["tool_ids"] == ["simurgh.general_knowledge.read"]
+    assert "message" not in plan
+    assert "normalized_message" not in plan
+
+
 def test_read_tools_answer_mds_autopilot_support_boundary():
     from agent_runtime.mds_read_tools import answer_mds_read_only_question
 
