@@ -60,6 +60,10 @@ READ_CONVERSATION_TOPICS = frozenset(
 )
 READ_RESPONSE_MODES = frozenset({"status", "interpret", "workflow", "compare", "capability"})
 FLEET_LIVE_TERMS = (
+    "arm",
+    "armed",
+    "arming",
+    "battery",
     "connected",
     "connect",
     "online",
@@ -90,6 +94,12 @@ FLEET_LIVE_TERMS = (
     "companion",
     "vehicle",
     "vehicles",
+    "voltage",
+    "ready to arm",
+    "flight mode",
+    "system status",
+    "health",
+    "failsafe",
 )
 FLEET_POSITION_TERMS = (
     "gps",
@@ -105,6 +115,19 @@ FLEET_POSITION_TERMS = (
     "country",
     "where are",
     "where is",
+)
+FLEET_HEALTH_TERMS = (
+    "arm",
+    "armed",
+    "arming",
+    "battery",
+    "voltage",
+    "ready to arm",
+    "flight mode",
+    "mode",
+    "system status",
+    "health",
+    "failsafe",
 )
 
 REGISTRY_DOMAIN_LABELS: Mapping[str, str] = {
@@ -721,7 +744,9 @@ class MdsReadOnlyTools:
         heartbeats = self._heartbeat_snapshot()
         telemetry = self._telemetry_snapshot()
         telemetry_success_times = self._telemetry_success_times()
-        wants_position = _wants_fleet_position_details(_normalize_text(message))
+        normalized_message = _normalize_text(message)
+        wants_position = _wants_fleet_position_details(normalized_message)
+        wants_health = _wants_fleet_health_details(normalized_message)
 
         try:
             from params import Params
@@ -769,7 +794,26 @@ class MdsReadOnlyTools:
                 live_count += 1
             ip = heartbeat.get("ip") or telemetry_row.get("ip") or config_lookup.get(hw_id, {}).get("ip", "unknown")
             role = config_lookup.get(hw_id, {}).get("callsign") or config_lookup.get(hw_id, {}).get("role") or "-"
-            if wants_position:
+            if wants_position and wants_health:
+                lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
+                health = _fleet_health_summary(telemetry_row)
+                country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
+                position = f"lat {_fmt_coordinate(lat)}, lon {_fmt_coordinate(lon)}, alt {_fmt_altitude_m(alt)}, {country}"
+                rows.append(
+                    (
+                        f"Drone {hw_id}",
+                        str(state),
+                        gps_label,
+                        position,
+                        health["battery"],
+                        health["armed"],
+                        health["ready"],
+                        health["mode"],
+                        health["system"],
+                        str(detail),
+                    )
+                )
+            elif wants_position:
                 lat, lon, alt, gps_label = _fleet_position_summary(telemetry_row)
                 country = _country_from_coordinates(lat, lon) if lat is not None and lon is not None else "unavailable"
                 rows.append(
@@ -781,6 +825,21 @@ class MdsReadOnlyTools:
                         _fmt_coordinate(lon),
                         _fmt_altitude_m(alt),
                         country,
+                        str(detail),
+                    )
+                )
+            elif wants_health:
+                health = _fleet_health_summary(telemetry_row)
+                rows.append(
+                    (
+                        f"Drone {hw_id}",
+                        str(state),
+                        health["battery"],
+                        health["armed"],
+                        health["ready"],
+                        health["mode"],
+                        health["system"],
+                        health["gps"],
                         str(detail),
                     )
                 )
@@ -797,13 +856,29 @@ class MdsReadOnlyTools:
             composer.line("This is a read-only presence check; no drone command was sent.")
         else:
             composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
-            if wants_position:
+            if wants_position and wants_health:
+                composer.blank().table(
+                    ("Drone", "Presence", "GPS", "Position", "Battery", "Armed", "Ready", "Mode", "System", "Evidence"),
+                    rows,
+                )
+                composer.blank().line(
+                    "Coordinates, GPS, battery, arming, mode, and system status come from the latest GCS telemetry snapshot. `unavailable` means this runtime has no current value for that field."
+                )
+            elif wants_position:
                 composer.blank().table(
                     ("Drone", "Presence", "GPS", "Latitude", "Longitude", "Altitude", "Country", "Evidence"),
                     rows,
                 )
                 composer.blank().line(
                     "Coordinates and GPS status come from the latest GCS telemetry snapshot. `unavailable` means this runtime does not currently have a valid global-position sample for that drone."
+                )
+            elif wants_health:
+                composer.blank().table(
+                    ("Drone", "Presence", "Battery", "Armed", "Ready", "Mode", "System", "GPS", "Evidence"),
+                    rows,
+                )
+                composer.blank().line(
+                    "Battery, arming, readiness, flight mode, system status, and GPS evidence come from the latest GCS telemetry snapshot. Treat missing values as unknown, not healthy."
                 )
             else:
                 composer.blank().table(("Drone", "Role", "Presence", "IP", "Evidence"), rows)
@@ -3134,12 +3209,25 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
             "altitude",
             "country",
             "location",
+            "battery",
+            "voltage",
+            "armed",
+            "arming",
+            "flight mode",
+            "mode",
+            "system status",
+            "health",
+            "failsafe",
         ),
     )
 
 
 def _wants_fleet_position_details(normalized: str) -> bool:
     return _has_domain_signal(normalized, FLEET_POSITION_TERMS)
+
+
+def _wants_fleet_health_details(normalized: str) -> bool:
+    return _has_domain_signal(normalized, FLEET_HEALTH_TERMS)
 
 
 def _fleet_position_summary(telemetry_row: Mapping[str, Any]) -> tuple[float | None, float | None, float | None, str]:
@@ -3169,6 +3257,61 @@ def _fleet_position_summary(telemetry_row: Mapping[str, Any]) -> tuple[float | N
     else:
         gps = "unavailable"
     return lat, lon, alt, gps
+
+
+def _fleet_health_summary(telemetry_row: Mapping[str, Any]) -> dict[str, str]:
+    voltage = _finite_or_none(_first_present(telemetry_row, ("battery_voltage", "battery", "voltage", "battery_v")))
+    remaining = _finite_or_none(
+        _first_present(
+            telemetry_row,
+            ("battery_remaining_percent", "battery_percentage", "battery_remaining", "battery_percent"),
+        )
+    )
+    armed = _first_present(telemetry_row, ("is_armed", "armed"))
+    ready = _first_present(telemetry_row, ("is_ready_to_arm", "ready_to_arm", "armable"))
+    mode = _first_present(telemetry_row, ("flight_mode_name", "mode_name", "mode", "flight_mode"))
+    system = _first_present(telemetry_row, ("system_status_name", "system_state", "system_status"))
+    _lat, _lon, _alt, gps = _fleet_position_summary(telemetry_row)
+    return {
+        "battery": _fmt_battery(voltage, remaining),
+        "armed": _fmt_bool_state(armed),
+        "ready": _fmt_bool_state(ready),
+        "mode": _fmt_optional_value(mode),
+        "system": _fmt_optional_value(system),
+        "gps": gps,
+    }
+
+
+def _fmt_battery(voltage: float | None, remaining: float | None = None) -> str:
+    parts: list[str] = []
+    if voltage is not None:
+        parts.append(f"{voltage:.2f} V")
+    if remaining is not None:
+        display_remaining = remaining * 100.0 if 0.0 <= remaining <= 1.0 else remaining
+        parts.append(f"{display_remaining:.0f}%")
+    return " / ".join(parts) if parts else "unavailable"
+
+
+def _fmt_bool_state(value: Any) -> str:
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if value in (None, ""):
+        return "unavailable"
+    text = str(value).strip()
+    if not text:
+        return "unavailable"
+    lowered = text.casefold()
+    if lowered in {"true", "1", "yes", "y"}:
+        return "Yes"
+    if lowered in {"false", "0", "no", "n"}:
+        return "No"
+    return text
+
+
+def _fmt_optional_value(value: Any) -> str:
+    if value in (None, ""):
+        return "unavailable"
+    return str(value)
 
 
 def _first_present(mapping: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
@@ -3565,6 +3708,11 @@ def _looks_like_non_mds_general_question(normalized: str) -> bool:
             "drone 2",
             "drone 3",
         ),
+    ):
+        return False
+    if _has_domain_signal(normalized, ("battery", "armed", "arming", "ready to arm", "flight mode", "system status", "gps")) and _has_domain_signal(
+        normalized,
+        ("their", "they", "them", "drone", "drones", "board", "boards", "vehicle", "vehicles"),
     ):
         return False
     return _has_domain_signal(

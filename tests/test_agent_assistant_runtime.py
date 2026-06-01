@@ -1075,6 +1075,75 @@ def test_read_tools_route_boards_and_gps_followups_to_live_telemetry():
     assert "Fleet status from GCS configuration" not in answer.content
 
 
+def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question, classify_mds_read_intent
+
+    now = time.time()
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "192.0.2.33",
+                "mavlink_port": 14550,
+            }
+        ],
+        get_all_drone_positions=lambda: [],
+        load_swarm=lambda: [],
+        get_all_heartbeats=lambda: {"1": {"timestamp": int(now * 1000), "ip": "192.0.2.33"}},
+        telemetry_data_all_drones={
+            "1": {
+                "telemetry_available": True,
+                "position_lat": 47.397742,
+                "position_long": 8.545594,
+                "relative_altitude_m": 8.4,
+                "global_position_valid": True,
+                "gps_fix_type": 3,
+                "satellites_visible": 12,
+                "battery_voltage": 12.4,
+                "is_armed": False,
+                "is_ready_to_arm": True,
+                "flight_mode": 65536,
+                "system_status": 4,
+                "timestamp": int(now * 1000),
+            }
+        },
+        last_telemetry_time={"1": now},
+        data_lock=None,
+    )
+
+    assert classify_mds_read_intent("what is their battery, arm state, mode and gps health?") == "fleet_connectivity"
+
+    answer = answer_mds_read_only_question(
+        "what is their battery, arm state, mode and gps health?",
+        deps=deps,
+        conversation_topic="fleet",
+    )
+
+    assert answer is not None
+    assert answer.intent == "fleet_connectivity"
+    assert "Battery" in answer.content
+    assert "12.40 V" in answer.content
+    assert "Ready" in answer.content
+    assert "65536" in answer.content
+    assert "fix 3, 12 sats" in answer.content
+    assert "Fleet status from GCS configuration" not in answer.content
+
+    combined = answer_mds_read_only_question(
+        "what is their location, altitude, battery and arm state?",
+        deps=deps,
+        conversation_topic="fleet",
+    )
+
+    assert combined is not None
+    assert combined.intent == "fleet_connectivity"
+    assert "Position" in combined.content
+    assert "lat 47.3977420" in combined.content
+    assert "12.40 V" in combined.content
+    assert "Fleet status from GCS configuration" not in combined.content
+
+
 def test_read_tools_answer_mds_autopilot_support_boundary():
     from agent_runtime.mds_read_tools import answer_mds_read_only_question
 
