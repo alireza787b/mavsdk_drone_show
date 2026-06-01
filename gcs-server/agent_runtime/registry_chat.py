@@ -273,6 +273,7 @@ class RegistryReadPlan:
     tool_calls: tuple[RegistryReadCall, ...]
     clarification: str = ""
     missing_arguments: tuple[str, ...] = ()
+    selection_source: str = "domain_rules"
 
     def public_metadata(self) -> dict[str, Any]:
         return {
@@ -286,6 +287,7 @@ class RegistryReadPlan:
             "label": self.label,
             "tool_ids": [call.tool.id for call in self.tool_calls],
             "missing_arguments": list(self.missing_arguments),
+            "selection_source": self.selection_source,
             "execution_layer": "registry_read_adapter",
             "safety_posture": "read-only-registry; policy-filtered MCP-compatible tool execution only",
         }
@@ -312,7 +314,7 @@ def plan_registry_read_tool_calls(
         return None
     if _has_any(normalized, _CAPABILITY_TERMS):
         return None
-    if _has_any(normalized, _DIRECT_ACTION_TERMS):
+    if _has_direct_action_term(normalized):
         return None
     if _looks_like_docs_or_workflow_prompt(normalized):
         return None
@@ -323,6 +325,7 @@ def plan_registry_read_tool_calls(
     plan = build_assistant_query_plan(normalized, conversation_topic=conversation_topic)
     selected_ids: list[str] = []
     label = "read-only GCS state"
+    selection_source = "domain_rules"
     for signals, tool_ids, candidate_label in _DOMAIN_TOOLS:
         if _has_any(normalized, signals):
             selected_ids.extend(tool_ids)
@@ -349,11 +352,25 @@ def plan_registry_read_tool_calls(
         selected_ids = list(metadata_ids)
         if metadata_label:
             label = metadata_label
+        if selected_ids:
+            selection_source = "metadata_ranker"
+    elif selected_ids and not argument_ids:
+        metadata_ids, _metadata_label = _metadata_ranked_tool_ids(
+            normalized,
+            allowed_tools,
+            domain=plan.domain,
+            context_tool_ids=selected_ids,
+        )
+        merged_ids = _merge_specific_tool_ids(metadata_ids, selected_ids)
+        if tuple(selected_ids) != merged_ids:
+            selected_ids = list(merged_ids)
+            selection_source = "domain_rules+metadata_ranker"
 
     base_label = label
     candidate_groups: list[tuple[list[str], str]] = []
     if argument_ids:
         candidate_groups.append((list(argument_ids), argument_label or base_label))
+        selection_source = "typed_argument_rules"
     candidate_groups.append((list(selected_ids), base_label))
     selected_label = base_label
     calls: list[RegistryReadCall] = []
@@ -392,6 +409,7 @@ def plan_registry_read_tool_calls(
             if discovery_calls:
                 calls = discovery_calls
                 selected_label = candidate_label
+                selection_source = "typed_argument_discovery"
                 break
     if not calls:
         return None
@@ -401,7 +419,21 @@ def plan_registry_read_tool_calls(
         tool_calls=tuple(calls[:4]),
         clarification=clarification,
         missing_arguments=missing_arguments,
+        selection_source=selection_source,
     )
+
+
+def _merge_specific_tool_ids(preferred: Sequence[str], fallback: Sequence[str], *, limit: int = 4) -> tuple[str, ...]:
+    extras = [tool_id for tool_id in preferred if tool_id not in fallback]
+    if not extras:
+        return tuple(fallback[:limit])
+    merged: list[str] = []
+    for tool_id in tuple(extras) + tuple(fallback):
+        if tool_id not in merged:
+            merged.append(tool_id)
+        if len(merged) >= limit:
+            break
+    return tuple(merged)
 
 
 def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_ids: Sequence[str]) -> bool:
@@ -410,7 +442,20 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
         return False
     if argument_ids:
         return False
-    if intent == "fleet_summary" and _has_any(text, ("sidecar", "sidecars", "wifi", "wi-fi", "mavlink-anywhere", "mavlink dashboard")):
+    if intent == "fleet_summary" and _has_any(
+        text,
+        (
+            "sidecar",
+            "sidecars",
+            "wifi",
+            "wi-fi",
+            "mavlink-anywhere",
+            "mavlink dashboard",
+            "network detail",
+            "network details",
+            "connectivity profile",
+        ),
+    ):
         return False
     if intent in {"backend_log_summary", "fleet_connectivity", "fleet_summary"}:
         return True
@@ -418,12 +463,31 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
         return False
     if intent == "sitl_help" and _has_any(text, ("instance", "instances", "policy", "operation", "operations", "running", "status", "state")):
         return False
+    if intent == "sitl_help" and _has_any(text, ("host", "hosts")):
+        return False
     if intent in {"docs_help", "show_upload_help", "sitl_help", "board_setup_help", "companion_setup_help", "add_drone_workflow", "operator_help"}:
         return True
     if intent in {"general_knowledge", "public_geography", "autopilot_support", "mission_mode_comparison"}:
         return True
     if intent in {"show_summary", "swarm_topology", "runtime_summary", "system_status", "environment_summary", "px4_params_summary", "origin_status", "command_summary"}:
-        return not _has_any(text, ("validation", "metrics", "safety report", "tool_id", "resource_id", "command_id"))
+        return not _has_any(
+            text,
+            (
+                "validation",
+                "metrics",
+                "safety report",
+                "tool_id",
+                "resource_id",
+                "command_id",
+                "bootstrap",
+                "network detail",
+                "network details",
+                "connectivity profile",
+                "policy",
+                "recommendation",
+                "preview",
+            ),
+        )
     return True
 
 
@@ -482,10 +546,12 @@ def _metadata_ranked_tool_ids(
     allowed_tools: Sequence[ToolDefinition],
     *,
     domain: str,
+    context_tool_ids: Sequence[str] = (),
 ) -> tuple[tuple[str, ...], str]:
     terms = _query_terms(text)
     if not terms:
         return (), ""
+    context_prefixes = _tool_namespace_prefixes(context_tool_ids)
     ranked: list[tuple[int, str, ToolDefinition]] = []
     for tool in allowed_tools:
         if tool.route_path is None or tool.route_method != "GET":
@@ -493,17 +559,49 @@ def _metadata_ranked_tool_ids(
         if _required_args(tool):
             continue
         searchable = _tool_search_text(tool)
-        score = sum(3 if term in str(tool.id).casefold() else 1 for term in terms if term in searchable)
+        if context_prefixes and not any(tool.id.startswith(prefix) for prefix in context_prefixes):
+            continue
+        if not context_prefixes and domain and domain not in {"docs", "general"} and domain not in searchable:
+            continue
+        score = 0
+        for term in terms:
+            if term in str(tool.id).casefold():
+                score += 4
+            elif term in str(tool.title).casefold():
+                score += 3
+            elif term in " ".join(tool.tags).casefold():
+                score += 3
+            elif tool.route_path and term in tool.route_path.casefold():
+                score += 2
+            elif term in searchable:
+                score += 1
+        if score < 3:
+            continue
         if domain and domain in searchable:
             score += 3
-        if score >= 3:
-            ranked.append((score, tool.id, tool))
+        ranked.append((score, tool.id, tool))
     ranked.sort(key=lambda item: (-item[0], item[1]))
-    selected = [tool for _score, _tool_id, tool in ranked[:3]]
+    best_score = ranked[0][0] if ranked else 0
+    score_floor = max(3, best_score - 2)
+    selected = [tool for score, _tool_id, tool in ranked if score >= score_floor][:3]
     if not selected:
         return (), ""
     label = _registry_label_from_tools(selected)
     return tuple(tool.id for tool in selected), label
+
+
+def _tool_namespace_prefixes(tool_ids: Sequence[str]) -> tuple[str, ...]:
+    prefixes: list[str] = []
+    for tool_id in tool_ids:
+        parts = str(tool_id).split(".")
+        if len(parts) < 3:
+            continue
+        prefix = ".".join(parts[:2])
+        if len(parts) >= 3 and parts[1] in {"swarm_trajectories", "px4_params"}:
+            prefix = ".".join(parts[:2])
+        if prefix not in prefixes:
+            prefixes.append(prefix)
+    return tuple(prefixes)
 
 
 def _tool_search_text(tool: ToolDefinition) -> str:
@@ -526,8 +624,10 @@ def _query_terms(text: str) -> tuple[str, ...]:
         "can",
         "check",
         "current",
+        "configured",
         "details",
         "for",
+        "fleet",
         "from",
         "have",
         "latest",
@@ -535,6 +635,8 @@ def _query_terms(text: str) -> tuple[str, ...]:
         "read",
         "report",
         "show",
+        "sidecar",
+        "sidecars",
         "status",
         "that",
         "the",
@@ -542,6 +644,10 @@ def _query_terms(text: str) -> tuple[str, ...]:
         "which",
         "with",
         "you",
+        "sitl",
+        "swarm",
+        "trajectory",
+        "origin",
     }
     terms = []
     for term in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", text):
@@ -911,6 +1017,17 @@ def _has_any(text: str, terms: Iterable[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _has_direct_action_term(text: str) -> bool:
+    for term in _DIRECT_ACTION_TERMS:
+        if " " in term:
+            if term in text:
+                return True
+            continue
+        if re.search(rf"(?<![a-z0-9_]){re.escape(term)}(?![a-z0-9_])", text):
+            return True
+    return False
+
+
 def _result_highlights(result: ReadOnlyToolCallResult) -> str:
     if result.structured_content is None:
         return _compact_text(result.text)
@@ -948,7 +1065,21 @@ def _first_item_hint(items: Sequence[Any]) -> str:
     first = items[0]
     if isinstance(first, Mapping):
         hints = []
-        for key in ("id", "session_id", "mission_id", "name", "status", "state", "label", "level", "component", "message"):
+        for key in (
+            "id",
+            "hw_id",
+            "sidecar",
+            "transport",
+            "session_id",
+            "mission_id",
+            "name",
+            "status",
+            "state",
+            "label",
+            "level",
+            "component",
+            "message",
+        ):
             value = first.get(key)
             if value not in (None, ""):
                 hints.append(f"{key}={value}")

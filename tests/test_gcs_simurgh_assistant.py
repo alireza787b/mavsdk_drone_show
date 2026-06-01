@@ -41,6 +41,10 @@ def _client_with_registry_probe_routes() -> TestClient:
     def sitl_policy():
         return {"enabled": True, "max_instances": 4}
 
+    @app.get("/api/v1/system/sitl/host")
+    def sitl_host():
+        return {"host": "test-sitl-host", "available": True}
+
     @app.get("/api/sar/missions")
     def sar_missions():
         return {"count": 1, "missions": [{"mission_id": "sar-1", "status": "draft", "finding_count": 0}]}
@@ -72,6 +76,14 @@ def _client_with_registry_probe_routes() -> TestClient:
     def fleet_network_status():
         return {"online": 2, "offline": 0}
 
+    @app.get("/api/v1/fleet/network-details")
+    def fleet_network_details():
+        return {"links": [{"hw_id": "2", "transport": "netbird", "state": "online"}]}
+
+    @app.get("/api/v1/fleet/sidecars/connectivity/profile")
+    def sidecar_connectivity_profile():
+        return {"profile": "test-overlay-profile", "required_ports": [9070, 9080]}
+
     @app.get("/api/v1/fleet/sidecars/{sidecar}/nodes/{hw_id}")
     def sidecar_node(sidecar: str, hw_id: str):
         return {"sidecar": sidecar, "hw_id": hw_id, "state": "online", "remote_url": "http://example.invalid"}
@@ -79,6 +91,18 @@ def _client_with_registry_probe_routes() -> TestClient:
     @app.get("/api/v1/origin/elevation")
     def origin_elevation(lat: float, lon: float):
         return {"lat": lat, "lon": lon, "elevation_m": 1234.5}
+
+    @app.get("/api/v1/origin/bootstrap")
+    def origin_bootstrap():
+        return {"bootstrap_ready": True, "source": "configured"}
+
+    @app.get("/api/v1/swarm-trajectories/policy")
+    def swarm_trajectory_policy():
+        return {"max_drones": 16, "requires_validation": True}
+
+    @app.get("/api/v1/swarm-trajectories/recommendation")
+    def swarm_trajectory_recommendation():
+        return {"recommendation": "validate-before-dispatch", "ready": False}
 
     app.include_router(create_simurgh_router())
     return TestClient(app)
@@ -494,6 +518,62 @@ def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
     assert "mds.sitl.instances.read" in payload["content"]
     assert "total_instances: 1" in payload["content"]
     assert "MCP `tools/call`" in payload["content"]
+
+
+@pytest.mark.parametrize(
+    ("message", "expected_ids", "expected_text"),
+    [
+        (
+            "what SITL host is configured now?",
+            ["mds.sitl.host.read", "mds.sitl.instances.read", "mds.sitl.policy.read"],
+            "host: test-sitl-host",
+        ),
+        (
+            "show fleet network details now",
+            ["mds.fleet.network_details.read", "mds.fleet.network_status.read"],
+            "transport=netbird",
+        ),
+        (
+            "what sidecar connectivity profile is configured now?",
+            ["mds.fleet.sidecars.connectivity_profile.read", "mds.fleet.sidecars.read", "mds.fleet.network_status.read"],
+            "profile: test-overlay-profile",
+        ),
+        (
+            "what origin bootstrap status is configured now?",
+            ["mds.origin.bootstrap.read", "mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"],
+            "bootstrap_ready: True",
+        ),
+        (
+            "what swarm trajectory policy and recommendation are available now?",
+            ["mds.swarm_trajectories.policy.read", "mds.swarm_trajectories.recommendation.read", "mds.swarm_trajectories.status.read", "mds.swarm_trajectories.validate.read"],
+            "recommendation: validate-before-dispatch",
+        ),
+    ],
+)
+def test_simurgh_assistant_metadata_ranker_supplements_registry_domain_tools(
+    monkeypatch,
+    message,
+    expected_ids,
+    expected_text,
+):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": message},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == expected_ids
+    assert payload["trace"]["query"]["read_only_plan"]["selection_source"] in {
+        "metadata_ranker",
+        "domain_rules+metadata_ranker",
+    }
+    assert expected_text in payload["content"]
 
 
 def test_simurgh_assistant_prefers_docs_workflow_over_registry_state(monkeypatch):
