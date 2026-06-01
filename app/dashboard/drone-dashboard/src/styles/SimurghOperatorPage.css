@@ -84,7 +84,7 @@
   background: transparent;
   color: var(--color-text-tertiary);
   cursor: pointer;
-  opacity: 0.72;
+  opacity: 0.55;
   transition: opacity var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
@@ -159,8 +159,8 @@
   top: 0.35rem;
   right: 0.35rem;
   z-index: 2;
-  width: 2rem;
-  height: 2rem;
+  width: 1.9rem;
+  height: 1.9rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -395,8 +395,8 @@
 }
 
 .simurgh-chat__copy-button {
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.15rem;
+  height: 2.15rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -500,14 +500,24 @@
 
 @media (hover: none) {
   .simurgh-chat__history-action {
-    opacity: 0.12;
+    opacity: 0;
+  }
+
+  .simurgh-chat__history-item.is-active .simurgh-chat__history-action,
+  .simurgh-chat__history-item:focus-within .simurgh-chat__history-action,
+  .simurgh-chat__history-action[aria-expanded=true] {
+    opacity: 0.82;
   }
 
   .simurgh-chat__copy-button {
-    opacity: 0.08;
+    opacity: 0;
     transform: none;
   }
 
+  .simurgh-chat__bubble:active .simurgh-chat__copy-button--message,
+  .simurgh-chat__bubble:focus-within .simurgh-chat__copy-button--message,
+  .simurgh-chat__code-block:active .simurgh-chat__copy-button--code,
+  .simurgh-chat__code-block:focus-within .simurgh-chat__copy-button--code,
   .simurgh-chat__copy-button:active,
   .simurgh-chat__copy-button:focus-visible {
     opacity: 1;
@@ -654,8 +664,8 @@
 }
 
 .simurgh-chat__copy-button--code {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2rem;
+  height: 2rem;
   margin-block: -0.25rem;
 }
 
