@@ -123,6 +123,35 @@ def test_registry_planner_generates_missing_argument_discovery_for_typed_read_on
     assert failures == []
 
 
+def test_registry_planner_does_not_treat_ready_as_a_sar_mission_identifier():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "is swarm mission ready for field test now",
+        allowed_tools=tools,
+        local_intent=None,
+    )
+    planned_ids = _plan_tool_ids(plan)
+
+    assert "mds.sar.mission.status.read" not in planned_ids
+    assert "mds.sar.mission.workspace.read" not in planned_ids
+    assert "mds.sar.findings.read" not in planned_ids
+
+
+def test_registry_planner_still_accepts_explicit_sar_mission_id():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "read SAR mission status for mission_id=sar-1 now",
+        allowed_tools=tools,
+        local_intent=None,
+    )
+
+    assert plan is not None
+    assert _plan_tool_ids(plan) == ("mds.sar.mission.status.read",)
+    assert plan.tool_calls[0].arguments["mission_id"] == "sar-1"
+
+
 @pytest.mark.parametrize(
     "prompt",
     (

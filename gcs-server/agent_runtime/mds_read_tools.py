@@ -103,6 +103,14 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "show_upload_help": ("mds.docs.search", "mds.shows.skybrush.read"),
     "sidecar_status": ("mds.fleet.sidecars.read", "mds.fleet.sidecars.connectivity_profile.read"),
     "sitl_help": ("mds.docs.search", "mds.system.runtime_status.read"),
+    "swarm_readiness": (
+        "mds.config.swarm.read",
+        "mds.config.positions.read",
+        "mds.fleet.heartbeats.read",
+        "mds.fleet.telemetry.read",
+        "mds.swarm_trajectories.status.read",
+        "mds.swarm_trajectories.validate.read",
+    ),
     "swarm_topology": ("mds.config.swarm.read", "mds.config.positions.read"),
     "system_status": ("mds.system.health.read", "mds.system.runtime_status.read", "mds.simurgh.status.read"),
 }
@@ -377,6 +385,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "show_summary"
     if _looks_like_live_fleet_state_question(normalized):
         return "fleet_connectivity"
+    if _looks_like_swarm_readiness_question(normalized):
+        return "swarm_readiness"
     if _has_any(normalized, ("swarm", "formation", "cluster", "offset", "follow", "geometry", "distance")):
         return "swarm_topology"
     if _has_any(normalized, ("how many drones", "fleet", "drone", "drones", "ip of", "what is the ip")) or (
@@ -436,6 +446,8 @@ def answer_mds_read_only_question(
         return tools.runtime_summary()
     if intent == "sitl_help":
         return tools.sitl_help()
+    if intent == "swarm_readiness":
+        return tools.swarm_readiness(message)
     if intent == "board_setup_help":
         return tools.board_setup_help()
     if intent == "companion_setup_help":
@@ -479,7 +491,7 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "drone_show"
     if normalized_intent in {"fleet_summary", "fleet_connectivity"}:
         return "fleet"
-    if normalized_intent in {"swarm_topology", "operator_help", "mission_mode_comparison"}:
+    if normalized_intent in {"swarm_readiness", "swarm_topology", "operator_help", "mission_mode_comparison"}:
         return "swarm"
     if normalized_intent == "sitl_help":
         return "sitl"
@@ -528,6 +540,7 @@ def infer_mds_response_mode(
     if normalized_intent in {
         "show_upload_help",
         "sitl_help",
+        "swarm_readiness",
         "board_setup_help",
         "companion_setup_help",
         "add_drone_workflow",
@@ -1094,6 +1107,106 @@ class MdsReadOnlyTools:
             "swarm_topology",
             "\n".join(lines),
             ("mds.config.swarm.read", "mds.config.positions.read"),
+        )
+
+    def swarm_readiness(self, message: str = "") -> MdsReadToolAnswer:
+        assignments = self._swarm_assignments()
+        positions = self._positions_by_hw_id()
+        status_payload = self._swarm_trajectory_status()
+        validation = self._swarm_trajectory_validation()
+        presence = self._fleet_presence_counts()
+
+        assignment_by_hw = {
+            _as_int(item.get("hw_id")): item
+            for item in assignments
+            if _as_int(item.get("hw_id")) is not None
+        }
+        roots: list[int] = []
+        followers: list[int] = []
+        topology_blockers: list[str] = []
+        for hw_id, item in assignment_by_hw.items():
+            follow = _as_int(item.get("follow")) or 0
+            if follow <= 0:
+                roots.append(hw_id)
+            elif follow == hw_id:
+                followers.append(hw_id)
+                topology_blockers.append(f"hw {hw_id} follows itself")
+            elif follow not in assignment_by_hw:
+                followers.append(hw_id)
+                topology_blockers.append(f"hw {hw_id} follows missing leader hw {follow}")
+            else:
+                followers.append(hw_id)
+
+        status = status_payload.get("status") if isinstance(status_payload.get("status"), Mapping) else {}
+        cluster_summary = validation.get("cluster_summary") if isinstance(validation.get("cluster_summary"), Mapping) else {}
+        if not cluster_summary and isinstance(status.get("cluster_summary"), Mapping):
+            cluster_summary = status.get("cluster_summary") or {}
+        validation_blockers = validation.get("blockers") if isinstance(validation.get("blockers"), list) else []
+        validation_warnings = validation.get("warnings") if isinstance(validation.get("warnings"), list) else []
+        trajectory_ready = bool(validation.get("ready")) if validation else False
+        has_processed_outputs = bool(status.get("has_results"))
+        live_count = presence.get("live", 0)
+        total_count = presence.get("total", len(assignments))
+        overall_state = cluster_summary.get("overall_state", "unknown")
+        ready_cluster_count = cluster_summary.get("ready_cluster_count", 0)
+        cluster_count = cluster_summary.get("cluster_count", 0)
+        processed_drones = status.get("processed_drones") or []
+
+        composer = AnswerComposer()
+        composer.line("Smart Swarm readiness snapshot from read-only GCS evidence:")
+        composer.blank().table(
+            ("Area", "Current evidence"),
+            (
+                ("Saved topology", f"{len(assignments)} assignments, {len(roots)} leader/root, {len(followers)} follower"),
+                ("Topology blockers", "none" if not topology_blockers else "; ".join(topology_blockers[:4])),
+                ("Live fleet evidence", f"{live_count}/{total_count} drone(s) look live from heartbeat/telemetry"),
+                ("Launch positions", f"{len(positions)} configured launch/start position(s)"),
+                ("Swarm Trajectory package", _swarm_trajectory_readiness_label(trajectory_ready, has_processed_outputs, validation_blockers)),
+            ),
+        )
+
+        if followers and not topology_blockers:
+            composer.blank().line(
+                "For a Smart Swarm follow test, the saved topology does define a follower formation. "
+                "That is necessary for a follow test, but it is not enough for field readiness."
+            )
+        elif not followers:
+            composer.blank().line(
+                "For a Smart Swarm follow test, this topology is not a follower formation yet: every configured drone is still a root/leader."
+            )
+        else:
+            composer.blank().line("The saved topology has blockers; fix those in [Swarm Design](/swarm-design) before any follow test.")
+
+        if cluster_summary:
+            composer.blank().line("Swarm Trajectory validation snapshot:")
+            composer.bullets(
+                (
+                    f"overall state: {overall_state}",
+                    f"clusters ready: {ready_cluster_count}/{cluster_count}",
+                    f"processed drones: {len(processed_drones)}",
+                )
+            )
+        if validation_blockers:
+            composer.blank().line("Trajectory/package blockers:")
+            composer.bullets(_issue_message(issue) for issue in validation_blockers[:5])
+        elif validation_warnings:
+            composer.blank().line("Trajectory/package warnings:")
+            composer.bullets(_issue_message(issue) for issue in validation_warnings[:5])
+
+        composer.blank().line("Before turning aircraft on or flying, do the human field checks separately: QGC identity/SYS_ID, fresh MAVLink telemetry, GPS/RTK quality, battery, mode/arming state, geofence/airspace/weather, and a clear abort/RTL plan.")
+        composer.line("Pages: [Swarm Design](/swarm-design), [Swarm Trajectory](/swarm-trajectory), [Mission Config](/mission-config), [Overview](/).")
+        composer.line("This is a read-only readiness advisory; no config write, mission action, or drone command was sent.")
+        return self._answer(
+            "swarm_readiness",
+            composer.render(),
+            (
+                "mds.config.swarm.read",
+                "mds.config.positions.read",
+                "mds.fleet.heartbeats.read",
+                "mds.fleet.telemetry.read",
+                "mds.swarm_trajectories.status.read",
+                "mds.swarm_trajectories.validate.read",
+            ),
         )
 
     def show_summary(self, *, response_mode: str = "status", message: str = "") -> MdsReadToolAnswer:
@@ -2096,6 +2209,81 @@ class MdsReadOnlyTools:
             return [_copy_mapping(item) for item in (load_swarm() or [])]
         except Exception:
             return []
+
+    def _swarm_trajectory_status(self) -> dict[str, Any]:
+        service = getattr(self.deps, "swarm_trajectory_service", None)
+        getter = getattr(service, "get_processing_status_payload", None)
+        if callable(getter):
+            try:
+                return _copy_mapping(getter() or {})
+            except Exception as exc:
+                return {"success": False, "error": str(exc)}
+        try:
+            from functions import swarm_trajectory_service
+
+            return _copy_mapping(swarm_trajectory_service.get_processing_status_payload() or {})
+        except Exception as exc:
+            return {"success": False, "error": str(exc)}
+
+    def _swarm_trajectory_validation(self) -> dict[str, Any]:
+        service = getattr(self.deps, "swarm_trajectory_service", None)
+        getter = getattr(service, "get_validation_payload", None)
+        if callable(getter):
+            try:
+                return _copy_mapping(getter() or {})
+            except Exception as exc:
+                return {"success": False, "error": str(exc), "ready": False}
+        try:
+            from functions import swarm_trajectory_service
+
+            return _copy_mapping(swarm_trajectory_service.get_validation_payload() or {})
+        except Exception as exc:
+            return {"success": False, "error": str(exc), "ready": False}
+
+    def _fleet_presence_counts(self) -> dict[str, int]:
+        config = self._fleet_config()
+        heartbeats = self._heartbeat_snapshot()
+        telemetry = self._telemetry_snapshot()
+        telemetry_success_times = self._telemetry_success_times()
+        try:
+            from params import Params
+            from presence import build_presence_snapshot, resolve_presence_thresholds
+
+            thresholds = resolve_presence_thresholds(Params)
+        except Exception:
+            build_presence_snapshot = None
+            thresholds = None
+
+        all_hw_ids = sorted(
+            {
+                *(_as_str(drone.get("hw_id")) for drone in config),
+                *(_as_str(key) for key in heartbeats),
+                *(_as_str(key) for key in telemetry),
+            },
+            key=_natural_key,
+        )
+        config_lookup = {_as_str(drone.get("hw_id")): drone for drone in config}
+        live_count = 0
+        now = time.time()
+        for hw_id in all_hw_ids:
+            heartbeat = _copy_mapping(heartbeats.get(hw_id) or heartbeats.get(_maybe_int_key(hw_id)))
+            telemetry_row = _copy_mapping(telemetry.get(hw_id) or telemetry.get(_maybe_int_key(hw_id)))
+            if build_presence_snapshot is not None:
+                presence = build_presence_snapshot(
+                    hw_id=hw_id,
+                    heartbeat=heartbeat,
+                    telemetry=telemetry_row,
+                    telemetry_success_time=telemetry_success_times.get(hw_id) or telemetry_success_times.get(_maybe_int_key(hw_id)),
+                    configured=hw_id in config_lookup,
+                    now=now,
+                    thresholds=thresholds,
+                )
+                live = bool(presence.get("fresh"))
+            else:
+                live = bool(heartbeat or telemetry_row.get("telemetry_available"))
+            if live:
+                live_count += 1
+        return {"live": live_count, "total": len(all_hw_ids)}
 
     def _positions_by_hw_id(self) -> dict[int, dict[str, Any]]:
         loader = getattr(self.deps, "get_all_drone_positions", None)
@@ -3326,6 +3514,64 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
             "failsafe",
         ),
     )
+
+
+def _looks_like_swarm_readiness_question(normalized: str) -> bool:
+    if not _has_domain_signal(
+        normalized,
+        (
+            "smart swarm",
+            "swarm mission",
+            "swarm field test",
+            "swarm test",
+            "swarm",
+            "formation",
+            "follow test",
+            "cluster mission",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "ready",
+            "readiness",
+            "field test",
+            "test flight",
+            "test fly",
+            "fly",
+            "flying",
+            "before turning on",
+            "before flight",
+            "planned before",
+            "is all ready",
+            "all is ready",
+            "all ready",
+            "safe to test",
+        ),
+    )
+
+
+def _swarm_trajectory_readiness_label(
+    trajectory_ready: bool,
+    has_processed_outputs: bool,
+    blockers: Sequence[Any],
+) -> str:
+    if trajectory_ready:
+        return "validated ready by current package check"
+    if blockers:
+        return f"not ready, {len(blockers)} blocker(s)"
+    if has_processed_outputs:
+        return "processed outputs exist, but validation is not ready"
+    return "no processed trajectory package visible"
+
+
+def _issue_message(issue: Any) -> str:
+    if isinstance(issue, Mapping):
+        message = str(issue.get("message") or issue.get("detail") or issue.get("code") or issue).strip()
+        severity = str(issue.get("severity") or "").strip()
+        return f"{severity}: {message}" if severity else message
+    return str(issue)
 
 
 def _wants_fleet_position_details(normalized: str) -> bool:

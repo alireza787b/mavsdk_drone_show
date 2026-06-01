@@ -58,6 +58,12 @@ term_replacements:
   - id: typo.there
     aliases: [ther]
     canonical: there
+  - id: typo.ready
+    aliases: [reay, rpeady, rady]
+    canonical: ready
+  - id: typo.swarm
+    aliases: [searm, sawrm, swram]
+    canonical: swarm
   - id: typo.operation
     aliases: [operatin, oepration]
     canonical: operation

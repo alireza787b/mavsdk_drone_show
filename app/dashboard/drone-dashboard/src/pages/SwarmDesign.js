@@ -83,6 +83,7 @@ function SwarmDesign() {
   const [pendingCardFocusId, setPendingCardFocusId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saveOperation, setSaveOperation] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
   const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000) || {};
@@ -462,21 +463,32 @@ function SwarmDesign() {
   };
 
   const saveSwarmData = async (withCommit) => {
+    const operation = withCommit ? 'commit' : 'update';
+    setSaveOperation(operation);
     setSaving(true);
 
     try {
+      toast.info(withCommit ? 'Committing Smart Swarm assignments...' : 'Updating Smart Swarm assignments...');
       const response = await saveSwarmConfigResponse(
         toSwarmApiPayload(workingAssignments),
         { commit: withCommit }
       );
 
-      toast.success(response.data.message || 'Smart Swarm configuration saved successfully.');
+      const gitResult = response?.data?.git_result || response?.data?.git_info;
+      if (withCommit && gitResult && gitResult.success === false) {
+        toast.warning("Smart Swarm saved, but git commit failed: " + (gitResult.message || "unknown git error"));
+      } else {
+        toast.success(response.data.message || (withCommit
+          ? 'Smart Swarm configuration saved and committed successfully.'
+          : 'Smart Swarm configuration saved successfully.'));
+      }
       await refreshFromServer();
     } catch (error) {
       console.error('Failed to save Smart Swarm configuration:', error);
       toast.error('Failed to save Smart Swarm configuration.');
     } finally {
       setSaving(false);
+      setSaveOperation(null);
     }
   };
 
@@ -554,15 +566,19 @@ function SwarmDesign() {
       tone: viewModel.summary.attentionCount > 0 ? 'danger' : 'success',
     },
   ];
-  const pageStatusTone = hasBlockingIssues || hasIncompleteInputs
+  const pageStatusTone = saving
+    ? 'info'
+    : hasBlockingIssues || hasIncompleteInputs
     ? 'danger'
     : hasStagedChanges || hasPendingSync
       ? 'warning'
       : 'success';
-  const pageStatusLabel = hasBlockingIssues || hasIncompleteInputs
-    ? 'Blocked'
-    : hasStagedChanges || hasPendingSync
-      ? 'Staged'
+  const pageStatusLabel = saving
+    ? (saveOperation === 'commit' ? 'Committing' : 'Saving')
+    : hasBlockingIssues || hasIncompleteInputs
+      ? 'Blocked'
+      : hasStagedChanges || hasPendingSync
+        ? 'Staged'
       : 'Clean';
 
   return (
@@ -586,7 +602,7 @@ function SwarmDesign() {
               tone="info"
               disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
             >
-              Update
+              {saving && saveOperation === 'update' ? 'Updating' : 'Update'}
             </ActionIconButton>,
             <ActionIconButton
               key="commit"
@@ -596,7 +612,7 @@ function SwarmDesign() {
               tone="success"
               disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
             >
-              Commit
+              {saving && saveOperation === 'commit' ? 'Committing' : 'Commit'}
             </ActionIconButton>,
           ]}
           secondary={[

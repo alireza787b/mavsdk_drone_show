@@ -149,12 +149,15 @@ _BAD_ARGUMENT_VALUES = {
     "position",
     "positions",
     "read",
+    "ready",
+    "reay",
     "registry",
     "rows",
     "show",
     "statistics",
     "status",
     "summary",
+    "test",
     "the",
     "workspace",
 }
@@ -202,6 +205,7 @@ _ADVISORY_FIRST_INTENTS = frozenset(
         "show_summary",
         "show_upload_help",
         "sitl_help",
+        "swarm_readiness",
         "swarm_topology",
         "system_status",
     }
@@ -535,7 +539,7 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
         return True
     if intent in {"general_knowledge", "public_geography", "autopilot_support", "mission_mode_comparison"}:
         return True
-    if intent in {"show_summary", "swarm_topology", "runtime_summary", "system_status", "environment_summary", "px4_params_summary", "origin_status", "command_summary"}:
+    if intent in {"show_summary", "swarm_readiness", "swarm_topology", "runtime_summary", "system_status", "environment_summary", "px4_params_summary", "origin_status", "command_summary"}:
         return not _has_any(
             text,
             (
@@ -1052,7 +1056,23 @@ def _extract_log_session_id(text: str) -> str | None:
 
 
 def _extract_mission_id(text: str) -> str | None:
-    return _extract_named_string("mission_id", text, aliases=("sar mission", "quickscout mission", "mission"))
+    explicit = _extract_named_string(
+        "mission_id",
+        text,
+        aliases=("mission id", "sar mission id", "quickscout mission id"),
+    )
+    if explicit:
+        return explicit
+    for pattern in (
+        rf"\b(?:sar|quickscout|quick scout)\s+mission\s+(?:id\s*)?(?:=|:|is|#)?\s*({_IDENTIFIER_RE})\b",
+        rf"\bmission\s+(?:id|number|#)\s*(?:=|:|is)?\s*({_IDENTIFIER_RE})\b",
+    ):
+        match = re.search(pattern, text)
+        if match:
+            value = match.group(1).strip(".,;()[]{}")
+            if value and value not in _BAD_ARGUMENT_VALUES and value not in {"id", "number"}:
+                return value
+    return None
 
 
 def _extract_named_string(name: str, text: str, *, aliases: Sequence[str] = ()) -> str | None:

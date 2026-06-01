@@ -669,6 +669,12 @@ def test_assistant_turn_answers_domain_tool_capabilities_from_registry(
             ("Install only approved software",),
         ),
         (
+            "Is searm mission reay for test? I want to go field test and make sure all is ready before turning on and fly",
+            "swarm_readiness",
+            ("Smart Swarm readiness snapshot", "Saved topology", "Before turning aircraft on or flying", "/swarm-design"),
+            ("Read-only registry check for one SAR mission status", "mission_id=ready", "mission_id=reay"),
+        ),
+        (
             "Combien de drones sont configurés maintenant ?",
             "fleet_summary",
             ("Fleet status from GCS configuration", "configured drone"),

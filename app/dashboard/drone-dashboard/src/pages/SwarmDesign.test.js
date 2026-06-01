@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 jest.mock('react-toastify', () => ({
@@ -7,6 +7,7 @@ jest.mock('react-toastify', () => ({
     error: jest.fn(),
     info: jest.fn(),
     success: jest.fn(),
+    warning: jest.fn(),
   },
 }));
 
@@ -43,9 +44,11 @@ jest.mock('../services/gcsApiService', () => ({
 const { default: SwarmDesign } = require('./SwarmDesign');
 const {
   getFleetConfigResponse,
+  saveSwarmConfigResponse,
   getSwarmConfigResponse,
   unwrapSwarmConfigPayload,
 } = require('../services/gcsApiService');
+const { toast } = require('react-toastify');
 
 const renderPage = () => render(
   <MemoryRouter
@@ -96,5 +99,40 @@ describe('SwarmDesign', () => {
     const exportButtons = screen.getAllByRole('button', { name: /export smart swarm assignments as csv/i });
     expect(exportButtons.length).toBeGreaterThan(0);
     exportButtons.forEach((button) => expect(button).toBeEnabled());
+  });
+
+  test('commits pending swarm sync once and gives operator progress feedback', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
+        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
+        { hw_id: 3, pos_id: 3, ip: '10.0.0.13' },
+      ],
+    });
+    getSwarmConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ENU' },
+        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ENU' },
+      ],
+    });
+    saveSwarmConfigResponse.mockResolvedValue({
+      data: {
+        message: 'Smart Swarm configuration saved and committed successfully.',
+        git_result: { success: true },
+      },
+    });
+
+    renderPage();
+
+    const commitButton = await screen.findByRole('button', { name: /commit smart swarm assignment changes/i });
+    expect(commitButton).toBeEnabled();
+
+    fireEvent.click(commitButton);
+    const dialog = await screen.findByRole('dialog', { name: /commit smart swarm assignments/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^commit$/i }));
+
+    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
+    expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
+    expect(toast.info).toHaveBeenCalledWith('Committing Smart Swarm assignments...');
   });
 });
