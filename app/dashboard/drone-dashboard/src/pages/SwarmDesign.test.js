@@ -36,6 +36,7 @@ jest.mock('../services/gcsApiService', () => ({
     fleetTelemetry: 'fleetTelemetry',
   },
   getFleetConfigResponse: jest.fn(),
+  getUnifiedGitStatusResponse: jest.fn(),
   getSwarmConfigResponse: jest.fn(),
   saveSwarmConfigResponse: jest.fn(),
   unwrapSwarmConfigPayload: jest.fn((payload) => payload),
@@ -44,6 +45,7 @@ jest.mock('../services/gcsApiService', () => ({
 const { default: SwarmDesign } = require('./SwarmDesign');
 const {
   getFleetConfigResponse,
+  getUnifiedGitStatusResponse,
   saveSwarmConfigResponse,
   getSwarmConfigResponse,
   unwrapSwarmConfigPayload,
@@ -75,6 +77,14 @@ describe('SwarmDesign', () => {
         { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ENU' },
         { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ENU' },
       ],
+    });
+    getUnifiedGitStatusResponse.mockResolvedValue({
+      data: {
+        gcs_status: {
+          status: 'clean',
+          uncommitted_changes: [],
+        },
+      },
     });
   });
 
@@ -134,5 +144,49 @@ describe('SwarmDesign', () => {
     await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
     expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
     expect(toast.info).toHaveBeenCalledWith('Committing Smart Swarm assignments...');
+  });
+
+  test('keeps commit available when swarm json is saved but not committed', async () => {
+    getFleetConfigResponse.mockResolvedValue({ data: [] });
+    getSwarmConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ned' },
+      ],
+    });
+    getUnifiedGitStatusResponse.mockResolvedValue({
+      data: {
+        gcs_status: {
+          status: 'dirty',
+          uncommitted_changes: [' M swarm.json'],
+        },
+      },
+    });
+    saveSwarmConfigResponse.mockResolvedValue({
+      data: {
+        message: 'Swarm configuration saved successfully',
+        git_result: {
+          success: true,
+          message: 'Changes pushed to repository successfully.',
+          commit_hash: 'abc12345',
+          pushed: true,
+        },
+      },
+    });
+
+    renderPage();
+
+    const commitButton = await screen.findByRole('button', { name: /commit smart swarm assignment changes/i });
+    await waitFor(() => expect(commitButton).toBeEnabled());
+    expect(await screen.findByText(/swarm\.json is saved on this GCS and still needs git commit/i)).toBeInTheDocument();
+
+    fireEvent.click(commitButton);
+    const dialog = await screen.findByRole('dialog', { name: /commit smart swarm assignments/i });
+    expect(within(dialog).getByText(/saved swarm\.json change pending git commit/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: /^commit$/i }));
+
+    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
+    expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
+    expect(await screen.findByText(/Changes pushed to repository successfully/i)).toBeInTheDocument();
   });
 });

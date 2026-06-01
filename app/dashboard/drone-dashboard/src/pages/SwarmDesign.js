@@ -36,6 +36,7 @@ import {
   GCS_ROUTE_KEYS,
   getFleetConfigResponse,
   getSwarmConfigResponse,
+  getUnifiedGitStatusResponse,
   saveSwarmConfigResponse,
   unwrapSwarmConfigPayload,
 } from '../services/gcsApiService';
@@ -66,6 +67,37 @@ function hasIncompleteNumericValue(value) {
   return ['', '-', '.', '-.'].includes(value.trim());
 }
 
+function extractGcsUncommittedChanges(gitStatus) {
+  const changes = gitStatus?.gcs_status?.uncommitted_changes;
+  return Array.isArray(changes) ? changes.map((change) => String(change)) : [];
+}
+
+function isSwarmJsonChange(change) {
+  return String(change || '').trim().split(/\s+/).includes('swarm.json')
+    || String(change || '').includes('/swarm.json');
+}
+
+function buildGitResultMessage(gitResult) {
+  if (!gitResult || typeof gitResult !== 'object') {
+    return 'No git write-back report was returned by the GCS.';
+  }
+
+  const parts = [];
+  if (gitResult.message) {
+    parts.push(gitResult.message);
+  }
+  if (gitResult.commit_hash) {
+    parts.push(`commit ${gitResult.commit_hash}`);
+  }
+  if (gitResult.pushed === true) {
+    parts.push('pushed to remote');
+  } else if (gitResult.auto_push_enabled === false) {
+    parts.push('auto-push disabled');
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : 'Git write-back finished.';
+}
+
 function SwarmDesign() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -84,6 +116,9 @@ function SwarmDesign() {
   const [searchTerm, setSearchTerm] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveOperation, setSaveOperation] = useState(null);
+  const [gitStatus, setGitStatus] = useState(null);
+  const [gitStatusLoading, setGitStatusLoading] = useState(false);
+  const [saveReport, setSaveReport] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
   const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000) || {};
@@ -104,6 +139,13 @@ function SwarmDesign() {
   const selectedDrone = selectedDroneId ? viewModel.dronesById[selectedDroneId] : null;
   const hasPendingSync = syncChanges.addedIds.length > 0 || syncChanges.removedIds.length > 0;
   const hasStagedChanges = dirtyIds.length > 0;
+  const gcsUncommittedChanges = useMemo(() => extractGcsUncommittedChanges(gitStatus), [gitStatus]);
+  const hasSavedSwarmCommitPending = useMemo(
+    () => gcsUncommittedChanges.some((change) => isSwarmJsonChange(change)),
+    [gcsUncommittedChanges]
+  );
+  const canUpdateSwarm = hasStagedChanges || hasPendingSync;
+  const canCommitSwarm = canUpdateSwarm || hasSavedSwarmCommitPending;
   const hasBlockingIssues = viewModel.summary.blockingIssueCount > 0;
   const hasIncompleteInputs = workingAssignments.some((assignment) =>
     ['offset_x', 'offset_y', 'offset_z'].some((field) => hasIncompleteNumericValue(assignment[field]))
@@ -190,6 +232,30 @@ function SwarmDesign() {
     return () => {
       isActive = false;
     };
+  }, []);
+
+  const refreshGitStatus = async () => {
+    setGitStatusLoading(true);
+    try {
+      const response = await getUnifiedGitStatusResponse();
+      setGitStatus(response?.data || null);
+      return response?.data || null;
+    } catch (error) {
+      console.error('Error fetching GCS git status:', error);
+      setGitStatus(null);
+      setSaveReport({
+        tone: 'warning',
+        title: 'Git status unavailable',
+        message: 'Smart Swarm can still save assignments, but commit readiness could not be checked from GCS git status.',
+      });
+      return null;
+    } finally {
+      setGitStatusLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshGitStatus();
   }, []);
 
   useEffect(() => {
@@ -477,14 +543,32 @@ function SwarmDesign() {
       const gitResult = response?.data?.git_result || response?.data?.git_info;
       if (withCommit && gitResult && gitResult.success === false) {
         toast.warning("Smart Swarm saved, but git commit failed: " + (gitResult.message || "unknown git error"));
+        setSaveReport({
+          tone: 'warning',
+          title: 'Saved, commit failed',
+          message: buildGitResultMessage(gitResult),
+        });
       } else {
         toast.success(response.data.message || (withCommit
           ? 'Smart Swarm configuration saved and committed successfully.'
           : 'Smart Swarm configuration saved successfully.'));
+        setSaveReport({
+          tone: withCommit ? 'success' : 'warning',
+          title: withCommit ? 'Committed' : 'Saved locally',
+          message: withCommit
+            ? buildGitResultMessage(gitResult)
+            : 'Assignments were saved on this GCS. Commit remains available if git status reports swarm.json is still uncommitted.',
+        });
       }
       await refreshFromServer();
+      await refreshGitStatus();
     } catch (error) {
       console.error('Failed to save Smart Swarm configuration:', error);
+      setSaveReport({
+        tone: 'danger',
+        title: withCommit ? 'Commit failed' : 'Update failed',
+        message: error?.response?.data?.detail || error?.message || 'GCS did not accept the Smart Swarm save request.',
+      });
       toast.error('Failed to save Smart Swarm configuration.');
     } finally {
       setSaving(false);
@@ -503,8 +587,13 @@ function SwarmDesign() {
       return;
     }
 
-    if (!hasStagedChanges && !hasPendingSync) {
+    if (!withCommit && !canUpdateSwarm) {
       toast.info('No Smart Swarm changes are staged for update.');
+      return;
+    }
+
+    if (withCommit && !canCommitSwarm) {
+      toast.info('No Smart Swarm changes are staged or pending commit.');
       return;
     }
 
@@ -515,6 +604,10 @@ function SwarmDesign() {
       `${syncChanges.addedIds.length + syncChanges.removedIds.length} fleet sync update${syncChanges.addedIds.length + syncChanges.removedIds.length === 1 ? '' : 's'}`,
       `${viewModel.summary.attentionCount} drone${viewModel.summary.attentionCount === 1 ? '' : 's'} flagged for operator attention`,
     ];
+
+    if (withCommit && hasSavedSwarmCommitPending && !canUpdateSwarm) {
+      summaryLines.push('saved swarm.json change pending git commit');
+    }
 
     setConfirmDialog({
       title: `${withCommit ? 'Commit' : 'Update'} Smart Swarm assignments?`,
@@ -600,7 +693,7 @@ function SwarmDesign() {
               label="Update Smart Swarm assignments"
               onClick={() => confirmAndSave(false)}
               tone="info"
-              disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
             >
               {saving && saveOperation === 'update' ? 'Updating' : 'Update'}
             </ActionIconButton>,
@@ -610,7 +703,7 @@ function SwarmDesign() {
               label="Commit Smart Swarm assignment changes"
               onClick={() => confirmAndSave(true)}
               tone="success"
-              disabled={saving || hasBlockingIssues || hasIncompleteInputs || (!hasStagedChanges && !hasPendingSync)}
+              disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canCommitSwarm}
             >
               {saving && saveOperation === 'commit' ? 'Committing' : 'Commit'}
             </ActionIconButton>,
@@ -697,6 +790,21 @@ function SwarmDesign() {
               {hasBlockingIssues ? 'Resolve self-follow, missing leader, or cycle issues.' : ''}
               {hasBlockingIssues && hasIncompleteInputs ? ' ' : ''}
               {hasIncompleteInputs ? 'Complete partial offset values before update or commit.' : ''}
+            </span>
+          </OperatorNotice>
+        )}
+
+        {(saveReport || gitStatusLoading || hasSavedSwarmCommitPending) && (
+          <OperatorNotice
+            tone={saveReport?.tone || (hasSavedSwarmCommitPending ? 'warning' : 'info')}
+            title={saveReport?.title || (gitStatusLoading ? 'Checking git status' : 'Commit pending')}
+            className="swarm-status-card git"
+          >
+            <span>
+              {saveReport?.message
+                || (gitStatusLoading
+                  ? 'Reading GCS repository status.'
+                  : 'swarm.json is saved on this GCS and still needs git commit/write-back.')}
             </span>
           </OperatorNotice>
         )}
