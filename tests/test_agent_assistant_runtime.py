@@ -1295,6 +1295,72 @@ def test_assistant_turn_answers_sidecar_px4_system_and_environment_read_only(mon
     assert "raw values" in env.turn.content.lower()
 
 
+def test_assistant_turn_summarizes_fleet_ops_sidecar_node_evidence(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    now_ms = int(time.time() * 1000)
+    deps = SimpleNamespace(
+        BASE_DIR=str(tmp_path),
+        Params=SimpleNamespace(TELEMETRY_POLLING_TIMEOUT=600, drone_api_port=7070),
+        load_config=lambda: [
+            {"hw_id": "1", "pos_id": 1, "ip": "198.51.100.11"},
+        ],
+        get_all_heartbeats=lambda: {"1": {"timestamp": now_ms}},
+        data_lock_git_status=None,
+        git_status_data_all_drones={
+            "1": {
+                "connectivity_runtime": {
+                    "service_status": "active",
+                    "dashboard_access_mode": "direct",
+                    "dashboard_listen": "0.0.0.0:9080",
+                    "mode": "fleet-merge",
+                    "drift_state": "in_sync",
+                    "profile_count": 2,
+                    "profile_summary": {
+                        "source": "runtime",
+                        "profiles": [
+                            {"ssid": "field-link", "priority": 50, "password": "redacted-by-route"},
+                        ],
+                    },
+                },
+                "mavlink_runtime": {
+                    "router_service_status": "active",
+                    "dashboard_access_mode": "direct",
+                    "dashboard_listen": "0.0.0.0:9070",
+                    "mode": "local",
+                    "drift_state": "in_sync",
+                    "endpoint_count": 1,
+                    "profile_summary": {
+                        "source": "runtime",
+                        "endpoints": [
+                            {"name": "qgc", "type": "UdpEndpoint", "mode": "client", "port": 14550},
+                        ],
+                    },
+                },
+            },
+        },
+        get_network_info_from_heartbeats=lambda: [{"hw_id": "1", "link": "example"}],
+    )
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="which wifi and mavlink sidecar dashboards are live and are profiles drifted?",
+        deps=deps,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "sidecar_status"
+    assert "Fleet Ops sidecar status from read-only GCS state" in record.turn.content
+    assert "smart-wifi-manager" in record.turn.content
+    assert "mavlink-anywhere" in record.turn.content
+    assert "http://198.51.100.11:9080/" in record.turn.content
+    assert "http://198.51.100.11:9070/" in record.turn.content
+    assert "in_sync" in record.turn.content
+    assert "No Wi-Fi profile, MAVLink route, repository state, or drone setting was changed" in record.turn.content
+
+
 def test_assistant_turn_answers_command_tracker_summary_from_deps(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")

@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -101,7 +102,12 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
         "mds.shows.skybrush.validation.read",
     ),
     "show_upload_help": ("mds.docs.search", "mds.shows.skybrush.read"),
-    "sidecar_status": ("mds.fleet.sidecars.read", "mds.fleet.sidecars.connectivity_profile.read"),
+    "sidecar_status": (
+        "mds.fleet.sidecars.read",
+        "mds.fleet.sidecar.read",
+        "mds.fleet.network_details.read",
+        "mds.fleet.sidecars.connectivity_profile.read",
+    ),
     "sitl_help": ("mds.docs.search", "mds.system.runtime_status.read"),
     "swarm_readiness": (
         "mds.config.swarm.read",
@@ -1656,14 +1662,18 @@ class MdsReadOnlyTools:
 
     def sidecar_status(self) -> MdsReadToolAnswer:
         try:
+            sidecar_payload = self._fleet_sidecars_payload()
+            sidecars = sidecar_payload.get("sidecars") if isinstance(sidecar_payload.get("sidecars"), Mapping) else {}
+            wifi_table = _copy_mapping(sidecars.get("smart-wifi-manager"))
+            mavlink_table = _copy_mapping(sidecars.get("mavlink-anywhere"))
             from src.managed_runtime_status import build_connectivity_runtime_summary, build_mavlink_runtime_summary
 
             wifi = build_connectivity_runtime_summary(REPO_ROOT)
             mavlink = build_mavlink_runtime_summary(REPO_ROOT)
             composer = AnswerComposer()
-            composer.line("Fleet Ops sidecar dashboard summary:")
+            composer.line("Fleet Ops sidecar status from read-only GCS state:")
             composer.blank().table(
-                ("Sidecar", "Purpose", "Dashboard", "Status"),
+                ("Sidecar", "Purpose", "Dashboard", "Runtime"),
                 (
                     (
                         "smart-wifi-manager",
@@ -1679,16 +1689,113 @@ class MdsReadOnlyTools:
                     ),
                 ),
             )
-            composer.blank().line("Use [Fleet Ops](/fleet-ops) for fleet-wide sidecar posture, node drift, and profile sync checks.")
-            composer.line("This is read-only sidecar/runtime inspection; no Wi-Fi, MAVLink, or drone setting was changed.")
+            table_rows = _sidecar_summary_rows(
+                (
+                    ("smart-wifi-manager", wifi_table),
+                    ("mavlink-anywhere", mavlink_table),
+                )
+            )
+            if table_rows:
+                composer.blank().line("Fleet-wide table state:")
+                composer.table(("Sidecar", "Nodes", "Online", "Mode(s)", "Drift", "Baseline"), table_rows)
+
+            node_rows = _sidecar_node_rows(
+                (
+                    ("smart-wifi-manager", wifi_table),
+                    ("mavlink-anywhere", mavlink_table),
+                )
+            )
+            if node_rows:
+                composer.blank().line("Node evidence snapshot:")
+                composer.table(("Node", "Sidecar", "Presence", "Service", "Mode", "Drift", "Dashboard"), node_rows[:8])
+                if len(node_rows) > 8:
+                    composer.line(f"Showing 8 of {len(node_rows)} sidecar row(s); open Fleet Ops for the full table.")
+
+            composer.blank().line("Use [Fleet Ops](/fleet-ops) for the full fleet posture, [Wi-Fi profiles](/fleet-ops/wifi) for Smart Wi-Fi Manager, and [MAVLink profiles](/fleet-ops/mavlink) for MAVLink Anywhere.")
+            composer.line("Read-only meaning: Simurgh can inspect sidecar state, dashboards, modes, drift, profiles/endpoints, and job results. Profile apply/reconcile/delete remains a human-controlled Fleet Ops action.")
+            composer.line("If a node dashboard is reachable but profile mutation reports a required API token, treat that as sidecar mutation-token configuration, not a MAVLink flight-control issue.")
+            network_details = self._fleet_network_details()
+            network_count = _network_detail_count(network_details)
+            if network_count:
+                composer.line(f"Fleet network detail rows visible to GCS: {network_count}.")
+            composer.line("No Wi-Fi profile, MAVLink route, repository state, or drone setting was changed.")
             content = composer.render()
         except Exception as exc:
             content = f"Fleet sidecar status could not be loaded: {exc}"
         return self._answer(
             "sidecar_status",
             content,
-            ("mds.fleet.sidecars.read", "mds.fleet.sidecars.connectivity_profile.read"),
+            (
+                "mds.fleet.sidecars.read",
+                "mds.fleet.sidecar.read",
+                "mds.fleet.network_details.read",
+                "mds.fleet.sidecars.connectivity_profile.read",
+            ),
         )
+
+    def _fleet_sidecars_payload(self) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_fleet_sidecars_payload", None)
+        if callable(getter):
+            try:
+                return _copy_mapping(getter() or {})
+            except Exception:
+                return {}
+        try:
+            from api_routes.fleet_sidecars import DRIFT_STATES, HASH_SEMANTICS, POLICY_MODES, _build_sidecar_table
+
+            deps = self._sidecar_api_deps()
+            return {
+                "schema": "mds.sidecar_profile.v1",
+                "modes": sorted(POLICY_MODES),
+                "drift_states": sorted(DRIFT_STATES),
+                "hash_semantics": HASH_SEMANTICS,
+                "sidecars": {
+                    "smart-wifi-manager": _build_sidecar_table(deps, "smart-wifi-manager"),
+                    "mavlink-anywhere": _build_sidecar_table(deps, "mavlink-anywhere"),
+                },
+                "timestamp": int(time.time() * 1000),
+            }
+        except Exception:
+            return {}
+
+    def _sidecar_api_deps(self) -> Any:
+        deps = self.deps
+        if deps is not None and callable(getattr(deps, "load_config", None)) and getattr(deps, "BASE_DIR", None):
+            return deps
+
+        try:
+            from params import Params
+        except Exception:
+            class Params:  # pylint: disable=too-few-public-methods
+                TELEMETRY_POLLING_TIMEOUT = 5
+                drone_api_port = 7070
+
+        app_module = sys.modules.get("app_fastapi")
+
+        class LocalSidecarDeps:  # pylint: disable=too-few-public-methods
+            BASE_DIR = str(REPO_ROOT)
+            Params = Params
+            git_status_data_all_drones = getattr(app_module, "git_status_data_all_drones", {}) if app_module else {}
+            data_lock_git_status = getattr(app_module, "data_lock_git_status", None) if app_module else None
+
+        local = LocalSidecarDeps()
+        local.load_config = self._fleet_config
+        local.get_all_heartbeats = self._heartbeat_snapshot
+        return local
+
+    def _fleet_network_details(self) -> Any:
+        getter = getattr(self.deps, "get_network_info_from_heartbeats", None)
+        if callable(getter):
+            try:
+                return getter() or []
+            except Exception:
+                return []
+        try:
+            from heartbeat import get_network_info_from_heartbeats
+
+            return get_network_info_from_heartbeats() or []
+        except Exception:
+            return []
 
     def px4_params_summary(self) -> MdsReadToolAnswer:
         try:
@@ -4810,6 +4917,105 @@ def _model_payload(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
     return {}
+
+
+def _sidecar_summary_rows(tables: Sequence[tuple[str, Mapping[str, Any]]]) -> list[tuple[str, str, str, str, str, str]]:
+    rows: list[tuple[str, str, str, str, str, str]] = []
+    for sidecar, table in tables:
+        raw_rows = table.get("rows") if isinstance(table, Mapping) else None
+        node_rows = [row for row in (raw_rows or []) if isinstance(row, Mapping)]
+        if not node_rows:
+            continue
+        online = sum(1 for row in node_rows if _sidecar_presence_label(row).startswith("online"))
+        modes = _counted_values(row.get("mode") for row in node_rows)
+        drift = _counted_values(row.get("drift_state") for row in node_rows)
+        baseline = _copy_mapping(table.get("baseline"))
+        baseline_label = "missing"
+        if baseline.get("present"):
+            baseline_label = f"{baseline.get('profile_count', 0)} profile/endpoints; hash {baseline.get('hash') or '-'}"
+        rows.append(
+            (
+                sidecar,
+                str(len(node_rows)),
+                f"{online}/{len(node_rows)}",
+                modes or "unknown",
+                drift or "unknown",
+                baseline_label,
+            )
+        )
+    return rows
+
+
+def _sidecar_node_rows(tables: Sequence[tuple[str, Mapping[str, Any]]]) -> list[tuple[str, str, str, str, str, str, str]]:
+    rows: list[tuple[str, str, str, str, str, str, str]] = []
+    for sidecar, table in tables:
+        raw_rows = table.get("rows") if isinstance(table, Mapping) else None
+        for row in [item for item in (raw_rows or []) if isinstance(item, Mapping)]:
+            node = _sidecar_node_label(row)
+            rows.append(
+                (
+                    node,
+                    sidecar,
+                    _sidecar_presence_label(row),
+                    str(row.get("service_state") or "unknown"),
+                    str(row.get("mode") or "unknown"),
+                    str(row.get("drift_state") or "unknown"),
+                    _sidecar_dashboard_label(row),
+                )
+            )
+    rows.sort(key=lambda item: (_natural_key(item[0]), item[1]))
+    return rows
+
+
+def _sidecar_node_label(row: Mapping[str, Any]) -> str:
+    hw_id = str(row.get("hw_id") or "?").strip()
+    pos_id = str(row.get("pos_id") or "").strip()
+    if pos_id and pos_id != hw_id:
+        return f"hw {hw_id} / pos {pos_id}"
+    return f"hw {hw_id}"
+
+
+def _sidecar_presence_label(row: Mapping[str, Any]) -> str:
+    presence = _copy_mapping(row.get("presence"))
+    state = str(presence.get("state") or "unknown").strip() or "unknown"
+    if presence.get("fresh") is True and state != "online":
+        state = f"online/{state}"
+    age = presence.get("age_seconds")
+    if age not in (None, ""):
+        return f"{state} ({age}s)"
+    return state
+
+
+def _sidecar_dashboard_label(row: Mapping[str, Any]) -> str:
+    dashboard = _copy_mapping(row.get("dashboard"))
+    url = str(dashboard.get("url") or "").strip()
+    if url:
+        return url
+    port = dashboard.get("port")
+    access = str(dashboard.get("access_mode") or "not_reported").strip() or "not_reported"
+    if port not in (None, ""):
+        return f"port {port}; access {access}"
+    return access
+
+
+def _counted_values(values: Any) -> str:
+    counts: dict[str, int] = {}
+    for raw in values:
+        value = str(raw or "unknown").strip() or "unknown"
+        counts[value] = counts.get(value, 0) + 1
+    return ", ".join(f"{key} x{counts[key]}" for key in sorted(counts, key=_natural_key))
+
+
+def _network_detail_count(details: Any) -> int:
+    if isinstance(details, Mapping):
+        for key in ("drones", "nodes", "items", "rows", "network"):
+            value = details.get(key)
+            if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+                return len(value)
+        return len(details)
+    if isinstance(details, Sequence) and not isinstance(details, (str, bytes, bytearray)):
+        return len(details)
+    return 0
 
 
 def _sidecar_runtime_status(payload: Mapping[str, Any]) -> str:
