@@ -82,6 +82,7 @@ Core artifacts:
 - `docs/agent-context/prompts/default-operator.md`
 - `docs/agent-context/evals/simurgh-foundation.yaml`
 - `docs/agent-context/evals/simurgh-advisory-provider.yaml`
+- `docs/agent-context/evals/simurgh-dashboard-prompts.yaml`
 - `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`
 - `docs/agent-context/generated/simurgh-docs-index.json`
 - `docs/guides/simurgh-mcp-clients.md`
@@ -105,6 +106,23 @@ provider prompts evolve, then rerun the suite and update docs in the same slice.
 If `--allow-live-provider` is used for a special manual run, fixture-backed
 scenarios still stay offline; only scenarios without fixtures may call the
 configured provider.
+
+## Dashboard Prompt Evals
+
+The dashboard-path prompt suite is:
+
+```bash
+python3 tools/run_simurgh_dashboard_prompt_evals.py
+```
+
+This suite exercises the actual dashboard assistant orchestration path rather
+than forcing a provider. It runs PM-style multi-turn conversations through
+query adaptation, session topic memory, local read-only MDS tools, and audit
+metadata. Use it whenever routing, answer composition, MCP/read-tool coverage,
+or conversational follow-up behavior changes. Add examples to
+`docs/agent-context/evals/simurgh-dashboard-prompts.yaml`; keep prompts
+sanitized and free of private coordinates, IPs, credentials, partner/site names, or
+field logs.
 
 ## Provider Smoke
 
@@ -787,6 +805,7 @@ Run focused validation after changing Simurgh artifacts:
 
 ```bash
 pytest tests/test_agent_assistant_evals.py tests/test_agent_assistant_runtime.py tests/test_gcs_simurgh_assistant.py tests/test_gcs_simurgh_mcp.py tests/test_gcs_simurgh_routes.py tests/test_agent_runtime_foundation.py tests/test_api_route_inventory.py tests/test_env_registry.py
+python3 tools/run_simurgh_dashboard_prompt_evals.py
 python3 tools/generate_mds_env_reference.py --check
 python3 tools/generate_simurgh_tool_candidates.py --check
 pytest tests/test_simurgh_tool_candidate_generator.py

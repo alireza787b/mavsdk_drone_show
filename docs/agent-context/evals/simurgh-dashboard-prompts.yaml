@@ -1,0 +1,237 @@
+version: 1
+metadata:
+  owner: simurgh-operator
+  purpose: >
+    PM-facing dashboard prompt acceptance suite. These scenarios exercise the
+    actual Simurgh dashboard assistant orchestration path, including local
+    read-only tools, query adaptation, and session topic memory. They do not
+    call live model providers, MCP clients, drone-local APIs, or command routes.
+conversations:
+  - id: fleet_status_and_live_location
+    provider: mock
+    actor: operator
+    tags: [fleet, telemetry, followup]
+    turns:
+      - prompt: "How many drones do we have configured?"
+        expected:
+          provider: mds-tools
+          tool_intent: fleet_summary
+          response_mode: status
+          query_domain: fleet
+          session_topic: fleet
+          tool_ids: [mds.config.fleet.read, mds.config.positions.read, mds.config.swarm.read]
+          must_include:
+            - Fleet status from GCS configuration
+            - configured drone
+          must_not_include:
+            - Simurgh Operator mock assistant is active
+      - prompt: "what is their gps status and coordinate?"
+        expected:
+          provider: mds-tools
+          tool_intent: fleet_connectivity
+          response_mode: status
+          query_domain: fleet
+          session_topic: fleet
+          tool_ids: [mds.fleet.telemetry.read]
+          must_include:
+            - Connectivity from GCS state
+            - GPS
+            - Latitude
+            - Longitude
+          must_not_include:
+            - Fleet status from GCS configuration
+
+  - id: drone_show_readiness_and_meaning
+    provider: mock
+    actor: operator
+    tags: [drone-show, followup]
+    turns:
+      - prompt: "is there a drone show uploaded ready?"
+        expected:
+          provider: mds-tools
+          tool_intent: show_summary
+          response_mode: status
+          query_domain: drone_show
+          session_topic: drone_show
+          tool_ids: [mds.shows.skybrush.read, mds.shows.skybrush.validation.read]
+          must_include:
+            - Loaded show state from GCS show-management files
+            - Current packages
+            - Readiness signals
+      - prompt: "does uploaded mean it is fly ready?"
+        expected:
+          provider: mds-tools
+          tool_intent: show_summary
+          response_mode: interpret
+          query_domain: drone_show
+          session_topic: drone_show
+          must_include:
+            - Uploaded/loaded means show files exist
+            - Fly-ready is stricter
+            - operator must confirm
+
+  - id: logs_status_then_interpretation
+    provider: mock
+    actor: operator
+    tags: [logs, followup]
+    turns:
+      - prompt: "check latest logs tell me if there is any warning"
+        expected:
+          provider: mds-tools
+          tool_intent: backend_log_summary
+          response_mode: status
+          query_domain: logs
+          session_topic: logs
+          tool_ids: [mds.logs.gcs.read]
+          must_include:
+            - Backend warning/error summary
+          must_not_include:
+            - Simurgh capabilities
+      - prompt: "what do these logs mean, should I worry?"
+        expected:
+          provider: mds-tools
+          tool_intent: backend_log_summary
+          response_mode: interpret
+          query_domain: logs
+          session_topic: logs
+          must_include:
+            - Operational interpretation
+            - Short answer
+          must_not_include:
+            - Simurgh capabilities
+
+  - id: setup_third_drone_and_scripts
+    provider: mock
+    actor: operator
+    tags: [setup, onboarding, followup]
+    turns:
+      - prompt: "if I want to add a third drone now, what workflow must be done?"
+        expected:
+          provider: mds-tools
+          tool_intent: add_drone_workflow
+          response_mode: workflow
+          query_domain: setup
+          session_topic: setup
+          must_include:
+            - Add-drone workflow
+            - Fleet Enrollment
+            - unique fleet entry
+      - prompt: "what scripts and docs should I use now?"
+        expected:
+          provider: mds-tools
+          tool_intent: companion_setup_help
+          response_mode: workflow
+          query_domain: setup
+          session_topic: setup
+          must_include:
+            - tools/install_mds_node.sh
+            - tools/install_companion.sh
+            - Fleet Enrollment
+
+  - id: general_questions_do_not_inherit_fleet
+    provider: mock
+    actor: operator
+    tags: [general, routing]
+    turns:
+      - prompt: "any drone connected?"
+        expected:
+          provider: mds-tools
+          tool_intent: fleet_connectivity
+          query_domain: fleet
+          session_topic: fleet
+          must_include:
+            - Connectivity from GCS state
+      - prompt: "what is a drone?"
+        expected:
+          provider: mds-tools
+          tool_intent: general_knowledge
+          response_mode: interpret
+          query_domain: general
+          session_topic: general
+          must_include:
+            - unmanned aircraft
+          must_not_include:
+            - Fleet status from GCS configuration
+      - prompt: "how is the weather today?"
+        expected:
+          provider: mds-tools
+          tool_intent: general_knowledge
+          response_mode: interpret
+          query_domain: general
+          session_topic: general
+          must_include:
+            - live weather feed
+          must_not_include:
+            - Fleet status from GCS configuration
+
+  - id: public_geography_and_distance
+    provider: mock
+    actor: operator
+    tags: [general, geography, followup]
+    turns:
+      - prompt: "What is the lat long altitude of Damavand Peak in WGS84 meters?"
+        expected:
+          provider: mds-tools
+          tool_intent: public_geography
+          response_mode: interpret
+          query_domain: general
+          session_topic: public_geography
+          tool_ids: [simurgh.public_places.read, simurgh.geodesy.calculate]
+          must_include:
+            - Mount Damavand peak
+            - WGS84 decimal degrees
+            - Elevation
+      - prompt: "if I want a 10 km radius loop around it how long would that be?"
+        expected:
+          provider: mds-tools
+          tool_intent: public_geography
+          response_mode: interpret
+          session_topic: public_geography
+          must_include:
+            - Mount Damavand peak
+            - radius around the point
+            - circumference
+
+  - id: autopilot_support_is_px4_first
+    provider: mock
+    actor: operator
+    tags: [autopilot, px4, ardupilot]
+    turns:
+      - prompt: "does MDS support ArduPilot or only PX4?"
+        expected:
+          provider: mds-tools
+          tool_intent: autopilot_support
+          response_mode: capability
+          query_domain: general
+          session_topic: general
+          must_include:
+            - PX4-first and PX4-validated
+            - ArduPilot
+            - future integration candidate
+
+  - id: mcp_capability_followup
+    provider: mock
+    actor: integrator
+    tags: [mcp, capabilities, followup]
+    turns:
+      - prompt: "What MCP tools and API capabilities can Simurgh expose?"
+        expected:
+          provider: mds-tools
+          tool_intent: capability_catalog
+          response_mode: capability
+          query_domain: capabilities
+          session_topic: capabilities
+          must_include:
+            - config/agent_tools.yaml
+            - MCP endpoint
+      - prompt: "can n8n use that same menu too?"
+        expected:
+          provider: mds-tools
+          tool_intent: capability_catalog
+          response_mode: capability
+          query_domain: mcp
+          session_topic: capabilities
+          must_include:
+            - tools/list
+            - tools/call
+            - bearer auth

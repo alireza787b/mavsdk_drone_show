@@ -1719,6 +1719,37 @@ def _looks_like_public_geography_frame_reply(message: str) -> bool:
     )
 
 
+def _looks_like_public_geography_frame_followup(message: str) -> bool:
+    """Detect geography follow-ups that depend on the previous public place.
+
+    Operators often ask "how long would that loop be?" or "10 km around it?"
+    after a coordinate answer. The routing layer should bind those pronouns to
+    the current public-geography frame without exposing raw chat history.
+    """
+
+    normalized = re.sub(r"\s+", " ", str(message or "").strip().casefold())
+    if not normalized or len(normalized) > 180:
+        return False
+    if not _has_any_text(normalized, ("it", "that", "there", "same place", "same peak", "same point")):
+        return False
+    return _has_any_text(
+        normalized,
+        (
+            "km",
+            "kilometer",
+            "kilometers",
+            "radius",
+            "around",
+            "circle",
+            "loop",
+            "orbit",
+            "circumference",
+            "distance",
+            "flight around",
+        ),
+    )
+
+
 def _frame_bound_routing_message(
     *,
     routing_message: str,
@@ -1738,7 +1769,10 @@ def _frame_bound_routing_message(
         return routing_message
     if _conversation_transform_kind(original_message):
         return routing_message
-    if not _looks_like_public_geography_frame_reply(original_message):
+    if not (
+        _looks_like_public_geography_frame_reply(original_message)
+        or _looks_like_public_geography_frame_followup(original_message)
+    ):
         return routing_message
     previous_question = (
         previous_context.get("last_routing_message")

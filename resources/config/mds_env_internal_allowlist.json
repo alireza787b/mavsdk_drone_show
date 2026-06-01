@@ -191,6 +191,12 @@
       "reason": "Alternate GCS env-file path for tests and controlled diagnostics."
     },
     {
+      "name": "MDS_GCS_LOG_LEVEL",
+      "domain": "logging",
+      "scope": "launcher",
+      "reason": "Production dashboard service gunicorn log-level override; not a persisted operator env setting."
+    },
+    {
       "name": "MDS_GCS_RESTART_LOG",
       "domain": "logging",
       "scope": "launcher",
@@ -209,6 +215,12 @@
       "reason": "GCS service runtime user override."
     },
     {
+      "name": "MDS_GCS_TIMEOUT_SEC",
+      "domain": "runtime",
+      "scope": "launcher",
+      "reason": "Production dashboard service gunicorn timeout override; not editable through the env registry UI."
+    },
+    {
       "name": "MDS_GCS_UPDATE_LOG",
       "domain": "logging",
       "scope": "launcher",
@@ -219,6 +231,18 @@
       "domain": "runtime",
       "scope": "launcher",
       "reason": "GCS self-update delayed restart tuning."
+    },
+    {
+      "name": "MDS_GCS_WORKERS",
+      "domain": "runtime",
+      "scope": "launcher",
+      "reason": "Production dashboard service gunicorn worker count override; capacity tuning stays outside operator env profiles."
+    },
+    {
+      "name": "MDS_GUNICORN_BIN",
+      "domain": "runtime",
+      "scope": "launcher",
+      "reason": "Production dashboard service binary override for deployments with a custom virtualenv path."
     },
     {
       "name": "MDS_GIT_ACCESS_CHECK_MODE",
@@ -377,6 +401,12 @@
       "reason": "MAVSDK server binary version override."
     },
     {
+      "name": "MDS_MCP_BEARER_TOKEN",
+      "domain": "auth",
+      "scope": "test",
+      "reason": "External MCP smoke-client token transport; never persist or expose through the environment registry."
+    },
+    {
       "name": "MDS_OPTIONAL_PACKAGES",
       "domain": "system",
       "scope": "bootstrap",
@@ -459,6 +489,12 @@
       "domain": "system",
       "scope": "node_service",
       "reason": "Git-sync post-update coordinator restart policy."
+    },
+    {
+      "name": "MDS_SAFE_PRODUCTION_DEMO",
+      "domain": "runtime",
+      "scope": "launcher",
+      "reason": "Deployment launcher guard that forces real mode with Simurgh circuit breaker and auth-safe defaults for demos."
     },
     {
       "name": "MDS_ROLE_HINT",

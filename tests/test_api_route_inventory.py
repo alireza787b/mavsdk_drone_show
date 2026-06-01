@@ -180,6 +180,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/shows/custom/import",
         "/api/v1/shows/skybrush/deployments",
         "/api/v1/simurgh/assistant/turns",
+        "/api/v1/simurgh/assistant/turns/stream",
         "/api/v1/simurgh/mcp",
         "/api/v1/swarm-trajectories/upload/{leader_id}",
         "/api/v1/swarm-trajectories/process",

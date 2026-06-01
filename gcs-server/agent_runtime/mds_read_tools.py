@@ -786,7 +786,11 @@ class MdsReadOnlyTools:
 
         composer = AnswerComposer()
         if not all_hw_ids:
-            composer.line("No configured drones, heartbeats, or telemetry rows are visible to this GCS runtime right now.")
+            composer.line("Connectivity from GCS state: no configured drone IDs, heartbeats, or telemetry rows are visible to this GCS runtime right now.")
+            if wants_position:
+                composer.line(
+                    "GPS, Latitude, Longitude, and Altitude evidence are unavailable because there is no readable fleet row, heartbeat row, or telemetry row in this runtime snapshot."
+                )
             composer.line("This is a read-only presence check; no drone command was sent.")
         else:
             composer.line(f"Connectivity from GCS state: {live_count}/{len(all_hw_ids)} drone(s) currently look live.")
@@ -1084,7 +1088,12 @@ class MdsReadOnlyTools:
                 "This is conceptual guidance only; no show was launched, uploaded, deployed, or commanded.",
             ]
         )
-        return self._answer("show_modes_help", content, ("mds.docs.drone_show.read", "mds.docs.origin_system.read"))
+        return self._answer(
+            "show_modes_help",
+            content,
+            ("mds.docs.drone_show.read", "mds.docs.origin_system.read"),
+            response_mode="workflow",
+        )
 
     def show_upload_help(self) -> MdsReadToolAnswer:
         content = "\n".join(
@@ -1102,7 +1111,12 @@ class MdsReadOnlyTools:
                 "This is guidance only; no show was uploaded or deployed, and no drone command was sent.",
             ]
         )
-        return self._answer("show_upload_help", content, ("mds.docs.drone_show.read", "mds.shows.skybrush.read"))
+        return self._answer(
+            "show_upload_help",
+            content,
+            ("mds.docs.drone_show.read", "mds.shows.skybrush.read"),
+            response_mode="workflow",
+        )
 
     def operator_help(self, message: str = "") -> MdsReadToolAnswer:
         normalized = _normalize_text(message)
@@ -1117,7 +1131,12 @@ class MdsReadOnlyTools:
                     "Simurgh is only explaining the workflow here; it did not change the swarm config.",
                 ]
             )
-            return self._answer("operator_help", content, ("mds.docs.operator_workflow.read", "mds.config.swarm.read"))
+            return self._answer(
+                "operator_help",
+                content,
+                ("mds.docs.operator_workflow.read", "mds.config.swarm.read"),
+                response_mode="workflow",
+            )
 
         content = "\n".join(
             [
@@ -1126,7 +1145,7 @@ class MdsReadOnlyTools:
                 "No drone command was sent.",
             ]
         )
-        return self._answer("operator_help", content, ("mds.docs.operator_workflow.read",))
+        return self._answer("operator_help", content, ("mds.docs.operator_workflow.read",), response_mode="workflow")
 
     def capability_catalog(self) -> MdsReadToolAnswer:
         try:
@@ -1195,6 +1214,7 @@ class MdsReadOnlyTools:
             "capability_catalog",
             content,
             ("mds.simurgh.tool_registry.read", "mds.simurgh.policy.read"),
+            response_mode="capability",
         )
 
     def registry_domain_tool_summary(self, message: str) -> MdsReadToolAnswer:
@@ -1561,7 +1581,12 @@ class MdsReadOnlyTools:
                 "No drone command was sent.",
             ]
         )
-        return self._answer("sitl_help", content, ("mds.docs.sitl.read", "mds.system.runtime_status.read"))
+        return self._answer(
+            "sitl_help",
+            content,
+            ("mds.docs.sitl.read", "mds.system.runtime_status.read"),
+            response_mode="workflow",
+        )
 
     def board_setup_help(self) -> MdsReadToolAnswer:
         content = "\n".join(
@@ -1578,7 +1603,12 @@ class MdsReadOnlyTools:
                 "No drone command was sent.",
             ]
         )
-        return self._answer("board_setup_help", content, ("mds.docs.board_setup.read", "mds.docs.environment_registry.read"))
+        return self._answer(
+            "board_setup_help",
+            content,
+            ("mds.docs.board_setup.read", "mds.docs.environment_registry.read"),
+            response_mode="workflow",
+        )
 
     def companion_setup_help(self) -> MdsReadToolAnswer:
         content = "\n".join(
@@ -1606,7 +1636,12 @@ class MdsReadOnlyTools:
                 "No drone command was sent.",
             ]
         )
-        return self._answer("companion_setup_help", content, ("mds.docs.companion_setup.read", "mds.docs.fleet_enrollment.read"))
+        return self._answer(
+            "companion_setup_help",
+            content,
+            ("mds.docs.companion_setup.read", "mds.docs.fleet_enrollment.read"),
+            response_mode="workflow",
+        )
 
     def add_drone_workflow_help(self) -> MdsReadToolAnswer:
         config = self._fleet_config()
@@ -1641,6 +1676,7 @@ class MdsReadOnlyTools:
                 "mds.docs.fleet_enrollment.read",
                 "mds.docs.environment_registry.read",
             ),
+            response_mode="workflow",
         )
 
     def docs_help(self) -> MdsReadToolAnswer:
@@ -1657,7 +1693,7 @@ class MdsReadOnlyTools:
                 "No drone command was sent.",
             ]
         )
-        return self._answer("docs_help", content, ("mds.docs.index.read",))
+        return self._answer("docs_help", content, ("mds.docs.index.read",), response_mode="workflow")
 
     def mission_mode_comparison(self) -> MdsReadToolAnswer:
         composer = AnswerComposer()
