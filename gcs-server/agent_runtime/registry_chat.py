@@ -66,12 +66,55 @@ _STATE_TERMS = (
     "read",
     "report",
     "running",
+    "show",
     "show me",
     "status",
     "state",
     "what is",
     "what are",
     "what's",
+)
+
+_DOCS_OR_WORKFLOW_TERMS = (
+    "doc",
+    "docs",
+    "documentation",
+    "guide",
+    "manual",
+    "read about",
+    "where can i read",
+    "how do i",
+    "how to",
+    "what should i do",
+    "workflow",
+    "step",
+    "steps",
+    "setup",
+    "set up",
+    "script",
+    "scripts",
+    "install",
+    "configure",
+)
+
+_CONCRETE_STATE_TERMS = (
+    "active",
+    "available",
+    "check",
+    "connected",
+    "current",
+    "details",
+    "inspect",
+    "latest",
+    "loaded",
+    "now",
+    "online",
+    "read",
+    "report",
+    "running",
+    "show me",
+    "status",
+    "state",
 )
 
 _ARGUMENT_STATE_TERMS = _STATE_TERMS + (
@@ -118,12 +161,44 @@ _SIDECAR_ALIASES: Mapping[str, tuple[str, ...]] = {
     ),
 }
 
+_ADVISORY_FIRST_INTENTS = frozenset(
+    {
+        "action_capability",
+        "add_drone_workflow",
+        "autopilot_support",
+        "backend_log_summary",
+        "board_setup_help",
+        "capability_catalog",
+        "command_summary",
+        "companion_setup_help",
+        "docs_help",
+        "environment_summary",
+        "fleet_connectivity",
+        "fleet_summary",
+        "general_knowledge",
+        "mission_mode_comparison",
+        "operator_help",
+        "origin_status",
+        "public_geography",
+        "px4_params_summary",
+        "registry_domain_tool_summary",
+        "runtime_summary",
+        "show_modes_help",
+        "show_summary",
+        "show_upload_help",
+        "sitl_help",
+        "swarm_topology",
+        "system_status",
+    }
+)
+
+
 _ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
-    (("log session", "session_id", "session id", "logs/session"), ("mds.logs.session.read",), "one GCS log session"),
+    (("log session", "logs session", "session_id", "session id", "logs/session"), ("mds.logs.session.read",), "one GCS log session"),
     (("command_id", "command id", "command status"), ("mds.commands.status.read",), "one command status"),
     (("position id", "pos_id", "pos id", "launch position"), ("mds.config.position.read",), "one launch position"),
     (("candidate_id", "candidate id", "fleet candidate"), ("mds.fleet.candidate.read",), "one fleet candidate"),
-    (("sidecar", "wifi manager", "mavlink anywhere", "mavlink dashboard"), ("mds.fleet.sidecar.read",), "one fleet sidecar table"),
+    (("wifi manager", "mavlink anywhere", "mavlink dashboard"), ("mds.fleet.sidecar.read",), "one fleet sidecar table"),
     (("sidecar baseline", "wifi baseline", "mavlink baseline"), ("mds.fleet.sidecar.baseline.read",), "one fleet sidecar baseline"),
     (("sidecar node", "wifi node", "mavlink node", "board sidecar"), ("mds.fleet.sidecar.node.read",), "one fleet sidecar node"),
     (("elevation", "terrain altitude", "terrain height"), ("mds.origin.elevation.read",), "origin terrain elevation lookup"),
@@ -157,6 +232,33 @@ _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("system health", "health check", "server health", "gcs health"), ("mds.system.health.read", "mds.system.runtime_status.read"), "GCS system health"),
 )
 
+_TYPED_TOOL_DISCOVERY: Mapping[str, tuple[tuple[str, ...], str]] = {
+    "mds.commands.status.read": (("mds.commands.active.read", "mds.commands.recent.read"), "Choose a command_id from active/recent command records."),
+    "mds.config.position.read": (("mds.config.positions.read",), "Choose a pos_id from configured launch positions."),
+    "mds.docs.chunk.read": (("mds.docs.search",), "Choose a chunk_id from docs search results, or ask the docs question directly."),
+    "mds.fleet.candidate.read": (("mds.fleet.candidates.read",), "Choose a candidate_id from fleet enrollment candidates."),
+    "mds.fleet.sidecar.baseline.read": (("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "Choose a sidecar name, for example smart-wifi-manager or mavlink-anywhere."),
+    "mds.fleet.sidecar.node.read": (("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "Choose both sidecar and hw_id to inspect one node."),
+    "mds.fleet.sidecar.read": (("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "Choose a sidecar name, for example smart-wifi-manager or mavlink-anywhere."),
+    "mds.fleet.sidecars.job.read": (("mds.fleet.sidecars.read",), "Choose a sidecar job_id from the relevant sidecar operation result."),
+    "mds.logs.session.read": (("mds.logs.sessions.read",), "Choose a session_id from the log sessions list."),
+    "mds.origin.elevation.read": (("mds.origin.read", "mds.navigation.global_origin.read"), "Provide latitude and longitude, or ask for current origin status."),
+    "mds.px4_params.patch_job.read": (("mds.px4_params.policy.read", "mds.px4_params.profiles.read"), "Choose a PX4 patch job_id from the patch job that was created earlier."),
+    "mds.px4_params.profile.read": (("mds.px4_params.profiles.read",), "Choose a profile_id from available PX4 parameter profiles."),
+    "mds.px4_params.snapshot.read": (("mds.px4_params.policy.read",), "Choose a snapshot_id from the PX4 Parameters page or prior snapshot result."),
+    "mds.px4_params.snapshot_rows.read": (("mds.px4_params.policy.read",), "Choose a snapshot_id from the PX4 Parameters page or prior snapshot result."),
+    "mds.sar.findings.read": (("mds.sar.missions.read",), "Choose a mission_id from the QuickScout/SAR mission catalog."),
+    "mds.sar.mission.status.read": (("mds.sar.missions.read",), "Choose a mission_id from the QuickScout/SAR mission catalog."),
+    "mds.sar.mission.workspace.read": (("mds.sar.missions.read",), "Choose a mission_id from the QuickScout/SAR mission catalog."),
+    "mds.sar.plan_job.read": (("mds.sar.missions.read",), "Choose a planning job_id from the SAR planning result."),
+    "mds.simurgh.context_markdown.read": (("mds.simurgh.context.read",), "Choose a resource_id from the Simurgh context index."),
+    "mds.simurgh.context_resource.read": (("mds.simurgh.context.read",), "Choose a resource_id from the Simurgh context index."),
+    "mds.simurgh.tool.read": (("mds.simurgh.tools.read",), "Choose a tool_id from the Simurgh tool registry."),
+    "mds.sitl.operation.read": (("mds.sitl.operations.read",), "Choose an operation_id from SITL operations."),
+    "mds.swarm_trajectories.process_job.read": (("mds.swarm_trajectories.status.read",), "Choose a process job_id from the trajectory processing result."),
+    "mds.system.env_fleet_node.read": (("mds.config.fleet.read",), "Choose a hw_id from the fleet configuration."),
+}
+
 
 @dataclass(frozen=True)
 class RegistryReadCall:
@@ -169,6 +271,7 @@ class RegistryReadPlan:
     label: str
     domain: str
     tool_calls: tuple[RegistryReadCall, ...]
+    clarification: str = ""
 
 
 @dataclass(frozen=True)
@@ -183,6 +286,7 @@ def plan_registry_read_tool_calls(
     *,
     allowed_tools: Sequence[ToolDefinition],
     conversation_topic: str | None = None,
+    local_intent: str | None = None,
 ) -> RegistryReadPlan | None:
     """Select safe registry read tools for concrete current-state chat questions."""
 
@@ -192,6 +296,8 @@ def plan_registry_read_tool_calls(
     if _has_any(normalized, _CAPABILITY_TERMS):
         return None
     if _has_any(normalized, _DIRECT_ACTION_TERMS):
+        return None
+    if _looks_like_docs_or_workflow_prompt(normalized):
         return None
     if not _has_any(normalized, _STATE_TERMS):
         return None
@@ -207,6 +313,8 @@ def plan_registry_read_tool_calls(
             break
 
     argument_ids, argument_label = _argument_tool_ids_for_query(normalized, domain=plan.domain)
+    if _should_defer_to_advisory(local_intent, normalized, argument_ids=argument_ids):
+        return None
 
     if not selected_ids:
         if plan.domain == "sitl":
@@ -219,6 +327,12 @@ def plan_registry_read_tool_calls(
             selected_ids = ["mds.system.runtime_status.read", "mds.simurgh.status.read"]
             label = "GCS runtime and Simurgh posture"
 
+    if not selected_ids and not argument_ids:
+        metadata_ids, metadata_label = _metadata_ranked_tool_ids(normalized, allowed_tools, domain=plan.domain)
+        selected_ids = list(metadata_ids)
+        if metadata_label:
+            label = metadata_label
+
     base_label = label
     candidate_groups: list[tuple[list[str], str]] = []
     if argument_ids:
@@ -226,6 +340,7 @@ def plan_registry_read_tool_calls(
     candidate_groups.append((list(selected_ids), base_label))
     selected_label = base_label
     calls: list[RegistryReadCall] = []
+    clarification = ""
     for candidate_ids, candidate_label in candidate_groups:
         candidate_calls: list[RegistryReadCall] = []
         seen: set[str] = set()
@@ -242,9 +357,54 @@ def plan_registry_read_tool_calls(
             calls = candidate_calls
             selected_label = candidate_label
             break
+        if candidate_ids == list(argument_ids):
+            discovery_ids, clarification = _discovery_ids_for_missing_typed_args(candidate_ids)
+            discovery_calls = []
+            seen_discovery: set[str] = set()
+            for tool_id in discovery_ids:
+                tool = allowed_by_id.get(tool_id)
+                if tool is None or tool.id in seen_discovery:
+                    continue
+                arguments = _arguments_for_discovery_tool(tool, normalized)
+                if arguments is None:
+                    continue
+                discovery_calls.append(RegistryReadCall(tool=tool, arguments=arguments))
+                seen_discovery.add(tool.id)
+            if discovery_calls:
+                calls = discovery_calls
+                selected_label = candidate_label
+                break
     if not calls:
         return None
-    return RegistryReadPlan(label=selected_label, domain=plan.domain, tool_calls=tuple(calls[:4]))
+    return RegistryReadPlan(
+        label=selected_label,
+        domain=plan.domain,
+        tool_calls=tuple(calls[:4]),
+        clarification=clarification,
+    )
+
+
+def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_ids: Sequence[str]) -> bool:
+    intent = str(local_intent or "").strip()
+    if intent not in _ADVISORY_FIRST_INTENTS:
+        return False
+    if argument_ids:
+        return False
+    if intent == "fleet_summary" and _has_any(text, ("sidecar", "sidecars", "wifi", "wi-fi", "mavlink-anywhere", "mavlink dashboard")):
+        return False
+    if intent in {"backend_log_summary", "fleet_connectivity", "fleet_summary"}:
+        return True
+    if intent == "docs_help" and _has_any(text, ("mission", "missions", "available", "current", "status", "running", "state")):
+        return False
+    if intent == "sitl_help" and _has_any(text, ("instance", "instances", "policy", "operation", "operations", "running", "status", "state")):
+        return False
+    if intent in {"docs_help", "show_upload_help", "sitl_help", "board_setup_help", "companion_setup_help", "add_drone_workflow", "operator_help"}:
+        return True
+    if intent in {"general_knowledge", "public_geography", "autopilot_support", "mission_mode_comparison"}:
+        return True
+    if intent in {"show_summary", "swarm_topology", "runtime_summary", "system_status", "environment_summary", "px4_params_summary", "origin_status", "command_summary"}:
+        return not _has_any(text, ("validation", "metrics", "safety report", "tool_id", "resource_id", "command_id"))
+    return True
 
 
 def format_registry_read_results(
@@ -260,6 +420,8 @@ def format_registry_read_results(
     composer.line(
         f"Source: `{registry_path}` filtered by current Simurgh policy; executed through the same internal adapter used by MCP `tools/call`."
     )
+    if plan.clarification:
+        composer.line(plan.clarification)
     composer.blank()
     rows = []
     for item in results:
@@ -278,6 +440,135 @@ def format_registry_read_results(
     composer.blank()
     composer.line("This was read-only registry execution. No config write, upload, mission action, drone API call, or command was attempted.")
     return composer.render()
+
+
+def _looks_like_docs_or_workflow_prompt(text: str) -> bool:
+    if not _has_any(text, _DOCS_OR_WORKFLOW_TERMS):
+        return False
+    if _has_any(text, ("session_id", "command_id", "tool_id", "resource_id", "chunk_id")):
+        return False
+    if _has_any(text, ("what is running", "which are running", "current status", "status now", "running now")):
+        return False
+    docs_signal = _has_any(text, ("doc", "docs", "documentation", "guide", "manual", "read about", "where can i read"))
+    workflow_signal = _has_any(text, ("how do i", "how to", "what should i do", "workflow", "step", "steps", "setup", "set up", "script", "scripts", "install"))
+    if docs_signal or workflow_signal:
+        concrete_signal_count = sum(1 for term in _CONCRETE_STATE_TERMS if term in text)
+        return concrete_signal_count <= 2 or docs_signal
+    return False
+
+
+def _metadata_ranked_tool_ids(
+    text: str,
+    allowed_tools: Sequence[ToolDefinition],
+    *,
+    domain: str,
+) -> tuple[tuple[str, ...], str]:
+    terms = _query_terms(text)
+    if not terms:
+        return (), ""
+    ranked: list[tuple[int, str, ToolDefinition]] = []
+    for tool in allowed_tools:
+        if tool.route_path is None or tool.route_method != "GET":
+            continue
+        if _required_args(tool):
+            continue
+        searchable = _tool_search_text(tool)
+        score = sum(3 if term in str(tool.id).casefold() else 1 for term in terms if term in searchable)
+        if domain and domain in searchable:
+            score += 3
+        if score >= 3:
+            ranked.append((score, tool.id, tool))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    selected = [tool for _score, _tool_id, tool in ranked[:3]]
+    if not selected:
+        return (), ""
+    label = _registry_label_from_tools(selected)
+    return tuple(tool.id for tool in selected), label
+
+
+def _tool_search_text(tool: ToolDefinition) -> str:
+    values = (
+        tool.id,
+        tool.title,
+        tool.description,
+        tool.route_path or "",
+        " ".join(tool.tags),
+        " ".join(tool.docs),
+    )
+    return " ".join(str(value or "").casefold() for value in values)
+
+
+def _query_terms(text: str) -> tuple[str, ...]:
+    ignored = {
+        "about",
+        "any",
+        "are",
+        "can",
+        "check",
+        "current",
+        "details",
+        "for",
+        "from",
+        "have",
+        "latest",
+        "now",
+        "read",
+        "report",
+        "show",
+        "status",
+        "that",
+        "the",
+        "what",
+        "which",
+        "with",
+        "you",
+    }
+    terms = []
+    for term in re.findall(r"[a-z0-9][a-z0-9_-]{2,}", text):
+        normalized = term.replace("_", "-")
+        if normalized not in ignored:
+            terms.append(normalized)
+    return tuple(dict.fromkeys(terms))
+
+
+def _registry_label_from_tools(tools: Sequence[ToolDefinition]) -> str:
+    domains = []
+    for tool in tools:
+        parts = tool.id.split(".")
+        domain = parts[1] if tool.id.startswith("mds.") and len(parts) > 2 else parts[0]
+        if domain and domain not in domains:
+            domains.append(domain)
+    if not domains:
+        return "read-only GCS state"
+    label = ", ".join(domain.replace("_", " ") for domain in domains[:3])
+    return f"{label} state"
+
+
+def _discovery_ids_for_missing_typed_args(tool_ids: Sequence[str]) -> tuple[tuple[str, ...], str]:
+    discovery: list[str] = []
+    clarifications: list[str] = []
+    for tool_id in tool_ids:
+        configured = _TYPED_TOOL_DISCOVERY.get(tool_id)
+        if not configured:
+            continue
+        ids, clarification = configured
+        discovery.extend(ids)
+        if clarification not in clarifications:
+            clarifications.append(clarification)
+    deduped = tuple(dict.fromkeys(discovery))
+    if not deduped:
+        return (), ""
+    message = "I need one more identifier before reading the specific typed record. " + " ".join(clarifications[:2])
+    return deduped, message
+
+
+def _arguments_for_discovery_tool(tool: ToolDefinition, text: str) -> Mapping[str, Any] | None:
+    required = _required_args(tool)
+    if not required:
+        return {}
+    if tool.id == "mds.docs.search":
+        return {"query": text, "limit": 5}
+    return _arguments_for_tool(tool, text, domain="docs")
 
 
 def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, ...], str]:
@@ -623,7 +914,7 @@ def _first_item_hint(items: Sequence[Any]) -> str:
     first = items[0]
     if isinstance(first, Mapping):
         hints = []
-        for key in ("id", "mission_id", "name", "status", "state", "label", "level", "component", "message"):
+        for key in ("id", "session_id", "mission_id", "name", "status", "state", "label", "level", "component", "message"):
             value = first.get(key)
             if value not in (None, ""):
                 hints.append(f"{key}={value}")

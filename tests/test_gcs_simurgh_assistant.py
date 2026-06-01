@@ -56,6 +56,10 @@ def _client_with_registry_probe_routes() -> TestClient:
             ],
         }
 
+    @app.get("/api/logs/sessions")
+    def log_sessions():
+        return {"sessions": [{"session_id": "s_20260527_174402", "line_count": 42, "latest_level": "WARNING"}]}
+
     @app.get("/api/v1/fleet/sidecars/{sidecar}")
     def sidecar_table(sidecar: str):
         return {"sidecar": sidecar, "nodes": [{"hw_id": "2", "state": "online"}]}
@@ -472,6 +476,61 @@ def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
     assert "mds.sitl.instances.read" in payload["content"]
     assert "total_instances: 1" in payload["content"]
     assert "MCP `tools/call`" in payload["content"]
+
+
+def test_simurgh_assistant_prefers_docs_workflow_over_registry_state(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "Can you check the docs for SITL setup?"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "sitl_help"
+    assert "advanced SITL" in payload["content"]
+    assert "Read-only registry check for SITL runtime state" not in payload["content"]
+
+
+def test_simurgh_assistant_uses_discovery_when_typed_log_session_id_missing(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "read log session details"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == ["mds.logs.sessions.read"]
+    assert "I need one more identifier" in payload["content"]
+    assert "Choose a session_id" in payload["content"]
+    assert "s_20260527_174402" in payload["content"]
+    assert "Backend warning/error summary" not in payload["content"]
+
+
+def test_simurgh_assistant_uses_discovery_when_typed_sidecar_node_id_missing(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    client = _client_with_registry_probe_routes()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "show smart wifi manager sidecar node now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "mds-tools"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecars.read", "mds.fleet.network_status.read"]
+    assert "Choose both sidecar and hw_id" in payload["content"]
+    assert "sidecars: 2 item(s)" in payload["content"]
 
 
 def test_simurgh_assistant_executes_registry_read_only_sar_catalog(monkeypatch):

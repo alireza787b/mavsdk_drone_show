@@ -1449,8 +1449,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 except KeyError:
                     conversation_topic = None
             routing_message = normalize_operator_query_text(turn_request.message)
+            local_intent = classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
             local_only_turn = bool(
-                classify_mds_read_intent(routing_message, conversation_topic=conversation_topic)
+                local_intent
                 or blocked_intent_matches(assistant_config, turn_request.message)
                 or blocked_intent_matches(assistant_config, routing_message)
                 or sensitive_input_matches(assistant_config, turn_request.message)
@@ -1478,6 +1479,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     routing_message,
                     allowed_tools=list_policy_allowed_read_only_tools(channel="agent"),
                     conversation_topic=conversation_topic,
+                    local_intent=local_intent,
                 )
                 local_only_turn = local_only_turn or registry_plan is not None
             provider_auth_allowed = assistant_config.provider != "mock" and _has_external_assistant_provider_auth(http_request)

@@ -277,7 +277,10 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "fleet_connectivity"
     if _has_any(normalized, ("swarm", "formation", "cluster", "offset", "follow", "geometry", "distance")):
         return "swarm_topology"
-    if _has_any(normalized, ("how many drones", "fleet", "drone", "drones", "configured", "ip of", "what is the ip")):
+    if _has_any(normalized, ("how many drones", "fleet", "drone", "drones", "ip of", "what is the ip")) or (
+        _has_any(normalized, ("configured",))
+        and _has_any(normalized, ("fleet", "drone", "drones", "board", "boards", "vehicle", "vehicles"))
+    ):
         return "fleet_summary"
     if _has_any(
         normalized,
