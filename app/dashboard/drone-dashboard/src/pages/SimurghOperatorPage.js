@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  FaChevronDown,
+  FaChevronRight,
   FaCheckCircle,
   FaCog,
   FaCopy,
@@ -122,6 +124,12 @@ function readStoredConversations() {
         updatedAt: conversation.updatedAt || conversation.createdAt || nowIso(),
         messages: Array.isArray(conversation.messages)
           ? conversation.messages.filter((message) => message && message.role && message.content)
+            .map((message) => ({
+              ...message,
+              trace: message.trace && typeof message.trace === 'object' && !Array.isArray(message.trace) ? message.trace : undefined,
+              safety_notes: Array.isArray(message.safety_notes) ? message.safety_notes.slice(0, 8) : [],
+              blocked_intents: Array.isArray(message.blocked_intents) ? message.blocked_intents.slice(0, 8) : [],
+            }))
           : [],
       }))
       .slice(0, MAX_CONVERSATIONS);
@@ -143,6 +151,9 @@ function writeStoredConversations(conversations) {
           createdAt: message.createdAt,
           provider: message.provider,
           model: message.model,
+          trace: message.trace && typeof message.trace === 'object' && !Array.isArray(message.trace) ? message.trace : undefined,
+          safety_notes: Array.isArray(message.safety_notes) ? message.safety_notes.slice(0, 8) : [],
+          blocked_intents: Array.isArray(message.blocked_intents) ? message.blocked_intents.slice(0, 8) : [],
         })),
     }));
     window.localStorage.setItem(
@@ -177,6 +188,153 @@ function appendProgressStep(steps = [], label = '') {
   }
   const next = [...steps.filter((step) => step !== normalized), normalized];
   return next.slice(-5);
+}
+
+function titleCaseTraceLabel(value = '') {
+  return String(value || '')
+    .replace(/[_.-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function compactTraceValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+  if (Array.isArray(value)) {
+    return value.map(compactTraceValue).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : '';
+  }
+  return String(value).replace(/\s+/g, ' ').trim();
+}
+
+function uniqueTraceValues(values = []) {
+  const seen = new Set();
+  const normalized = [];
+  values.forEach((value) => {
+    const text = compactTraceValue(value);
+    if (!text || seen.has(text)) {
+      return;
+    }
+    seen.add(text);
+    normalized.push(text);
+  });
+  return normalized;
+}
+
+function getTraceToolIds(trace = {}) {
+  const directIds = Array.isArray(trace?.tool?.ids) ? trace.tool.ids : [];
+  const plannedIds = Array.isArray(trace?.query?.read_only_plan?.tool_ids)
+    ? trace.query.read_only_plan.tool_ids
+    : [];
+  const actualIds = uniqueTraceValues(directIds);
+  return actualIds.length ? actualIds : uniqueTraceValues(plannedIds);
+}
+
+function getTraceSummary(trace = {}, message = {}) {
+  const toolIds = getTraceToolIds(trace);
+  if (toolIds.length === 1) {
+    return 'Checked 1 read-only MDS tool';
+  }
+  if (toolIds.length > 1) {
+    return `Checked ${toolIds.length} read-only MDS tools`;
+  }
+
+  const retrievedCount = Number(trace?.context?.retrieved_context_count || 0);
+  const resourceCount = Number(trace?.context?.resource_count || 0);
+  if (retrievedCount > 0 || resourceCount > 0 || (message.context_resources || []).length > 0) {
+    return 'Checked MDS context';
+  }
+
+  if (trace?.provider === 'openai' || message.provider === 'openai') {
+    return 'Composed with OpenAI';
+  }
+
+  if (trace?.query?.domain || trace?.tool?.intent || trace?.safety?.action_execution) {
+    return 'Checked Simurgh policy';
+  }
+
+  return '';
+}
+
+function buildTraceRows(trace = {}, message = {}) {
+  const rows = [];
+  const provider = compactTraceValue(trace.provider || message.provider);
+  const model = compactTraceValue(trace.model || message.model);
+  if (provider || model) {
+    rows.push({ label: 'Model path', value: [provider, model].filter(Boolean).join(' / ') });
+  }
+
+  const domain = compactTraceValue(trace?.query?.domain);
+  const confidence = compactTraceValue(trace?.query?.confidence);
+  const responseMode = compactTraceValue(trace?.query?.response_mode);
+  if (domain || confidence || responseMode) {
+    rows.push({
+      label: 'Understanding',
+      value: [
+        domain && titleCaseTraceLabel(domain),
+        confidence && `confidence ${confidence}`,
+        responseMode && titleCaseTraceLabel(responseMode),
+      ].filter(Boolean).join(' · '),
+    });
+  }
+
+  const intent = compactTraceValue(trace?.tool?.intent || trace?.query?.read_only_plan?.intent);
+  if (intent) {
+    rows.push({ label: 'Intent', value: titleCaseTraceLabel(intent) });
+  }
+
+  const toolIds = getTraceToolIds(trace);
+  if (toolIds.length) {
+    rows.push({ label: 'Tools', value: toolIds.join(', ') });
+  }
+
+  const contextBits = [];
+  const resourceCount = compactTraceValue(trace?.context?.resource_count);
+  const retrievedCount = compactTraceValue(trace?.context?.retrieved_context_count);
+  if (resourceCount) {
+    contextBits.push(`${resourceCount} resource(s)`);
+  }
+  if (retrievedCount) {
+    contextBits.push(`${retrievedCount} retrieved chunk(s)`);
+  }
+  if (!contextBits.length && Array.isArray(message.context_resources) && message.context_resources.length) {
+    contextBits.push(`${message.context_resources.length} context resource(s)`);
+  }
+  if (contextBits.length) {
+    rows.push({ label: 'Context', value: contextBits.join(' · ') });
+  }
+
+  const languageBits = uniqueTraceValues([
+    trace?.language?.detected_language,
+    trace?.language?.requested_language,
+    trace?.language?.response_language,
+    trace?.language?.tone,
+  ]);
+  if (languageBits.length) {
+    rows.push({ label: 'Language', value: languageBits.join(' · ') });
+  }
+
+  const blockedCount = compactTraceValue(trace?.safety?.blocked_intent_count);
+  const execution = compactTraceValue(trace?.safety?.action_execution);
+  if (execution || blockedCount || (message.blocked_intents || []).length) {
+    const safetyBits = [execution && `action execution: ${execution}`];
+    if (blockedCount) {
+      safetyBits.push(`${blockedCount} blocked intent(s)`);
+    }
+    if ((message.blocked_intents || []).length) {
+      safetyBits.push(`blocked: ${message.blocked_intents.join(', ')}`);
+    }
+    rows.push({ label: 'Safety', value: safetyBits.filter(Boolean).join(' · ') });
+  }
+
+  return rows.filter((row) => row.value);
 }
 
 function formatConversationTime(value) {
@@ -997,6 +1155,44 @@ function MessageActivity({ progress = [], streaming = false }) {
   );
 }
 
+function MessageTrace({ message }) {
+  const [open, setOpen] = useState(false);
+  const trace = message.trace && typeof message.trace === 'object' && !Array.isArray(message.trace)
+    ? message.trace
+    : {};
+  const summary = getTraceSummary(trace, message);
+  const rows = buildTraceRows(trace, message);
+
+  if (message.streaming || (!summary && !rows.length)) {
+    return null;
+  }
+
+  return (
+    <div className={`simurgh-chat__trace${open ? ' is-open' : ''}`}>
+      <button
+        type="button"
+        className="simurgh-chat__trace-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {open ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
+        <FaCheckCircle aria-hidden="true" />
+        <span>{summary || 'Checked Simurgh context'}</span>
+      </button>
+      {open ? (
+        <dl className="simurgh-chat__trace-details" aria-label="Simurgh response evidence">
+          {rows.map((row) => (
+            <div key={row.label} className="simurgh-chat__trace-row">
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </div>
+  );
+}
+
 function MessageBubble({ message }) {
   const roleLabel = message.role === 'assistant' ? 'Simurgh' : 'You';
   const copyLabel = message.role === 'assistant' ? 'Copy Simurgh message' : 'Copy your message';
@@ -1012,6 +1208,7 @@ function MessageBubble({ message }) {
         </div>
         {message.role === 'assistant' ? <MessageActivity progress={message.progress || []} streaming={Boolean(message.streaming)} /> : null}
         {message.content ? <MessageContent content={message.content} /> : null}
+        {message.role === 'assistant' ? <MessageTrace message={message} /> : null}
       </div>
     </article>
   );
@@ -1276,6 +1473,11 @@ export default function SimurghOperatorPage() {
                 createdAt: finalData.created_at || currentMessage.createdAt || nowIso(),
                 provider: finalData.provider,
                 model: finalData.model,
+                trace: finalData.trace || currentMessage.trace,
+                context_resources: finalData.context_resources || currentMessage.context_resources || [],
+                blocked_intents: finalData.blocked_intents || currentMessage.blocked_intents || [],
+                safety_notes: finalData.safety_notes || currentMessage.safety_notes || [],
+                audit_event_id: finalData.audit_event_id || currentMessage.audit_event_id,
                 streaming: false,
                 progress: [],
               }));
@@ -1306,6 +1508,11 @@ export default function SimurghOperatorPage() {
               createdAt: finalData.created_at || currentMessage.createdAt || nowIso(),
               provider: finalData.provider,
               model: finalData.model,
+              trace: finalData.trace || currentMessage.trace,
+              context_resources: finalData.context_resources || currentMessage.context_resources || [],
+              blocked_intents: finalData.blocked_intents || currentMessage.blocked_intents || [],
+              safety_notes: finalData.safety_notes || currentMessage.safety_notes || [],
+              audit_event_id: finalData.audit_event_id || currentMessage.audit_event_id,
               streaming: false,
               progress: [],
             }

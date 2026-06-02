@@ -475,6 +475,85 @@
   white-space: nowrap;
 }
 
+.simurgh-chat__trace {
+  display: grid;
+  gap: var(--spacing-xs);
+  margin-top: calc(var(--spacing-xs) * -0.25);
+}
+
+.simurgh-chat__trace-toggle {
+  width: fit-content;
+  max-width: 100%;
+  min-height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.45rem 0 0;
+  border: 0;
+  border-radius: var(--border-radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.simurgh-chat__trace-toggle:hover,
+.simurgh-chat__trace-toggle:focus-visible,
+.simurgh-chat__trace.is-open .simurgh-chat__trace-toggle {
+  color: var(--color-text-secondary);
+  outline: none;
+}
+
+.simurgh-chat__trace-toggle:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-primary-light);
+}
+
+.simurgh-chat__trace-toggle svg {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+}
+
+.simurgh-chat__trace-toggle span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simurgh-chat__trace-details {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 100%;
+  margin: 0;
+  padding: var(--spacing-xs) 0 0.1rem 1.1rem;
+  border-top: 1px solid var(--color-border-secondary);
+}
+
+.simurgh-chat__trace-row {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, max-content) minmax(0, 1fr);
+  gap: var(--spacing-sm);
+  align-items: start;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.simurgh-chat__trace-row dt,
+.simurgh-chat__trace-row dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.simurgh-chat__trace-row dt {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-bold);
+}
+
+.simurgh-chat__trace-row dd {
+  overflow-wrap: anywhere;
+}
+
 .simurgh-chat__message--streaming .simurgh-chat__markdown::after {
   content: '';
   display: inline-block;
@@ -521,6 +600,10 @@
   .simurgh-chat__copy-button:active,
   .simurgh-chat__copy-button:focus-visible {
     opacity: 1;
+  }
+
+  .simurgh-chat__trace-toggle {
+    min-height: 2rem;
   }
 }
 

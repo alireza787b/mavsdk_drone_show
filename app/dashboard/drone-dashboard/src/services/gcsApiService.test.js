@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { TextDecoder } from 'util';
 import {
   buildGitStatusWebSocketUrl,
   buildGcsUrl,
@@ -81,7 +80,9 @@ const authConfig = (config = {}) => ({
 });
 
 if (typeof global.TextDecoder === 'undefined') {
-  global.TextDecoder = TextDecoder;
+  // Jest on older Node runtimes may not expose TextDecoder globally.
+  // eslint-disable-next-line global-require
+  global.TextDecoder = require('util').TextDecoder;
 }
 
 describe('gcsApiService', () => {

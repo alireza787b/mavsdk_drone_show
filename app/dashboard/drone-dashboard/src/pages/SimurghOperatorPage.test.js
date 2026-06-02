@@ -355,6 +355,68 @@ describe('SimurghOperatorPage', () => {
     });
   });
 
+  test('keeps streamed turn trace in a compact per-message evidence disclosure', async () => {
+    const finalTurn = assistantTurnData({
+      id: 'turn_trace',
+      content: 'Connectivity from GCS state: 1/2 drone(s) currently look live.',
+      session: { id: 'sess_trace' },
+      trace: {
+        provider: 'openai',
+        model: 'gpt-5.5',
+        adapter_version: 'openai-responses-v1',
+        query: {
+          domain: 'fleet',
+          confidence: 0.94,
+          response_mode: 'mds_read_only_evidence',
+          read_only_plan: { tool_ids: ['mds.config.fleet.read'] },
+        },
+        tool: {
+          intent: 'fleet_connectivity',
+          ids: ['mds.fleet.heartbeats.read', 'mds.fleet.telemetry.read'],
+        },
+        context: {
+          resource_count: 2,
+          retrieved_context_count: 1,
+        },
+        language: {
+          detected_language: 'en',
+          tone: 'operator',
+        },
+        safety: {
+          blocked_intent_count: 0,
+          action_execution: 'none',
+        },
+      },
+    });
+    mockStreamResponseOnce(finalTurn);
+
+    renderPage();
+
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'which drones are connected?' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    const disclosure = await screen.findByRole('button', { name: /checked 2 read-only mds tools/i });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(disclosure);
+
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Model path')).toBeInTheDocument();
+    expect(screen.getByText(/openai \/ gpt-5\.5/i)).toBeInTheDocument();
+    expect(screen.getByText('Intent')).toBeInTheDocument();
+    expect(screen.getByText('Fleet Connectivity')).toBeInTheDocument();
+    expect(screen.getByText('Tools')).toBeInTheDocument();
+    expect(screen.getByText(/mds\.fleet\.heartbeats\.read/)).toBeInTheDocument();
+    expect(screen.getByText('Context')).toBeInTheDocument();
+    expect(screen.getByText(/2 resource\(s\).*1 retrieved chunk\(s\)/)).toBeInTheDocument();
+
+    const stored = JSON.parse(window.localStorage.getItem('mds.simurgh.chat.v2'));
+    expect(stored.conversations[0].messages.find((message) => message.id === 'turn_trace').trace.tool.ids).toEqual([
+      'mds.fleet.heartbeats.read',
+      'mds.fleet.telemetry.read',
+    ]);
+  });
+
   test('auto-links safe dashboard routes and known docs paths in assistant answers', async () => {
     mockStreamResponseOnce(assistantTurnData({
       id: 'turn_links',
