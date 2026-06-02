@@ -1218,6 +1218,49 @@ def test_read_tools_answer_quickscout_status_from_mission_catalog():
     assert "no plan, launch, pause/resume, abort" in answer.content
 
 
+def test_read_tools_answer_quickscout_flags_stale_implausible_package():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        get_quickscout_mission_catalog=lambda limit=5: {
+            "count": 1,
+            "missions": [
+                {
+                    "mission_id": "qs_old_bounds",
+                    "state": "ready",
+                    "updated_at": 1_715_663_280.0,
+                    "drone_count": 1,
+                    "pos_ids": [2],
+                    "total_area_sq_m": 151_273_180_000.0,
+                    "estimated_coverage_time_s": 361_399_161.0,
+                    "launchable": True,
+                    "requires_revalidation": False,
+                }
+            ],
+        },
+        get_quickscout_mission_status=lambda mission_id: {
+            "mission_id": mission_id,
+            "state": "ready",
+            "operation_phase": "ready_to_launch",
+            "status_summary": "Package is computed and ready for launch review.",
+            "drone_states": {},
+        },
+        get_quickscout_mission_workspace=lambda mission_id: {},
+    )
+
+    answer = answer_mds_read_only_question("is the QuickScout mission ready for field test?", deps=deps)
+
+    assert answer is not None
+    assert answer.intent == "sar_summary"
+    assert "not field-ready until stale/implausible mission evidence is reviewed" in answer.content
+    assert "Readiness cautions" in answer.content
+    assert "stale for field launch readiness" in answer.content
+    assert "check bounds/origin" in answer.content
+    assert "check planner inputs" in answer.content
+    assert "No plan, launch" not in answer.content
+    assert "no plan, launch, pause/resume, abort" in answer.content
+
+
 def test_read_tools_answer_no_quickscout_mission_without_raw_registry_dump():
     from agent_runtime.mds_read_tools import answer_mds_read_only_question
 

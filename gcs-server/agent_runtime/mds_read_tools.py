@@ -41,6 +41,9 @@ DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_kn
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 LATEST_SESSION_GROUP_SECONDS = 15
+QUICKSCOUT_FIELD_READY_STALE_SECONDS = 6 * 3600
+QUICKSCOUT_IMPLAUSIBLE_AREA_SQ_M = 1_000_000_000.0
+QUICKSCOUT_IMPLAUSIBLE_DURATION_S = 8 * 3600.0
 READ_CONVERSATION_TOPICS = frozenset(
     {
         "capabilities",
@@ -1265,7 +1268,6 @@ class MdsReadOnlyTools:
         phase = _readable_label(selected_status.get("operation_phase") or "planned")
         launchable = bool(selected.get("launchable", True))
         requires_revalidation = bool(selected.get("requires_revalidation", False))
-        readiness_label = _quickscout_readiness_label(launchable, requires_revalidation, state)
         mission_label = str(selected.get("mission_label") or selected.get("mission_id") or "latest mission")
         template = _readable_label(selected.get("mission_template"))
         source_mode = _readable_label(selected.get("position_source_mode"))
@@ -1273,6 +1275,18 @@ class MdsReadOnlyTools:
         coverage = _as_float(selected_status.get("total_coverage_percent", selected.get("total_coverage_percent", 0.0)), 0.0)
         estimated_duration = _as_float(selected.get("estimated_coverage_time_s"), 0.0)
         area_sq_m = _as_float(selected.get("total_area_sq_m"), 0.0)
+        updated_at = _as_float(selected.get("updated_at"), 0.0)
+        quality_notes = _quickscout_quality_notes(
+            updated_at=updated_at,
+            area_sq_m=area_sq_m,
+            estimated_duration_s=estimated_duration,
+        )
+        readiness_label = _quickscout_readiness_label(
+            launchable,
+            requires_revalidation,
+            state,
+            quality_notes=quality_notes,
+        )
         finding_count = len(status.get("findings") or []) if status else _as_int(selected.get("finding_count")) or 0
 
         composer.blank().table(
@@ -1282,15 +1296,19 @@ class MdsReadOnlyTools:
                 ("State / phase", f"{state} / {phase}"),
                 ("Template", template),
                 ("Drones / positions", _quickscout_drone_scope(selected, status)),
-                ("Coverage", f"{coverage:.1f}% complete; planned area {_format_area_sq_m(area_sq_m)}"),
-                ("Estimated coverage time", _format_duration(estimated_duration)),
+                ("Coverage", f"{coverage:.1f}% complete; planned area {_format_quickscout_area(area_sq_m)}"),
+                ("Estimated coverage time", _format_quickscout_duration(estimated_duration)),
                 ("Position source", source_mode),
                 ("Return behavior", return_behavior),
                 ("Launch readiness", readiness_label),
                 ("Findings", f"{finding_count} recorded"),
-                ("Updated", _format_epoch_utc(selected.get("updated_at"))),
+                ("Updated", f"{_format_epoch_utc(updated_at)} ({_format_age_from_epoch(updated_at)} old)"),
             ),
         )
+
+        if quality_notes:
+            composer.blank().line("Readiness cautions:")
+            composer.bullets(quality_notes)
 
         summary = str(status.get("status_summary") or "").strip()
         recommended = str(status.get("recommended_operator_action") or "").strip()
@@ -5350,15 +5368,43 @@ def _select_quickscout_mission(message: str, missions: Sequence[Mapping[str, Any
     return _copy_mapping(missions[0])
 
 
-def _quickscout_readiness_label(launchable: bool, requires_revalidation: bool, state: str) -> str:
+def _quickscout_readiness_label(
+    launchable: bool,
+    requires_revalidation: bool,
+    state: str,
+    *,
+    quality_notes: Sequence[str] | None = None,
+) -> str:
     state_lower = _normalize_text(state)
     if state_lower in {"completed", "aborted", "failed", "cancelled", "canceled"}:
         return f"not launchable; mission is {state_lower}"
     if not launchable:
         return "not launchable until package blockers are cleared"
+    if quality_notes:
+        return "package exists, but not field-ready until stale/implausible mission evidence is reviewed"
     if requires_revalidation:
         return "planned package exists; live launch revalidation required before launch"
     return "planned package exists; still requires human field readiness review before launch"
+
+
+def _quickscout_quality_notes(*, updated_at: float, area_sq_m: float, estimated_duration_s: float) -> list[str]:
+    notes: list[str] = []
+    age_s = max(0.0, time.time() - updated_at) if updated_at > 0 else None
+    if age_s is None:
+        notes.append("Package timestamp is missing; reopen/revalidate the mission before field use.")
+    elif age_s > QUICKSCOUT_FIELD_READY_STALE_SECONDS:
+        notes.append(
+            f"Package is {_format_seconds_compact(age_s)} old; treat it as stale for field launch readiness and revalidate live positions."
+        )
+    if area_sq_m > QUICKSCOUT_IMPLAUSIBLE_AREA_SQ_M:
+        notes.append(
+            "Planned area is unusually large for a QuickScout field package; check the mission bounds, units, and origin before using it."
+        )
+    if estimated_duration_s > QUICKSCOUT_IMPLAUSIBLE_DURATION_S:
+        notes.append(
+            "Estimated coverage time is unusually long; check the coverage planner inputs, speed assumptions, and mission bounds."
+        )
+    return notes
 
 
 def _quickscout_drone_scope(summary: Mapping[str, Any], status: Mapping[str, Any]) -> str:
@@ -5398,6 +5444,42 @@ def _format_area_sq_m(value: float) -> str:
     if value >= 1_000_000:
         return f"{value / 1_000_000:.2f} sq km"
     return f"{value:.0f} sq m"
+
+
+def _format_quickscout_area(value: float) -> str:
+    label = _format_area_sq_m(value)
+    if value > QUICKSCOUT_IMPLAUSIBLE_AREA_SQ_M:
+        return f"{label} (check bounds/origin)"
+    return label
+
+
+def _format_quickscout_duration(seconds: float) -> str:
+    label = _format_duration(seconds)
+    if seconds > QUICKSCOUT_IMPLAUSIBLE_DURATION_S:
+        return f"{label} (check planner inputs)"
+    return label
+
+
+def _format_age_from_epoch(value: Any) -> str:
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError):
+        return "unknown age"
+    if not math.isfinite(timestamp) or timestamp <= 0:
+        return "unknown age"
+    if timestamp > 10_000_000_000:
+        timestamp /= 1000.0
+    return _format_seconds_compact(max(0.0, time.time() - timestamp))
+
+
+def _format_seconds_compact(seconds: float) -> str:
+    if seconds < 60:
+        return f"{int(seconds)} s"
+    if seconds < 3600:
+        return f"{int(seconds // 60)} min"
+    if seconds < 86400:
+        return f"{seconds / 3600:.1f} h"
+    return f"{seconds / 86400:.1f} days"
 
 
 def _format_distance_m(value: Any) -> str:
