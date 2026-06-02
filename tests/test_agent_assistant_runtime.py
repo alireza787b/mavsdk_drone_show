@@ -1150,6 +1150,89 @@ def test_read_tools_answer_fleet_battery_arming_and_mode_from_live_telemetry():
     assert "Fleet status from GCS configuration" not in combined.content
 
 
+def test_read_tools_answer_quickscout_status_from_mission_catalog():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question, classify_mds_read_intent
+
+    now = 1_780_360_000.0
+    deps = SimpleNamespace(
+        get_quickscout_mission_catalog=lambda limit=5: {
+            "count": 1,
+            "missions": [
+                {
+                    "mission_id": "qs_20260602_alpha",
+                    "mission_label": "Damavand ridge search",
+                    "mission_template": "area_sweep",
+                    "state": "planned",
+                    "updated_at": now,
+                    "drone_count": 2,
+                    "pos_ids": [1, 2],
+                    "total_area_sq_m": 125_000.0,
+                    "estimated_coverage_time_s": 720.0,
+                    "return_behavior": "return_home",
+                    "total_coverage_percent": 0.0,
+                    "finding_count": 1,
+                    "position_source_mode": "configured_origin",
+                    "launchable": True,
+                    "requires_revalidation": True,
+                }
+            ],
+        },
+        get_quickscout_mission_status=lambda mission_id: {
+            "mission_id": mission_id,
+            "state": "planned",
+            "operation_phase": "launch_review",
+            "total_coverage_percent": 12.5,
+            "status_summary": "Mission package is staged for launch review.",
+            "recommended_operator_action": "Revalidate live GPS positions before launch.",
+            "findings": [{"id": "finding_1", "summary": "thermal anomaly"}],
+            "drone_states": {
+                "1": {
+                    "state": "surveying",
+                    "coverage_percent": 18.0,
+                    "distance_covered_m": 340.0,
+                    "estimated_remaining_s": 420.0,
+                    "status_note": "on first lane",
+                },
+            },
+        },
+        get_quickscout_mission_workspace=lambda mission_id: {},
+    )
+
+    assert classify_mds_read_intent("is there any QuickScout mission ready for field test?") == "sar_summary"
+
+    answer = answer_mds_read_only_question(
+        "is there any QuickScout mission ready for field test?",
+        deps=deps,
+    )
+
+    assert answer is not None
+    assert answer.intent == "sar_summary"
+    assert "QuickScout/SAR mission status from read-only GCS evidence" in answer.content
+    assert "Damavand ridge search" in answer.content
+    assert "live launch revalidation required" in answer.content
+    assert "Mission package is staged for launch review" in answer.content
+    assert "Revalidate live GPS positions before launch" in answer.content
+    assert "Per-drone mission progress" in answer.content
+    assert "thermal anomaly" not in answer.content
+    assert "No plan, launch" not in answer.content
+    assert "no plan, launch, pause/resume, abort" in answer.content
+
+
+def test_read_tools_answer_no_quickscout_mission_without_raw_registry_dump():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    deps = SimpleNamespace(get_quickscout_mission_catalog=lambda limit=5: {"count": 0, "missions": []})
+
+    answer = answer_mds_read_only_question("check QuickScout mission status", deps=deps)
+
+    assert answer is not None
+    assert answer.intent == "sar_summary"
+    assert "do not see any persisted QuickScout mission package" in answer.content
+    assert "Use [QuickScout](/quickscout)" in answer.content
+    assert "Registry-backed read-only capability summary" not in answer.content
+    assert "mds.sar.mission.status.read" not in answer.content
+
+
 def test_read_only_plan_exposes_sanitized_fleet_telemetry_selection():
     from agent_runtime.mds_read_tools import build_mds_read_only_plan
 

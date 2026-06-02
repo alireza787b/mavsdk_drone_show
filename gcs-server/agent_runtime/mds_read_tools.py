@@ -93,6 +93,12 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "origin_status": ("mds.origin.read", "mds.navigation.global_origin.read", "mds.config.positions.read"),
     "public_geography": ("simurgh.public_places.read", "simurgh.geodesy.calculate"),
     "px4_params_summary": ("mds.px4_params.policy.read", "mds.px4_params.profiles.read"),
+    "sar_summary": (
+        "mds.sar.missions.read",
+        "mds.sar.mission.status.read",
+        "mds.sar.mission.workspace.read",
+        "mds.sar.findings.read",
+    ),
     "registry_domain_tool_summary": ("mds.simurgh.tools.read", "mds.simurgh.policy.read"),
     "runtime_summary": ("mds.system.runtime_status.read",),
     "show_modes_help": ("mds.docs.search", "mds.docs.chunk.read", "mds.shows.skybrush.read"),
@@ -333,6 +339,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "add_drone_workflow"
     if _looks_like_mission_mode_question(normalized):
         return "mission_mode_comparison"
+    if _looks_like_sar_status_question(normalized):
+        return "sar_summary"
     if _looks_like_show_modes_question(normalized):
         return "show_modes_help"
     if _looks_like_show_status_question(normalized):
@@ -457,6 +465,8 @@ def answer_mds_read_only_question(
         return tools.sitl_help()
     if intent == "swarm_readiness":
         return tools.swarm_readiness(message)
+    if intent == "sar_summary":
+        return tools.sar_summary(message=message)
     if intent == "board_setup_help":
         return tools.board_setup_help()
     if intent == "companion_setup_help":
@@ -504,6 +514,8 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "fleet"
     if normalized_intent in {"swarm_readiness", "swarm_topology", "operator_help", "mission_mode_comparison"}:
         return "swarm"
+    if normalized_intent == "sar_summary":
+        return "sar"
     if normalized_intent == "sitl_help":
         return "sitl"
     if normalized_intent in {"board_setup_help", "companion_setup_help", "add_drone_workflow"}:
@@ -1219,6 +1231,109 @@ class MdsReadOnlyTools:
                 "mds.fleet.telemetry.read",
                 "mds.swarm_trajectories.status.read",
                 "mds.swarm_trajectories.validate.read",
+            ),
+        )
+
+    def sar_summary(self, message: str = "") -> MdsReadToolAnswer:
+        catalog = self._quickscout_catalog(limit=5)
+        missions = [_model_payload(item) for item in (catalog.get("missions") or [])]
+        selected = _select_quickscout_mission(message, missions)
+        mission_id = str(selected.get("mission_id") or "").strip()
+        status = self._quickscout_status(mission_id) if mission_id else {}
+        workspace = self._quickscout_workspace(mission_id) if mission_id else {}
+
+        composer = AnswerComposer()
+        composer.line("QuickScout/SAR mission status from read-only GCS evidence:")
+
+        if not missions:
+            composer.blank().line(
+                "I do not see any persisted QuickScout mission package in the GCS store right now. "
+                "That means there is no QuickScout plan for Simurgh to summarize as staged, active, or ready."
+            )
+            composer.blank().line(
+                "Use [QuickScout](/quickscout) to plan/reopen missions. For field use, a human operator still needs fresh telemetry, "
+                "valid GPS/RTK as required by the package, battery/mode checks, airspace/weather review, and an abort/RTL plan."
+            )
+            composer.line("This is read-only QuickScout inspection; no mission was planned, launched, paused, resumed, aborted, or changed.")
+            return self._answer("sar_summary", composer.render(), ("mds.sar.missions.read",))
+
+        selected_status = status or selected
+        operation = _model_payload(workspace.get("operation")) if workspace else {}
+        if operation:
+            selected = {**selected, **{key: value for key, value in operation.items() if key}}
+        state = _readable_label(selected_status.get("state") or selected.get("state"))
+        phase = _readable_label(selected_status.get("operation_phase") or "planned")
+        launchable = bool(selected.get("launchable", True))
+        requires_revalidation = bool(selected.get("requires_revalidation", False))
+        readiness_label = _quickscout_readiness_label(launchable, requires_revalidation, state)
+        mission_label = str(selected.get("mission_label") or selected.get("mission_id") or "latest mission")
+        template = _readable_label(selected.get("mission_template"))
+        source_mode = _readable_label(selected.get("position_source_mode"))
+        return_behavior = _readable_label(selected.get("return_behavior"))
+        coverage = _as_float(selected_status.get("total_coverage_percent", selected.get("total_coverage_percent", 0.0)), 0.0)
+        estimated_duration = _as_float(selected.get("estimated_coverage_time_s"), 0.0)
+        area_sq_m = _as_float(selected.get("total_area_sq_m"), 0.0)
+        finding_count = len(status.get("findings") or []) if status else _as_int(selected.get("finding_count")) or 0
+
+        composer.blank().table(
+            ("Area", "Current evidence"),
+            (
+                ("Selected mission", f"{mission_label} (`{mission_id}`)"),
+                ("State / phase", f"{state} / {phase}"),
+                ("Template", template),
+                ("Drones / positions", _quickscout_drone_scope(selected, status)),
+                ("Coverage", f"{coverage:.1f}% complete; planned area {_format_area_sq_m(area_sq_m)}"),
+                ("Estimated coverage time", _format_duration(estimated_duration)),
+                ("Position source", source_mode),
+                ("Return behavior", return_behavior),
+                ("Launch readiness", readiness_label),
+                ("Findings", f"{finding_count} recorded"),
+                ("Updated", _format_epoch_utc(selected.get("updated_at"))),
+            ),
+        )
+
+        summary = str(status.get("status_summary") or "").strip()
+        recommended = str(status.get("recommended_operator_action") or "").strip()
+        if summary or recommended:
+            composer.blank().line("Operator interpretation:")
+            composer.bullets(item for item in (summary, recommended) if item)
+
+        drone_rows = _quickscout_drone_state_rows(status)
+        if drone_rows:
+            composer.blank().line("Per-drone mission progress:")
+            composer.table(("Drone", "State", "Coverage", "Distance", "Remaining", "Note"), drone_rows[:6])
+            if len(drone_rows) > 6:
+                composer.line(f"{len(drone_rows) - 6} additional drone row(s) omitted for readability.")
+
+        recent = missions[:3]
+        if len(recent) > 1:
+            composer.blank().line("Recent QuickScout mission packages:")
+            composer.table(
+                ("Mission", "State", "Drones", "Updated"),
+                tuple(
+                    (
+                        str(item.get("mission_label") or item.get("mission_id") or "unknown"),
+                        _readable_label(item.get("state")),
+                        str(item.get("drone_count") or 0),
+                        _format_epoch_utc(item.get("updated_at")),
+                    )
+                    for item in recent
+                ),
+            )
+
+        composer.blank().line(
+            "Use [QuickScout](/quickscout) for mission workspace/monitor review. "
+            "Field readiness still requires live telemetry/GPS, battery, mode/arming, geofence, weather/airspace, and human launch review."
+        )
+        composer.line("This is read-only QuickScout inspection; no plan, launch, pause/resume, abort, finding update, config write, or drone command was sent.")
+        return self._answer(
+            "sar_summary",
+            composer.render(),
+            (
+                "mds.sar.missions.read",
+                "mds.sar.mission.status.read",
+                "mds.sar.mission.workspace.read",
+                "mds.sar.findings.read",
             ),
         )
 
@@ -2613,6 +2728,64 @@ class MdsReadOnlyTools:
             "recent": recent,
         }
 
+    def _quickscout_service(self) -> Any | None:
+        service = getattr(self.deps, "quickscout_service", None)
+        if service is not None:
+            return service
+        try:
+            from sar.service import get_quickscout_service
+
+            return get_quickscout_service()
+        except Exception:
+            return None
+
+    def _quickscout_catalog(self, *, limit: int = 5) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_quickscout_mission_catalog", None)
+        if callable(getter):
+            try:
+                return _model_payload(getter(limit=limit))
+            except TypeError:
+                return _model_payload(getter())
+            except Exception as exc:
+                return {"missions": [], "count": 0, "error": str(exc)}
+        service = self._quickscout_service()
+        if service is None:
+            return {"missions": [], "count": 0}
+        try:
+            return _model_payload(service.list_operation_summaries(limit=limit))
+        except Exception as exc:
+            return {"missions": [], "count": 0, "error": str(exc)}
+
+    def _quickscout_status(self, mission_id: str) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_quickscout_mission_status", None)
+        if callable(getter):
+            try:
+                return _model_payload(getter(mission_id))
+            except Exception:
+                return {}
+        service = self._quickscout_service()
+        if service is None:
+            return {}
+        try:
+            return _model_payload(service.get_status(mission_id))
+        except Exception:
+            return {}
+
+    def _quickscout_workspace(self, mission_id: str) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_quickscout_mission_workspace", None)
+        if callable(getter):
+            try:
+                return _model_payload(getter(mission_id))
+            except Exception:
+                return {}
+        service = self._quickscout_service()
+        if service is None:
+            return {}
+        try:
+            return _model_payload(service.get_workspace(mission_id))
+        except Exception:
+            return {}
+
     def _show_info(self) -> dict[str, Any]:
         try:
             from show_management import build_show_info_payload
@@ -3318,6 +3491,9 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
             return "add_drone_workflow"
         if _has_any(normalized, ("board", "env", "environment", "key", "fleet", "enroll", "enrollment")) or _looks_like_generic_contextual_followup(normalized):
             return "board_setup_help"
+    if topic == "sar":
+        if _looks_like_sar_status_question(normalized) or _looks_like_generic_contextual_followup(normalized):
+            return "sar_summary"
     if topic == "runtime":
         if _has_any(normalized, ("sitl", "simulation", "switch", "change", "go to", "demo")):
             return "sitl_help"
@@ -3545,6 +3721,8 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
     if domain == "sar":
         if _looks_like_registry_domain_tool_question(normalized, topic=topic):
             return "registry_domain_tool_summary"
+        if _looks_like_sar_status_question(normalized):
+            return "sar_summary"
         return "docs_help"
     if domain == "swarm":
         if mode == "compare" or _has_any(normalized, ("quickscout", "quick scout", "swarm trajectory", " vs ")):
@@ -3835,6 +4013,54 @@ def _looks_like_swarm_readiness_question(normalized: str) -> bool:
             "all is ready",
             "all ready",
             "safe to test",
+        ),
+    )
+
+
+def _looks_like_sar_status_question(normalized: str) -> bool:
+    if _looks_like_mission_mode_question(normalized):
+        return False
+    if not _has_domain_signal(
+        normalized,
+        (
+            "quickscout",
+            "quick scout",
+            "quick scoute",
+            "quickscoute",
+            "sar",
+            "search and rescue",
+            "search mission",
+            "rescue mission",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "mission",
+            "missions",
+            "status",
+            "current",
+            "active",
+            "planned",
+            "loaded",
+            "ready",
+            "readiness",
+            "field test",
+            "launchable",
+            "coverage",
+            "progress",
+            "finding",
+            "findings",
+            "handoff",
+            "monitor",
+            "history",
+            "reopen",
+            "is there",
+            "any",
+            "check",
+            "show",
+            "report",
         ),
     )
 
@@ -5103,6 +5329,97 @@ def _model_payload(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
     return {}
+
+
+def _readable_label(value: Any) -> str:
+    text = str(_enum_or_value(value) or "unknown").strip() or "unknown"
+    return text.replace("_", " ")
+
+
+def _select_quickscout_mission(message: str, missions: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    if not missions:
+        return {}
+    normalized = _normalize_text(message)
+    for item in missions:
+        mission_id = str(item.get("mission_id") or "").strip()
+        label = str(item.get("mission_label") or "").strip()
+        if mission_id and _normalize_text(mission_id) in normalized:
+            return _copy_mapping(item)
+        if label and _normalize_text(label) in normalized:
+            return _copy_mapping(item)
+    return _copy_mapping(missions[0])
+
+
+def _quickscout_readiness_label(launchable: bool, requires_revalidation: bool, state: str) -> str:
+    state_lower = _normalize_text(state)
+    if state_lower in {"completed", "aborted", "failed", "cancelled", "canceled"}:
+        return f"not launchable; mission is {state_lower}"
+    if not launchable:
+        return "not launchable until package blockers are cleared"
+    if requires_revalidation:
+        return "planned package exists; live launch revalidation required before launch"
+    return "planned package exists; still requires human field readiness review before launch"
+
+
+def _quickscout_drone_scope(summary: Mapping[str, Any], status: Mapping[str, Any]) -> str:
+    drone_count = _as_int(summary.get("drone_count"))
+    drone_states = status.get("drone_states") if isinstance(status, Mapping) else None
+    if drone_count is None and isinstance(drone_states, Mapping):
+        drone_count = len(drone_states)
+    pos_ids = summary.get("pos_ids")
+    pos_label = ""
+    if isinstance(pos_ids, list) and pos_ids:
+        pos_label = "; positions " + ", ".join(str(item) for item in pos_ids[:8])
+    return f"{drone_count or 0} drone(s){pos_label}"
+
+
+def _quickscout_drone_state_rows(status: Mapping[str, Any]) -> list[tuple[str, str, str, str, str, str]]:
+    drone_states = status.get("drone_states") if isinstance(status, Mapping) else None
+    if not isinstance(drone_states, Mapping):
+        return []
+    rows: list[tuple[str, str, str, str, str, str]] = []
+    for hw_id, raw_state in drone_states.items():
+        item = _model_payload(raw_state)
+        coverage_percent = _as_float(item.get("coverage_percent"), 0.0)
+        rows.append(
+            (
+                f"hw {hw_id}",
+                _readable_label(item.get("state")),
+                f"{coverage_percent:.1f}%",
+                _format_distance_m(item.get("distance_covered_m")),
+                _format_duration(_as_float(item.get("estimated_remaining_s"), 0.0)),
+                str(item.get("status_note") or "-"),
+            )
+        )
+    return sorted(rows, key=lambda row: _natural_key(row[0].replace("hw ", "")))
+
+
+def _format_area_sq_m(value: float) -> str:
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.2f} sq km"
+    return f"{value:.0f} sq m"
+
+
+def _format_distance_m(value: Any) -> str:
+    meters = _as_float(value, 0.0)
+    if meters >= 1000:
+        return f"{meters / 1000:.2f} km"
+    return f"{meters:.0f} m"
+
+
+def _format_epoch_utc(value: Any) -> str:
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError):
+        return "unknown"
+    if not math.isfinite(timestamp) or timestamp <= 0:
+        return "unknown"
+    if timestamp > 10_000_000_000:
+        timestamp /= 1000.0
+    try:
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    except (OverflowError, OSError, ValueError):
+        return "unknown"
 
 
 def _short_commit(value: Any) -> str:
