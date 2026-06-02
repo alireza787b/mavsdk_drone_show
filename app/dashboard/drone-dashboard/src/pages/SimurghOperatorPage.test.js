@@ -1,11 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 const mockCreateSimurghAssistantTurnResponse = jest.fn();
 const mockStreamSimurghAssistantTurnResponse = jest.fn();
 const mockGetSimurghRuntimeSettingsResponse = jest.fn();
 const mockGetSimurghStatusResponse = jest.fn();
+const mockGetSimurghToolsResponse = jest.fn();
 const mockGetSimurghToolCandidatesResponse = jest.fn();
 const mockUpdateSimurghRuntimeSettingsResponse = jest.fn();
 const mockUpdateSimurghProviderCredentialsResponse = jest.fn();
@@ -15,6 +16,7 @@ jest.mock('../services/gcsApiService', () => ({
   streamSimurghAssistantTurnResponse: (...args) => mockStreamSimurghAssistantTurnResponse(...args),
   getSimurghRuntimeSettingsResponse: (...args) => mockGetSimurghRuntimeSettingsResponse(...args),
   getSimurghStatusResponse: (...args) => mockGetSimurghStatusResponse(...args),
+  getSimurghToolsResponse: (...args) => mockGetSimurghToolsResponse(...args),
   getSimurghToolCandidatesResponse: (...args) => mockGetSimurghToolCandidatesResponse(...args),
   updateSimurghRuntimeSettingsResponse: (...args) => mockUpdateSimurghRuntimeSettingsResponse(...args),
   updateSimurghProviderCredentialsResponse: (...args) => mockUpdateSimurghProviderCredentialsResponse(...args),
@@ -60,6 +62,33 @@ const candidateReviewPayload = {
     candidate_exclude_or_guard_after_review: 124,
   },
   candidates: [],
+};
+
+const activeToolsPayload = {
+  version: 1,
+  tools: [
+    {
+      id: 'mds.config.fleet.read',
+      title: 'Read fleet configuration',
+      read_only: true,
+      requires_approval: false,
+      destructive: false,
+    },
+    {
+      id: 'mds.fleet.telemetry.read',
+      title: 'Read fleet telemetry',
+      read_only: true,
+      requires_approval: false,
+      destructive: false,
+    },
+    {
+      id: 'mds.commands.submit.plan',
+      title: 'Plan guarded command submission',
+      read_only: false,
+      requires_approval: true,
+      destructive: false,
+    },
+  ],
 };
 
 function assistantTurnData(overrides = {}) {
@@ -118,6 +147,7 @@ describe('SimurghOperatorPage', () => {
     window.localStorage.clear();
     mockGetSimurghRuntimeSettingsResponse.mockResolvedValue({ data: runtimePayload });
     mockGetSimurghStatusResponse.mockResolvedValue({ data: runtimePayload });
+    mockGetSimurghToolsResponse.mockResolvedValue({ data: activeToolsPayload });
     mockGetSimurghToolCandidatesResponse.mockResolvedValue({ data: candidateReviewPayload });
     mockUpdateSimurghRuntimeSettingsResponse.mockResolvedValue({
       data: {
@@ -270,9 +300,22 @@ describe('SimurghOperatorPage', () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole('button', { name: /open simurgh settings/i }));
+    await waitFor(() => {
+      expect(mockGetSimurghToolsResponse).toHaveBeenCalledWith({ includeExcluded: false });
+    });
+    expect(screen.getByText('Active tools')).toBeInTheDocument();
+    const openLinks = screen.getAllByRole('link', { name: 'Open' });
+    expect(openLinks.map((link) => link.getAttribute('href'))).toEqual(expect.arrayContaining([
+      '/api/v1/simurgh/tools?include_excluded=false',
+      '/api/v1/simurgh/tool-candidates?limit=200',
+    ]));
+    openLinks.forEach((link) => expect(link).toHaveAttribute('target', '_blank'));
+    const activeToolsPanel = screen.getByLabelText('Active Simurgh MCP tools');
+    expect(within(activeToolsPanel).getByText('Read fleet configuration')).toBeInTheDocument();
+    expect(within(activeToolsPanel).getByText('Read fleet telemetry')).toBeInTheDocument();
+    expect(within(activeToolsPanel).getByText('Guarded')).toBeInTheDocument();
     expect(await screen.findByText('MCP review')).toBeInTheDocument();
     expect(screen.getByText('196')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/api/v1/simurgh/tool-candidates?limit=200');
     fireEvent.change(screen.getByLabelText(/simurgh provider/i), { target: { value: 'openai' } });
     fireEvent.change(screen.getByLabelText(/openai model/i), { target: { value: 'gpt-5.4-nano' } });
     fireEvent.click(screen.getByLabelText(/web search/i));

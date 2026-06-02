@@ -916,7 +916,8 @@
   color: var(--color-warning);
 }
 
-.simurgh-chat__candidate-review {
+.simurgh-chat__candidate-review,
+.simurgh-chat__tool-summary {
   display: grid;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm);
@@ -925,7 +926,8 @@
   background: var(--color-surface-primary);
 }
 
-.simurgh-chat__candidate-review header {
+.simurgh-chat__candidate-review header,
+.simurgh-chat__tool-summary header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -935,7 +937,8 @@
   font-weight: var(--font-weight-bold);
 }
 
-.simurgh-chat__candidate-review header a {
+.simurgh-chat__candidate-review header a,
+.simurgh-chat__tool-summary header a {
   color: var(--color-primary);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
@@ -943,42 +946,70 @@
 }
 
 .simurgh-chat__candidate-review header a:hover,
-.simurgh-chat__candidate-review header a:focus-visible {
+.simurgh-chat__candidate-review header a:focus-visible,
+.simurgh-chat__tool-summary header a:hover,
+.simurgh-chat__tool-summary header a:focus-visible {
   text-decoration: underline;
   text-underline-offset: 0.15rem;
   outline: none;
 }
 
-.simurgh-chat__candidate-review dl {
+.simurgh-chat__candidate-review dl,
+.simurgh-chat__tool-summary dl {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(4.8rem, 1fr));
   gap: var(--spacing-xs);
   margin: 0;
 }
 
-.simurgh-chat__candidate-review dl > div {
+.simurgh-chat__candidate-review dl > div,
+.simurgh-chat__tool-summary dl > div {
   min-width: 0;
   display: grid;
   gap: 0.1rem;
 }
 
-.simurgh-chat__candidate-review dt {
+.simurgh-chat__candidate-review dt,
+.simurgh-chat__tool-summary dt {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
 }
 
-.simurgh-chat__candidate-review dd {
+.simurgh-chat__candidate-review dd,
+.simurgh-chat__tool-summary dd {
   margin: 0;
   color: var(--color-text-primary);
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-bold);
 }
 
-.simurgh-chat__candidate-review small {
+.simurgh-chat__candidate-review small,
+.simurgh-chat__tool-summary small {
   min-width: 0;
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
   overflow-wrap: anywhere;
+}
+
+.simurgh-chat__tool-summary ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.simurgh-chat__tool-summary li {
+  max-width: 100%;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {

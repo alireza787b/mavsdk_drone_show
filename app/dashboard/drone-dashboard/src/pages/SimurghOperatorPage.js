@@ -30,6 +30,7 @@ import {
   getSimurghRuntimeSettingsResponse,
   getSimurghStatusResponse,
   getSimurghToolCandidatesResponse,
+  getSimurghToolsResponse,
   updateSimurghProviderCredentialsResponse,
   updateSimurghRuntimeSettingsResponse,
 } from '../services/gcsApiService';
@@ -453,11 +454,58 @@ function CandidateReviewSummary({ review }) {
   );
 }
 
+function ActiveToolSummary({ toolList }) {
+  if (!toolList) {
+    return null;
+  }
+  const tools = Array.isArray(toolList.tools) ? toolList.tools : [];
+  const readOnly = tools.filter((tool) => tool?.read_only).length;
+  const guarded = tools.filter((tool) => tool?.requires_approval || !tool?.read_only || tool?.destructive).length;
+  const preview = tools
+    .filter((tool) => tool?.read_only)
+    .slice(0, 5)
+    .map((tool) => tool.title || tool.id)
+    .filter(Boolean);
+
+  return (
+    <section className="simurgh-chat__tool-summary" aria-label="Active Simurgh MCP tools">
+      <header>
+        <span>Active tools</span>
+        <a href="/api/v1/simurgh/tools?include_excluded=false" target="_blank" rel="noopener noreferrer">
+          Open
+        </a>
+      </header>
+      <dl>
+        <div>
+          <dt>Visible</dt>
+          <dd>{tools.length}</dd>
+        </div>
+        <div>
+          <dt>Read-only</dt>
+          <dd>{readOnly}</dd>
+        </div>
+        <div>
+          <dt>Guarded</dt>
+          <dd>{guarded}</dd>
+        </div>
+      </dl>
+      {preview.length ? (
+        <ul>
+          {preview.map((title) => <li key={title}>{title}</li>)}
+        </ul>
+      ) : (
+        <small>No read-only tools are currently visible.</small>
+      )}
+    </section>
+  );
+}
+
 function SettingsPanel({
   open,
   settings,
   status,
   candidateReview,
+  activeTools,
   busy,
   notice,
   credentialDraft,
@@ -579,6 +627,7 @@ function SettingsPanel({
           {keyReady ? 'Stored server-side; raw key is never returned.' : 'Key missing for OpenAI provider.'}
         </small>
       </label>
+      <ActiveToolSummary toolList={activeTools} />
       <CandidateReviewSummary review={candidateReview} />
       <footer>
         <ActionIconButton
@@ -1239,6 +1288,7 @@ export default function SimurghOperatorPage() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [settingsNotice, setSettingsNotice] = useState(null);
   const [candidateReview, setCandidateReview] = useState(null);
+  const [activeTools, setActiveTools] = useState(null);
   const [credentialDraft, setCredentialDraft] = useState('');
   const [conversations, setConversations] = useState(() => {
     const stored = readStoredConversations();
@@ -1283,6 +1333,15 @@ export default function SimurghOperatorPage() {
     }
   }, []);
 
+  const loadActiveTools = useCallback(async () => {
+    try {
+      const response = await getSimurghToolsResponse({ includeExcluded: false });
+      setActiveTools(response?.data || null);
+    } catch (error) {
+      setActiveTools(null);
+    }
+  }, []);
+
   const loadStatus = useCallback(async () => {
     setLoading(true);
     setPageError('');
@@ -1302,10 +1361,10 @@ export default function SimurghOperatorPage() {
         setPageError(normalizeError(statusError, 'Could not load Simurgh status.'));
       }
     } finally {
-      await loadCandidateReview();
+      await Promise.all([loadCandidateReview(), loadActiveTools()]);
       setLoading(false);
     }
-  }, [loadCandidateReview]);
+  }, [loadActiveTools, loadCandidateReview]);
 
   useEffect(() => {
     loadStatus();
@@ -1620,6 +1679,7 @@ export default function SimurghOperatorPage() {
           settings={settings}
           status={status}
           candidateReview={candidateReview}
+          activeTools={activeTools}
           busy={settingsBusy}
           notice={settingsNotice}
           credentialDraft={credentialDraft}
