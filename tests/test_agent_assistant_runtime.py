@@ -1487,6 +1487,225 @@ def test_assistant_turn_summarizes_fleet_ops_sidecar_node_evidence(monkeypatch, 
     assert "No Wi-Fi profile, MAVLink route, repository state, or drone setting was changed" in record.turn.content
 
 
+def test_assistant_turn_summarizes_fleet_enrollment_candidates(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    now_ms = int(time.time() * 1000)
+    deps = SimpleNamespace(
+        get_fleet_candidates_payload=lambda include_inactive=True, runtime_mode="current": {
+            "runtime_mode_filter": "real",
+            "timestamp": now_ms,
+            "state_counts": {"pending_operator_review": 1, "conflict": 1, "accepted": 1},
+            "candidates": [
+                {
+                    "candidate_id": "real:node-alpha",
+                    "runtime_mode": "real",
+                    "node_uuid": "node-alpha",
+                    "hw_id": "3",
+                    "hostname": "cm4-03",
+                    "primary_control_ip": "198.51.100.33",
+                    "registration_state": "pending_operator_review",
+                    "heartbeat_status": "online",
+                    "heartbeat_age_sec": 4,
+                    "reported_pos_id": "3",
+                },
+                {
+                    "candidate_id": "real:node-bravo",
+                    "runtime_mode": "real",
+                    "node_uuid": "node-bravo",
+                    "hw_id": "2",
+                    "hostname": "cm4-02-replacement",
+                    "ip_addresses": ["198.51.100.22"],
+                    "registration_state": "conflict",
+                    "conflict_reasons": ["hw_id_already_in_fleet"],
+                    "heartbeat_status": "stale",
+                    "heartbeat_age_sec": 120,
+                    "detected_pos_id": "2",
+                },
+                {
+                    "candidate_id": "real:old-node",
+                    "runtime_mode": "real",
+                    "hw_id": "9",
+                    "hostname": "old-node",
+                    "registration_state": "accepted",
+                    "heartbeat_status": "offline",
+                    "heartbeat_age_sec": 3600,
+                },
+            ],
+        }
+    )
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="are there any new boards waiting in fleet enrollment or conflicts?",
+        deps=deps,
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["tool_intent"] == "fleet_enrollment_summary"
+    assert "Fleet Enrollment status from read-only GCS candidate registry" in record.turn.content
+    assert "real:node-alpha" in record.turn.content
+    assert "cm4-03" in record.turn.content
+    assert "pending operator review" in record.turn.content
+    assert "hw id already in fleet" in record.turn.content
+    assert "Presence caution" in record.turn.content
+    assert "Fleet Enrollment" in record.turn.content
+    assert "no candidate was accepted, replaced, recovered, rejected, ignored" in record.turn.content
+    assert "Fleet status from GCS configuration" not in record.turn.content
+
+
+def test_read_tools_answer_no_fleet_enrollment_candidates():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question, classify_mds_read_intent
+
+    deps = SimpleNamespace(
+        get_fleet_candidates_payload=lambda include_inactive=True, runtime_mode="current": {
+            "runtime_mode_filter": "real",
+            "timestamp": int(time.time() * 1000),
+            "state_counts": {},
+            "candidates": [],
+        }
+    )
+
+    assert classify_mds_read_intent("show fleet enrollment candidates") == "fleet_enrollment_summary"
+    answer = answer_mds_read_only_question("show fleet enrollment candidates", deps=deps)
+
+    assert answer is not None
+    assert answer.intent == "fleet_enrollment_summary"
+    assert "do not see any announced companion/board candidates" in answer.content
+    assert "Use [Fleet Enrollment](/fleet-enrollment)" in answer.content
+    assert "mds.fleet.candidates.read" not in answer.content
+
+
+def test_read_tools_answer_fleet_enrollment_registry_error_is_not_empty_status():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        get_fleet_candidates_payload=lambda include_inactive=True, runtime_mode="current": {
+            "runtime_mode_filter": "real",
+            "timestamp": int(time.time() * 1000),
+            "state_counts": {},
+            "candidates": [],
+            "error": "candidate registry unavailable",
+        }
+    )
+
+    answer = answer_mds_read_only_question("show fleet enrollment candidates", deps=deps)
+
+    assert answer is not None
+    assert answer.intent == "fleet_enrollment_summary"
+    assert "could not verify Fleet Enrollment candidates" in answer.content
+    assert "Do not treat this as zero candidates" in answer.content
+    assert "do not see any announced companion/board candidates" not in answer.content
+    assert answer.tool_ids == ("mds.fleet.candidates.read",)
+
+
+def test_fleet_enrollment_classifier_does_not_steal_board_setup_docs_prompt():
+    from agent_runtime.mds_read_tools import classify_mds_read_intent
+
+    assert (
+        classify_mds_read_intent("can you give me link to the doc so where I can read about how to setup new board and setup its env and keys")
+        == "board_setup_help"
+    )
+    assert classify_mds_read_intent("how do I enroll a new board?") == "board_setup_help"
+    assert classify_mds_read_intent("how many pending fleet enrollment candidates are there?") == "fleet_enrollment_summary"
+    assert classify_mds_read_intent("how do I add a new drone and enroll it?") == "add_drone_workflow"
+    assert classify_mds_read_intent("if I want to build new drone 3 on a raspberry pi what should I do?") == "companion_setup_help"
+    assert classify_mds_read_intent("are there any pending fleet enrollment candidates?") == "fleet_enrollment_summary"
+
+
+def test_read_tools_answer_selected_fleet_enrollment_candidate():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        get_fleet_candidates_payload=lambda include_inactive=True, runtime_mode="current": {
+            "runtime_mode_filter": "real",
+            "timestamp": int(time.time() * 1000),
+            "state_counts": {"pending_operator_review": 2},
+            "candidates": [
+                {
+                    "candidate_id": "real:node-alpha",
+                    "runtime_mode": "real",
+                    "node_uuid": "node-alpha",
+                    "hw_id": "3",
+                    "hostname": "cm4-03",
+                    "primary_control_ip": "198.51.100.33",
+                    "registration_state": "pending_operator_review",
+                    "heartbeat_status": "online",
+                    "heartbeat_age_sec": 4,
+                },
+                {
+                    "candidate_id": "real:node-bravo",
+                    "runtime_mode": "real",
+                    "node_uuid": "node-bravo",
+                    "hw_id": "4",
+                    "hostname": "cm4-04",
+                    "primary_control_ip": "198.51.100.44",
+                    "registration_state": "pending_operator_review",
+                    "heartbeat_status": "online",
+                    "heartbeat_age_sec": 9,
+                },
+            ],
+        }
+    )
+
+    answer = answer_mds_read_only_question("show fleet enrollment candidate real:node-bravo", deps=deps)
+
+    assert answer is not None
+    assert answer.intent == "fleet_enrollment_summary"
+    assert "Selected candidate: `real:node-bravo`" in answer.content
+    assert "cm4-04" in answer.content
+    assert "198.51.100.44" in answer.content
+    assert "cm4-03" not in answer.content
+    assert "no candidate was accepted, replaced, recovered" in answer.content
+    assert answer.tool_ids == ("mds.fleet.candidates.read",)
+
+
+def test_read_tools_answer_fleet_enrollment_count_prompt_does_not_select_hw_id():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    deps = SimpleNamespace(
+        get_fleet_candidates_payload=lambda include_inactive=True, runtime_mode="current": {
+            "runtime_mode_filter": "real",
+            "timestamp": int(time.time() * 1000),
+            "state_counts": {"pending_operator_review": 2},
+            "candidates": [
+                {
+                    "candidate_id": "real:node-alpha",
+                    "runtime_mode": "real",
+                    "node_uuid": "node-alpha",
+                    "hw_id": "3",
+                    "hostname": "cm4-03",
+                    "primary_control_ip": "198.51.100.33",
+                    "registration_state": "pending_operator_review",
+                    "heartbeat_status": "online",
+                    "heartbeat_age_sec": 4,
+                },
+                {
+                    "candidate_id": "real:node-bravo",
+                    "runtime_mode": "real",
+                    "node_uuid": "node-bravo",
+                    "hw_id": "4",
+                    "hostname": "cm4-04",
+                    "primary_control_ip": "198.51.100.44",
+                    "registration_state": "pending_operator_review",
+                    "heartbeat_status": "online",
+                    "heartbeat_age_sec": 9,
+                },
+            ],
+        }
+    )
+
+    answer = answer_mds_read_only_question("are there 3 pending fleet enrollment candidates?", deps=deps)
+
+    assert answer is not None
+    assert answer.intent == "fleet_enrollment_summary"
+    assert "Selected candidate" not in answer.content
+    assert "cm4-03" in answer.content
+    assert "cm4-04" in answer.content
+
+
 def test_assistant_turn_answers_command_tracker_summary_from_deps(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")

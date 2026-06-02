@@ -84,6 +84,7 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "docs_help": ("mds.docs.search", "mds.docs.chunk.read"),
     "environment_summary": ("mds.system.env_registry.read", "mds.system.env_gcs.read"),
     "fleet_connectivity": ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+    "fleet_enrollment_summary": ("mds.fleet.candidates.read",),
     "fleet_summary": ("mds.config.fleet.read", "mds.config.positions.read", "mds.config.swarm.read"),
     "general_knowledge": ("simurgh.general_knowledge.read",),
     "git_status_summary": ("mds.git.status.read",),
@@ -302,6 +303,11 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if _looks_like_non_mds_general_question(normalized):
         return None
 
+    if _looks_like_add_drone_enrollment_workflow_question(normalized):
+        return "add_drone_workflow"
+    if _looks_like_fleet_enrollment_workflow_question(normalized):
+        return "board_setup_help"
+
     if topic == "logs" and _looks_like_contextual_log_followup(normalized):
         return "backend_log_summary"
     if topic == "drone_show" and _looks_like_contextual_show_followup(normalized):
@@ -322,6 +328,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "origin_status"
     if _looks_like_sidecar_status_question(normalized):
         return "sidecar_status"
+    if _looks_like_fleet_enrollment_question(normalized):
+        return "fleet_enrollment_summary"
     if _looks_like_system_status_question(normalized):
         return "system_status"
     if _looks_like_environment_summary_question(normalized):
@@ -448,6 +456,8 @@ def answer_mds_read_only_question(
         return tools.fleet_summary(message)
     if intent == "fleet_connectivity":
         return tools.fleet_connectivity(message=message)
+    if intent == "fleet_enrollment_summary":
+        return tools.fleet_enrollment_summary(message=message)
     if intent == "swarm_topology":
         return tools.swarm_topology()
     if intent == "mission_mode_comparison":
@@ -515,6 +525,8 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "drone_show"
     if normalized_intent in {"fleet_summary", "fleet_connectivity"}:
         return "fleet"
+    if normalized_intent == "fleet_enrollment_summary":
+        return "setup"
     if normalized_intent in {"swarm_readiness", "swarm_topology", "operator_help", "mission_mode_comparison"}:
         return "swarm"
     if normalized_intent == "sar_summary":
@@ -1035,6 +1047,102 @@ class MdsReadOnlyTools:
             "fleet_connectivity",
             composer.render(),
             ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
+        )
+
+    def fleet_enrollment_summary(self, message: str = "") -> MdsReadToolAnswer:
+        payload = self._fleet_candidates_payload(include_inactive=True, runtime_mode="current")
+        candidates = [_model_payload(item) for item in (payload.get("candidates") or [])]
+        state_counts = _copy_mapping(payload.get("state_counts"))
+        runtime_mode_filter = str(payload.get("runtime_mode_filter") or "current")
+        registry_error = str(payload.get("error") or "").strip()
+        active = [item for item in candidates if _candidate_state(item) in {"pending_operator_review", "conflict"}]
+        selected = _select_candidate_from_message(message, candidates)
+        visible = [selected] if selected else active[:8]
+
+        composer = AnswerComposer()
+        composer.line("Fleet Enrollment status from read-only GCS candidate registry:")
+        composer.blank().table(
+            ("Area", "Current evidence"),
+            (
+                ("Runtime filter", runtime_mode_filter),
+                ("Returned candidates", str(len(candidates))),
+                ("Active review", str(len(active))),
+                ("Conflicts", str(state_counts.get("conflict", 0))),
+                ("Pending review", str(state_counts.get("pending_operator_review", 0))),
+                ("Resolved/history", str(len(candidates) - len(active))),
+                ("Updated", _format_epoch_utc(payload.get("timestamp"))),
+            ),
+        )
+
+        if registry_error:
+            composer.blank().line(
+                "I could not verify Fleet Enrollment candidates because the candidate registry read failed. "
+                "Do not treat this as zero candidates."
+            )
+            composer.blank().line(
+                "Open [Fleet Enrollment](/fleet-enrollment) and check GCS API/service logs before accepting, replacing, recovering, "
+                "rejecting, or ignoring any candidate."
+            )
+            composer.line("This is read-only enrollment inspection; no candidate was accepted, replaced, recovered, rejected, ignored, or synced.")
+            return self._answer(
+                "fleet_enrollment_summary",
+                composer.render(),
+                ("mds.fleet.candidates.read",),
+            )
+
+        if not candidates:
+            composer.blank().line(
+                "I do not see any announced companion/board candidates in this runtime filter right now. "
+                "That means Fleet Enrollment has nothing waiting for operator review from the candidate registry."
+            )
+            composer.blank().line(
+                "Use [Fleet Enrollment](/fleet-enrollment) after a node bootstrap/announce, then verify identity, IP, runtime mode, "
+                "PX4 `SYS_ID`, MAVLink routing, and sidecar profile before accepting anything into the fleet."
+            )
+            composer.line("This is read-only enrollment inspection; no candidate was accepted, replaced, recovered, rejected, ignored, or synced.")
+            return self._answer(
+                "fleet_enrollment_summary",
+                composer.render(),
+                ("mds.fleet.candidates.read",),
+            )
+
+        if selected:
+            selected_id = str(selected.get("candidate_id") or "unknown")
+            composer.blank().line(f"Selected candidate: `{selected_id}`.")
+        elif not active:
+            composer.blank().line("No active candidates are waiting for operator review. Resolved/history rows are still summarized below for context.")
+            visible = candidates[:8]
+        else:
+            composer.blank().line(f"{len(active)} active candidate(s) need operator review.")
+
+        composer.blank().table(
+            ("Candidate", "HW", "Host", "IP", "Runtime", "State", "Heartbeat", "Conflict / hint"),
+            tuple(_candidate_summary_row(item) for item in visible),
+        )
+        if not selected and len(visible) < len(active):
+            composer.line(f"Showing {len(visible)} of {len(active)} active candidate(s); open Fleet Enrollment for the full list.")
+
+        conflicts = [item for item in visible if _candidate_state(item) == "conflict"]
+        if conflicts:
+            composer.blank().line("Conflict meaning:")
+            composer.bullets(_candidate_conflict_line(item) for item in conflicts[:5])
+
+        stale_or_offline = [item for item in visible if _candidate_heartbeat_status(item) in {"stale", "offline", "unknown"}]
+        if stale_or_offline:
+            composer.blank().line("Presence caution:")
+            composer.bullets(_candidate_presence_line(item) for item in stale_or_offline[:5])
+
+        composer.blank().line(
+            "Use [Fleet Enrollment](/fleet-enrollment) for accept/replace/recover/reject/ignore decisions and [Fleet Ops](/fleet-ops) "
+            "for the required post-enrollment repo/config sync."
+        )
+        composer.line(
+            "This is read-only enrollment inspection; no candidate was accepted, replaced, recovered, rejected, ignored, committed, pushed, synced, or commanded."
+        )
+        return self._answer(
+            "fleet_enrollment_summary",
+            composer.render(),
+            ("mds.fleet.candidates.read",),
         )
 
     def autopilot_support(self) -> MdsReadToolAnswer:
@@ -2568,6 +2676,43 @@ class MdsReadOnlyTools:
         except Exception:
             return []
 
+    def _fleet_candidates_payload(self, *, include_inactive: bool = True, runtime_mode: str = "current") -> dict[str, Any]:
+        getter = getattr(self.deps, "get_fleet_candidates_payload", None)
+        if callable(getter):
+            try:
+                return _model_payload(getter(include_inactive=include_inactive, runtime_mode=runtime_mode))
+            except TypeError:
+                return _model_payload(getter())
+            except Exception as exc:
+                return {"candidates": [], "total_candidates": 0, "state_counts": {}, "error": str(exc)}
+
+        list_candidates = getattr(self.deps, "list_fleet_candidates", None)
+        if callable(list_candidates):
+            try:
+                candidates = list_candidates(include_inactive=include_inactive, runtime_mode=runtime_mode)
+            except TypeError:
+                candidates = list_candidates()
+            except Exception as exc:
+                return {"candidates": [], "total_candidates": 0, "state_counts": {}, "error": str(exc)}
+            return _fleet_candidate_list_payload(candidates, runtime_mode_filter=runtime_mode)
+
+        try:
+            from config import load_config
+            from fleet_candidates import get_fleet_candidate_registry
+            from src.settings.runtime import resolve_runtime_mode
+
+            runtime_filter = resolve_runtime_mode().mode if runtime_mode == "current" else runtime_mode
+            if runtime_filter == "all":
+                runtime_filter = None
+            candidates = get_fleet_candidate_registry().list_candidates(
+                load_config=load_config,
+                include_inactive=include_inactive,
+                runtime_mode=runtime_filter,
+            )
+            return _fleet_candidate_list_payload(candidates, runtime_mode_filter=runtime_filter or "all")
+        except Exception as exc:
+            return {"candidates": [], "total_candidates": 0, "state_counts": {}, "error": str(exc)}
+
     def _swarm_assignments(self) -> list[dict[str, Any]]:
         loader = getattr(self.deps, "load_swarm", None)
         if callable(loader):
@@ -3503,6 +3648,8 @@ def _intent_from_contextual_followup(normalized: str, topic: str | None) -> str 
         ):
             return "swarm_topology"
     if topic == "setup":
+        if _looks_like_fleet_enrollment_question(normalized):
+            return "fleet_enrollment_summary"
         if _has_any(normalized, ("companion", "raspberry", "cm4", "pi", "script", "bootstrap", "install")):
             return "companion_setup_help"
         if _has_any(normalized, ("third", "drone 3", "new drone", "add", "another drone")):
@@ -3733,6 +3880,8 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
             return "show_modes_help"
         return "show_summary"
     if domain == "fleet":
+        if _looks_like_fleet_enrollment_question(normalized):
+            return "fleet_enrollment_summary"
         if _looks_like_live_fleet_state_question(normalized):
             return "fleet_connectivity"
         return "fleet_summary"
@@ -3751,6 +3900,8 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
     if domain == "sitl":
         return "sitl_help"
     if domain == "setup":
+        if _looks_like_fleet_enrollment_question(normalized):
+            return "fleet_enrollment_summary"
         if _has_any(normalized, ("companion", "raspberry", "cm4", " pi", "script", "bootstrap", "install")):
             return "companion_setup_help"
         if _has_any(normalized, ("third", "3rd", "drone 3", "new drone", "add drone", "another drone")):
@@ -3995,6 +4146,119 @@ def _looks_like_live_fleet_state_question(normalized: str) -> bool:
             "system status",
             "health",
             "failsafe",
+        ),
+    )
+
+
+def _looks_like_fleet_enrollment_question(normalized: str) -> bool:
+    if _looks_like_fleet_enrollment_workflow_question(normalized):
+        return False
+    if not _has_domain_signal(
+        normalized,
+        (
+            "fleet enrollment",
+            "enrollment",
+            "enroll",
+            "candidate",
+            "candidates",
+            "announced board",
+            "announced boards",
+            "pending board",
+            "pending boards",
+            "waiting board",
+            "waiting boards",
+            "replacement candidate",
+            "recover candidate",
+            "onboarded candidate",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "status",
+            "state",
+            "current",
+            "pending",
+            "waiting",
+            "review",
+            "conflict",
+            "available",
+            "announced",
+            "new",
+            "which",
+            "what",
+            "any",
+            "show",
+            "list",
+            "report",
+            "ready",
+            "can i accept",
+            "accept",
+            "replace",
+            "recover",
+        ),
+    )
+
+
+def _looks_like_fleet_enrollment_workflow_question(normalized: str) -> bool:
+    if not _has_domain_signal(
+        normalized,
+        (
+            "fleet enrollment",
+            "enrollment",
+            "enroll",
+            "candidate",
+            "candidates",
+            "announced board",
+            "pending board",
+            "waiting board",
+            "new board",
+            "new boards",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "how do i",
+            "how to",
+            "what should",
+            "what must",
+            "workflow",
+            "steps",
+            "setup",
+            "set up",
+            "configure",
+            "guide",
+            "doc",
+            "docs",
+            "script",
+            "create",
+            "build",
+        ),
+    )
+
+
+def _looks_like_add_drone_enrollment_workflow_question(normalized: str) -> bool:
+    if not _looks_like_add_drone_workflow_question(normalized):
+        return False
+    if not _has_domain_signal(normalized, ("enroll", "enrollment")):
+        return False
+    return not _has_domain_signal(
+        normalized,
+        (
+            "raspberry",
+            "raspbeery",
+            "raspberry pi",
+            "cm4",
+            "companion",
+            "companion computer",
+            "script",
+            "doc",
+            "docs",
+            "link",
+            "read",
         ),
     )
 
@@ -5349,6 +5613,132 @@ def _model_payload(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _fleet_candidate_list_payload(candidates: Any, *, runtime_mode_filter: str = "current") -> dict[str, Any]:
+    rows = [_model_payload(item) for item in (candidates or [])]
+    state_counts: dict[str, int] = {}
+    runtime_counts: dict[str, int] = {}
+    for item in rows:
+        state = _candidate_state(item)
+        runtime = str(item.get("runtime_mode") or "unknown")
+        state_counts[state] = state_counts.get(state, 0) + 1
+        runtime_counts[runtime] = runtime_counts.get(runtime, 0) + 1
+    return {
+        "candidates": rows,
+        "total_candidates": len(rows),
+        "state_counts": state_counts,
+        "runtime_mode_counts": runtime_counts,
+        "runtime_mode_filter": runtime_mode_filter,
+        "timestamp": int(time.time() * 1000),
+    }
+
+
+def _candidate_state(candidate: Mapping[str, Any]) -> str:
+    return str(_enum_or_value(candidate.get("registration_state")) or "unknown").strip() or "unknown"
+
+
+def _candidate_heartbeat_status(candidate: Mapping[str, Any]) -> str:
+    return str(candidate.get("heartbeat_status") or "unknown").strip().lower() or "unknown"
+
+
+def _select_candidate_from_message(message: str, candidates: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    normalized = _normalize_text(message)
+    if not normalized:
+        return {}
+    for item in candidates:
+        for field in ("candidate_id", "node_uuid", "hostname", "hw_id"):
+            value = str(item.get(field) or "").strip()
+            if _candidate_identifier_matches_message(normalized, field=field, value=value):
+                return _copy_mapping(item)
+    return {}
+
+
+def _candidate_identifier_matches_message(normalized: str, *, field: str, value: str) -> bool:
+    identifier = _normalize_text(value)
+    if not identifier:
+        return False
+    if field == "hw_id":
+        escaped = re.escape(identifier)
+        return any(
+            re.search(pattern, normalized)
+            for pattern in (
+                rf"\bhw\s*[_ -]?\s*id\s*[:#-]?\s*{escaped}\b",
+                rf"\bhw\s*[:#-]?\s*{escaped}\b",
+                rf"\bhardware\s*id\s*[:#-]?\s*{escaped}\b",
+            )
+        )
+    return bool(re.search(rf"(?<![a-z0-9]){re.escape(identifier)}(?![a-z0-9])", normalized))
+
+
+def _candidate_summary_row(candidate: Mapping[str, Any]) -> tuple[str, str, str, str, str, str, str, str]:
+    state = _readable_label(_candidate_state(candidate))
+    conflict = _candidate_conflict_summary(candidate)
+    pos_hint = _candidate_position_hint(candidate)
+    hint = conflict if conflict != "-" else pos_hint
+    return (
+        _candidate_short_id(candidate),
+        str(candidate.get("hw_id") or "unknown"),
+        str(candidate.get("hostname") or candidate.get("node_uuid") or "unknown"),
+        _candidate_ip_summary(candidate),
+        str(candidate.get("runtime_mode") or "unknown"),
+        state,
+        _candidate_heartbeat_label(candidate),
+        hint,
+    )
+
+
+def _candidate_short_id(candidate: Mapping[str, Any]) -> str:
+    value = str(candidate.get("candidate_id") or "unknown").strip() or "unknown"
+    if len(value) <= 18:
+        return value
+    return f"{value[:8]}...{value[-6:]}"
+
+
+def _candidate_ip_summary(candidate: Mapping[str, Any]) -> str:
+    primary = str(candidate.get("primary_control_ip") or candidate.get("netbird_ip") or "").strip()
+    addresses = [str(item) for item in (candidate.get("ip_addresses") or []) if str(item).strip()]
+    if primary:
+        return primary
+    if addresses:
+        return ", ".join(addresses[:2])
+    return "unknown"
+
+
+def _candidate_heartbeat_label(candidate: Mapping[str, Any]) -> str:
+    status = _candidate_heartbeat_status(candidate)
+    age = _as_int(candidate.get("heartbeat_age_sec"))
+    if age is None:
+        return _readable_label(status)
+    return f"{_readable_label(status)}; {_format_seconds_compact(float(age))} old"
+
+
+def _candidate_conflict_summary(candidate: Mapping[str, Any]) -> str:
+    reasons = [str(item) for item in (candidate.get("conflict_reasons") or []) if str(item).strip()]
+    if not reasons:
+        return "-"
+    return "; ".join(_readable_label(item) for item in reasons[:3])
+
+
+def _candidate_position_hint(candidate: Mapping[str, Any]) -> str:
+    reported = str(candidate.get("reported_pos_id") or "").strip()
+    detected = str(candidate.get("detected_pos_id") or "").strip()
+    if reported and detected and reported != detected:
+        return f"reported pos {reported}; detected pos {detected}"
+    if reported:
+        return f"reported pos {reported}"
+    if detected:
+        return f"detected pos {detected}"
+    resolution = str(candidate.get("resolution") or "").strip()
+    return _readable_label(resolution) if resolution else "-"
+
+
+def _candidate_conflict_line(candidate: Mapping[str, Any]) -> str:
+    return f"{_candidate_short_id(candidate)}: {_candidate_conflict_summary(candidate)}. Verify identity/IP/pos_id before any accept or replace action."
+
+
+def _candidate_presence_line(candidate: Mapping[str, Any]) -> str:
+    return f"{_candidate_short_id(candidate)} heartbeat is {_candidate_heartbeat_label(candidate)}; do not enroll it for field use until the node is reachable and identity is confirmed."
+
+
 def _readable_label(value: Any) -> str:
     text = str(_enum_or_value(value) or "unknown").strip() or "unknown"
     return text.replace("_", " ")
@@ -5380,6 +5770,8 @@ def _quickscout_readiness_label(
         return f"not launchable; mission is {state_lower}"
     if not launchable:
         return "not launchable until package blockers are cleared"
+    if quality_notes and requires_revalidation:
+        return "package exists, but not field-ready until stale/implausible mission evidence is reviewed; live launch revalidation required before launch"
     if quality_notes:
         return "package exists, but not field-ready until stale/implausible mission evidence is reviewed"
     if requires_revalidation:
