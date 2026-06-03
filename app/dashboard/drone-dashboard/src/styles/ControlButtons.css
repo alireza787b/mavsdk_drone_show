@@ -125,7 +125,7 @@
 /* Button Variants */
 .control-buttons .save {
     background: linear-gradient(135deg, var(--color-success), color-mix(in srgb, var(--color-success) 76%, var(--color-bg-primary)));
-    color: var(--color-primary-text);
+    color: var(--color-success-contrast);
 }
 
 .control-buttons .save:hover {
@@ -143,7 +143,7 @@
 
 .control-buttons .set-origin {
     background: linear-gradient(135deg, var(--color-info), color-mix(in srgb, var(--color-info) 78%, var(--color-bg-primary)));
-    color: var(--color-primary-text);
+    color: var(--color-info-contrast);
 }
 
 .control-buttons .set-origin:hover {
@@ -152,7 +152,7 @@
 
 .control-buttons .file-upload-btn {
     background: linear-gradient(135deg, var(--color-warning), color-mix(in srgb, var(--color-warning) 80%, var(--color-bg-primary)));
-    color: var(--color-primary-text);
+    color: var(--color-warning-contrast);
 }
 
 .control-buttons .file-upload-btn:hover {
@@ -161,7 +161,7 @@
 
 .control-buttons .export-config {
     background: linear-gradient(135deg, color-mix(in srgb, var(--color-success) 82%, var(--color-bg-primary)), var(--color-success));
-    color: var(--color-primary-text);
+    color: var(--color-success-contrast);
 }
 
 .control-buttons .export-config:hover {
@@ -170,7 +170,7 @@
 
 .control-buttons .sync-drones {
     background: linear-gradient(135deg, var(--color-accent-purple), var(--color-accent-purple-hover));
-    color: var(--color-primary-text);
+    color: var(--color-contrast-on-dark-fill);
 }
 
 .control-buttons .sync-drones:hover {
@@ -179,7 +179,7 @@
 
 .control-buttons .revert {
     background: linear-gradient(135deg, var(--color-danger), color-mix(in srgb, var(--color-danger) 78%, var(--color-bg-primary)));
-    color: var(--color-primary-text);
+    color: var(--color-danger-contrast);
 }
 
 .control-buttons .revert:hover {

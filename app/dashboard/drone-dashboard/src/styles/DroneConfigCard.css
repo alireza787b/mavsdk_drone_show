@@ -813,7 +813,7 @@
 /* Action Buttons - Modern Design */
 .action-button {
   background: var(--color-primary);
-  color: var(--color-text-primary);
+  color: var(--color-primary-text);
   border: none;
   border-radius: var(--border-radius-sm);
   padding: var(--spacing-xs) var(--spacing-sm);
@@ -835,6 +835,7 @@
 
 .action-button.secondary {
   background: var(--color-text-tertiary);
+  color: var(--color-text-inverse);
 }
 
 .action-button.secondary:hover {
@@ -843,6 +844,7 @@
 
 .action-button.danger {
   background: var(--color-danger);
+  color: var(--color-danger-contrast);
 }
 
 .action-button.danger:hover {
@@ -851,6 +853,7 @@
 
 .action-button.success {
   background: var(--color-success);
+  color: var(--color-success-contrast);
 }
 
 .action-button.success:hover {

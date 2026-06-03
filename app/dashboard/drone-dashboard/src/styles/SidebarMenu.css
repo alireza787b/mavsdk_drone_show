@@ -376,8 +376,10 @@
   border: var(--operator-floating-border);
   box-shadow: var(--operator-floating-shadow);
   font-size: var(--font-size-sm);
-  white-space: nowrap;
-  z-index: calc(var(--z-navigation) + 20);
+  max-width: min(18rem, calc(100vw - 96px));
+  overflow-wrap: anywhere;
+  white-space: normal;
+  z-index: calc(var(--z-navigation) + 80);
   font-family: var(--font-family-primary);
   animation: tooltipFadeIn 0.2s ease;
   pointer-events: none;

@@ -42,6 +42,7 @@
     --color-text-tertiary: #9cadc1;
     --color-text-muted: #75869b;
     --color-text-inverse: #08131f;
+    --color-contrast-on-dark-fill: #f8fbff;
 
     /* Border Colors - Dark Theme */
     --color-border-primary: rgba(155, 176, 203, 0.22);
