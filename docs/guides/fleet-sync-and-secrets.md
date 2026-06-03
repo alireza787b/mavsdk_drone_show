@@ -342,6 +342,12 @@ ssh <human-user>@<node-ip>
 sudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'
 ```
 
+The `sudo -u droneshow` command uses the human/admin account's sudo permission.
+It does not need a `droneshow` password. If the human/admin account is not
+passwordless sudo, `sudo` may ask for that human user's password. For remote
+checks, use `sudo -n -u droneshow ...` so the command fails fast when sudo would
+prompt.
+
 Do not set or share a password for `droneshow` as a normal operator workflow.
 Keep it as a locked or key-only service account. If direct service-user SSH is
 required for a controlled deployment, add a named authorized key and document

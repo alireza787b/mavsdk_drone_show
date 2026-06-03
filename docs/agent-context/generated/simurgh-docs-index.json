@@ -1320,7 +1320,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
-      "content_hash": "0947cadc44898716412a7b961ca338bcca8e0d7524c1839ef53cf63f26213268",
+      "content_hash": "e4b52349c073d4580b74a6c3aa9d9eac93fcd6ed0a3a11f86cfadbda49edbdd0",
       "heading": "Runtime User And SSH Access",
       "id": "mds.init_setup:008-01-runtime-user-and-ssh-access",
       "links": [],
@@ -1334,7 +1334,7 @@
         "companion",
         "bootstrap"
       ],
-      "text": "### Runtime User And SSH Access\n\nThe normal companion-node model has two identities:\n\n- a human/admin SSH user, used to log into the board and run `sudo`; and\n- the `droneshow` service user, which owns the MDS checkout, venv, and services.\n\nUse the human/admin account for SSH, then run service-user commands explicitly:\n\n```bash\nssh <human-user>@<node-ip>\nsudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'\n```\n\nDo not create a shared password for `droneshow` as a normal fleet practice. Keep\nit locked or key-only. If a deployment needs direct service-user SSH, install a\nnamed authorized key for that deployment and record it in the site handoff.",
+      "text": "### Runtime User And SSH Access\n\nThe normal companion-node model has two identities:\n\n- a human/admin SSH user, used to log into the board and run `sudo`; and\n- the `droneshow` service user, which owns the MDS checkout, venv, and services.\n\nUse the human/admin account for SSH, then run service-user commands explicitly:\n\n```bash\nssh <human-user>@<node-ip>\nsudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'\n```\n\nThat `sudo -u droneshow` step uses the human/admin account's sudo permission.\nIt does **not** require or check a `droneshow` password. Depending on the site's\nsudo policy, it may ask for the human/admin user's password; if that account has\npasswordless sudo, it will not prompt. For automation, test with `sudo -n -u\ndroneshow ...`; `sudo -n` fails instead of prompting, which makes credential\ngaps visible.\n\nDo not create a shared password for `droneshow` as a normal fleet practice. Keep\nit locked or key-only. If a deployment needs direct service-user SSH, install a\nnamed authorized key for that deployment and record it in the site handoff.",
       "title": "MDS init setup"
     },
     {
@@ -2209,7 +2209,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.raspberry_pi_services/markdown",
-      "content_hash": "d2d33e0317e9a4130c0f67ac5272042ad8bea1403af570e6b6eb0f28da6a2fb0",
+      "content_hash": "78500fbe6f047b28fb70b7b643055dcd899de1295ef8590ec2cd977ab1987221",
       "heading": "SSH And Service-User Model",
       "id": "mds.raspberry_pi_services:004-01-ssh-and-service-user-model",
       "links": [],
@@ -2223,7 +2223,7 @@
         "companion",
         "services"
       ],
-      "text": "## SSH And Service-User Model\n\nCompanion boards should normally be accessed with a human/admin SSH account.\nThe MDS runtime itself runs as `droneshow` unless a deployment explicitly chose\na different service user during bootstrap.\n\nUse this pattern for diagnostics:\n\n```bash\nssh <human-user>@<node-ip>\nsudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'\nsudo systemctl status coordinator git_sync_mds\n```\n\nMost installed services are system services, so service status remains visible\nthrough normal `systemctl status ...` with sudo. Keep `droneshow` as a locked or\nkey-only service account; do not distribute a shared password for it.",
+      "text": "## SSH And Service-User Model\n\nCompanion boards should normally be accessed with a human/admin SSH account.\nThe MDS runtime itself runs as `droneshow` unless a deployment explicitly chose\na different service user during bootstrap.\n\nUse this pattern for diagnostics:\n\n```bash\nssh <human-user>@<node-ip>\nsudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'\nsudo systemctl status coordinator git_sync_mds\n```\n\n`sudo -u droneshow` authenticates through the human/admin user's sudo rights,\nnot through a `droneshow` password. It may prompt for the human/admin password\nunless that account is configured for passwordless sudo. Use `sudo -n -u\ndroneshow ...` in scripts or remote checks so the command fails clearly instead\nof waiting for an interactive prompt.\n\nMost installed services are system services, so service status remains visible\nthrough normal `systemctl status ...` with sudo. Keep `droneshow` as a locked or\nkey-only service account; do not distribute a shared password for it.",
       "title": "Raspberry Pi services guide"
     },
     {
@@ -15966,7 +15966,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.init_setup/markdown",
       "chunk_count": 37,
-      "content_hash": "05724e94da4b756c331d2aa6648c5382571e98e18fecbe7fdc9a7bfccb916af0",
+      "content_hash": "00f316b4aef8f59333e85492d95bf4a9c8fc019b59d9f9550109efbb24d02b34",
       "id": "mds.init_setup",
       "mime_type": "text/markdown",
       "path": "docs/guides/mds-init-setup.md",
@@ -15999,7 +15999,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.raspberry_pi_services/markdown",
       "chunk_count": 32,
-      "content_hash": "ab5545b2156ff9df5b82f70ac9d5d681676b7e5788355ab9252fea97ac1788be",
+      "content_hash": "fc05d181612eeec64ace09eda38d21461b84161fe19b28feffc649cbcf1040b5",
       "id": "mds.raspberry_pi_services",
       "mime_type": "text/markdown",
       "path": "docs/guides/raspberry-pi-services.md",

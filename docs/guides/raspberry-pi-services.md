@@ -44,6 +44,12 @@ sudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --br
 sudo systemctl status coordinator git_sync_mds
 ```
 
+`sudo -u droneshow` authenticates through the human/admin user's sudo rights,
+not through a `droneshow` password. It may prompt for the human/admin password
+unless that account is configured for passwordless sudo. Use `sudo -n -u
+droneshow ...` in scripts or remote checks so the command fails clearly instead
+of waiting for an interactive prompt.
+
 Most installed services are system services, so service status remains visible
 through normal `systemctl status ...` with sudo. Keep `droneshow` as a locked or
 key-only service account; do not distribute a shared password for it.
