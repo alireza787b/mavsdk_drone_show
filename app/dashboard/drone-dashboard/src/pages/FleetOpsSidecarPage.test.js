@@ -259,7 +259,7 @@ describe('FleetOpsSidecarPage', () => {
     expect(screen.getByText('gcs_ops')).toBeInTheDocument();
   });
 
-  test('requires dry-run token acknowledgement before reconcile apply', async () => {
+  test('requires preview token acknowledgement before reconcile apply', async () => {
     dryRunFleetSidecarReconcileResponse.mockResolvedValue({
       data: {
         schema: 'mds.sidecar_profile.v1',
@@ -289,7 +289,7 @@ describe('FleetOpsSidecarPage', () => {
 
     await screen.findByRole('heading', { name: /wi-fi sidecar profiles/i });
     fireEvent.click(await screen.findByLabelText(/select P1\|H1/i));
-    fireEvent.click(screen.getByRole('button', { name: /dry-run reconcile/i }));
+    fireEvent.click(screen.getByRole('button', { name: /preview reconcile/i }));
 
     await waitFor(() => {
       expect(dryRunFleetSidecarReconcileResponse).toHaveBeenCalledWith(
@@ -302,7 +302,7 @@ describe('FleetOpsSidecarPage', () => {
     const applyButton = screen.getByRole('button', { name: /apply reconcile/i });
     expect(applyButton).toBeDisabled();
     fireEvent.click(screen.getByLabelText(/acknowledge risks/i));
-    fireEvent.change(screen.getByLabelText(/type dry-run confirmation token/i), {
+    fireEvent.change(screen.getByLabelText(/type preview confirmation token/i), {
       target: { value: 'confirm-token' },
     });
     expect(applyButton).not.toBeDisabled();
@@ -331,7 +331,7 @@ describe('FleetOpsSidecarPage', () => {
     fireEvent.click(await screen.findByLabelText(/select P1\|H1/i));
     fireEvent.change(screen.getByLabelText(/^mode$/i), { target: { value: 'local' } });
 
-    const reconcileButton = screen.getByRole('button', { name: /dry-run reconcile/i });
+    const reconcileButton = screen.getByRole('button', { name: /preview reconcile/i });
     expect(reconcileButton).toBeDisabled();
     expect(reconcileButton).toHaveAttribute('title', expect.stringContaining('inspect-only'));
     expect(dryRunFleetSidecarReconcileResponse).not.toHaveBeenCalled();

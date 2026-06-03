@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FleetOpsPage from './FleetOpsPage';
 import useFetch from '../hooks/useFetch';
@@ -108,6 +108,11 @@ const heartbeatPayload = {
   ],
 };
 
+const nodeBootPayload = {
+  timestamp: 1777049000000,
+  nodes: {},
+};
+
 function mockFleetFeeds() {
   useFetch.mockImplementation((endpoint) => {
     if (endpoint === GCS_ROUTE_KEYS.gitStatus) {
@@ -115,6 +120,9 @@ function mockFleetFeeds() {
     }
     if (endpoint === GCS_ROUTE_KEYS.fleetHeartbeats) {
       return { data: heartbeatPayload, loading: false, error: null };
+    }
+    if (endpoint === GCS_ROUTE_KEYS.fleetNodeBootStatus) {
+      return { data: nodeBootPayload, loading: false, error: null };
     }
     return { data: null, loading: false, error: null };
   });
@@ -124,9 +132,12 @@ function clonePayload(payload) {
   return JSON.parse(JSON.stringify(payload));
 }
 
-function renderFleetOps(props = {}) {
+function renderFleetOps(props = {}, route = '/fleet-ops') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={[route]}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
       <FleetOpsPage {...props} />
     </MemoryRouter>
   );
@@ -179,6 +190,31 @@ describe('FleetOpsPage', () => {
     const attentionCard = screen.getByRole('heading', { name: /hw 2/i }).closest('article');
     expect(within(attentionCard).getAllByText('Offline').length).toBeGreaterThan(0);
     expect(within(attentionCard).getAllByText('Drift').length).toBeGreaterThan(0);
+  });
+
+  test('shows boot/init phase for a node that is on NetBird but not heartbeat-ready', () => {
+    const bootPayload = {
+      timestamp: 1777049000000,
+      nodes: {
+        3: {
+          hw_id: '3',
+          pos_id: 3,
+          ip: '198.51.100.13',
+          runtime_mode: 'real',
+          phase: 'fetch',
+          status: 'running',
+          message: 'Fetching repository updates',
+          timestamp: 1777048999000,
+        },
+      },
+    };
+
+    renderFleetOps({ gitStatusOverride: { ...gitPayload, git_status: {} }, heartbeatOverride: { timestamp: 1777049000000, heartbeats: [] }, nodeBootStatusOverride: bootPayload });
+
+    const card = screen.getByRole('heading', { name: /hw 3/i }).closest('article');
+    expect(within(card).getAllByText('Initializing').length).toBeGreaterThan(0);
+    expect(within(card).getAllByText(/fetching repository updates/i).length).toBeGreaterThan(0);
+    expect(within(card).getByText('REAL')).toBeInTheDocument();
   });
 
   test('drift filter includes sidecar and node-runtime drift, not only repo drift', () => {
@@ -245,7 +281,7 @@ describe('FleetOpsPage', () => {
     expect(screen.getAllByText(/Smart Wi-Fi/).length).toBeGreaterThan(0);
     expect(screen.getByText(/ref v3.0.10; router active; dashboard direct; hash abcdef123456/i)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /open mavlink dashboard/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText(/smart wi-fi is inactive; mode fleet-merge; fleet profile source missing\. add an approved fleet baseline, then use fleet ops wi-fi dry-run\/apply\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
+    expect(screen.getByText(/smart wi-fi is inactive; mode fleet-merge; fleet profile source missing\. add an approved fleet baseline, then use fleet ops wi-fi preview\/apply\. hash drift 666666666666 -> 555555555555/i)).toBeInTheDocument();
     expect(screen.getByText('222222222222')).toBeInTheDocument();
     expect(screen.getByText('333333333333')).toBeInTheDocument();
   });
@@ -275,7 +311,7 @@ describe('FleetOpsPage', () => {
     expect(screen.getAllByLabelText(/open mavlink dashboard is local-only/i).length).toBeGreaterThan(0);
   });
 
-  test('sync action dry-runs selected nodes before explicit apply', async () => {
+  test('sync action previews selected nodes before explicit apply', async () => {
     dryRunFleetGitSyncResponse.mockResolvedValue({
       data: {
         job_id: 'git-sync-1',
@@ -299,18 +335,17 @@ describe('FleetOpsPage', () => {
     fireEvent.change(screen.getByLabelText(/fleet ops mutation token/i), { target: { value: 'operator-token' } });
     expect(window.sessionStorage.getItem('fleetOpsMutationToken')).toBe('operator-token');
     fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
-    fireEvent.click(screen.getByRole('button', { name: /dry-run sync/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sync now/i }));
 
     await waitFor(() => {
       expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
     });
-    expect(await screen.findByText(/git sync dry-run ready/i)).toBeInTheDocument();
-    const confirmButton = screen.getByRole('button', { name: /confirm apply/i });
+    expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/no commands have been sent yet/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/type git sync dry-run confirmation token/i)).not.toBeInTheDocument();
+    const confirmButton = screen.getByRole('button', { name: /apply updates/i });
     expect(confirmButton).toBeDisabled();
-    fireEvent.click(screen.getByLabelText(/acknowledge risks/i));
-    fireEvent.change(screen.getByLabelText(/type git sync dry-run confirmation token/i), {
-      target: { value: 'confirm-1' },
-    });
+    fireEvent.click(screen.getByLabelText(/i reviewed this preview/i));
     expect(confirmButton).not.toBeDisabled();
     fireEvent.click(confirmButton);
 
@@ -323,6 +358,91 @@ describe('FleetOpsPage', () => {
         },
       });
     });
-    expect(await screen.findByText(/sync verified: 1 of 1 drones now match gcs/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/sync verified: 1 of 1 drones now match gcs/i)).length).toBeGreaterThan(0);
+  });
+
+  test('shows visible apply progress while update commands are being dispatched', async () => {
+    let resolveApply;
+    dryRunFleetGitSyncResponse.mockResolvedValue({
+      data: {
+        job_id: 'git-sync-1',
+        confirmation_token: 'confirm-1',
+        results: {
+          2: { ok: true, pos_id: 2 },
+        },
+      },
+    });
+    applyFleetGitSyncResponse.mockReturnValue(new Promise((resolve) => {
+      resolveApply = resolve;
+    }));
+
+    renderFleetOps();
+
+    fireEvent.click(screen.getByRole('button', { name: /select drone 2/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sync now/i }));
+    await screen.findByText(/review sync preview/i);
+    fireEvent.click(screen.getByLabelText(/i reviewed this preview/i));
+    fireEvent.click(screen.getByRole('button', { name: /apply updates/i }));
+
+    expect(await screen.findByText(/sync in progress/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /applying/i })).toBeDisabled();
+
+    await act(async () => {
+      resolveApply({
+        data: {
+          success: true,
+          message: 'Sync verified: 1 of 1 drones now match GCS',
+          synced_drones: [2],
+          failed_drones: [],
+        },
+      });
+    });
+
+    expect((await screen.findAllByText(/sync verified: 1 of 1 drones now match gcs/i)).length).toBeGreaterThan(0);
+  });
+
+  test('sync warning route opens sync tab and preselects online drifted nodes', async () => {
+    const onlineHeartbeats = clonePayload(heartbeatPayload);
+    onlineHeartbeats.heartbeats[1].online = true;
+    onlineHeartbeats.heartbeats[1].last_heartbeat = 1777048999500;
+
+    renderFleetOps(
+      { heartbeatOverride: onlineHeartbeats },
+      '/fleet-ops?tab=sync&filter=drift&scope=needs-sync',
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/1 selected/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('heading', { name: /hw 1/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
+  });
+
+  test('sync warning route with autoplan builds a preview review plan without applying', async () => {
+    const onlineHeartbeats = clonePayload(heartbeatPayload);
+    onlineHeartbeats.heartbeats[1].online = true;
+    onlineHeartbeats.heartbeats[1].last_heartbeat = 1777048999500;
+    dryRunFleetGitSyncResponse.mockResolvedValue({
+      data: {
+        job_id: 'git-sync-auto-1',
+        confirmation_token: 'confirm-auto-1',
+        target_branch: 'main',
+        target_commit: 'abcdef1234567890',
+        results: {
+          2: { ok: true, pos_id: 2 },
+        },
+      },
+    });
+
+    renderFleetOps(
+      { heartbeatOverride: onlineHeartbeats },
+      '/fleet-ops?tab=sync&filter=drift&scope=needs-sync&autoplan=1',
+    );
+
+    await waitFor(() => {
+      expect(dryRunFleetGitSyncResponse).toHaveBeenCalledWith({ pos_ids: [2] });
+    });
+    expect(await screen.findByText(/review sync preview/i)).toBeInTheDocument();
+    expect(applyFleetGitSyncResponse).not.toHaveBeenCalled();
   });
 });

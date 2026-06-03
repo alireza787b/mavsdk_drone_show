@@ -219,7 +219,7 @@
 /* Navigation Section - No Scrolling Design */
 .sidebar-nav {
   flex: 1;
-  padding: var(--spacing-sm) var(--spacing-base);
+  padding: var(--spacing-xs) var(--spacing-base) var(--spacing-sm);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -248,8 +248,8 @@
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--color-text-secondary);
-  padding: var(--spacing-sm) var(--spacing-base);
-  margin-top: var(--spacing-sm);
+  padding: calc(var(--spacing-sm) * 0.75) var(--spacing-base) calc(var(--spacing-xs) * 0.75);
+  margin-top: calc(var(--spacing-sm) * 0.75);
   user-select: none;
   font-family: var(--font-family-primary);
 }
@@ -269,7 +269,7 @@
   color: var(--color-text-secondary);
   transition: var(--transition-all);
   position: relative;
-  min-height: 44px;
+  min-height: 40px;
   font-family: var(--font-family-primary);
   font-weight: var(--font-weight-semibold);
   border: 1px solid transparent;
@@ -277,8 +277,8 @@
 
 .nav-item.collapsed {
   justify-content: center;
-  padding: var(--spacing-sm);
-  min-height: 44px;
+  padding: calc(var(--spacing-sm) * 0.9);
+  min-height: 40px;
 }
 
 .nav-item::before {
@@ -369,15 +369,15 @@
 .nav-tooltip {
   position: fixed;
   transform: translateY(-50%);
-  background: var(--color-surface-raised);
+  background: var(--operator-floating-background);
   color: var(--color-text-primary);
   padding: var(--spacing-sm) var(--spacing-base);
   border-radius: var(--border-radius-base);
-  border: 1px solid var(--color-border-secondary);
-  box-shadow: var(--shadow-lg);
+  border: var(--operator-floating-border);
+  box-shadow: var(--operator-floating-shadow);
   font-size: var(--font-size-sm);
   white-space: nowrap;
-  z-index: var(--z-tooltip);
+  z-index: calc(var(--z-navigation) + 20);
   font-family: var(--font-family-primary);
   animation: tooltipFadeIn 0.2s ease;
   pointer-events: none;
@@ -414,7 +414,7 @@
   width: 0;
   height: 0;
   border: 3px solid transparent;
-  border-right-color: var(--color-surface-raised);
+  border-right-color: var(--operator-floating-background);
   transform: translateY(-50%);
 }
 

@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   FaBroadcastTower,
   FaCheck,
@@ -48,6 +48,20 @@ const FILTERS = [
   { key: 'online', label: 'Online' },
   { key: 'offline', label: 'Offline' },
   { key: 'drift', label: 'Drift' },
+];
+
+const SYNC_STEPS = {
+  preview: 'Preview',
+  review: 'Review',
+  apply: 'Apply',
+  verify: 'Verify',
+};
+
+const syncSteps = (states = {}) => [
+  { label: SYNC_STEPS.preview, state: states.preview || 'pending' },
+  { label: SYNC_STEPS.review, state: states.review || 'pending' },
+  { label: SYNC_STEPS.apply, state: states.apply || 'pending' },
+  { label: SYNC_STEPS.verify, state: states.verify || 'pending' },
 ];
 
 function toPrimitiveTone(tone) {
@@ -402,7 +416,11 @@ function NodeDetails({ row, activeTab }) {
         </div>
         <div>
           <dt>Runtime Sync</dt>
-          <dd>{gitSync.summary || 'No node-local git sync runtime state has been recorded yet.'}</dd>
+          <dd>{gitSync.summary || row.boot.detail || 'No node-local git sync runtime state has been recorded yet.'}</dd>
+        </div>
+        <div>
+          <dt>Boot phase</dt>
+          <dd>{row.boot.detail}</dd>
         </div>
         <div>
           <dt>Reconcile</dt>
@@ -417,6 +435,7 @@ function NodeDetails({ row, activeTab }) {
   return (
     <div className="fleet-ops-status-grid">
       <StatusMetric icon={FaBroadcastTower} label="Link" status={row.presence} />
+      <StatusMetric icon={FaServer} label="Boot" status={row.boot} />
       <StatusMetric icon={FaSyncAlt} label="Repo" status={row.sync} />
       <StatusMetric icon={FaKey} label="Auth" status={row.auth} />
       <StatusMetric icon={FaSatelliteDish} label="MAVLink" status={row.mavlink} />
@@ -450,6 +469,11 @@ function NodeCard({ row, activeTab, selected, onToggleSelected }) {
           <StatusBadge tone={toPrimitiveTone(row.presence.tone)} className="fleet-ops-pill" aria-label={row.presence.detail}>
             {row.presence.label}
           </StatusBadge>
+          {row.boot.state !== 'unknown' ? (
+            <StatusBadge tone={toPrimitiveTone(row.boot.tone)} className="fleet-ops-pill" aria-label={row.boot.detail}>
+              {row.boot.label}
+            </StatusBadge>
+          ) : null}
           <StatusBadge tone={row.runtimeMode === 'real' ? 'success' : row.runtimeMode === 'sitl' ? 'info' : 'muted'} className={`fleet-ops-pill fleet-ops-pill--${row.runtimeMode === 'real' ? 'real' : row.runtimeMode === 'sitl' ? 'sitl' : 'muted'}`}>
             {row.runtimeModeLabel}
           </StatusBadge>
@@ -489,6 +513,7 @@ function filterRows(rows, query, filter) {
       row.shortCommit,
       row.accessLabel,
       row.runtimeModeLabel,
+      row.boot.detail,
       row.sync.detail,
       row.auth.detail,
       row.nodeSyncRuntime.detail,
@@ -498,31 +523,68 @@ function filterRows(rows, query, filter) {
   });
 }
 
-export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverride = null }) {
+function countGitSyncResults(results, ok) {
+  return Object.values(results || {}).filter((result) => Boolean(result && result.ok) === ok).length;
+}
+
+function SyncProgressPanel({ progress }) {
+  if (!progress || progress.phase === 'idle') {
+    return null;
+  }
+
+  return (
+    <section
+      className={'fleet-ops-sync-progress is-' + (progress.tone || 'neutral')}
+      aria-label="Fleet Ops sync progress"
+      aria-live="polite"
+      role="status"
+    >
+      <div className="fleet-ops-sync-progress__copy">
+        <strong>{progress.title}</strong>
+        <span>{progress.message}</span>
+      </div>
+      <ol className="fleet-ops-sync-progress__steps">
+        {(progress.steps || []).map((step) => (
+          <li key={step.label} className={'is-' + (step.state || 'pending')}>
+            <span aria-hidden="true" />
+            <p>{step.label}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverride = null, nodeBootStatusOverride = null }) {
+  const location = useLocation();
+  const urlScopeAppliedRef = useRef();
+  const urlAutoPlanAppliedRef = useRef();
   const [activeTab, setActiveTab] = useState('overview');
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [selectedKeys, setSelectedKeys] = useState(() => new Set());
   const [actionState, setActionState] = useState({ running: false, message: '', tone: 'neutral' });
   const [pendingGitSync, setPendingGitSync] = useState(null);
+  const [syncProgress, setSyncProgress] = useState({ phase: 'idle' });
   const [gitSyncAck, setGitSyncAck] = useState(false);
-  const [gitSyncConfirmText, setGitSyncConfirmText] = useState('');
   const [opsToken, setOpsToken] = useState(() => {
     if (typeof window === 'undefined') return '';
     return window.sessionStorage?.getItem('fleetOpsMutationToken') || '';
   });
   const gitStatusFetch = useFetch(gitStatusOverride ? null : GCS_ROUTE_KEYS.gitStatus, 5000);
   const heartbeatFetch = useFetch(heartbeatOverride ? null : GCS_ROUTE_KEYS.fleetHeartbeats, 3000);
+  const nodeBootStatusFetch = useFetch(nodeBootStatusOverride ? null : GCS_ROUTE_KEYS.fleetNodeBootStatus, 3000);
   const connectivityProfileFetch = useFetch(gitStatusOverride ? null : GCS_ROUTE_KEYS.connectivityProfile, 10000);
   const gitStatus = gitStatusOverride || gitStatusFetch.data;
   const heartbeatStatus = heartbeatOverride || heartbeatFetch.data;
+  const nodeBootStatus = nodeBootStatusOverride || nodeBootStatusFetch.data;
   const connectivityProfile = connectivityProfileFetch.data;
   const loading = !gitStatusOverride && gitStatusFetch.loading && !gitStatus;
-  const error = gitStatusFetch.error || heartbeatFetch.error;
+  const error = gitStatusFetch.error || heartbeatFetch.error || nodeBootStatusFetch.error;
 
   const viewModel = useMemo(
-    () => buildFleetOpsViewModel(gitStatus, heartbeatStatus),
-    [gitStatus, heartbeatStatus],
+    () => buildFleetOpsViewModel(gitStatus, heartbeatStatus, nodeBootStatus),
+    [gitStatus, heartbeatStatus, nodeBootStatus],
   );
   const visibleRows = useMemo(
     () => filterRows(viewModel.rows, query, filter),
@@ -537,6 +599,35 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
     [selectedRows],
   );
   const targetLabel = selectedPosIds.length ? `${selectedPosIds.length} selected` : 'all eligible';
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const requestedTab = params.get('tab');
+    const requestedFilter = params.get('filter');
+    if (TABS.some((tab) => tab.key === requestedTab)) {
+      setActiveTab(requestedTab);
+    }
+    if (FILTERS.some((item) => item.key === requestedFilter)) {
+      setFilter(requestedFilter);
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (urlScopeAppliedRef.current === location.search) {
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    if (params.get('scope') !== 'needs-sync' || !viewModel.rows.length) {
+      return;
+    }
+    const syncKeys = viewModel.rows
+      .filter((row) => row.online && row.hasDrift)
+      .map((row) => row.key);
+    if (syncKeys.length) {
+      setSelectedKeys(new Set(syncKeys));
+    }
+    urlScopeAppliedRef.current = location.search;
+  }, [location.search, viewModel.rows]);
 
   const toggleSelected = useCallback((key) => {
     setSelectedKeys((previous) => {
@@ -559,45 +650,90 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
   }, []);
 
   const runGitSync = useCallback(async () => {
-    setActionState({ running: true, message: `Dry-running sync for ${targetLabel} node(s)...`, tone: 'neutral' });
+    setActionState({ running: true, message: 'Planning sync for ' + targetLabel + ' node(s)...', tone: 'neutral' });
+    setSyncProgress({
+      phase: 'planning',
+      tone: 'neutral',
+      title: 'Preparing sync preview',
+      message: 'Checking the GCS commit, selected online drones, and safety gates. No drone has been updated yet.',
+      steps: syncSteps({ preview: 'active' }),
+    });
     setPendingGitSync(null);
     setGitSyncAck(false);
-    setGitSyncConfirmText('');
     try {
       const payload = selectedPosIds.length ? { pos_ids: selectedPosIds } : {};
       const response = await dryRunFleetGitSyncResponse(payload);
       const data = response?.data || {};
       const results = data.results || {};
-      const okCount = Object.values(results).filter((result) => result?.ok).length;
-      const blockedCount = Object.values(results).filter((result) => result && !result.ok).length;
+      const okCount = countGitSyncResults(results, true);
+      const blockedCount = countGitSyncResults(results, false);
+      const targetCommit = data.target_commit ? compactHash(data.target_commit) : 'current GCS commit';
       setPendingGitSync(data);
       setActionState({
         running: false,
         tone: okCount > 0 && blockedCount === 0 ? 'success' : 'warning',
-        message: `Dry-run ready: ${okCount} node(s) eligible${blockedCount ? `, ${blockedCount} blocked` : ''}. Confirm apply to dispatch UPDATE_CODE.`,
+        message: 'Sync plan ready: ' + okCount + ' ready' + (blockedCount ? ', ' + blockedCount + ' blocked' : '') + '. No commands sent yet.',
+      });
+      setSyncProgress({
+        phase: okCount > 0 ? 'ready' : 'blocked',
+        tone: okCount > 0 && blockedCount === 0 ? 'success' : 'warning',
+        title: okCount > 0 ? 'Preview ready' : 'No eligible sync target',
+        message: okCount > 0
+          ? 'Ready to update ' + okCount + ' drone(s) to ' + targetCommit + '. Review the targets before applying.'
+          : 'No online eligible drone can be synced from this plan. Resolve blocked nodes, then plan again.',
+        steps: syncSteps({ preview: 'done', review: okCount > 0 ? 'active' : 'blocked' }),
       });
     } catch (error) {
       setActionState({
         running: false,
         tone: 'danger',
-        message: error?.response?.data?.detail || error?.message || 'Fleet sync dry-run failed.',
+        message: error?.response?.data?.detail || error?.message || 'Fleet sync preview failed.',
+      });
+      setSyncProgress({
+        phase: 'failed',
+        tone: 'danger',
+        title: 'Sync preview failed',
+        message: error?.response?.data?.detail || error?.message || 'Fleet sync preview failed.',
+        steps: syncSteps({ preview: 'blocked' }),
       });
     }
   }, [selectedPosIds, targetLabel]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('scope') !== 'needs-sync' || params.get('autoplan') !== '1') {
+      return;
+    }
+    if (urlAutoPlanAppliedRef.current === location.search) {
+      return;
+    }
+    if (!selectedPosIds.length || actionState.running || pendingGitSync) {
+      return;
+    }
+    urlAutoPlanAppliedRef.current = location.search;
+    runGitSync();
+  }, [actionState.running, location.search, pendingGitSync, runGitSync, selectedPosIds.length]);
 
   const applyGitSync = useCallback(async () => {
     if (!pendingGitSync?.job_id || !pendingGitSync?.confirmation_token) {
       return;
     }
-    if (!gitSyncAck || gitSyncConfirmText !== pendingGitSync.confirmation_token) {
+    if (!gitSyncAck) {
       setActionState({
         running: false,
         tone: 'warning',
-        message: 'Acknowledge risks and type the dry-run confirmation token before applying Fleet Ops sync.',
+        message: 'Review and acknowledge the sync preview before applying updates.',
       });
       return;
     }
-    setActionState({ running: true, message: 'Applying confirmed Fleet Ops sync...', tone: 'neutral' });
+    setActionState({ running: true, message: 'Applying sync and waiting for verification...', tone: 'neutral' });
+    setSyncProgress({
+      phase: 'applying',
+      tone: 'neutral',
+      title: 'Sync in progress',
+      message: 'Sending the approved update command to each ready drone, then verifying that node commits match GCS.',
+      steps: syncSteps({ preview: 'done', review: 'done', apply: 'active' }),
+    });
     try {
       const response = await applyFleetGitSyncResponse({
         dry_run_id: pendingGitSync.job_id,
@@ -612,11 +748,17 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
         : '';
       setPendingGitSync(null);
       setGitSyncAck(false);
-      setGitSyncConfirmText('');
       setActionState({
         running: false,
         tone: data.success ? 'success' : 'warning',
         message: `${data.message || 'Sync completed.'}${failed}`,
+      });
+      setSyncProgress({
+        phase: data.success ? 'success' : 'attention',
+        tone: data.success ? 'success' : 'warning',
+        title: data.success ? 'Sync verified' : 'Sync needs attention',
+        message: (data.message || 'Sync completed.') + failed,
+        steps: syncSteps({ preview: 'done', review: 'done', apply: 'done', verify: data.success ? 'done' : 'blocked' }),
       });
     } catch (error) {
       setActionState({
@@ -624,13 +766,20 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
         tone: 'danger',
         message: error?.response?.data?.detail || error?.message || 'Fleet sync apply failed.',
       });
+      setSyncProgress({
+        phase: 'failed',
+        tone: 'danger',
+        title: 'Sync apply failed',
+        message: error?.response?.data?.detail || error?.message || 'Fleet sync apply failed.',
+        steps: syncSteps({ preview: 'done', review: 'done', apply: 'blocked' }),
+      });
     }
-  }, [gitSyncAck, gitSyncConfirmText, pendingGitSync]);
+  }, [gitSyncAck, pendingGitSync]);
 
   const cancelGitSync = useCallback(() => {
     setPendingGitSync(null);
     setGitSyncAck(false);
-    setGitSyncConfirmText('');
+    setSyncProgress({ phase: 'idle' });
   }, []);
 
   const updateOpsToken = useCallback((value) => {
@@ -645,6 +794,10 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
     }
   }, []);
 
+  const pendingGitSyncReadyCount = pendingGitSync ? countGitSyncResults(pendingGitSync.results, true) : 0;
+  const pendingGitSyncBlockedCount = pendingGitSync ? countGitSyncResults(pendingGitSync.results, false) : 0;
+  const pendingGitSyncBranch = pendingGitSync?.target_branch || viewModel.gcsStatus?.branch || 'current branch';
+  const pendingGitSyncCommit = pendingGitSync?.target_commit ? compactHash(pendingGitSync.target_commit) : 'current GCS commit';
   const connectivityProfileLabel = connectivityProfile?.profile_present
     ? `Wi-Fi ${compactHash(connectivityProfile.profile_hash)}`
     : 'Wi-Fi profile unset';
@@ -792,45 +945,65 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
           <button type="button" onClick={clearSelection} disabled={!selectedRows.length || actionState.running} aria-label="Clear node selection">
             Clear
           </button>
-          <button type="button" className="is-primary" onClick={runGitSync} disabled={actionState.running}>
-            <FaSyncAlt /> {actionState.running ? 'Running' : 'Dry-run sync'}
+          <button
+            type="button"
+            className={actionState.running && syncProgress.phase === 'planning' ? 'is-primary is-busy' : 'is-primary'}
+            onClick={runGitSync}
+            disabled={actionState.running}
+            aria-label="Plan Fleet Ops sync now"
+            aria-busy={actionState.running && syncProgress.phase === 'planning'}
+          >
+            <FaSyncAlt /> {actionState.running ? 'Working' : 'Sync now'}
           </button>
         </div>
       </section>
 
+      <SyncProgressPanel progress={syncProgress} />
+
       {pendingGitSync ? (
         <section className="fleet-ops-confirm" aria-label="Confirm Fleet Ops git sync">
-          <div>
-            <strong>Git sync dry-run ready</strong>
-            <span>
-              {Object.values(pendingGitSync.results || {}).filter((result) => result?.ok).length} eligible node(s).
-              Applying dispatches UPDATE_CODE only to the dry-run targets.
-            </span>
+          <div className="fleet-ops-confirm__copy">
+            <strong>Review sync preview</strong>
+            <span>No commands have been sent yet. Apply updates only the ready drones shown in this preview.</span>
+            <dl className="fleet-ops-confirm__facts">
+              <div>
+                <dt>Ready</dt>
+                <dd>{pendingGitSyncReadyCount}</dd>
+              </div>
+              <div>
+                <dt>Blocked</dt>
+                <dd>{pendingGitSyncBlockedCount}</dd>
+              </div>
+              <div>
+                <dt>Branch</dt>
+                <dd>{pendingGitSyncBranch}</dd>
+              </div>
+              <div>
+                <dt>Commit</dt>
+                <dd>{pendingGitSyncCommit}</dd>
+              </div>
+            </dl>
           </div>
-          <label>
+          <label className="fleet-ops-confirm__ack">
             <input
               type="checkbox"
               checked={gitSyncAck}
               onChange={(event) => setGitSyncAck(event.target.checked)}
             />
-            Acknowledge risks
+            I reviewed this preview and want to apply updates to the ready drones.
           </label>
-          <input
-            type="text"
-            value={gitSyncConfirmText}
-            onChange={(event) => setGitSyncConfirmText(event.target.value)}
-            placeholder="Dry-run token"
-            aria-label="Type git sync dry-run confirmation token"
-          />
-          <button type="button" onClick={cancelGitSync} disabled={actionState.running}>Cancel</button>
-          <button
-            type="button"
-            className="is-primary"
-            onClick={applyGitSync}
-            disabled={actionState.running || !gitSyncAck || gitSyncConfirmText !== pendingGitSync.confirmation_token}
-          >
-            <FaShieldAlt /> Confirm apply
-          </button>
+          <div className="fleet-ops-confirm__actions">
+            <button type="button" onClick={cancelGitSync} disabled={actionState.running}>Cancel</button>
+            <button
+              type="button"
+              className={actionState.running && syncProgress.phase === 'applying' ? 'is-primary is-busy' : 'is-primary'}
+              onClick={applyGitSync}
+              disabled={actionState.running || !gitSyncAck || !pendingGitSyncReadyCount}
+              aria-busy={actionState.running && syncProgress.phase === 'applying'}
+            >
+              <FaShieldAlt /> {actionState.running && syncProgress.phase === 'applying' ? 'Applying...' : 'Apply updates'}
+            </button>
+          </div>
         </section>
       ) : null}
 

@@ -124,15 +124,50 @@ Use the split below:
 Recommended current practical model:
 
 - GCS:
-  - SSH write credential
+  - SSH write credential or GitHub App-backed automation credential when the GCS
+    must publish repo changes
 - drones / private SITL:
-  - `MDS_GIT_AUTH_TOKEN_FILE`
+  - read-only deploy key via `MDS_GIT_SSH_KEY_FILE`, or read-only token file via
+    `MDS_GIT_AUTH_TOKEN_FILE`
 
 Do not:
 
 - reuse the GCS write key on every node
 - embed raw credentials into repo URLs
 - store raw secrets in git
+
+### Recommended private-repo credential matrix
+
+| Runtime | Access | Recommended credential | Notes |
+|---------|--------|------------------------|-------|
+| Drone / companion node | Read-only | Repository deploy key, read-only | Best current fit for one repo per fleet; private key stays on that node or provisioned image. |
+| Private SITL / validation host | Read-only | Token file or read-only deploy key | Use disposable credentials for temporary CI/SITL hosts. |
+| GCS publishing host | Write, only if publish-from-GCS is enabled | Separate write-capable deploy key or GitHub App | Do not copy this credential to drones. |
+| Multi-repo / enterprise automation | Fine-grained read/write | GitHub App | Preferred long-term model when token lifecycle and repo scoping matter. |
+
+GitHub deploy-key facts to preserve in reviews:
+
+- a deploy key is an SSH key attached to one repository, not a user account;
+- deploy keys are read-only by default, but can be granted write access when
+  added to a repository;
+- a deploy key cannot be reused across multiple repositories;
+- write-capable deploy keys can push to the repository and must be treated like
+  production write credentials;
+- new GitHub organizations may disallow repository deploy-key creation by
+  policy, and enterprise policy can prevent org owners from overriding it;
+- GitHub recommends GitHub Apps for finer-grained access and lifecycle control.
+
+Primary references:
+
+- GitHub Docs: [Managing deploy keys](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys)
+- GitHub Docs: [Restricting deploy keys in your organization](https://docs.github.com/en/enterprise-cloud@latest/organizations/managing-organization-settings/restricting-deploy-keys-in-your-organization)
+- GitHub Changelog: [Repository deploy keys are controlled by enterprise and organization policy](https://github.blog/changelog/2024-10-23-repository-deploy-keys-are-controlled-by-enterprise-and-organization-policy-ga/)
+
+If adding deploy keys is blocked in a customer repository, ask the repository or
+organization owner to check **Organization Settings -> Member privileges ->
+Deploy keys** and any enterprise repository-management policy. If policy should
+stay locked down, use a GitHub App or approved machine-user flow instead of
+trying to bypass the restriction.
 
 ## 4. How A Fleet Change Should Propagate
 
@@ -293,10 +328,24 @@ If you are writing automation or using an AI agent:
 
 ## 9. Service User Reality
 
-Current runtime examples and deployed scripts still use the `droneshow` service
-user on nodes.
+Current runtime examples and deployed scripts use the `droneshow` service user
+on nodes.
 
-That is the current supported operational truth.
+That is the current supported operational truth. Human field operators may SSH
+with a human/admin account, but MDS files and services are owned by the service
+account.
+
+Normal access pattern:
+
+```bash
+ssh <human-user>@<node-ip>
+sudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'
+```
+
+Do not set or share a password for `droneshow` as a normal operator workflow.
+Keep it as a locked or key-only service account. If direct service-user SSH is
+required for a controlled deployment, add a named authorized key and document
+who owns it; do not create a common fleet password.
 
 Service-user parameterization is part of the broader runtime cleanup program,
 but operators and automation should still treat `droneshow` as the active node
@@ -310,7 +359,7 @@ runtime user today unless the deployment explicitly says otherwise.
 | default repo / branch / fleet channel | `deployment/defaults.env` |
 | actual host runtime selection | `/etc/mds/gcs.env`, `/etc/mds/local.env` |
 | node identity | `/etc/mds/node_identity.json`, `MDS_HW_ID` |
-| private repo read credential | local secret file + `MDS_GIT_AUTH_TOKEN_FILE` |
+| private repo read credential | local secret file + `MDS_GIT_SSH_KEY_FILE` or `MDS_GIT_AUTH_TOKEN_FILE` |
 | GCS write credential | local secret file / SSH key on the GCS only |
 | fleet default Wi-Fi profile | `deployment/connectivity/smart-wifi-manager/profile.json` in the fleet repo |
 | board-specific MAVLink input path | host-local runtime override |

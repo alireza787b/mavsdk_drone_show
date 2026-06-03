@@ -168,8 +168,7 @@
   color: var(--color-text-primary);
 }
 
-.fleet-ops-actions__token-input,
-.fleet-ops-confirm input[type="text"] {
+.fleet-ops-actions__token-input {
   min-height: 2.3rem;
   min-width: 180px;
   padding: 0.45rem 0.65rem;
@@ -212,41 +211,182 @@
 }
 
 .fleet-ops-actions__link:hover,
-.fleet-ops-actions__link:focus-visible,
-.fleet-ops-actions__buttons button.is-primary {
+.fleet-ops-actions__link:focus-visible {
   border-color: rgba(var(--color-primary-rgb), 0.35);
   background: rgba(var(--color-primary-rgb), 0.12);
   color: var(--color-primary);
 }
 
+.fleet-ops-actions__buttons button.is-primary {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.fleet-ops-actions__buttons button.is-primary:hover,
+.fleet-ops-actions__buttons button.is-primary:focus-visible {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+  color: var(--color-primary-text);
+}
+
 .fleet-ops-actions__buttons button:disabled {
-  opacity: 0.5;
+  opacity: var(--operator-control-disabled-opacity);
   cursor: not-allowed;
 }
 
-.fleet-ops-confirm {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.85rem;
-  align-items: center;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--color-warning-border);
-  border-radius: var(--border-radius-lg);
-  background: var(--color-warning-light);
+.fleet-ops-actions__buttons button.is-busy svg,
+.fleet-ops-confirm button.is-busy svg {
+  animation: fleet-ops-spin 0.95s linear infinite;
 }
 
-.fleet-ops-confirm div {
+@keyframes fleet-ops-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fleet-ops-sync-progress,
+.fleet-ops-confirm {
+  border-radius: var(--border-radius-xl);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.fleet-ops-sync-progress {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(280px, 1.1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border-secondary);
+}
+
+.fleet-ops-sync-progress.is-success {
+  border-color: var(--color-success-border);
+}
+
+.fleet-ops-sync-progress.is-warning,
+.fleet-ops-sync-progress.is-neutral {
+  border-color: var(--color-warning-border);
+}
+
+.fleet-ops-sync-progress.is-danger {
+  border-color: var(--color-danger-border);
+}
+
+.fleet-ops-sync-progress__copy,
+.fleet-ops-confirm__copy {
   display: grid;
   gap: 0.25rem;
 }
 
+.fleet-ops-sync-progress strong,
 .fleet-ops-confirm strong {
   color: var(--color-text-primary);
 }
 
+.fleet-ops-sync-progress span,
 .fleet-ops-confirm span {
   color: var(--color-text-secondary);
   font-size: 0.86rem;
+}
+
+.fleet-ops-sync-progress__steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fleet-ops-sync-progress__steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-surface-inset);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.fleet-ops-sync-progress__steps li > span {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  border: 2px solid currentColor;
+}
+
+.fleet-ops-sync-progress__steps li p {
+  margin: 0;
+}
+
+.fleet-ops-sync-progress__steps li.is-active {
+  color: var(--color-primary);
+  border-color: var(--color-primary-border);
+}
+
+.fleet-ops-sync-progress__steps li.is-done {
+  color: var(--color-success);
+  border-color: var(--color-success-border);
+}
+
+.fleet-ops-sync-progress__steps li.is-blocked {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+.fleet-ops-sync-progress__steps li.is-pending {
+  opacity: 0.72;
+}
+
+.fleet-ops-confirm {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(220px, 0.8fr) auto;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-warning-border);
+}
+
+.fleet-ops-confirm__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(72px, 1fr));
+  gap: 0.5rem;
+  margin: 0.45rem 0 0;
+}
+
+.fleet-ops-confirm__facts div {
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-surface-inset);
+}
+
+.fleet-ops-confirm__facts dt {
+  color: var(--color-text-secondary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fleet-ops-confirm__facts dd {
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .fleet-ops-confirm label {
@@ -256,6 +396,13 @@
   color: var(--color-text-primary);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.fleet-ops-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
 }
 
 .fleet-ops-confirm button {
@@ -276,9 +423,22 @@
 }
 
 .fleet-ops-confirm button.is-primary {
-  border-color: var(--color-success-border);
-  background: var(--color-success-light);
-  color: var(--color-success);
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-success-contrast);
+  box-shadow: var(--shadow-sm);
+}
+
+.fleet-ops-confirm button.is-primary:hover,
+.fleet-ops-confirm button.is-primary:focus-visible {
+  border-color: var(--color-success-hover);
+  background: var(--color-success-hover);
+  color: var(--color-success-contrast);
+}
+
+.fleet-ops-confirm button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .fleet-ops-toolbar label {
@@ -701,7 +861,9 @@
   }
 
   .fleet-ops-toolbar,
-  .fleet-ops-actions {
+  .fleet-ops-actions,
+  .fleet-ops-sync-progress,
+  .fleet-ops-confirm {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
@@ -712,6 +874,10 @@
 
   .fleet-ops-actions {
     flex-direction: column;
+  }
+
+  .fleet-ops-confirm__actions {
+    justify-content: flex-start;
   }
 
   .fleet-ops-actions__buttons button {
@@ -750,6 +916,11 @@
 
   .fleet-ops-actions__buttons {
     width: 100%;
+  }
+
+  .fleet-ops-sync-progress__steps,
+  .fleet-ops-confirm__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .fleet-ops-actions__buttons button {

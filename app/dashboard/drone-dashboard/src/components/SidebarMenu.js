@@ -152,46 +152,51 @@ const SidebarMenu = ({
 
   const menuSections = [
     {
-      label: 'General',
+      label: 'Operate',
       items: [
-        { to: '/', icon: FaTachometerAlt, label: 'Dashboard' },
+        { to: '/', icon: FaTachometerAlt, label: 'Overview' },
         { to: '/mission-config', icon: FaCog, label: 'Mission Config' },
-        { to: '/fleet-enrollment', icon: FaUserCheck, label: 'Fleet Enrollment' },
-        { to: '/fleet-ops', icon: FaNetworkWired, label: 'Fleet Ops' },
-        { to: '/px4-parameters', icon: FaSlidersH, label: 'PX4 Parameters' },
-        { to: '/globe-view', icon: FaGlobe, label: '3D Globe View' },
-      ],
-    },
-    {
-      label: 'Drone Show',
-      items: [
+        { to: '/swarm-design', icon: FaCubes, label: 'Smart Swarm' },
         { to: '/manage-drone-show', icon: FaMagic, label: 'Show Design' },
-        { to: '/custom-show', icon: FaGem, label: 'Custom Show' },
       ],
     },
     {
-      label: 'Smart Swarm',
+      label: 'Plan',
       items: [
-        { to: '/swarm-design', icon: FaCubes, label: 'Swarm Design' },
         { to: '/quickscout', icon: FaSearchLocation, label: 'QuickScout SAR' },
         { to: '/swarm-trajectory', icon: FaProjectDiagram, label: 'Swarm Trajectory' },
-        { to: '/trajectory-planning', icon: FaRoute, label: 'Advanced Route Editor' },
+        { to: '/trajectory-planning', icon: FaRoute, label: 'Route Editor' },
+        { to: '/custom-show', icon: FaGem, label: 'Custom CSV Show' },
       ],
     },
     {
-      label: 'System',
+      label: 'Fleet',
       items: [
+        { to: '/fleet-ops', icon: FaNetworkWired, label: 'Fleet Ops' },
+        { to: '/fleet-enrollment', icon: FaUserCheck, label: 'Enrollment' },
+        { to: '/px4-parameters', icon: FaSlidersH, label: 'PX4 Params' },
+        { to: '/environments', icon: FaKey, label: 'Environment' },
+      ],
+    },
+    {
+      label: 'Diagnose',
+      items: [
+        { to: '/logs', icon: FaClipboardList, label: 'Logs' },
+        { to: '/globe-view', icon: FaGlobe, label: 'Globe' },
         {
           to: '/runtime-admin',
           icon: FaServer,
-          label: 'GCS Runtime',
+          label: 'Runtime',
           attention: runtimeStatus.restartRequired ? 'Apply' : '',
           attentionTone: runtimeStatus.restartRequired ? 'warning' : 'neutral',
         },
-        { to: '/environments', icon: FaSlidersH, label: 'Environments' },
-        { to: '/simurgh', icon: FaUserShield, label: 'Simurgh Operator' },
-        { to: '/sitl-control', icon: FaDocker, label: 'SITL Control' },
-        { to: '/logs', icon: FaClipboardList, label: 'Log Viewer' },
+        { to: '/sitl-control', icon: FaDocker, label: 'SITL' },
+      ],
+    },
+    {
+      label: 'AI',
+      items: [
+        { to: '/simurgh', icon: FaUserShield, label: 'Simurgh' },
       ],
     },
   ];

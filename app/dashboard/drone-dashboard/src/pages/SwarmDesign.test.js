@@ -18,10 +18,15 @@ jest.mock('../hooks/useNormalizedTelemetry', () => ({
 
 jest.mock('../components/DroneCard', () => {
   const React = require('react');
-  return React.forwardRef(({ drone }, ref) => (
-    <button type="button" ref={ref}>
-      {drone.title || drone.hw_id}
-    </button>
+  return React.forwardRef(({ drone, onAssignmentChange }, ref) => (
+    <div ref={ref}>
+      <button type="button">
+        {drone.title || drone.hw_id}
+      </button>
+      <button type="button" onClick={() => onAssignmentChange?.(drone.hw_id, { offset_x: '8' })}>
+        Edit {drone.hw_id}
+      </button>
+    </div>
   ));
 });
 
@@ -51,6 +56,7 @@ const {
   unwrapSwarmConfigPayload,
 } = require('../services/gcsApiService');
 const { toast } = require('react-toastify');
+const { GIT_REPO } = require('../version');
 
 const renderPage = () => render(
   <MemoryRouter
@@ -91,10 +97,10 @@ describe('SwarmDesign', () => {
   test('renders compact operator shell, docs link, and assignment surfaces', async () => {
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Operational Swarm Design' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Smart Swarm' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /smart swarm guide/i })).toHaveAttribute(
       'href',
-      'https://github.com/alireza787b/mavsdk_drone_show/blob/main/docs/features/smart-swarm.md'
+      `https://github.com/${GIT_REPO}/blob/main/docs/features/smart-swarm.md`
     );
 
     await waitFor(() => {
@@ -134,19 +140,85 @@ describe('SwarmDesign', () => {
 
     renderPage();
 
-    const commitButton = await screen.findByRole('button', { name: /commit smart swarm assignment changes/i });
+    const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
     expect(commitButton).toBeEnabled();
 
     fireEvent.click(commitButton);
-    const dialog = await screen.findByRole('dialog', { name: /commit smart swarm assignments/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: /^commit$/i }));
+    const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
     expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
-    expect(toast.info).toHaveBeenCalledWith('Committing Smart Swarm assignments...');
+    expect(toast.info).toHaveBeenCalledWith('Publishing Smart Swarm assignments...');
+    const progress = await screen.findByLabelText(/smart swarm save progress/i);
+    expect(progress).toBeInTheDocument();
+    expect(within(progress).getByText(/save draft/i)).toBeInTheDocument();
+    expect(within(progress).getByText(/^commit$/i)).toBeInTheDocument();
+    expect(within(progress).getByText(/^push$/i)).toBeInTheDocument();
   });
 
-  test('keeps commit available when swarm json is saved but not committed', async () => {
+  test('reports git failure as a local save with failed commit instead of success', async () => {
+    getFleetConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, pos_id: 1, ip: '10.0.0.11' },
+        { hw_id: 2, pos_id: 2, ip: '10.0.0.12' },
+        { hw_id: 3, pos_id: 3, ip: '10.0.0.13' },
+      ],
+    });
+    getSwarmConfigResponse.mockResolvedValue({
+      data: [
+        { hw_id: 1, follow: 0, offset_x: 0, offset_y: 0, offset_z: 0, frame: 'ned' },
+        { hw_id: 2, follow: 1, offset_x: 4, offset_y: 0, offset_z: 0, frame: 'ned' },
+      ],
+    });
+    saveSwarmConfigResponse.mockResolvedValue({
+      data: {
+        status: 'git_failed',
+        message: 'Swarm configuration saved locally, but git commit/push failed: Git push failed: authenticated write access is required',
+        git_result: {
+          success: false,
+          message: 'Git push failed: authenticated write access is required',
+        },
+      },
+    });
+
+    renderPage();
+
+    const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
+    fireEvent.click(commitButton);
+    const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /^publish$/i }));
+
+    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
+    expect((await screen.findAllByText(/saved locally, commit failed/i)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/authenticated write access is required/i).length).toBeGreaterThan(0);
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringMatching(/saved locally.*failed/i));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  test('keeps publish available immediately after save-only without waiting for git polling', async () => {
+    saveSwarmConfigResponse.mockResolvedValue({
+      data: {
+        message: 'Smart Swarm configuration saved successfully.',
+      },
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: /edit 2/i }));
+    const saveButton = screen.getByRole('button', { name: /save smart swarm draft on this gcs/i });
+    expect(saveButton).toBeEnabled();
+
+    fireEvent.click(saveButton);
+    const dialog = await screen.findByRole('dialog', { name: /save draft smart swarm assignments/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /save draft/i }));
+
+    await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: false }));
+    expect((await screen.findAllByText(/publish is available now/i)).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /publish smart swarm assignment changes/i })).toBeEnabled();
+  });
+
+  test('keeps publish available when swarm json is saved but not committed', async () => {
     getFleetConfigResponse.mockResolvedValue({ data: [] });
     getSwarmConfigResponse.mockResolvedValue({
       data: [
@@ -176,17 +248,17 @@ describe('SwarmDesign', () => {
 
     renderPage();
 
-    const commitButton = await screen.findByRole('button', { name: /commit smart swarm assignment changes/i });
+    const commitButton = await screen.findByRole('button', { name: /publish smart swarm assignment changes/i });
     await waitFor(() => expect(commitButton).toBeEnabled());
-    expect(await screen.findByText(/swarm\.json is saved on this GCS and still needs git commit/i)).toBeInTheDocument();
+    expect(await screen.findByText(/swarm\.json is saved on this GCS and still needs to be published/i)).toBeInTheDocument();
 
     fireEvent.click(commitButton);
-    const dialog = await screen.findByRole('dialog', { name: /commit smart swarm assignments/i });
+    const dialog = await screen.findByRole('dialog', { name: /publish smart swarm assignments/i });
     expect(within(dialog).getByText(/saved swarm\.json change pending git commit/i)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: /^commit$/i }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(saveSwarmConfigResponse).toHaveBeenCalledTimes(1));
     expect(saveSwarmConfigResponse).toHaveBeenCalledWith(expect.any(Array), { commit: true });
-    expect(await screen.findByText(/Changes pushed to repository successfully/i)).toBeInTheDocument();
+    expect((await screen.findAllByText(/Changes pushed to repository successfully/i)).length).toBeGreaterThan(0);
   });
 });

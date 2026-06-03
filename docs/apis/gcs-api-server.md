@@ -544,6 +544,70 @@ Get heartbeat status for all drones.
 }
 ```
 
+#### `POST /api/v1/fleet/node-boot-status`
+Receive a best-effort boot/init status report from a drone node before the
+normal coordinator heartbeat is available.
+
+This route is intended for field observability only. It lets Fleet Ops show
+states such as git sync, runtime reconcile, restart pending, success, or error
+while a board is visible on the network but not yet ready in MDS. A boot-status
+report never marks a drone online, commandable, or flight-ready; only accepted
+mode-matched heartbeats do that.
+
+**Request:**
+```json
+{
+  "hw_id": "2",
+  "pos_id": 2,
+  "runtime_mode": "real",
+  "status": "running",
+  "phase": "fetch",
+  "message": "Fetching latest repo state",
+  "ip": "198.51.100.12"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Node boot status received",
+  "node": {
+    "hw_id": "2",
+    "phase": "fetch",
+    "status": "running",
+    "timestamp": 1700000000000,
+    "first_seen": 1700000000000
+  },
+  "server_time": 1700000000000
+}
+```
+
+#### `GET /api/v1/fleet/node-boot-status`
+Get the latest boot/init status reports keyed by hardware ID.
+
+Fleet Ops merges this payload with git status and heartbeat state. If a node has
+recent boot status but no accepted heartbeat, the UI may show it as
+`Initializing`, but it remains offline for command/readiness decisions.
+
+**Response:**
+```json
+{
+  "nodes": {
+    "2": {
+      "hw_id": "2",
+      "runtime_mode": "real",
+      "status": "running",
+      "phase": "restart",
+      "message": "Restarting coordinator after runtime sync",
+      "timestamp": 1700000000000,
+      "first_seen": 1700000000000
+    }
+  },
+  "timestamp": 1700000000000
+}
+```
+
 #### `GET /api/v1/fleet/network-status`
 Get network connectivity status for all drones.
 
@@ -1488,6 +1552,7 @@ Important semantics:
 - drone-side execution-start and execution-result callbacks are now retried through a bounded in-memory queue with backoff and per-command coalescing when GCS is temporarily unreachable; duplicate callback delivery is idempotent, so brief network loss should degrade into delayed tracker updates rather than permanently missing terminal state.
 - execution-start and execution-result callbacks also count as authoritative acceptance evidence. If the original GCS->drone HTTP ACK was lost or temporarily marked offline, the tracker upgrades that target to accepted once execution is confirmed.
 - once a command already reached `phase=terminal`, later ACK/execution callbacks no longer rewrite its final outcome. They are exposed under `late_reports` as post-terminal evidence for audit/debugging only.
+- failed execution reports preserve the first concrete per-drone reason in `error_summary` and the execution `details` object, so dashboards, logs, and assistants should show that reason instead of only saying that all executions failed.
 - strict synchronized offboard missions (`DRONE_SHOW_FROM_CSV`, `CUSTOM_CSV_DRONE_SHOW`, `SWARM_TRAJECTORY`, `HOVER_TEST`) stop GCS-side retries once the safe queue window before `trigger_time - trigger_sooner_seconds - COMMAND_SYNC_DISPATCH_GUARD_SEC` has passed, and the drone runtime aborts if actual mission start slips beyond `SYNCHRONIZED_MISSION_LATE_START_TOLERANCE_SEC`.
 - standalone actions such as `TAKEOFF` are not treated as strict synchronized choreography. Once accepted, they still use bounded drone-local startup retries, but they do not keep rejoining a missed synchronized timeline after the safe window has passed.
 

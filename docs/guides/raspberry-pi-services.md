@@ -30,6 +30,24 @@ coordinator.service ────────────────────
 
 ## Services Overview
 
+## SSH And Service-User Model
+
+Companion boards should normally be accessed with a human/admin SSH account.
+The MDS runtime itself runs as `droneshow` unless a deployment explicitly chose
+a different service user during bootstrap.
+
+Use this pattern for diagnostics:
+
+```bash
+ssh <human-user>@<node-ip>
+sudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'
+sudo systemctl status coordinator git_sync_mds
+```
+
+Most installed services are system services, so service status remains visible
+through normal `systemctl status ...` with sudo. Keep `droneshow` as a locked or
+key-only service account; do not distribute a shared password for it.
+
 ### 1. led_indicator.service
 
 **Purpose:** Set initial boot LED to RED
@@ -262,8 +280,22 @@ journalctl -u git_sync_mds --since "10 minutes ago"
 
 **Git sync fails:**
 - Check network: `ping github.com`
-- Check SSH keys: `ssh -T git@github.com`
+- Check service-user repo access, not only the human SSH user's keys:
+  `sudo -u droneshow -H ssh -T git@github.com`
+- If `MDS_GIT_SSH_KEY_FILE` is set, test with that exact key:
+  `sudo -u droneshow -H bash -lc 'set -a; . /etc/mds/local.env; set +a; cd ~/mavsdk_drone_show && GIT_SSH_COMMAND="ssh -i $MDS_GIT_SSH_KEY_FILE -o IdentitiesOnly=yes" git ls-remote origin HEAD'`
 - Force retry: `./tools/recovery.sh force-sync`
+
+**Board is online on NetBird but not yet visible in MDS:**
+- Wait for the boot chain: network online -> `git_sync_mds.service` -> optional
+  sidecar reconcile -> `coordinator.service` heartbeat.
+- Check `journalctl -u git_sync_mds --since "10 minutes ago"` for repo-auth,
+  pull, service-reload, or queued-restart messages.
+- Check `journalctl -u coordinator --since "10 minutes ago"` for heartbeat,
+  MAVLink, and GCS API errors.
+- In Fleet Ops, an initializing node should appear before it is heartbeat-ready
+  when node boot status is reported; use that as operator evidence instead of
+  repeatedly rebooting the board.
 
 **Optional Smart Wi-Fi Manager not converging:**
 - Check status: `sudo /opt/smart-wifi-manager/configure_smart_wifi_manager.sh --help`

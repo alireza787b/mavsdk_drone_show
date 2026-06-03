@@ -98,6 +98,94 @@ function buildGitResultMessage(gitResult) {
   return parts.length > 0 ? parts.join(' · ') : 'Git write-back finished.';
 }
 
+function getSwarmSaveGitResult(responseData) {
+  return responseData?.git_result || responseData?.git_info || null;
+}
+
+function classifySwarmSaveOutcome(responseData, withCommit) {
+  const gitResult = getSwarmSaveGitResult(responseData);
+  const status = String(responseData?.status || 'success');
+
+  if (!withCommit) {
+    return {
+      tone: 'warning',
+      title: 'Draft saved',
+      message: 'Draft saved on this GCS. Publish is available now.',
+      stepStates: ['done', 'skipped', 'skipped'],
+      gitResult,
+    };
+  }
+
+  if (status === 'git_failed' || gitResult?.success === false) {
+    return {
+      tone: 'danger',
+      title: 'Saved locally, commit failed',
+      message: buildGitResultMessage(gitResult),
+      stepStates: ['done', gitResult?.commit_hash ? 'done' : 'blocked', 'blocked'],
+      gitResult,
+    };
+  }
+
+  if (status === 'git_not_pushed' || gitResult?.pushed === false || gitResult?.auto_push_enabled === false) {
+    return {
+      tone: 'warning',
+      title: 'Committed locally, push pending',
+      message: buildGitResultMessage(gitResult),
+      stepStates: ['done', 'done', 'blocked'],
+      gitResult,
+    };
+  }
+
+  return {
+    tone: 'success',
+    title: 'Published',
+    message: `${buildGitResultMessage(gitResult)}. Use Fleet Ops if drones need to pull this commit.`,
+    stepStates: ['done', 'done', 'done'],
+    gitResult,
+  };
+}
+
+function buildSwarmSaveProgress({ title, message, tone = 'info', stepStates = ['pending', 'pending', 'pending'], withCommit = true }) {
+  const labels = ['Save draft', 'Commit', 'Push'];
+  return {
+    title,
+    message,
+    tone,
+    steps: labels.map((label, index) => ({
+      label,
+      state: withCommit ? stepStates[index] : index === 0 ? stepStates[index] : 'skipped',
+    })),
+  };
+}
+
+function SwarmSaveProgress({ progress }) {
+  if (!progress) {
+    return null;
+  }
+
+  return (
+    <section
+      className={'swarm-save-progress is-' + (progress.tone || 'info')}
+      aria-label="Smart Swarm save progress"
+      aria-live="polite"
+      role="status"
+    >
+      <div className="swarm-save-progress__copy">
+        <strong>{progress.title}</strong>
+        <span>{progress.message}</span>
+      </div>
+      <ol className="swarm-save-progress__steps">
+        {(progress.steps || []).map((step) => (
+          <li key={step.label} className={'is-' + (step.state || 'pending')}>
+            <span aria-hidden="true" />
+            <p>{step.label}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function SwarmDesign() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -119,6 +207,8 @@ function SwarmDesign() {
   const [gitStatus, setGitStatus] = useState(null);
   const [gitStatusLoading, setGitStatusLoading] = useState(false);
   const [saveReport, setSaveReport] = useState(null);
+  const [saveProgress, setSaveProgress] = useState(null);
+  const [localSwarmCommitPending, setLocalSwarmCommitPending] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const requestedDroneId = String(searchParams.get('drone') || '').trim();
   const { data: telemetryById = {} } = useNormalizedTelemetry(GCS_ROUTE_KEYS.fleetTelemetry, 2000) || {};
@@ -144,8 +234,9 @@ function SwarmDesign() {
     () => gcsUncommittedChanges.some((change) => isSwarmJsonChange(change)),
     [gcsUncommittedChanges]
   );
+  const hasCommitPending = hasSavedSwarmCommitPending || localSwarmCommitPending;
   const canUpdateSwarm = hasStagedChanges || hasPendingSync;
-  const canCommitSwarm = canUpdateSwarm || hasSavedSwarmCommitPending;
+  const canCommitSwarm = canUpdateSwarm || hasCommitPending;
   const hasBlockingIssues = viewModel.summary.blockingIssueCount > 0;
   const hasIncompleteInputs = workingAssignments.some((assignment) =>
     ['offset_x', 'offset_y', 'offset_z'].some((field) => hasIncompleteNumericValue(assignment[field]))
@@ -365,6 +456,8 @@ function SwarmDesign() {
   };
 
   const handleAssignmentChange = (hwId, patch) => {
+    setSaveReport(null);
+    setSaveProgress(null);
     setWorkingAssignments((currentAssignments) => (
       currentAssignments.map((assignment) => (
         assignment.hw_id === hwId
@@ -418,6 +511,8 @@ function SwarmDesign() {
         const importedResult = buildWorkingSwarmAssignments(configData, importedAssignments);
 
         setWorkingAssignments(importedResult.assignments);
+        setSaveReport(null);
+        setSaveProgress(null);
 
         const importedCount = importedAssignments.length;
         const defaultedCount = importedResult.syncChanges.addedIds.length;
@@ -523,6 +618,8 @@ function SwarmDesign() {
       onConfirm: () => {
         setConfirmDialog(null);
         setWorkingAssignments(baselineAssignments);
+        setSaveReport(null);
+        setSaveProgress(null);
         toast.info('Reverted local Smart Swarm changes.');
       },
     });
@@ -532,33 +629,68 @@ function SwarmDesign() {
     const operation = withCommit ? 'commit' : 'update';
     setSaveOperation(operation);
     setSaving(true);
+    setSaveProgress(buildSwarmSaveProgress({
+      title: withCommit ? 'Publishing Smart Swarm' : 'Saving Smart Swarm draft',
+      message: withCommit
+        ? 'Saving swarm.json, committing it, then pushing it to the repo.'
+        : 'Saving swarm.json on this GCS. Drones will not pull this until it is published.',
+      tone: 'info',
+      withCommit,
+      stepStates: withCommit ? ['active', 'pending', 'pending'] : ['active', 'skipped', 'skipped'],
+    }));
 
     try {
-      toast.info(withCommit ? 'Committing Smart Swarm assignments...' : 'Updating Smart Swarm assignments...');
+      toast.info(withCommit ? 'Publishing Smart Swarm assignments...' : 'Saving Smart Swarm draft...');
       const response = await saveSwarmConfigResponse(
         toSwarmApiPayload(workingAssignments),
         { commit: withCommit }
       );
 
-      const gitResult = response?.data?.git_result || response?.data?.git_info;
-      if (withCommit && gitResult && gitResult.success === false) {
-        toast.warning("Smart Swarm saved, but git commit failed: " + (gitResult.message || "unknown git error"));
-        setSaveReport({
-          tone: 'warning',
-          title: 'Saved, commit failed',
-          message: buildGitResultMessage(gitResult),
-        });
+      const responseData = response?.data || {};
+      const outcome = classifySwarmSaveOutcome(responseData, withCommit);
+      const gitResult = outcome.gitResult;
+      if (!withCommit) {
+        setLocalSwarmCommitPending(true);
+      } else if (outcome.tone === 'danger') {
+        setLocalSwarmCommitPending(!gitResult?.commit_hash);
       } else {
-        toast.success(response.data.message || (withCommit
-          ? 'Smart Swarm configuration saved and committed successfully.'
-          : 'Smart Swarm configuration saved successfully.'));
+        setLocalSwarmCommitPending(false);
+      }
+      if (withCommit && outcome.tone === 'danger') {
+        toast.warning("Smart Swarm saved locally, but git commit/push failed: " + (gitResult?.message || responseData.message || "unknown git error"));
         setSaveReport({
-          tone: withCommit ? 'success' : 'warning',
-          title: withCommit ? 'Committed' : 'Saved locally',
-          message: withCommit
-            ? buildGitResultMessage(gitResult)
-            : 'Assignments were saved on this GCS. Commit remains available if git status reports swarm.json is still uncommitted.',
+          tone: outcome.tone,
+          title: outcome.title,
+          message: outcome.message,
         });
+        setSaveProgress(buildSwarmSaveProgress({
+          title: outcome.title,
+          message: outcome.message,
+          tone: outcome.tone,
+          withCommit,
+          stepStates: outcome.stepStates,
+        }));
+      } else {
+        const toastMessage = responseData.message || (withCommit
+          ? 'Smart Swarm configuration published successfully.'
+          : 'Smart Swarm configuration saved successfully.');
+        if (withCommit && outcome.tone === 'warning') {
+          toast.warning(toastMessage);
+        } else {
+          toast.success(toastMessage);
+        }
+        setSaveReport({
+          tone: outcome.tone,
+          title: outcome.title,
+          message: outcome.message,
+        });
+        setSaveProgress(buildSwarmSaveProgress({
+          title: outcome.title,
+          message: outcome.message,
+          tone: outcome.tone,
+          withCommit,
+          stepStates: outcome.stepStates,
+        }));
       }
       await refreshFromServer();
       await refreshGitStatus();
@@ -569,6 +701,13 @@ function SwarmDesign() {
         title: withCommit ? 'Commit failed' : 'Update failed',
         message: error?.response?.data?.detail || error?.message || 'GCS did not accept the Smart Swarm save request.',
       });
+      setSaveProgress(buildSwarmSaveProgress({
+        title: withCommit ? 'Commit failed' : 'Update failed',
+        message: error?.response?.data?.detail || error?.message || 'GCS did not accept the Smart Swarm save request.',
+        tone: 'danger',
+        withCommit,
+        stepStates: ['blocked', withCommit ? 'pending' : 'skipped', withCommit ? 'pending' : 'skipped'],
+      }));
       toast.error('Failed to save Smart Swarm configuration.');
     } finally {
       setSaving(false);
@@ -605,16 +744,16 @@ function SwarmDesign() {
       `${viewModel.summary.attentionCount} drone${viewModel.summary.attentionCount === 1 ? '' : 's'} flagged for operator attention`,
     ];
 
-    if (withCommit && hasSavedSwarmCommitPending && !canUpdateSwarm) {
+    if (withCommit && hasCommitPending && !canUpdateSwarm) {
       summaryLines.push('saved swarm.json change pending git commit');
     }
 
     setConfirmDialog({
-      title: `${withCommit ? 'Commit' : 'Update'} Smart Swarm assignments?`,
-      confirmLabel: withCommit ? 'Commit' : 'Update',
+      title: `${withCommit ? 'Publish' : 'Save draft'} Smart Swarm assignments?`,
+      confirmLabel: withCommit ? 'Publish' : 'Save draft',
       message: (
         <div className="swarm-confirm-summary">
-          <p>Apply this assignment set after confirming the topology summary.</p>
+          <p>Review the formation summary before saving this assignment set.</p>
           <ul>
             {summaryLines.map((line) => <li key={line}>{line}</li>)}
           </ul>
@@ -678,8 +817,8 @@ function SwarmDesign() {
     <PageShell
       className="swarm-design-page"
       eyebrow="Smart swarm"
-      title="Operational Swarm Design"
-      subtitle="Audit follow ownership and commit only when the hardware graph is clean."
+      title="Smart Swarm"
+      subtitle="Formation roles, offsets, and git-backed fleet publish."
       icon={<FaProjectDiagram />}
       docsRoute="/swarm-design"
       status={<StatusBadge tone={pageStatusTone}>{pageStatusLabel}</StatusBadge>}
@@ -690,22 +829,30 @@ function SwarmDesign() {
             <ActionIconButton
               key="update"
               icon={<FaSyncAlt />}
-              label="Update Smart Swarm assignments"
+              label="Save Smart Swarm draft on this GCS"
               onClick={() => confirmAndSave(false)}
               tone="info"
+              active={saving && saveOperation === 'update'}
+              aria-busy={saving && saveOperation === 'update'}
+              className={saving && saveOperation === 'update' ? 'is-busy' : ''}
               disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canUpdateSwarm}
+              data-help="Save swarm.json on this GCS only. Publish next when the formation is ready for fleet sync."
             >
-              {saving && saveOperation === 'update' ? 'Updating' : 'Update'}
+              {saving && saveOperation === 'update' ? 'Saving' : 'Save Draft'}
             </ActionIconButton>,
             <ActionIconButton
               key="commit"
               icon={<FaCloudUploadAlt />}
-              label="Commit Smart Swarm assignment changes"
+              label="Publish Smart Swarm assignment changes"
               onClick={() => confirmAndSave(true)}
               tone="success"
+              active={saving && saveOperation === 'commit'}
+              aria-busy={saving && saveOperation === 'commit'}
+              className={saving && saveOperation === 'commit' ? 'is-busy' : ''}
               disabled={saving || hasBlockingIssues || hasIncompleteInputs || !canCommitSwarm}
+              data-help="Save, commit, and push swarm.json. Use Fleet Ops if drones need to pull the latest commit."
             >
-              {saving && saveOperation === 'commit' ? 'Committing' : 'Commit'}
+              {saving && saveOperation === 'commit' ? 'Publishing' : 'Publish'}
             </ActionIconButton>,
           ]}
           secondary={[
@@ -764,23 +911,24 @@ function SwarmDesign() {
 
       <MetricStrip label="Smart Swarm topology summary" items={summaryItems} />
 
-      <section className="swarm-status-strip">
-        <OperatorNotice tone="info" title="Identity model" className="swarm-status-card identity">
-          <span>Slot reassignments change show-slot assignment, not follow-chain targeting.</span>
-        </OperatorNotice>
+      <SwarmSaveProgress progress={saveProgress} />
 
+      <section className="swarm-status-strip">
         {hasPendingSync && (
           <OperatorNotice tone="warning" title="Fleet sync pending" className="swarm-status-card sync">
-            <span>
-              {syncChanges.addedIds.length > 0 && `Add default assignments for drones ${syncChanges.addedIds.join(', ')}. `}
-              {syncChanges.removedIds.length > 0 && `Prune legacy assignments for drones ${syncChanges.removedIds.join(', ')}.`}
+            <span
+              data-help={`${syncChanges.addedIds.length > 0 ? `Add default assignments for drones ${syncChanges.addedIds.join(', ')}. ` : ''}${syncChanges.removedIds.length > 0 ? `Prune legacy assignments for drones ${syncChanges.removedIds.join(', ')}.` : ''}`.trim()}
+            >
+              {pendingSyncIds.length} fleet assignment update{pendingSyncIds.length === 1 ? '' : 's'}
             </span>
           </OperatorNotice>
         )}
 
         {viewModel.summary.roleSwapCount > 0 && (
           <OperatorNotice tone="info" title="Slot reassignments active" className="swarm-status-card note">
-            <span>{viewModel.summary.roleSwapCount} drone{viewModel.summary.roleSwapCount === 1 ? '' : 's'} are flying a different show slot than their hardware ID.</span>
+            <span data-help="One or more drones are assigned to a show slot that differs from their hardware ID.">
+              {viewModel.summary.roleSwapCount} slot swap{viewModel.summary.roleSwapCount === 1 ? '' : 's'}
+            </span>
           </OperatorNotice>
         )}
 
@@ -794,9 +942,9 @@ function SwarmDesign() {
           </OperatorNotice>
         )}
 
-        {(saveReport || gitStatusLoading || hasSavedSwarmCommitPending) && (
+        {(saveReport || gitStatusLoading || hasCommitPending) && (
           <OperatorNotice
-            tone={saveReport?.tone || (hasSavedSwarmCommitPending ? 'warning' : 'info')}
+            tone={saveReport?.tone || (hasCommitPending ? 'warning' : 'info')}
             title={saveReport?.title || (gitStatusLoading ? 'Checking git status' : 'Commit pending')}
             className="swarm-status-card git"
           >
@@ -804,7 +952,9 @@ function SwarmDesign() {
               {saveReport?.message
                 || (gitStatusLoading
                   ? 'Reading GCS repository status.'
-                  : 'swarm.json is saved on this GCS and still needs git commit/write-back.')}
+                  : localSwarmCommitPending
+                    ? 'Draft saved on this GCS. Publish is available now.'
+                    : 'swarm.json is saved on this GCS and still needs to be published to the repo.')}
             </span>
           </OperatorNotice>
         )}
@@ -825,8 +975,7 @@ function SwarmDesign() {
         <section className="swarm-panel swarm-panel--assignments">
           <div className="swarm-panel__header">
             <div>
-              <h2>Assignment Cards</h2>
-              <p>Grouped by top leader so operators can audit follow chains cluster by cluster.</p>
+              <h2>Assignments</h2>
             </div>
 
             <label className="swarm-search-field">
@@ -918,8 +1067,7 @@ function SwarmDesign() {
         <section className="swarm-panel swarm-panel--graph">
           <div className="swarm-panel__header">
             <div>
-              <h2>Follow Chain Graph</h2>
-              <p>Arrows flow leader to follower. Click any node to inspect its upstream and downstream chain.</p>
+              <h2>Topology</h2>
             </div>
           </div>
 
@@ -1002,12 +1150,7 @@ function SwarmDesign() {
       <section className="swarm-panel swarm-panel--plots">
         <div className="swarm-panel__header">
           <div>
-            <h2>Formation Analysis</h2>
-            <p>
-              Cluster plots are relative previews for design review. They are not live telemetry views. Selecting a
-              specific cluster here also sets the cluster-scoped runtime target. &quot;All executable clusters&quot; remains
-              analysis-only.
-            </p>
+            <h2>Formation Preview</h2>
           </div>
         </div>
 

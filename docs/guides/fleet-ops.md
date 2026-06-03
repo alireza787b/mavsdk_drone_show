@@ -10,24 +10,38 @@ Use Fleet Ops to answer:
 - which drones have healthy read-only git access?
 - which drones have healthy MAVLink routing sidecars?
 - which drones need connectivity-sidecar attention?
-- which selected drones should dry-run, sync, reconcile, or change sidecar
-  policy now?
+- which selected drones should preview, apply sync, reconcile, or change
+  sidecar policy now?
 
 Fleet Ops is actionable, but guarded:
 
-- selected-node sync is dry-run first, then confirmed apply;
-- Smart Wi-Fi and MAVLink profile reconcile are dry-run first, then confirmed
+- selected-node sync is preview first, then confirmed apply;
+- Smart Wi-Fi and MAVLink profile reconcile are preview first, then confirmed
   apply;
-- sidecar policy mode changes are dry-run first, then confirmed apply;
+- sidecar policy mode changes are preview first, then confirmed apply;
 - direct dashboard links are shown only when the node reports a reachable URL;
 - local-only sidecar dashboards remain visible as disabled diagnostic icons;
 - raw tokens, private keys, and secret file contents are never shown in browser UI.
 
-A dry-run is the operator preview step for any fleet mutation. It resolves the
+A preview is the operator review step for any fleet mutation. It resolves the
 selected drones, verifies presence/eligibility, reads current node posture, and
 returns the exact sync/reconcile/policy plan without writing files, restarting
 services, changing Wi-Fi, changing MAVLink routes, or changing sidecar policy.
-Apply is a separate confirmed action against the reviewed plan.
+Apply is a separate confirmed action against the reviewed preview. Some API
+routes still use `dry-run` in their path names; the dashboard shows this as
+**Preview** so operators see the workflow rather than an implementation detail.
+
+When the global sync warning banner appears, **Start sync** opens Fleet Ops with
+the Sync tab, Drift filter, and eligible online drifted drones preselected. It
+also starts the git-sync preview automatically so the operator lands directly on
+the review panel. This still does not send `UPDATE_CODE`; the apply step remains
+separate and requires explicit acknowledgement.
+
+The git-sync UI reports progress in four visible stages: `Preview`, `Review`,
+`Apply`, and `Verify`. During apply, the primary button changes to `Applying...`,
+the progress panel becomes a live status region, and the final result remains
+visible as success, warning, or failure. If an apply request is slow over a field
+link, this status is the expected operator evidence that the click was accepted.
 
 ## Data Sources
 
@@ -133,7 +147,7 @@ signals.
 fleet profile source configured for that node does not exist on the node
 checkout. For private fleets, commit a sanitized or approved private baseline at
 `config/fleet-profiles/smart-wifi-manager/config.json`, then use Fleet Ops
-Wi-Fi profile dry-run/apply. For public demos, keep the backend `none`, use
+Wi-Fi profile preview/apply. For public demos, keep the backend `none`, use
 sanitized placeholder profiles, or use a host-local profile source outside git.
 
 When Smart Wi-Fi Manager is configured, Fleet Ops shows the resolved profile
@@ -164,7 +178,7 @@ be field/emergency connectivity. To make a connected drone the new baseline,
 open its redacted node summary, promote a sanitized reference draft, review the
 draft with the operator, commit the approved baseline to
 `config/fleet-profiles/smart-wifi-manager/config.json`, then run reconcile
-dry-run and apply for selected drones. Do not copy raw passwords from node
+preview and apply for selected drones. Do not copy raw passwords from node
 profiles into docs, tickets, public repos, or screenshots.
 
 Fleet Ops MAVLink profile controls live at `/fleet-ops/mavlink` and use the
@@ -211,8 +225,8 @@ Fleet Ops owns drone-side action surfaces:
 - selected-node git sync;
 - selected-node post-sync sidecar reconcile;
 - Smart Wi-Fi and MAVLink profile table/status;
-- Smart Wi-Fi and MAVLink profile reconcile dry-run/apply;
-- sidecar policy mode dry-run/apply;
+- Smart Wi-Fi and MAVLink profile reconcile preview/apply;
+- sidecar policy mode preview/apply;
 - dashboard open links when reachable;
 - git auth posture;
 - MAVLink and Smart Wi-Fi profile drift visibility.

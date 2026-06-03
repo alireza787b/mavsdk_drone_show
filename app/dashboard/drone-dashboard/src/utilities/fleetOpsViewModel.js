@@ -3,6 +3,8 @@ import { areGitRevisionsEquivalent } from './missionIdentityUtils';
 const HEALTHY_VALUES = new Set(['healthy', 'active', 'running', 'synced', 'success', 'ok']);
 const WARNING_VALUES = new Set(['warning', 'degraded', 'unknown', 'inactive']);
 const ERROR_VALUES = new Set(['error', 'failed', 'unhealthy']);
+const ACTIVE_BOOT_PHASES = new Set(['starting', 'locked', 'validation', 'network', 'git_url', 'stash', 'fetch', 'checkout', 'reset', 'validate', 'service_reconcile', 'runtime_reconcile', 'restart']);
+const TERMINAL_BOOT_PHASES = new Set(['success', 'ready']);
 
 export function normalizeRuntimeMode(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -119,8 +121,98 @@ function classifyRuntimeStepTone(value) {
   return classifyTone(value);
 }
 
-export function classifyNodePresence(heartbeat, payloadTimestamp) {
+function normalizeBootPhaseLabel(value) {
+  return String(value || 'unknown')
+    .replaceAll('_', ' ')
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+export function classifyNodeBootStatus(bootStatus, payloadTimestamp) {
+  if (!bootStatus) {
+    return {
+      state: 'unknown',
+      label: 'Unknown',
+      tone: 'muted',
+      detail: 'No boot/init status has been reported.',
+      active: false,
+    };
+  }
+
+  const phase = String(bootStatus.phase || 'unknown').trim().toLowerCase() || 'unknown';
+  const status = String(bootStatus.status || '').trim().toLowerCase();
+  const nowMs = Number(payloadTimestamp || Date.now());
+  const timestampMs = Number(bootStatus.timestamp || 0);
+  const ageSec = timestampMs > 0 && Number.isFinite(nowMs)
+    ? Math.max(0, Math.round((nowMs - timestampMs) / 1000))
+    : null;
+  const stale = ageSec !== null && ageSec > 900;
+  const message = bootStatus.message || normalizeBootPhaseLabel(phase);
+
+  if (status === 'error' || phase === 'error') {
+    return {
+      state: 'error',
+      label: 'Boot error',
+      tone: 'danger',
+      detail: message,
+      ageSec,
+      active: false,
+    };
+  }
+
+  if (status === 'warning' || phase === 'fetch_failed_cached') {
+    return {
+      state: 'warning',
+      label: 'Boot warning',
+      tone: 'warning',
+      detail: message,
+      ageSec,
+      active: false,
+    };
+  }
+
+  if (TERMINAL_BOOT_PHASES.has(phase) || status === 'success') {
+    return {
+      state: stale ? 'stale_success' : 'success',
+      label: stale ? 'Boot stale' : 'Boot OK',
+      tone: stale ? 'muted' : 'good',
+      detail: message,
+      ageSec,
+      active: false,
+    };
+  }
+
+  if (ACTIVE_BOOT_PHASES.has(phase) || status === 'running') {
+    return {
+      state: stale ? 'stale_running' : 'initializing',
+      label: stale ? 'Boot stale' : 'Initializing',
+      tone: stale ? 'warning' : 'warning',
+      detail: message,
+      ageSec,
+      active: !stale,
+    };
+  }
+
+  return {
+    state: 'unknown',
+    label: 'Boot unknown',
+    tone: stale ? 'muted' : 'warning',
+    detail: message,
+    ageSec,
+    active: false,
+  };
+}
+
+export function classifyNodePresence(heartbeat, payloadTimestamp, bootStatus = null) {
+  const boot = classifyNodeBootStatus(bootStatus, payloadTimestamp);
   if (!heartbeat) {
+    if (boot.active) {
+      return {
+        state: 'initializing',
+        label: 'Initializing',
+        tone: 'warning',
+        detail: `Node boot/init phase: ${boot.detail}`,
+      };
+    }
     return {
       state: 'never_seen',
       label: 'Never seen',
@@ -395,7 +487,7 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
       state: 'profile_missing',
       label: 'Profile missing',
       tone: 'warning',
-      detail: `Smart Wi-Fi is ${serviceStatus}; mode ${runtime.mode || 'unknown'}; ${formatConnectivityProfile(runtime)}. Add an approved fleet baseline, then use Fleet Ops Wi-Fi dry-run/apply. ${formatHashMatch(runtime)}.`,
+      detail: `Smart Wi-Fi is ${serviceStatus}; mode ${runtime.mode || 'unknown'}; ${formatConnectivityProfile(runtime)}. Add an approved fleet baseline, then use Fleet Ops Wi-Fi preview/apply. ${formatHashMatch(runtime)}.`,
     };
   }
 
@@ -410,6 +502,7 @@ export function classifyConnectivityRuntime(runtime, runtimeMode = 'unknown') {
 function rowNeedsAttention(row) {
   return !row.online
     || isAttentionTone(row.presence.tone)
+    || isAttentionTone(row.boot.tone)
     || isAttentionTone(row.sync.tone)
     || isAttentionTone(row.auth.tone)
     || isAttentionTone(row.nodeSyncRuntime.tone)
@@ -435,11 +528,26 @@ function normalizeHeartbeatMap(heartbeatPayload) {
   return { heartbeats, byKey };
 }
 
-function makeRow(gitKey, gitStatus, heartbeat, gcsStatus, payloadTimestamp) {
-  const posId = gitStatus?.pos_id ?? heartbeat?.pos_id ?? gitKey;
-  const hwId = gitStatus?.hw_id ?? heartbeat?.hw_id ?? gitKey;
-  const runtimeMode = normalizeRuntimeMode(heartbeat?.runtime_mode || gitStatus?.runtime_mode);
-  const presence = classifyNodePresence(heartbeat, payloadTimestamp);
+function normalizeBootStatusMap(nodeBootPayload) {
+  const nodes = nodeBootPayload?.nodes && typeof nodeBootPayload.nodes === 'object' ? nodeBootPayload.nodes : {};
+  const byKey = new Map();
+  Object.entries(nodes).forEach(([key, node]) => {
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+    [node.hw_id, node.pos_id, key].filter((value) => value !== undefined && value !== null).forEach((value) => {
+      byKey.set(String(value), node);
+    });
+  });
+  return { nodes, byKey };
+}
+
+function makeRow(gitKey, gitStatus, heartbeat, bootStatus, gcsStatus, payloadTimestamp, bootPayloadTimestamp) {
+  const posId = gitStatus?.pos_id ?? heartbeat?.pos_id ?? bootStatus?.pos_id ?? gitKey;
+  const hwId = gitStatus?.hw_id ?? heartbeat?.hw_id ?? bootStatus?.hw_id ?? gitKey;
+  const runtimeMode = normalizeRuntimeMode(heartbeat?.runtime_mode || bootStatus?.runtime_mode || gitStatus?.runtime_mode);
+  const boot = classifyNodeBootStatus(bootStatus, bootPayloadTimestamp || payloadTimestamp);
+  const presence = classifyNodePresence(heartbeat, payloadTimestamp, bootStatus);
   const sync = classifyGitSync(gitStatus, gcsStatus);
   const auth = classifyGitAuth(gitStatus);
   const nodeSyncRuntime = classifyGitSyncRuntime(gitStatus?.git_sync_runtime);
@@ -451,7 +559,7 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus, payloadTimestamp) {
     key: String(hwId || posId || gitKey),
     posId: String(posId || 'unknown'),
     hwId: String(hwId || 'unknown'),
-    ip: heartbeat?.ip || gitStatus?.ip || 'unknown',
+    ip: heartbeat?.ip || bootStatus?.ip || gitStatus?.ip || 'unknown',
     online,
     runtimeMode,
     runtimeModeLabel: formatRuntimeMode(runtimeMode),
@@ -464,12 +572,14 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus, payloadTimestamp) {
     authSummary: gitStatus?.git_auth_health_summary || '',
     sync,
     auth,
+    boot,
     nodeSyncRuntime,
     mavlink,
     connectivity,
     mavlinkRuntime: gitStatus?.mavlink_runtime || null,
     connectivityRuntime: gitStatus?.connectivity_runtime || null,
     gitSyncRuntime: gitStatus?.git_sync_runtime || null,
+    bootStatus: bootStatus || null,
     gitStatus: gitStatus || null,
   };
 
@@ -480,7 +590,7 @@ function makeRow(gitKey, gitStatus, heartbeat, gcsStatus, payloadTimestamp) {
   };
 }
 
-export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
+export function buildFleetOpsViewModel(gitPayload, heartbeatPayload, nodeBootPayload = null) {
   const gitStatusByNode = gitPayload?.git_status && typeof gitPayload.git_status === 'object'
     ? gitPayload.git_status
     : {};
@@ -489,6 +599,7 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
     fleetOps: buildGitHubDocsUrl(gcsStatus.remote_url, gcsStatus.branch, 'docs/guides/fleet-ops.md'),
   };
   const { heartbeats, byKey: heartbeatByKey } = normalizeHeartbeatMap(heartbeatPayload);
+  const { nodes: bootNodes, byKey: bootByKey } = normalizeBootStatusMap(nodeBootPayload);
   const rows = [];
   const seen = new Set();
 
@@ -496,7 +607,10 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
     const heartbeat = heartbeatByKey.get(String(gitStatus?.hw_id || ''))
       || heartbeatByKey.get(String(gitStatus?.pos_id || ''))
       || heartbeatByKey.get(String(key));
-    const row = makeRow(key, gitStatus, heartbeat, gcsStatus, heartbeatPayload?.timestamp);
+    const bootStatus = bootByKey.get(String(gitStatus?.hw_id || ''))
+      || bootByKey.get(String(gitStatus?.pos_id || ''))
+      || bootByKey.get(String(key));
+    const row = makeRow(key, gitStatus, heartbeat, bootStatus, gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp);
     rows.push(row);
     seen.add(row.key);
   });
@@ -504,8 +618,18 @@ export function buildFleetOpsViewModel(gitPayload, heartbeatPayload) {
   heartbeats.forEach((heartbeat) => {
     const key = String(heartbeat.hw_id || heartbeat.pos_id || heartbeat.ip || '');
     if (key && !seen.has(key)) {
-      rows.push(makeRow(key, null, heartbeat, gcsStatus, heartbeatPayload?.timestamp));
+      const bootStatus = bootByKey.get(String(heartbeat.hw_id || ''))
+        || bootByKey.get(String(heartbeat.pos_id || ''));
+      rows.push(makeRow(key, null, heartbeat, bootStatus, gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp));
       seen.add(key);
+    }
+  });
+
+  Object.entries(bootNodes).forEach(([key, bootStatus]) => {
+    const rowKey = String(bootStatus?.hw_id || bootStatus?.pos_id || key || '');
+    if (rowKey && !seen.has(rowKey)) {
+      rows.push(makeRow(rowKey, null, null, bootStatus, gcsStatus, heartbeatPayload?.timestamp, nodeBootPayload?.timestamp));
+      seen.add(rowKey);
     }
   });
 

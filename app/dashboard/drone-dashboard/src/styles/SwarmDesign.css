@@ -16,7 +16,7 @@
 .swarm-cluster-section {
   background: linear-gradient(180deg, var(--color-shadow-light), transparent 100%), var(--color-bg-secondary);
   border: 1px solid var(--color-border-primary);
-  box-shadow: var(--shadow-dark-base);
+  box-shadow: var(--operator-card-shadow-raised);
 }
 
 .swarm-design-actions {
@@ -54,6 +54,16 @@
 .swarm-action-file-button:focus-visible {
   outline: none;
   box-shadow: var(--operator-focus-ring);
+}
+
+.swarm-design-actions .operator-action-icon-button.is-busy .operator-action-icon-button__icon {
+  animation: swarm-action-spin 0.95s linear infinite;
+}
+
+@keyframes swarm-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .swarm-status-strip {
@@ -315,6 +325,101 @@
 
 .swarm-confirm-summary li {
   margin: var(--spacing-xs) 0;
+}
+
+.swarm-save-progress {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.85fr) minmax(280px, 1.15fr);
+  gap: var(--spacing-base);
+  align-items: center;
+  padding: var(--spacing-base);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-xl);
+  background: var(--color-bg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.swarm-save-progress.is-success {
+  border-color: var(--color-success-border);
+}
+
+.swarm-save-progress.is-warning,
+.swarm-save-progress.is-info {
+  border-color: var(--color-warning-border);
+}
+
+.swarm-save-progress.is-danger {
+  border-color: var(--color-danger-border);
+}
+
+.swarm-save-progress__copy {
+  display: grid;
+  gap: var(--spacing-xs);
+}
+
+.swarm-save-progress__copy strong {
+  font-size: var(--font-size-base);
+}
+
+.swarm-save-progress__copy span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.swarm-save-progress__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.swarm-save-progress__steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--spacing-sm);
+  align-items: center;
+  min-height: 2.4rem;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-primary);
+  border-radius: var(--border-radius-lg);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.swarm-save-progress__steps li > span {
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 2px solid currentColor;
+  border-radius: var(--border-radius-full);
+}
+
+.swarm-save-progress__steps li p {
+  margin: 0;
+}
+
+.swarm-save-progress__steps li.is-active {
+  color: var(--color-primary);
+  border-color: var(--color-primary-border);
+}
+
+.swarm-save-progress__steps li.is-done {
+  color: var(--color-success);
+  border-color: var(--color-success-border);
+}
+
+.swarm-save-progress__steps li.is-blocked {
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+.swarm-save-progress__steps li.is-skipped,
+.swarm-save-progress__steps li.is-pending {
+  opacity: 0.68;
 }
 
 .swarm-status-card {
@@ -698,6 +803,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .swarm-save-progress {
+    grid-template-columns: 1fr;
+  }
+
   .swarm-search-field {
     min-width: 0;
     width: 100%;
@@ -717,6 +826,10 @@
     grid-template-columns: 1fr;
   }
 
+  .swarm-save-progress__steps {
+    grid-template-columns: 1fr;
+  }
+
   .swarm-graph-stage {
     min-height: 420px;
   }
@@ -727,7 +840,7 @@
   background:
     radial-gradient(circle at top right, rgba(var(--color-primary-rgb), 0.08), transparent 28%),
     radial-gradient(circle at top left, rgba(var(--color-primary-rgb), 0.05), transparent 24%),
-    linear-gradient(180deg, var(--color-text-primary) 0%, var(--color-bg-canvas) 100%);
+    linear-gradient(180deg, var(--color-bg-primary) 0%, var(--color-bg-canvas) 100%);
 }
 
 [data-theme="light"] .swarm-panel,

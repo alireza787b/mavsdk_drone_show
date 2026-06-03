@@ -71,7 +71,7 @@ const ControlButtons = ({
           <a
             className="sync-drones"
             href="/fleet-ops"
-            data-help="Open Fleet Ops for drone sync dry-run, confirmation, and sidecar reconcile"
+            data-help="Open Fleet Ops for drone sync preview, confirmation, and sidecar reconcile"
           >
             <FaCodeBranch aria-hidden="true" />
             Fleet Ops Sync

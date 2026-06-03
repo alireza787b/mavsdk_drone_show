@@ -111,6 +111,24 @@ curl -fsSL https://raw.githubusercontent.com/alireza787b/mavsdk_drone_show/main/
 `install_mds_node.sh` remains an equivalent packaged entrypoint for automation
 that already references the node-specific filename.
 
+### Runtime User And SSH Access
+
+The normal companion-node model has two identities:
+
+- a human/admin SSH user, used to log into the board and run `sudo`; and
+- the `droneshow` service user, which owns the MDS checkout, venv, and services.
+
+Use the human/admin account for SSH, then run service-user commands explicitly:
+
+```bash
+ssh <human-user>@<node-ip>
+sudo -u droneshow -H bash -lc 'cd ~/mavsdk_drone_show && git status --short --branch'
+```
+
+Do not create a shared password for `droneshow` as a normal fleet practice. Keep
+it locked or key-only. If a deployment needs direct service-user SSH, install a
+named authorized key for that deployment and record it in the site handoff.
+
 ### Option 2: Manual Installation
 
 Use this when the repo is already present on the node, or when you are
@@ -210,6 +228,31 @@ sudo ./tools/mds_node_init.sh -d 1 \
     --git-ssh-key-file /home/droneshow/.ssh/customer_git_read_key \
     -y
 ```
+
+### Private Repo Deploy-Key Checklist
+
+For private customer repositories, provision repo access before expecting reboot
+sync to work unattended:
+
+1. Generate a separate read-only SSH key for each drone or provisioned image.
+2. Add the public key under GitHub repository **Settings -> Deploy keys** without
+   write access.
+3. Put the private key on the node with owner `droneshow` and mode `0600`.
+4. Set `MDS_GIT_SSH_KEY_FILE=/home/droneshow/.ssh/<key-name>` in
+   `/etc/mds/local.env` or pass `--git-ssh-key-file` during init.
+5. Test from the service account:
+
+```bash
+sudo -u droneshow -H bash -lc 'GIT_SSH_COMMAND="ssh -i /home/droneshow/.ssh/<key-name> -o IdentitiesOnly=yes" git ls-remote git@github.com:yourorg/customer-mds.git HEAD'
+```
+
+If GitHub does not let the repository owner add deploy keys, the organization or
+enterprise may restrict them. Ask the org owner to check **Organization Settings
+-> Member privileges -> Deploy keys**. If that policy should remain disabled,
+use a GitHub App or approved machine-user/token model instead.
+
+The GCS may use a separate write-capable credential when it must publish changes.
+Never copy the GCS write credential onto drone nodes.
 
 With an explicit GCS API URL for candidate announce:
 

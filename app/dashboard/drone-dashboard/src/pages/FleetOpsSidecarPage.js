@@ -269,7 +269,7 @@ function driftSummary(state, itemKind) {
   }
   if (state === 'missing_fleet_baseline') return 'A fleet baseline is required before reconcile can apply safely.';
   if (state === 'outdated') return 'Node-local/applied profile hash differs from the desired fleet baseline.';
-  if (state === 'unmanaged') return 'This sidecar is inspect-only unless policy is changed with dry-run/apply.';
+  if (state === 'unmanaged') return 'This sidecar is inspect-only unless policy is changed with preview/apply.';
   if (state === 'unreachable') return 'The node has no fresh sidecar profile report.';
   if (state === 'in_sync') return 'Node profile posture matches the active policy.';
   return 'Use the detail dialog for node-local and repo baseline context.';
@@ -657,7 +657,7 @@ function DryRunApplyDialog({
           {blockedResults.length > 0 && (
             <label><input type="checkbox" checked={allowPartial} onChange={(event) => setAllowPartial(event.target.checked)} /> Confirm partial apply</label>
           )}
-          <input value={confirmText} onChange={(event) => setConfirmText(event.target.value)} placeholder="Dry-run token" aria-label="Type dry-run confirmation token" />
+          <input value={confirmText} onChange={(event) => setConfirmText(event.target.value)} placeholder="Preview token" aria-label="Type preview confirmation token" />
           <button type="button" onClick={onApplyReconcile} disabled={loading || job.kind !== 'reconcile-dry-run' || !canConfirmApply}>
             <FaCheckCircle aria-hidden="true" /> Apply Reconcile
           </button>
@@ -793,20 +793,20 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
   const dryRunReconcile = () => runAction(async () => {
     requireSelection();
     if (!isReconcileMode(mode)) {
-      throw new Error('Reconcile is only available for fleet-merge or fleet-strict modes. Use policy dry-run to change observe/local posture.');
+      throw new Error('Reconcile is only available for fleet-merge or fleet-strict modes. Use policy preview to change observe/local posture.');
     }
     return dryRunFleetSidecarReconcileResponse(sidecar, { node_ids: selected, mode });
   });
 
   const applyReconcile = () => runAction(async () => {
     if (!job?.job_id || job.kind !== 'reconcile-dry-run') {
-      throw new Error('Run reconcile dry-run first.');
+      throw new Error('Run reconcile preview first.');
     }
     if (!ack || confirmText !== job.confirmation_token) {
-      throw new Error('Acknowledge risks and type the dry-run confirmation token before applying.');
+      throw new Error('Acknowledge risks and type the preview confirmation token before applying.');
     }
     if (jobBlockedResults(job).length && !allowPartial) {
-      throw new Error('Dry-run has blocked nodes. Confirm partial apply before continuing.');
+      throw new Error('Preview has blocked nodes. Confirm partial apply before continuing.');
     }
     return applyFleetSidecarReconcileResponse(sidecar, {
       dry_run_id: job.job_id,
@@ -826,10 +826,10 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
 
   const applyPolicy = () => runAction(async () => {
     if (!job?.job_id || job.kind !== 'policy-dry-run') {
-      throw new Error('Run policy dry-run first.');
+      throw new Error('Run policy preview first.');
     }
     if (!ack || confirmText !== job.confirmation_token) {
-      throw new Error('Acknowledge risks and type the dry-run confirmation token before applying.');
+      throw new Error('Acknowledge risks and type the preview confirmation token before applying.');
     }
     return applyFleetSidecarPolicyResponse(sidecar, {
       dry_run_id: job.job_id,
@@ -903,11 +903,11 @@ export default function FleetOpsSidecarPage({ config = SMART_WIFI_SIDECAR_CONFIG
           type="button"
           onClick={dryRunReconcile}
           disabled={reconcileDisabled}
-          title={isReconcileMode(mode) ? 'Dry-run selected node reconcile' : 'Observe/local modes are inspect-only; use policy dry-run to change posture.'}
+          title={isReconcileMode(mode) ? 'Preview selected node reconcile' : 'Observe/local modes are inspect-only; use policy preview to change posture.'}
         >
-          <FaProjectDiagram aria-hidden="true" /> Dry-run Reconcile
+          <FaProjectDiagram aria-hidden="true" /> Preview Reconcile
         </button>
-        <button type="button" onClick={dryRunPolicy} disabled={loading || !selected.length}><FaClipboardCheck aria-hidden="true" /> Dry-run Policy</button>
+        <button type="button" onClick={dryRunPolicy} disabled={loading || !selected.length}><FaClipboardCheck aria-hidden="true" /> Preview Policy</button>
         <input
           className="fleet-sidecar__token-input"
           type="password"

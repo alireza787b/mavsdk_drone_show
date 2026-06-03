@@ -62,7 +62,7 @@ describe('SidebarMenu', () => {
     expect(screen.queryByText('Restart pending')).not.toBeInTheDocument();
     expect(screen.getByText('Apply')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /fleet ops/i })).toHaveAttribute('href', '/fleet-ops');
-    expect(screen.getByRole('link', { name: /simurgh operator/i })).toHaveAttribute('href', '/simurgh');
+    expect(screen.getByRole('link', { name: /simurgh/i })).toHaveAttribute('href', '/simurgh');
     expect(screen.getByRole('link', { name: /open gcs runtime to review runtime mode/i })).toHaveAttribute('href', '/runtime-admin');
   });
 
@@ -88,7 +88,7 @@ describe('SidebarMenu', () => {
     expect(screen.getByRole('button', { name: /show git status hint/i })).not.toHaveAttribute('title');
   });
 
-  it('orders mission workflows so QuickScout and Swarm Trajectory are primary', () => {
+  it('groups operator workflows into focused navigation sections', () => {
     renderSidebar(
       <SidebarMenu
         collapsed={false}
@@ -97,17 +97,28 @@ describe('SidebarMenu', () => {
       />
     );
 
-    const smartSwarmSection = screen.getByText('Smart Swarm').closest('.nav-section');
-    const labels = within(smartSwarmSection).getAllByRole('link').map((link) => link.textContent);
+    const operateSection = screen.getByText('Operate').closest('.nav-section');
+    const operateLabels = within(operateSection).getAllByRole('link').map((link) => link.textContent);
 
-    expect(labels).toEqual([
-      'Swarm Design',
+    expect(operateLabels).toEqual([
+      'Overview',
+      'Mission Config',
+      'Smart Swarm',
+      'Show Design',
+    ]);
+
+    const planSection = screen.getByText('Plan').closest('.nav-section');
+    const planLabels = within(planSection).getAllByRole('link').map((link) => link.textContent);
+
+    expect(planLabels).toEqual([
       'QuickScout SAR',
       'Swarm Trajectory',
-      'Advanced Route Editor',
+      'Route Editor',
+      'Custom CSV Show',
     ]);
-    expect(within(smartSwarmSection).getByRole('link', { name: 'QuickScout SAR' })).toHaveAttribute('href', '/quickscout');
-    expect(within(smartSwarmSection).getByRole('link', { name: 'Advanced Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
+    expect(within(operateSection).getByRole('link', { name: 'Smart Swarm' })).toHaveAttribute('href', '/swarm-design');
+    expect(within(planSection).getByRole('link', { name: 'QuickScout SAR' })).toHaveAttribute('href', '/quickscout');
+    expect(within(planSection).getByRole('link', { name: 'Route Editor' })).toHaveAttribute('href', '/trajectory-planning');
   });
 
   it('ports collapsed sidebar tooltips outside the scroll container and avoids stale hover timers', () => {
@@ -121,18 +132,18 @@ describe('SidebarMenu', () => {
     );
 
     const quickScout = screen.getByRole('link', { name: 'QuickScout SAR' });
-    const advancedEditor = screen.getByRole('link', { name: 'Advanced Route Editor' });
+    const routeEditor = screen.getByRole('link', { name: 'Route Editor' });
 
     fireEvent.mouseEnter(quickScout);
     expect(screen.getByRole('tooltip')).toHaveTextContent('QuickScout SAR');
     expect(screen.getByRole('tooltip').closest('.modern-sidebar-wrapper')).toBeNull();
 
-    fireEvent.mouseEnter(advancedEditor);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Advanced Route Editor');
+    fireEvent.mouseEnter(routeEditor);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Route Editor');
     act(() => {
       jest.advanceTimersByTime(1999);
     });
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Advanced Route Editor');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Route Editor');
 
     act(() => {
       jest.advanceTimersByTime(1);
@@ -177,8 +188,8 @@ describe('SidebarMenu', () => {
     expect(screen.getByPlaceholderText(/^new password$/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/confirm new password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /save password/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /security/i })).toHaveAttribute('href', '/runtime-admin');
-    expect(screen.getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');
+    expect(within(dialog).getByRole('link', { name: /security/i })).toHaveAttribute('href', '/runtime-admin');
+    expect(within(dialog).getByRole('link', { name: /logs/i })).toHaveAttribute('href', '/logs');
   });
 
   it('shows compact project footer links in expanded mode', () => {
