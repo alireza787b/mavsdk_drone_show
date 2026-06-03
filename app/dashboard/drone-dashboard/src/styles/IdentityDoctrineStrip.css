@@ -40,6 +40,7 @@
 }
 
 .identity-doctrine-strip__chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -48,6 +49,43 @@
   border: 1px solid var(--color-border-primary);
   background: color-mix(in srgb, var(--color-surface-inset) 88%, transparent);
   color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.identity-doctrine-strip--compact {
+  padding: 8px 10px;
+  gap: 10px;
+}
+
+.identity-doctrine-strip--compact .identity-doctrine-strip__copy {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.identity-doctrine-strip--compact .identity-doctrine-strip__eyebrow {
+  flex: 0 0 auto;
+}
+
+.identity-doctrine-strip--compact .identity-doctrine-strip__copy strong {
+  font-size: 0.86rem;
+}
+
+.identity-doctrine-strip--compact .identity-doctrine-strip__chip {
+  min-width: 2rem;
+  justify-content: center;
+  padding: 4px 8px;
+}
+
+.identity-doctrine-strip--compact .identity-doctrine-strip__chip-detail {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  overflow: hidden;
   white-space: nowrap;
 }
 
@@ -72,5 +110,11 @@
 
   .identity-doctrine-strip__chips {
     justify-content: flex-start;
+  }
+
+  .identity-doctrine-strip--compact .identity-doctrine-strip__copy {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
   }
 }

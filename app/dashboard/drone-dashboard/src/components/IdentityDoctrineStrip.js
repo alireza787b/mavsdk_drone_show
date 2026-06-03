@@ -15,7 +15,12 @@ const IdentityDoctrineStrip = ({ surface = 'default', className = '' }) => {
       </div>
       <div className="identity-doctrine-strip__chips">
         {copy.chips.map((chip) => (
-          <span key={chip.key} className="identity-doctrine-strip__chip">
+          <span
+            key={chip.key}
+            className="identity-doctrine-strip__chip"
+            title={`${chip.label}: ${chip.detail}`}
+            aria-label={`${chip.label}: ${chip.detail}`}
+          >
             <span className="identity-doctrine-strip__chip-label">{chip.label}</span>
             <span className="identity-doctrine-strip__chip-detail">{chip.detail}</span>
           </span>

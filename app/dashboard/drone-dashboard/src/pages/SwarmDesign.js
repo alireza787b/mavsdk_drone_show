@@ -907,7 +907,7 @@ function SwarmDesign() {
       )}
     >
 
-      <IdentityDoctrineStrip surface="swarm-design" />
+      <IdentityDoctrineStrip surface="swarm-design" className="identity-doctrine-strip--compact" />
 
       <MetricStrip label="Smart Swarm topology summary" items={summaryItems} />
 
