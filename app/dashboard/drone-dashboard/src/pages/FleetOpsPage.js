@@ -4,6 +4,7 @@ import {
   FaBroadcastTower,
   FaCheck,
   FaCodeBranch,
+  FaChevronDown,
   FaExclamationTriangle,
   FaFilter,
   FaKey,
@@ -36,10 +37,10 @@ import { buildFleetOpsViewModel, compactHash } from '../utilities/fleetOpsViewMo
 import '../styles/FleetOpsPage.css';
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'access', label: 'Access' },
-  { key: 'sidecars', label: 'Sidecars' },
+  { key: 'overview', label: 'Health' },
   { key: 'sync', label: 'Sync' },
+  { key: 'sidecars', label: 'Sidecars' },
+  { key: 'access', label: 'Access' },
 ];
 
 const FILTERS = [
@@ -555,6 +556,33 @@ function SyncProgressPanel({ progress }) {
   );
 }
 
+function FleetOpsAdvancedControls({ opsToken, updateOpsToken, connectivityProfileLabel, connectivityProfileTitle }) {
+  return (
+    <details className="fleet-ops-advanced-controls">
+      <summary aria-label="Show advanced Fleet Ops settings">
+        <FaChevronDown aria-hidden="true" />
+        <span>Advanced</span>
+      </summary>
+      <div className="fleet-ops-advanced-controls__panel">
+        <label>
+          <span>Ops token</span>
+          <input
+            className="fleet-ops-actions__token-input"
+            type="password"
+            value={opsToken}
+            onChange={(event) => updateOpsToken(event.target.value)}
+            placeholder="Optional token"
+            aria-label="Fleet Ops mutation token"
+          />
+        </label>
+        <span className="fleet-ops-actions__profile" aria-label={connectivityProfileTitle}>
+          <FaWifi aria-hidden="true" /> {connectivityProfileLabel}
+        </span>
+      </div>
+    </details>
+  );
+}
+
 export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverride = null, nodeBootStatusOverride = null }) {
   const location = useLocation();
   const urlScopeAppliedRef = useRef();
@@ -842,7 +870,7 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
       className="fleet-ops-page"
       eyebrow="Fleet Maintenance"
       title="Fleet Ops"
-      subtitle="Drone-node sync, access, and sidecars. GCS host controls stay separate."
+      subtitle="Drone-node readiness, repository sync, and sidecar access."
       icon={<FaNetworkWired />}
       docsRoute="/fleet-ops"
       docsOptions={{
@@ -920,16 +948,14 @@ export default function FleetOpsPage({ gitStatusOverride = null, heartbeatOverri
           <span aria-label="Actions target selected nodes first. With no selection, sync targets all eligible online nodes.">
             {selectedRows.length ? `${selectedRows.length} selected` : 'All eligible'}
           </span>
-          <span className="fleet-ops-actions__profile" aria-label={connectivityProfileTitle}>
-            <FaWifi aria-hidden="true" /> {connectivityProfileLabel}
+          <span className="fleet-ops-actions__hint" aria-label="Sync opens a read-only preview first, then asks for explicit apply.">
+            Preview first
           </span>
-          <input
-            className="fleet-ops-actions__token-input"
-            type="password"
-            value={opsToken}
-            onChange={(event) => updateOpsToken(event.target.value)}
-            placeholder="Ops token"
-            aria-label="Fleet Ops mutation token"
+          <FleetOpsAdvancedControls
+            opsToken={opsToken}
+            updateOpsToken={updateOpsToken}
+            connectivityProfileLabel={connectivityProfileLabel}
+            connectivityProfileTitle={connectivityProfileTitle}
           />
         </div>
         <div className="fleet-ops-actions__buttons">

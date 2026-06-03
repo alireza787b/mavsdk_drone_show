@@ -168,6 +168,73 @@
   color: var(--color-text-primary);
 }
 
+.fleet-ops-actions__hint {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--color-info-border);
+  border-radius: 999px;
+  background: var(--color-info-light);
+  color: var(--color-info-text);
+}
+
+.fleet-ops-advanced-controls {
+  position: relative;
+}
+
+.fleet-ops-advanced-controls summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--color-border-primary);
+  border-radius: 999px;
+  background: var(--color-surface-inset);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fleet-ops-advanced-controls summary::-webkit-details-marker {
+  display: none;
+}
+
+.fleet-ops-advanced-controls[open] summary {
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+}
+
+.fleet-ops-advanced-controls[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.fleet-ops-advanced-controls__panel {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.45rem);
+  z-index: var(--z-popover);
+  display: grid;
+  gap: 0.65rem;
+  min-width: min(320px, calc(100vw - 2rem));
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-secondary);
+  border-radius: var(--border-radius-lg);
+  background: var(--operator-floating-background);
+  box-shadow: var(--operator-floating-shadow);
+}
+
+.fleet-ops-advanced-controls__panel label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--color-text-secondary);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .fleet-ops-actions__token-input {
   min-height: 2.3rem;
   min-width: 180px;
@@ -874,6 +941,21 @@
 
   .fleet-ops-actions {
     flex-direction: column;
+  }
+
+  .fleet-ops-advanced-controls,
+  .fleet-ops-advanced-controls summary {
+    width: 100%;
+  }
+
+  .fleet-ops-advanced-controls summary {
+    justify-content: center;
+  }
+
+  .fleet-ops-advanced-controls__panel {
+    left: 0;
+    right: 0;
+    min-width: 0;
   }
 
   .fleet-ops-confirm__actions {

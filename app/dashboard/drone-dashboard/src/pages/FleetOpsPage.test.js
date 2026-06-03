@@ -164,7 +164,7 @@ describe('FleetOpsPage', () => {
     expect(screen.getByText(/0 connectivity/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 1/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /hw 2/i })).toBeInTheDocument();
-    expect(screen.getByText(/drone-node sync, access, and sidecars/i)).toBeInTheDocument();
+    expect(screen.getByText(/drone-node readiness, repository sync, and sidecar access/i)).toBeInTheDocument();
     expect(screen.getByText(/drone nodes/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /open gcs runtime admin/i })).toHaveAttribute('href', '/runtime-admin');
   });
