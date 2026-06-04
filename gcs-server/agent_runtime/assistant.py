@@ -1642,6 +1642,134 @@ def _previous_answer_transform_message(*, operator_message: str, transform_kind:
     )
 
 
+def _previous_evidence_followup_kind(message: str) -> str | None:
+    """Detect answer-level follow-ups that should bind to prior evidence.
+
+    This is intentionally generic conversation plumbing. It gives authenticated
+    dashboard chat a chance to reason over the previous assistant answer instead
+    of re-entering stale topic routing for short prompts like "is that bad?".
+    """
+
+    normalized = re.sub(r"\s+", " ", str(message or "").strip().casefold())
+    if not normalized or len(normalized) > 240:
+        return None
+    if _conversation_transform_kind(normalized):
+        return None
+    if _has_any_text(
+        normalized,
+        (
+            "what does this mean",
+            "what does it mean",
+            "what does that mean",
+            "what do they mean",
+            "what are these",
+            "what are those",
+            "explain this",
+            "explain that",
+            "explain these",
+            "explain those",
+            "interpret this",
+            "interpret that",
+            "meaning",
+            "why is this",
+            "why did it",
+        ),
+    ):
+        return "explain_previous_evidence"
+    if _has_any_text(
+        normalized,
+        (
+            "is that bad",
+            "is this bad",
+            "is it bad",
+            "is that wrong",
+            "is this wrong",
+            "does this mean something is wrong",
+            "does it mean something is wrong",
+            "does thsi mean sth is wrong",
+            "something wrong",
+            "should i worry",
+            "should we worry",
+            "is this a blocker",
+            "is it a blocker",
+            "is it safe",
+            "safe to continue",
+            "severity",
+            "impact",
+            "flight blocker",
+        ),
+    ):
+        return "assess_previous_evidence"
+    if _has_any_text(
+        normalized,
+        (
+            "what should i do",
+            "what should we do",
+            "what do i do",
+            "what do we do",
+            "what next",
+            "next step",
+            "next steps",
+            "how to fix",
+            "how should i fix",
+            "recommendation",
+            "recommend",
+            "what is the plan",
+        ),
+    ):
+        return "next_steps_previous_evidence"
+    return None
+
+
+def _previous_read_only_evidence_context_document(previous_evidence: str) -> AssistantContextDocument | None:
+    raw = str(previous_evidence or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed: object = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {"raw": raw[:1000]}
+    if isinstance(parsed, Mapping):
+        compact = _compact_read_only_evidence_metadata(parsed)
+        text = json.dumps(compact or parsed, sort_keys=True, indent=2, default=str)
+    else:
+        text = json.dumps(parsed, sort_keys=True, indent=2, default=str)
+    return AssistantContextDocument(
+        id="session.previous_read_only_mds_evidence",
+        title="Previous read-only MDS evidence metadata in this chat",
+        uri="mds://simurgh/session/previous-read-only-mds-evidence",
+        mime_type="application/json",
+        summary="Bounded private metadata for the previous read-only MDS evidence used to answer a follow-up.",
+        tags=("session", "conversation", "previous-evidence", "read-only"),
+        content_hash=stable_payload_hash({"previous_read_only_evidence": text}),
+        text=text[:DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS],
+    )
+
+
+def _previous_evidence_followup_message(
+    *,
+    operator_message: str,
+    followup_kind: str,
+    previous_domain: str,
+    previous_intent: str,
+) -> str:
+    domain_label = previous_domain or "unknown"
+    intent_label = previous_intent or "unknown"
+    return "\n".join(
+        [
+            f"Operator follow-up: {operator_message}",
+            f"Conversation task: {followup_kind}.",
+            f"Previous MDS topic: {domain_label}.",
+            f"Previous read-only intent: {intent_label}.",
+            "Use `session.previous_assistant_answer` as the primary source because it is what the operator just saw.",
+            "Use `session.previous_read_only_mds_evidence` only as supporting metadata about the previous read-only tool/evidence source.",
+            "Answer the follow-up directly and conversationally. Do not repeat the full prior table/list unless the operator explicitly asks to see it again.",
+            "Preserve exact numbers, IPs, routes, timestamps, modes, safety caveats, and no-action statements already present in the previous answer.",
+            "Do not invent live state, do not claim a new check was performed, do not expose hidden secrets, and do not imply any drone/config action was executed.",
+        ]
+    )
+
+
 def _read_only_tool_evidence_context_document(
     *,
     tool_intent: str,
@@ -1943,6 +2071,53 @@ def _provider_failure_turn(
     )
 
 
+def _previous_evidence_followup_fallback_turn(
+    *,
+    config: AssistantConfig,
+    followup_kind: str,
+    previous_answer: str,
+    context_documents: tuple[AssistantContextDocument, ...],
+) -> AssistantTurnResult:
+    """Deterministic fallback when prior evidence exists but provider cannot compose."""
+
+    compact_lines = []
+    for raw_line in str(previous_answer or "").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("|") or line.lower().startswith("time\t"):
+            continue
+        compact_lines.append(line)
+        if len(compact_lines) >= 4:
+            break
+    quoted = "\n".join(f"- {line}" for line in compact_lines) or "- Previous read-only answer is available in this chat session."
+    if followup_kind == "assess_previous_evidence":
+        lead = "Based only on the previous read-only Simurgh answer, I would treat this as something to interpret before acting, not as proof of a new drone action or live-state change."
+    elif followup_kind == "next_steps_previous_evidence":
+        lead = "Based only on the previous read-only Simurgh answer, the next step is to verify the relevant GCS page/log/source before changing anything."
+    else:
+        lead = "Based only on the previous read-only Simurgh answer, here is the relevant context I can safely carry forward."
+    content = "\n\n".join(
+        (
+            lead,
+            quoted,
+            "No fresh check, config write, mission action, or drone command was attempted for this follow-up.",
+        )
+    )
+    return AssistantTurnResult(
+        id=f"turn-{uuid.uuid4().hex}",
+        created_at=utc_now().isoformat(),
+        provider=READ_TOOL_PROVIDER if config.provider == OPENAI_ASSISTANT_PROVIDER else config.provider,
+        model=READ_TOOL_MODEL if config.provider == OPENAI_ASSISTANT_PROVIDER else MOCK_ASSISTANT_MODEL,
+        adapter_version="previous-evidence-fallback-v1",
+        content=content,
+        context_documents=context_documents,
+        blocked_intents=(),
+        safety_notes=(
+            "Previous read-only Simurgh evidence was interpreted locally because provider composition was unavailable.",
+            "No direct drone API, raw command, GCS mutation, or mission action was exposed.",
+        ),
+    )
+
+
 def _is_provider_runtime_recoverable(exc: Exception) -> bool:
     """Return whether a provider error should become a chat fallback.
 
@@ -2063,6 +2238,7 @@ def create_assistant_turn(
     web_search_enabled_for_turn = False
     provider_composed_from_tool = False
     provider_composition_error = ""
+    provider_composed_from_previous_evidence = False
     transform_kind = _conversation_transform_kind(routing_message)
     transform_answer = previous_context.get("last_assistant_content") if transform_kind else ""
     if force_provider is None and transform_kind and transform_answer and not blocked_matches and not sensitive_matches:
@@ -2090,6 +2266,64 @@ def create_assistant_turn(
                 )
             tool_intent = "conversation_transform"
             tool_response_mode = "transform"
+        else:
+            tool_result = None
+
+    evidence_followup_kind = _previous_evidence_followup_kind(routing_message)
+    evidence_followup_answer = previous_context.get("last_assistant_content") if evidence_followup_kind else ""
+    evidence_followup_metadata = previous_context.get("last_read_only_evidence") if evidence_followup_kind else ""
+    if (
+        force_provider is None
+        and tool_intent is None
+        and allow_provider_for_local_tools
+        and evidence_followup_kind
+        and evidence_followup_answer
+        and evidence_followup_metadata
+        and not blocked_matches
+        and not sensitive_matches
+    ):
+        previous_document = _previous_answer_context_document(evidence_followup_answer)
+        evidence_document = _previous_read_only_evidence_context_document(evidence_followup_metadata)
+        followup_context_documents = (*context_documents, previous_document)
+        followup_session_context_count = 1
+        if evidence_document is not None:
+            followup_context_documents = (*followup_context_documents, evidence_document)
+            followup_session_context_count += 1
+        adapter = _adapter_for_config(config)
+        if isinstance(adapter, OpenAIResponsesAssistantAdapter):
+            try:
+                turn = adapter.generate(
+                    message=_previous_evidence_followup_message(
+                        operator_message=normalized_message,
+                        followup_kind=evidence_followup_kind,
+                        previous_domain=str(previous_context.get("last_domain") or conversation_topic or ""),
+                        previous_intent=str(previous_context.get("last_tool_intent") or previous_context.get("last_intent") or ""),
+                    ),
+                    context_documents=followup_context_documents,
+                    language_profile=language_profile,
+                )
+            except AgentRuntimeError as exc:
+                if not _is_provider_runtime_recoverable(exc):
+                    raise
+                turn = _previous_evidence_followup_fallback_turn(
+                    config=config,
+                    followup_kind=evidence_followup_kind,
+                    previous_answer=evidence_followup_answer,
+                    context_documents=followup_context_documents,
+                )
+                provider_composition_error = _safe_provider_composition_error(exc)
+            context_documents = followup_context_documents
+            retrieved_context_count = followup_session_context_count
+            provider_composed_from_previous_evidence = turn.provider == OPENAI_ASSISTANT_PROVIDER
+            tool_intent = "evidence_followup"
+            tool_response_mode = "followup"
+            try:
+                parsed_previous_evidence = json.loads(evidence_followup_metadata)
+            except json.JSONDecodeError:
+                parsed_previous_evidence = {}
+            read_only_evidence = _compact_read_only_evidence_metadata(
+                parsed_previous_evidence if isinstance(parsed_previous_evidence, Mapping) else None
+            )
         else:
             tool_result = None
 
@@ -2121,7 +2355,7 @@ def create_assistant_turn(
             if tool_result.is_error:
                 tool_result = None
 
-    if tool_intent == "conversation_transform":
+    if tool_intent in {"conversation_transform", "evidence_followup"}:
         pass
     elif tool_result is not None:
         structured = tool_result.structured_content if isinstance(tool_result.structured_content, Mapping) else {}
@@ -2279,6 +2513,7 @@ def create_assistant_turn(
             "retrieved_context_count": retrieved_context_count,
             "web_search_enabled": web_search_enabled_for_turn,
             "provider_composed_from_tool": provider_composed_from_tool,
+            "provider_composed_from_previous_evidence": provider_composed_from_previous_evidence,
             "provider_composition_error": provider_composition_error,
             "query_adaptation": query_adaptation.public_metadata(),
             "routing_strategy": query_adaptation.strategy,

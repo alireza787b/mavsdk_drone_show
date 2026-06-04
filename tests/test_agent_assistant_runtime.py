@@ -908,6 +908,86 @@ def test_assistant_turn_interprets_typo_log_followup_without_repeating_table(mon
     assert "time n/a" not in followup.turn.content
 
 
+def test_assistant_turn_composes_previous_evidence_followup_with_openai(monkeypatch, tmp_path):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fake_recent_warning_events(self, **_kwargs):  # noqa: ANN001
+        return (
+            [
+                {
+                    "ts": "2026-05-26T08:51:00Z",
+                    "level": "WARNING",
+                    "source": "/var/log/mds-gcs.log",
+                    "message": "08:51:00 WARNING [api] API GET /api/v1/commands/active -> 401 (0.001s)",
+                }
+            ],
+            ["/var/log/mds-gcs.log"],
+        )
+
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        captured["api_key"] = api_key
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Short answer: no, that previous warning pattern is API authorization noise, not a MAVLink or flight-control fault. Check login/token polling only if an operator workflow is failing.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_recent_warning_events", fake_recent_warning_events)
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+
+    first = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        message="check latest logs tell me whats going on",
+    )
+    assert first.turn.provider == "mds-tools"
+    assert first.audit_event.metadata["tool_intent"] == "backend_log_summary"
+    assert first.audit_event.metadata["read_only_evidence"]["intent"] == "backend_log_summary"
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=first.session.id,
+        message="does thsi mean sth is wrong?",
+        allow_provider_for_local_tools=True,
+    )
+
+    assert followup.turn.provider == "openai"
+    assert followup.audit_event.metadata["tool_intent"] == "evidence_followup"
+    assert followup.audit_event.metadata["response_mode"] == "followup"
+    assert followup.audit_event.metadata["retrieved_context_count"] == 2
+    assert followup.audit_event.metadata["provider_composed_from_previous_evidence"] is True
+    assert "authorization noise" in followup.turn.content
+    assert "Most recent entries:" not in followup.turn.content
+    captured_input = str(captured["input"])
+    assert captured["api_key"] == "test-openai-key"
+    assert captured["tools"] == []
+    assert captured["tool_choice"] == "none"
+    assert "session.previous_assistant_answer" in captured_input
+    assert "session.previous_read_only_mds_evidence" in captured_input
+    assert "Previous read-only intent: backend_log_summary" in captured_input
+
+
 def test_text_log_timestamp_parser_accepts_time_only_entries():
     from agent_runtime.mds_read_tools import _extract_log_timestamp
 

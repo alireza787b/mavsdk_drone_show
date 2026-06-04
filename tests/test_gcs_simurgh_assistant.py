@@ -479,6 +479,77 @@ def test_simurgh_assistant_turn_composes_local_tool_evidence_with_openai_when_au
     assert "Fleet status from GCS configuration" in str(captured["input"])
 
 
+def test_simurgh_assistant_turn_composes_previous_evidence_followup_when_authenticated(monkeypatch, tmp_path):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools
+
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fake_recent_warning_events(self, **_kwargs):  # noqa: ANN001
+        return (
+            [
+                {
+                    "ts": "2026-05-26T08:51:00Z",
+                    "level": "WARNING",
+                    "source": "/var/log/mds-gcs.log",
+                    "message": "08:51:00 WARNING [api] API GET /api/v1/commands/active -> 401 (0.001s)",
+                }
+            ],
+            ["/var/log/mds-gcs.log"],
+        )
+
+    captured: list[dict[str, object]] = []
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.append({"payload": payload, "api_key": api_key})
+        payload_text = str(payload.get("input") or "")
+        if "Conversation task: assess_previous_evidence" in payload_text:
+            text = "No, that specific previous result does not look like a flight-control fault. It points to API auth polling, so verify dashboard/session auth only if an operator workflow is failing."
+        else:
+            text = "The recent GCS log scan found one HTTP 401 authorization warning and no drone command was sent."
+        return {"output": [{"type": "message", "content": [{"type": "output_text", "text": text}]}]}
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_recent_warning_events", fake_recent_warning_events)
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
+
+    first = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "check latest logs tell me whats going on"},
+    )
+    assert first.status_code == 200
+    first_payload = first.json()
+    assert first_payload["provider"] == "openai"
+    assert first_payload["trace"]["tool"]["intent"] == "backend_log_summary"
+
+    followup = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={
+            "actor": "operator",
+            "session_id": first_payload["session"]["id"],
+            "message": "does this mean something is wrong?",
+        },
+    )
+
+    assert followup.status_code == 200
+    payload = followup.json()
+    assert payload["provider"] == "openai"
+    assert payload["trace"]["tool"]["intent"] == "evidence_followup"
+    assert payload["trace"]["query"]["response_mode"] == "followup"
+    assert payload["trace"]["context"]["retrieved_context_count"] == 2
+    assert "does not look like a flight-control fault" in payload["content"]
+    assert "Backend warning/error summary" not in payload["content"]
+    assert len(captured) == 2
+    followup_input = str(captured[-1]["payload"]["input"])
+    assert captured[-1]["api_key"] == "test-openai-key"
+    assert captured[-1]["payload"]["tools"] == []
+    assert captured[-1]["payload"]["tool_choice"] == "none"
+    assert "session.previous_assistant_answer" in followup_input
+    assert "session.previous_read_only_mds_evidence" in followup_input
+
+
 def test_simurgh_assistant_registry_domain_menu_stays_local_when_authenticated(monkeypatch, tmp_path):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
