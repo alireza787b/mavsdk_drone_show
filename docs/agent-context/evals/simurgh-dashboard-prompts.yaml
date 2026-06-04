@@ -20,6 +20,10 @@ conversations:
           query_domain: fleet
           session_topic: fleet
           tool_ids: [mds.config.fleet.read, mds.config.positions.read, mds.config.swarm.read]
+          requires_evidence: true
+          evidence_source: local_read_only_mds
+          evidence_summary_must_include:
+            - Fleet status from GCS configuration
           must_include:
             - Fleet status from GCS configuration
             - configured drone
@@ -83,6 +87,10 @@ conversations:
           query_domain: logs
           session_topic: logs
           tool_ids: [mds.logs.sessions.read]
+          requires_evidence: true
+          evidence_source: local_read_only_mds
+          evidence_summary_must_include:
+            - Backend warning/error summary
           must_include:
             - Backend warning/error summary
           must_not_include:
@@ -337,6 +345,10 @@ conversations:
           session_topic: setup
           tool_ids:
             - mds.fleet.node_boot_status.read
+          requires_evidence: true
+          evidence_source: local_read_only_mds
+          evidence_summary_must_include:
+            - Fleet node boot/init status
           must_include:
             - Fleet node boot/init status
             - startup/git-sync/sidecar initialization

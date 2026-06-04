@@ -23,6 +23,7 @@ PRIVATE_CONTEXT_KEYS = {
     "last_user_message",
     "last_routing_message",
     "last_tool_intent",
+    "last_read_only_evidence",
 }
 MAX_PRIVATE_CONTEXT_VALUE_CHARS = 6000
 SAFE_SESSION_METADATA_VALUES = {

@@ -506,6 +506,7 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
             "tool_ids": list(answer.tool_ids),
             "safety_notes": list(answer.safety_notes),
             "response_mode": answer.response_mode,
+            "evidence": answer.evidence_metadata(),
             "execution": "read_only_advisory",
             "query_adaptation": query_adaptation.public_metadata(),
         },

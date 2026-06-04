@@ -26,6 +26,7 @@ from fastapi import HTTPException
 from request_logging import is_routine_auth_noise_path
 
 from .answer_composer import AnswerComposer
+from .evidence import ReadOnlyEvidenceBundle
 from .models import AgentRuntimeError, utc_now
 from .query_adaptation import normalize_matching_text, normalize_operator_query_text
 from .query_understanding import build_assistant_query_plan
@@ -246,10 +247,14 @@ class MdsReadToolAnswer:
     tool_ids: tuple[str, ...]
     safety_notes: tuple[str, ...]
     response_mode: str = "status"
+    evidence: ReadOnlyEvidenceBundle | None = None
 
     @property
     def turn_id(self) -> str:
         return f"turn-{uuid.uuid4().hex}"
+
+    def evidence_metadata(self) -> dict[str, Any] | None:
+        return self.evidence.public_metadata() if self.evidence is not None else None
 
 
 @dataclass(frozen=True)
@@ -3119,17 +3124,26 @@ class MdsReadOnlyTools:
         safety_notes: tuple[str, ...] | None = None,
     ) -> MdsReadToolAnswer:
         normalized_mode = response_mode if response_mode in READ_RESPONSE_MODES else "status"
+        normalized_safety_notes = safety_notes or (
+            "Answered by local read-only MDS/GCS context tools.",
+            "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
+            f"Tool intent: {intent}.",
+            f"Response mode: {normalized_mode}.",
+        )
+        evidence = ReadOnlyEvidenceBundle.from_answer(
+            intent=intent,
+            content=content,
+            tool_ids=tool_ids,
+            response_mode=normalized_mode,
+            safety_notes=normalized_safety_notes,
+        )
         return MdsReadToolAnswer(
             intent=intent,
             content=content,
             tool_ids=tool_ids,
-            safety_notes=safety_notes or (
-                "Answered by local read-only MDS/GCS context tools.",
-                "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
-                f"Tool intent: {intent}.",
-                f"Response mode: {normalized_mode}.",
-            ),
+            safety_notes=normalized_safety_notes,
             response_mode=normalized_mode,
+            evidence=evidence,
         )
 
 

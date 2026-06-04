@@ -1637,11 +1637,17 @@ def _read_only_tool_evidence_context_document(
     tool_ids: list[str],
     response_mode: str,
     content: str,
+    evidence_metadata: Mapping[str, object] | None = None,
 ) -> AssistantContextDocument:
     evidence = str(content or "").strip()
     intent = str(tool_intent or "read_only_mds_tool").strip() or "read_only_mds_tool"
     mode = str(response_mode or "status").strip() or "status"
     tool_ids_text = ", ".join(tool_ids) or "none"
+    compact_evidence = _compact_read_only_evidence_metadata(evidence_metadata)
+    evidence_summary = str(compact_evidence.get("summary") or "").strip()
+    document_text = evidence
+    if evidence_summary:
+        document_text = f"Structured evidence summary: {evidence_summary}\n\n{evidence}"
     return AssistantContextDocument(
         id="session.read_only_mds_evidence",
         title="Read-only MDS evidence for this assistant turn",
@@ -1657,11 +1663,30 @@ def _read_only_tool_evidence_context_document(
                 "tool_intent": intent,
                 "tool_ids": tool_ids,
                 "response_mode": response_mode,
+                "evidence": compact_evidence,
                 "content": evidence,
             }
         ),
-        text=evidence[:DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES],
+        text=document_text[:DEFAULT_RETRIEVED_CONTEXT_BUDGET_BYTES],
     )
+
+
+def _compact_read_only_evidence_metadata(value: Mapping[str, object] | None) -> dict[str, object]:
+    """Return audit/session-safe evidence metadata without copying raw answer text."""
+
+    if not isinstance(value, Mapping):
+        return {}
+    raw_items = value.get("items")
+    first_item = raw_items[0] if isinstance(raw_items, list) and raw_items and isinstance(raw_items[0], Mapping) else {}
+    return {
+        "intent": str(value.get("intent") or ""),
+        "response_mode": str(value.get("response_mode") or ""),
+        "tool_ids": [str(tool_id) for tool_id in value.get("tool_ids", [])] if isinstance(value.get("tool_ids"), list) else [],
+        "source": str(value.get("source") or ""),
+        "content_hash": str(value.get("content_hash") or ""),
+        "item_count": int(value.get("item_count") or 0),
+        "summary": str(first_item.get("summary") or "")[:280] if isinstance(first_item, Mapping) else "",
+    }
 
 
 def _provider_tool_composition_message(
@@ -1952,6 +1977,7 @@ def create_assistant_turn(
     tool_intent = None
     tool_response_mode = None
     tool_ids: list[str] = []
+    read_only_evidence: dict[str, object] = {}
     web_search_enabled_for_turn = False
     provider_composed_from_tool = False
     provider_composition_error = ""
@@ -2026,6 +2052,10 @@ def create_assistant_turn(
         raw_tool_ids = structured.get("tool_ids") if isinstance(structured, Mapping) else None
         tool_ids = [str(tool_id) for tool_id in raw_tool_ids] if isinstance(raw_tool_ids, list) else []
         tool_response_mode = structured.get("response_mode") if isinstance(structured, Mapping) else None
+        raw_evidence = structured.get("evidence") if isinstance(structured, Mapping) else None
+        read_only_evidence = _compact_read_only_evidence_metadata(
+            raw_evidence if isinstance(raw_evidence, Mapping) else None
+        )
         local_tool_turn = AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
             created_at=utc_now().isoformat(),
@@ -2052,6 +2082,7 @@ def create_assistant_turn(
                     tool_ids=tool_ids,
                     response_mode=str(tool_response_mode or query_plan.response_mode),
                     content=local_tool_turn.content,
+                    evidence_metadata=raw_evidence if isinstance(raw_evidence, Mapping) else None,
                 )
                 provider_context_documents = (*context_documents, evidence_document)
                 try:
@@ -2149,6 +2180,9 @@ def create_assistant_turn(
             "last_user_message": normalized_message,
             "last_routing_message": routing_message,
             "last_tool_intent": str(tool_intent or local_intent or ""),
+            "last_read_only_evidence": json.dumps(read_only_evidence, sort_keys=True, separators=(",", ":"))
+            if read_only_evidence
+            else "",
         },
     )
 
@@ -2172,6 +2206,7 @@ def create_assistant_turn(
             "tool_intent": tool_intent,
             "tool_id": ADVISORY_ANSWER_TOOL_ID if tool_result is not None else None,
             "tool_ids": tool_ids,
+            "read_only_evidence": read_only_evidence,
             "response_mode": final_response_mode,
             "query_domain": query_plan.domain,
             "query_confidence": round(float(query_plan.confidence), 3),

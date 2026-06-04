@@ -77,6 +77,9 @@ class DashboardTurnExpectation:
     query_domain: str | None
     session_topic: str | None
     tool_ids: tuple[str, ...]
+    requires_evidence: bool
+    evidence_source: str | None
+    evidence_summary_must_include: tuple[str, ...]
     must_include: tuple[str, ...]
     must_not_include: tuple[str, ...]
     min_content_chars: int
@@ -94,6 +97,12 @@ class DashboardTurnExpectation:
             query_domain=str(values.get("query_domain") or "").strip() or None,
             session_topic=str(values.get("session_topic") or "").strip() or None,
             tool_ids=_string_tuple(values.get("tool_ids"), field_name="expected.tool_ids"),
+            requires_evidence=bool(values.get("requires_evidence", False)),
+            evidence_source=str(values.get("evidence_source") or "").strip() or None,
+            evidence_summary_must_include=_string_tuple(
+                values.get("evidence_summary_must_include"),
+                field_name="expected.evidence_summary_must_include",
+            ),
             must_include=_string_tuple(values.get("must_include"), field_name="expected.must_include"),
             must_not_include=_string_tuple(values.get("must_not_include"), field_name="expected.must_not_include"),
             min_content_chars=min_content_chars,
@@ -207,6 +216,8 @@ class DashboardPromptTurnResult:
     query_domain: str | None
     session_topic: str | None
     tool_ids: tuple[str, ...]
+    evidence_source: str | None = None
+    evidence_summary: str | None = None
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -220,6 +231,8 @@ class DashboardPromptTurnResult:
             "query_domain": self.query_domain,
             "session_topic": self.session_topic,
             "tool_ids": list(self.tool_ids),
+            "evidence_source": self.evidence_source,
+            "evidence_summary": self.evidence_summary,
         }
 
 
@@ -337,6 +350,10 @@ def _evaluate_turn_record(
     session_topic = str(session_metadata.get("last_domain") or "") or None
     raw_tool_ids = metadata.get("tool_ids")
     tool_ids = tuple(str(item) for item in raw_tool_ids) if isinstance(raw_tool_ids, list) else ()
+    raw_evidence = metadata.get("read_only_evidence")
+    evidence = raw_evidence if isinstance(raw_evidence, Mapping) else {}
+    evidence_source = str(evidence.get("source") or "") or None
+    evidence_summary = str(evidence.get("summary") or "") or None
 
     if expectation.provider and provider != expectation.provider:
         failures.append(f"expected provider {expectation.provider!r}, got {provider!r}")
@@ -351,6 +368,13 @@ def _evaluate_turn_record(
     for tool_id in expectation.tool_ids:
         if tool_id not in tool_ids:
             failures.append(f"expected tool id {tool_id!r}, got {tool_ids!r}")
+    if expectation.requires_evidence and not evidence:
+        failures.append("expected structured read-only evidence metadata")
+    if expectation.evidence_source and evidence_source != expectation.evidence_source:
+        failures.append(f"expected evidence_source {expectation.evidence_source!r}, got {evidence_source!r}")
+    for needle in expectation.evidence_summary_must_include:
+        if not _contains(evidence_summary or "", needle):
+            failures.append(f"evidence summary missing expected text {needle!r}")
     if len(content) < expectation.min_content_chars:
         failures.append(f"content shorter than expected minimum {expectation.min_content_chars}")
     for needle in expectation.must_include:
@@ -374,6 +398,8 @@ def _evaluate_turn_record(
         query_domain=query_domain,
         session_topic=session_topic,
         tool_ids=tool_ids,
+        evidence_source=evidence_source,
+        evidence_summary=evidence_summary,
     )
 
 

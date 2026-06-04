@@ -1331,6 +1331,32 @@ def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeyp
     assert "normalized_message" not in plan
 
 
+def test_assistant_turn_records_structured_read_only_evidence(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    sessions = AgentSessionStore()
+
+    record = create_assistant_turn(
+        sessions=sessions,
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="How many drones do we have configured?",
+    )
+
+    evidence = record.audit_event.metadata["read_only_evidence"]
+    assert evidence["intent"] == "fleet_summary"
+    assert evidence["response_mode"] == "status"
+    assert evidence["source"] == "local_read_only_mds"
+    assert evidence["item_count"] == 1
+    assert "mds.config.fleet.read" in evidence["tool_ids"]
+    assert "Fleet status from GCS configuration" in evidence["summary"]
+    assert "How many drones" not in json.dumps(evidence)
+
+    private_context = sessions.get_private_context(record.session.id)
+    persisted = json.loads(private_context["last_read_only_evidence"])
+    assert persisted["content_hash"] == evidence["content_hash"]
+    assert persisted["summary"] == evidence["summary"]
+
+
 def test_read_tools_answer_mds_autopilot_support_boundary():
     from agent_runtime.mds_read_tools import answer_mds_read_only_question
 
@@ -1341,6 +1367,22 @@ def test_read_tools_answer_mds_autopilot_support_boundary():
     assert "PX4-first" in answer.content
     assert "not currently supported" in answer.content.lower()
     assert "ArduPilot" in answer.content
+
+
+def test_read_tools_answer_exposes_structured_evidence_bundle():
+    from agent_runtime.mds_read_tools import answer_mds_read_only_question
+
+    answer = answer_mds_read_only_question("check latest backend warnings in the logs")
+
+    assert answer is not None
+    assert answer.evidence is not None
+    metadata = answer.evidence.public_metadata()
+    assert metadata["intent"] == "backend_log_summary"
+    assert metadata["source"] == "local_read_only_mds"
+    assert metadata["item_count"] == 1
+    assert "mds.logs.sessions.read" in metadata["tool_ids"]
+    assert metadata["content_hash"]
+    assert "message" not in metadata
 
 
 def test_assistant_turn_answers_origin_launch_positions_as_read_only_status(monkeypatch):
