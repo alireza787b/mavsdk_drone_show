@@ -612,6 +612,17 @@ class AssistantTurnRecord:
 
 
 @dataclass(frozen=True)
+class ProviderToolCompositionResult:
+    """Result of optional provider composition over read-only MDS evidence."""
+
+    turn: AssistantTurnResult
+    context_documents: tuple[AssistantContextDocument, ...]
+    retrieved_context_count_delta: int = 0
+    provider_composed_from_tool: bool = False
+    provider_composition_error: str = ""
+
+
+@dataclass(frozen=True)
 class AssistantTurnHistoryRecord:
     """Persisted assistant transcript record kept outside audit and MCP resources."""
 
@@ -1710,6 +1721,77 @@ def _provider_tool_composition_message(
     )
 
 
+def compose_read_only_tool_turn_with_provider(
+    *,
+    config: AssistantConfig,
+    operator_message: str,
+    base_turn: AssistantTurnResult,
+    context_documents: tuple[AssistantContextDocument, ...],
+    tool_intent: str,
+    tool_ids: list[str],
+    response_mode: str,
+    evidence_metadata: Mapping[str, object] | None,
+    language_profile: LanguageProfile | None = None,
+    first_safety_note: str = "Read-only Simurgh advisory registry tool was executed before provider composition.",
+) -> ProviderToolCompositionResult:
+    """Optionally compose a natural final answer from read-only tool evidence.
+
+    This helper is intentionally outside MCP/tool execution. MCP remains a
+    deterministic evidence surface; dashboard chat may ask the provider to turn
+    that evidence into a clearer operator answer when the request is
+    authenticated and the configured provider is available.
+    """
+
+    if config.provider != OPENAI_ASSISTANT_PROVIDER:
+        return ProviderToolCompositionResult(turn=base_turn, context_documents=context_documents)
+    if str(tool_intent or "") in LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS:
+        return ProviderToolCompositionResult(turn=base_turn, context_documents=context_documents)
+
+    adapter = _adapter_for_config(config)
+    if not isinstance(adapter, OpenAIResponsesAssistantAdapter):
+        return ProviderToolCompositionResult(turn=base_turn, context_documents=context_documents)
+
+    evidence_document = _read_only_tool_evidence_context_document(
+        tool_intent=str(tool_intent or ""),
+        tool_ids=tool_ids,
+        response_mode=str(response_mode or "status"),
+        content=base_turn.content,
+        evidence_metadata=evidence_metadata,
+    )
+    provider_context_documents = (*context_documents, evidence_document)
+    try:
+        provider_turn = adapter.generate(
+            message=_provider_tool_composition_message(
+                operator_message=operator_message,
+                tool_intent=str(tool_intent or ""),
+                response_mode=str(response_mode or "status"),
+            ),
+            context_documents=provider_context_documents,
+            language_profile=language_profile or detect_language_profile(operator_message),
+        )
+    except AgentRuntimeError as exc:
+        return ProviderToolCompositionResult(
+            turn=base_turn,
+            context_documents=context_documents,
+            provider_composition_error=_safe_provider_composition_error(exc),
+        )
+
+    return ProviderToolCompositionResult(
+        turn=replace(
+            provider_turn,
+            context_documents=provider_context_documents,
+            safety_notes=(
+                first_safety_note,
+                "OpenAI Responses API composed the final text from bounded read-only MDS evidence with store=false.",
+                "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
+            ),
+        ),
+        context_documents=provider_context_documents,
+        retrieved_context_count_delta=1,
+        provider_composed_from_tool=True,
+    )
+
+
 def _safe_provider_composition_error(exc: Exception) -> str:
     message = str(exc or "").strip()
     if not message:
@@ -2073,42 +2155,23 @@ def create_assistant_turn(
             and config.provider == OPENAI_ASSISTANT_PROVIDER
             and not blocked_matches
             and not sensitive_matches
-            and str(tool_intent or "") not in LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS
         ):
-            adapter = _adapter_for_config(config)
-            if isinstance(adapter, OpenAIResponsesAssistantAdapter):
-                evidence_document = _read_only_tool_evidence_context_document(
-                    tool_intent=str(tool_intent or ""),
-                    tool_ids=tool_ids,
-                    response_mode=str(tool_response_mode or query_plan.response_mode),
-                    content=local_tool_turn.content,
-                    evidence_metadata=raw_evidence if isinstance(raw_evidence, Mapping) else None,
-                )
-                provider_context_documents = (*context_documents, evidence_document)
-                try:
-                    provider_turn = adapter.generate(
-                        message=_provider_tool_composition_message(
-                            operator_message=normalized_message,
-                            tool_intent=str(tool_intent or ""),
-                            response_mode=str(tool_response_mode or query_plan.response_mode),
-                        ),
-                        context_documents=provider_context_documents,
-                        language_profile=language_profile,
-                    )
-                    turn = replace(
-                        provider_turn,
-                        context_documents=provider_context_documents,
-                        safety_notes=(
-                            "Read-only Simurgh advisory registry tool was executed before provider composition.",
-                            "OpenAI Responses API composed the final text from bounded read-only MDS evidence with store=false.",
-                            "No direct drone API, MAVSDK command, raw GCS command, or mission mutation was exposed.",
-                        ),
-                    )
-                    context_documents = provider_context_documents
-                    retrieved_context_count += 1
-                    provider_composed_from_tool = True
-                except AgentRuntimeError as exc:
-                    provider_composition_error = _safe_provider_composition_error(exc)
+            composition = compose_read_only_tool_turn_with_provider(
+                config=config,
+                operator_message=normalized_message,
+                base_turn=local_tool_turn,
+                context_documents=context_documents,
+                tool_intent=str(tool_intent or ""),
+                tool_ids=tool_ids,
+                response_mode=str(tool_response_mode or query_plan.response_mode),
+                evidence_metadata=raw_evidence if isinstance(raw_evidence, Mapping) else None,
+                language_profile=language_profile,
+            )
+            turn = composition.turn
+            context_documents = composition.context_documents
+            retrieved_context_count += composition.retrieved_context_count_delta
+            provider_composed_from_tool = composition.provider_composed_from_tool
+            provider_composition_error = composition.provider_composition_error
     else:
         if (
             config.provider != "mock"

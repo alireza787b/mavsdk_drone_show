@@ -46,7 +46,12 @@ from agent_runtime import (
     require_mcp_runtime_enabled,
     sensitive_input_matches,
 )
-from agent_runtime.assistant import READ_TOOL_ADAPTER_VERSION, READ_TOOL_MODEL, READ_TOOL_PROVIDER
+from agent_runtime.assistant import (
+    READ_TOOL_ADAPTER_VERSION,
+    READ_TOOL_MODEL,
+    READ_TOOL_PROVIDER,
+    compose_read_only_tool_turn_with_provider,
+)
 from agent_runtime.mds_read_tools import (
     apply_runtime_settings,
     build_provider_credentials_payload,
@@ -1333,6 +1338,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         *,
         actor: str,
         plan,
+        allow_provider_composition: bool = False,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
         if not policy.agent_enabled:
@@ -1353,7 +1359,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 metadata=_bounded_metadata(turn_request.metadata),
             )
 
-        context_documents = AssistantContextAssembler(config=load_default_assistant_config()).assemble(
+        assistant_config = load_default_assistant_config()
+        context_documents = AssistantContextAssembler(config=assistant_config).assemble(
             _bounded_context_resource_ids(turn_request.context_resource_ids)
         )
         registry = load_default_tool_registry()
@@ -1378,7 +1385,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         read_only_evidence = evidence_bundle.public_metadata()
         content = format_registry_read_results(plan, results, registry_path=registry_label)
         tool_ids = [item.tool.id for item in results]
-        turn = AssistantTurnResult(
+        local_registry_turn = AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
             created_at=utc_now().isoformat(),
             provider=READ_TOOL_PROVIDER,
@@ -1392,6 +1399,29 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "No direct drone API, command, config write, upload, or mission mutation was exposed.",
             ),
         )
+        turn = local_registry_turn
+        retrieved_context_count = 0
+        provider_composed_from_tool = False
+        provider_composition_error = ""
+        if allow_provider_composition:
+            composition = compose_read_only_tool_turn_with_provider(
+                config=assistant_config,
+                operator_message=turn_request.message.strip(),
+                base_turn=local_registry_turn,
+                context_documents=tuple(context_documents),
+                tool_intent=REGISTRY_READ_EXECUTION_INTENT,
+                tool_ids=tool_ids,
+                response_mode="status",
+                evidence_metadata=read_only_evidence,
+                first_safety_note=(
+                    "Policy-allowed read-only Simurgh registry tools were executed before provider composition."
+                ),
+            )
+            turn = composition.turn
+            context_documents = composition.context_documents
+            retrieved_context_count = composition.retrieved_context_count_delta
+            provider_composed_from_tool = composition.provider_composed_from_tool
+            provider_composition_error = composition.provider_composition_error
         session = sessions.update_metadata(
             session.id,
             {
@@ -1448,10 +1478,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_reason": "registry_read_tool_plan",
                 "read_only_plan": plan.public_metadata(),
                 "read_only_evidence": read_only_evidence,
-                "retrieved_context_count": 0,
+                "retrieved_context_count": retrieved_context_count,
                 "web_search_enabled": False,
-                "provider_composed_from_tool": False,
-                "provider_composition_error": "",
+                "provider_composed_from_tool": provider_composed_from_tool,
+                "provider_composition_error": provider_composition_error,
             },
         )
         return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
@@ -1511,6 +1541,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     turn_request,
                     actor=actor,
                     plan=registry_plan,
+                    allow_provider_composition=provider_auth_allowed,
                 )
             else:
                 record = create_assistant_turn(

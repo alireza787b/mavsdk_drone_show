@@ -30,8 +30,13 @@ def _client(auth_context=None) -> TestClient:
     return TestClient(app)
 
 
-def _client_with_registry_probe_routes() -> TestClient:
+def _client_with_registry_probe_routes(auth_context=None) -> TestClient:
     app = FastAPI()
+    if auth_context is not None:
+        @app.middleware("http")
+        async def _inject_auth_context(request, call_next):  # noqa: ANN001
+            request.state.mds_auth_context = auth_context
+            return await call_next(request)
 
     @app.get("/api/v1/system/sitl/instances")
     def sitl_instances():
@@ -684,6 +689,55 @@ def test_simurgh_assistant_executes_registry_read_only_typed_sidecar_node(monkey
     assert "sidecar=mavlink-anywhere" in payload["content"]
     assert "hw_id=2" in payload["content"]
     assert "state: online" in payload["content"]
+
+
+def test_simurgh_assistant_composes_registry_evidence_with_openai_when_authenticated(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        captured["api_key"] = api_key
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Drone 2 sidecar evidence says mavlink-anywhere is online. No drone command was sent.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    client = _client_with_registry_probe_routes(
+        auth_context={"kind": "session", "role": "operator", "username": "operator"}
+    )
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns",
+        json={"actor": "operator", "message": "show mavlink-anywhere sidecar node for drone 2 now"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["provider"] == "openai"
+    assert payload["trace"]["tool"]["intent"] == "registry_read_execution"
+    assert payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecar.node.read"]
+    assert payload["trace"]["tool"]["evidence"]["source"] == "registry_read_only_mds"
+    assert payload["trace"]["context"]["retrieved_context_count"] == 1
+    assert "mavlink-anywhere is online" in payload["content"]
+    assert captured["api_key"] == "test-openai-key"
+    assert captured["tools"] == []
+    assert captured["tool_choice"] == "none"
+    assert "session.read_only_mds_evidence" in str(captured["input"])
+    assert "state: online" in str(captured["input"])
 
 
 def test_simurgh_assistant_falls_back_to_no_argument_sidecar_tools_when_typed_id_missing(monkeypatch):
