@@ -28,6 +28,7 @@ DOC_PATHS = {"/docs", "/redoc", "/openapi.json"}
 MACHINE_ENDPOINTS = {
     ("GET", "/api/v1/origin/bootstrap"),
     ("POST", "/api/v1/fleet/heartbeats"),
+    ("POST", "/api/v1/fleet/node-boot-status"),
     ("POST", "/api/v1/command-reports/execution-start"),
     ("POST", "/api/v1/command-reports/execution-result"),
     ("POST", "/api/v1/fleet/candidates/announce"),
@@ -40,6 +41,8 @@ ADMIN_PREFIXES = (
     "/api/v1/system/runtime-update",
     "/api/v1/system/sitl",
     "/api/v1/git/sync-operations",
+    "/api/v1/simurgh/runtime-settings",
+    "/api/v1/simurgh/provider-credentials",
 )
 SELF_SERVICE_MUTATION_PATHS = {
     "/api/v1/auth/me/password",

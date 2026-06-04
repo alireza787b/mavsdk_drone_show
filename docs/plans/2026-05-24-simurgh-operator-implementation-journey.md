@@ -2791,3 +2791,62 @@ Next recommended Simurgh slice:
 3. Keep official and client repos synchronized, then deploy the client build
    with `MDS_MODE=real`, action circuit breaker on, always-confirm on, and MCP
    auth on.
+
+## 2026-06-04 Update: Procedural Streaming Progress Foundation
+
+Goal: make Simurgh visibly procedural in the dashboard without exposing hidden
+chain-of-thought or turning the provider into an ungoverned tool runner. This is
+the first foundation for the requested ChatGPT-like multi-step flow: understand,
+plan, call approved tools/search/MCP, adapt from evidence, compose, and later
+monitor approved actions.
+
+What changed:
+
+- Added a progress callback path inside read-only registry execution.
+- The SSE assistant route now runs turn creation in a background task and emits
+  live progress from the executor queue instead of waiting for the final answer.
+- Registry read turns stream a plan event, per-tool running event, and per-tool
+  complete/error event before answer chunks. Existing local/provider fallback
+  turns still stream the compact tool/provider summary they had before.
+- Provider composition over read-only MDS evidence emits bounded provider
+  running/complete/fallback progress. It still does not expose provider-native
+  tools, raw prompts, secrets, raw logs, or hidden model reasoning.
+- Updated `docs/guides/simurgh-operator.md` with the procedural loop target for
+  future public web/search, external MCP connector, action proposal, final
+  circuit-breaker, and monitoring slices.
+
+Validation on Hetzner:
+
+- Focused stream regression subset: `2 passed`.
+- Focused auth/docs/stream follow-up subset after reviewer hardening: `4 passed`.
+- Full Simurgh/auth/agent/MCP/read-only suite: `358 passed` in about 2m38s.
+
+Reviewer status:
+
+- Independent reviewer initially inspected a stale local snapshot instead of the
+  Hetzner repo, so its route-specific streaming findings did not apply to this
+  slice. The useful checklist item was still valid: runtime/provider settings
+  should be treated as security/runtime administration. This slice added
+  admin-only middleware coverage for `POST/PUT`-style Simurgh runtime settings
+  and provider credential changes when auth is enabled, while preserving open
+  no-auth demo mode.
+- Backend/API reviewer: approved after the queue-backed stream path, cancellation
+  guard, stale docs-index regeneration, cwd-independent prompt-eval CLI test, and
+  broader suite passed.
+- AI-agent/MCP reviewer: approved for the current read-only procedural progress
+  foundation. This is not yet the full external MCP/web/action loop; it is the
+  reusable event/policy foundation that later lanes must plug into.
+- Safety/privacy reviewer: approved. The stream exposes only safe stage labels,
+  reviewed tool ids/titles, bounded status fields, answer deltas, and sanitized
+  final payloads. It does not stream hidden reasoning, raw prompts, secrets,
+  private logs, provider-native tool calls, or action execution.
+
+Next recommended Simurgh slice:
+
+1. Run the broader Simurgh/agent/MCP suite and sync the same patch to the public
+   official repo.
+2. Improve frontend progress rendering so multi-step plan/tool/provider events
+   appear inside the active answer bubble like a polished assistant activity
+   feed, not a debug log.
+3. Add the external public web/search lane only for public/general prompts, with
+   citations and strict egress separation from private MDS evidence.

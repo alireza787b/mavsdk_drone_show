@@ -6,7 +6,7 @@ import asyncio
 import json
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -574,6 +574,60 @@ def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if provider == "openai":
         return {"stage": "provider", "label": "Composing with OpenAI provider"}
     return {"stage": "provider", "label": "Composing local response"}
+
+
+AssistantProgressCallback = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+async def _emit_assistant_progress(
+    callback: AssistantProgressCallback | None,
+    payload: dict[str, Any],
+) -> None:
+    if callback is None:
+        return
+    await callback(payload)
+
+
+def _registry_plan_progress_payload(plan) -> dict[str, Any]:
+    tool_ids = [call.tool.id for call in plan.tool_calls]
+    count = len(tool_ids)
+    label = "Planning read-only MDS tool use"
+    if count == 1:
+        label = f"Planned read-only tool: {plan.tool_calls[0].tool.title}"
+    elif count > 1:
+        label = f"Planned {count} read-only MDS tools"
+    return {
+        "stage": "plan",
+        "state": "complete",
+        "label": label,
+        "intent": REGISTRY_READ_EXECUTION_INTENT,
+        "tool_ids": tool_ids,
+        "count": count,
+    }
+
+
+def _registry_tool_call_progress_payload(call, *, state: str, result=None) -> dict[str, Any]:
+    if state == "running":
+        label = f"Checking {call.tool.title}"
+    elif result is not None and getattr(result, "is_error", False):
+        label = f"Checked {call.tool.title}: error"
+    else:
+        label = f"Checked {call.tool.title}"
+    payload: dict[str, Any] = {
+        "stage": "tool",
+        "state": state,
+        "label": label,
+        "intent": REGISTRY_READ_EXECUTION_INTENT,
+        "tool_id": call.tool.id,
+        "tool_ids": [call.tool.id],
+        "title": call.tool.title,
+    }
+    if result is not None:
+        if getattr(result, "status_code", None):
+            payload["status_code"] = result.status_code
+        payload["is_error"] = bool(getattr(result, "is_error", False))
+        payload["truncated"] = bool(getattr(result, "truncated", False))
+    return payload
 
 
 def _auth_context(request: Request) -> dict[str, Any]:
@@ -1340,6 +1394,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         actor: str,
         plan,
         allow_provider_composition: bool = False,
+        progress_callback: AssistantProgressCallback | None = None,
     ) -> AssistantTurnRecord:
         policy = load_default_policy()
         if not policy.agent_enabled:
@@ -1371,7 +1426,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             registry_label = registry.path.as_posix()
 
         results: list[RegistryReadToolResult] = []
+        await _emit_assistant_progress(progress_callback, _registry_plan_progress_payload(plan))
         for call in plan.tool_calls:
+            await _emit_assistant_progress(
+                progress_callback,
+                _registry_tool_call_progress_payload(call, state="running"),
+            )
             result = await execute_policy_allowed_read_only_tool(
                 http_request,
                 name=call.tool.id,
@@ -1379,6 +1439,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 channel="agent",
                 registry=registry,
                 policy=policy,
+            )
+            await _emit_assistant_progress(
+                progress_callback,
+                _registry_tool_call_progress_payload(call, state="complete", result=result),
             )
             results.append(RegistryReadToolResult(tool=call.tool, arguments=dict(call.arguments), result=result))
 
@@ -1405,6 +1469,10 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         provider_composed_from_tool = False
         provider_composition_error = ""
         if allow_provider_composition:
+            await _emit_assistant_progress(
+                progress_callback,
+                {"stage": "provider", "state": "running", "label": "Composing answer with provider evidence context"},
+            )
             composition = compose_read_only_tool_turn_with_provider(
                 config=assistant_config,
                 operator_message=turn_request.message.strip(),
@@ -1423,6 +1491,14 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             retrieved_context_count = composition.retrieved_context_count_delta
             provider_composed_from_tool = composition.provider_composed_from_tool
             provider_composition_error = composition.provider_composition_error
+            await _emit_assistant_progress(
+                progress_callback,
+                {
+                    "stage": "provider",
+                    "state": "complete" if provider_composed_from_tool else "fallback",
+                    "label": "Provider composition ready" if provider_composed_from_tool else "Using deterministic evidence answer",
+                },
+            )
         session = sessions.update_metadata(
             session.id,
             {
@@ -1487,7 +1563,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         )
         return AssistantTurnRecord(session=session, turn=turn, audit_event=event)
 
-    async def _create_assistant_turn_record_for_request(http_request: Request, turn_request: SimurghAssistantTurnRequest):
+    async def _create_assistant_turn_record_for_request(
+        http_request: Request,
+        turn_request: SimurghAssistantTurnRequest,
+        *,
+        progress_callback: AssistantProgressCallback | None = None,
+    ):
         try:
             assistant_config = load_default_assistant_config()
             conversation_topic = None
@@ -1554,6 +1635,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     actor=actor,
                     plan=registry_plan,
                     allow_provider_composition=provider_auth_allowed,
+                    progress_callback=progress_callback,
                 )
             else:
                 record = create_assistant_turn(
@@ -1592,6 +1674,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
     @router.post("/api/v1/simurgh/assistant/turns/stream")
     async def stream_simurgh_assistant_turn(http_request: Request, request: SimurghAssistantTurnRequest):
         async def event_stream():
+            turn_task = None
             try:
                 yield _assistant_sse_event("progress", {"stage": "understanding", "label": "Understanding request"})
                 await asyncio.sleep(0)
@@ -1599,9 +1682,52 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 await asyncio.sleep(0)
                 yield _assistant_sse_event("progress", {"stage": "context", "label": "Selecting MDS context and tools"})
                 await asyncio.sleep(0)
-                record, history_record = await _create_assistant_turn_record_for_request(http_request, request)
-                payload = _assistant_turn_response_payload(record, history_record)
-                yield _assistant_sse_event("progress", _assistant_tool_progress_payload(payload))
+
+                progress_queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
+
+                async def progress_callback(payload: dict[str, Any]) -> None:
+                    await progress_queue.put(("progress", payload))
+
+                async def run_turn() -> None:
+                    try:
+                        record, history_record = await _create_assistant_turn_record_for_request(
+                            http_request,
+                            request,
+                            progress_callback=progress_callback,
+                        )
+                        await progress_queue.put(("final", _assistant_turn_response_payload(record, history_record)))
+                    except HTTPException as exc:
+                        await progress_queue.put(("error", {"status_code": exc.status_code, "detail": exc.detail}))
+                    except Exception:  # pragma: no cover - final guard for streaming clients
+                        await progress_queue.put(("error", {"status_code": 500, "detail": "Simurgh stream failed."}))
+                    finally:
+                        await progress_queue.put(("finished", {}))
+
+                turn_task = asyncio.create_task(run_turn())
+                payload: dict[str, Any] | None = None
+                saw_tool_progress = False
+                while True:
+                    event_name, event_payload = await progress_queue.get()
+                    if event_name == "finished":
+                        break
+                    if event_name == "progress":
+                        if event_payload.get("stage") == "tool":
+                            saw_tool_progress = True
+                        yield _assistant_sse_event("progress", event_payload)
+                        await asyncio.sleep(0)
+                    elif event_name == "final":
+                        payload = event_payload
+                    elif event_name == "error":
+                        yield _assistant_sse_event("error", event_payload)
+                        return
+
+                if turn_task is not None:
+                    await turn_task
+                if payload is None:
+                    yield _assistant_sse_event("error", {"status_code": 500, "detail": "Simurgh stream did not produce a final answer."})
+                    return
+                if not saw_tool_progress:
+                    yield _assistant_sse_event("progress", _assistant_tool_progress_payload(payload))
                 await asyncio.sleep(0)
                 content = str(payload.get("content") or "")
                 if content:
@@ -1617,6 +1743,9 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 yield _assistant_sse_event("error", {"status_code": exc.status_code, "detail": exc.detail})
             except Exception:  # pragma: no cover - final guard for streaming clients
                 yield _assistant_sse_event("error", {"status_code": 500, "detail": "Simurgh stream failed."})
+            finally:
+                if turn_task is not None and not turn_task.done():
+                    turn_task.cancel()
 
         return StreamingResponse(
             event_stream(),

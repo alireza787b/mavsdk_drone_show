@@ -3,11 +3,15 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from agent_runtime.dashboard_prompt_evals import (
     DashboardPromptEvalSuite,
     run_dashboard_prompt_eval_suite,
 )
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_dashboard_prompt_eval_suite_passes_runtime_router_scenarios():
@@ -29,9 +33,10 @@ def test_dashboard_prompt_eval_suite_passes_runtime_router_scenarios():
 
 def test_dashboard_prompt_eval_cli_json_report_is_machine_readable():
     completed = subprocess.run(
-        [sys.executable, "tools/run_simurgh_dashboard_prompt_evals.py", "--json"],
+        [sys.executable, str(REPO_ROOT / "tools" / "run_simurgh_dashboard_prompt_evals.py"), "--json"],
         check=True,
         capture_output=True,
+        cwd=REPO_ROOT,
         text=True,
     )
 

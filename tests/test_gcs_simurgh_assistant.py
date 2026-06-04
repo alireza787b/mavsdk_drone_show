@@ -248,10 +248,17 @@ def test_simurgh_assistant_stream_reports_specific_registry_tool_progress(monkey
         body = "".join(response.iter_text())
 
     events = _parse_sse_events(body)
+    plan_progress = [payload for event, payload in events if event == "progress" and payload.get("stage") == "plan"]
+    assert plan_progress
+    assert plan_progress[-1]["state"] == "complete"
+    assert plan_progress[-1]["tool_ids"] == ["mds.fleet.sidecar.node.read"]
     tool_progress = [payload for event, payload in events if event == "progress" and payload.get("stage") == "tool"]
-    assert tool_progress
-    assert tool_progress[-1]["label"] == "Using read-only MDS tool: Read fleet sidecar node"
+    assert [payload["state"] for payload in tool_progress] == ["running", "complete"]
+    assert tool_progress[0]["label"] == "Checking Read fleet sidecar node"
+    assert tool_progress[0]["tool_id"] == "mds.fleet.sidecar.node.read"
+    assert tool_progress[-1]["label"] == "Checked Read fleet sidecar node"
     assert tool_progress[-1]["tool_ids"] == ["mds.fleet.sidecar.node.read"]
+    assert tool_progress[-1]["is_error"] is False
     final_payload = next(payload for event, payload in events if event == "final")
     assert final_payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecar.node.read"]
 

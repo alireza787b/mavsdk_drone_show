@@ -390,6 +390,38 @@ or very low-signal message should not be ignored; Simurgh should state the most
 likely MDS interpretation, provide the nearest safe next step, and ask one short
 clarifying question only when needed.
 
+## Procedural Agent Loop Target
+
+Simurgh should feel like a live expert because the runtime is procedural, not
+because it exposes hidden chain-of-thought. Operator-visible progress is limited
+to safe stage labels and evidence summaries. Raw model reasoning, private prompts,
+credentials, full logs, and unbounded telemetry are never streamed to the UI or
+MCP clients.
+
+The target loop for each turn is:
+
+1. understand the operator request, language, tone, domain, and risk class;
+2. plan the smallest approved evidence/action path from the registry and policy;
+3. call zero or more local read-only tools, public docs retrieval tools, public
+   web/search tools, or trusted external MCP tools, each behind its own egress and
+   approval policy;
+4. adapt the plan from returned evidence, including additional read-only calls
+   when the first evidence source is insufficient;
+5. compose the answer from cited evidence, preserving exact MDS facts and safety
+   caveats;
+6. for future mutation/flight actions, produce an action proposal, require human
+   confirmation when policy says so, then let the final executor enforce the
+   circuit breaker and runtime mode before anything reaches GCS or a drone path;
+7. monitor approved long-running work through explicit status tools and stream
+   progress until completion, cancellation, or a bounded timeout.
+
+Current production scope implements the first procedural foundation for
+read-only registry tools: the SSE route emits plan, per-tool running, per-tool
+complete/error, provider-composition, answer-delta, final, and done events. Future
+external web/search and MCP connector lanes must plug into the same event and
+policy model. They must not create a second hardcoded chatbot path or bypass the
+registry/audit/circuit-breaker layers.
+
 The retrieval artifact is
 `docs/agent-context/generated/simurgh-docs-index.json`, generated from approved
 public docs and context files. Provider retrieval and MCP docs tools share this
@@ -410,6 +442,7 @@ set whenever a retrieval or query-planning change is made.
 Design references for reviewers:
 
 - OpenAI Responses/tool guidance: https://developers.openai.com/api/docs/guides/tools
+- OpenAI MCP/connectors guidance: https://developers.openai.com/api/docs/guides/tools-connectors-mcp
 - IBM RAG overview: https://www.ibm.com/think/topics/retrieval-augmented-generation
 - IBM mtRAG benchmark: https://research.ibm.com/publications/mtrag-a-multi-turn-conversational-benchmark-for-evaluating-retrieval-augmented-generation-systems--1
 - Microsoft GraphRAG query engine: https://microsoft.github.io/graphrag/query/overview/
@@ -732,11 +765,14 @@ Assistant scaffold route:
 The stream route returns `text/event-stream` and emits bounded events for the
 dashboard chat UI:
 
-- `progress`: short stage labels such as policy/context/tool/provider work;
-  when a registry read executes, the tool-stage payload includes the selected
-  read-only tool id(s) and reviewed tool title(s), so the dashboard can show
-  concrete steps such as `Read fleet sidecar node` without exposing raw request
-  text or secrets
+- `progress`: short stage labels such as understanding, policy, context,
+  planning, tool work, provider composition, and answer streaming. When a
+  registry read executes, the stream emits a plan event, a running event for each
+  selected tool, and a complete/error event for each selected tool. Tool-stage
+  payloads include reviewed tool id(s), reviewed titles, and bounded status
+  fields so the dashboard can show concrete steps such as `Checking Read fleet
+  sidecar node` without exposing raw request text, hidden reasoning, secrets, or
+  full evidence payloads.
 - `delta`: text chunks for incremental rendering inside the assistant bubble
 - `final`: the same sanitized assistant-turn payload returned by the normal
   `POST /api/v1/simurgh/assistant/turns` route

@@ -51,6 +51,22 @@ def _make_app():
     async def fleet_env_plan_post():
         return {"ok": True}
 
+    @app.get("/api/v1/simurgh/runtime-settings")
+    async def simurgh_runtime_settings_get():
+        return {"ok": True}
+
+    @app.put("/api/v1/simurgh/runtime-settings")
+    async def simurgh_runtime_settings_put():
+        return {"ok": True}
+
+    @app.get("/api/v1/simurgh/provider-credentials")
+    async def simurgh_provider_credentials_get():
+        return {"ok": True}
+
+    @app.put("/api/v1/simurgh/provider-credentials")
+    async def simurgh_provider_credentials_put():
+        return {"ok": True}
+
     @app.post("/api/v1/fleet/heartbeats")
     async def heartbeat_post():
         return {"success": True}
@@ -184,6 +200,31 @@ def test_runtime_env_mutation_requires_admin(monkeypatch, tmp_path):
 
     assert client.get("/api/v1/system/env/gcs").status_code == 200
     assert client.put("/api/v1/system/env/gcs", headers={"X-MDS-CSRF-Token": admin_csrf}).status_code == 200
+
+
+def test_simurgh_runtime_and_provider_settings_require_admin(monkeypatch, tmp_path):
+    _set_auth_env(monkeypatch, tmp_path, dashboard=True, api=False)
+    service = AuthService(AuthSettings.from_env())
+    service.store.upsert_user("operator", password="test-password", role="operator")
+    service.store.upsert_user("admin", password="test-password", role="admin")
+    client = TestClient(_make_app())
+
+    operator_login = client.post("/api/v1/auth/login", json={"username": "operator", "password": "test-password"})
+    operator_csrf = operator_login.json()["csrf_token"]
+
+    assert client.get("/api/v1/simurgh/runtime-settings").status_code == 403
+    assert client.put("/api/v1/simurgh/runtime-settings", headers={"X-MDS-CSRF-Token": operator_csrf}).status_code == 403
+    assert client.get("/api/v1/simurgh/provider-credentials").status_code == 403
+    assert client.put("/api/v1/simurgh/provider-credentials", headers={"X-MDS-CSRF-Token": operator_csrf}).status_code == 403
+
+    client.post("/api/v1/auth/logout")
+    admin_login = client.post("/api/v1/auth/login", json={"username": "admin", "password": "test-password"})
+    admin_csrf = admin_login.json()["csrf_token"]
+
+    assert client.get("/api/v1/simurgh/runtime-settings").status_code == 200
+    assert client.put("/api/v1/simurgh/runtime-settings", headers={"X-MDS-CSRF-Token": admin_csrf}).status_code == 200
+    assert client.get("/api/v1/simurgh/provider-credentials").status_code == 200
+    assert client.put("/api/v1/simurgh/provider-credentials", headers={"X-MDS-CSRF-Token": admin_csrf}).status_code == 200
 
 
 def test_signed_in_user_can_change_own_password(monkeypatch, tmp_path):

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 796,
+  "chunk_count": 797,
   "chunks": [
     {
       "audience": "operator",
@@ -535,10 +535,51 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "5aa9c2899a179c9bbe5a3148ce4f4f16c198d1ab8aab46701a1c965a86db1872",
+      "content_hash": "73243eebed494c896d12d63d4174c04d69a3891782a3aa8e5bc3087b55fa5dec",
       "heading": "Query Planning And Retrieval Context",
       "id": "simurgh.operator_guide:010-01-query-planning-and-retrieval-context",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "## Query Planning And Retrieval Context\n\nSimurgh does not rely on a naive \"chunk, embed, return top-k\" path for operator\nchat. The current provider path uses a small deterministic query-planning layer\nbefore any external model call:\n\n- normalize common field typos without changing the operator's meaning;\n- infer a domain such as `drone_show`, `fleet`, `swarm`, `logs`, `setup`,\n `runtime`, `mcp`, `ui`, or `general`;\n- infer the answer mode, for example `status`, `interpret`, `workflow`,\n `compare`, `capability`, or `clarify`;\n- prefer local read-only MDS tools for factual GCS state;\n- retrieve bounded public documentation chunks only when no local evidence tool\n handled the prompt;\n- keep only safe routing metadata such as `last_domain`, never raw transcript\n text, secrets, raw logs, or field evidence;\n- add audit metadata for the inferred domain, response mode, uncertainty, and\n number of retrieved context chunks.\n\nThis keeps deterministic work deterministic while still letting the provider\nanswer unexpected, typo-heavy, or partially unclear prompts naturally. A nonsense\nor very low-signal message should not be ignored; Simurgh should state the most\nlikely MDS interpretation, provide the nearest safe next step, and ask one short\nclarifying question only when needed.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "6020e4caf6dd0d8195489ee478863f97518bb7bfd478da758a9641b24b131a1e",
+      "heading": "Procedural Agent Loop Target",
+      "id": "simurgh.operator_guide:011-01-procedural-agent-loop-target",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-operator.md",
+      "resource_id": "simurgh.operator_guide",
+      "route_hint": "/simurgh",
+      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
+      "tags": [
+        "simurgh",
+        "operator",
+        "dashboard"
+      ],
+      "text": "## Procedural Agent Loop Target\n\nSimurgh should feel like a live expert because the runtime is procedural, not\nbecause it exposes hidden chain-of-thought. Operator-visible progress is limited\nto safe stage labels and evidence summaries. Raw model reasoning, private prompts,\ncredentials, full logs, and unbounded telemetry are never streamed to the UI or\nMCP clients.\n\nThe target loop for each turn is:\n\n1. understand the operator request, language, tone, domain, and risk class;\n2. plan the smallest approved evidence/action path from the registry and policy;\n3. call zero or more local read-only tools, public docs retrieval tools, public\n web/search tools, or trusted external MCP tools, each behind its own egress and\n approval policy;\n4. adapt the plan from returned evidence, including additional read-only calls\n when the first evidence source is insufficient;\n5. compose the answer from cited evidence, preserving exact MDS facts and safety\n caveats;\n6. for future mutation/flight actions, produce an action proposal, require human\n confirmation when policy says so, then let the final executor enforce the\n circuit breaker and runtime mode before anything reaches GCS or a drone path;\n7. monitor approved long-running work through explicit status tools and stream\n progress until completion, cancellation, or a bounded timeout.\n\nCurrent production scope implements the first procedural foundation for\nread-only registry tools: the SSE route emits plan, per-tool running, per-tool\ncomplete/error, provider-composition, answer-delta, final, and done events. Future\nexternal web/search and MCP connector lanes must plug into the same event and\npolicy model. They must not create a second hardcoded chatbot path or bypass the\nregistry/audit/circuit-breaker layers.",
+      "title": "Simurgh operator guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
+      "content_hash": "640d9fe7e7891457ca4e2f9cbdbfbc6823aff31e99af8124d4b160f84824e643",
+      "heading": "Procedural Agent Loop Target",
+      "id": "simurgh.operator_guide:011-02-procedural-agent-loop-target",
       "links": [
+        "docs/agent-context/evals/simurgh-retrieval-quality.yaml",
         "docs/agent-context/generated/simurgh-docs-index.json"
       ],
       "mime_type": "text/markdown",
@@ -551,37 +592,15 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Query Planning And Retrieval Context\n\nSimurgh does not rely on a naive \"chunk, embed, return top-k\" path for operator\nchat. The current provider path uses a small deterministic query-planning layer\nbefore any external model call:\n\n- normalize common field typos without changing the operator's meaning;\n- infer a domain such as `drone_show`, `fleet`, `swarm`, `logs`, `setup`,\n `runtime`, `mcp`, `ui`, or `general`;\n- infer the answer mode, for example `status`, `interpret`, `workflow`,\n `compare`, `capability`, or `clarify`;\n- prefer local read-only MDS tools for factual GCS state;\n- retrieve bounded public documentation chunks only when no local evidence tool\n handled the prompt;\n- keep only safe routing metadata such as `last_domain`, never raw transcript\n text, secrets, raw logs, or field evidence;\n- add audit metadata for the inferred domain, response mode, uncertainty, and\n number of retrieved context chunks.\n\nThis keeps deterministic work deterministic while still letting the provider\nanswer unexpected, typo-heavy, or partially unclear prompts naturally. A nonsense\nor very low-signal message should not be ignored; Simurgh should state the most\nlikely MDS interpretation, provide the nearest safe next step, and ask one short\nclarifying question only when needed.\n\nThe retrieval artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`, generated from approved\npublic docs and context files. Provider retrieval and MCP docs tools share this\nartifact through `gcs-server/agent_runtime/retrieval.py`, so dashboard chat,\nexternal MCP clients, and future custom agents have the same documentation\nsurface. The production default is `LexicalDocsRetriever`: lexical/tag-filtered\nsearch with bounded context budgets and multi-query fusion that favors the\noperator's original wording over broader expansion queries. Future hybrid vector\nsearch, reranking, GraphRAG-style entity/community retrieval, or agentic\nmulti-step retrieval must plug in behind the same `RetrievalQuery` / `RetrievalHit`\ncontract and be gated by retrieval evals before becoming production default.",
+      "text": "The retrieval artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`, generated from approved\npublic docs and context files. Provider retrieval and MCP docs tools share this\nartifact through `gcs-server/agent_runtime/retrieval.py`, so dashboard chat,\nexternal MCP clients, and future custom agents have the same documentation\nsurface. The production default is `LexicalDocsRetriever`: lexical/tag-filtered\nsearch with bounded context budgets and multi-query fusion that favors the\noperator's original wording over broader expansion queries. Future hybrid vector\nsearch, reranking, GraphRAG-style entity/community retrieval, or agentic\nmulti-step retrieval must plug in behind the same `RetrievalQuery` / `RetrievalHit`\ncontract and be gated by retrieval evals before becoming production default.\n\nRetrieval quality checks live in\n`docs/agent-context/evals/simurgh-retrieval-quality.yaml` and\n`tests/test_simurgh_retrieval_quality.py`. Keep review-critical prompts in that eval\nset whenever a retrieval or query-planning change is made.\n\nDesign references for reviewers:\n\n- OpenAI Responses/tool guidance: https://developers.openai.com/api/docs/guides/tools\n- OpenAI MCP/connectors guidance: https://developers.openai.com/api/docs/guides/tools-connectors-mcp\n- IBM RAG overview: https://www.ibm.com/think/topics/retrieval-augmented-generation\n- IBM mtRAG benchmark: https://research.ibm.com/publications/mtrag-a-multi-turn-conversational-benchmark-for-evaluating-retrieval-augmented-generation-systems--1\n- Microsoft GraphRAG query engine: https://microsoft.github.io/graphrag/query/overview/\n- LangGraph agentic RAG tutorial: https://docs.langchain.com/oss/python/langgraph/agentic-rag\n- MCP tools/resources/security guidance: https://modelcontextprotocol.io/specification/draft/server/tools\n\nReviewer smoke prompts to keep healthy:",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "baa5bdf6f7a965fa45d13f158dbd27ec0e6795bbf87c6107426636bc19119dde",
-      "heading": "Query Planning And Retrieval Context",
-      "id": "simurgh.operator_guide:010-02-query-planning-and-retrieval-context",
-      "links": [
-        "docs/agent-context/evals/simurgh-retrieval-quality.yaml"
-      ],
-      "mime_type": "text/markdown",
-      "path": "docs/guides/simurgh-operator.md",
-      "resource_id": "simurgh.operator_guide",
-      "route_hint": "/simurgh",
-      "summary": "Dashboard, provider, MCP, safety, and field-use guide for Simurgh.",
-      "tags": [
-        "simurgh",
-        "operator",
-        "dashboard"
-      ],
-      "text": "Retrieval quality checks live in\n`docs/agent-context/evals/simurgh-retrieval-quality.yaml` and\n`tests/test_simurgh_retrieval_quality.py`. Keep review-critical prompts in that eval\nset whenever a retrieval or query-planning change is made.\n\nDesign references for reviewers:\n\n- OpenAI Responses/tool guidance: https://developers.openai.com/api/docs/guides/tools\n- IBM RAG overview: https://www.ibm.com/think/topics/retrieval-augmented-generation\n- IBM mtRAG benchmark: https://research.ibm.com/publications/mtrag-a-multi-turn-conversational-benchmark-for-evaluating-retrieval-augmented-generation-systems--1\n- Microsoft GraphRAG query engine: https://microsoft.github.io/graphrag/query/overview/\n- LangGraph agentic RAG tutorial: https://docs.langchain.com/oss/python/langgraph/agentic-rag\n- MCP tools/resources/security guidance: https://modelcontextprotocol.io/specification/draft/server/tools\n\nReviewer smoke prompts to keep healthy:\n\n- `How many drones do we have configured?`\n- `What is the swarm formation planned now?`\n- `What drone show is planned now and how long will it take?`\n- `Is there a drone show uploaded and ready?`\n- `Is there any uploaded?` after a drone-show turn\n- `What is the scout drone IP?`\n- `If I want to add a third drone now, what workflow must be done?`\n- `Check latest backend logs and report anything worth mentioning for operation`\n- `What does it mean?` after a logs turn\n- `What runtime are we in, and how do I switch to SITL safely?`\n- `Can you check backend log warnings?`\n- `Give me links for setting up a new board, env, and keys.`\n- `Give me links for creating a SITL demo.`\n- `If I allowed it, what APIs would be needed for takeoff/hold/move/return?`\n\nDoc-link prompts must never fall through to connectivity checks just because\nthey contain the word `link`; this is covered by\n`tests/test_agent_assistant_runtime.py`.",
-      "title": "Simurgh operator guide"
-    },
-    {
-      "audience": "operator",
-      "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "d6dc3af5b937d60d0136dabd530142e418931274685646dfe9616a8f7351de37",
-      "heading": "Query Planning And Retrieval Context",
-      "id": "simurgh.operator_guide:010-03-query-planning-and-retrieval-context",
+      "content_hash": "b1c37d0dc8e5b4af3905d849541509f875d6652254a96862995e84ffd4019dd3",
+      "heading": "Procedural Agent Loop Target",
+      "id": "simurgh.operator_guide:011-03-procedural-agent-loop-target",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -593,7 +612,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "Architecture note: MCP is the external interoperability surface for n8n, Claude\nDesktop, VS Code, and other agent clients. The dashboard assistant should not\nbecome a separate ungoverned tool stack; internal assistant adapters and the MCP\nendpoint must converge on the same registry, policy engine, audit model, and\ncurated executors. New GCS APIs may be discovered from OpenAPI metadata, but\nthey must enter the registry as classified candidates and are not callable until\npolicy, schemas, safety notes, docs, and tests approve them. Public MDS docs are\navailable through the same MCP tool menu via `mds.docs.search` and\n`mds.docs.chunk.read`; future vector or embedding retrieval should sit behind\nthat interface rather than bypassing the registry/policy boundary.",
+      "text": "- `How many drones do we have configured?`\n- `What is the swarm formation planned now?`\n- `What drone show is planned now and how long will it take?`\n- `Is there a drone show uploaded and ready?`\n- `Is there any uploaded?` after a drone-show turn\n- `What is the scout drone IP?`\n- `If I want to add a third drone now, what workflow must be done?`\n- `Check latest backend logs and report anything worth mentioning for operation`\n- `What does it mean?` after a logs turn\n- `What runtime are we in, and how do I switch to SITL safely?`\n- `Can you check backend log warnings?`\n- `Give me links for setting up a new board, env, and keys.`\n- `Give me links for creating a SITL demo.`\n- `If I allowed it, what APIs would be needed for takeoff/hold/move/return?`\n\nDoc-link prompts must never fall through to connectivity checks just because\nthey contain the word `link`; this is covered by\n`tests/test_agent_assistant_runtime.py`.\n\nArchitecture note: MCP is the external interoperability surface for n8n, Claude\nDesktop, VS Code, and other agent clients. The dashboard assistant should not\nbecome a separate ungoverned tool stack; internal assistant adapters and the MCP\nendpoint must converge on the same registry, policy engine, audit model, and\ncurated executors. New GCS APIs may be discovered from OpenAPI metadata, but\nthey must enter the registry as classified candidates and are not callable until\npolicy, schemas, safety notes, docs, and tests approve them. Public MDS docs are\navailable through the same MCP tool menu via `mds.docs.search` and\n`mds.docs.chunk.read`; future vector or embedding retrieval should sit behind\nthat interface rather than bypassing the registry/policy boundary.",
       "title": "Simurgh operator guide"
     },
     {
@@ -601,7 +620,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "d43a278ae4ce6b20a7957b997a38acdf7b8c7ca36b395cfa4de9df94385cf1f3",
       "heading": "Safety Boundary",
-      "id": "simurgh.operator_guide:011-01-safety-boundary",
+      "id": "simurgh.operator_guide:012-01-safety-boundary",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -621,7 +640,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "d119d3e7dd526cecb42d23e4958e556f5c8aead9061ddbcdbaba32b9f4234f2a",
       "heading": "MCP Endpoint",
-      "id": "simurgh.operator_guide:012-01-mcp-endpoint",
+      "id": "simurgh.operator_guide:013-01-mcp-endpoint",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -641,7 +660,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "8c2924e241752a70619a5c9ab57a2147ee4aedba42a7f11b07d1de4f1edfc44d",
       "heading": "Production MCP Setup",
-      "id": "simurgh.operator_guide:013-01-production-mcp-setup",
+      "id": "simurgh.operator_guide:014-01-production-mcp-setup",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -661,7 +680,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "f49cfb880bbdf80a8d962ec52ad9d0f38a67a08c4721ecc8a21767363ee5a369",
       "heading": "Production MCP Setup",
-      "id": "simurgh.operator_guide:013-02-production-mcp-setup",
+      "id": "simurgh.operator_guide:014-02-production-mcp-setup",
       "links": [
         "docs/guides/simurgh-mcp-clients.md"
       ],
@@ -683,7 +702,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "9e6a349cdafc3342d176e875d5f52854a21804b13b8794be7ce8c394d0e38777",
       "heading": "Generated Docs Index",
-      "id": "simurgh.operator_guide:014-01-generated-docs-index",
+      "id": "simurgh.operator_guide:015-01-generated-docs-index",
       "links": [
         "docs/agent-context/context-index.yaml",
         "docs/agent-context/generated/simurgh-docs-index.json",
@@ -707,7 +726,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "ce107cadc2abf22d2f803ccb4d65968d79bf113a580f3c4c5d657cc44def53d0",
       "heading": "Generated OpenAPI Candidates",
-      "id": "simurgh.operator_guide:015-01-generated-openapi-candidates",
+      "id": "simurgh.operator_guide:016-01-generated-openapi-candidates",
       "links": [
         "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
       ],
@@ -729,7 +748,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "fcd973c5142c1e5291e67c31c2009892dbd9799f7e6a293550ffc7cc7f0811e1",
       "heading": "GCS API Surface",
-      "id": "simurgh.operator_guide:016-01-gcs-api-surface",
+      "id": "simurgh.operator_guide:017-01-gcs-api-surface",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -747,9 +766,9 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "067cb3f90e13f6e09f91f3d5d9d2623f6fca15add7a61be9e08595976dea2519",
+      "content_hash": "4a5426752ac8c042bcc8e73f366242d93aa9cbe3d86ec84ff3afc664e0db0c50",
       "heading": "GCS API Surface",
-      "id": "simurgh.operator_guide:016-02-gcs-api-surface",
+      "id": "simurgh.operator_guide:017-02-gcs-api-surface",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -761,15 +780,15 @@
         "operator",
         "dashboard"
       ],
-      "text": "Current coverage is intentionally bounded to safe status/catalog evidence such\nas SITL state, SAR/QuickScout mission catalogs or explicit mission status, Fleet\nOps sidecar/network tables and specific nodes, bounded log-session reads,\nruntime posture, environment registry state, PX4 parameter policy/profile\nsummaries, origin/launch-position/elevation evidence, Swarm Trajectory\nstatus/validation/leaders, SkyBrush validation/safety/metrics snapshots, fleet\ncandidates, and GCS health.\n\nRead-only routes:\n\n- `GET /api/v1/simurgh/status`\n- `GET /api/v1/simurgh/policy`\n- `GET /api/v1/simurgh/tools`\n- `GET /api/v1/simurgh/tools/{tool_id}`\n- `GET /api/v1/simurgh/context`\n- `GET /api/v1/simurgh/context/{resource_id}`\n- `GET /api/v1/simurgh/sessions`\n- `GET /api/v1/simurgh/audit`\n- `GET /api/v1/simurgh/assistant/turns`\n\nSession routes:\n\n- `POST /api/v1/simurgh/sessions`\n- `DELETE /api/v1/simurgh/sessions/{session_id}`\n\nAssistant scaffold route:\n\n- `POST /api/v1/simurgh/assistant/turns`\n- `POST /api/v1/simurgh/assistant/turns/stream`\n\nThe stream route returns `text/event-stream` and emits bounded events for the\ndashboard chat UI:\n\n- `progress`: short stage labels such as policy/context/tool/provider work;\n when a registry read executes, the tool-stage payload includes the selected\n read-only tool id(s) and reviewed tool title(s), so the dashboard can show\n concrete steps such as `Read fleet sidecar node` without exposing raw request\n text or secrets\n- `delta`: text chunks for incremental rendering inside the assistant bubble\n- `final`: the same sanitized assistant-turn payload returned by the normal\n `POST /api/v1/simurgh/assistant/turns` route\n- `done`: final id/session marker\n- `error`: sanitized status/detail when orchestration fails\n\nThe stream route is for first-party dashboard UX. It is generated as an\nOpenAPI/MCP candidate but remains `callable: false`, `exclude`, and\nreview-only. External MCP clients should continue to use\n`POST /api/v1/simurgh/mcp`; MCP itself still uses Streamable HTTP request/response\nJSON in this slice, not SSE.",
+      "text": "Current coverage is intentionally bounded to safe status/catalog evidence such\nas SITL state, SAR/QuickScout mission catalogs or explicit mission status, Fleet\nOps sidecar/network tables and specific nodes, bounded log-session reads,\nruntime posture, environment registry state, PX4 parameter policy/profile\nsummaries, origin/launch-position/elevation evidence, Swarm Trajectory\nstatus/validation/leaders, SkyBrush validation/safety/metrics snapshots, fleet\ncandidates, and GCS health.\n\nRead-only routes:\n\n- `GET /api/v1/simurgh/status`\n- `GET /api/v1/simurgh/policy`\n- `GET /api/v1/simurgh/tools`\n- `GET /api/v1/simurgh/tools/{tool_id}`\n- `GET /api/v1/simurgh/context`\n- `GET /api/v1/simurgh/context/{resource_id}`\n- `GET /api/v1/simurgh/sessions`\n- `GET /api/v1/simurgh/audit`\n- `GET /api/v1/simurgh/assistant/turns`\n\nSession routes:\n\n- `POST /api/v1/simurgh/sessions`\n- `DELETE /api/v1/simurgh/sessions/{session_id}`\n\nAssistant scaffold route:\n\n- `POST /api/v1/simurgh/assistant/turns`\n- `POST /api/v1/simurgh/assistant/turns/stream`\n\nThe stream route returns `text/event-stream` and emits bounded events for the\ndashboard chat UI:\n\n- `progress`: short stage labels such as understanding, policy, context,\n planning, tool work, provider composition, and answer streaming. When a\n registry read executes, the stream emits a plan event, a running event for each\n selected tool, and a complete/error event for each selected tool. Tool-stage\n payloads include reviewed tool id(s), reviewed titles, and bounded status\n fields so the dashboard can show concrete steps such as `Checking Read fleet\n sidecar node` without exposing raw request text, hidden reasoning, secrets, or\n full evidence payloads.\n- `delta`: text chunks for incremental rendering inside the assistant bubble\n- `final`: the same sanitized assistant-turn payload returned by the normal\n `POST /api/v1/simurgh/assistant/turns` route\n- `done`: final id/session marker\n- `error`: sanitized status/detail when orchestration fails",
       "title": "Simurgh operator guide"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "05ae6b49f1e789771bd8fc7bba52f655bc9a4f397e0c549e019711646aec02e0",
+      "content_hash": "fb539c3cb9f82276ea20ff447d3d91f94fcd60c5e8856314f02b08af9ef7c573",
       "heading": "GCS API Surface",
-      "id": "simurgh.operator_guide:016-03-gcs-api-surface",
+      "id": "simurgh.operator_guide:017-03-gcs-api-surface",
       "links": [
         "docs/agent-context/context-index.yaml"
       ],
@@ -783,7 +802,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "Session creation requires `MDS_AGENT_ENABLED=true`. If an installation disables\nthe agent runtime, operators and maintainers can still inspect policy, tool\nmetadata, and context resources.\n\nAssistant turns also require `MDS_AGENT_ENABLED=true`. The default adapter is\ndeterministic `mock`. The optional `openai` adapter is advisory-only and calls\nthe OpenAI Responses API after the same policy, actor/session, message-size,\nmetadata-size, and public-context checks pass. Provider adapters assemble public\ncontext from `config/agent_assistant.yaml` and\n`docs/agent-context/context-index.yaml`, record an audit hash, and do not expose\nmodel-driven tools in this slice. Common MDS state questions may be answered\nbefore the provider call by local read-only GCS context tools backed by the same\nregistry/policy direction used for MCP. If `MDS_AGENT_PROVIDER` is set to an\nunsupported provider, the route returns a not-implemented error.\n\n`GET /api/v1/simurgh/status` reports `assistant_provider`,\n`assistant_model`, and `assistant_external_provider` so dashboards and agent\nclients can warn operators when text may leave the GCS for a configured model\nprovider. Operator UI must not describe the assistant as local-only unless the\nreported provider is `mock`.\n\nProvider instructions and input templates live in `config/agent_assistant.yaml`.\nChanging those prompts should be done by editing the config artifact, then\nupdating tests and docs. The adapter must not embed mission policy, tool rules,\nor prompt text in code.",
+      "text": "The stream route is for first-party dashboard UX. It is generated as an\nOpenAPI/MCP candidate but remains `callable: false`, `exclude`, and\nreview-only. External MCP clients should continue to use\n`POST /api/v1/simurgh/mcp`; MCP itself still uses Streamable HTTP request/response\nJSON in this slice, not SSE.\n\nSession creation requires `MDS_AGENT_ENABLED=true`. If an installation disables\nthe agent runtime, operators and maintainers can still inspect policy, tool\nmetadata, and context resources.\n\nAssistant turns also require `MDS_AGENT_ENABLED=true`. The default adapter is\ndeterministic `mock`. The optional `openai` adapter is advisory-only and calls\nthe OpenAI Responses API after the same policy, actor/session, message-size,\nmetadata-size, and public-context checks pass. Provider adapters assemble public\ncontext from `config/agent_assistant.yaml` and\n`docs/agent-context/context-index.yaml`, record an audit hash, and do not expose\nmodel-driven tools in this slice. Common MDS state questions may be answered\nbefore the provider call by local read-only GCS context tools backed by the same\nregistry/policy direction used for MCP. If `MDS_AGENT_PROVIDER` is set to an\nunsupported provider, the route returns a not-implemented error.\n\n`GET /api/v1/simurgh/status` reports `assistant_provider`,\n`assistant_model`, and `assistant_external_provider` so dashboards and agent\nclients can warn operators when text may leave the GCS for a configured model\nprovider. Operator UI must not describe the assistant as local-only unless the\nreported provider is `mock`.\n\nProvider instructions and input templates live in `config/agent_assistant.yaml`.\nChanging those prompts should be done by editing the config artifact, then\nupdating tests and docs. The adapter must not embed mission policy, tool rules,\nor prompt text in code.",
       "title": "Simurgh operator guide"
     },
     {
@@ -791,7 +810,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "1d3c55261015f96d1c6e37578fa25b884c0ca43dca145792f5f6a5725f1b800a",
       "heading": "GCS API Surface",
-      "id": "simurgh.operator_guide:016-04-gcs-api-surface",
+      "id": "simurgh.operator_guide:017-04-gcs-api-surface",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -811,7 +830,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "6a3bfadd31e19759cf5345e57cc3761db60f1c5cbf95ae3fd01cf16ffec090c1",
       "heading": "Dashboard",
-      "id": "simurgh.operator_guide:017-01-dashboard",
+      "id": "simurgh.operator_guide:018-01-dashboard",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -831,7 +850,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "e8537f3db1728944a41c1abb4d927e58ead4aada9555c9113962dd2b5235470d",
       "heading": "Development Notes",
-      "id": "simurgh.operator_guide:018-01-development-notes",
+      "id": "simurgh.operator_guide:019-01-development-notes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -851,7 +870,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "a09d2a72c182a8ae9560b18c333ffd37d66a3bb2a9c783c20bc3982f35d26cff",
       "heading": "Orchestration Trace And Language Profile",
-      "id": "simurgh.operator_guide:019-01-orchestration-trace-and-language-profile",
+      "id": "simurgh.operator_guide:020-01-orchestration-trace-and-language-profile",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -871,7 +890,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "95cd4700deeaa21ed6c189f6dd7a81ea08eea25ca4dea2b6ccf1d1220a613880",
       "heading": "Answer Composer And Follow-Up Behavior",
-      "id": "simurgh.operator_guide:020-01-answer-composer-and-follow-up-behavior",
+      "id": "simurgh.operator_guide:021-01-answer-composer-and-follow-up-behavior",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -891,7 +910,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "a5e225eb4429d3005b1351c0f8523c1b301e53d7265c4ccafc3a66241d709919",
       "heading": "Answer Composer And Follow-Up Behavior",
-      "id": "simurgh.operator_guide:020-02-answer-composer-and-follow-up-behavior",
+      "id": "simurgh.operator_guide:021-02-answer-composer-and-follow-up-behavior",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -911,7 +930,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "content_hash": "aa19245d1e35fed96c278634d689b249c3d9928fb0e63f9a37a32f22e7953cd6",
       "heading": "Composer Coverage Expansion",
-      "id": "simurgh.operator_guide:021-01-composer-coverage-expansion",
+      "id": "simurgh.operator_guide:022-01-composer-coverage-expansion",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -15930,8 +15949,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "chunk_count": 33,
-      "content_hash": "a56ac32dd06fa6ecbc5296a3d5b0e76b9c3386454bb7f023dd4d37734bfacf6d",
+      "chunk_count": 34,
+      "content_hash": "50837e3dc10d11fddc1d68e8afe1362bf19b667ae2c48fcb9c3c59a1abb487bf",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
