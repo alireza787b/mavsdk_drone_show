@@ -93,6 +93,7 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
         "mds.docs.search",
         "mds.docs.chunk.read",
     ),
+    "node_boot_status": ("mds.fleet.node_boot_status.read",),
     "operator_help": ("mds.docs.search", "mds.docs.chunk.read"),
     "origin_status": ("mds.origin.read", "mds.navigation.global_origin.read", "mds.config.positions.read"),
     "public_geography": ("simurgh.public_places.read", "simurgh.geodesy.calculate"),
@@ -303,6 +304,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
     if _looks_like_non_mds_general_question(normalized):
         return None
 
+    if _looks_like_node_boot_status_question(normalized):
+        return "node_boot_status"
     if _looks_like_add_drone_enrollment_workflow_question(normalized):
         return "add_drone_workflow"
     if _looks_like_fleet_enrollment_workflow_question(normalized):
@@ -506,6 +509,8 @@ def answer_mds_read_only_question(
         return tools.origin_status()
     if intent == "command_summary":
         return tools.command_summary(message=message)
+    if intent == "node_boot_status":
+        return tools.node_boot_status(message=message)
     if intent == "git_status_summary":
         return tools.git_status_summary(message=message)
     if intent == "general_knowledge":
@@ -547,6 +552,8 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "drone_show"
     if normalized_intent == "command_summary":
         return "safety"
+    if normalized_intent == "node_boot_status":
+        return "setup"
     if normalized_intent == "git_status_summary":
         return "setup"
     if normalized_intent == "capability_catalog":
@@ -1343,6 +1350,7 @@ class MdsReadOnlyTools:
                 "mds.swarm_trajectories.status.read",
                 "mds.swarm_trajectories.validate.read",
             ),
+            response_mode="workflow",
         )
 
     def sar_summary(self, message: str = "") -> MdsReadToolAnswer:
@@ -1981,6 +1989,62 @@ class MdsReadOnlyTools:
             ),
         )
 
+    def node_boot_status(self, message: str = "") -> MdsReadToolAnswer:
+        try:
+            payload = self._node_boot_status_payload()
+            nodes = payload.get("nodes") if isinstance(payload.get("nodes"), Mapping) else {}
+            rows: list[tuple[str, str, str, str, str, str]] = []
+            for hw_id, raw_node in sorted(nodes.items(), key=lambda item: str(item[0])):
+                node = _copy_mapping(raw_node)
+                rows.append(
+                    (
+                        str(node.get("hw_id") or hw_id),
+                        str(node.get("pos_id") if node.get("pos_id") is not None else "n/a"),
+                        str(node.get("status") or "unknown"),
+                        str(node.get("phase") or "unknown"),
+                        str(node.get("source") or "unknown"),
+                        _format_epoch_utc(node.get("timestamp")),
+                    )
+                )
+
+            composer = AnswerComposer()
+            composer.line("Fleet node boot/init status from GCS read-only reports:")
+            if rows:
+                composer.blank().table(("Node", "Pos", "Status", "Phase", "Source", "Updated"), rows)
+            else:
+                composer.blank().line(
+                    "No node boot/init reports are currently cached by this GCS runtime. "
+                    "That can mean the boards are already past bootstrap, not reporting boot progress, or offline from the GCS API path."
+                )
+            composer.blank().line(
+                "Use this to separate early startup/git-sync/sidecar initialization from MAVLink flight readiness. "
+                "For commandable vehicle state, still verify fresh heartbeats, telemetry, QGC identity, and operator preflight checks."
+            )
+            composer.line("No repository sync, sidecar action, or drone command was sent.")
+            content = composer.render()
+        except Exception as exc:
+            content = f"Fleet node boot/init status could not be loaded: {exc}"
+        return self._answer(
+            "node_boot_status",
+            content,
+            ("mds.fleet.node_boot_status.read",),
+            response_mode="status",
+        )
+
+    def _node_boot_status_payload(self) -> dict[str, Any]:
+        getter = getattr(self.deps, "get_node_boot_status_payload", None)
+        if callable(getter):
+            try:
+                return _copy_mapping(getter() or {})
+            except Exception:
+                return {}
+        try:
+            from api_routes.core import _build_node_boot_status_response
+
+            return _model_payload(_build_node_boot_status_response())
+        except Exception:
+            return {"nodes": {}, "total_nodes": 0, "timestamp": int(time.time() * 1000)}
+
     def _fleet_sidecars_payload(self) -> dict[str, Any]:
         getter = getattr(self.deps, "get_fleet_sidecars_payload", None)
         if callable(getter):
@@ -2551,7 +2615,7 @@ class MdsReadOnlyTools:
         return self._answer(
             "backend_log_summary",
             content,
-            ("mds.logs.gcs.read",),
+            ("mds.logs.sessions.read", "mds.logs.sources.read"),
             response_mode=normalized_mode,
         )
 
@@ -3955,7 +4019,7 @@ def _looks_like_px4_params_question(normalized: str) -> bool:
 def _looks_like_command_summary_question(normalized: str) -> bool:
     if _looks_like_direct_execution_request(normalized):
         return False
-    if not _has_domain_signal(normalized, ("command", "commands", "action", "actions")):
+    if not _has_domain_signal(normalized, ("command", "commands", "command tracker", "gcs tracker", "action", "actions")):
         return False
     return _has_domain_signal(
         normalized,
@@ -3973,6 +4037,7 @@ def _looks_like_command_summary_question(normalized: str) -> bool:
             "which",
             "last",
             "current",
+            "tracker",
         ),
     )
 
@@ -4073,12 +4138,76 @@ def _looks_like_sidecar_status_question(normalized: str) -> bool:
     )
 
 
+def _looks_like_node_boot_status_question(normalized: str) -> bool:
+    if not _has_domain_signal(
+        normalized,
+        (
+            "boot",
+            "booting",
+            "startup",
+            "start up",
+            "initializing",
+            "initialising",
+            "initialization",
+            "initialisation",
+            "git sync phase",
+            "stuck in git sync",
+            "still loading",
+            "loading up",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "node",
+            "nodes",
+            "board",
+            "boards",
+            "drone",
+            "drones",
+            "fleet",
+            "gcs",
+            "repo",
+            "repos",
+            "mds",
+            "status",
+            "state",
+            "progress",
+            "phase",
+            "sync",
+            "ready",
+            "stuck",
+            "slow",
+            "why",
+            "any",
+            "are",
+            "show",
+            "check",
+        ),
+    )
+
+
 def _looks_like_system_status_question(normalized: str) -> bool:
     if _has_domain_signal(normalized, ("fleet status", "drone status", "show status", "swarm status")):
         return False
     return _has_domain_signal(
         normalized,
-        ("gcs health", "system health", "server health", "health check", "gcs status", "system status"),
+        (
+            "gcs health",
+            "system health",
+            "server health",
+            "service health",
+            "health check",
+            "gcs status",
+            "system status",
+            "gcs and simurgh service healthy",
+            "simurgh service healthy",
+            "is gcs healthy",
+            "is the gcs healthy",
+            "is simurgh healthy",
+            "service healthy",
+        ),
     )
 
 
@@ -5257,6 +5386,13 @@ def _looks_like_direct_execution_request(normalized: str) -> bool:
         "if i allowed",
         "what api",
         "what tool",
+        "any",
+        "active",
+        "recent",
+        "status",
+        "statistics",
+        "history",
+        "tracker",
     )
     return _has_any(normalized, action_terms) and _has_any(normalized, direct_terms) and not _has_any(normalized, conceptual_terms)
 

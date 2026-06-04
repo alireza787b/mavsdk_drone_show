@@ -12,6 +12,7 @@ import os
 import re
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -144,6 +145,13 @@ def load_default_query_adaptation_config() -> QueryAdaptationConfig:
     path = Path(raw) if raw else DEFAULT_QUERY_ADAPTATION_CONFIG_PATH
     if not path.is_absolute():
         path = REPO_ROOT / path
+    return _load_query_adaptation_config_from_path(str(path))
+
+
+@lru_cache(maxsize=8)
+def _load_query_adaptation_config_from_path(path: str) -> QueryAdaptationConfig:
+    """Load and cache a reviewed adaptation config for one resolved path."""
+
     return QueryAdaptationConfig.from_file(path)
 
 

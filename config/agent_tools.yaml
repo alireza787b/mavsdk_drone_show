@@ -66,6 +66,7 @@ tools:
         - general
         - mcp
         - public_geography
+        - sar
         - safety
         - ui
         description: Optional safe short-lived conversation topic from dashboard chat
@@ -570,6 +571,36 @@ tools:
   - docs/apis/gcs-api-server.md
   safety_notes:
   - Heartbeats indicate presence, not safety to command.
+- id: mds.fleet.node_boot_status.read
+  title: Read fleet node boot status
+  description: Read node boot/init phase reports sent by git-sync before coordinator readiness.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/fleet/node-boot-status
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - topology
+  tags:
+  - fleet
+  - presence
+  - boot
+  - git-sync
+  docs:
+  - docs/apis/gcs-api-server.md
+  - docs/features/git-sync.md
+  safety_notes:
+  - Boot/init status is not flight readiness and must not make a drone commandable.
+  - Treat stale running phases as investigation hints, not proof of current activity.
 - id: mds.fleet.network_status.read
   title: Read fleet network status
   description: Read GCS-owned network status observations for the fleet.

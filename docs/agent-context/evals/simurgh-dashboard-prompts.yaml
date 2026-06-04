@@ -82,7 +82,7 @@ conversations:
           response_mode: status
           query_domain: logs
           session_topic: logs
-          tool_ids: [mds.logs.gcs.read]
+          tool_ids: [mds.logs.sessions.read]
           must_include:
             - Backend warning/error summary
           must_not_include:
@@ -235,3 +235,172 @@ conversations:
             - tools/list
             - tools/call
             - bearer auth
+
+  - id: runtime_environment_and_health
+    provider: mock
+    actor: operator
+    tags: [runtime, environment, health]
+    turns:
+      - prompt: "what runtime and Simurgh settings are active right now?"
+        expected:
+          provider: mds-tools
+          tool_intent: runtime_summary
+          response_mode: status
+          session_topic: runtime
+          must_include:
+            - Simurgh runtime posture
+            - Circuit breaker
+            - Always confirm
+      - prompt: "which environment settings can I edit from the dashboard?"
+        expected:
+          provider: mds-tools
+          tool_intent: environment_summary
+          response_mode: interpret
+          session_topic: runtime
+          must_include:
+            - MDS environment registry summary
+            - Environment registry
+            - Secrets stay server-side
+      - prompt: "is the gcs and simurgh service healthy?"
+        expected:
+          provider: mds-tools
+          tool_intent: system_status
+          response_mode: status
+          session_topic: runtime
+          must_include:
+            - Current GCS/Simurgh health summary
+            - GCS API
+            - No drone command was sent
+
+  - id: sidecar_wifi_mavlink_status
+    provider: mock
+    actor: operator
+    tags: [fleet-ops, sidecars, wifi, mavlink]
+    turns:
+      - prompt: "what is the Wi-Fi and MAVLink sidecar status for the boards?"
+        expected:
+          provider: mds-tools
+          tool_intent: sidecar_status
+          response_mode: status
+          session_topic: setup
+          tool_ids:
+            - mds.fleet.sidecars.read
+            - mds.fleet.sidecar.read
+            - mds.fleet.network_details.read
+            - mds.fleet.sidecars.connectivity_profile.read
+          must_include:
+            - Fleet Ops sidecar status
+            - smart-wifi-manager
+            - mavlink-anywhere
+          must_not_include:
+            - Fleet status from GCS configuration
+      - prompt: "if Wi-Fi dashboard delete says API token required what does that mean?"
+        expected:
+          provider: mds-tools
+          tool_intent: sidecar_status
+          response_mode: status
+          session_topic: setup
+          must_include:
+            - mutation-token configuration
+            - not a MAVLink flight-control issue
+
+  - id: command_tracker_and_git_sync
+    provider: mock
+    actor: operator
+    tags: [commands, git, sync]
+    turns:
+      - prompt: "are there any active or recent commands in the GCS tracker?"
+        expected:
+          provider: mds-tools
+          tool_intent: command_summary
+          response_mode: status
+          session_topic: safety
+          must_include:
+            - GCS command tracker summary
+            - Active commands
+            - read-only tracker inspection
+      - prompt: "are the GCS and drone repos synced or do we need git sync?"
+        expected:
+          provider: mds-tools
+          tool_intent: git_status_summary
+          response_mode: status
+          session_topic: setup
+          must_include:
+            - GCS repository and fleet sync status
+            - Need sync
+            - read-only repository inspection
+      - prompt: "are any boards still initializing or stuck in git sync?"
+        expected:
+          provider: mds-tools
+          tool_intent: node_boot_status
+          response_mode: status
+          session_topic: setup
+          tool_ids:
+            - mds.fleet.node_boot_status.read
+          must_include:
+            - Fleet node boot/init status
+            - startup/git-sync/sidecar initialization
+            - No repository sync, sidecar action, or drone command was sent
+
+  - id: origin_and_px4_parameter_posture
+    provider: mock
+    actor: operator
+    tags: [origin, px4, parameters]
+    turns:
+      - prompt: "what origin and launch positions are configured now?"
+        expected:
+          provider: mds-tools
+          tool_intent: origin_status
+          response_mode: status
+          session_topic: drone_show
+          must_include:
+            - Origin and launch-position status
+            - Configured launch/trajectory start positions
+            - read-only configuration inspection
+      - prompt: "what PX4 parameter profiles and policy does MDS have?"
+        expected:
+          provider: mds-tools
+          tool_intent: px4_params_summary
+          response_mode: interpret
+          session_topic: safety
+          must_include:
+            - PX4 parameter support
+            - Profiles available
+            - No PX4 parameter was read from a drone
+
+  - id: quickscout_smart_swarm_and_sitl_readiness
+    provider: mock
+    actor: operator
+    tags: [quickscout, swarm, sitl, readiness]
+    turns:
+      - prompt: "is there any QuickScout SAR mission package ready or active?"
+        expected:
+          provider: mds-tools
+          tool_intent: sar_summary
+          response_mode: status
+          session_topic: sar
+          must_include:
+            - QuickScout/SAR mission status
+            - read-only QuickScout inspection
+      - prompt: "is smart swarm mission ready for a field follow test?"
+        expected:
+          provider: mds-tools
+          tool_intent: swarm_readiness
+          response_mode: workflow
+          session_topic: swarm
+          must_include:
+            - Smart Swarm readiness snapshot
+            - human field checks
+            - read-only readiness advisory
+          must_not_include:
+            - Mission reay not found
+      - prompt: "how do I create a SITL demo before trying this for real?"
+        expected:
+          provider: mds-tools
+          tool_intent: sitl_help
+          response_mode: workflow
+          session_topic: sitl
+          must_include:
+            - To go to SITL
+            - /sitl-control
+            - No drone command was sent

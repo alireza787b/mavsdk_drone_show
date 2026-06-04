@@ -53,6 +53,7 @@ GCS_EXPECTED_HTTP = {
         "/api/v1/fleet/git-sync",
         "/api/v1/fleet/network-status",
         "/api/v1/fleet/network-details",
+        "/api/v1/fleet/node-boot-status",
         "/api/v1/fleet/sidecars",
         "/api/v1/fleet/sidecars/connectivity/profile",
         "/api/v1/fleet/sidecars/jobs/{job_id}",

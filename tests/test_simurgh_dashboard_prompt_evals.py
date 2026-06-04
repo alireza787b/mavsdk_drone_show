@@ -16,11 +16,15 @@ def test_dashboard_prompt_eval_suite_passes_runtime_router_scenarios():
     report = run_dashboard_prompt_eval_suite(suite)
 
     assert report.passed, report.to_text()
-    assert report.passed_count >= 16
+    assert report.passed_count >= 29
     seen = {(result.conversation_id, result.turn_index) for result in report.results}
     assert ("logs_status_then_interpretation", 2) in seen
     assert ("public_geography_and_distance", 2) in seen
     assert ("general_questions_do_not_inherit_fleet", 3) in seen
+    assert ("sidecar_wifi_mavlink_status", 2) in seen
+    assert ("command_tracker_and_git_sync", 2) in seen
+    assert ("command_tracker_and_git_sync", 3) in seen
+    assert ("quickscout_smart_swarm_and_sitl_readiness", 3) in seen
 
 
 def test_dashboard_prompt_eval_cli_json_report_is_machine_readable():
@@ -35,4 +39,4 @@ def test_dashboard_prompt_eval_cli_json_report_is_machine_readable():
 
     assert payload["passed"] is True
     assert payload["failed_count"] == 0
-    assert payload["passed_count"] >= 16
+    assert payload["passed_count"] >= 29
