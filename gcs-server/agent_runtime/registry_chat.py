@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Mapping, Sequence
 
 from .answer_composer import AnswerComposer
+from .evidence import REGISTRY_EVIDENCE_SOURCE, ReadOnlyEvidenceBundle
 from .models import ToolDefinition
 from .query_understanding import build_assistant_query_plan
 from .tool_executor import ReadOnlyToolCallResult
@@ -578,28 +579,60 @@ def format_registry_read_results(
     composer = AnswerComposer()
     composer.line(f"Read-only registry check for {plan.label}:")
     composer.line(
-        f"Source: `{registry_path}` filtered by current Simurgh policy; executed through the same internal adapter used by MCP `tools/call`."
+        f"I checked the approved MDS registry/MCP read-only surface for this. Source: `{registry_path}`, executed through the same internal adapter used by MCP `tools/call`."
     )
     if plan.clarification:
         composer.line(plan.clarification)
     composer.blank()
-    rows = []
     for item in results:
         status = f"HTTP {item.result.status_code}" if item.result.status_code else "local"
         if item.result.is_error:
             status = f"error ({status})"
-        rows.append(
-            (
-                f"{item.tool.title} (`{item.tool.id}`)",
-                _argument_summary(item.arguments),
-                status,
-                _result_highlights(item.result),
-            )
+        arguments = _argument_summary(item.arguments)
+        argument_text = f"; arguments: {arguments}" if arguments != "none" else ""
+        composer.line(
+            f"- {item.tool.title}: {_result_evidence_summary(item.result)} "
+            f"({status}; `{item.tool.id}`{argument_text})"
         )
-    composer.table(("Tool", "Arguments", "Result", "Highlights"), rows)
     composer.blank()
     composer.line("This was read-only registry execution. No config write, upload, mission action, drone API call, or command was attempted.")
     return composer.render()
+
+
+def build_registry_read_evidence_bundle(
+    plan: RegistryReadPlan,
+    results: Sequence[RegistryReadToolResult],
+    *,
+    registry_path: str = "config/agent_tools.yaml",
+) -> ReadOnlyEvidenceBundle:
+    """Aggregate registry route evidence into one audit/session-safe bundle."""
+
+    tool_ids = tuple(item.tool.id for item in results)
+    summaries = [_result_evidence_summary(item.result) for item in results]
+    content = json.dumps(
+        {
+            "intent": REGISTRY_READ_EXECUTION_INTENT,
+            "label": plan.label,
+            "domain": plan.domain,
+            "registry_path": registry_path,
+            "tool_ids": tool_ids,
+            "summaries": summaries,
+            "missing_arguments": list(plan.missing_arguments),
+            "selection_source": plan.selection_source,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    joined = "; ".join(summary for summary in summaries if summary) or "no result summaries"
+    return ReadOnlyEvidenceBundle.from_answer(
+        intent=REGISTRY_READ_EXECUTION_INTENT,
+        response_mode="status",
+        tool_ids=tool_ids,
+        content=content,
+        source=REGISTRY_EVIDENCE_SOURCE,
+        summary=f"{plan.label}: {joined}",
+    )
 
 
 def _looks_like_docs_or_workflow_prompt(text: str) -> bool:
@@ -1266,6 +1299,16 @@ def _result_highlights(result: ReadOnlyToolCallResult) -> str:
     if result.structured_content is None:
         return _compact_text(result.text)
     return _preview_value(result.structured_content)
+
+
+def _result_evidence_summary(result: ReadOnlyToolCallResult) -> str:
+    metadata = result.evidence_metadata()
+    items = metadata.get("items") if isinstance(metadata, Mapping) else None
+    first = items[0] if isinstance(items, list) and items and isinstance(items[0], Mapping) else {}
+    summary = str(first.get("summary") or "").strip() if isinstance(first, Mapping) else ""
+    if summary:
+        return summary
+    return _result_highlights(result)
 
 
 def _preview_value(value: Any, *, depth: int = 0) -> str:

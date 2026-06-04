@@ -60,6 +60,7 @@ from agent_runtime.query_adaptation import normalize_operator_query_text
 from agent_runtime.registry_chat import (
     REGISTRY_READ_EXECUTION_INTENT,
     RegistryReadToolResult,
+    build_registry_read_evidence_bundle,
     format_registry_read_results,
     plan_registry_read_tool_calls,
 )
@@ -449,6 +450,7 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
             "id": metadata.get("tool_id"),
             "intent": metadata.get("tool_intent"),
             "ids": metadata.get("tool_ids") or [],
+            "evidence": metadata.get("read_only_evidence") if isinstance(metadata.get("read_only_evidence"), dict) else {},
         },
         context={
             "resource_count": metadata.get("context_count"),
@@ -1372,6 +1374,8 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
             )
             results.append(RegistryReadToolResult(tool=call.tool, arguments=dict(call.arguments), result=result))
 
+        evidence_bundle = build_registry_read_evidence_bundle(plan, results, registry_path=registry_label)
+        read_only_evidence = evidence_bundle.public_metadata()
         content = format_registry_read_results(plan, results, registry_path=registry_label)
         tool_ids = [item.tool.id for item in results]
         turn = AssistantTurnResult(
@@ -1408,6 +1412,12 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "last_user_message": turn_request.message,
                 "last_routing_message": normalize_operator_query_text(turn_request.message),
                 "last_tool_intent": REGISTRY_READ_EXECUTION_INTENT,
+                "last_read_only_evidence": json.dumps(
+                    read_only_evidence,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ),
             },
         )
         event = audit.record(
@@ -1437,6 +1447,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 "query_unclear": False,
                 "query_reason": "registry_read_tool_plan",
                 "read_only_plan": plan.public_metadata(),
+                "read_only_evidence": read_only_evidence,
                 "retrieved_context_count": 0,
                 "web_search_enabled": False,
                 "provider_composed_from_tool": False,

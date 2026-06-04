@@ -518,6 +518,15 @@ def test_simurgh_assistant_executes_registry_read_only_sitl_state(monkeypatch):
     assert "mds.sitl.instances.read" in payload["content"]
     assert "total_instances: 1" in payload["content"]
     assert "MCP `tools/call`" in payload["content"]
+    assert "| Tool |" not in payload["content"]
+    evidence = payload["trace"]["tool"]["evidence"]
+    assert evidence["intent"] == "registry_read_execution"
+    assert evidence["source"] == "registry_read_only_mds"
+    assert "mds.sitl.instances.read" in evidence["tool_ids"]
+    assert "SITL runtime state" in evidence["summary"]
+
+    audit_events = client.get("/api/v1/simurgh/audit").json()["events"]
+    assert audit_events[0]["metadata"]["read_only_evidence"]["content_hash"] == evidence["content_hash"]
 
 
 @pytest.mark.parametrize(
@@ -655,6 +664,7 @@ def test_simurgh_assistant_executes_registry_read_only_sar_catalog(monkeypatch):
     assert "Read-only registry check for QuickScout/SAR mission catalog" in payload["content"]
     assert "count: 1" in payload["content"]
     assert "mission_id=sar-1" in payload["content"]
+    assert payload["trace"]["tool"]["evidence"]["source"] == "registry_read_only_mds"
 
 
 def test_simurgh_assistant_executes_registry_read_only_typed_sidecar_node(monkeypatch):
@@ -710,7 +720,10 @@ def test_simurgh_assistant_executes_registry_read_only_typed_log_session(monkeyp
     assert "session_id=s_20260527_174402" in payload["content"]
     assert "limit=10" in payload["content"]
     assert "level=WARNING" in payload["content"]
-    assert "probe warning" in payload["content"]
+    assert "entries: 1 item(s)" in payload["content"]
+    assert "level=WARNING" in payload["content"]
+    assert "component=api" in payload["content"]
+    assert "probe warning" not in payload["content"]
 
 
 def test_simurgh_assistant_executes_registry_read_only_typed_elevation(monkeypatch):

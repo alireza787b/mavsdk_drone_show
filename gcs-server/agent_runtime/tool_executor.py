@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping, Sequence
 from urllib.parse import quote, urlencode
 
 import httpx
@@ -14,6 +14,7 @@ from fastapi import Request
 from simurgh_internal_auth import INTERNAL_TOOL_CALL_HEADER, INTERNAL_TOOL_CALL_VALUE, INTERNAL_TOOL_CLIENT_HOST
 
 from .models import AgentRuntimeError, PolicyDecisionStatus, ToolDefinition, ToolExposure
+from .evidence import ReadOnlyEvidenceBundle
 from .policy import AgentPolicy, load_default_policy
 from .tool_registry import ToolRegistry, load_default_tool_registry
 
@@ -71,10 +72,14 @@ class ReadOnlyToolCallResult:
     structured_content: Any | None = None
     status_code: int | None = None
     truncated: bool = False
+    evidence: ReadOnlyEvidenceBundle | None = None
 
     @classmethod
     def error(cls, message: str) -> "ReadOnlyToolCallResult":
         return cls(text=message, is_error=True)
+
+    def evidence_metadata(self) -> dict[str, Any] | None:
+        return self.evidence.public_metadata() if self.evidence is not None else None
 
     def as_mcp_result(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -83,6 +88,8 @@ class ReadOnlyToolCallResult:
         }
         if self.structured_content is not None and not self.is_error:
             payload["structuredContent"] = self.structured_content
+        if self.evidence is not None and not self.is_error:
+            payload.setdefault("_meta", {})["ai.mds/evidence"] = self.evidence_metadata()
         if self.truncated:
             payload.setdefault("_meta", {})["ai.mds/truncated"] = True
         if self.status_code is not None:
@@ -230,13 +237,113 @@ async def execute_policy_allowed_read_only_tool(
         text = text[:max_response_chars] + "\n...[truncated by Simurgh response limit]"
         truncated = True
 
+    evidence = ReadOnlyEvidenceBundle.from_route_tool_result(
+        tool_id=tool.id,
+        tool_title=tool.title,
+        route_method=tool.route_method,
+        route_path=tool.route_path,
+        content=text,
+        summary=_route_evidence_summary(structured, text),
+        status_code=response.status_code,
+        truncated=truncated,
+        safety_notes=tool.safety_notes,
+    )
+
     return ReadOnlyToolCallResult(
         text=text,
         is_error=response.status_code >= 400,
         structured_content=structured,
         status_code=response.status_code,
         truncated=truncated,
+        evidence=evidence,
     )
+
+
+def _route_evidence_summary(structured: Any | None, text: str) -> str:
+    if structured is not None:
+        return _preview_for_evidence(structured)
+    return _compact_text_for_evidence(text)
+
+
+def _preview_for_evidence(value: Any, *, depth: int = 0) -> str:
+    if depth > 1:
+        return _compact_text_for_evidence(json.dumps(value, default=str, sort_keys=True))
+    if isinstance(value, Mapping):
+        scalar_parts: list[str] = []
+        collection_parts: list[str] = []
+        preferred_keys = (
+            "status",
+            "state",
+            "mode",
+            "source",
+            "available",
+            "enabled",
+            "count",
+            "total_instances",
+            "online",
+            "offline",
+            "session_id",
+            "mission_id",
+            "validation_status",
+        )
+        for key in preferred_keys:
+            item = value.get(key)
+            if isinstance(item, (str, int, float, bool)):
+                scalar_parts.append(f"{key}: {item}")
+        for key, item in value.items():
+            if key in preferred_keys or item is None or item == "":
+                continue
+            if isinstance(item, (str, int, float, bool)):
+                if not _is_safe_evidence_key(key):
+                    continue
+                scalar_parts.append(f"{key}: {item}")
+            elif isinstance(item, Sequence) and not isinstance(item, (str, bytes, bytearray)):
+                collection_parts.append(f"{key}: {len(item)} item(s){_first_item_hint_for_evidence(item)}")
+            elif isinstance(item, Mapping):
+                nested_keys = [
+                    str(nested_key)
+                    for nested_key, nested_value in item.items()
+                    if isinstance(nested_value, (str, int, float, bool)) and _is_safe_evidence_key(nested_key)
+                ]
+                if nested_keys:
+                    joined_keys = ", ".join(nested_keys[:4])
+                    collection_parts.append(f"{key}: {{{joined_keys}}}")
+        parts = scalar_parts[:6] + collection_parts[:4]
+        if parts:
+            return _compact_text_for_evidence("; ".join(parts), limit=360)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return f"{len(value)} item(s){_first_item_hint_for_evidence(value)}"
+    return _compact_text_for_evidence(json.dumps(value, default=str, sort_keys=True), limit=360)
+
+
+def _first_item_hint_for_evidence(items: Sequence[Any]) -> str:
+    if not items:
+        return ""
+    first = items[0]
+    if isinstance(first, Mapping):
+        parts = [
+            f"{key}={value}"
+            for key, value in first.items()
+            if isinstance(value, (str, int, float, bool)) and _is_safe_evidence_key(key)
+        ]
+        if parts:
+            return " (first: " + ", ".join(parts[:3]) + ")"
+    if isinstance(first, (str, int, float, bool)):
+        return f" (first: {first})"
+    return ""
+
+
+def _is_safe_evidence_key(key: object) -> bool:
+    text = str(key or "").casefold()
+    unsafe_fragments = ("auth", "content", "key", "message", "msg", "password", "raw", "secret", "text", "token")
+    return not any(fragment in text for fragment in unsafe_fragments)
+
+
+def _compact_text_for_evidence(value: object, *, limit: int = 360) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 1)].rstrip() + "…"
 
 
 _PATH_PARAM_RE = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
@@ -394,10 +501,20 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
             )
         except (AgentRuntimeError, KeyError, ValueError) as exc:
             return ReadOnlyToolCallResult.error(str(exc))
+        text = format_docs_search_payload(payload)
+        evidence = ReadOnlyEvidenceBundle.from_answer(
+            intent="docs_search",
+            response_mode="docs",
+            tool_ids=(tool.id,),
+            content=text,
+            safety_notes=tool.safety_notes,
+            summary=f"{tool.title}: searched public MDS docs index",
+        )
         return ReadOnlyToolCallResult(
-            text=format_docs_search_payload(payload),
+            text=text,
             is_error=False,
             structured_content=payload,
+            evidence=evidence,
         )
 
     if tool.id == DOCS_CHUNK_READ_TOOL_ID:
@@ -410,11 +527,21 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
             )
         except (AgentRuntimeError, KeyError, ValueError) as exc:
             return ReadOnlyToolCallResult.error(str(exc))
+        text = format_docs_chunk_payload(payload)
+        evidence = ReadOnlyEvidenceBundle.from_answer(
+            intent="docs_chunk_read",
+            response_mode="docs",
+            tool_ids=(tool.id,),
+            content=text,
+            safety_notes=tool.safety_notes,
+            summary=f"{tool.title}: read one public MDS docs chunk",
+        )
         return ReadOnlyToolCallResult(
-            text=format_docs_chunk_payload(payload),
+            text=text,
             is_error=False,
             structured_content=payload,
             truncated=bool(payload.get("truncated")),
+            evidence=evidence,
         )
 
     raw_question = arguments.get("question")
@@ -510,4 +637,5 @@ def _execute_advisory_tool(tool: ToolDefinition, arguments: dict[str, Any], *, d
             "execution": "read_only_advisory",
             "query_adaptation": query_adaptation.public_metadata(),
         },
+        evidence=answer.evidence,
     )

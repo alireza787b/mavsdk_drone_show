@@ -654,6 +654,10 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert log_result["isError"] is False
     assert log_result["structuredContent"]["session_id"] == "s_20260525_001"
     assert log_result["structuredContent"]["filters"] == {"level": "WARNING", "limit": 5, "offset": 2}
+    log_evidence = log_result["_meta"]["ai.mds/evidence"]
+    assert log_evidence["source"] == "registry_read_only_mds"
+    assert log_evidence["tool_ids"] == ["mds.logs.session.read"]
+    assert "Read one GCS log session" in log_evidence["items"][0]["summary"]
 
     missing_arg_response = client.post(
         MCP_PATH,
@@ -812,6 +816,9 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert advisory_result["isError"] is False
     assert advisory_result["structuredContent"]["intent"] == "show_modes_help"
     assert "Drone Show has two workflow families" in advisory_result["content"][0]["text"]
+    advisory_evidence = advisory_result["_meta"]["ai.mds/evidence"]
+    assert advisory_evidence["source"] == "local_read_only_mds"
+    assert advisory_evidence["tool_ids"]
 
     blocked_advisory_response = client.post(
         MCP_PATH,
@@ -872,6 +879,8 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     result = call_response.json()["result"]
     assert result["isError"] is False
     assert result["structuredContent"] == {"status": "ok", "source": "test"}
+    assert result["_meta"]["ai.mds/evidence"]["source"] == "registry_read_only_mds"
+    assert result["_meta"]["ai.mds/evidence"]["tool_ids"] == ["mds.system.health.read"]
     assert '"status": "ok"' in result["content"][0]["text"]
 
     args_response = client.post(

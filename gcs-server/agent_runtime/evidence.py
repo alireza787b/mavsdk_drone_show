@@ -16,6 +16,7 @@ from .models import stable_payload_hash
 
 
 DEFAULT_EVIDENCE_SOURCE = "local_read_only_mds"
+REGISTRY_EVIDENCE_SOURCE = "registry_read_only_mds"
 DEFAULT_EVIDENCE_KIND = "read_only_answer"
 
 
@@ -65,6 +66,8 @@ class ReadOnlyEvidenceBundle:
         tool_ids: Sequence[str],
         content: str,
         safety_notes: Sequence[str] = (),
+        source: str = DEFAULT_EVIDENCE_SOURCE,
+        summary: str | None = None,
     ) -> "ReadOnlyEvidenceBundle":
         normalized_intent = _safe_identifier(intent, fallback="read_only_answer")
         normalized_mode = _safe_identifier(response_mode, fallback="status")
@@ -78,12 +81,16 @@ class ReadOnlyEvidenceBundle:
                 "content": text,
             }
         )
-        summary = _first_meaningful_line(text) or f"Read-only Simurgh evidence for {normalized_intent}."
+        normalized_source = str(source or DEFAULT_EVIDENCE_SOURCE).strip() or DEFAULT_EVIDENCE_SOURCE
+        summary_text = str(summary or "").strip()
+        if not summary_text:
+            summary_text = _first_meaningful_line(text)
+        summary_text = summary_text or f"Read-only Simurgh evidence for {normalized_intent}."
         item = ReadOnlyEvidenceItem(
             id=f"evidence.{normalized_intent}",
             title=_title_from_intent(normalized_intent),
-            summary=summary[:280],
-            source=DEFAULT_EVIDENCE_SOURCE,
+            summary=summary_text[:280],
+            source=normalized_source,
             kind="answer_summary",
             tool_ids=normalized_tool_ids,
             confidence=1.0,
@@ -100,14 +107,77 @@ class ReadOnlyEvidenceBundle:
             tool_ids=normalized_tool_ids,
             items=(item,),
             content_hash=digest,
+            source=normalized_source,
+        )
+
+    @classmethod
+    def from_route_tool_result(
+        cls,
+        *,
+        tool_id: str,
+        tool_title: str,
+        route_method: str | None,
+        route_path: str | None,
+        content: str,
+        summary: str,
+        status_code: int | None,
+        truncated: bool,
+        response_mode: str = "status",
+        safety_notes: Sequence[str] = (),
+    ) -> "ReadOnlyEvidenceBundle":
+        """Build compact evidence for one registry-backed read-only route call."""
+
+        normalized_tool_id = _safe_identifier(tool_id, fallback="registry_tool")
+        normalized_mode = _safe_identifier(response_mode, fallback="status")
+        text = str(content or "").strip()
+        digest = stable_payload_hash(
+            {
+                "tool_id": normalized_tool_id,
+                "route_method": route_method,
+                "route_path": route_path,
+                "status_code": status_code,
+                "truncated": truncated,
+                "content": text,
+            }
+        )
+        title = str(tool_title or normalized_tool_id).strip() or normalized_tool_id
+        summary_text = str(summary or "").strip() or f"Read-only registry evidence for {normalized_tool_id}."
+        item = ReadOnlyEvidenceItem(
+            id=f"evidence.registry.{normalized_tool_id}",
+            title=title,
+            summary=f"{title}: {summary_text}"[:280],
+            source=REGISTRY_EVIDENCE_SOURCE,
+            kind="route_result_summary",
+            tool_ids=(normalized_tool_id,),
+            confidence=1.0 if status_code is not None and status_code < 400 else 0.4,
+            metadata={
+                "content_hash": digest,
+                "content_chars": len(text),
+                "response_mode": normalized_mode,
+                "route_method": str(route_method or "GET"),
+                "route_path": str(route_path or ""),
+                "status_code": status_code,
+                "truncated": bool(truncated),
+                "safety_note_count": len(tuple(safety_notes)),
+            },
+        )
+        return cls(
+            intent=f"registry.{normalized_tool_id}",
+            response_mode=normalized_mode,
+            tool_ids=(normalized_tool_id,),
+            items=(item,),
+            content_hash=digest,
+            source=REGISTRY_EVIDENCE_SOURCE,
         )
 
     def public_metadata(self) -> dict[str, Any]:
+        summary = self.items[0].summary if self.items else ""
         return {
             "intent": self.intent,
             "response_mode": self.response_mode,
             "tool_ids": list(self.tool_ids),
             "source": self.source,
+            "summary": summary,
             "content_hash": self.content_hash,
             "item_count": len(self.items),
             "items": [item.public_metadata() for item in self.items],
