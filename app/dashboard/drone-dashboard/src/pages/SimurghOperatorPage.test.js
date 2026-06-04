@@ -295,6 +295,46 @@ describe('SimurghOperatorPage', () => {
     expect(screen.getAllByText('How many drones do we have configured?').length).toBeGreaterThan(0);
   });
 
+  test('renders structured live activity steps without keeping debug noise after final answer', async () => {
+    const finalTurn = assistantTurnData({
+      id: 'turn_activity',
+      content: 'Connectivity from GCS state: 1/2 drone(s) currently look live.',
+      session: { id: 'sess_activity' },
+    });
+    let releaseStream;
+    mockStreamSimurghAssistantTurnResponse.mockImplementationOnce(async (payload, config = {}) => {
+      config.onEvent?.({ event: 'progress', data: { stage: 'understanding', state: 'running', label: 'Understanding request' } });
+      config.onEvent?.({ event: 'progress', data: { stage: 'context', state: 'complete', label: 'Retrieved MDS context' } });
+      config.onEvent?.({ event: 'progress', data: { stage: 'plan', state: 'complete', label: 'Planned read-only checks' } });
+      config.onEvent?.({ event: 'progress', data: { stage: 'tool', state: 'running', tool_id: 'mds.fleet.telemetry.read', label: 'Checking fleet telemetry' } });
+      config.onEvent?.({ event: 'delta', data: { text: 'Connectivity from GCS state: ' } });
+      await new Promise((resolve) => { releaseStream = resolve; });
+      config.onEvent?.({ event: 'delta', data: { text: '1/2 drone(s) currently look live.' } });
+      config.onEvent?.({ event: 'final', data: finalTurn });
+      config.onEvent?.({ event: 'done', data: { id: finalTurn.id, session_id: finalTurn.session.id } });
+      return { data: finalTurn };
+    });
+
+    renderPage();
+
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'which drones are connected?' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    expect(await screen.findByText('Checking fleet telemetry')).toBeInTheDocument();
+    const activity = screen.getByLabelText('Recent Simurgh activity');
+    expect(within(activity).getByText('Retrieved MDS context')).toBeInTheDocument();
+    expect(within(activity).getByText('Planned read-only checks')).toBeInTheDocument();
+    await waitFor(() => expect(releaseStream).toEqual(expect.any(Function)));
+    releaseStream();
+
+    expect((await screen.findAllByText(/1\/2 drone\(s\) currently look live/i)).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.queryByText('Checking fleet telemetry')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Recent Simurgh activity')).not.toBeInTheDocument();
+    });
+  });
+
   test('hot-applies provider, model, and optional server-side key from the compact settings panel', async () => {
     const fakeOpenAiKey = ['sk', 'test', '12345678901234567890'].join('-');
     renderPage();

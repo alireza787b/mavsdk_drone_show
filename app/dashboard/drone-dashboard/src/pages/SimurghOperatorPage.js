@@ -182,13 +182,65 @@ function titleFromMessage(message) {
   return normalized.length > 54 ? `${normalized.slice(0, 51)}...` : normalized;
 }
 
-function appendProgressStep(steps = [], label = '') {
-  const normalized = String(label || '').trim();
+function normalizeProgressState(value = '') {
+  const state = String(value || '').trim().toLowerCase();
+  if (state === 'running' || state === 'active' || state === 'started') {
+    return 'running';
+  }
+  if (state === 'complete' || state === 'completed' || state === 'success' || state === 'done') {
+    return 'complete';
+  }
+  if (state === 'warning' || state === 'warn') {
+    return 'warning';
+  }
+  if (state === 'error' || state === 'failed' || state === 'failure') {
+    return 'error';
+  }
+  if (state === 'blocked') {
+    return 'blocked';
+  }
+  return '';
+}
+
+function normalizeProgressStep(step) {
+  if (!step) {
+    return null;
+  }
+  if (typeof step === 'string') {
+    const label = step.trim();
+    return label ? { label, stage: '', state: '', tool_id: '', key: label } : null;
+  }
+  if (typeof step !== 'object' || Array.isArray(step)) {
+    return null;
+  }
+
+  const label = String(step.label || step.message || step.stage || '').trim();
+  if (!label) {
+    return null;
+  }
+  const stage = String(step.stage || '').trim();
+  const state = normalizeProgressState(step.state);
+  const toolId = String(step.tool_id || step.toolId || '').trim();
+  const key = [stage, state, toolId, label].filter(Boolean).join(':') || label;
+  return {
+    label,
+    stage,
+    state,
+    tool_id: toolId,
+    key,
+  };
+}
+
+function appendProgressStep(steps = [], payload = '') {
+  const normalized = normalizeProgressStep(payload);
   if (!normalized) {
     return steps;
   }
-  const next = [...steps.filter((step) => step !== normalized), normalized];
-  return next.slice(-5);
+  const existing = (Array.isArray(steps) ? steps : [])
+    .map(normalizeProgressStep)
+    .filter(Boolean)
+    .filter((step) => step.key !== normalized.key);
+  return [...existing, normalized].slice(-8);
 }
 
 function titleCaseTraceLabel(value = '') {
@@ -1192,14 +1244,35 @@ function MessageContent({ content }) {
 }
 
 function MessageActivity({ progress = [], streaming = false }) {
-  const latestStep = progress.length ? progress[progress.length - 1] : (streaming ? 'Thinking' : '');
+  const steps = (Array.isArray(progress) ? progress : [])
+    .map(normalizeProgressStep)
+    .filter(Boolean);
+  const latestStep = steps.length
+    ? steps[steps.length - 1]
+    : (streaming ? { label: 'Thinking', stage: 'understanding', state: 'running', tool_id: '', key: 'thinking' } : null);
   if (!latestStep && !streaming) {
     return null;
   }
+  const previousSteps = steps.slice(Math.max(0, steps.length - 6), -1);
   return (
-    <div className="simurgh-chat__progress" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
-      <span className="simurgh-chat__thinking">{streaming ? 'Working' : 'Completed'}</span>
-      {latestStep ? <span className="simurgh-chat__progress-step">{latestStep}</span> : null}
+    <div className="simurgh-chat__activity" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
+      <div className="simurgh-chat__activity-current">
+        <span className="simurgh-chat__thinking">{streaming ? 'Working' : 'Completed'}</span>
+        {latestStep ? <span className="simurgh-chat__activity-label">{latestStep.label}</span> : null}
+      </div>
+      {previousSteps.length ? (
+        <ol className="simurgh-chat__activity-list" aria-label="Recent Simurgh activity">
+          {previousSteps.map((step, index) => {
+            const state = step.state || 'complete';
+            return (
+              <li key={`${step.key}-${index}`} className={`simurgh-chat__activity-step simurgh-chat__activity-step--${state}`}>
+                {state === 'running' ? <FaCog aria-hidden="true" /> : <FaCheckCircle aria-hidden="true" />}
+                <span>{step.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
     </div>
   );
 }
@@ -1481,7 +1554,7 @@ export default function SimurghOperatorPage() {
       content: '',
       createdAt: nowIso(),
       streaming: true,
-      progress: ['Understanding request'],
+      progress: [{ stage: 'understanding', state: 'running', label: 'Understanding request' }],
     };
     setDraft('');
     setSubmitting(true);
@@ -1513,7 +1586,7 @@ export default function SimurghOperatorPage() {
             if (streamEvent === 'progress') {
               updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
                 ...currentMessage,
-                progress: appendProgressStep(currentMessage.progress || [], data?.label),
+                progress: appendProgressStep(currentMessage.progress || [], data),
               }));
             } else if (streamEvent === 'delta') {
               const text = String(data?.text || '');
