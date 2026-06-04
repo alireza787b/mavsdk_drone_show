@@ -36,6 +36,7 @@ from .assistant import (
     blocked_intent_matches,
     create_assistant_turn,
     create_mock_assistant_turn,
+    is_previous_evidence_followup_message,
     load_default_assistant_config,
     sensitive_input_matches,
     validate_openai_api_key_file,

@@ -241,11 +241,13 @@ async def execute_policy_allowed_read_only_tool(
         tool_id=tool.id,
         tool_title=tool.title,
         route_method=tool.route_method,
-        route_path=tool.route_path,
+        route_path=route_path,
         content=text,
         summary=_route_evidence_summary(structured, text),
         status_code=response.status_code,
         truncated=truncated,
+        docs=tool.docs,
+        route_template=tool.route_path,
         safety_notes=tool.safety_notes,
     )
 

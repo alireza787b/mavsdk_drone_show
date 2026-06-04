@@ -625,6 +625,31 @@ def build_registry_read_evidence_bundle(
         default=str,
     )
     joined = "; ".join(summary for summary in summaries if summary) or "no result summaries"
+    source_refs: list[dict[str, Any]] = []
+    for item in results:
+        result_metadata = item.result.evidence_metadata() or {}
+        route_path = item.tool.route_path or ""
+        route_method = item.tool.route_method or "GET"
+        if isinstance(result_metadata, Mapping):
+            raw_items = result_metadata.get("items")
+            if isinstance(raw_items, list) and raw_items and isinstance(raw_items[0], Mapping):
+                metadata = raw_items[0].get("metadata")
+                if isinstance(metadata, Mapping):
+                    route_path = str(metadata.get("route_path") or route_path)
+                    route_method = str(metadata.get("route_method") or route_method)
+        source_refs.append(
+            {
+                "tool_id": item.tool.id,
+                "title": item.tool.title,
+                "source": REGISTRY_EVIDENCE_SOURCE,
+                "route_method": route_method,
+                "route_path": route_path,
+                "route_template": item.tool.route_path or route_path,
+                "status_code": item.result.status_code,
+                "truncated": item.result.truncated,
+                "docs": item.tool.docs,
+            }
+        )
     return ReadOnlyEvidenceBundle.from_answer(
         intent=REGISTRY_READ_EXECUTION_INTENT,
         response_mode="status",
@@ -632,6 +657,7 @@ def build_registry_read_evidence_bundle(
         content=content,
         source=REGISTRY_EVIDENCE_SOURCE,
         summary=f"{plan.label}: {joined}",
+        source_refs=source_refs,
     )
 
 

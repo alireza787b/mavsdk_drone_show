@@ -34,6 +34,7 @@ from agent_runtime import (
     create_assistant_turn,
     is_mcp_auth_required,
     is_mcp_origin_allowed,
+    is_previous_evidence_followup_message,
     load_default_assistant_config,
     load_default_context_index,
     load_default_policy,
@@ -1496,6 +1497,17 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 except KeyError:
                     conversation_topic = None
             routing_message = normalize_operator_query_text(turn_request.message)
+            previous_evidence_followup = False
+            if turn_request.session_id:
+                try:
+                    previous_context = sessions.get_private_context(turn_request.session_id)
+                    previous_evidence_followup = bool(
+                        previous_context.get("last_assistant_content")
+                        and previous_context.get("last_read_only_evidence")
+                        and is_previous_evidence_followup_message(routing_message)
+                    )
+                except KeyError:
+                    previous_evidence_followup = False
             read_only_plan = build_mds_read_only_plan(routing_message, conversation_topic=conversation_topic)
             local_intent = read_only_plan.intent
             local_only_turn = bool(
@@ -1522,7 +1534,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 )
             )
             registry_plan = None
-            if not blocked_matches and not sensitive_matches:
+            if not previous_evidence_followup and not blocked_matches and not sensitive_matches:
                 registry_plan = plan_registry_read_tool_calls(
                     routing_message,
                     allowed_tools=list_policy_allowed_read_only_tools(channel="agent"),
@@ -1554,7 +1566,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     mode=turn_request.mode,
                     context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
                     metadata=_bounded_metadata(turn_request.metadata),
-                    allow_provider_for_local_tools=local_only_turn and provider_auth_allowed,
+                    allow_provider_for_local_tools=(local_only_turn or previous_evidence_followup) and provider_auth_allowed,
                 )
             history_record = history.append_turn(record=record, message=turn_request.message)
         except PermissionError as exc:

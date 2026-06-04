@@ -68,6 +68,7 @@ class ReadOnlyEvidenceBundle:
         safety_notes: Sequence[str] = (),
         source: str = DEFAULT_EVIDENCE_SOURCE,
         summary: str | None = None,
+        source_refs: Sequence[Mapping[str, Any]] = (),
     ) -> "ReadOnlyEvidenceBundle":
         normalized_intent = _safe_identifier(intent, fallback="read_only_answer")
         normalized_mode = _safe_identifier(response_mode, fallback="status")
@@ -86,6 +87,15 @@ class ReadOnlyEvidenceBundle:
         if not summary_text:
             summary_text = _first_meaningful_line(text)
         summary_text = summary_text or f"Read-only Simurgh evidence for {normalized_intent}."
+        metadata: dict[str, Any] = {
+            "content_hash": digest,
+            "content_chars": len(text),
+            "response_mode": normalized_mode,
+            "safety_note_count": len(tuple(safety_notes)),
+        }
+        safe_source_refs = _safe_source_refs(source_refs)
+        if safe_source_refs:
+            metadata["source_refs"] = safe_source_refs
         item = ReadOnlyEvidenceItem(
             id=f"evidence.{normalized_intent}",
             title=_title_from_intent(normalized_intent),
@@ -94,12 +104,7 @@ class ReadOnlyEvidenceBundle:
             kind="answer_summary",
             tool_ids=normalized_tool_ids,
             confidence=1.0,
-            metadata={
-                "content_hash": digest,
-                "content_chars": len(text),
-                "response_mode": normalized_mode,
-                "safety_note_count": len(tuple(safety_notes)),
-            },
+            metadata=metadata,
         )
         return cls(
             intent=normalized_intent,
@@ -124,6 +129,8 @@ class ReadOnlyEvidenceBundle:
         truncated: bool,
         response_mode: str = "status",
         safety_notes: Sequence[str] = (),
+        docs: Sequence[str] = (),
+        route_template: str | None = None,
     ) -> "ReadOnlyEvidenceBundle":
         """Build compact evidence for one registry-backed read-only route call."""
 
@@ -142,6 +149,35 @@ class ReadOnlyEvidenceBundle:
         )
         title = str(tool_title or normalized_tool_id).strip() or normalized_tool_id
         summary_text = str(summary or "").strip() or f"Read-only registry evidence for {normalized_tool_id}."
+        metadata: dict[str, Any] = {
+            "content_hash": digest,
+            "content_chars": len(text),
+            "response_mode": normalized_mode,
+            "route_method": str(route_method or "GET"),
+            "route_path": str(route_path or ""),
+            "status_code": status_code,
+            "truncated": bool(truncated),
+            "safety_note_count": len(tuple(safety_notes)),
+        }
+        if route_template and route_template != route_path:
+            metadata["route_template"] = str(route_template)
+        source_refs = _safe_source_refs(
+            (
+                {
+                    "tool_id": normalized_tool_id,
+                    "title": title,
+                    "source": REGISTRY_EVIDENCE_SOURCE,
+                    "route_method": str(route_method or "GET"),
+                    "route_path": str(route_path or ""),
+                    "route_template": str(route_template or route_path or ""),
+                    "status_code": status_code,
+                    "truncated": bool(truncated),
+                    "docs": tuple(docs),
+                },
+            )
+        )
+        if source_refs:
+            metadata["source_refs"] = source_refs
         item = ReadOnlyEvidenceItem(
             id=f"evidence.registry.{normalized_tool_id}",
             title=title,
@@ -150,16 +186,7 @@ class ReadOnlyEvidenceBundle:
             kind="route_result_summary",
             tool_ids=(normalized_tool_id,),
             confidence=1.0 if status_code is not None and status_code < 400 else 0.4,
-            metadata={
-                "content_hash": digest,
-                "content_chars": len(text),
-                "response_mode": normalized_mode,
-                "route_method": str(route_method or "GET"),
-                "route_path": str(route_path or ""),
-                "status_code": status_code,
-                "truncated": bool(truncated),
-                "safety_note_count": len(tuple(safety_notes)),
-            },
+            metadata=metadata,
         )
         return cls(
             intent=f"registry.{normalized_tool_id}",
@@ -211,3 +238,38 @@ def _first_meaningful_line(text: str) -> str:
             line = line.lstrip("#").strip()
         return line
     return ""
+
+
+def _safe_source_refs(source_refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Return bounded source refs safe for audit/session context.
+
+    Source refs are attribution metadata, not raw evidence. Keep them small,
+    path/doc oriented, and free of credentials or arbitrary payload fields.
+    """
+
+    refs: list[dict[str, Any]] = []
+    for raw_ref in source_refs[:8]:
+        if not isinstance(raw_ref, Mapping):
+            continue
+        ref: dict[str, Any] = {}
+        for key in ("tool_id", "title", "source", "route_method", "route_path", "route_template"):
+            value = str(raw_ref.get(key) or "").strip()
+            if value:
+                ref[key] = value[:240]
+        status_code = raw_ref.get("status_code")
+        if isinstance(status_code, int):
+            ref["status_code"] = status_code
+        if "truncated" in raw_ref:
+            ref["truncated"] = bool(raw_ref.get("truncated"))
+        docs = raw_ref.get("docs")
+        if isinstance(docs, Sequence) and not isinstance(docs, (str, bytes, bytearray)):
+            safe_docs = []
+            for item in docs:
+                doc = str(item or "").strip()
+                if doc.startswith("docs/") and not any(marker in doc.casefold() for marker in ("secret", "token", "password", "key")):
+                    safe_docs.append(doc[:240])
+            if safe_docs:
+                ref["docs"] = safe_docs[:6]
+        if ref:
+            refs.append(ref)
+    return refs

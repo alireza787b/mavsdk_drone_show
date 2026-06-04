@@ -1655,6 +1655,34 @@ def _previous_evidence_followup_kind(message: str) -> str | None:
         return None
     if _conversation_transform_kind(normalized):
         return None
+    if _previous_evidence_source_followup_signal(normalized):
+        return "source_previous_evidence"
+    if _previous_evidence_open_followup_signal(normalized):
+        return "open_previous_evidence"
+    if _has_any_text(
+        normalized,
+        (
+            "field instruction",
+            "field instructions",
+            "operator checklist",
+            "field checklist",
+            "make a checklist",
+            "make this a checklist",
+            "summarize as checklist",
+            "summarise as checklist",
+            "summarize this as field",
+            "summarise this as field",
+            "tell the field team",
+            "send to field team",
+            "handoff instruction",
+            "handoff instructions",
+            "handoff to operator",
+            "brief the operator",
+            "brief arnaude",
+            "brief arnaud",
+        ),
+    ):
+        return "field_brief_previous_evidence"
     if _has_any_text(
         normalized,
         (
@@ -1721,6 +1749,88 @@ def _previous_evidence_followup_kind(message: str) -> str | None:
     return None
 
 
+def _previous_evidence_source_followup_signal(normalized: str) -> bool:
+    if _looks_like_capability_catalog_query(normalized):
+        return False
+    if _has_any_text(
+        normalized,
+        (
+            "exact source",
+            "source exactly",
+            "where did you get",
+            "where did this come from",
+            "source link",
+            "show source",
+            "show me the source",
+        ),
+    ):
+        return True
+    if re.search(r"\b(api|apis|endpoint|endpoints|route|routes|tool|tools|doc|docs|source)(?:/source)?\b.{0,80}\bdid you use\b", normalized):
+        return True
+    if re.search(r"\bwhich\s+(api|endpoint|route|tool|doc|source)s?\b.{0,80}\bdid you use\b", normalized):
+        return True
+    return False
+
+
+def _previous_evidence_open_followup_signal(normalized: str) -> bool:
+    if _looks_like_capability_catalog_query(normalized):
+        return False
+    if _has_any_text(
+        normalized,
+        (
+            "where can i open",
+            "where can we open",
+            "where do i open",
+            "where do we open",
+            "where can i check",
+            "where can we check",
+            "where should i check",
+            "where should we check",
+            "open this",
+            "open it",
+            "open that",
+            "give me link",
+            "give me the link",
+            "send link",
+        ),
+    ):
+        return True
+    return bool(re.search(r"\b(which|what)\s+(page|screen)\b.{0,80}\b(did you use|shows? (this|it|that)|can i check|can we check)\b", normalized))
+
+
+def _looks_like_capability_catalog_query(normalized: str) -> bool:
+    if _has_any_text(normalized, ("did you use", "exact source", "where did you get", "source link", "show source")):
+        return False
+    return _has_any_text(
+        normalized,
+        (
+            "what read-only api",
+            "what read only api",
+            "what apis/tools",
+            "what api/tools",
+            "what tools can",
+            "what apis can",
+            "what api can",
+            "which tools can",
+            "which apis can",
+            "capability surface",
+            "capability menu",
+            "capabilities",
+            "tool catalog",
+            "tool menu",
+            "mcp menu",
+            "can simurgh use",
+            "can you use",
+        ),
+    )
+
+
+def is_previous_evidence_followup_message(message: str) -> bool:
+    """Return whether a short operator message should bind to prior evidence."""
+
+    return _previous_evidence_followup_kind(message) is not None
+
+
 def _previous_read_only_evidence_context_document(previous_evidence: str) -> AssistantContextDocument | None:
     raw = str(previous_evidence or "").strip()
     if not raw:
@@ -1763,6 +1873,9 @@ def _previous_evidence_followup_message(
             f"Previous read-only intent: {intent_label}.",
             "Use `session.previous_assistant_answer` as the primary source because it is what the operator just saw.",
             "Use `session.previous_read_only_mds_evidence` only as supporting metadata about the previous read-only tool/evidence source.",
+            "If the task is source_previous_evidence, name the exact prior evidence source, registry tool ids, docs paths, and API route metadata present in context. Do not invent links or sources.",
+            "If the task is open_previous_evidence, provide only real dashboard links already present in the previous answer plus docs paths present in evidence; keep API paths as inline code unless a known docs link is present.",
+            "If the task is field_brief_previous_evidence, turn the previous answer into a concise operator checklist with preconditions, checks, caution, and no-action status. Do not add new facts.",
             "Answer the follow-up directly and conversationally. Do not repeat the full prior table/list unless the operator explicitly asks to see it again.",
             "Preserve exact numbers, IPs, routes, timestamps, modes, safety caveats, and no-action statements already present in the previous answer.",
             "Do not invent live state, do not claim a new check was performed, do not expose hidden secrets, and do not imply any drone/config action was executed.",
@@ -1817,6 +1930,54 @@ def _compact_read_only_evidence_metadata(value: Mapping[str, object] | None) -> 
         return {}
     raw_items = value.get("items")
     first_item = raw_items[0] if isinstance(raw_items, list) and raw_items and isinstance(raw_items[0], Mapping) else {}
+    compact_items: list[dict[str, object]] = []
+    source_refs: list[dict[str, object]] = []
+    if isinstance(raw_items, list):
+        for raw_item in raw_items[:6]:
+            if not isinstance(raw_item, Mapping):
+                continue
+            item_metadata = raw_item.get("metadata") if isinstance(raw_item.get("metadata"), Mapping) else {}
+            compact_item: dict[str, object] = {
+                "id": str(raw_item.get("id") or "")[:160],
+                "title": str(raw_item.get("title") or "")[:200],
+                "summary": str(raw_item.get("summary") or "")[:360],
+                "source": str(raw_item.get("source") or "")[:120],
+                "kind": str(raw_item.get("kind") or "")[:120],
+                "tool_ids": [str(tool_id)[:160] for tool_id in raw_item.get("tool_ids", [])]
+                if isinstance(raw_item.get("tool_ids"), list)
+                else [],
+            }
+            if isinstance(item_metadata, Mapping):
+                safe_metadata: dict[str, object] = {}
+                for key in ("route_method", "route_path", "route_template", "status_code", "truncated", "response_mode", "content_hash", "content_chars", "safety_note_count"):
+                    metadata_value = item_metadata.get(key)
+                    if metadata_value in (None, ""):
+                        continue
+                    if isinstance(metadata_value, bool):
+                        safe_metadata[key] = metadata_value
+                    elif isinstance(metadata_value, int):
+                        safe_metadata[key] = metadata_value
+                    else:
+                        safe_metadata[key] = str(metadata_value)[:240]
+                raw_source_refs = item_metadata.get("source_refs")
+                if isinstance(raw_source_refs, list):
+                    item_refs = _compact_source_refs(raw_source_refs)
+                    if item_refs:
+                        safe_metadata["source_refs"] = item_refs
+                        source_refs.extend(item_refs)
+                if safe_metadata:
+                    compact_item["metadata"] = safe_metadata
+            compact_items.append(compact_item)
+    deduped_source_refs: list[dict[str, object]] = []
+    seen_source_refs: set[str] = set()
+    for ref in source_refs:
+        key = json.dumps(ref, sort_keys=True, separators=(",", ":"), default=str)
+        if key in seen_source_refs:
+            continue
+        seen_source_refs.add(key)
+        deduped_source_refs.append(ref)
+        if len(deduped_source_refs) >= 8:
+            break
     return {
         "intent": str(value.get("intent") or ""),
         "response_mode": str(value.get("response_mode") or ""),
@@ -1825,7 +1986,36 @@ def _compact_read_only_evidence_metadata(value: Mapping[str, object] | None) -> 
         "content_hash": str(value.get("content_hash") or ""),
         "item_count": int(value.get("item_count") or 0),
         "summary": str(first_item.get("summary") or "")[:280] if isinstance(first_item, Mapping) else "",
+        "items": compact_items,
+        "source_refs": deduped_source_refs,
     }
+
+
+def _compact_source_refs(raw_refs: object) -> list[dict[str, object]]:
+    refs: list[dict[str, object]] = []
+    if not isinstance(raw_refs, list):
+        return refs
+    for raw_ref in raw_refs[:8]:
+        if not isinstance(raw_ref, Mapping):
+            continue
+        ref: dict[str, object] = {}
+        for key in ("tool_id", "title", "source", "route_method", "route_path", "route_template"):
+            value = str(raw_ref.get(key) or "").strip()
+            if value:
+                ref[key] = value[:240]
+        status_code = raw_ref.get("status_code")
+        if isinstance(status_code, int):
+            ref["status_code"] = status_code
+        if "truncated" in raw_ref:
+            ref["truncated"] = bool(raw_ref.get("truncated"))
+        docs = raw_ref.get("docs")
+        if isinstance(docs, list):
+            safe_docs = [str(doc)[:240] for doc in docs[:6] if str(doc or "").startswith("docs/")]
+            if safe_docs:
+                ref["docs"] = safe_docs
+        if ref:
+            refs.append(ref)
+    return refs
 
 
 def _provider_tool_composition_message(
@@ -2093,6 +2283,10 @@ def _previous_evidence_followup_fallback_turn(
         lead = "Based only on the previous read-only Simurgh answer, I would treat this as something to interpret before acting, not as proof of a new drone action or live-state change."
     elif followup_kind == "next_steps_previous_evidence":
         lead = "Based only on the previous read-only Simurgh answer, the next step is to verify the relevant GCS page/log/source before changing anything."
+    elif followup_kind in {"source_previous_evidence", "open_previous_evidence"}:
+        lead = "Based only on the previous read-only Simurgh answer, these are the source clues I can safely carry forward. I cannot invent a new source or claim a fresh check."
+    elif followup_kind == "field_brief_previous_evidence":
+        lead = "Field brief from the previous read-only Simurgh answer only. Treat this as an operator checklist, not as a new live check or action approval."
     else:
         lead = "Based only on the previous read-only Simurgh answer, here is the relevant context I can safely carry forward."
     content = "\n\n".join(
@@ -2514,6 +2708,7 @@ def create_assistant_turn(
             "web_search_enabled": web_search_enabled_for_turn,
             "provider_composed_from_tool": provider_composed_from_tool,
             "provider_composed_from_previous_evidence": provider_composed_from_previous_evidence,
+            "evidence_followup_kind": evidence_followup_kind if tool_intent == "evidence_followup" else None,
             "provider_composition_error": provider_composition_error,
             "query_adaptation": query_adaptation.public_metadata(),
             "routing_strategy": query_adaptation.strategy,

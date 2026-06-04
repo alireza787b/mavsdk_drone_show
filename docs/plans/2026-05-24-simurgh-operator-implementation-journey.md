@@ -2731,3 +2731,63 @@ Next recommended Simurgh slice:
    follow-ups so the visual experience remains ChatGPT-like instead of debug-like.
 3. Continue read-only coverage until PM/funders approve the action-planning
    phase behind confirmation and the final circuit-breaker layer.
+
+## 2026-06-04 Update: Evidence Source/Open/Field-Brief Follow-Up Slice
+
+Goal: let an operator ask natural second-turn questions about the answer they
+just saw - for example "what source did you use?", "where can I open that?", or
+"make this a field checklist" - without re-running the wrong registry tool,
+inventing links, or dumping a generic capability menu.
+
+What changed:
+
+- Added bounded `source_refs` metadata to read-only evidence bundles. The refs
+  carry registry tool ids, API route method/path/template, status code, docs
+  paths, and dashboard route hints where those already exist.
+- Threaded source refs through route-backed registry execution, local read-only
+  evidence, and provider-composed dashboard turns. MCP remains deterministic:
+  tool calls still return structured tool results and evidence metadata, not a
+  model-generated source story.
+- Extended the previous-evidence follow-up lane with three new read-only tasks:
+  source explanation, relevant-page/link guidance, and concise field-operator
+  checklist generation.
+- Kept source and route links conservative: dashboard pages and docs paths can
+  be offered as links when present; API paths stay inline unless a real docs
+  route is known.
+- Tightened follow-up detection after reviewer feedback. Capability/catalog
+  prompts such as "what read-only APIs/tools can Simurgh use for SITL status?"
+  now route through the registry planner even when the session has previous
+  evidence, instead of being misclassified as "show me the source".
+- Added action-safety regression coverage proving that source-like wording does
+  not bypass the blocked-action gate.
+
+Validation on Hetzner:
+
+- Focused reviewer regression subset: `4 passed`.
+- Full Simurgh/agent/MCP/read-only registry suite: `346 passed` in 2m39s with
+  coverage disabled to avoid temporary HTML artifacts.
+
+Reviewer status:
+
+- Independent AI-agent/MCP reviewer: initially found a P2 overmatch risk in the
+  source-follow-up classifier. The fix is implemented and covered by API/runtime
+  regression tests.
+- Backend/API reviewer: approved. New-domain capability prompts still use the
+  registry planner; previous-evidence follow-ups only bind when the wording is
+  explicitly referential to the prior answer/source/page/checklist.
+- Safety reviewer: approved. Provider tools remain disabled, evidence context is
+  bounded, action wording stays blocked, and no mutation/flight path is exposed.
+- PM/operator reviewer: ready for the next visible-quality checkpoint focused on
+  UI polish and broader read-only capability coverage before action planning.
+
+Next recommended Simurgh slice:
+
+1. Improve the dashboard message rendering and progress affordances for
+   source/open/checklist follow-ups so tables, bullets, copy controls, and
+   streaming states feel polished without adding always-visible noise.
+2. Continue expanding read-only parity so any normal dashboard/API inquiry -
+   telemetry, locations, battery, logs, sidecars, environment, setup, docs,
+   runtime, MCP menu, and mission/show readiness - can be answered from chat.
+3. Keep official and client repos synchronized, then deploy the client build
+   with `MDS_MODE=real`, action circuit breaker on, always-confirm on, and MCP
+   auth on.

@@ -23,6 +23,7 @@ from agent_runtime import (
     create_mock_assistant_turn,
     load_default_assistant_config,
 )
+from agent_runtime.evidence import ReadOnlyEvidenceBundle
 from agent_runtime.models import utc_now
 
 
@@ -986,6 +987,209 @@ def test_assistant_turn_composes_previous_evidence_followup_with_openai(monkeypa
     assert "session.previous_assistant_answer" in captured_input
     assert "session.previous_read_only_mds_evidence" in captured_input
     assert "Previous read-only intent: backend_log_summary" in captured_input
+
+
+def test_assistant_turn_composes_previous_evidence_source_followup_with_source_refs(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    evidence = ReadOnlyEvidenceBundle.from_answer(
+        intent="registry_read_execution",
+        response_mode="status",
+        tool_ids=("mds.logs.sessions.read",),
+        source="registry_read_only_mds",
+        content=json.dumps({"sessions": [{"session_id": "s_20260527_174402"}]}),
+        summary="GCS log sessions: one recent session was available.",
+        source_refs=(
+            {
+                "tool_id": "mds.logs.sessions.read",
+                "title": "Read log sessions",
+                "source": "registry_read_only_mds",
+                "route_method": "GET",
+                "route_path": "/api/logs/sessions",
+                "status_code": 200,
+                "truncated": False,
+                "docs": ("docs/guides/logging-system.md",),
+            },
+        ),
+    ).public_metadata()
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        captured["api_key"] = api_key
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "I used the previous read-only registry evidence: tool `mds.logs.sessions.read`, API `GET /api/logs/sessions`, and docs `docs/guides/logging-system.md`. No fresh check was performed.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+    session = sessions.create(actor="operator", mode="read_only", metadata={"last_domain": "logs"})
+    sessions.update_private_context(
+        session.id,
+        {
+            "last_assistant_content": "Latest read-only log summary: one recent GCS log session is available. No drone command was sent.",
+            "last_domain": "logs",
+            "last_intent": "registry_read_execution",
+            "last_tool_intent": "registry_read_execution",
+            "last_read_only_evidence": json.dumps(evidence, sort_keys=True, separators=(",", ":")),
+        },
+    )
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=session.id,
+        message="what API/source did you use and where can I check it?",
+        allow_provider_for_local_tools=True,
+    )
+
+    assert followup.turn.provider == "openai"
+    assert followup.audit_event.metadata["tool_intent"] == "evidence_followup"
+    assert followup.audit_event.metadata["evidence_followup_kind"] == "source_previous_evidence"
+    assert followup.audit_event.metadata["read_only_evidence"]["source_refs"][0]["route_path"] == "/api/logs/sessions"
+    assert "mds.logs.sessions.read" in followup.turn.content
+    captured_input = str(captured["input"])
+    assert captured["api_key"] == "test-openai-key"
+    assert "Conversation task: source_previous_evidence" in captured_input
+    assert "source_refs" in captured_input
+    assert "/api/logs/sessions" in captured_input
+    assert "docs/guides/logging-system.md" in captured_input
+
+
+def test_assistant_turn_composes_previous_evidence_field_brief(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    evidence = ReadOnlyEvidenceBundle.from_answer(
+        intent="fleet_connectivity",
+        response_mode="status",
+        tool_ids=("mds.fleet.heartbeats.read",),
+        content="Connectivity from GCS state: 0/2 drone(s) currently look live.",
+        summary="Connectivity from GCS state: 0/2 drone(s) currently look live.",
+    ).public_metadata()
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        return {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Field checklist: verify QGC vehicle list, confirm fresh heartbeat, keep this read-only, and do not treat stale presence as readiness.",
+                        }
+                    ],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+    session = sessions.create(actor="operator", mode="read_only", metadata={"last_domain": "fleet"})
+    sessions.update_private_context(
+        session.id,
+        {
+            "last_assistant_content": "Connectivity from GCS state: 0/2 drone(s) currently look live. No drone command was sent.",
+            "last_domain": "fleet",
+            "last_intent": "fleet_connectivity",
+            "last_tool_intent": "fleet_connectivity",
+            "last_read_only_evidence": json.dumps(evidence, sort_keys=True, separators=(",", ":")),
+        },
+    )
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=session.id,
+        message="summarize this as field instructions for the team",
+        allow_provider_for_local_tools=True,
+    )
+
+    assert followup.turn.provider == "openai"
+    assert followup.audit_event.metadata["tool_intent"] == "evidence_followup"
+    assert followup.audit_event.metadata["evidence_followup_kind"] == "field_brief_previous_evidence"
+    assert "Field checklist" in followup.turn.content
+    assert "Conversation task: field_brief_previous_evidence" in str(captured["input"])
+
+
+def test_assistant_turn_blocks_action_even_when_source_followup_matches(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    evidence = ReadOnlyEvidenceBundle.from_answer(
+        intent="registry_read_execution",
+        response_mode="status",
+        tool_ids=("mds.commands.active.read",),
+        source="registry_read_only_mds",
+        content=json.dumps({"commands": []}),
+        summary="No active commands were reported.",
+        source_refs=(
+            {
+                "tool_id": "mds.commands.active.read",
+                "title": "Read active commands",
+                "source": "registry_read_only_mds",
+                "route_method": "GET",
+                "route_path": "/api/v1/commands/active",
+                "status_code": 200,
+                "docs": ("docs/apis/gcs-api-server.md",),
+            },
+        ),
+    ).public_metadata()
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("action-bearing source follow-up must be blocked before provider")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+    sessions = AgentSessionStore()
+    audit = InMemoryAuditSink()
+    session = sessions.create(actor="operator", mode="read_only", metadata={"last_domain": "commands"})
+    sessions.update_private_context(
+        session.id,
+        {
+            "last_assistant_content": "No active commands were reported. No drone command was sent.",
+            "last_domain": "commands",
+            "last_intent": "registry_read_execution",
+            "last_tool_intent": "registry_read_execution",
+            "last_read_only_evidence": json.dumps(evidence, sort_keys=True, separators=(",", ":")),
+        },
+    )
+
+    followup = create_assistant_turn(
+        sessions=sessions,
+        audit=audit,
+        actor="operator",
+        session_id=session.id,
+        message="show me the source and launch it now",
+        allow_provider_for_local_tools=True,
+    )
+
+    assert followup.turn.provider == "openai"
+    assert "launch" in followup.turn.blocked_intents
+    assert followup.audit_event.metadata["tool_intent"] is None
+    assert followup.audit_event.metadata["blocked_intent_count"] >= 1
 
 
 def test_text_log_timestamp_parser_accepts_time_only_entries():
