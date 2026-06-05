@@ -311,7 +311,10 @@ def test_simurgh_assistant_stream_labels_public_web_search(monkeypatch, tmp_path
     assert final_payload["provider"] == "openai"
     assert final_payload["trace"]["provider_tools"] == {
         "web_search_enabled": True,
+        "web_search_requested": True,
+        "web_search_returned": True,
         "web_search_scope": "public_general_only",
+        "citation_count": 1,
     }
     assert "Sources:" in final_payload["content"]
 

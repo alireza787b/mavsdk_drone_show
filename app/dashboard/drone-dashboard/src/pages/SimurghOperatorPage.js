@@ -299,8 +299,11 @@ function getTraceSummary(trace = {}, message = {}) {
     return `Checked ${toolIds.length} read-only MDS tools`;
   }
 
-  if (trace?.provider_tools?.web_search_enabled) {
+  if (trace?.provider_tools?.web_search_returned) {
     return 'Searched public web';
+  }
+  if (trace?.provider_tools?.web_search_requested) {
+    return 'Requested public web search';
   }
 
   const retrievedCount = Number(trace?.context?.retrieved_context_count || 0);
@@ -352,8 +355,10 @@ function buildTraceRows(trace = {}, message = {}) {
     rows.push({ label: 'Tools', value: toolIds.join(', ') });
   }
 
-  if (trace?.provider_tools?.web_search_enabled) {
+  if (trace?.provider_tools?.web_search_returned) {
     rows.push({ label: 'Lookup', value: 'Public web search' });
+  } else if (trace?.provider_tools?.web_search_requested) {
+    rows.push({ label: 'Lookup', value: 'Public web search requested' });
   }
 
   const contextBits = [];

@@ -2899,11 +2899,13 @@ reasoning, private MDS evidence, or a second tool path.
 
 What changed:
 
-- Added sanitized `trace.provider_tools` metadata with
-  `web_search_enabled=true` and scope `public_general_only` when a turn used the
-  provider web-search lane.
+- Added sanitized `trace.provider_tools` metadata with separate
+  `web_search_requested`, `web_search_returned`, `citation_count`, and scope
+  fields. This keeps the UI honest when a provider request asked for web search
+  but the returned response does not include citation/source evidence.
 - Updated the SSE progress fallback so authenticated public lookup turns show a
-  compact `Searched public web` activity stage before streaming the answer.
+  compact `Searched public web` activity stage only when the provider returned a
+  web-search call; otherwise the label stays at `Requested public web search`.
 - Updated the Simurgh dashboard trace disclosure so web-search turns summarize
   as `Searched public web` and show `Lookup: Public web search`; raw
   `web_search_call` internals stay hidden.

@@ -320,7 +320,9 @@ weather, public geography lookup beyond the reviewed local registry, laws/rules,
 or internet-style current facts. The request still uses `store=false`; it does
 not include GCS tool results, fleet telemetry, private logs, credentials, or
 raw operational evidence. Inline web citations returned by OpenAI are preserved
-and rendered as clickable `Sources` links in the dashboard. Use
+and rendered as clickable `Sources` links in the dashboard; the trace separates
+web-search requested, web-search returned, and citation count so reviewers can
+see when a provider response did not return source URLs. Use
 `MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS` or `MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS`
 only with bare domains and only when an eval-backed deployment needs source
 control. Do not set both lists at the same time.

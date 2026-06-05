@@ -430,13 +430,23 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
     metadata = dict(record.audit_event.metadata or {})
     language = metadata.get("language_profile") if isinstance(metadata.get("language_profile"), dict) else {}
     adaptation = metadata.get("query_adaptation") if isinstance(metadata.get("query_adaptation"), dict) else {}
+    provider_tools = metadata.get("provider_tools") if isinstance(metadata.get("provider_tools"), dict) else {}
+    web_search_requested = bool(provider_tools.get("web_search_requested") or metadata.get("web_search_enabled"))
+    web_search_returned = bool(provider_tools.get("web_search_returned"))
+    try:
+        citation_count = max(0, int(provider_tools.get("citation_count") or 0))
+    except (TypeError, ValueError):
+        citation_count = 0
     return SimurghAssistantTurnTraceResponse(
         provider=record.turn.provider,
         model=record.turn.model,
         adapter_version=record.turn.adapter_version,
         provider_tools={
-            "web_search_enabled": bool(metadata.get("web_search_enabled")),
-            "web_search_scope": "public_general_only" if metadata.get("web_search_enabled") else "disabled",
+            "web_search_enabled": web_search_requested,
+            "web_search_requested": web_search_requested,
+            "web_search_returned": web_search_returned,
+            "web_search_scope": "public_general_only" if web_search_requested else "disabled",
+            "citation_count": citation_count,
         },
         session={
             "id": record.session.id,
@@ -577,11 +587,12 @@ def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     if tool_intent:
         return {"stage": "tool", "label": f"Using {tool_intent.replace('_', ' ')}", "intent": tool_intent}
-    if provider == "openai" and provider_tools.get("web_search_enabled") is True:
+    if provider == "openai" and provider_tools.get("web_search_requested") is True:
+        returned = provider_tools.get("web_search_returned") is True
         return {
             "stage": "search",
-            "state": "complete",
-            "label": "Searched public web",
+            "state": "complete" if returned else "requested",
+            "label": "Searched public web" if returned else "Requested public web search",
             "provider": "openai",
             "scope": "public_general_only",
         }

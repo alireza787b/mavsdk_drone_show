@@ -600,6 +600,7 @@ class AssistantTurnResult:
     context_documents: tuple[AssistantContextDocument, ...]
     blocked_intents: tuple[str, ...]
     safety_notes: tuple[str, ...]
+    provider_tools: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1053,6 +1054,7 @@ class OpenAIResponsesAssistantAdapter:
         response_payload = self._post_response(request_payload, api_key=self.config.openai.read_api_key())
         content = self._extract_response_text(response_payload)
         web_search_used = _response_used_web_search(response_payload)
+        citations = _url_citations_from_response(response_payload)
 
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
@@ -1072,6 +1074,11 @@ class OpenAIResponsesAssistantAdapter:
                 ),
                 "No direct drone API or raw GCS command was exposed.",
             ),
+            provider_tools={
+                "web_search_requested": bool(enable_web_search),
+                "web_search_returned": bool(web_search_used),
+                "citation_count": len(citations),
+            },
         )
 
     def _local_blocked_turn(
@@ -2706,6 +2713,7 @@ def create_assistant_turn(
             "read_only_plan": read_only_plan.public_metadata(),
             "retrieved_context_count": retrieved_context_count,
             "web_search_enabled": web_search_enabled_for_turn,
+            "provider_tools": dict(turn.provider_tools or {}),
             "provider_composed_from_tool": provider_composed_from_tool,
             "provider_composed_from_previous_evidence": provider_composed_from_previous_evidence,
             "evidence_followup_kind": evidence_followup_kind if tool_intent == "evidence_followup" else None,

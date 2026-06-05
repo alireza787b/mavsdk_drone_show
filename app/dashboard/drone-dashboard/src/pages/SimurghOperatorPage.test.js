@@ -513,7 +513,10 @@ describe('SimurghOperatorPage', () => {
         adapter_version: 'openai-responses-v1',
         provider_tools: {
           web_search_enabled: true,
+          web_search_requested: true,
+          web_search_returned: true,
           web_search_scope: 'public_general_only',
+          citation_count: 1,
         },
         query: {
           domain: 'general',

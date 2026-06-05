@@ -474,7 +474,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "ba22d5c5d628833e09cd2f01f6adbc18497b574b01c995c16be9aa66d11db7a1",
+      "content_hash": "f91fcd5d36afe2a66ea399a02e0f0f77150eefa550cfabe363b3ca3693bc768d",
       "heading": "Environment Variables",
       "id": "simurgh.operator_guide:009-04-environment-variables",
       "links": [],
@@ -488,7 +488,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "Do not put raw API keys in environment values, config files, docs, commits,\ntests, Telegram reports, or shell history. The OpenAI adapter uses the Responses\nAPI with `store=false`, no conversation state, no uploaded files, no\nprovider-native streaming, and no background jobs. `store=false` is a fixed\ninvariant in this slice, not an operator-configurable setting. The dashboard may\nuse the GCS-side assistant SSE endpoint for progress/delta UI, but that stream\ndoes not expose model tools or change the provider request invariants.\n`MDS_AGENT_OPENAI_BASE_URL` is pinned to `https://api.openai.com/v1`; custom\nOpenAI-compatible gateways are rejected in this slice to prevent API key egress\nto unreviewed destinations.\n\nWhen `MDS_AGENT_WEB_SEARCH_ENABLED=true`, Simurgh may add the official OpenAI\nResponses `web_search` tool only for public/general prompts such as current\nweather, public geography lookup beyond the reviewed local registry, laws/rules,\nor internet-style current facts. The request still uses `store=false`; it does\nnot include GCS tool results, fleet telemetry, private logs, credentials, or\nraw operational evidence. Inline web citations returned by OpenAI are preserved\nand rendered as clickable `Sources` links in the dashboard. Use\n`MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS` or `MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS`\nonly with bare domains and only when an eval-backed deployment needs source\ncontrol. Do not set both lists at the same time.",
+      "text": "Do not put raw API keys in environment values, config files, docs, commits,\ntests, Telegram reports, or shell history. The OpenAI adapter uses the Responses\nAPI with `store=false`, no conversation state, no uploaded files, no\nprovider-native streaming, and no background jobs. `store=false` is a fixed\ninvariant in this slice, not an operator-configurable setting. The dashboard may\nuse the GCS-side assistant SSE endpoint for progress/delta UI, but that stream\ndoes not expose model tools or change the provider request invariants.\n`MDS_AGENT_OPENAI_BASE_URL` is pinned to `https://api.openai.com/v1`; custom\nOpenAI-compatible gateways are rejected in this slice to prevent API key egress\nto unreviewed destinations.\n\nWhen `MDS_AGENT_WEB_SEARCH_ENABLED=true`, Simurgh may add the official OpenAI\nResponses `web_search` tool only for public/general prompts such as current\nweather, public geography lookup beyond the reviewed local registry, laws/rules,\nor internet-style current facts. The request still uses `store=false`; it does\nnot include GCS tool results, fleet telemetry, private logs, credentials, or\nraw operational evidence. Inline web citations returned by OpenAI are preserved\nand rendered as clickable `Sources` links in the dashboard; the trace separates\nweb-search requested, web-search returned, and citation count so reviewers can\nsee when a provider response did not return source URLs. Use\n`MDS_AGENT_WEB_SEARCH_ALLOWED_DOMAINS` or `MDS_AGENT_WEB_SEARCH_BLOCKED_DOMAINS`\nonly with bare domains and only when an eval-backed deployment needs source\ncontrol. Do not set both lists at the same time.",
       "title": "Simurgh operator guide"
     },
     {
@@ -15968,7 +15968,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "17d4a08a4be9ca78fad5e48d809eb0fb38b7674e7540c0b6c003918eb48aeb47",
+      "content_hash": "d6f8e0cdf3558f8f339cdc4ebde7333a5ea97b5cc946a10cdf439a24f953ea41",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
