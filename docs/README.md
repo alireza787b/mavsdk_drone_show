@@ -34,6 +34,9 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | control local SITL containers from the dashboard | [SITL Control Guide](guides/sitl-control.md) |
 | configure Mapbox-backed map views | [Mapbox Setup](guides/mapbox-setup.md) |
 | inspect logs | [Logging System Guide](guides/logging-system.md) |
+| use the Simurgh read-only assistant or MCP layer | [Simurgh Operator](guides/simurgh-operator.md) |
+| review the Simurgh read-only checkpoint before action-enabled work | [Simurgh Read-Only Checkpoint](guides/simurgh-readonly-checkpoint.md) |
+| connect n8n, Claude, VS Code, or custom agents through MCP | [Simurgh MCP Client Recipes](guides/simurgh-mcp-clients.md) |
 
 ### By Role
 
@@ -48,6 +51,7 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 | Customer maintainer | [Custom Repo Workflow](guides/custom-repo-workflow.md) |
 | Fleet operator / deployment owner | [Fleet Sync And Secrets](guides/fleet-sync-and-secrets.md) |
 | Fleet ops reviewer | [Fleet Ops](guides/fleet-ops.md) |
+| Simurgh / MCP reviewer | [Simurgh Read-Only Checkpoint](guides/simurgh-readonly-checkpoint.md) and [Simurgh MCP Client Recipes](guides/simurgh-mcp-clients.md) |
 | SITL release maintainer | [SITL Custom Release Workflow](guides/sitl-custom-release-workflow.md) |
 | AI agent / maintainer | [Repo Agent Operating Spec](../AGENTS.md) |
 
@@ -63,6 +67,9 @@ Welcome to the MDS documentation. This index routes operators, maintainers, and 
 - **[Smart Swarm Tracking Analysis](guides/smart-swarm-tracking-analysis.md)** - expected vs actual follower tracking proof for leader jogs and frame changes
 - **[Runtime Evidence Reporting](guides/runtime-evidence-reporting.md)** - generic Markdown/HTML/PDF package generation for accepted validation runs without customer-specific leakage
 - **[Mission Planning Workspace](features/mission-planning-workspace.md)** - shared QuickScout and Swarm Trajectory planning rules, altitude/terrain doctrine, and job/error policy
+- **[Simurgh Operator](guides/simurgh-operator.md)** - dashboard assistant, provider, MCP, policy, and validation guide
+- **[Simurgh Read-Only Checkpoint](guides/simurgh-readonly-checkpoint.md)** - current read-only capabilities, safety boundary, validation gate, and action-enabled roadmap
+- **[Simurgh MCP Client Recipes](guides/simurgh-mcp-clients.md)** - n8n, Claude, VS Code, and custom-agent connection guidance
 
 ### Project Videos
 
@@ -152,7 +159,7 @@ MDS supports environment variable overrides for advanced configuration:
 | `MDS_GIT_AUTH_TOKEN_FILE` | Preferred read-only GitHub HTTPS token file for private SITL/image-prep/GCS read setups | unset |
 | `MDS_GIT_SSH_KEY_FILE` | Optional SSH private key file for private GitHub SSH runtime sync | unset |
 | `MDS_GIT_AUTO_PUSH` | Allow dashboard saves/imports to commit + push on the GCS | `true` in writable setups |
-| `MDS_DEFAULT_DOCKER_IMAGE` | Git-tracked deployment default SITL image from `deployment/defaults.env` | `mavsdk-drone-show-sitl:latest` |
+| `MDS_DEFAULT_DOCKER_IMAGE` | Git-tracked deployment default SITL image from `deployment/defaults.env` | `catchadrone-mds-sitl:latest` |
 | `MDS_DOCKER_IMAGE` | Host-local SITL image override | deployment profile image |
 | `MDS_SITL_GIT_SYNC` | Pull/reset SITL repo on container startup (`true` = mutable latest-on-boot mode) | `true` |
 | `MDS_SITL_GIT_SYNC_PREFLIGHT` | Validate repo/branch/read credential before creating SITL containers | `true` |

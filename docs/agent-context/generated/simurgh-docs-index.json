@@ -1,5 +1,5 @@
 {
-  "chunk_count": 800,
+  "chunk_count": 808,
   "chunks": [
     {
       "audience": "operator",
@@ -290,7 +290,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "aa73c86bc8c277ee585715f8b2591d94d2a6745344a3aeaa0d05bc9edcf4b720",
+      "content_hash": "86f1675b68419e939d6a911eb1ff7352a21d9ba9c4de96e05374f17ae13c237d",
       "heading": "Configuration Files",
       "id": "simurgh.operator_guide:004-01-configuration-files",
       "links": [
@@ -307,7 +307,8 @@
         "docs/agent-context/safety-policy.md",
         "docs/agent-context/system-guidelines.md",
         "docs/agent-context/tool-usage-guidelines.md",
-        "docs/guides/simurgh-mcp-clients.md"
+        "docs/guides/simurgh-mcp-clients.md",
+        "docs/guides/simurgh-readonly-checkpoint.md"
       ],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -319,7 +320,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Configuration Files\n\nCore artifacts:\n\n- `config/agent_policy.yaml`\n- `config/agent_tools.yaml`\n- `config/agent_assistant.yaml`\n- `config/agent_general_knowledge.yaml`\n- `config/agent_public_places.yaml`\n- `config/agent_provider_smoke.yaml`\n- `docs/agent-context/context-index.yaml`\n- `docs/agent-context/system-guidelines.md`\n- `docs/agent-context/operator-guidelines.md`\n- `docs/agent-context/safety-policy.md`\n- `docs/agent-context/tool-usage-guidelines.md`\n- `docs/agent-context/field-log-review-workflow.md`\n- `docs/agent-context/provider-smoke-workflow.md`\n- `docs/agent-context/prompts/default-operator.md`\n- `docs/agent-context/evals/simurgh-foundation.yaml`\n- `docs/agent-context/evals/simurgh-advisory-provider.yaml`\n- `docs/agent-context/evals/simurgh-dashboard-prompts.yaml`\n- `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`\n- `docs/agent-context/generated/simurgh-docs-index.json`\n- `docs/guides/simurgh-mcp-clients.md`\n\nDo not hardcode prompt text, policy text, or tool rules in provider adapters. Add\nor change the artifact first, then update tests and docs in the same slice.",
+      "text": "## Configuration Files\n\nCore artifacts:\n\n- `config/agent_policy.yaml`\n- `config/agent_tools.yaml`\n- `config/agent_assistant.yaml`\n- `config/agent_general_knowledge.yaml`\n- `config/agent_public_places.yaml`\n- `config/agent_provider_smoke.yaml`\n- `docs/agent-context/context-index.yaml`\n- `docs/agent-context/system-guidelines.md`\n- `docs/agent-context/operator-guidelines.md`\n- `docs/agent-context/safety-policy.md`\n- `docs/agent-context/tool-usage-guidelines.md`\n- `docs/agent-context/field-log-review-workflow.md`\n- `docs/agent-context/provider-smoke-workflow.md`\n- `docs/agent-context/prompts/default-operator.md`\n- `docs/agent-context/evals/simurgh-foundation.yaml`\n- `docs/agent-context/evals/simurgh-advisory-provider.yaml`\n- `docs/agent-context/evals/simurgh-dashboard-prompts.yaml`\n- `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`\n- `docs/agent-context/generated/simurgh-docs-index.json`\n- `docs/guides/simurgh-mcp-clients.md`\n- `docs/guides/simurgh-readonly-checkpoint.md`\n\nDo not hardcode prompt text, policy text, or tool rules in provider adapters. Add\nor change the artifact first, then update tests and docs in the same slice.\n\nBefore starting action-enabled slices, review\n`docs/guides/simurgh-readonly-checkpoint.md`. It is the current public-safe\nhandoff for read-only capabilities, MCP/API promotion rules, validation gates,\nand the staged action roadmap.",
       "title": "Simurgh operator guide"
     },
     {
@@ -1216,6 +1217,182 @@
       ],
       "text": "## References\n\n- MCP authorization specification: https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization\n- MCP remote server publishing guidance: https://modelcontextprotocol.io/registry/remote-servers\n- n8n MCP Client Tool: https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-langchain.mcpClient/\n- Claude remote MCP connectors: https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp\n- Claude Desktop local MCP servers/extensions: https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop\n- Claude MCP connector API: https://platform.claude.com/docs/en/agents-and-tools/mcp-connector\n- VS Code MCP servers: https://code.visualstudio.com/docs/copilot/customization/mcp-servers\n- VS Code MCP extension guide: https://code.visualstudio.com/api/extension-guides/ai/mcp",
       "title": "Simurgh MCP client recipes"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "29a17a74c1ffbbbdd963af71df7292f9364a2b8e755971e5c2bc1861e5f0c198",
+      "heading": "Simurgh Read-Only Checkpoint",
+      "id": "simurgh.readonly_checkpoint:001-01-simurgh-read-only-checkpoint",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "# Simurgh Read-Only Checkpoint\n\nStatus: read-only checkpoint before action-enabled Simurgh slices, updated\n2026-06-05.\n\nThis guide is the public-safe handoff for the current Simurgh Operator phase. It\nsummarizes what is intentionally available today, what must remain blocked, how\nfuture MCP/API work should be promoted, and which gates must pass before action\nexecution is added.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "957e45fe4c4f1fcb57ca44ee33bb43f95194603cb694d613fb2c3af231fc46ff",
+      "heading": "Current Scope",
+      "id": "simurgh.readonly_checkpoint:002-01-current-scope",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## Current Scope\n\nSimurgh is currently a read-only operator assistant and MCP interoperability\nsurface for GCS-side MDS state. It can inspect approved MDS/GCS information,\nanswer operator questions, search public MDS docs, explain setup/workflows, and\nuse optional advisory OpenAI text composition or public web search for safe\ngeneral questions.\n\nThe current scope includes:\n\n- chat-first `/simurgh` dashboard with local chat history, Markdown rendering,\n copy controls, and in-message progress/activity events;\n- sanitized streaming stages for understanding, policy, context, tool use,\n provider/web-search progress, answer deltas, final, and done;\n- shared query adaptation and short session topic memory for typo-heavy,\n follow-up, multilingual, and tone-sensitive operator prompts;\n- curated read-only tool registry in `config/agent_tools.yaml`;\n- policy review in `config/agent_policy.yaml` before any tool is callable;\n- MCP Streamable HTTP endpoint at `POST /api/v1/simurgh/mcp` when enabled;\n- MCP resources and tools backed by the same registry/policy executor used by\n the dashboard assistant;\n- generated OpenAPI candidate inventory for review coverage, not execution;\n- generated public docs index for `mds.docs.search` and `mds.docs.chunk.read`;\n- dashboard/runtime controls for provider, model, API-key file status, MCP,\n circuit breaker, and always-confirm posture.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "c369ceabdaeb0411579290270d446e3c5d884cac0561aa08eae7b47088518bb3",
+      "heading": "Safety Boundary",
+      "id": "simurgh.readonly_checkpoint:003-01-safety-boundary",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## Safety Boundary\n\nThe read-only checkpoint deliberately does not expose mutation or flight actions.\n\nBlocked boundaries:\n\n- no direct drone-local API exposure to models or external MCP clients;\n- no raw `POST /api/v1/commands` access;\n- no mission launch, upload, parameter write, environment write, git write, or\n service restart tool exposed through Simurgh/MCP;\n- no automatic OpenAPI-to-MCP execution;\n- no model-side tool execution against GCS state;\n- no raw prompts, credentials, private logs, or unbounded telemetry in persisted\n assistant history or MCP resources.\n\n`MDS_MODE` remains the only real-vs-SITL runtime switch. Simurgh does not have a\nseparate real/SITL mode. The action circuit breaker is the final executor stop\nfor any future non-read-only tool: upstream planning may explain what would be\ncalled, but the executor must not mutate state while\n`MDS_AGENT_ACTION_CIRCUIT_BREAKER=true`. `Always confirm actions` is the human\napproval gate immediately before that final executor layer.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "5c819bcacf7ce9c72d9454b4655ffbe0514cc9f3967498a4e9bfeed0955f5da6",
+      "heading": "MCP And API Promotion Contract",
+      "id": "simurgh.readonly_checkpoint:004-01-mcp-and-api-promotion-contract",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## MCP And API Promotion Contract\n\nThe MCP surface is intentionally curated. The generated OpenAPI candidate file\nis a reviewer menu, not a runtime permission grant.\n\nPromotion path for any new GCS API capability:\n\n```text\nFastAPI route\n -> generated non-callable candidate\n -> registry entry in config/agent_tools.yaml\n -> policy classification in config/agent_policy.yaml\n -> typed argument and result contract\n -> docs and safety notes\n -> tests and prompt evals\n -> reviewer approval\n -> MCP tools/list and tools/call exposure\n```\n\nThis keeps MDS compatible with future adapters such as FastAPI-MCP, FastMCP,\nMCPify, or a better emerging tool without making the adapter the safety boundary.\nAuto-discovery should reduce review effort; it must not bypass classification,\ndocs, tests, or policy.\n\nThe current drift gate is `summary.registry_coverage` from\n`GET /api/v1/simurgh/tool-candidates?limit=200` and the MCP smoke client. A\nread-only completion checkpoint should show zero unpromoted generator-eligible\nread-only routes before handoff.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "f3df0b334dcb935215cc0e64a6d5aa1ab116ce527cd2cdfd648696be6b071dae",
+      "heading": "Validation Gate",
+      "id": "simurgh.readonly_checkpoint:005-01-validation-gate",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## Validation Gate\n\nRun these checks before PM/funder handoff, MCP client onboarding, or any\naction-enabled planning slice:\n\n```bash\npython3 tools/generate_mds_env_reference.py --check\npython3 tools/generate_simurgh_tool_candidates.py --check\npython3 tools/generate_simurgh_docs_index.py --check\npytest tests/test_agent_assistant_evals.py tests/test_agent_assistant_runtime.py tests/test_gcs_simurgh_mcp.py tests/test_gcs_simurgh_routes.py tests/test_env_registry.py tests/test_simurgh_dashboard_prompt_evals.py tests/test_simurgh_retrieval_quality.py\npython3 tools/run_simurgh_dashboard_prompt_evals.py\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030 --token-file /path/to/agent-token --json\n```\n\nThe smoke token must be temporary, revoked after the run, and never committed or\nincluded in reports.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "8d720439e3123657226b1f47ef889f0552690ec55d7f6fcf4c482038a37f72a4",
+      "heading": "PM Review Prompts",
+      "id": "simurgh.readonly_checkpoint:006-01-pm-review-prompts",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## PM Review Prompts\n\nUse these prompts to confirm the read-only checkpoint feels useful and not like a\nhardcoded chatbot:\n\n- `How many drones do we have configured?`\n- `Which drones are connected now, and what evidence do you have?`\n- `Is there a drone show uploaded and ready? How long is it?`\n- `Check the latest GCS logs. Does anything look operationally important?`\n- `What is the difference between QuickScout and Swarm Trajectory?`\n- `Does MDS support ArduPilot today?`\n- `How do I change the Simurgh OpenAI key safely?`\n- `Can n8n or VS Code use the same MCP tool menu?`\n- `Say that last answer in Persian.`\n- `What is MAVLink?`\n- `What is the lat/lon/elevation of Damavand Peak in WGS84?`\n\nExpected behavior: Simurgh should answer from MDS evidence when the question is\nabout MDS, use public/general knowledge or web search only for safe public\nquestions, remember the previous topic for follow-ups, and avoid repeating an\nunrelated tool summary.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "e4b010e9fe74cf848ac383641d8a34daddcc2a105fae5aaceb56197b81574224",
+      "heading": "Action-Enabled Roadmap",
+      "id": "simurgh.readonly_checkpoint:007-01-action-enabled-roadmap",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## Action-Enabled Roadmap\n\nAction-enabled Simurgh should be added in staged slices only after PM/safety\napproval of this read-only checkpoint.\n\nRecommended sequence:\n\n1. **Action proposal schema**: produce structured dry-run plans for future\n actions without executing them.\n2. **Action candidate inventory**: classify existing mutation/flight APIs as\n blocked, guarded, SITL-only, or future-real candidates.\n3. **SITL-only wrappers**: expose a tiny set of reviewed actions in SITL with\n typed args, always-confirm, audit, and circuit-breaker enforcement.\n4. **Progress monitor**: stream action status, logs, cancellation state, and\n final evidence through the same Simurgh activity event model.\n5. **Scenario evals**: add PM-style dry-run, SITL, rejection, and interruption\n prompts before broadening action scope.\n6. **Field shadow mode**: run real-mode advisory/dry-run next to human actions\n and compare proposed actions against operator decisions.\n7. **Limited real-mode actions**: only after written PM/safety approval, allow a\n narrow real-mode set with explicit confirmation, circuit-breaker off by a\n human, strong audit, and field checklist alignment.\n\nDo not start with broad model autonomy. Deterministic state, tool scoping,\napproval, monitoring, and evals are the product foundation.",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "a705cfeedfed7bc5ceaa64802d49537fc390fa4eaecacd2ebffeb8480cfd6fc8",
+      "heading": "Documentation Rules",
+      "id": "simurgh.readonly_checkpoint:008-01-documentation-rules",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "## Documentation Rules\n\nSimurgh docs are model-visible product inputs. Any code/API/policy change that\nalters Simurgh behavior must update the relevant doc or context file in the same\nslice, regenerate the docs index, and rerun prompt/tool validation. Historical\njourney logs may remain as history, but current operator docs, MCP client docs,\nenvironment references, and generated indexes must not contain conflicting\nruntime guidance.",
+      "title": "Simurgh read-only checkpoint"
     },
     {
       "audience": "operator",
@@ -15954,7 +16131,7 @@
     }
   ],
   "generated_by": "tools/generate_simurgh_docs_index.py",
-  "resource_count": 19,
+  "resource_count": 20,
   "resources": [
     {
       "audience": "operator",
@@ -16010,7 +16187,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "5e1315090e829c23731e1cd2aa217f5d9a72741cb20c4506b207c68b8df771d2",
+      "content_hash": "c6e24b79cbac972917e435edca8078b2e18e8f73925a697589476d6a5af864c1",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16040,6 +16217,25 @@
         "integrations"
       ],
       "title": "Simurgh MCP client recipes"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "chunk_count": 8,
+      "content_hash": "b51e265e3a58af92ada373901de9719771076fe50813c1bfde1e2713042ec3e4",
+      "id": "simurgh.readonly_checkpoint",
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "title": "Simurgh read-only checkpoint"
     },
     {
       "audience": "operator",

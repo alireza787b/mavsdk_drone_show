@@ -86,9 +86,15 @@ Core artifacts:
 - `docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`
 - `docs/agent-context/generated/simurgh-docs-index.json`
 - `docs/guides/simurgh-mcp-clients.md`
+- `docs/guides/simurgh-readonly-checkpoint.md`
 
 Do not hardcode prompt text, policy text, or tool rules in provider adapters. Add
 or change the artifact first, then update tests and docs in the same slice.
+
+Before starting action-enabled slices, review
+`docs/guides/simurgh-readonly-checkpoint.md`. It is the current public-safe
+handoff for read-only capabilities, MCP/API promotion rules, validation gates,
+and the staged action roadmap.
 
 ## Advisory Evals
 
