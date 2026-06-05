@@ -164,10 +164,12 @@ python3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-
 It validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom
 agents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,
 `resources/list`, `resources/read`, `mds.operator.question.answer`,
-`mds.docs.search`, and `mds.docs.chunk.read`. It also fails if the tool menu
-exposes obvious raw/action/admin tool names, and it verifies that a direct
-action request is blocked or dry-run only. Use it before debugging a specific
-external client, and never put bearer tokens in committed MCP client
+`mds.docs.search`, `mds.docs.chunk.read`, and
+`mds.simurgh.tool_candidates.read`. It also fails if the tool menu exposes
+obvious raw/action/admin tool names, verifies that the live registry reports
+zero unpromoted generator-eligible read-only candidates, and verifies that a
+direct action request is blocked or dry-run only. Use it before debugging a
+specific external client, and never put bearer tokens in committed MCP client
 configuration.
 
 When field logs produce new lessons, do not paste raw artifacts into eval

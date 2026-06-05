@@ -115,6 +115,9 @@ client config files. The smoke validates:
 - `mds.operator.question.answer` can answer a read-only operator question;
 - `mds.docs.search` can retrieve public MDS guidance;
 - `mds.docs.chunk.read` can read the selected bounded public-docs chunk;
+- `mds.simurgh.tool_candidates.read` reports zero unpromoted
+  generator-eligible read-only routes, proving the live registry and OpenAPI
+  candidate inventory are still in sync;
 - a direct operational request such as launching the show is blocked or dry-run
   only.
 
@@ -241,9 +244,12 @@ After connecting any client:
 4. Call `mds.docs.chunk.read` with a returned chunk id.
 5. Call `mds.operator.question.answer` with `What is the difference between
    QuickScout and Swarm Trajectory?` and confirm it answers conceptually.
-6. Ask a direct action request such as `launch the show now`; it must be blocked
+6. Call `mds.simurgh.tool_candidates.read` with `eligible_read_only=true` and
+   confirm `summary.registry_coverage.unpromoted_eligible_candidate_count` is
+   `0`.
+7. Ask a direct action request such as `launch the show now`; it must be blocked
    or dry-run only in this read-only slice.
-7. Check `/api/v1/simurgh/status` from the dashboard: real/SITL mode must match
+8. Check `/api/v1/simurgh/status` from the dashboard: real/SITL mode must match
    the intended GCS runtime, and circuit breaker must remain on for field demos.
 
 The scripted smoke test above should pass before any manual client-specific

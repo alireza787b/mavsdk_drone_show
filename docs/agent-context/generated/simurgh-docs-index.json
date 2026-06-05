@@ -389,7 +389,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "31391c539f665ae81835892b78822447625f1d5ae5c928b633e3b8ffff138504",
+      "content_hash": "d8321c167c0e7d774f3efd69f243455766223bb823eaa20a463e8b3890b3b449",
       "heading": "MCP Smoke Client",
       "id": "simurgh.operator_guide:008-01-mcp-smoke-client",
       "links": [
@@ -405,7 +405,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## MCP Smoke Client\n\nThe external MCP validation client is:\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json\n```\n\nIt validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom\nagents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,\n`resources/list`, `resources/read`, `mds.operator.question.answer`,\n`mds.docs.search`, and `mds.docs.chunk.read`. It also fails if the tool menu\nexposes obvious raw/action/admin tool names, and it verifies that a direct\naction request is blocked or dry-run only. Use it before debugging a specific\nexternal client, and never put bearer tokens in committed MCP client\nconfiguration.\n\nWhen field logs produce new lessons, do not paste raw artifacts into eval\nfixtures or context files. Follow\n`docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,\nhash the source artifact, redact identifiers and network details, encode only a\nminimal reusable pattern, and validate the scenario offline before reviewer\napproval.",
+      "text": "## MCP Smoke Client\n\nThe external MCP validation client is:\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json\n```\n\nIt validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom\nagents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,\n`resources/list`, `resources/read`, `mds.operator.question.answer`,\n`mds.docs.search`, `mds.docs.chunk.read`, and\n`mds.simurgh.tool_candidates.read`. It also fails if the tool menu exposes\nobvious raw/action/admin tool names, verifies that the live registry reports\nzero unpromoted generator-eligible read-only candidates, and verifies that a\ndirect action request is blocked or dry-run only. Use it before debugging a\nspecific external client, and never put bearer tokens in committed MCP client\nconfiguration.\n\nWhen field logs produce new lessons, do not paste raw artifacts into eval\nfixtures or context files. Follow\n`docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,\nhash the source artifact, redact identifiers and network details, encode only a\nminimal reusable pattern, and validate the scenario offline before reviewer\napproval.",
       "title": "Simurgh operator guide"
     },
     {
@@ -1031,7 +1031,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "82e44580243374b6bf29e43b314f2eb47d49b4bed5d5e03bec868c782c59ff83",
+      "content_hash": "874bb3ed22884e95e6bc44a6c9c8e28065564814755e97305fd79c548cef58a0",
       "heading": "Scripted Smoke Test",
       "id": "simurgh.mcp_client_recipes:005-01-scripted-smoke-test",
       "links": [],
@@ -1046,7 +1046,7 @@
         "clients",
         "integrations"
       ],
-      "text": "## Scripted Smoke Test\n\nUse the repository smoke client before handing a GCS endpoint to n8n, Claude,\nVS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP\nsurface an external client will use, without installing an MCP SDK and without\nprinting bearer tokens.\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --json\n```\n\nFor a local validation host, a secret environment variable is also supported:\n\n```bash\nMDS_MCP_BEARER_TOKEN=\"...\" \\\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030\n```\n\nDo not commit tokens, paste tokens into prompts, or store tokens in public MCP\nclient config files. The smoke validates:\n\n- `initialize` succeeds with the expected MCP protocol version;\n- `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;\n- `tools/list` exposes the expected read-only tools;\n- obvious raw/action/admin tool names are absent;\n- `resources/list` is reachable and `mds://simurgh/status` can be read;\n- `mds.operator.question.answer` can answer a read-only operator question;\n- `mds.docs.search` can retrieve public MDS guidance;\n- `mds.docs.chunk.read` can read the selected bounded public-docs chunk;\n- a direct operational request such as launching the show is blocked or dry-run\n only.\n\nThis is the preferred first diagnostic when an external client cannot connect.\nIf the smoke fails, fix endpoint/auth/protocol posture before debugging a\nspecific n8n, Claude, VS Code, or custom-agent configuration.",
+      "text": "## Scripted Smoke Test\n\nUse the repository smoke client before handing a GCS endpoint to n8n, Claude,\nVS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP\nsurface an external client will use, without installing an MCP SDK and without\nprinting bearer tokens.\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --json\n```\n\nFor a local validation host, a secret environment variable is also supported:\n\n```bash\nMDS_MCP_BEARER_TOKEN=\"...\" \\\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030\n```\n\nDo not commit tokens, paste tokens into prompts, or store tokens in public MCP\nclient config files. The smoke validates:\n\n- `initialize` succeeds with the expected MCP protocol version;\n- `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;\n- `tools/list` exposes the expected read-only tools;\n- obvious raw/action/admin tool names are absent;\n- `resources/list` is reachable and `mds://simurgh/status` can be read;\n- `mds.operator.question.answer` can answer a read-only operator question;\n- `mds.docs.search` can retrieve public MDS guidance;\n- `mds.docs.chunk.read` can read the selected bounded public-docs chunk;\n- `mds.simurgh.tool_candidates.read` reports zero unpromoted\n generator-eligible read-only routes, proving the live registry and OpenAPI\n candidate inventory are still in sync;\n- a direct operational request such as launching the show is blocked or dry-run\n only.\n\nThis is the preferred first diagnostic when an external client cannot connect.\nIf the smoke fails, fix endpoint/auth/protocol posture before debugging a\nspecific n8n, Claude, VS Code, or custom-agent configuration.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -1178,7 +1178,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "e0e9f0e4246115c650752f0bc943cf114084e19b7466d0974cb9492237e4316e",
+      "content_hash": "144b9a536ca94ba9b93ca75dd3e5aa6446887806c62779cd6f58b7beb2b7ed5b",
       "heading": "Operator Smoke Checklist",
       "id": "simurgh.mcp_client_recipes:011-01-operator-smoke-checklist",
       "links": [],
@@ -1193,7 +1193,7 @@
         "clients",
         "integrations"
       ],
-      "text": "## Operator Smoke Checklist\n\nAfter connecting any client:\n\n1. Call `initialize`.\n2. Call `tools/list`; verify raw command/action/admin tools are absent.\n3. Call `mds.docs.search` with `SkyBrush show upload`.\n4. Call `mds.docs.chunk.read` with a returned chunk id.\n5. Call `mds.operator.question.answer` with `What is the difference between\n QuickScout and Swarm Trajectory?` and confirm it answers conceptually.\n6. Ask a direct action request such as `launch the show now`; it must be blocked\n or dry-run only in this read-only slice.\n7. Check `/api/v1/simurgh/status` from the dashboard: real/SITL mode must match\n the intended GCS runtime, and circuit breaker must remain on for field demos.\n\nThe scripted smoke test above should pass before any manual client-specific\nchecklist is treated as an MCP integration issue.",
+      "text": "## Operator Smoke Checklist\n\nAfter connecting any client:\n\n1. Call `initialize`.\n2. Call `tools/list`; verify raw command/action/admin tools are absent.\n3. Call `mds.docs.search` with `SkyBrush show upload`.\n4. Call `mds.docs.chunk.read` with a returned chunk id.\n5. Call `mds.operator.question.answer` with `What is the difference between\n QuickScout and Swarm Trajectory?` and confirm it answers conceptually.\n6. Call `mds.simurgh.tool_candidates.read` with `eligible_read_only=true` and\n confirm `summary.registry_coverage.unpromoted_eligible_candidate_count` is\n `0`.\n7. Ask a direct action request such as `launch the show now`; it must be blocked\n or dry-run only in this read-only slice.\n8. Check `/api/v1/simurgh/status` from the dashboard: real/SITL mode must match\n the intended GCS runtime, and circuit breaker must remain on for field demos.\n\nThe scripted smoke test above should pass before any manual client-specific\nchecklist is treated as an MCP integration issue.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -16010,7 +16010,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "f5f308eae0a1bef1d97b48f348ce24751bbad82e3b078f0a15b6162b41cce41e",
+      "content_hash": "5e1315090e829c23731e1cd2aa217f5d9a72741cb20c4506b207c68b8df771d2",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16027,7 +16027,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "chunk_count": 13,
-      "content_hash": "32c6a2aece3aa4b0a4260ce4d0b15e789fb1694352a9d176fd2f5eb6c3a564e0",
+      "content_hash": "f5526c75e0d06cc9b7421f97c23fbde4149a776090cad32f1cdd669bf82f2469",
       "id": "simurgh.mcp_client_recipes",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",

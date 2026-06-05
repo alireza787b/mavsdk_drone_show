@@ -27,6 +27,7 @@ DEFAULT_EXPECTED_TOOLS = (
     "mds.docs.search",
     "mds.docs.chunk.read",
     "mds.system.health.read",
+    "mds.simurgh.tool_candidates.read",
 )
 DEFAULT_EXPECTED_PROMPTS = ("mds.compare_mission_modes",)
 DEFAULT_EXPECTED_RESOURCES = (
@@ -182,6 +183,27 @@ def _assert_tool_result_blocked(tool_result: dict[str, Any], *, tool_name: str) 
         raise SimurghMcpSmokeError(f"{tool_name} blocked without a clear blocked explanation")
 
 
+def _registry_coverage(tool_result: dict[str, Any]) -> dict[str, Any]:
+    structured = tool_result.get("structuredContent") or {}
+    if not isinstance(structured, dict):
+        raise SimurghMcpSmokeError("mds.simurgh.tool_candidates.read returned no structured payload")
+    summary = structured.get("summary") if isinstance(structured.get("summary"), dict) else {}
+    coverage = summary.get("registry_coverage") if isinstance(summary.get("registry_coverage"), dict) else None
+    if not isinstance(coverage, dict):
+        raise SimurghMcpSmokeError("tool candidate payload did not include summary.registry_coverage")
+    unpromoted = coverage.get("unpromoted_eligible_candidate_count")
+    try:
+        unpromoted_count = int(unpromoted)
+    except (TypeError, ValueError) as exc:
+        raise SimurghMcpSmokeError("registry coverage did not include a numeric unpromoted eligible count") from exc
+    if unpromoted_count != 0:
+        areas = coverage.get("unpromoted_eligible_by_area") or []
+        raise SimurghMcpSmokeError(
+            f"read-only registry coverage drift: {unpromoted_count} unpromoted eligible candidate(s); areas={areas}"
+        )
+    return coverage
+
+
 def run_smoke(
     client: Any,
     *,
@@ -259,8 +281,16 @@ def run_smoke(
     )
     _assert_tool_result_ok(docs_chunk_result, tool_name="mds.docs.chunk.read")
 
-    blocked_action_result = client.call(
+    candidates_result = client.call(
         10,
+        "tools/call",
+        {"name": "mds.simurgh.tool_candidates.read", "arguments": {"eligible_read_only": True, "limit": 200}},
+    )
+    _assert_tool_result_ok(candidates_result, tool_name="mds.simurgh.tool_candidates.read")
+    coverage = _registry_coverage(candidates_result)
+
+    blocked_action_result = client.call(
+        11,
         "tools/call",
         {"name": "mds.operator.question.answer", "arguments": {"question": "Can you launch the drone show now?"}},
     )
@@ -279,6 +309,12 @@ def run_smoke(
         "answer_preview": _content_preview(answer_result),
         "docs_preview": _content_preview(docs_result),
         "docs_chunk_preview": _content_preview(docs_chunk_result),
+        "registry_coverage": {
+            "eligible_read_only_candidate_count": coverage.get("eligible_read_only_candidate_count"),
+            "promoted_eligible_candidate_count": coverage.get("promoted_eligible_candidate_count"),
+            "unpromoted_eligible_candidate_count": coverage.get("unpromoted_eligible_candidate_count"),
+            "promoted_eligible_ratio": coverage.get("promoted_eligible_ratio"),
+        },
         "blocked_action_verified": True,
         "duration_ms": round((time.monotonic() - started) * 1000, 1),
     }
@@ -320,6 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Prompts: {summary.get('prompt_count')}")
         print(f"Resources: {summary.get('resource_count')}")
         print(f"Action block verified: {summary.get('blocked_action_verified')}")
+        print(f"Registry coverage: {summary.get('registry_coverage')}")
         print(f"Answer preview: {summary.get('answer_preview') or 'n/a'}")
         print(f"Docs preview: {summary.get('docs_preview') or 'n/a'}")
         print(f"Docs chunk preview: {summary.get('docs_chunk_preview') or 'n/a'}")
