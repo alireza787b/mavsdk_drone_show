@@ -30,6 +30,7 @@ class FakeMcpClient:
             "mds.logs.session.read",
             "mds.runtime.status.read",
             "mds.swarm.config.read",
+            "mds.origin.launch_positions.read",
         ]
 
     def call(self, request_id, method, params=None):
@@ -141,7 +142,7 @@ def test_run_smoke_calls_expected_mcp_methods_and_summarizes_read_only_surface()
 
     assert summary["server"]["name"] == "mds-simurgh-operator"
     assert summary["protocol_version"] == MCP_PROTOCOL_VERSION
-    assert summary["tool_count"] == 11
+    assert summary["tool_count"] == 12
     assert summary["prompt_count"] == 1
     assert summary["resource_count"] == 3
     assert summary["blocked_action_verified"] is True
@@ -177,12 +178,20 @@ def test_run_smoke_fails_if_forbidden_looking_tools_are_exposed():
         "mds.operator.question.answer",
         "mds.docs.search",
         "mds.docs.chunk.read",
+        "mds.origin.launch_positions.read",
         "mds.system.health.read",
         "mds.commands.raw_submit",
     ])
 
     with pytest.raises(SimurghMcpSmokeError, match="forbidden-looking tools"):
         run_smoke(client, min_tools=1)
+
+
+def test_run_smoke_allows_read_only_launch_position_inspection_tool():
+    summary = run_smoke(FakeMcpClient(), min_tools=1)
+
+    assert "mds.origin.launch_positions.read" in summary["tools_preview"]
+    assert summary["tool_count"] == 12
 
 
 def test_script_json_summary_contains_no_token_words():

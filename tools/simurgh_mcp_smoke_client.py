@@ -36,12 +36,17 @@ DEFAULT_EXPECTED_RESOURCES = (
 )
 FORBIDDEN_TOOL_HINTS = (
     "raw_submit",
-    ".launch",
-    ".upload",
-    ".delete",
-    ".apply",
-    ".sync",
     "drone_local",
+)
+FORBIDDEN_TOOL_SEGMENTS = (
+    "launch",
+    "upload",
+    "delete",
+    "apply",
+    "sync",
+    "execute",
+    "write",
+    "mutate",
 )
 
 
@@ -131,6 +136,19 @@ def _resource_count(resources_result: dict[str, Any]) -> int:
     return len(resources_result.get("resources") or [])
 
 
+def _forbidden_tool_names(tool_names: list[str]) -> list[str]:
+    forbidden: list[str] = []
+    for name in tool_names:
+        normalized = name.lower()
+        if any(hint in normalized for hint in FORBIDDEN_TOOL_HINTS):
+            forbidden.append(name)
+            continue
+        segments = normalized.split(".")
+        if any(segment in FORBIDDEN_TOOL_SEGMENTS for segment in segments):
+            forbidden.append(name)
+    return forbidden
+
+
 def _content_preview(tool_result: dict[str, Any], max_chars: int = 220) -> str:
     chunks = []
     for item in tool_result.get("content") or []:
@@ -202,7 +220,7 @@ def run_smoke(
     if len(tool_names) < min_tools:
         raise SimurghMcpSmokeError(f"too few MCP tools exposed: {len(tool_names)} < {min_tools}")
 
-    forbidden = [name for name in tool_names if any(hint in name for hint in FORBIDDEN_TOOL_HINTS)]
+    forbidden = _forbidden_tool_names(tool_names)
     if forbidden:
         raise SimurghMcpSmokeError(f"forbidden-looking tools exposed: {', '.join(forbidden[:8])}")
 
@@ -252,6 +270,7 @@ def run_smoke(
         "server": initialize.get("serverInfo", {}),
         "protocol_version": initialize.get("protocolVersion"),
         "tool_count": len(tool_names),
+        "tools_preview": tool_names[:20],
         "prompt_count": len(prompt_names),
         "resource_count": _resource_count(resources_result),
         "expected_tools_present": list(expected_tools),
