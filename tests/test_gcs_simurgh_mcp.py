@@ -542,6 +542,28 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     def skybrush_validation():
         return {"validation_status": "PASS", "issues": [], "metrics_summary": {"safety_status": "SAFE"}}
 
+    @app.get("/api/v1/fleet/git-sync")
+    def fleet_git_sync():
+        return {
+            "total": 2,
+            "out_of_sync": 1,
+            "rows": [
+                {"hw_id": "1", "pos_id": 1, "sync_state": "ok"},
+                {"hw_id": "2", "pos_id": 2, "sync_state": "out_of_sync"},
+            ],
+        }
+
+    @app.get("/api/v1/origin/launch-positions")
+    def origin_launch_positions(heading: float = 0, format: str = "json"):
+        return {
+            "heading": heading,
+            "format": format,
+            "total_drones": 1,
+            "positions": [
+                {"hw_id": "1", "pos_id": "1", "latitude": 35.0, "longitude": 51.0, "altitude": 1200.0}
+            ],
+        }
+
     app.include_router(create_simurgh_router())
     client = TestClient(app)
 
@@ -557,12 +579,16 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     assert "simurgh.public_places.read" in tool_names
     assert "simurgh.geodesy.calculate" in tool_names
     assert "mds.logs.session.read" in tool_names
+    assert "mds.fleet.git_sync.read" in tool_names
+    assert "mds.origin.launch_positions.read" in tool_names
     assert "mds.shows.skybrush.metrics_snapshot.read" in tool_names
     assert "mds.shows.skybrush.safety_report.read" in tool_names
     assert "mds.shows.skybrush.validation.read" in tool_names
     assert "mds.shows.skybrush.metrics.read" not in tool_names
     assert "mds.commands.raw_submit" not in tool_names
     exposed_route_paths = {tool["_meta"]["ai.mds/route"]["path"] for tool in tools}
+    assert "/api/v1/fleet/git-sync" in exposed_route_paths
+    assert "/api/v1/origin/launch-positions" in exposed_route_paths
     assert "/api/v1/shows/skybrush/metrics/snapshot" in exposed_route_paths
     assert "/api/v1/shows/skybrush/metrics" not in exposed_route_paths
     assert "/api/v1/shows/skybrush/import" not in exposed_route_paths
@@ -704,6 +730,42 @@ def test_simurgh_mcp_lists_and_calls_policy_allowed_read_only_tools(monkeypatch)
     )
     assert invalid_range_response.status_code == 200
     assert invalid_range_response.json()["result"]["isError"] is True
+
+    git_sync_response = client.post(
+        MCP_PATH,
+        json=_request("tools/call", params={"name": "mds.fleet.git_sync.read", "arguments": {}}),
+    )
+    assert git_sync_response.status_code == 200
+    git_sync_result = git_sync_response.json()["result"]
+    assert git_sync_result["isError"] is False
+    assert git_sync_result["structuredContent"]["out_of_sync"] == 1
+    assert git_sync_result["_meta"]["ai.mds/evidence"]["tool_ids"] == ["mds.fleet.git_sync.read"]
+
+    launch_positions_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={"name": "mds.origin.launch_positions.read", "arguments": {"heading": 90, "format": "json"}},
+        ),
+    )
+    assert launch_positions_response.status_code == 200
+    launch_positions_result = launch_positions_response.json()["result"]
+    assert launch_positions_result["isError"] is False
+    assert launch_positions_result["structuredContent"]["heading"] == 90
+    assert launch_positions_result["structuredContent"]["format"] == "json"
+    assert launch_positions_result["_meta"]["ai.mds/evidence"]["tool_ids"] == ["mds.origin.launch_positions.read"]
+
+    launch_positions_kml_response = client.post(
+        MCP_PATH,
+        json=_request(
+            "tools/call",
+            params={"name": "mds.origin.launch_positions.read", "arguments": {"format": "kml"}},
+        ),
+    )
+    assert launch_positions_kml_response.status_code == 200
+    launch_positions_kml_result = launch_positions_kml_response.json()["result"]
+    assert launch_positions_kml_result["isError"] is True
+    assert "format must be one of: json" in launch_positions_kml_result["content"][0]["text"]
 
     docs_search_response = client.post(
         MCP_PATH,

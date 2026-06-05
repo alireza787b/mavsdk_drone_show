@@ -248,11 +248,12 @@ _DOMAIN_TOOLS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
     (("sitl", "simulator", "simulation instance", "sim instance"), ("mds.sitl.instances.read", "mds.sitl.policy.read"), "SITL runtime state"),
     (("node boot", "boot status", "boot init", "initializing", "initialisation", "initialization", "git sync phase"), ("mds.fleet.node_boot_status.read",), "fleet node boot/init status"),
     (("sidecar", "wifi manager", "mavlink dashboard", "board dashboard", "board sidecar"), ("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "fleet sidecar and board connectivity state"),
-    (("git", "repo status", "repository", "sync status"), ("mds.git.status.read",), "repository sync state"),
+    (("git sync", "repo sync", "repository sync", "sync posture", "sync status", "out of sync"), ("mds.fleet.git_sync.read", "mds.git.status.read", "mds.fleet.node_boot_status.read"), "fleet git sync posture"),
+    (("git", "repo status", "repository"), ("mds.git.status.read",), "repository sync state"),
     (("runtime", "gcs mode", "current mode", "real mode", "environment", "env"), ("mds.system.runtime_status.read", "mds.simurgh.status.read"), "GCS runtime and Simurgh posture"),
     (("env registry", "environment registry", "gcs env", "environment page"), ("mds.system.env_registry.read", "mds.system.env_gcs.read"), "environment registry state"),
     (("px4", "param", "parameter", "params"), ("mds.px4_params.policy.read", "mds.px4_params.profiles.read"), "PX4 parameter read-only evidence"),
-    (("launch position", "launch positions"), ("mds.config.positions.read", "mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"), "origin and launch-position evidence"),
+    (("launch position", "launch positions", "desired launch", "planned launch"), ("mds.origin.launch_positions.read", "mds.config.positions.read", "mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"), "origin and launch-position evidence"),
     (("deviation", "deviations"), ("mds.origin.deviations.read", "mds.origin.read", "mds.navigation.global_origin.read"), "origin deviation evidence"),
     (("origin", "global origin"), ("mds.origin.read", "mds.origin.deviations.read", "mds.navigation.global_origin.read"), "origin and launch-position evidence"),
     (("swarm trajectory", "trajectory status", "trajectory validation", "trajectory validate", "cluster mission"), ("mds.swarm_trajectories.status.read", "mds.swarm_trajectories.validate.read", "mds.swarm_trajectories.leaders.read"), "swarm trajectory state"),
@@ -1004,6 +1005,12 @@ def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, 
 def _arguments_for_tool(tool: ToolDefinition, text: str, *, domain: str) -> Mapping[str, Any] | None:
     schema = tool.input_schema if isinstance(tool.input_schema, Mapping) else {}
     required = _required_args(tool)
+    if tool.id == "mds.origin.launch_positions.read":
+        arguments: dict[str, Any] = {"format": "json"}
+        heading = _extract_heading(text)
+        if heading is not None:
+            arguments["heading"] = heading
+        return arguments
     if not schema or not required:
         return {}
     if not _has_any(text, _ARGUMENT_STATE_TERMS):
@@ -1209,6 +1216,21 @@ def _extract_lat_lon(text: str) -> tuple[float, float] | None:
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return None
     return lat, lon
+
+
+def _extract_heading(text: str) -> float | None:
+    patterns = (
+        r"\b(?:formation\s+)?heading\s*(?:=|:|is|at|of)?\s*(-?[0-9]+(?:\.[0-9]+)?)\b",
+        r"\b(-?[0-9]+(?:\.[0-9]+)?)\s*(?:deg|degree|degrees)\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        value = float(match.group(1))
+        if 0 <= value < 360:
+            return value
+    return None
 
 
 def _job_aliases_for(*, tool: ToolDefinition, domain: str) -> tuple[str, ...]:

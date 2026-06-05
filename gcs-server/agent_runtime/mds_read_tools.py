@@ -3870,8 +3870,15 @@ def _matching_registry_tools(tools: Sequence[Any], normalized: str, registry_dom
         score = 0
         score += 8
         score += sum(1 for term in keyword_terms if term in text)
+        tool_id = str(getattr(tool, "id", ""))
+        if "telemetry" in keyword_terms and "telemetry" in tool_id:
+            score += 10
+        if any(term in keyword_terms for term in ("sidecar", "board", "boards")) and "sidecar" in tool_id:
+            score += 6
+        if any(term in keyword_terms for term in ("sync", "git")) and "git_sync" in tool_id:
+            score += 6
         if score > 0:
-            matches.append((score, str(getattr(tool, "id", "")), tool))
+            matches.append((score, tool_id, tool))
     matches.sort(key=lambda item: (-item[0], item[1]))
     return [tool for _score, _tool_id, tool in matches]
 

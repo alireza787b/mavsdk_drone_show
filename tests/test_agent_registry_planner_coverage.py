@@ -152,6 +152,35 @@ def test_registry_planner_still_accepts_explicit_sar_mission_id():
     assert plan.tool_calls[0].arguments["mission_id"] == "sar-1"
 
 
+def test_registry_planner_routes_out_of_sync_prompts_to_fleet_git_sync_posture():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "show current out of sync fleet git sync status with gcs",
+        allowed_tools=tools,
+        local_intent=None,
+    )
+
+    assert plan is not None
+    assert plan.label == "fleet git sync posture"
+    assert _plan_tool_ids(plan)[:2] == ("mds.fleet.git_sync.read", "mds.git.status.read")
+
+
+def test_registry_planner_extracts_json_launch_position_heading():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "show current desired launch positions at heading 90 degrees",
+        allowed_tools=tools,
+        local_intent=None,
+    )
+
+    assert plan is not None
+    assert plan.label == "origin and launch-position evidence"
+    assert _plan_tool_ids(plan)[0] == "mds.origin.launch_positions.read"
+    assert plan.tool_calls[0].arguments == {"format": "json", "heading": 90.0}
+
+
 @pytest.mark.parametrize(
     "prompt",
     (

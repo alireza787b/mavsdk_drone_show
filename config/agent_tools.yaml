@@ -601,6 +601,41 @@ tools:
   safety_notes:
   - Boot/init status is not flight readiness and must not make a drone commandable.
   - Treat stale running phases as investigation hints, not proof of current activity.
+- id: mds.fleet.git_sync.read
+  title: Read fleet git sync posture
+  description: Read Fleet Ops git-sync status/posture for configured drones without
+    dispatching dry-run or apply actions.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/fleet/git-sync
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - fleet_identity
+  - repository
+  - deployment
+  tags:
+  - fleet
+  - git
+  - sync
+  - deployment
+  docs:
+  - docs/features/git-sync.md
+  - docs/guides/fleet-ops.md
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - This tool reads sync posture only; it does not run dry-run, apply, pull, push,
+    or dispatch UPDATE_CODE.
+  - Out-of-sync evidence is an operator maintenance signal, not a flight-readiness
+    approval.
 - id: mds.fleet.network_status.read
   title: Read fleet network status
   description: Read GCS-owned network status observations for the fleet.
@@ -1951,6 +1986,54 @@ tools:
   safety_notes:
   - Origin data is sensitive operating-location evidence and is not public docs
     context.
+- id: mds.origin.launch_positions.read
+  title: Read desired launch positions as JSON
+  description: Calculate desired launch-position coordinates for the configured
+    fleet and origin using JSON output only.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/v1/origin/launch-positions
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - location
+  - mission_state
+  tags:
+  - origin
+  - launch-positions
+  - geometry
+  - typed_args
+  docs:
+  - docs/features/origin-system.md
+  - docs/apis/gcs-api-server.md
+  safety_notes:
+  - This tool constrains MCP/Simurgh calls to JSON posture evidence; CSV/KML/download
+    artifact formats are not allowed through the registry schema.
+  - Desired launch positions depend on configured origin, heading, fleet geometry,
+    and trajectory offsets; operators must verify live RTK/GPS/deviation evidence
+    before flight.
+  input_schema:
+    type: object
+    additionalProperties: false
+    properties:
+      heading:
+        type: number
+        minimum: 0
+        maximum: 359.999
+        description: Optional formation heading in degrees. Defaults to 0 when omitted.
+      format:
+        type: string
+        enum:
+        - json
+        description: Output format is constrained to json for MCP/Simurgh use.
 - id: mds.origin.bootstrap.read
   title: Read origin bootstrap payload
   description: Read the lightweight origin bootstrap payload used by runtime

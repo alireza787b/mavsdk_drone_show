@@ -221,9 +221,10 @@ def test_generated_candidate_artifact_is_review_only_and_current():
     assert coverage["registry_path"] == "config/agent_tools.yaml"
     assert coverage["eligible_read_only_candidate_count"] > 0
     assert coverage["promoted_eligible_candidate_count"] > 0
-    assert coverage["unpromoted_eligible_candidate_count"] >= 0
-    assert 0 < coverage["promoted_eligible_ratio"] <= 1
-    assert isinstance(coverage["unpromoted_eligible_by_area"], list)
+    assert coverage["unpromoted_eligible_candidate_count"] == 0
+    assert coverage["promoted_eligible_candidate_count"] == coverage["eligible_read_only_candidate_count"]
+    assert coverage["promoted_eligible_ratio"] == 1.0
+    assert coverage["unpromoted_eligible_by_area"] == []
     assert all(candidate["callable"] is False for candidate in artifact["candidates"])
     assert all(candidate["registry_candidate"]["default_exposure"] == "exclude" for candidate in artifact["candidates"])
     assert generator.main(["--check"]) == 0

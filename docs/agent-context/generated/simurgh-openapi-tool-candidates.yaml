@@ -7693,6 +7693,6 @@ summary:
     promoted_eligible_candidate_count: 78
     promoted_eligible_ratio: 1.0
     registry_path: config/agent_tools.yaml
-    registry_route_count: 89
+    registry_route_count: 91
     unpromoted_eligible_by_area: []
     unpromoted_eligible_candidate_count: 0

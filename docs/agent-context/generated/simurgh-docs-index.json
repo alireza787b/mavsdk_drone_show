@@ -1,5 +1,5 @@
 {
-  "chunk_count": 797,
+  "chunk_count": 798,
   "chunks": [
     {
       "audience": "operator",
@@ -103,11 +103,32 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "8f97f044c720fd3dcb0d386a36e4008bb10701831a56545f91b309e2c1bf8232",
+      "content_hash": "df238e2d88c3dfc83238db8c087737c88c324109cce4fcfff98affcc922e3d3e",
       "heading": "Simurgh Tool Usage Guidelines",
       "id": "simurgh.tool_usage:001-02-simurgh-tool-usage-guidelines",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/agent-context/tool-usage-guidelines.md",
+      "resource_id": "simurgh.tool_usage",
+      "route_hint": null,
+      "summary": "Tool registry semantics and adapter expectations.",
+      "tags": [
+        "simurgh",
+        "tools",
+        "mcp"
+      ],
+      "text": "- `mds.operator.question.answer` accepts one bounded `question` string and an\n optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.\n Its structured result may include `response_mode` (`status`, `interpret`,\n `workflow`, `compare`, or `capability`) so the same evidence source can answer\n fresh status prompts and interpretive follow-ups without exposing raw\n transcript text. It stays read-only/advisory and must not execute actions.\n- `mds.docs.search` accepts a bounded public documentation query plus optional\n tag/audience filters and returns generated index chunks with canonical\n context URLs.\n- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a\n bounded `max_chars` value. It reads only from the generated public docs index.\n- `mds.logs.session.read` accepts a required sanitized `session_id`, required\n bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight\n logs, ULog archives, drone-local log actions, or private evidence exports.\n- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,\n `mds.shows.skybrush.safety_report.read`, and\n `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops\n sync posture only. It must not run dry-run/apply, pull, push, or dispatch\n `UPDATE_CODE`; those mutation routes remain outside the read-only registry.\n- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`\n with MCP/Simurgh arguments constrained to JSON output. Do not expose CSV, KML,\n download, or artifact forms through this registry tool.\n- `mds.shows.skybrush.metrics_snapshot.read` uses\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only",
+      "title": "Simurgh tool usage guidelines"
+    },
+    {
+      "audience": "agent",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
+      "content_hash": "f29bb359015a8ffd91e3ebe5843c9f3ec96536c37d3acbebfe8a760fd58ccebf",
+      "heading": "Simurgh Tool Usage Guidelines",
+      "id": "simurgh.tool_usage:001-03-simurgh-tool-usage-guidelines",
       "links": [
         "docs/agent-context/generated/simurgh-docs-index.json",
+        "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml",
         "docs/context",
         "docs/plans/"
       ],
@@ -121,29 +142,7 @@
         "tools",
         "mcp"
       ],
-      "text": "- `mds.operator.question.answer` accepts one bounded `question` string and an\n optional safe `conversation_topic` enum for dashboard/MCP follow-up routing.\n Its structured result may include `response_mode` (`status`, `interpret`,\n `workflow`, `compare`, or `capability`) so the same evidence source can answer\n fresh status prompts and interpretive follow-ups without exposing raw\n transcript text. It stays read-only/advisory and must not execute actions.\n- `mds.docs.search` accepts a bounded public documentation query plus optional\n tag/audience filters and returns generated index chunks with canonical\n context URLs.\n- `mds.docs.chunk.read` accepts one chunk id returned by docs search and a\n bounded `max_chars` value. It reads only from the generated public docs index.\n- `mds.logs.session.read` accepts a required sanitized `session_id`, required\n bounded `limit`, and optional log filters. It is for GCS log-session inspection only, not raw flight\n logs, ULog archives, drone-local log actions, or private evidence exports.\n- SkyBrush show-analysis tools (`mds.shows.skybrush.metrics_snapshot.read`,\n `mds.shows.skybrush.safety_report.read`, and\n `mds.shows.skybrush.validation.read`) accept `{}` only and inspect the current\n processed show package. They do not import, deploy, download, plot, launch, or\n command a show. Dashboard show-readiness answers derive from the current\n metrics snapshot when available so chat stays read-only and responsive.\n- `mds.shows.skybrush.metrics_snapshot.read` uses\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only MCP tool because the current route can refresh and write cached\n metrics.\n\nThe docs index artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with\n`tools/generate_simurgh_docs_index.py` after approved public docs/context\nchanges and verify with `--check`. The generator is explicit-include and skips\nprivate resources, evals, generated artifacts, `docs/plans/`, and raw secret\npatterns.",
-      "title": "Simurgh tool usage guidelines"
-    },
-    {
-      "audience": "agent",
-      "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "29c3f6836098381bbc2590649f114e6a1a0d02a97dd7714a780be3e9b629a7f0",
-      "heading": "Simurgh Tool Usage Guidelines",
-      "id": "simurgh.tool_usage:001-03-simurgh-tool-usage-guidelines",
-      "links": [
-        "docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml"
-      ],
-      "mime_type": "text/markdown",
-      "path": "docs/agent-context/tool-usage-guidelines.md",
-      "resource_id": "simurgh.tool_usage",
-      "route_hint": null,
-      "summary": "Tool registry semantics and adapter expectations.",
-      "tags": [
-        "simurgh",
-        "tools",
-        "mcp"
-      ],
-      "text": "The provider-side retrieval context uses the same generated docs index and\n`agent_runtime.retrieval` interface as `mds.docs.search` and\n`mds.docs.chunk.read`, but it is not itself an executable tool call. Query\nplanning selects domain tags and rewritten search queries, retrieves bounded\npublic chunks, and injects them as `retrieved.*` context documents before an\nexternal provider is called. This layer must never bypass the registry, policy,\nor MCP authorization rules; factual live/configured GCS state still comes from\nreviewed read-only tools, not from documentation search. Future vector, hybrid,\nrerank, managed-search, or GraphRAG adapters must preserve the `RetrievalQuery` /\n`RetrievalHit` contract and add eval coverage before becoming default.\n\nThe OpenAPI candidate artifact is\n`docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`. Treat it as\nreview input for PM, MCP, safety, backend, and field-ops reviewers.",
+      "text": "s\n `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current\n cached metrics snapshot and reports unavailable if no current cache exists.\n- `GET /api/v1/shows/skybrush/metrics` remains intentionally unexposed as a\n read-only MCP tool because the current route can refresh and write cached\n metrics.\n\nThe docs index artifact is\n`docs/agent-context/generated/simurgh-docs-index.json`. Regenerate it with\n`tools/generate_simurgh_docs_index.py` after approved public docs/context\nchanges and verify with `--check`. The generator is explicit-include and skips\nprivate resources, evals, generated artifacts, `docs/plans/`, and raw secret\npatterns.\n\nThe provider-side retrieval context uses the same generated docs index and\n`agent_runtime.retrieval` interface as `mds.docs.search` and\n`mds.docs.chunk.read`, but it is not itself an executable tool call. Query\nplanning selects domain tags and rewritten search queries, retrieves bounded\npublic chunks, and injects them as `retrieved.*` context documents before an\nexternal provider is called. This layer must never bypass the registry, policy,\nor MCP authorization rules; factual live/configured GCS state still comes from\nreviewed read-only tools, not from documentation search. Future vector, hybrid,\nrerank, managed-search, or GraphRAG adapters must preserve the `RetrievalQuery` /\n`RetrievalHit` contract and add eval coverage before becoming default.\n\nThe OpenAPI candidate artifact is\n`docs/agent-context/generated/simurgh-openapi-tool-candidates.yaml`. Treat it as\nreview input for PM, MCP, safety, backend, and field-ops reviewers.",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -189,7 +188,7 @@
     {
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
-      "content_hash": "b93563c2cd1820505fb7b5be454ae540542d62863f4d8c5fdf2d44160775deff",
+      "content_hash": "fa22e4ee78d917e8fb062546e0c2c3e44e24d63e53987a50e59df7632ac22ad1",
       "heading": "Answer Composition Contract",
       "id": "simurgh.tool_usage:003-02-answer-composition-contract",
       "links": [],
@@ -203,7 +202,7 @@
         "tools",
         "mcp"
       ],
-      "text": "Concrete current-state prompts may use the registry read-execution bridge when\nthe selected registry tools are policy-allowed and read-only. No-argument tools\nmay execute directly. Required-argument read tools may execute only when the\noperator supplies enough explicit, schema-valid identifiers or coordinates in\nthe prompt, for example `session_id`, `sidecar`, `hw_id`, `mission_id`,\n`profile_id`, `chunk_id`, or `lat`/`lon`. The planner must never guess missing\nidentifiers, select mutation/action tools, scrape raw OpenAPI routes, or bypass\nthe registry. Every call still goes through the same registry, policy, internal\nASGI adapter, schema validation, and audit trail as MCP `tools/call`.\n\nExamples include SITL instance/policy state, QuickScout/SAR mission catalogs or\nexplicit mission status, Fleet Ops sidecar tables/nodes, bounded log-session\nreads, origin/launch-position/elevation evidence, environment registry state,\nPX4 parameter policy/profile summaries, and Drone Show validation/safety/metrics\nsnapshots. Capability questions remain menu-only, and mutation/action terms are\nblocked before planning.",
+      "text": "Concrete current-state prompts may use the registry read-execution bridge when\nthe selected registry tools are policy-allowed and read-only. No-argument tools\nmay execute directly. Required-argument read tools may execute only when the\noperator supplies enough explicit, schema-valid identifiers or coordinates in\nthe prompt, for example `session_id`, `sidecar`, `hw_id`, `mission_id`,\n`profile_id`, `chunk_id`, or `lat`/`lon`. The planner must never guess missing\nidentifiers, select mutation/action tools, scrape raw OpenAPI routes, or bypass\nthe registry. Every call still goes through the same registry, policy, internal\nASGI adapter, schema validation, and audit trail as MCP `tools/call`.\n\nExamples include SITL instance/policy state, QuickScout/SAR mission catalogs or\nexplicit mission status, Fleet Ops sidecar tables/nodes and git-sync posture,\nbounded log-session reads, JSON-only origin launch positions, origin/deviation/\nelevation evidence, environment registry state, PX4 parameter policy/profile\nsummaries, and Drone Show validation/safety/metrics snapshots. Capability\nquestions remain menu-only, and mutation/action terms are blocked before\nplanning.",
       "title": "Simurgh tool usage guidelines"
     },
     {
@@ -766,7 +765,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "4a5426752ac8c042bcc8e73f366242d93aa9cbe3d86ec84ff3afc664e0db0c50",
+      "content_hash": "ae754c7e9a4252e8d9d30808dcbb00aa4459b6cd158373519e43e52f13e03fd3",
       "heading": "GCS API Surface",
       "id": "simurgh.operator_guide:017-02-gcs-api-surface",
       "links": [],
@@ -780,7 +779,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "Current coverage is intentionally bounded to safe status/catalog evidence such\nas SITL state, SAR/QuickScout mission catalogs or explicit mission status, Fleet\nOps sidecar/network tables and specific nodes, bounded log-session reads,\nruntime posture, environment registry state, PX4 parameter policy/profile\nsummaries, origin/launch-position/elevation evidence, Swarm Trajectory\nstatus/validation/leaders, SkyBrush validation/safety/metrics snapshots, fleet\ncandidates, and GCS health.\n\nRead-only routes:\n\n- `GET /api/v1/simurgh/status`\n- `GET /api/v1/simurgh/policy`\n- `GET /api/v1/simurgh/tools`\n- `GET /api/v1/simurgh/tools/{tool_id}`\n- `GET /api/v1/simurgh/context`\n- `GET /api/v1/simurgh/context/{resource_id}`\n- `GET /api/v1/simurgh/sessions`\n- `GET /api/v1/simurgh/audit`\n- `GET /api/v1/simurgh/assistant/turns`\n\nSession routes:\n\n- `POST /api/v1/simurgh/sessions`\n- `DELETE /api/v1/simurgh/sessions/{session_id}`\n\nAssistant scaffold route:\n\n- `POST /api/v1/simurgh/assistant/turns`\n- `POST /api/v1/simurgh/assistant/turns/stream`\n\nThe stream route returns `text/event-stream` and emits bounded events for the\ndashboard chat UI:\n\n- `progress`: short stage labels such as understanding, policy, context,\n planning, tool work, provider composition, and answer streaming. When a\n registry read executes, the stream emits a plan event, a running event for each\n selected tool, and a complete/error event for each selected tool. Tool-stage\n payloads include reviewed tool id(s), reviewed titles, and bounded status\n fields so the dashboard can show concrete steps such as `Checking Read fleet\n sidecar node` without exposing raw request text, hidden reasoning, secrets, or\n full evidence payloads.\n- `delta`: text chunks for incremental rendering inside the assistant bubble\n- `final`: the same sanitized assistant-turn payload returned by the normal\n `POST /api/v1/simurgh/assistant/turns` route\n- `done`: final id/session marker\n- `error`: sanitized status/detail when orchestration fails",
+      "text": "Current coverage is intentionally bounded to safe status/catalog evidence such\nas SITL state, SAR/QuickScout mission catalogs or explicit mission status, Fleet\nOps sidecar/network tables and specific nodes, Fleet Ops git-sync posture,\nbounded log-session reads, runtime posture, environment registry state, PX4\nparameter policy/profile summaries, JSON-only desired launch-position\ncoordinates, origin/deviation/elevation evidence, Swarm Trajectory\nstatus/validation/leaders, SkyBrush validation/safety/metrics snapshots, fleet\ncandidates, and GCS health.\n\nRead-only routes:\n\n- `GET /api/v1/simurgh/status`\n- `GET /api/v1/simurgh/policy`\n- `GET /api/v1/simurgh/tools`\n- `GET /api/v1/simurgh/tools/{tool_id}`\n- `GET /api/v1/simurgh/context`\n- `GET /api/v1/simurgh/context/{resource_id}`\n- `GET /api/v1/simurgh/sessions`\n- `GET /api/v1/simurgh/audit`\n- `GET /api/v1/simurgh/assistant/turns`\n\nSession routes:\n\n- `POST /api/v1/simurgh/sessions`\n- `DELETE /api/v1/simurgh/sessions/{session_id}`\n\nAssistant scaffold route:\n\n- `POST /api/v1/simurgh/assistant/turns`\n- `POST /api/v1/simurgh/assistant/turns/stream`\n\nThe stream route returns `text/event-stream` and emits bounded events for the\ndashboard chat UI:\n\n- `progress`: short stage labels such as understanding, policy, context,\n planning, tool work, provider composition, and answer streaming. When a\n registry read executes, the stream emits a plan event, a running event for each\n selected tool, and a complete/error event for each selected tool. Tool-stage\n payloads include reviewed tool id(s), reviewed titles, and bounded status\n fields so the dashboard can show concrete steps such as `Checking Read fleet\n sidecar node` without exposing raw request text, hidden reasoning, secrets, or\n full evidence payloads.\n- `delta`: text chunks for incremental rendering inside the assistant bubble\n- `final`: the same sanitized assistant-turn payload returned by the normal\n `POST /api/v1/simurgh/assistant/turns` route\n- `done`: final id/session marker\n- `error`: sanitized status/detail when orchestration fails",
       "title": "Simurgh operator guide"
     },
     {
@@ -11723,7 +11722,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "05dad6c1434e26b29bb3907e70cddbc39c4032beb3991739019c2e4f5f5226b9",
+      "content_hash": "12f246caf31620c14105452386f908b3ce5e3586dda3e9bbec773552e403d768",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-01-generated-mds-environment-registry",
       "links": [],
@@ -11736,7 +11735,7 @@
         "environment",
         "config"
       ],
-      "text": "# Generated MDS Environment Registry\n\n<!-- Generated by tools/generate_mds_env_reference.py; do not edit manually. -->\n\nRegistry version: `1`\nRegistry hash: `6f3726050185b59a0546250b095d3ff1290d28d22bb8041f2fea831080499225`",
+      "text": "# Generated MDS Environment Registry\n\n<!-- Generated by tools/generate_mds_env_reference.py; do not edit manually. -->\n\nRegistry version: `1`\nRegistry hash: `2b61b0144277ef5ead9e36392b662419081ff944f50a696f5dd62e2645a2bd1b`",
       "title": "MDS environment registry reference"
     },
     {
@@ -11994,7 +11993,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "df07567db30d776ea03ff400bccb17130a4b11194b15b963a641fabae645aa30",
+      "content_hash": "d936dafc99ef16b1569e0163e60ef95f81583678bd32d58eb7497404867522bd",
       "heading": "Generated MDS Environment Registry",
       "id": "mds.environment_registry:001-15-generated-mds-environment-registry",
       "links": [],
@@ -12007,7 +12006,7 @@
         "environment",
         "config"
       ],
-      "text": "](#env-mds-local-env-file) | node | runtime | path | `/etc/mds/local.env` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_NODE_IDENTITY_FILE`](#env-mds-node-identity-file) | node | runtime | path | `/etc/mds/node_identity.json` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |",
+      "text": "](#env-mds-local-env-file) | node | runtime | path | `/etc/mds/local.env` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_NODE_IDENTITY_FILE`](#env-mds-node-identity-file) | node | runtime | path | `/etc/mds/node_identity.json` | no | node_service | process env | [guide](../guides/runtime-config-sources.md) |\n| [`MDS_POS_ID`](#env-mds-pos-id) | node | runtime | integer | - | no | node_service | /etc/mds/local.env | [guide](../guides/runtime-config-sources.md) |",
       "title": "MDS environment registry reference"
     },
     {
@@ -14508,7 +14507,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "content_hash": "90aca3f44766ef34e6cc7894e7baa6033df4d24136b69921c336ce5a4b6ff5da",
+      "content_hash": "dde763895a07cac43bd4d75b509f85a1120f30494c40bcf12273f85d44cee9cf",
       "heading": "`MDS_NODE_IDENTITY_FILE`",
       "id": "mds.environment_registry:133-01-mds-node-identity-file",
       "links": [],
@@ -14521,7 +14520,26 @@
         "environment",
         "config"
       ],
-      "text": "### `MDS_NODE_IDENTITY_FILE`\n\n- Title: Node identity manifest\n- Scope: `node`\n- Domain: `runtime`\n- Type: `path`\n- Default: `/etc/mds/node_identity.json`\n- Editable: no\n- Restart: `node_service`\n- Source of truth: `process env`\n- Apply action: `restart_node_service`\n- Docs: [guide](../guides/runtime-config-sources.md)\n- Notes: Machine identity manifest location. Do not batch-overwrite identities.",
+      "text": "### `MDS_NODE_IDENTITY_FILE`\n\n- Title: Node identity manifest\n- Scope: `node`\n- Domain: `runtime`\n- Type: `path`\n- Default: `/etc/mds/node_identity.json`\n- Editable: no\n- Restart: `node_service`\n- Source of truth: `process env`\n- Apply action: `restart_node_service`\n- Docs: [guide](../guides/runtime-config-sources.md)\n- Notes: Machine identity manifest location. Do not batch-overwrite identities.\n\n<a id=\"env-mds-pos-id\"></a>",
+      "title": "MDS environment registry reference"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
+      "content_hash": "9d834657e85833c4a3245b27aa8603d8a74c2afce98859add9add7db73f55dda",
+      "heading": "`MDS_POS_ID`",
+      "id": "mds.environment_registry:134-01-mds-pos-id",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/reference/mds-environment-registry.generated.md",
+      "resource_id": "mds.environment_registry",
+      "route_hint": "/environments",
+      "summary": "Generated environment registry reference.",
+      "tags": [
+        "environment",
+        "config"
+      ],
+      "text": "### `MDS_POS_ID`\n\n- Title: Fleet position id\n- Scope: `node`\n- Domain: `runtime`\n- Type: `integer`\n- Default: `-`\n- Editable: no\n- Restart: `node_service`\n- Source of truth: `/etc/mds/local.env`\n- Apply action: `restart_node_service`\n- Docs: [guide](../guides/runtime-config-sources.md)\n- Notes: Optional node position id used for GCS boot-status reporting. Never batch-apply this key; it is unique per node.",
       "title": "MDS environment registry reference"
     },
     {
@@ -15933,7 +15951,7 @@
       "audience": "agent",
       "canonical_url": "/api/v1/simurgh/context/simurgh.tool_usage/markdown",
       "chunk_count": 7,
-      "content_hash": "c0a1228ab1e07054dc96a57857e3582ef2ead2223fe2a1185d83be81cabeba14",
+      "content_hash": "41ea35ce9991d659c371ed7a1521cdb81d10fe6bb863147c0dad5d2018c78158",
       "id": "simurgh.tool_usage",
       "mime_type": "text/markdown",
       "path": "docs/agent-context/tool-usage-guidelines.md",
@@ -15950,7 +15968,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "50837e3dc10d11fddc1d68e8afe1362bf19b667ae2c48fcb9c3c59a1abb487bf",
+      "content_hash": "90388595d210ad94977a2cc39db14f9b3c33f8bd9e094677b42c1918e6347bef",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16174,8 +16192,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.environment_registry/markdown",
-      "chunk_count": 147,
-      "content_hash": "2a2186452fb8ac9255ccf6cc334b436b357597801f17a00a9efed75f18dfeea4",
+      "chunk_count": 148,
+      "content_hash": "c2755822884278eaa4d5e49eb8898587fd76f4e219741cd92187434ba17e40d5",
       "id": "mds.environment_registry",
       "mime_type": "text/markdown",
       "path": "docs/reference/mds-environment-registry.generated.md",

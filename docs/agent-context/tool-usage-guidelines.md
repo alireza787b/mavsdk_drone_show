@@ -67,6 +67,12 @@ Current callable argument scope:
   processed show package. They do not import, deploy, download, plot, launch, or
   command a show. Dashboard show-readiness answers derive from the current
   metrics snapshot when available so chat stays read-only and responsive.
+- `mds.fleet.git_sync.read` uses `GET /api/v1/fleet/git-sync` for Fleet Ops
+  sync posture only. It must not run dry-run/apply, pull, push, or dispatch
+  `UPDATE_CODE`; those mutation routes remain outside the read-only registry.
+- `mds.origin.launch_positions.read` uses `GET /api/v1/origin/launch-positions`
+  with MCP/Simurgh arguments constrained to JSON output. Do not expose CSV, KML,
+  download, or artifact forms through this registry tool.
 - `mds.shows.skybrush.metrics_snapshot.read` uses
   `GET /api/v1/shows/skybrush/metrics/snapshot`, which reads only a current
   cached metrics snapshot and reports unavailable if no current cache exists.
@@ -143,11 +149,12 @@ the registry. Every call still goes through the same registry, policy, internal
 ASGI adapter, schema validation, and audit trail as MCP `tools/call`.
 
 Examples include SITL instance/policy state, QuickScout/SAR mission catalogs or
-explicit mission status, Fleet Ops sidecar tables/nodes, bounded log-session
-reads, origin/launch-position/elevation evidence, environment registry state,
-PX4 parameter policy/profile summaries, and Drone Show validation/safety/metrics
-snapshots. Capability questions remain menu-only, and mutation/action terms are
-blocked before planning.
+explicit mission status, Fleet Ops sidecar tables/nodes and git-sync posture,
+bounded log-session reads, JSON-only origin launch positions, origin/deviation/
+elevation evidence, environment registry state, PX4 parameter policy/profile
+summaries, and Drone Show validation/safety/metrics snapshots. Capability
+questions remain menu-only, and mutation/action terms are blocked before
+planning.
 
 ### Composer Migration Status
 

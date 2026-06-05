@@ -2850,3 +2850,43 @@ Next recommended Simurgh slice:
    feed, not a debug log.
 3. Add the external public web/search lane only for public/general prompts, with
    citations and strict egress separation from private MDS evidence.
+
+## 2026-06-05 Update: Read-Only Registry Coverage Gate
+
+Goal: close the next read-only parity gap without creating hardcoded chat
+answers. The slice promoted two reviewed GCS `GET` routes into the shared
+registry/MCP/executor path and tightened the generated candidate artifact so
+future eligible read-only drift is visible before release.
+
+What changed:
+
+- Added `mds.fleet.git_sync.read` for Fleet Ops git-sync posture. It reads
+  `/api/v1/fleet/git-sync` only; dry-run/apply, pull, push, and `UPDATE_CODE`
+  dispatch remain mutation routes and are not callable through read-only MCP.
+- Added `mds.origin.launch_positions.read` for desired launch-position
+  coordinates. The registry schema constrains Simurgh/MCP calls to JSON output;
+  CSV/KML/download-style artifact flows stay outside the tool.
+- Updated the registry planner so “out of sync” prompts prefer fleet sync
+  posture, and desired launch-position prompts can pass a bounded heading value
+  into the canonical route.
+- Updated docs and tests to keep OpenAPI auto-discovery advisory-only while the
+  curated registry remains the execution boundary.
+
+Reviewer notes:
+
+- AI-agent/MCP reviewer: approved if the new coverage stays route-backed,
+  schema-validated, and shared by dashboard chat and external MCP clients.
+- Safety/operator reviewer: approved. Both tools are sensitive observation only;
+  they cannot imply flight readiness, run sync, export artifacts, or command a
+  drone.
+- Backend/API reviewer: require generated candidate coverage to remain at zero
+  unpromoted eligible read-only candidates after regeneration.
+
+Next recommended Simurgh slice after validation/sync:
+
+1. Continue broader read-only parity for telemetry/location/battery/health,
+   setup/onboarding, sidecars, docs, environment, logs, and mission/show state.
+2. Add public web/search lane for public/general prompts only, with citations
+   and strict separation from private GCS evidence.
+3. Begin action-proposal design only after read-only parity and reviewer gates
+   are stable.

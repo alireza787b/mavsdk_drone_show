@@ -57,6 +57,12 @@ The response `summary.registry_coverage` is the drift report: it compares
 OpenAPI-discovered read-only candidates with the curated registry. A generated
 candidate is never callable until `config/agent_tools.yaml`, policy, tests,
 docs, and reviewers promote it.
+Release gates should keep
+`summary.registry_coverage.unpromoted_eligible_candidate_count == 0` in the
+generated artifact. Routes that look read-only but are unsafe because of cache
+writes, downloads, telemetry sensitivity, action wording, or artifact formats
+must be classified out by the generator or documented as explicit exclusions
+before that gate passes.
 
 Refresh the public docs search index after changing public context resources or
 operator docs:

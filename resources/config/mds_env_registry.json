@@ -1498,6 +1498,30 @@
       "owner": "platform"
     },
     {
+      "name": "MDS_POS_ID",
+      "title": "Fleet position id",
+      "scope": "node",
+      "domain": "runtime",
+      "source_of_truth": "/etc/mds/local.env",
+      "value_type": "integer",
+      "default": "",
+      "secret": false,
+      "editable": false,
+      "ui_visibility": "operator",
+      "restart_required": "node_service",
+      "apply_action": "restart_node_service",
+      "allowed_values": [],
+      "aliases": [],
+      "deprecated": false,
+      "replacement": null,
+      "docs": "docs/guides/runtime-config-sources.md",
+      "consumers": [
+        "tools/update_repo_ssh.sh"
+      ],
+      "notes": "Optional node position id used for GCS boot-status reporting. Never batch-apply this key; it is unique per node.",
+      "owner": "platform"
+    },
+    {
       "name": "MDS_GCS_IP",
       "title": "Node GCS IP override",
       "scope": "node",

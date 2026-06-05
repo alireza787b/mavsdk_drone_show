@@ -734,9 +734,10 @@ values in the prompt, such as `session_id`, `sidecar`, `hw_id`, `mission_id`,
 
 Current coverage is intentionally bounded to safe status/catalog evidence such
 as SITL state, SAR/QuickScout mission catalogs or explicit mission status, Fleet
-Ops sidecar/network tables and specific nodes, bounded log-session reads,
-runtime posture, environment registry state, PX4 parameter policy/profile
-summaries, origin/launch-position/elevation evidence, Swarm Trajectory
+Ops sidecar/network tables and specific nodes, Fleet Ops git-sync posture,
+bounded log-session reads, runtime posture, environment registry state, PX4
+parameter policy/profile summaries, JSON-only desired launch-position
+coordinates, origin/deviation/elevation evidence, Swarm Trajectory
 status/validation/leaders, SkyBrush validation/safety/metrics snapshots, fleet
 candidates, and GCS health.
 
