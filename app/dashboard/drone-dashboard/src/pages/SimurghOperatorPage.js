@@ -1352,8 +1352,8 @@ function MessageBubble({ message }) {
           <CopyButton text={message.content} label={copyLabel} className="simurgh-chat__copy-button--message" />
         </div>
         {message.role === 'assistant' ? <MessageActivity progress={message.progress || []} streaming={Boolean(message.streaming)} /> : null}
-        {message.content ? <MessageContent content={message.content} /> : null}
         {message.role === 'assistant' ? <MessageTrace message={message} /> : null}
+        {message.content ? <MessageContent content={message.content} /> : null}
       </div>
     </article>
   );

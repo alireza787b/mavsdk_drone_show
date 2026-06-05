@@ -480,6 +480,11 @@ describe('SimurghOperatorPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
     const disclosure = await screen.findByRole('button', { name: /checked 2 read-only mds tools/i });
+    const answerText = screen
+      .getAllByText(/Connectivity from GCS state: 1\/2 drone\(s\) currently look live/i)
+      .find((node) => node.closest('.simurgh-chat__markdown'));
+    expect(answerText).toBeTruthy();
+    expect(Boolean(disclosure.compareDocumentPosition(answerText) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     expect(disclosure).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(disclosure);
 
