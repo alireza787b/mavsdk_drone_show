@@ -263,6 +263,59 @@ def test_simurgh_assistant_stream_reports_specific_registry_tool_progress(monkey
     assert final_payload["trace"]["tool"]["ids"] == ["mds.fleet.sidecar.node.read"]
 
 
+def test_simurgh_assistant_stream_labels_public_web_search(monkeypatch, tmp_path):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_WEB_SEARCH_ENABLED", "true")
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        return {
+            "output": [
+                {"type": "web_search_call", "status": "completed", "action": {"type": "search"}},
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Taipei weather should be checked against a local aviation weather source before flight.",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://example.com/weather",
+                                    "title": "Example Weather",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+    client = _client(auth_context={"kind": "session", "role": "operator", "username": "operator"})
+
+    with client.stream(
+        "POST",
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={"actor": "operator", "message": "what is the latest weather today in Taipei?"},
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(response.iter_text())
+
+    events = _parse_sse_events(body)
+    progress = [payload for event, payload in events if event == "progress"]
+    assert any(payload.get("stage") == "search" and payload.get("label") == "Searched public web" for payload in progress)
+    final_payload = next(payload for event, payload in events if event == "final")
+    assert final_payload["provider"] == "openai"
+    assert final_payload["trace"]["provider_tools"] == {
+        "web_search_enabled": True,
+        "web_search_scope": "public_general_only",
+    }
+    assert "Sources:" in final_payload["content"]
+
+
 def test_simurgh_assistant_turn_can_use_existing_session(monkeypatch):
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
     client = _client()

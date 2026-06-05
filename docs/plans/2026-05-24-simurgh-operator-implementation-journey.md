@@ -2890,3 +2890,44 @@ Next recommended Simurgh slice after validation/sync:
    and strict separation from private GCS evidence.
 3. Begin action-proposal design only after read-only parity and reviewer gates
    are stable.
+
+## 2026-06-05 Update: Public Web-Search Progress Trace
+
+Goal: make the already guarded public/general OpenAI web-search lane visible to
+operators and reviewers without exposing raw provider internals, hidden
+reasoning, private MDS evidence, or a second tool path.
+
+What changed:
+
+- Added sanitized `trace.provider_tools` metadata with
+  `web_search_enabled=true` and scope `public_general_only` when a turn used the
+  provider web-search lane.
+- Updated the SSE progress fallback so authenticated public lookup turns show a
+  compact `Searched public web` activity stage before streaming the answer.
+- Updated the Simurgh dashboard trace disclosure so web-search turns summarize
+  as `Searched public web` and show `Lookup: Public web search`; raw
+  `web_search_call` internals stay hidden.
+- Kept MDS facts local-first. Fleet, telemetry, logs, show state, runtime,
+  sidecars, origin, PX4, and registry prompts still route through approved
+  read-only MDS tools and do not send private GCS evidence to web search.
+
+Reviewer notes:
+
+- AI-agent reviewer: this improves perceived procedural intelligence without
+  presenting chain-of-thought. It is a UI/trace quality layer over the existing
+  public-search gate.
+- MCP/security reviewer: approved boundary. No remote MCP server was added; no
+  provider tool is attached for MDS evidence composition; citations remain
+  clickable dashboard content only.
+- Operator/PM reviewer: public current-fact prompts can now visibly search,
+  while MDS operational questions keep exact local evidence and safety posture.
+
+Next recommended Simurgh slice after validation/sync:
+
+1. Add dashboard/provider evals for richer public lookup prompts and source
+   display, including no-regression checks that MDS-local questions do not use
+   web search.
+2. Continue external-client documentation/examples for n8n, Claude Desktop, VS
+   Code, and MCP stdio/SSE bridge clients.
+3. Start action-proposal design only after read-only and public-search gates are
+   stable in PM/funder testing.

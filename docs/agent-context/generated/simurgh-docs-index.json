@@ -554,7 +554,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "6020e4caf6dd0d8195489ee478863f97518bb7bfd478da758a9641b24b131a1e",
+      "content_hash": "bee3a1999ce7577d8a76810b09a055832cbaf3c0100dc0a374fba5564fc50e7b",
       "heading": "Procedural Agent Loop Target",
       "id": "simurgh.operator_guide:011-01-procedural-agent-loop-target",
       "links": [],
@@ -568,7 +568,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## Procedural Agent Loop Target\n\nSimurgh should feel like a live expert because the runtime is procedural, not\nbecause it exposes hidden chain-of-thought. Operator-visible progress is limited\nto safe stage labels and evidence summaries. Raw model reasoning, private prompts,\ncredentials, full logs, and unbounded telemetry are never streamed to the UI or\nMCP clients.\n\nThe target loop for each turn is:\n\n1. understand the operator request, language, tone, domain, and risk class;\n2. plan the smallest approved evidence/action path from the registry and policy;\n3. call zero or more local read-only tools, public docs retrieval tools, public\n web/search tools, or trusted external MCP tools, each behind its own egress and\n approval policy;\n4. adapt the plan from returned evidence, including additional read-only calls\n when the first evidence source is insufficient;\n5. compose the answer from cited evidence, preserving exact MDS facts and safety\n caveats;\n6. for future mutation/flight actions, produce an action proposal, require human\n confirmation when policy says so, then let the final executor enforce the\n circuit breaker and runtime mode before anything reaches GCS or a drone path;\n7. monitor approved long-running work through explicit status tools and stream\n progress until completion, cancellation, or a bounded timeout.\n\nCurrent production scope implements the first procedural foundation for\nread-only registry tools: the SSE route emits plan, per-tool running, per-tool\ncomplete/error, provider-composition, answer-delta, final, and done events. Future\nexternal web/search and MCP connector lanes must plug into the same event and\npolicy model. They must not create a second hardcoded chatbot path or bypass the\nregistry/audit/circuit-breaker layers.",
+      "text": "## Procedural Agent Loop Target\n\nSimurgh should feel like a live expert because the runtime is procedural, not\nbecause it exposes hidden chain-of-thought. Operator-visible progress is limited\nto safe stage labels and evidence summaries. Raw model reasoning, private prompts,\ncredentials, full logs, and unbounded telemetry are never streamed to the UI or\nMCP clients.\n\nThe target loop for each turn is:\n\n1. understand the operator request, language, tone, domain, and risk class;\n2. plan the smallest approved evidence/action path from the registry and policy;\n3. call zero or more local read-only tools, public docs retrieval tools, public\n web/search tools, or trusted external MCP tools, each behind its own egress and\n approval policy;\n4. adapt the plan from returned evidence, including additional read-only calls\n when the first evidence source is insufficient;\n5. compose the answer from cited evidence, preserving exact MDS facts and safety\n caveats;\n6. for future mutation/flight actions, produce an action proposal, require human\n confirmation when policy says so, then let the final executor enforce the\n circuit breaker and runtime mode before anything reaches GCS or a drone path;\n7. monitor approved long-running work through explicit status tools and stream\n progress until completion, cancellation, or a bounded timeout.\n\nCurrent production scope implements the first procedural foundation for\nread-only registry tools and the public/general OpenAI web-search lane: the SSE\nroute emits safe understand/policy/context events, plan events, per-tool\nrunning/complete/error events, public-web/provider progress, answer deltas,\nfinal, and done. Future deeper web research, external MCP connector lanes, and\naction-monitoring lanes must plug into the same event and policy model. They\nmust not create a second hardcoded chatbot path or bypass the\nregistry/audit/circuit-breaker layers.",
       "title": "Simurgh operator guide"
     },
     {
@@ -15968,7 +15968,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "90388595d210ad94977a2cc39db14f9b3c33f8bd9e094677b42c1918e6347bef",
+      "content_hash": "17d4a08a4be9ca78fad5e48d809eb0fb38b7674e7540c0b6c003918eb48aeb47",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",

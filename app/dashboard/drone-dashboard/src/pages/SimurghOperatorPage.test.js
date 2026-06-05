@@ -500,6 +500,48 @@ describe('SimurghOperatorPage', () => {
     ]);
   });
 
+  test('summarizes public web search turns without exposing debug noise', async () => {
+    const finalTurn = assistantTurnData({
+      id: 'turn_web_search',
+      provider: 'openai',
+      model: 'gpt-5.5',
+      content: 'Use a local aviation weather source before flight.\n\nSources:\n- [Example Weather](https://example.com/weather)',
+      session: { id: 'sess_web_search' },
+      trace: {
+        provider: 'openai',
+        model: 'gpt-5.5',
+        adapter_version: 'openai-responses-v1',
+        provider_tools: {
+          web_search_enabled: true,
+          web_search_scope: 'public_general_only',
+        },
+        query: {
+          domain: 'general',
+          confidence: 0.85,
+          response_mode: 'interpret',
+        },
+        tool: { intent: '', ids: [] },
+        context: { resource_count: 0, retrieved_context_count: 0 },
+        safety: { blocked_intent_count: 0, action_execution: 'none' },
+      },
+    });
+    mockStreamResponseOnce(finalTurn);
+
+    renderPage();
+
+    const input = await screen.findByRole('textbox', { name: /message simurgh/i });
+    fireEvent.change(input, { target: { value: 'how is the weather today in Taipei?' } });
+    fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
+
+    const disclosure = await screen.findByRole('button', { name: /searched public web/i });
+    fireEvent.click(disclosure);
+
+    expect(screen.getByText('Lookup')).toBeInTheDocument();
+    expect(screen.getByText('Public web search')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Example Weather' })).toHaveAttribute('href', 'https://example.com/weather');
+    expect(screen.queryByText(/web_search_call/i)).not.toBeInTheDocument();
+  });
+
   test('auto-links safe dashboard routes and known docs paths in assistant answers', async () => {
     mockStreamResponseOnce(assistantTurnData({
       id: 'turn_links',

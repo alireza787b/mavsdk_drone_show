@@ -416,10 +416,12 @@ The target loop for each turn is:
    progress until completion, cancellation, or a bounded timeout.
 
 Current production scope implements the first procedural foundation for
-read-only registry tools: the SSE route emits plan, per-tool running, per-tool
-complete/error, provider-composition, answer-delta, final, and done events. Future
-external web/search and MCP connector lanes must plug into the same event and
-policy model. They must not create a second hardcoded chatbot path or bypass the
+read-only registry tools and the public/general OpenAI web-search lane: the SSE
+route emits safe understand/policy/context events, plan events, per-tool
+running/complete/error events, public-web/provider progress, answer deltas,
+final, and done. Future deeper web research, external MCP connector lanes, and
+action-monitoring lanes must plug into the same event and policy model. They
+must not create a second hardcoded chatbot path or bypass the
 registry/audit/circuit-breaker layers.
 
 The retrieval artifact is

@@ -303,6 +303,7 @@ class SimurghAssistantTurnTraceResponse(BaseModel):
     provider: str | None = None
     model: str | None = None
     adapter_version: str | None = None
+    provider_tools: dict[str, Any] = Field(default_factory=dict)
     session: dict[str, Any] = Field(default_factory=dict)
     language: dict[str, Any] = Field(default_factory=dict)
     adaptation: dict[str, Any] = Field(default_factory=dict)
@@ -433,6 +434,10 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
         provider=record.turn.provider,
         model=record.turn.model,
         adapter_version=record.turn.adapter_version,
+        provider_tools={
+            "web_search_enabled": bool(metadata.get("web_search_enabled")),
+            "web_search_scope": "public_general_only" if metadata.get("web_search_enabled") else "disabled",
+        },
         session={
             "id": record.session.id,
             "mode": record.session.mode,
@@ -556,6 +561,7 @@ def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
     tool_ids = [str(item).strip() for item in (tool.get("ids") or []) if str(item).strip()]
     tool_intent = str(tool.get("intent") or "").strip()
     provider = str(payload.get("provider") or "").strip()
+    provider_tools = trace.get("provider_tools") if isinstance(trace.get("provider_tools"), dict) else {}
 
     if tool_ids:
         titles = _tool_titles_for_progress(tool_ids)
@@ -571,6 +577,14 @@ def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
     if tool_intent:
         return {"stage": "tool", "label": f"Using {tool_intent.replace('_', ' ')}", "intent": tool_intent}
+    if provider == "openai" and provider_tools.get("web_search_enabled") is True:
+        return {
+            "stage": "search",
+            "state": "complete",
+            "label": "Searched public web",
+            "provider": "openai",
+            "scope": "public_general_only",
+        }
     if provider == "openai":
         return {"stage": "provider", "label": "Composing with OpenAI provider"}
     return {"stage": "provider", "label": "Composing local response"}
