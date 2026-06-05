@@ -331,6 +331,14 @@ def test_openai_assistant_turn_uses_web_search_only_for_public_general_queries(m
     ]
     assert captured["include"] == ["web_search_call.action.sources"]
     assert captured["tool_choice"] == "required"
+    assert "Public web-search source requirements" in captured["input"]
+    assert "Do not invent URLs" in captured["input"]
+    assert record.turn.provider_tools == {
+        "web_search_requested": True,
+        "web_search_returned": True,
+        "citation_count": 1,
+        "source_status": "citations_returned",
+    }
     assert "Sources:" in record.turn.content
     assert "https://example.com/weather" in record.turn.content
 

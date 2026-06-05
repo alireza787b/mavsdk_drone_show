@@ -361,6 +361,16 @@ function buildTraceRows(trace = {}, message = {}) {
     rows.push({ label: 'Lookup', value: 'Public web search requested' });
   }
 
+  const sourceStatus = compactTraceValue(trace?.provider_tools?.source_status);
+  const citationCount = Number(trace?.provider_tools?.citation_count || 0);
+  if (sourceStatus === 'citations_returned') {
+    rows.push({ label: 'Sources', value: `${citationCount || 1} citation URL(s)` });
+  } else if (sourceStatus === 'search_returned_without_citations') {
+    rows.push({ label: 'Sources', value: 'No citation URLs returned' });
+  } else if (sourceStatus === 'search_requested_without_returned_call') {
+    rows.push({ label: 'Sources', value: 'Search requested; no source call returned' });
+  }
+
   const contextBits = [];
   const resourceCount = compactTraceValue(trace?.context?.resource_count);
   const retrievedCount = compactTraceValue(trace?.context?.retrieved_context_count);

@@ -437,6 +437,16 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
         citation_count = max(0, int(provider_tools.get("citation_count") or 0))
     except (TypeError, ValueError):
         citation_count = 0
+    source_status = str(provider_tools.get("source_status") or "").strip()
+    if not source_status:
+        if not web_search_requested:
+            source_status = "not_requested"
+        elif citation_count > 0:
+            source_status = "citations_returned"
+        elif web_search_returned:
+            source_status = "search_returned_without_citations"
+        else:
+            source_status = "search_requested_without_returned_call"
     return SimurghAssistantTurnTraceResponse(
         provider=record.turn.provider,
         model=record.turn.model,
@@ -447,6 +457,7 @@ def _assistant_trace_response(record) -> SimurghAssistantTurnTraceResponse:
             "web_search_returned": web_search_returned,
             "web_search_scope": "public_general_only" if web_search_requested else "disabled",
             "citation_count": citation_count,
+            "source_status": source_status,
         },
         session={
             "id": record.session.id,

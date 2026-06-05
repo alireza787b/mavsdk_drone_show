@@ -2933,3 +2933,38 @@ Next recommended Simurgh slice after validation/sync:
    Code, and MCP stdio/SSE bridge clients.
 3. Start action-proposal design only after read-only and public-search gates are
    stable in PM/funder testing.
+
+## 2026-06-05 Update: Public Web-Search Source Reliability
+
+Goal: improve public/current lookup reliability without inventing citations or
+weakening the local-first MDS tool boundary.
+
+What changed:
+
+- Added source requirements to the OpenAI Responses input only when the guarded
+  public/general web-search lane is active. The prompt asks for reputable,
+  citation-backed public facts and explicitly forbids invented URLs.
+- Added `source_status` to sanitized `trace.provider_tools`, with values such
+  as `citations_returned` and `search_returned_without_citations`.
+- If the provider returns a `web_search_call` but no citation URLs, Simurgh now
+  appends a short source note telling the operator to manually verify current
+  public facts before operational use.
+- The dashboard evidence disclosure shows source posture compactly: citation URL
+  count when sources exist, or `No citation URLs returned` when they do not.
+
+Reviewer notes:
+
+- AI-agent reviewer: approved. This improves trust calibration and avoids a fake
+  “sourced answer” appearance when the provider searched but returned no URLs.
+- UI/UX reviewer: approved if source details remain inside the compact per-turn
+  disclosure and the answer note appears only for no-citation public search.
+- Safety/security reviewer: approved. No private GCS evidence is sent to public
+  web search, and the note makes current public facts advisory until verified.
+
+Next recommended Simurgh slice after validation/sync:
+
+1. Add external-client MCP recipes/smoke examples for n8n, Claude Desktop, VS
+   Code, and bridge clients.
+2. Add richer public lookup evals with citation-return and no-citation fixtures.
+3. Continue action-proposal design only after read-only/public-search PM testing
+   is stable.

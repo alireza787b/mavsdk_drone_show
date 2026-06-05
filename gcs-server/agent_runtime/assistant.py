@@ -77,6 +77,15 @@ DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 900
 DEFAULT_OPENAI_REASONING_EFFORT = "medium"
 DEFAULT_OPENAI_TEXT_VERBOSITY = "low"
 DEFAULT_OPENAI_WEB_SEARCH_CONTEXT_SIZE = "medium"
+WEB_SEARCH_SOURCE_REQUIREMENTS = """Public web-search source requirements:
+- Use the web-search evidence for current/public factual claims.
+- Prefer official or otherwise reputable sources, and keep the answer concise.
+- Preserve citation/source URLs when the web-search response returns them.
+- Do not invent URLs. If no citation URLs are available, say the answer needs manual source verification."""
+WEB_SEARCH_NO_CITATION_NOTE = (
+    "Source note: Public web search ran, but the provider did not return citation URLs for this response. "
+    "Verify current/public facts against a trusted source before operational use."
+)
 DEFAULT_RETRIEVED_CONTEXT_LIMIT = 4
 LOCAL_PROVIDER_COMPOSITION_DISABLED_INTENTS = frozenset({"registry_domain_tool_summary"})
 DEFAULT_RETRIEVED_CONTEXT_MAX_CHARS = 2200
@@ -1055,6 +1064,9 @@ class OpenAIResponsesAssistantAdapter:
         content = self._extract_response_text(response_payload)
         web_search_used = _response_used_web_search(response_payload)
         citations = _url_citations_from_response(response_payload)
+        citation_count = len(citations)
+        if enable_web_search and web_search_used and citation_count == 0:
+            content = _append_web_search_no_citation_note(content)
 
         return AssistantTurnResult(
             id=f"turn-{uuid.uuid4().hex}",
@@ -1077,7 +1089,12 @@ class OpenAIResponsesAssistantAdapter:
             provider_tools={
                 "web_search_requested": bool(enable_web_search),
                 "web_search_returned": bool(web_search_used),
-                "citation_count": len(citations),
+                "citation_count": citation_count,
+                "source_status": _web_search_source_status(
+                    requested=bool(enable_web_search),
+                    returned=bool(web_search_used),
+                    citation_count=citation_count,
+                ),
             },
         )
 
@@ -1141,6 +1158,7 @@ class OpenAIResponsesAssistantAdapter:
         tool_choice: str = "none"
         include: list[str] = []
         if enable_web_search:
+            input_text = f"{input_text}\n\n{WEB_SEARCH_SOURCE_REQUIREMENTS}"
             tools = [self.config.openai.web_search.tool_payload()]
             tool_choice = "required"
             include = ["web_search_call.action.sources"]
@@ -1431,6 +1449,23 @@ def _append_citation_sources(text: str, citations: list[dict[str, str]]) -> str:
         url = citation["url"]
         lines.append(f"- [{label}]({url})")
     return "\n".join(lines).strip()
+
+
+def _append_web_search_no_citation_note(text: str) -> str:
+    clean = str(text or "").rstrip()
+    if not clean or WEB_SEARCH_NO_CITATION_NOTE in clean:
+        return clean
+    return f"{clean}\n\n{WEB_SEARCH_NO_CITATION_NOTE}"
+
+
+def _web_search_source_status(*, requested: bool, returned: bool, citation_count: int) -> str:
+    if not requested:
+        return "not_requested"
+    if citation_count > 0:
+        return "citations_returned"
+    if returned:
+        return "search_returned_without_citations"
+    return "search_requested_without_returned_call"
 
 
 def _markdown_link_label(value: str) -> str:
