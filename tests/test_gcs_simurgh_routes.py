@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 from fastapi import FastAPI
@@ -12,6 +13,27 @@ def _client() -> TestClient:
     app = FastAPI()
     app.include_router(create_simurgh_router())
     return TestClient(app)
+
+
+def _sse_events(body: str) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+    event_name = "message"
+    data_lines: list[str] = []
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if data_lines:
+                events.append((event_name, json.loads("\n".join(data_lines))))
+            event_name = "message"
+            data_lines = []
+            continue
+        if line.startswith("event:"):
+            event_name = line.split(":", 1)[1].strip()
+        elif line.startswith("data:"):
+            data_lines.append(line.split(":", 1)[1].strip())
+    if data_lines:
+        events.append((event_name, json.loads("\n".join(data_lines))))
+    return events
 
 
 def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_relative_paths(monkeypatch):
@@ -42,6 +64,34 @@ def test_simurgh_status_enables_non_executing_runtime_by_default_and_uses_repo_r
     assert payload["tool_registry_path"] == "config/agent_tools.yaml"
     assert payload["context_index_path"] == "docs/agent-context/context-index.yaml"
     assert payload["warnings"] == []
+
+
+def test_simurgh_assistant_stream_emits_structured_activity_contract(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "mock")
+    client = _client()
+
+    response = client.post(
+        "/api/v1/simurgh/assistant/turns/stream",
+        json={"actor": "operator", "message": "what drones are connected right now?"},
+    )
+
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    progress_payloads = [payload for event, payload in events if event == "progress"]
+    understanding = [
+        payload
+        for payload in progress_payloads
+        if payload.get("stage") == "understanding" and payload.get("state") == "complete"
+    ]
+    assert understanding
+    assert understanding[0]["domain"] == "fleet"
+    assert understanding[0]["response_mode"] == "status"
+    assert "Understood:" in understanding[0]["label"]
+    assert "fleet" in understanding[0]["label"].lower()
+    assert any(payload.get("stage") in {"tool", "provider", "search"} for payload in progress_payloads)
+    assert any(event == "delta" and payload.get("text") for event, payload in events)
+    assert any(event == "final" and payload.get("trace") for event, payload in events)
 
 
 def test_simurgh_tools_expose_registry_metadata_without_executing_tools():

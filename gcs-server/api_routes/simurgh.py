@@ -63,6 +63,7 @@ from agent_runtime.mds_read_tools import (
 )
 from agent_runtime.models import AgentSession, AuditEvent, ContextResource, ToolDefinition, utc_now
 from agent_runtime.query_adaptation import normalize_operator_query_text
+from agent_runtime.query_understanding import build_assistant_query_plan
 from agent_runtime.registry_chat import (
     REGISTRY_READ_EXECUTION_INTENT,
     RegistryReadToolResult,
@@ -88,6 +89,30 @@ MAX_ASSISTANT_CONTEXT_RESOURCE_IDS = 12
 MAX_ASSISTANT_HISTORY_LIMIT = 100
 EXTERNAL_ASSISTANT_PROVIDER_SESSION_ROLES = {"admin", "operator"}
 EXTERNAL_ASSISTANT_PROVIDER_BEARER_SCOPES = {"admin", "agent", "operator"}
+QUERY_DOMAIN_PROGRESS_LABELS = {
+    "capabilities": "capabilities",
+    "docs": "documentation",
+    "drone_show": "drone show",
+    "fleet": "fleet status",
+    "general": "general question",
+    "logs": "logs",
+    "mcp": "MCP/tools",
+    "runtime": "runtime settings",
+    "safety": "safety policy",
+    "sar": "SAR/QuickScout",
+    "setup": "setup workflow",
+    "sitl": "SITL",
+    "swarm": "swarm mission",
+    "ui": "dashboard UI",
+}
+QUERY_RESPONSE_MODE_PROGRESS_LABELS = {
+    "capability": "capability answer",
+    "clarify": "clarification",
+    "compare": "comparison",
+    "interpret": "explanation",
+    "status": "status check",
+    "workflow": "workflow guidance",
+}
 
 
 class SimurghRouteRef(BaseModel):
@@ -622,6 +647,48 @@ async def _emit_assistant_progress(
     if callback is None:
         return
     await callback(payload)
+
+
+def _title_case_progress_value(value: str) -> str:
+    return str(value or "").replace("_", " ").strip().title()
+
+
+def _assistant_understanding_progress_payload(
+    *,
+    query_plan,
+    read_only_plan,
+    previous_evidence_followup: bool = False,
+) -> dict[str, Any]:
+    domain = str(getattr(read_only_plan, "query_domain", "") or getattr(query_plan, "domain", "") or "general")
+    response_mode = str(
+        getattr(read_only_plan, "response_mode", "")
+        or getattr(query_plan, "response_mode", "")
+        or "status"
+    )
+    intent = str(getattr(read_only_plan, "intent", "") or "")
+    domain_label = QUERY_DOMAIN_PROGRESS_LABELS.get(domain, _title_case_progress_value(domain) or "request")
+    mode_label = QUERY_RESPONSE_MODE_PROGRESS_LABELS.get(response_mode, _title_case_progress_value(response_mode))
+
+    if previous_evidence_followup:
+        label = f"Following up on previous {domain_label} evidence"
+    elif intent:
+        label = f"Understood: {domain_label} - {_title_case_progress_value(intent)}"
+    elif mode_label:
+        label = f"Understood: {domain_label} - {mode_label}"
+    else:
+        label = f"Understood: {domain_label}"
+
+    return {
+        "stage": "understanding",
+        "state": "complete",
+        "label": label,
+        "domain": domain,
+        "response_mode": response_mode,
+        "intent": intent,
+        "confidence": round(float(getattr(query_plan, "confidence", 0.0) or 0.0), 3),
+        "unclear": bool(getattr(query_plan, "unclear", False)),
+        "followup": bool(previous_evidence_followup),
+    }
 
 
 def _registry_plan_progress_payload(plan) -> dict[str, Any]:
@@ -1626,6 +1693,15 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 except KeyError:
                     previous_evidence_followup = False
             read_only_plan = build_mds_read_only_plan(routing_message, conversation_topic=conversation_topic)
+            query_plan = build_assistant_query_plan(routing_message, conversation_topic=conversation_topic)
+            await _emit_assistant_progress(
+                progress_callback,
+                _assistant_understanding_progress_payload(
+                    query_plan=query_plan,
+                    read_only_plan=read_only_plan,
+                    previous_evidence_followup=previous_evidence_followup,
+                ),
+            )
             local_intent = read_only_plan.intent
             local_only_turn = bool(
                 local_intent
