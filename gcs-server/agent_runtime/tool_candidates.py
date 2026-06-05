@@ -130,6 +130,10 @@ def _eligible_registry_coverage(
 
     total = len(eligible_sources)
     coverage = round((promoted / total) * 100.0, 1) if total else 100.0
+    sorted_unpromoted = sorted(
+        unpromoted,
+        key=lambda item: (str(item.get("path") or ""), str(item.get("method") or "")),
+    )
     preview = [
         {
             "method": str(source.get("method") or "").upper(),
@@ -137,15 +141,35 @@ def _eligible_registry_coverage(
             "group": _candidate_group(str(source.get("path") or "")),
             "summary": str(source.get("summary") or ""),
         }
-        for source in sorted(unpromoted, key=lambda item: (str(item.get("path") or ""), str(item.get("method") or "")))[:20]
+        for source in sorted_unpromoted[:20]
     ]
+    by_group_routes = [
+        {
+            "area": group,
+            "count": count,
+            "routes": sorted(
+                {
+                    f"{str(source.get('method') or '').upper()} {str(source.get('path') or '')}"
+                    for source in unpromoted
+                    if _candidate_group(str(source.get("path") or "")) == group
+                }
+            ),
+        }
+        for group, count in sorted(by_group.items())
+    ]
+    unpromoted_count = len(unpromoted)
     return {
         "eligible_route_candidates": total,
         "eligible_promoted_route_matches": promoted,
-        "eligible_unpromoted_route_count": len(unpromoted),
+        "eligible_unpromoted_route_count": unpromoted_count,
         "eligible_promotion_coverage_percent": coverage,
         "eligible_unpromoted_by_group": dict(sorted(by_group.items())),
         "eligible_unpromoted_routes_preview": preview,
+        "eligible_read_only_candidate_count": total,
+        "promoted_eligible_candidate_count": promoted,
+        "unpromoted_eligible_candidate_count": unpromoted_count,
+        "promoted_eligible_ratio": round(promoted / total, 4) if total else 1.0,
+        "unpromoted_eligible_by_area": by_group_routes,
     }
 
 

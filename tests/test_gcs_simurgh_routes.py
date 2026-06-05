@@ -88,6 +88,11 @@ def test_simurgh_tool_candidates_are_review_only_and_filterable():
     assert coverage["eligible_unpromoted_route_count"] == 0
     assert coverage["eligible_promotion_coverage_percent"] == 100.0
     assert coverage["eligible_unpromoted_by_group"] == {}
+    assert coverage["eligible_read_only_candidate_count"] == coverage["eligible_route_candidates"]
+    assert coverage["promoted_eligible_candidate_count"] == coverage["eligible_promoted_route_matches"]
+    assert coverage["unpromoted_eligible_candidate_count"] == coverage["eligible_unpromoted_route_count"]
+    assert coverage["promoted_eligible_ratio"] == 1.0
+    assert coverage["unpromoted_eligible_by_area"] == []
     assert all(
         set(item) == {"method", "path", "group", "summary"}
         for item in coverage["eligible_unpromoted_routes_preview"]

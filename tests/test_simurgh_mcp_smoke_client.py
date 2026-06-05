@@ -236,6 +236,26 @@ def test_run_smoke_fails_when_live_registry_coverage_has_unpromoted_candidates()
         run_smoke(DriftClient(), min_tools=1)
 
 
+def test_run_smoke_accepts_route_style_registry_coverage_fields():
+    class RouteStyleCoverageClient(FakeMcpClient):
+        def call(self, request_id, method, params=None):
+            result = super().call(request_id, method, params)
+            if method == "tools/call" and params["name"] == "mds.simurgh.tool_candidates.read":
+                result["structuredContent"]["summary"]["registry_coverage"] = {
+                    "eligible_route_candidates": 79,
+                    "eligible_promoted_route_matches": 79,
+                    "eligible_unpromoted_route_count": 0,
+                    "eligible_promotion_coverage_percent": 100.0,
+                    "eligible_unpromoted_by_group": {},
+                }
+            return result
+
+    summary = run_smoke(RouteStyleCoverageClient(), min_tools=1)
+
+    assert summary["registry_coverage"]["unpromoted_eligible_candidate_count"] == 0
+    assert summary["registry_coverage"]["promoted_eligible_ratio"] == 1.0
+
+
 def test_script_json_summary_contains_no_token_words():
     summary = run_smoke(FakeMcpClient(), min_tools=3)
     serialized = json.dumps(summary)

@@ -191,6 +191,27 @@ def _registry_coverage(tool_result: dict[str, Any]) -> dict[str, Any]:
     coverage = summary.get("registry_coverage") if isinstance(summary.get("registry_coverage"), dict) else None
     if not isinstance(coverage, dict):
         raise SimurghMcpSmokeError("tool candidate payload did not include summary.registry_coverage")
+    coverage = dict(coverage)
+    alias_pairs = {
+        "eligible_read_only_candidate_count": "eligible_route_candidates",
+        "promoted_eligible_candidate_count": "eligible_promoted_route_matches",
+        "unpromoted_eligible_candidate_count": "eligible_unpromoted_route_count",
+    }
+    for public_key, route_key in alias_pairs.items():
+        if public_key not in coverage and route_key in coverage:
+            coverage[public_key] = coverage[route_key]
+    if "promoted_eligible_ratio" not in coverage:
+        try:
+            eligible = int(coverage.get("eligible_read_only_candidate_count") or 0)
+            promoted = int(coverage.get("promoted_eligible_candidate_count") or 0)
+            coverage["promoted_eligible_ratio"] = round(promoted / eligible, 4) if eligible else 1.0
+        except (TypeError, ValueError):
+            pass
+    if "unpromoted_eligible_by_area" not in coverage and isinstance(coverage.get("eligible_unpromoted_by_group"), dict):
+        coverage["unpromoted_eligible_by_area"] = [
+            {"area": str(area), "count": count}
+            for area, count in sorted(coverage["eligible_unpromoted_by_group"].items())
+        ]
     unpromoted = coverage.get("unpromoted_eligible_candidate_count")
     try:
         unpromoted_count = int(unpromoted)
