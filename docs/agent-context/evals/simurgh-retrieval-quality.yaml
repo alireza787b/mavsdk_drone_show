@@ -74,6 +74,28 @@ cases:
       within_rank: 5
       min_top_score: 30
 
+  - id: mcp_client_smoke_workflow_docs
+    prompt: "how do I smoke test simurgh mcp before connecting n8n vscode or claude"
+    expected:
+      domain: mcp
+      response_mode: workflow
+      tags_any: [mcp, tools, simurgh]
+      top_resource_any: [simurgh.mcp_client_recipes, simurgh.operator_guide]
+      resources_any: [simurgh.mcp_client_recipes]
+      within_rank: 5
+      min_top_score: 35
+
+  - id: mcp_client_secret_handling_docs
+    prompt: "where should I store the Simurgh MCP bearer token for VS Code Claude or n8n"
+    expected:
+      domain: mcp
+      response_mode: workflow
+      tags_any: [mcp, tools, simurgh]
+      top_resource_any: [simurgh.mcp_client_recipes]
+      resources_any: [simurgh.mcp_client_recipes]
+      within_rank: 5
+      min_top_score: 35
+
   - id: quickscout_vs_swarm_docs
     prompt: "what is the difference between quick scout and swarm trajectory"
     expected:

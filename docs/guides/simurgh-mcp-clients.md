@@ -1,6 +1,6 @@
 # Simurgh MCP Client Recipes
 
-Status: read-only connector guidance, updated 2026-05-25.
+Status: read-only connector guidance, updated 2026-06-05.
 
 This guide explains how external MCP clients should connect to the MDS Simurgh
 MCP endpoint without bypassing the GCS safety boundary.
@@ -108,15 +108,35 @@ Do not commit tokens, paste tokens into prompts, or store tokens in public MCP
 client config files. The smoke validates:
 
 - `initialize` succeeds with the expected MCP protocol version;
+- `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;
 - `tools/list` exposes the expected read-only tools;
 - obvious raw/action/admin tool names are absent;
-- `resources/list` is reachable;
+- `resources/list` is reachable and `mds://simurgh/status` can be read;
 - `mds.operator.question.answer` can answer a read-only operator question;
-- `mds.docs.search` can retrieve public MDS guidance.
+- `mds.docs.search` can retrieve public MDS guidance;
+- `mds.docs.chunk.read` can read the selected bounded public-docs chunk;
+- a direct operational request such as launching the show is blocked or dry-run
+  only.
 
 This is the preferred first diagnostic when an external client cannot connect.
 If the smoke fails, fix endpoint/auth/protocol posture before debugging a
 specific n8n, Claude, VS Code, or custom-agent configuration.
+
+## External Client Compatibility Matrix
+
+| Client | Recommended connection path | Secret handling | Notes |
+| --- | --- | --- | --- |
+| n8n AI Agent | MCP Client Tool node against the approved HTTPS `/api/v1/simurgh/mcp` URL. | Use n8n credentials or supported bearer/header auth fields. | Run the scripted smoke first, then `tools/list`, `mds.docs.search`, and `mds.docs.chunk.read` inside n8n. Cloud n8n should reach MDS through a reviewed gateway, not a field GCS exposed directly. |
+| n8n workflow step | MCP Client node when the workflow needs a deterministic tool step instead of an agent tool. | Same credential store as above. | Useful for repeatable read-only reporting jobs. Treat action-capable future tools as approval-gated. |
+| Claude remote connector | Approved public HTTPS/OAuth gateway in front of MDS. | Prefer OAuth-compatible connector auth; never paste raw MDS bearer tokens into chat. | Claude remote connectors originate from Anthropic infrastructure, so private NetBird-only endpoints will not connect. Keep action tools disabled until reviewed. |
+| Claude Desktop local | Dashboard Simurgh chat for normal operators, or a reviewed local stdio bridge for trusted developers. | Read `MDS_MCP_URL` and `MDS_MCP_BEARER_TOKEN` from the OS secret store or environment. | Do not ship an ad-hoc bridge as a first-party artifact until it has tests and packaging review. |
+| VS Code | Remote HTTP MCP server in user or workspace `mcp.json`, or a local bridge. | Use input variables, environment files, OS secrets, OAuth gateway, or bridge-managed env; do not hardcode tokens. | Workspace MCP configs require trust review. Enable sandboxing for local stdio servers where available. |
+| Custom agent | Streamable HTTP JSON-RPC with bearer/OAuth auth through the same endpoint. | Client-managed secret store with token rotation. | First pass must call the scripted smoke or equivalent: initialize, prompts, resources, tools, docs read, and blocked-action check. |
+
+The MCP layer is deliberately curated, not a raw automatic export of every GCS
+route. OpenAPI candidates are generated automatically for reviewer visibility;
+callable tools remain promoted through the registry/policy gate so new APIs can
+be added quickly without exposing unsafe routes by accident.
 
 ## n8n
 

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 798,
+  "chunk_count": 800,
   "chunks": [
     {
       "audience": "operator",
@@ -389,7 +389,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "ad2b9e09ed150caf3699d22d53d48bdd8b05b1b6a3985d3cb7a5620fae0edad9",
+      "content_hash": "31391c539f665ae81835892b78822447625f1d5ae5c928b633e3b8ffff138504",
       "heading": "MCP Smoke Client",
       "id": "simurgh.operator_guide:008-01-mcp-smoke-client",
       "links": [
@@ -405,7 +405,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "## MCP Smoke Client\n\nThe external MCP validation client is:\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json\n```\n\nIt validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom\nagents use: `initialize`, `tools/list`, `resources/list`,\n`mds.operator.question.answer`, and `mds.docs.search`. It also fails if the tool\nmenu exposes obvious raw/action/admin tool names. Use it before debugging a\nspecific external client, and never put bearer tokens in committed MCP client\nconfiguration.\n\nWhen field logs produce new lessons, do not paste raw artifacts into eval\nfixtures or context files. Follow\n`docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,\nhash the source artifact, redact identifiers and network details, encode only a\nminimal reusable pattern, and validate the scenario offline before reviewer\napproval.",
+      "text": "## MCP Smoke Client\n\nThe external MCP validation client is:\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py --base-url https://<gcs-host> --token-file /path/to/agent-token --json\n```\n\nIt validates the HTTP MCP path that n8n, Claude, VS Code bridges, and custom\nagents use: `initialize`, `prompts/list`, `prompts/get`, `tools/list`,\n`resources/list`, `resources/read`, `mds.operator.question.answer`,\n`mds.docs.search`, and `mds.docs.chunk.read`. It also fails if the tool menu\nexposes obvious raw/action/admin tool names, and it verifies that a direct\naction request is blocked or dry-run only. Use it before debugging a specific\nexternal client, and never put bearer tokens in committed MCP client\nconfiguration.\n\nWhen field logs produce new lessons, do not paste raw artifacts into eval\nfixtures or context files. Follow\n`docs/agent-context/field-log-review-workflow.md`: keep raw evidence private,\nhash the source artifact, redact identifiers and network details, encode only a\nminimal reusable pattern, and validate the scenario offline before reviewer\napproval.",
       "title": "Simurgh operator guide"
     },
     {
@@ -947,7 +947,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "4f78de9e332b9f76691ab46ddf23d133f7e548ba0adbf8d382fece0d3213e168",
+      "content_hash": "125b4aeabfa85e1070e8a0ea3638bf4bd17995b2f6dc29ad9d6a6367a590fea1",
       "heading": "Simurgh MCP Client Recipes",
       "id": "simurgh.mcp_client_recipes:001-01-simurgh-mcp-client-recipes",
       "links": [],
@@ -962,7 +962,7 @@
         "clients",
         "integrations"
       ],
-      "text": "# Simurgh MCP Client Recipes\n\nStatus: read-only connector guidance, updated 2026-05-25.\n\nThis guide explains how external MCP clients should connect to the MDS Simurgh\nMCP endpoint without bypassing the GCS safety boundary.",
+      "text": "# Simurgh MCP Client Recipes\n\nStatus: read-only connector guidance, updated 2026-06-05.\n\nThis guide explains how external MCP clients should connect to the MDS Simurgh\nMCP endpoint without bypassing the GCS safety boundary.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -1031,7 +1031,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "fd21b731e7f705396eeddeae15a1e36d7bfee3860cc693fcaf6243ea5d8de291",
+      "content_hash": "82e44580243374b6bf29e43b314f2eb47d49b4bed5d5e03bec868c782c59ff83",
       "heading": "Scripted Smoke Test",
       "id": "simurgh.mcp_client_recipes:005-01-scripted-smoke-test",
       "links": [],
@@ -1046,7 +1046,49 @@
         "clients",
         "integrations"
       ],
-      "text": "## Scripted Smoke Test\n\nUse the repository smoke client before handing a GCS endpoint to n8n, Claude,\nVS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP\nsurface an external client will use, without installing an MCP SDK and without\nprinting bearer tokens.\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --json\n```\n\nFor a local validation host, a secret environment variable is also supported:\n\n```bash\nMDS_MCP_BEARER_TOKEN=\"...\" \\\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030\n```\n\nDo not commit tokens, paste tokens into prompts, or store tokens in public MCP\nclient config files. The smoke validates:\n\n- `initialize` succeeds with the expected MCP protocol version;\n- `tools/list` exposes the expected read-only tools;\n- obvious raw/action/admin tool names are absent;\n- `resources/list` is reachable;\n- `mds.operator.question.answer` can answer a read-only operator question;\n- `mds.docs.search` can retrieve public MDS guidance.\n\nThis is the preferred first diagnostic when an external client cannot connect.\nIf the smoke fails, fix endpoint/auth/protocol posture before debugging a\nspecific n8n, Claude, VS Code, or custom-agent configuration.",
+      "text": "## Scripted Smoke Test\n\nUse the repository smoke client before handing a GCS endpoint to n8n, Claude,\nVS Code, or a custom agent. It exercises the same Streamable HTTP JSON-RPC MCP\nsurface an external client will use, without installing an MCP SDK and without\nprinting bearer tokens.\n\n```bash\npython3 tools/simurgh_mcp_smoke_client.py \\\n --base-url https://<gcs-host> \\\n --token-file /path/to/agent-token \\\n --json\n```\n\nFor a local validation host, a secret environment variable is also supported:\n\n```bash\nMDS_MCP_BEARER_TOKEN=\"...\" \\\npython3 tools/simurgh_mcp_smoke_client.py --base-url http://127.0.0.1:5030\n```\n\nDo not commit tokens, paste tokens into prompts, or store tokens in public MCP\nclient config files. The smoke validates:\n\n- `initialize` succeeds with the expected MCP protocol version;\n- `prompts/list` and `prompts/get` expose at least one reviewed operator prompt;\n- `tools/list` exposes the expected read-only tools;\n- obvious raw/action/admin tool names are absent;\n- `resources/list` is reachable and `mds://simurgh/status` can be read;\n- `mds.operator.question.answer` can answer a read-only operator question;\n- `mds.docs.search` can retrieve public MDS guidance;\n- `mds.docs.chunk.read` can read the selected bounded public-docs chunk;\n- a direct operational request such as launching the show is blocked or dry-run\n only.\n\nThis is the preferred first diagnostic when an external client cannot connect.\nIf the smoke fails, fix endpoint/auth/protocol posture before debugging a\nspecific n8n, Claude, VS Code, or custom-agent configuration.",
+      "title": "Simurgh MCP client recipes"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
+      "content_hash": "7bfc695bf34ad3236c18030387f3799eb05f14a01c043eba2d14d4b1c2acdef6",
+      "heading": "External Client Compatibility Matrix",
+      "id": "simurgh.mcp_client_recipes:006-01-external-client-compatibility-matrix",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-mcp-clients.md",
+      "resource_id": "simurgh.mcp_client_recipes",
+      "route_hint": "/simurgh",
+      "summary": "External MCP client setup guidance for n8n, Claude, VS Code, and bridge modes.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "clients",
+        "integrations"
+      ],
+      "text": "## External Client Compatibility Matrix\n\n| Client | Recommended connection path | Secret handling | Notes |\n| --- | --- | --- | --- |\n| n8n AI Agent | MCP Client Tool node against the approved HTTPS `/api/v1/simurgh/mcp` URL. | Use n8n credentials or supported bearer/header auth fields. | Run the scripted smoke first, then `tools/list`, `mds.docs.search`, and `mds.docs.chunk.read` inside n8n. Cloud n8n should reach MDS through a reviewed gateway, not a field GCS exposed directly. |\n| n8n workflow step | MCP Client node when the workflow needs a deterministic tool step instead of an agent tool. | Same credential store as above. | Useful for repeatable read-only reporting jobs. Treat action-capable future tools as approval-gated. |\n| Claude remote connector | Approved public HTTPS/OAuth gateway in front of MDS. | Prefer OAuth-compatible connector auth; never paste raw MDS bearer tokens into chat. | Claude remote connectors originate from Anthropic infrastructure, so private NetBird-only endpoints will not connect. Keep action tools disabled until reviewed. |\n| Claude Desktop local | Dashboard Simurgh chat for normal operators, or a reviewed local stdio bridge for trusted developers. | Read `MDS_MCP_URL` and `MDS_MCP_BEARER_TOKEN` from the OS secret store or environment. | Do not ship an ad-hoc bridge as a first-party artifact until it has tests and packaging review. |\n| VS Code | Remote HTTP MCP server in user or workspace `mcp.json`, or a local bridge. | Use input variables, environment files, OS secrets, OAuth gateway, or bridge-managed env; do not hardcode tokens. | Workspace MCP configs require trust review. Enable sandboxing for local stdio servers where available. |\n| Custom agent | Streamable HTTP JSON-RPC with bearer/OAuth auth through the same endpoint. | Client-managed secret store with token rotation. | First pass must call the scripted smoke or equivalent: initialize, prompts, resources, tools, docs read, and blocked-action check. |",
+      "title": "Simurgh MCP client recipes"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
+      "content_hash": "0ed6458d220f58598088a81c0c4d2bc99dfeec460c061d343339809c5a0896a4",
+      "heading": "External Client Compatibility Matrix",
+      "id": "simurgh.mcp_client_recipes:006-02-external-client-compatibility-matrix",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-mcp-clients.md",
+      "resource_id": "simurgh.mcp_client_recipes",
+      "route_hint": "/simurgh",
+      "summary": "External MCP client setup guidance for n8n, Claude, VS Code, and bridge modes.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "clients",
+        "integrations"
+      ],
+      "text": "The MCP layer is deliberately curated, not a raw automatic export of every GCS\nroute. OpenAPI candidates are generated automatically for reviewer visibility;\ncallable tools remain promoted through the registry/policy gate so new APIs can\nbe added quickly without exposing unsafe routes by accident.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -1054,7 +1096,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "content_hash": "d9afed6595901d21378ad9e01cb53cefc8e412fe100b022e19d1d504c13f117f",
       "heading": "n8n",
-      "id": "simurgh.mcp_client_recipes:006-01-n8n",
+      "id": "simurgh.mcp_client_recipes:007-01-n8n",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -1075,7 +1117,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "content_hash": "cb21336b6c73b527ec13f212cca3dc5ea5e1faa764d0a1d5d89a2ce65035f3a3",
       "heading": "Claude",
-      "id": "simurgh.mcp_client_recipes:007-01-claude",
+      "id": "simurgh.mcp_client_recipes:008-01-claude",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -1096,7 +1138,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "content_hash": "5359d7ae7f7bf96d44f82764a6e04ade5747b0d1cda3f653d50bf3c269edf4bc",
       "heading": "VS Code",
-      "id": "simurgh.mcp_client_recipes:008-01-vs-code",
+      "id": "simurgh.mcp_client_recipes:009-01-vs-code",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -1117,7 +1159,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "content_hash": "1e4ba4173ce22b14d74c4fb0c929ae1249e34cc7c8f7b70a8d679a252d723aa9",
       "heading": "Generic Stdio Bridge Pattern",
-      "id": "simurgh.mcp_client_recipes:009-01-generic-stdio-bridge-pattern",
+      "id": "simurgh.mcp_client_recipes:010-01-generic-stdio-bridge-pattern",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -1138,7 +1180,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "content_hash": "e0e9f0e4246115c650752f0bc943cf114084e19b7466d0974cb9492237e4316e",
       "heading": "Operator Smoke Checklist",
-      "id": "simurgh.mcp_client_recipes:010-01-operator-smoke-checklist",
+      "id": "simurgh.mcp_client_recipes:011-01-operator-smoke-checklist",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -1159,7 +1201,7 @@
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "content_hash": "112dcb6d7e9ddf876f439c429228e17b18b0d2a370295e010c4ef30246fc92fc",
       "heading": "References",
-      "id": "simurgh.mcp_client_recipes:011-01-references",
+      "id": "simurgh.mcp_client_recipes:012-01-references",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -15968,7 +16010,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "26983a24413e3fe81d78adf237ab5ba9c4378c0fdf7d15667374e3a903ff6a9e",
+      "content_hash": "f5f308eae0a1bef1d97b48f348ce24751bbad82e3b078f0a15b6162b41cce41e",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -15984,8 +16026,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "chunk_count": 11,
-      "content_hash": "2091b4f68eea3d29128a198374e714fc0b62459bf891ae3f193e282169b1b7e7",
+      "chunk_count": 13,
+      "content_hash": "32c6a2aece3aa4b0a4260ce4d0b15e789fb1694352a9d176fd2f5eb6c3a564e0",
       "id": "simurgh.mcp_client_recipes",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",

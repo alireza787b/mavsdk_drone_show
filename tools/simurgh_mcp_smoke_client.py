@@ -25,7 +25,14 @@ DEFAULT_QUESTION = "What MCP tools are available and what can Simurgh inspect re
 DEFAULT_EXPECTED_TOOLS = (
     "mds.operator.question.answer",
     "mds.docs.search",
+    "mds.docs.chunk.read",
     "mds.system.health.read",
+)
+DEFAULT_EXPECTED_PROMPTS = ("mds.compare_mission_modes",)
+DEFAULT_EXPECTED_RESOURCES = (
+    "mds://simurgh/status",
+    "mds://simurgh/tool-registry",
+    "mds://simurgh/context-index",
 )
 FORBIDDEN_TOOL_HINTS = (
     "raw_submit",
@@ -112,6 +119,14 @@ def _tool_names(tools_result: dict[str, Any]) -> list[str]:
     return sorted(str(tool.get("name") or "") for tool in tools_result.get("tools", []) if tool.get("name"))
 
 
+def _prompt_names(prompts_result: dict[str, Any]) -> list[str]:
+    return sorted(str(prompt.get("name") or "") for prompt in prompts_result.get("prompts", []) if prompt.get("name"))
+
+
+def _resource_uris(resources_result: dict[str, Any]) -> list[str]:
+    return sorted(str(resource.get("uri") or "") for resource in resources_result.get("resources", []) if resource.get("uri"))
+
+
 def _resource_count(resources_result: dict[str, Any]) -> int:
     return len(resources_result.get("resources") or [])
 
@@ -125,11 +140,37 @@ def _content_preview(tool_result: dict[str, Any], max_chars: int = 220) -> str:
     return " ".join(chunks).strip().replace("\n", " ")[:max_chars]
 
 
+def _first_docs_chunk_id(tool_result: dict[str, Any]) -> str:
+    structured = tool_result.get("structuredContent") or {}
+    results = structured.get("results") if isinstance(structured, dict) else None
+    if not isinstance(results, list) or not results:
+        raise SimurghMcpSmokeError("mds.docs.search returned no structured results")
+    first = results[0] if isinstance(results[0], dict) else {}
+    chunk_id = str(first.get("id") or "").strip()
+    if not chunk_id:
+        raise SimurghMcpSmokeError("mds.docs.search first result did not include a chunk id")
+    return chunk_id
+
+
+def _assert_tool_result_ok(tool_result: dict[str, Any], *, tool_name: str) -> None:
+    if tool_result.get("isError") is True:
+        raise SimurghMcpSmokeError(f"{tool_name} returned an error: {_content_preview(tool_result, 500)}")
+
+
+def _assert_tool_result_blocked(tool_result: dict[str, Any], *, tool_name: str) -> None:
+    if tool_result.get("isError") is not True:
+        raise SimurghMcpSmokeError(f"{tool_name} did not block the action request")
+    if "blocked" not in _content_preview(tool_result, 500).lower():
+        raise SimurghMcpSmokeError(f"{tool_name} blocked without a clear blocked explanation")
+
+
 def run_smoke(
     client: Any,
     *,
     question: str = DEFAULT_QUESTION,
     expected_tools: tuple[str, ...] = DEFAULT_EXPECTED_TOOLS,
+    expected_prompts: tuple[str, ...] = DEFAULT_EXPECTED_PROMPTS,
+    expected_resources: tuple[str, ...] = DEFAULT_EXPECTED_RESOURCES,
     min_tools: int = 10,
 ) -> dict[str, Any]:
     started = time.monotonic()
@@ -142,13 +183,22 @@ def run_smoke(
             "clientInfo": {"name": "mds-simurgh-smoke", "version": "1.0"},
         },
     )
-    tools_result = client.call(2, "tools/list")
+    prompts_result = client.call(2, "prompts/list")
+    prompt_names = _prompt_names(prompts_result)
+    tools_result = client.call(3, "tools/list")
     tool_names = _tool_names(tools_result)
-    resources_result = client.call(3, "resources/list")
+    resources_result = client.call(4, "resources/list")
+    resource_uris = _resource_uris(resources_result)
 
     missing = [tool for tool in expected_tools if tool not in tool_names]
     if missing:
         raise SimurghMcpSmokeError(f"expected MCP tools are missing: {', '.join(missing)}")
+    missing_prompts = [prompt for prompt in expected_prompts if prompt not in prompt_names]
+    if missing_prompts:
+        raise SimurghMcpSmokeError(f"expected MCP prompts are missing: {', '.join(missing_prompts)}")
+    missing_resources = [uri for uri in expected_resources if uri not in resource_uris]
+    if missing_resources:
+        raise SimurghMcpSmokeError(f"expected MCP resources are missing: {', '.join(missing_resources)}")
     if len(tool_names) < min_tools:
         raise SimurghMcpSmokeError(f"too few MCP tools exposed: {len(tool_names)} < {min_tools}")
 
@@ -156,25 +206,61 @@ def run_smoke(
     if forbidden:
         raise SimurghMcpSmokeError(f"forbidden-looking tools exposed: {', '.join(forbidden[:8])}")
 
+    status_resource = client.call(5, "resources/read", {"uri": "mds://simurgh/status"})
+    if not status_resource.get("contents"):
+        raise SimurghMcpSmokeError("resources/read for mds://simurgh/status returned no content")
+
+    compare_prompt = client.call(
+        6,
+        "prompts/get",
+        {
+            "name": "mds.compare_mission_modes",
+            "arguments": {"question": "Compare QuickScout and Swarm Trajectory for a field operator."},
+        },
+    )
+    if not compare_prompt.get("messages"):
+        raise SimurghMcpSmokeError("prompts/get for mds.compare_mission_modes returned no messages")
+
     answer_result = client.call(
-        4,
+        7,
         "tools/call",
         {"name": "mds.operator.question.answer", "arguments": {"question": question}},
     )
+    _assert_tool_result_ok(answer_result, tool_name="mds.operator.question.answer")
     docs_result = client.call(
-        5,
+        8,
         "tools/call",
         {"name": "mds.docs.search", "arguments": {"query": "Simurgh MCP clients", "limit": 3}},
     )
+    _assert_tool_result_ok(docs_result, tool_name="mds.docs.search")
+    chunk_id = _first_docs_chunk_id(docs_result)
+    docs_chunk_result = client.call(
+        9,
+        "tools/call",
+        {"name": "mds.docs.chunk.read", "arguments": {"chunk_id": chunk_id, "max_chars": 1200}},
+    )
+    _assert_tool_result_ok(docs_chunk_result, tool_name="mds.docs.chunk.read")
+
+    blocked_action_result = client.call(
+        10,
+        "tools/call",
+        {"name": "mds.operator.question.answer", "arguments": {"question": "Can you launch the drone show now?"}},
+    )
+    _assert_tool_result_blocked(blocked_action_result, tool_name="mds.operator.question.answer")
 
     return {
         "server": initialize.get("serverInfo", {}),
         "protocol_version": initialize.get("protocolVersion"),
         "tool_count": len(tool_names),
+        "prompt_count": len(prompt_names),
         "resource_count": _resource_count(resources_result),
         "expected_tools_present": list(expected_tools),
+        "expected_prompts_present": list(expected_prompts),
+        "expected_resources_present": list(expected_resources),
         "answer_preview": _content_preview(answer_result),
         "docs_preview": _content_preview(docs_result),
+        "docs_chunk_preview": _content_preview(docs_chunk_result),
+        "blocked_action_verified": True,
         "duration_ms": round((time.monotonic() - started) * 1000, 1),
     }
 
@@ -212,9 +298,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Server: {server.get('name', 'unknown')} {server.get('version', '')}".rstrip())
         print(f"Protocol: {summary.get('protocol_version')}")
         print(f"Tools: {summary.get('tool_count')} read-only callable tools")
+        print(f"Prompts: {summary.get('prompt_count')}")
         print(f"Resources: {summary.get('resource_count')}")
+        print(f"Action block verified: {summary.get('blocked_action_verified')}")
         print(f"Answer preview: {summary.get('answer_preview') or 'n/a'}")
         print(f"Docs preview: {summary.get('docs_preview') or 'n/a'}")
+        print(f"Docs chunk preview: {summary.get('docs_chunk_preview') or 'n/a'}")
         print(f"Duration: {summary.get('duration_ms')} ms")
     return 0
 

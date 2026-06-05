@@ -21,6 +21,7 @@ class FakeMcpClient:
         self.tools = tools or [
             "mds.operator.question.answer",
             "mds.docs.search",
+            "mds.docs.chunk.read",
             "mds.system.health.read",
             "mds.fleet.telemetry.read",
             "mds.fleet.heartbeats.read",
@@ -38,12 +39,34 @@ class FakeMcpClient:
                 "protocolVersion": MCP_PROTOCOL_VERSION,
                 "serverInfo": {"name": "mds-simurgh-operator", "version": "test"},
             }
+        if method == "prompts/list":
+            return {"prompts": [{"name": "mds.compare_mission_modes"}]}
+        if method == "prompts/get":
+            return {"messages": [{"role": "user", "content": {"type": "text", "text": "Compare mission modes."}}]}
         if method == "tools/list":
             return {"tools": [{"name": name} for name in self.tools]}
         if method == "resources/list":
-            return {"resources": [{"uri": "simurgh://context/system"}]}
+            return {
+                "resources": [
+                    {"uri": "mds://simurgh/status"},
+                    {"uri": "mds://simurgh/tool-registry"},
+                    {"uri": "mds://simurgh/context-index"},
+                ]
+            }
+        if method == "resources/read":
+            return {"contents": [{"uri": params["uri"], "mimeType": "application/json", "text": "{}"}]}
         if method == "tools/call":
             tool_name = params["name"]
+            if tool_name == "mds.docs.search":
+                return {
+                    "isError": False,
+                    "structuredContent": {"results": [{"id": "simurgh.mcp_client_recipes:001"}]},
+                    "content": [{"type": "text", "text": f"{tool_name} answered safely"}],
+                }
+            if tool_name == "mds.docs.chunk.read":
+                return {"isError": False, "content": [{"type": "text", "text": "MCP client recipe chunk"}]}
+            if tool_name == "mds.operator.question.answer" and "launch" in params["arguments"].get("question", ""):
+                return {"isError": True, "content": [{"type": "text", "text": "Blocked: no action was executed."}]}
             return {"content": [{"type": "text", "text": f"{tool_name} answered safely"}]}
         raise AssertionError(method)
 
@@ -118,17 +141,25 @@ def test_run_smoke_calls_expected_mcp_methods_and_summarizes_read_only_surface()
 
     assert summary["server"]["name"] == "mds-simurgh-operator"
     assert summary["protocol_version"] == MCP_PROTOCOL_VERSION
-    assert summary["tool_count"] == 10
-    assert summary["resource_count"] == 1
+    assert summary["tool_count"] == 11
+    assert summary["prompt_count"] == 1
+    assert summary["resource_count"] == 3
+    assert summary["blocked_action_verified"] is True
     assert "mds.operator.question.answer answered safely" in summary["answer_preview"]
+    assert "MCP client recipe chunk" in summary["docs_chunk_preview"]
     assert [method for _, method, _ in client.calls] == [
         "initialize",
+        "prompts/list",
         "tools/list",
         "resources/list",
+        "resources/read",
+        "prompts/get",
+        "tools/call",
+        "tools/call",
         "tools/call",
         "tools/call",
     ]
-    assert client.calls[3][2] == {
+    assert client.calls[6][2] == {
         "name": "mds.operator.question.answer",
         "arguments": {"question": "What can Simurgh inspect?"},
     }
@@ -145,6 +176,7 @@ def test_run_smoke_fails_if_forbidden_looking_tools_are_exposed():
     client = FakeMcpClient(tools=[
         "mds.operator.question.answer",
         "mds.docs.search",
+        "mds.docs.chunk.read",
         "mds.system.health.read",
         "mds.commands.raw_submit",
     ])
