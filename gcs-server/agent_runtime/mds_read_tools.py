@@ -19,7 +19,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlparse
 
+import httpx
 import yaml
 from fastapi import HTTPException
 
@@ -40,6 +42,10 @@ DEFAULT_OPENAI_CHAT_MODELS = ("gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano")
 DEFAULT_OPENAI_API_KEY_FILE = Path("/etc/mds/secrets/openai_api_key")
 DEFAULT_GENERAL_KNOWLEDGE_CONFIG_PATH = REPO_ROOT / "config" / "agent_general_knowledge.yaml"
 DEFAULT_PUBLIC_PLACES_CONFIG_PATH = REPO_ROOT / "config" / "agent_public_places.yaml"
+MCP_ENDPOINT_PATH = "/api/v1/simurgh/mcp"
+MCP_RESOURCE_URL_ENV = "MDS_MCP_RESOURCE_URL"
+DRONE_LOG_PROXY_TIMEOUT_SECONDS = 2.5
+DRONE_ULOG_PROXY_TIMEOUT_SECONDS = 4.0
 FALLBACK_LOG_STALE_GRACE_SECONDS = 3600
 LATEST_SESSION_GROUP_SECONDS = 15
 QUICKSCOUT_FIELD_READY_STALE_SECONDS = 6 * 3600
@@ -83,6 +89,11 @@ LOCAL_INTENT_TOOL_IDS: Mapping[str, tuple[str, ...]] = {
     "command_summary": ("mds.commands.active.read", "mds.commands.recent.read", "mds.commands.statistics.read"),
     "companion_setup_help": ("mds.docs.search", "mds.docs.chunk.read"),
     "docs_help": ("mds.docs.search", "mds.docs.chunk.read"),
+    "drone_log_summary": (
+        "mds.logs.drone_sessions.read",
+        "mds.logs.drone_ulog_files.read",
+        "mds.logs.drone_session.read",
+    ),
     "environment_summary": ("mds.system.env_registry.read", "mds.system.env_gcs.read"),
     "fleet_connectivity": ("mds.fleet.heartbeats.read", "mds.fleet.telemetry.read", "mds.fleet.network_status.read"),
     "fleet_enrollment_summary": ("mds.fleet.candidates.read",),
@@ -342,6 +353,8 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         return "system_status"
     if _looks_like_environment_summary_question(normalized):
         return "environment_summary"
+    if _looks_like_drone_log_summary_question(normalized):
+        return "drone_log_summary"
     if _has_any(normalized, ("log", "logs", "warning", "warnings", "error", "errors", "backend")) and _has_any(
         normalized,
         ("check", "see", "show", "what", "which", "any", "have", "list", "summary"),
@@ -381,6 +394,9 @@ def classify_mds_read_intent(message: str, *, conversation_topic: str | None = N
         ):
             return "board_setup_help"
         return "docs_help"
+
+    if _looks_like_mcp_client_setup_question(normalized):
+        return "capability_catalog"
 
     if _has_any(
         normalized,
@@ -498,6 +514,8 @@ def answer_mds_read_only_question(
         return tools.docs_help()
     if intent == "backend_log_summary":
         return tools.backend_log_summary(response_mode=response_mode, message=message)
+    if intent == "drone_log_summary":
+        return tools.drone_log_summary(message=message)
     if intent == "action_capability":
         return tools.action_capability()
     if intent == "registry_domain_tool_summary":
@@ -545,7 +563,7 @@ def infer_mds_read_topic(message: str, *, intent: str | None = None) -> str | No
         return "sitl"
     if normalized_intent in {"board_setup_help", "companion_setup_help", "add_drone_workflow"}:
         return "setup"
-    if normalized_intent == "backend_log_summary":
+    if normalized_intent in {"backend_log_summary", "drone_log_summary"}:
         return "logs"
     if normalized_intent in {"runtime_summary", "system_status", "environment_summary"}:
         return "runtime"
@@ -1732,6 +1750,8 @@ class MdsReadOnlyTools:
                 "mds.swarm_trajectories.status.read",
                 "mds.swarm_trajectories.validate.read",
                 "mds.logs.sessions.read",
+                "mds.logs.drone_sessions.read",
+                "mds.logs.drone_ulog_files.read",
                 "mds.system.runtime_status.read",
                 "mds.docs.search",
                 "mds.simurgh.tool_candidates.read",
@@ -1751,15 +1771,25 @@ class MdsReadOnlyTools:
             except ValueError:
                 registry_label = registry_path.as_posix()
 
+            mcp_endpoint, mcp_endpoint_source = _deployment_mcp_endpoint(self.deps)
+            mcp_status = "enabled" if policy.mcp_enabled else "disabled"
+            mcp_auth_label = (
+                "bearer token with agent/admin scope required"
+                if policy.mcp_enabled
+                else "not active while MCP is disabled"
+            )
+
             composer = AnswerComposer()
             composer.line("Simurgh capabilities are driven by one curated registry and policy layer, not hardcoded chat-only tools.")
-            composer.line(f"MCP endpoint: {'enabled' if policy.mcp_enabled else 'disabled'} at `/api/v1/simurgh/mcp`.")
+            composer.line(f"MCP endpoint: {mcp_status} at `{mcp_endpoint}`.")
             composer.blank()
             composer.table(
                 ("Capability surface", "Current value"),
                 (
                     ("Registry source", f"`{registry_label}`"),
-                    ("MCP endpoint", f"{'enabled' if policy.mcp_enabled else 'disabled'} at `/api/v1/simurgh/mcp`"),
+                    ("MCP endpoint", f"{mcp_status} at `{mcp_endpoint}`"),
+                    ("Endpoint source", mcp_endpoint_source),
+                    ("MCP auth", mcp_auth_label),
                     ("Read-only GCS tools allowed", str(len(read_only_menu))),
                     ("Guarded/future candidates", str(guarded)),
                     ("Explicitly excluded dangerous/admin/drone-local tools", str(excluded)),
@@ -1768,7 +1798,8 @@ class MdsReadOnlyTools:
             composer.blank().line("Current safe menu preview:")
             composer.bullets(preview)
             composer.blank()
-            composer.line("External clients discover the MCP menu with `tools/list` and call approved read-only tools with `tools/call` when MCP is enabled and bearer auth is valid.")
+            composer.line("External clients such as n8n, Claude Desktop, or VS Code should connect to the GCS Simurgh MCP endpoint above, never to a drone IP or drone-local sidecar port.")
+            composer.line("Use Streamable HTTP JSON-RPC: call `tools/list` to discover the approved menu, then `tools/call` for allowed read-only tools when MCP is enabled and bearer auth is valid.")
             composer.line("New APIs should be imported as classified registry candidates first; they are not automatically callable until schemas, docs, policy, safety notes, and tests approve them.")
             composer.line("No drone command was sent.")
             content = composer.render()
@@ -2537,6 +2568,140 @@ class MdsReadOnlyTools:
             ]
         )
         return self._answer("docs_help", content, ("mds.docs.index.read",), response_mode="workflow")
+
+    def drone_log_summary(self, message: str = "") -> MdsReadToolAnswer:
+        config = self._fleet_config()
+        composer = AnswerComposer()
+        composer.line("Drone log evidence from the GCS log proxy:")
+
+        if not config:
+            composer.blank().line(
+                "No configured drones are visible in the GCS fleet config, so there are no per-drone log endpoints to inspect."
+            )
+            composer.line("This is read-only log inspection; no drone command, ULog download, or erase action was attempted.")
+            return self._answer(
+                "drone_log_summary",
+                composer.render(),
+                ("mds.logs.drone_sessions.read", "mds.logs.drone_ulog_files.read"),
+            )
+
+        rows: list[tuple[str, str, str, str, str, str]] = []
+        total_sessions = 0
+        total_ulogs = 0
+        latest_warning_error_total = 0
+        unavailable: list[str] = []
+
+        for drone in config:
+            hw_id = _as_int(drone.get("hw_id"))
+            if hw_id is None:
+                continue
+            ip = str(drone.get("ip") or "").strip()
+            session_payload, session_error = self._fetch_drone_json(
+                ip,
+                "/api/logs/sessions",
+                timeout=DRONE_LOG_PROXY_TIMEOUT_SECONDS,
+            )
+            sessions = _log_session_items(session_payload)
+            total_sessions += len(sessions)
+            latest_session = sessions[0] if sessions else {}
+            warning_error_label = "not checked"
+            if latest_session:
+                session_id = str(latest_session.get("session_id") or "").strip()
+                content_payload, content_error = self._fetch_drone_json(
+                    ip,
+                    f"/api/logs/sessions/{session_id}",
+                    params={"limit": 200},
+                    timeout=DRONE_LOG_PROXY_TIMEOUT_SECONDS,
+                )
+                warning_error_count = _warning_error_count_from_log_lines(content_payload)
+                latest_warning_error_total += warning_error_count
+                warning_error_label = f"{warning_error_count} in latest session"
+                if content_error:
+                    warning_error_label = f"unavailable ({content_error})"
+            elif session_error:
+                warning_error_label = f"unavailable ({session_error})"
+                unavailable.append(f"Drone {hw_id} sessions: {session_error}")
+
+            ulog_payload, ulog_error = self._fetch_drone_json(
+                ip,
+                "/api/v1/ulog/files",
+                timeout=DRONE_ULOG_PROXY_TIMEOUT_SECONDS,
+            )
+            ulog_files = _ulog_file_items(ulog_payload)
+            total_ulogs += len(ulog_files)
+            if ulog_error:
+                unavailable.append(f"Drone {hw_id} ULog list: {ulog_error}")
+
+            rows.append(
+                (
+                    f"Drone {hw_id}",
+                    ip or "unknown",
+                    str(len(sessions)) if not session_error else f"unavailable ({session_error})",
+                    str(len(ulog_files)) if not ulog_error else f"unavailable ({ulog_error})",
+                    _latest_ulog_label(ulog_files),
+                    warning_error_label,
+                )
+            )
+
+        composer.blank().table(
+            ("Drone", "IP", "Log sessions", "ULogs", "Latest ULog", "Warnings/errors"),
+            rows,
+        )
+        composer.blank().line(
+            f"Summary: {total_sessions} drone log session(s), {total_ulogs} onboard ULog file(s), "
+            f"{latest_warning_error_total} warning/error line(s) seen in the latest-session samples."
+        )
+        composer.line(
+            "Flight time: not available from the lightweight session/ULog list metadata. To calculate actual flight duration, download/parse a selected `.ulg` with an approved human-controlled log-analysis workflow."
+        )
+        if unavailable:
+            composer.blank().line("Unavailable checks:")
+            composer.bullets(unavailable[:6])
+            if len(unavailable) > 6:
+                composer.line(f"{len(unavailable) - 6} additional unavailable check(s) omitted for readability.")
+        composer.blank().line(
+            "Open [Logs](/logs) for GCS logs and per-drone log views. API refs: `GET /api/logs/drone/{drone_id}/sessions` and `GET /api/logs/drone/{drone_id}/ulog/files`."
+        )
+        composer.line("This is read-only GCS-proxied log inspection; no drone command, ULog download job, or erase action was attempted.")
+        return self._answer(
+            "drone_log_summary",
+            composer.render(),
+            ("mds.logs.drone_sessions.read", "mds.logs.drone_ulog_files.read", "mds.logs.drone_session.read"),
+            response_mode="status",
+            safety_notes=(
+                "Answered from read-only GCS-proxied drone log endpoints.",
+                "No direct UI-to-drone access, command, ULog download job, ULog content fetch, or erase action was attempted.",
+                "Flight duration requires a separate approved ULog parsing workflow; it was not inferred from filenames or backend logs.",
+            ),
+        )
+
+    def _fetch_drone_json(
+        self,
+        drone_ip: str,
+        path: str,
+        *,
+        params: Mapping[str, Any] | None = None,
+        timeout: float = DRONE_LOG_PROXY_TIMEOUT_SECONDS,
+    ) -> tuple[dict[str, Any], str]:
+        ip = str(drone_ip or "").strip()
+        if not ip:
+            return {}, "missing ip"
+        url = f"http://{ip}:{_drone_api_port()}{path}"
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                response = client.get(url, params=dict(params or {}))
+            if response.status_code >= 400:
+                return {}, f"HTTP {response.status_code}"
+            payload = response.json()
+        except httpx.TimeoutException:
+            return {}, "timeout"
+        except httpx.HTTPError as exc:
+            return {}, _truncate_text(str(exc), 80) or "request failed"
+        except ValueError:
+            return {}, "invalid json"
+        if not isinstance(payload, Mapping):
+            return {}, "unexpected payload"
+        return _copy_mapping(payload), ""
 
     def mission_mode_comparison(self) -> MdsReadToolAnswer:
         composer = AnswerComposer()
@@ -3608,6 +3773,109 @@ def _parse_recent_log_window_seconds(message: str) -> int | None:
     return min(seconds, 7 * 86_400)
 
 
+def _drone_api_port() -> int:
+    raw = os.getenv("MDS_DRONE_API_PORT", os.getenv("MDS_DEFAULT_DRONE_API_PORT", "7070"))
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 7070
+
+
+def _log_session_items(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    sessions = payload.get("sessions") if isinstance(payload, Mapping) else None
+    items = [_copy_mapping(item) for item in (sessions or []) if isinstance(item, Mapping)]
+    items.sort(key=lambda item: _as_float(item.get("modified"), 0.0), reverse=True)
+    return items
+
+
+def _ulog_file_items(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    files = payload.get("files") if isinstance(payload, Mapping) else None
+    items = [_copy_mapping(item) for item in (files or []) if isinstance(item, Mapping)]
+    items.sort(key=lambda item: str(item.get("date_utc") or ""), reverse=True)
+    return items
+
+
+def _latest_ulog_label(files: Sequence[Mapping[str, Any]]) -> str:
+    if not files:
+        return "none listed"
+    latest = files[0]
+    log_id = latest.get("id")
+    date = str(latest.get("date_utc") or "date n/a").strip() or "date n/a"
+    size = _as_float(latest.get("size_bytes"), 0.0)
+    size_label = _format_bytes(size) if size > 0 else "size n/a"
+    return f"id {log_id}; {date}; {size_label}"
+
+
+def _warning_error_count_from_log_lines(payload: Mapping[str, Any]) -> int:
+    lines = payload.get("lines") if isinstance(payload, Mapping) else None
+    count = 0
+    for line in lines or []:
+        if not isinstance(line, Mapping):
+            continue
+        level = str(line.get("level") or "").upper()
+        message = str(line.get("message") or line.get("msg") or "")
+        if level in {"WARNING", "WARN", "ERROR", "CRITICAL"} or _log_level_from_text(message):
+            count += 1
+    return count
+
+
+def _format_bytes(value: float) -> str:
+    if not math.isfinite(value) or value <= 0:
+        return "0 B"
+    units = ("B", "KB", "MB", "GB")
+    size = float(value)
+    unit = units[0]
+    for unit in units:
+        if size < 1024 or unit == units[-1]:
+            break
+        size /= 1024.0
+    if unit == "B":
+        return f"{int(size)} B"
+    return f"{size:.1f} {unit}"
+
+
+def _deployment_mcp_endpoint(deps: Any | None = None) -> tuple[str, str]:
+    configured = os.getenv(MCP_RESOURCE_URL_ENV, "").strip().rstrip("/")
+    if configured and _is_absolute_http_url(configured):
+        return configured, f"configured by `{MCP_RESOURCE_URL_ENV}`"
+
+    request_base = str(getattr(deps, "simurgh_request_base_url", "") or "").strip().rstrip("/")
+    if request_base and _is_absolute_http_url(request_base):
+        return f"{request_base}{MCP_ENDPOINT_PATH}", "derived from this dashboard/API request"
+
+    public_base = _configured_public_gcs_base_url()
+    if public_base:
+        return f"{public_base}{MCP_ENDPOINT_PATH}", "derived from public GCS host/port environment"
+
+    return MCP_ENDPOINT_PATH, "path only; set `MDS_MCP_RESOURCE_URL` to pin a public reverse-proxy URL"
+
+
+def _is_absolute_http_url(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+    except ValueError:
+        return False
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc) and not parsed.query and not parsed.fragment
+
+
+def _configured_public_gcs_base_url() -> str:
+    for env_name in ("MDS_PUBLIC_GCS_API_BASE_URL", "MDS_GCS_PUBLIC_BASE_URL", "MDS_GCS_API_BASE_URL"):
+        value = os.getenv(env_name, "").strip().rstrip("/")
+        if value and _is_absolute_http_url(value):
+            return value
+    host = os.getenv("MDS_GCS_PUBLIC_HOST", os.getenv("MDS_PUBLIC_HOST", "")).strip()
+    if not host:
+        return ""
+    scheme = os.getenv("MDS_GCS_PUBLIC_SCHEME", "http").strip().lower() or "http"
+    if scheme not in {"http", "https"}:
+        scheme = "http"
+    port = os.getenv("MDS_GCS_API_PORT", os.getenv("MDS_DEFAULT_GCS_API_PORT", "5030")).strip()
+    netloc = host
+    if port and ":" not in host and not (scheme == "https" and port == "443") and not (scheme == "http" and port == "80"):
+        netloc = f"{host}:{port}"
+    return f"{scheme}://{netloc}" if netloc else ""
+
+
 def _format_duration_seconds(seconds: int | None) -> str:
     if not seconds:
         return "recent scanned window"
@@ -3993,6 +4261,8 @@ def _intent_from_query_plan(normalized: str, topic: str | None) -> str | None:
             return "add_drone_workflow"
         return "board_setup_help"
     if domain == "logs":
+        if _looks_like_drone_log_summary_question(normalized):
+            return "drone_log_summary"
         return "backend_log_summary"
     if domain == "runtime":
         if mode == "workflow" and _has_any(normalized, ("sitl", "simulation", "switch", "change", "go to", "demo")):
@@ -4257,6 +4527,75 @@ def _looks_like_environment_summary_question(normalized: str) -> bool:
     return _has_domain_signal(
         normalized,
         ("what", "which", "where", "how", "edit", "change", "configure", "configured", "status", "registry", "settings", "keys"),
+    )
+
+
+def _looks_like_drone_log_summary_question(normalized: str) -> bool:
+    if not _has_domain_signal(normalized, ("log", "logs", "flight log", "flight logs", "ulog", "ulogs", ".ulg")):
+        return False
+    if _has_domain_signal(normalized, ("backend", "gcs server", "server logs", "api logs")) and not _has_domain_signal(
+        normalized,
+        ("drone", "drones", "flight", "ulog", "ulogs", ".ulg", "onboard"),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "drone",
+            "drones",
+            "board",
+            "boards",
+            "vehicle",
+            "vehicles",
+            "flight",
+            "flights",
+            "onboard",
+            "px4 log",
+            "px4 logs",
+            "ulog",
+            "ulogs",
+            ".ulg",
+        ),
+    )
+
+
+def _looks_like_mcp_client_setup_question(normalized: str) -> bool:
+    if not _has_domain_signal(normalized, ("mcp", "model context protocol")):
+        return False
+    if not _has_domain_signal(
+        normalized,
+        (
+            "n8n",
+            "claude",
+            "claude desktop",
+            "vs code",
+            "vscode",
+            "custom agent",
+            "custom ai agent",
+            "client",
+            "connector",
+            "connect",
+            "external agent",
+        ),
+    ):
+        return False
+    return _has_domain_signal(
+        normalized,
+        (
+            "connect",
+            "address",
+            "url",
+            "endpoint",
+            "port",
+            "auth",
+            "token",
+            "scope",
+            "consideration",
+            "considerations",
+            "setup",
+            "configure",
+            "use",
+        ),
     )
 
 

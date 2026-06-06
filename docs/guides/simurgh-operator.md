@@ -13,7 +13,12 @@ usable read-only operator slice:
 - editable agent context files
 - ChatGPT-style dashboard operator chat with local history
 - dashboard assistant progress and answer streaming over a GCS-side SSE route
+- compact activity trace that shows the current step, fades the last one or two
+  evidence steps, and hides detailed trace rows behind an in-message disclosure
 - optional advisory-only OpenAI Responses adapter
+- optional public web search for safe current/public facts, separated from local
+  MDS state so installed firmware, fleet state, logs, IPs, and credentials stay
+  on approved local tools
 - optional MCP endpoint with resources and policy-allowed read-only GCS tools
 - typed arguments for reviewed read-only MCP tools where needed
 - dashboard chat execution of selected read-only registry tools, including
@@ -21,6 +26,8 @@ usable read-only operator slice:
   through the same internal adapter used by MCP `tools/call`
 - generated OpenAPI candidate inventory that is not runtime-callable by default
 - generated public docs/chunk index with MCP search and bounded chunk retrieval
+- read-only drone log and onboard PX4 ULog metadata summaries through approved
+  GCS-side log endpoints, without raw ULog download/erase exposure
 - no real-world command execution
 - no direct drone API exposure
 

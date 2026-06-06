@@ -130,6 +130,9 @@ function readStoredConversations() {
               trace: message.trace && typeof message.trace === 'object' && !Array.isArray(message.trace) ? message.trace : undefined,
               safety_notes: Array.isArray(message.safety_notes) ? message.safety_notes.slice(0, 8) : [],
               blocked_intents: Array.isArray(message.blocked_intents) ? message.blocked_intents.slice(0, 8) : [],
+              progress: Array.isArray(message.progress)
+                ? message.progress.map(normalizeProgressStep).filter(Boolean).slice(-6)
+                : [],
             }))
           : [],
       }))
@@ -155,6 +158,9 @@ function writeStoredConversations(conversations) {
           trace: message.trace && typeof message.trace === 'object' && !Array.isArray(message.trace) ? message.trace : undefined,
           safety_notes: Array.isArray(message.safety_notes) ? message.safety_notes.slice(0, 8) : [],
           blocked_intents: Array.isArray(message.blocked_intents) ? message.blocked_intents.slice(0, 8) : [],
+          progress: Array.isArray(message.progress)
+            ? message.progress.map(normalizeProgressStep).filter(Boolean).slice(-6)
+            : [],
         })),
     }));
     window.localStorage.setItem(
@@ -187,8 +193,17 @@ function normalizeProgressState(value = '') {
   if (state === 'running' || state === 'active' || state === 'started') {
     return 'running';
   }
+  if (state === 'requested' || state === 'queued' || state === 'pending') {
+    return 'requested';
+  }
   if (state === 'complete' || state === 'completed' || state === 'success' || state === 'done') {
     return 'complete';
+  }
+  if (state === 'fallback') {
+    return 'fallback';
+  }
+  if (state === 'skipped' || state === 'skip') {
+    return 'skipped';
   }
   if (state === 'warning' || state === 'warn') {
     return 'warning';
@@ -221,14 +236,41 @@ function normalizeProgressStep(step) {
   const stage = String(step.stage || '').trim();
   const state = normalizeProgressState(step.state);
   const toolId = String(step.tool_id || step.toolId || '').trim();
-  const key = [stage, state, toolId, label].filter(Boolean).join(':') || label;
+  const toolIds = Array.isArray(step.tool_ids)
+    ? step.tool_ids.map((item) => String(item || '').trim()).filter(Boolean)
+    : [];
+  const intent = String(step.intent || '').trim();
+  const key = [toolId || toolIds.join(',') || intent || stage, label].filter(Boolean).join(':') || label;
   return {
     label,
     stage,
     state,
     tool_id: toolId,
+    tool_ids: toolIds,
+    intent,
     key,
   };
+}
+
+function isSpecificProgressStep(step) {
+  if (!step) {
+    return false;
+  }
+  return Boolean(
+    step.tool_id
+    || (Array.isArray(step.tool_ids) && step.tool_ids.length)
+    || step.intent
+    || ['tool', 'search', 'provider'].includes(step.stage)
+  );
+}
+
+function isGenericProgressStep(step) {
+  if (!step || isSpecificProgressStep(step)) {
+    return false;
+  }
+  const label = String(step.label || '').toLowerCase();
+  return ['understanding', 'policy', 'context', 'plan', 'answer'].includes(step.stage)
+    || /reading request|understanding request|checking safety|selecting mds|writing answer|streaming answer/.test(label);
 }
 
 function appendProgressStep(steps = [], payload = '') {
@@ -240,7 +282,25 @@ function appendProgressStep(steps = [], payload = '') {
     .map(normalizeProgressStep)
     .filter(Boolean)
     .filter((step) => step.key !== normalized.key);
-  return [...existing, normalized].slice(-8);
+  const hasSpecificEvidence = existing.some(isSpecificProgressStep) || isSpecificProgressStep(normalized);
+  if (isGenericProgressStep(normalized) && existing.some(isSpecificProgressStep)) {
+    return existing.slice(-10);
+  }
+  const compactExisting = hasSpecificEvidence ? existing.filter((step) => !isGenericProgressStep(step)) : existing;
+  return [...compactExisting, normalized].slice(-10);
+}
+
+function finalizeProgressSteps(progress = [], finalData = {}) {
+  const existing = (Array.isArray(progress) ? progress : [])
+    .map(normalizeProgressStep)
+    .filter(Boolean)
+    .filter((step) => !isGenericProgressStep(step))
+    .map((step) => (step.state === 'running' ? { ...step, state: 'complete' } : step));
+  const summary = getTraceSummary(finalData.trace || {}, finalData);
+  const finalStep = summary
+    ? { stage: 'result', state: 'complete', intent: 'assistant_answer', label: summary }
+    : { stage: 'result', state: 'complete', intent: 'assistant_answer', label: 'Answer ready' };
+  return appendProgressStep(existing, finalStep).slice(-6);
 }
 
 function titleCaseTraceLabel(value = '') {
@@ -293,17 +353,17 @@ function getTraceToolIds(trace = {}) {
 function getTraceSummary(trace = {}, message = {}) {
   const toolIds = getTraceToolIds(trace);
   if (toolIds.length === 1) {
-    return 'Checked 1 read-only MDS tool';
+    return 'Evidence ready';
   }
   if (toolIds.length > 1) {
-    return `Checked ${toolIds.length} read-only MDS tools`;
+    return `Evidence ready · ${toolIds.length} sources`;
   }
 
   if (trace?.provider_tools?.web_search_returned) {
-    return 'Searched public web';
+    return 'Public web sources';
   }
   if (trace?.provider_tools?.web_search_requested) {
-    return 'Requested public web search';
+    return 'Public lookup requested';
   }
 
   const retrievedCount = Number(trace?.context?.retrieved_context_count || 0);
@@ -313,7 +373,7 @@ function getTraceSummary(trace = {}, message = {}) {
   }
 
   if (trace?.provider === 'openai' || message.provider === 'openai') {
-    return 'Composed with OpenAI';
+    return 'OpenAI answer ready';
   }
 
   if (trace?.query?.domain || trace?.tool?.intent || trace?.safety?.action_execution) {
@@ -1267,29 +1327,65 @@ function MessageContent({ content }) {
 }
 
 function MessageActivity({ progress = [], streaming = false }) {
+  const [expanded, setExpanded] = useState(false);
   const steps = (Array.isArray(progress) ? progress : [])
     .map(normalizeProgressStep)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((step, index, allSteps) => {
+      if (!isGenericProgressStep(step)) {
+        return true;
+      }
+      return !allSteps.some((candidate) => candidate !== step && isSpecificProgressStep(candidate));
+    });
   const latestStep = steps.length
     ? steps[steps.length - 1]
     : (streaming ? { label: 'Thinking', stage: 'understanding', state: 'running', tool_id: '', key: 'thinking' } : null);
   if (!latestStep && !streaming) {
     return null;
   }
-  const previousSteps = steps.slice(Math.max(0, steps.length - 6), -1);
+  const previousSteps = steps.slice(Math.max(0, steps.length - 3), -1);
+  const detailSteps = steps.slice(0, -1);
+  const currentState = latestStep?.state || (streaming ? 'running' : 'complete');
   return (
     <div className="simurgh-chat__activity" role={streaming ? 'status' : undefined} aria-live={streaming ? 'polite' : undefined}>
-      <div className="simurgh-chat__activity-current">
-        <span className="simurgh-chat__thinking">{streaming ? 'Working' : 'Completed'}</span>
+      <div className={`simurgh-chat__activity-current simurgh-chat__activity-current--${currentState}`}>
+        <span className="simurgh-chat__thinking">{streaming || currentState === 'running' ? 'Working' : 'Ready'}</span>
         {latestStep ? <span className="simurgh-chat__activity-label">{latestStep.label}</span> : null}
+        {detailSteps.length > 0 ? (
+          <button
+            type="button"
+            className="simurgh-chat__activity-toggle"
+            aria-label={expanded ? 'Hide Simurgh activity details' : 'Show Simurgh activity details'}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
+          </button>
+        ) : null}
       </div>
       {previousSteps.length ? (
-        <ol className="simurgh-chat__activity-list" aria-label="Recent Simurgh activity">
+        <ol className="simurgh-chat__activity-list" aria-label="Recent Simurgh activity preview">
           {previousSteps.map((step, index) => {
             const state = step.state || 'complete';
             return (
-              <li key={`${step.key}-${index}`} className={`simurgh-chat__activity-step simurgh-chat__activity-step--${state}`}>
+              <li
+                key={`${step.key}-${index}`}
+                className={`simurgh-chat__activity-step simurgh-chat__activity-step--${state} simurgh-chat__activity-step--preview-${previousSteps.length - index}`}
+              >
                 {state === 'running' ? <FaCog aria-hidden="true" /> : <FaCheckCircle aria-hidden="true" />}
+                <span>{step.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+      {expanded && detailSteps.length ? (
+        <ol className="simurgh-chat__activity-details" aria-label="Simurgh activity details">
+          {detailSteps.map((step, index) => {
+            const state = step.state || 'complete';
+            return (
+              <li key={`detail-${step.key}-${index}`} className={`simurgh-chat__activity-detail simurgh-chat__activity-detail--${state}`}>
+                <span className="simurgh-chat__activity-detail-dot" aria-hidden="true" />
                 <span>{step.label}</span>
               </li>
             );
@@ -1577,7 +1673,7 @@ export default function SimurghOperatorPage() {
       content: '',
       createdAt: nowIso(),
       streaming: true,
-      progress: [{ stage: 'understanding', state: 'running', label: 'Understanding request' }],
+      progress: [{ stage: 'understanding', state: 'running', label: 'Reading request' }],
     };
     setDraft('');
     setSubmitting(true);
@@ -1634,7 +1730,7 @@ export default function SimurghOperatorPage() {
                 safety_notes: finalData.safety_notes || currentMessage.safety_notes || [],
                 audit_event_id: finalData.audit_event_id || currentMessage.audit_event_id,
                 streaming: false,
-                progress: [],
+                progress: finalizeProgressSteps(currentMessage.progress || [], finalData),
               }));
             }
           },
@@ -1669,7 +1765,7 @@ export default function SimurghOperatorPage() {
               safety_notes: finalData.safety_notes || currentMessage.safety_notes || [],
               audit_event_id: finalData.audit_event_id || currentMessage.audit_event_id,
               streaming: false,
-              progress: [],
+              progress: finalizeProgressSteps(currentMessage.progress || [], finalData),
             }
             : currentMessage
         )),
@@ -1680,7 +1776,7 @@ export default function SimurghOperatorPage() {
         updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
           ...currentMessage,
           streaming: false,
-          progress: [],
+          progress: finalizeProgressSteps(currentMessage.progress || [], { content: currentMessage.content }),
           content: currentMessage.content || 'Response stopped.',
         }));
       } else {
@@ -1689,7 +1785,7 @@ export default function SimurghOperatorPage() {
         updateConversationMessage(conversationId, assistantMessageId, (currentMessage) => ({
           ...currentMessage,
           streaming: false,
-          progress: [],
+          progress: appendProgressStep(currentMessage.progress || [], { stage: 'error', state: 'error', label: 'Request failed' }),
           content: detail,
         }));
       }

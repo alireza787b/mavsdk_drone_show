@@ -295,7 +295,7 @@ describe('SimurghOperatorPage', () => {
     expect(screen.getAllByText('How many drones do we have configured?').length).toBeGreaterThan(0);
   });
 
-  test('renders structured live activity steps without keeping debug noise after final answer', async () => {
+  test('renders compact live activity and keeps final evidence without debug noise', async () => {
     const finalTurn = assistantTurnData({
       id: 'turn_activity',
       content: 'Connectivity from GCS state: 1/2 drone(s) currently look live.',
@@ -303,7 +303,7 @@ describe('SimurghOperatorPage', () => {
     });
     let releaseStream;
     mockStreamSimurghAssistantTurnResponse.mockImplementationOnce(async (payload, config = {}) => {
-      config.onEvent?.({ event: 'progress', data: { stage: 'understanding', state: 'running', label: 'Understanding request' } });
+      config.onEvent?.({ event: 'progress', data: { stage: 'understanding', state: 'running', label: 'Reading request' } });
       config.onEvent?.({ event: 'progress', data: { stage: 'context', state: 'complete', label: 'Retrieved MDS context' } });
       config.onEvent?.({ event: 'progress', data: { stage: 'plan', state: 'complete', label: 'Planned read-only checks' } });
       config.onEvent?.({ event: 'progress', data: { stage: 'tool', state: 'running', tool_id: 'mds.fleet.telemetry.read', label: 'Checking fleet telemetry' } });
@@ -322,16 +322,16 @@ describe('SimurghOperatorPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
     expect(await screen.findByText('Checking fleet telemetry')).toBeInTheDocument();
-    const activity = screen.getByLabelText('Recent Simurgh activity');
-    expect(within(activity).getByText('Retrieved MDS context')).toBeInTheDocument();
-    expect(within(activity).getByText('Planned read-only checks')).toBeInTheDocument();
+    expect(screen.queryByText('Retrieved MDS context')).not.toBeInTheDocument();
+    expect(screen.queryByText('Planned read-only checks')).not.toBeInTheDocument();
     await waitFor(() => expect(releaseStream).toEqual(expect.any(Function)));
     releaseStream();
 
     expect((await screen.findAllByText(/1\/2 drone\(s\) currently look live/i)).length).toBeGreaterThan(0);
     await waitFor(() => {
-      expect(screen.queryByText('Checking fleet telemetry')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Recent Simurgh activity')).not.toBeInTheDocument();
+      expect(screen.getByText('Answer ready')).toBeInTheDocument();
+      expect(screen.getByText('Checking fleet telemetry')).toBeInTheDocument();
+      expect(screen.queryByText('Retrieved MDS context')).not.toBeInTheDocument();
     });
   });
 
@@ -479,7 +479,7 @@ describe('SimurghOperatorPage', () => {
     fireEvent.change(input, { target: { value: 'which drones are connected?' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
-    const disclosure = await screen.findByRole('button', { name: /checked 2 read-only mds tools/i });
+    const disclosure = await screen.findByRole('button', { name: /evidence ready · 2 sources/i });
     const answerText = screen
       .getAllByText(/Connectivity from GCS state: 1\/2 drone\(s\) currently look live/i)
       .find((node) => node.closest('.simurgh-chat__markdown'));
@@ -542,7 +542,7 @@ describe('SimurghOperatorPage', () => {
     fireEvent.change(input, { target: { value: 'how is the weather today in Taipei?' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
-    const disclosure = await screen.findByRole('button', { name: /searched public web/i });
+    const disclosure = await screen.findByRole('button', { name: /public web sources/i });
     fireEvent.click(disclosure);
 
     expect(screen.getByText('Lookup')).toBeInTheDocument();
@@ -586,7 +586,7 @@ describe('SimurghOperatorPage', () => {
     fireEvent.change(input, { target: { value: 'how is the weather today in Taipei?' } });
     fireEvent.click(screen.getByRole('button', { name: /send simurgh message/i }));
 
-    const disclosure = await screen.findByRole('button', { name: /searched public web/i });
+    const disclosure = await screen.findByRole('button', { name: /public web sources/i });
     fireEvent.click(disclosure);
 
     expect(screen.getByText('No citation URLs returned')).toBeInTheDocument();

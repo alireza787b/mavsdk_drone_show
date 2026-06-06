@@ -166,6 +166,18 @@ def test_registry_planner_routes_out_of_sync_prompts_to_fleet_git_sync_posture()
     assert _plan_tool_ids(plan)[:2] == ("mds.fleet.git_sync.read", "mds.git.status.read")
 
 
+def test_registry_planner_defers_all_drone_log_prompts_to_advisory_fanout():
+    tools = list_policy_allowed_read_only_tools(channel="assistant")
+
+    plan = plan_registry_read_tool_calls(
+        "how many drone logs do we have and was there any errors logged?",
+        allowed_tools=tools,
+        local_intent="drone_log_summary",
+    )
+
+    assert plan is None
+
+
 def test_registry_planner_extracts_json_launch_position_heading():
     tools = list_policy_allowed_read_only_tools(channel="assistant")
 

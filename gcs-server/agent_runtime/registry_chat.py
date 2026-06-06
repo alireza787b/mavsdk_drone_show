@@ -195,6 +195,7 @@ _ADVISORY_FIRST_INTENTS = frozenset(
         "command_summary",
         "companion_setup_help",
         "docs_help",
+        "drone_log_summary",
         "environment_summary",
         "fleet_connectivity",
         "fleet_summary",
@@ -518,6 +519,8 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
     intent = str(local_intent or "").strip()
     if intent not in _ADVISORY_FIRST_INTENTS:
         return False
+    if intent == "drone_log_summary":
+        return True
     if argument_ids:
         return False
     if intent == "fleet_summary" and _has_any(
@@ -535,7 +538,7 @@ def _should_defer_to_advisory(local_intent: str | None, text: str, *, argument_i
         ),
     ):
         return False
-    if intent in {"backend_log_summary", "fleet_connectivity", "fleet_summary"}:
+    if intent in {"backend_log_summary", "drone_log_summary", "fleet_connectivity", "fleet_summary"}:
         return True
     if intent == "docs_help" and _has_any(text, ("mission", "missions", "available", "current", "status", "running", "state")):
         return False

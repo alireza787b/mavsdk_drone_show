@@ -1486,6 +1486,170 @@ tools:
   - docs/guides/logging-system.md
   safety_notes:
   - Full log content remains bounded and redacted before model exposure.
+- id: mds.logs.drone_sessions.read
+  title: Read drone log sessions
+  description: Read available log sessions from one configured drone through the GCS log proxy.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/drone/{drone_id}/sessions
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - logs
+  - fleet_identity
+  - deployment
+  tags:
+  - logs
+  - diagnostics
+  - drone
+  - typed_args
+  - mcp
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - This is a GCS-proxied read-only session list; it does not stream raw log content or command a drone.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - drone_id
+    properties:
+      drone_id:
+        type: integer
+        minimum: 1
+        maximum: 9999
+        description: Hardware id of the configured drone.
+- id: mds.logs.drone_session.read
+  title: Read one drone log session
+  description: Read bounded content from one configured drone log session through the GCS log proxy.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/drone/{drone_id}/sessions/{session_id}
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - logs
+  - fleet_identity
+  - deployment
+  tags:
+  - logs
+  - diagnostics
+  - drone
+  - typed_args
+  - mcp
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - Drone log content remains bounded and redacted before model exposure.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - drone_id
+    - session_id
+    - limit
+    properties:
+      drone_id:
+        type: integer
+        minimum: 1
+        maximum: 9999
+        description: Hardware id of the configured drone.
+      session_id:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9_.-]+$
+        description: Drone log session id from mds.logs.drone_sessions.read.
+      level:
+        type: string
+        enum:
+        - DEBUG
+        - INFO
+        - WARNING
+        - ERROR
+        - CRITICAL
+        description: Optional log level filter.
+      component:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: ^[A-Za-z0-9_.:-]+$
+        description: Optional component/logger filter.
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 200
+        description: Maximum number of lines to return.
+      offset:
+        type: integer
+        minimum: 0
+        maximum: 100000
+        description: Offset into the filtered session lines.
+      since:
+        type: string
+        minLength: 1
+        maxLength: 80
+        pattern: ^[A-Za-z0-9:_.+TZ -]+$
+        description: Optional timestamp filter passed to the log API.
+- id: mds.logs.drone_ulog_files.read
+  title: Read drone ULog files
+  description: List onboard PX4 ULog files for one configured drone through the GCS log proxy without downloading content.
+  exposure: allow
+  risk_class: sensitive_observe
+  boundary: gcs
+  read_only: true
+  route:
+    method: GET
+    path: /api/logs/drone/{drone_id}/ulog/files
+  required_role: viewer
+  runtime_modes:
+  - read_only
+  - sitl
+  - real
+  side_effects: []
+  sensitivity:
+  - logs
+  - fleet_identity
+  - evidence
+  tags:
+  - logs
+  - diagnostics
+  - drone
+  - ulog
+  - px4
+  - typed_args
+  - mcp
+  docs:
+  - docs/guides/logging-system.md
+  safety_notes:
+  - Lists onboard ULog metadata only; it does not create download jobs, stream file content, or erase logs.
+  input_schema:
+    type: object
+    additionalProperties: false
+    required:
+    - drone_id
+    properties:
+      drone_id:
+        type: integer
+        minimum: 1
+        maximum: 9999
+        description: Hardware id of the configured drone.
 - id: mds.commands.statistics.read
   title: Read command statistics
   description: Read aggregate GCS command-tracker statistics without creating or

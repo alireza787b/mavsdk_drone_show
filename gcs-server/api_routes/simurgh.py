@@ -615,29 +615,44 @@ def _assistant_tool_progress_payload(payload: dict[str, Any]) -> dict[str, Any]:
         if len(tool_ids) > len(titles):
             joined_titles = f"{joined_titles}; +{len(tool_ids) - len(titles)} more" if joined_titles else f"{len(tool_ids)} tools"
         label = (
-            f"Using read-only MDS tool: {joined_titles}"
+            f"Read-only evidence ready: {joined_titles}"
             if len(tool_ids) == 1
-            else f"Using {len(tool_ids)} read-only MDS tools: {joined_titles}"
+            else f"Read-only evidence ready from {len(tool_ids)} sources: {joined_titles}"
         )
-        return {"stage": "tool", "label": label, "intent": tool_intent, "tool_ids": tool_ids}
+        return {"stage": "tool", "state": "complete", "label": label, "intent": tool_intent, "tool_ids": tool_ids}
 
     if tool_intent:
-        return {"stage": "tool", "label": f"Using {tool_intent.replace('_', ' ')}", "intent": tool_intent}
+        return {"stage": "tool", "state": "complete", "label": f"Evidence ready: {tool_intent.replace('_', ' ')}", "intent": tool_intent}
     if provider == "openai" and provider_tools.get("web_search_requested") is True:
         returned = provider_tools.get("web_search_returned") is True
         return {
             "stage": "search",
             "state": "complete" if returned else "requested",
-            "label": "Searched public web" if returned else "Requested public web search",
+            "label": "Public web search ready" if returned else "Public web search requested",
             "provider": "openai",
             "scope": "public_general_only",
         }
     if provider == "openai":
-        return {"stage": "provider", "label": "Composing with OpenAI provider"}
-    return {"stage": "provider", "label": "Composing local response"}
+        return {"stage": "provider", "state": "complete", "label": "OpenAI answer ready"}
+    return {"stage": "provider", "state": "complete", "label": "Local answer ready"}
 
 
 AssistantProgressCallback = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+class _RequestScopedDeps:
+    def __init__(self, base: Any | None, request: Request):
+        self._base = base
+        self.simurgh_request_base_url = str(request.base_url).rstrip("/")
+
+    def __getattr__(self, name: str) -> Any:
+        if self._base is None:
+            raise AttributeError(name)
+        return getattr(self._base, name)
+
+
+def _request_scoped_deps(base: Any | None, request: Request) -> Any:
+    return _RequestScopedDeps(base, request)
 
 
 async def _emit_assistant_progress(
@@ -672,11 +687,11 @@ def _assistant_understanding_progress_payload(
     if previous_evidence_followup:
         label = f"Following up on previous {domain_label} evidence"
     elif intent:
-        label = f"Understood: {domain_label} - {_title_case_progress_value(intent)}"
+        label = f"Understanding: {domain_label} - {_title_case_progress_value(intent)}"
     elif mode_label:
-        label = f"Understood: {domain_label} - {mode_label}"
+        label = f"Understanding: {domain_label} - {mode_label}"
     else:
-        label = f"Understood: {domain_label}"
+        label = f"Understanding: {domain_label}"
 
     return {
         "stage": "understanding",
@@ -694,11 +709,11 @@ def _assistant_understanding_progress_payload(
 def _registry_plan_progress_payload(plan) -> dict[str, Any]:
     tool_ids = [call.tool.id for call in plan.tool_calls]
     count = len(tool_ids)
-    label = "Planning read-only MDS tool use"
+    label = "Selecting read-only evidence"
     if count == 1:
-        label = f"Planned read-only tool: {plan.tool_calls[0].tool.title}"
+        label = f"Selected read-only evidence: {plan.tool_calls[0].tool.title}"
     elif count > 1:
-        label = f"Planned {count} read-only MDS tools"
+        label = f"Selected {count} read-only evidence sources"
     return {
         "stage": "plan",
         "state": "complete",
@@ -711,11 +726,11 @@ def _registry_plan_progress_payload(plan) -> dict[str, Any]:
 
 def _registry_tool_call_progress_payload(call, *, state: str, result=None) -> dict[str, Any]:
     if state == "running":
-        label = f"Checking {call.tool.title}"
+        label = f"Reading {call.tool.title}"
     elif result is not None and getattr(result, "is_error", False):
-        label = f"Checked {call.tool.title}: error"
+        label = f"{call.tool.title} returned an error"
     else:
-        label = f"Checked {call.tool.title}"
+        label = f"{call.tool.title} ready"
     payload: dict[str, Any] = {
         "stage": "tool",
         "state": state,
@@ -1750,12 +1765,13 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                     progress_callback=progress_callback,
                 )
             else:
+                request_deps = _request_scoped_deps(deps, http_request)
                 record = create_assistant_turn(
                     sessions=sessions,
                     audit=audit,
                     actor=actor,
                     message=turn_request.message,
-                    deps=deps,
+                    deps=request_deps,
                     session_id=turn_request.session_id,
                     mode=turn_request.mode,
                     context_resource_ids=_bounded_context_resource_ids(turn_request.context_resource_ids),
@@ -1788,11 +1804,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
         async def event_stream():
             turn_task = None
             try:
-                yield _assistant_sse_event("progress", {"stage": "understanding", "label": "Understanding request"})
-                await asyncio.sleep(0)
-                yield _assistant_sse_event("progress", {"stage": "policy", "label": "Checking safety and access policy"})
-                await asyncio.sleep(0)
-                yield _assistant_sse_event("progress", {"stage": "context", "label": "Selecting MDS context and tools"})
+                yield _assistant_sse_event("progress", {"stage": "understanding", "state": "running", "label": "Reading request"})
                 await asyncio.sleep(0)
 
                 progress_queue: asyncio.Queue[tuple[str, dict[str, Any]]] = asyncio.Queue()
@@ -1843,7 +1855,7 @@ def create_simurgh_router(deps: Any | None = None) -> APIRouter:
                 await asyncio.sleep(0)
                 content = str(payload.get("content") or "")
                 if content:
-                    yield _assistant_sse_event("progress", {"stage": "answer", "label": "Streaming answer"})
+                    yield _assistant_sse_event("progress", {"stage": "answer", "state": "running", "label": "Writing answer"})
                     await asyncio.sleep(0)
                     for chunk in _assistant_content_chunks(content):
                         yield _assistant_sse_event("delta", {"text": chunk})

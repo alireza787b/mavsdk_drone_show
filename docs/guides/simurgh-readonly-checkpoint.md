@@ -1,7 +1,7 @@
 # Simurgh Read-Only Checkpoint
 
 Status: read-only checkpoint before action-enabled Simurgh slices, updated
-2026-06-05.
+2026-06-06.
 
 This guide is the public-safe handoff for the current Simurgh Operator phase. It
 summarizes what is intentionally available today, what must remain blocked, how
@@ -19,16 +19,28 @@ general questions.
 The current scope includes:
 
 - chat-first `/simurgh` dashboard with local chat history, Markdown rendering,
-  copy controls, and in-message progress/activity events;
-- sanitized streaming stages for understanding, policy, context, tool use,
-  provider/web-search progress, answer deltas, final, and done;
+  copy controls, and compact in-message progress/activity events;
+- sanitized streaming stages for understanding, selected evidence, public web
+  lookup, provider composition, answer deltas, final, and done. The dashboard
+  shows the current activity plus one or two fading previous items, with fuller
+  detail collapsed behind a small disclosure;
 - shared query adaptation and short session topic memory for typo-heavy,
   follow-up, multilingual, and tone-sensitive operator prompts;
+- optional public web search for safe current upstream/public facts such as the
+  latest PX4 release. Local deployment questions such as installed firmware,
+  fleet state, telemetry, logs, IPs, credentials, or actions stay on local MDS
+  tools and are not sent to public web search;
 - curated read-only tool registry in `config/agent_tools.yaml`;
 - policy review in `config/agent_policy.yaml` before any tool is callable;
 - MCP Streamable HTTP endpoint at `POST /api/v1/simurgh/mcp` when enabled;
 - MCP resources and tools backed by the same registry/policy executor used by
   the dashboard assistant;
+- deployment-aware MCP setup answers. Simurgh prefers `MDS_MCP_RESOURCE_URL`,
+  then the current dashboard/API request origin, then documented path-only
+  fallback when no public URL is configured;
+- read-only drone log session and onboard PX4 ULog metadata inspection through
+  approved GCS-side log endpoints. This lists session/ULog evidence and recent
+  warning/error counts without downloading, parsing, or erasing raw flight logs;
 - generated OpenAPI candidate inventory for review coverage, not execution;
 - generated public docs index for `mds.docs.search` and `mds.docs.chunk.read`;
 - dashboard/runtime controls for provider, model, API-key file status, MCP,
@@ -111,9 +123,12 @@ hardcoded chatbot:
 - `Which drones are connected now, and what evidence do you have?`
 - `Is there a drone show uploaded and ready? How long is it?`
 - `Check the latest GCS logs. Does anything look operationally important?`
+- `How many drone log sessions and ULog files do we have? Were any errors seen?`
 - `What is the difference between QuickScout and Swarm Trajectory?`
 - `Does MDS support ArduPilot today?`
+- `What is the latest PX4 stable release version?`
 - `How do I change the Simurgh OpenAI key safely?`
+- `If I want to connect n8n to Simurgh MCP, what address and considerations should I use?`
 - `Can n8n or VS Code use the same MCP tool menu?`
 - `Say that last answer in Persian.`
 - `What is MAVLink?`

@@ -1,5 +1,5 @@
 {
-  "chunk_count": 808,
+  "chunk_count": 810,
   "chunks": [
     {
       "audience": "operator",
@@ -228,7 +228,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
-      "content_hash": "c8db24e1a2a9742479d5eddb0e9a2c41a90c922dbb6ea15094330e23bef40c11",
+      "content_hash": "30487915433d88f29427b3c41ca64cf4f18facf4b803f7838e571693346d1338",
       "heading": "Simurgh Operator",
       "id": "simurgh.operator_guide:001-01-simurgh-operator",
       "links": [
@@ -244,7 +244,7 @@
         "operator",
         "dashboard"
       ],
-      "text": "# Simurgh Operator\n\nSimurgh Operator is the MDS agent-safe control-plane foundation for future MCP\nservers and dashboard assistant workflows.\n\nThe current implementation is still deny-by-default, but it now includes a\nusable read-only operator slice:\n\n- provider-neutral runtime primitives\n- deny-by-default policy evaluation\n- YAML-backed curated tool registry\n- approval, audit, session, and context-index helpers\n- editable agent context files\n- ChatGPT-style dashboard operator chat with local history\n- dashboard assistant progress and answer streaming over a GCS-side SSE route\n- optional advisory-only OpenAI Responses adapter\n- optional MCP endpoint with resources and policy-allowed read-only GCS tools\n- typed arguments for reviewed read-only MCP tools where needed\n- dashboard chat execution of selected read-only registry tools, including\n reviewed typed-argument reads when the operator gives explicit IDs/values,\n through the same internal adapter used by MCP `tools/call`\n- generated OpenAPI candidate inventory that is not runtime-callable by default\n- generated public docs/chunk index with MCP search and bounded chunk retrieval\n- no real-world command execution\n- no direct drone API exposure",
+      "text": "# Simurgh Operator\n\nSimurgh Operator is the MDS agent-safe control-plane foundation for future MCP\nservers and dashboard assistant workflows.\n\nThe current implementation is still deny-by-default, but it now includes a\nusable read-only operator slice:\n\n- provider-neutral runtime primitives\n- deny-by-default policy evaluation\n- YAML-backed curated tool registry\n- approval, audit, session, and context-index helpers\n- editable agent context files\n- ChatGPT-style dashboard operator chat with local history\n- dashboard assistant progress and answer streaming over a GCS-side SSE route\n- compact activity trace that shows the current step, fades the last one or two\n evidence steps, and hides detailed trace rows behind an in-message disclosure\n- optional advisory-only OpenAI Responses adapter\n- optional public web search for safe current/public facts, separated from local\n MDS state so installed firmware, fleet state, logs, IPs, and credentials stay\n on approved local tools\n- optional MCP endpoint with resources and policy-allowed read-only GCS tools\n- typed arguments for reviewed read-only MCP tools where needed\n- dashboard chat execution of selected read-only registry tools, including\n reviewed typed-argument reads when the operator gives explicit IDs/values,\n through the same internal adapter used by MCP `tools/call`\n- generated OpenAPI candidate inventory that is not runtime-callable by default\n- generated public docs/chunk index with MCP search and bounded chunk retrieval\n- read-only drone log and onboard PX4 ULog metadata summaries through approved\n GCS-side log endpoints, without raw ULog download/erase exposure\n- no real-world command execution\n- no direct drone API exposure",
       "title": "Simurgh operator guide"
     },
     {
@@ -948,7 +948,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "125b4aeabfa85e1070e8a0ea3638bf4bd17995b2f6dc29ad9d6a6367a590fea1",
+      "content_hash": "28fc3bf0c8adda95fb1ec3404325566e2c95beaebc5f9e7664f6b85d08d3aa44",
       "heading": "Simurgh MCP Client Recipes",
       "id": "simurgh.mcp_client_recipes:001-01-simurgh-mcp-client-recipes",
       "links": [],
@@ -963,13 +963,13 @@
         "clients",
         "integrations"
       ],
-      "text": "# Simurgh MCP Client Recipes\n\nStatus: read-only connector guidance, updated 2026-06-05.\n\nThis guide explains how external MCP clients should connect to the MDS Simurgh\nMCP endpoint without bypassing the GCS safety boundary.",
+      "text": "# Simurgh MCP Client Recipes\n\nStatus: read-only connector guidance, updated 2026-06-06.\n\nThis guide explains how external MCP clients should connect to the MDS Simurgh\nMCP endpoint without bypassing the GCS safety boundary.",
       "title": "Simurgh MCP client recipes"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "beda7627ba6bc930fb5104e9f7eef907db774d5eba149f95a378b2a8b4a43193",
+      "content_hash": "7a11542fb924dbcb04afc4ba895621d142b45b31d1e51f9d6cda7b698654ac61",
       "heading": "MDS Endpoint",
       "id": "simurgh.mcp_client_recipes:002-01-mds-endpoint",
       "links": [],
@@ -984,13 +984,13 @@
         "clients",
         "integrations"
       ],
-      "text": "## MDS Endpoint\n\nThe Simurgh MCP endpoint is:\n\n```text\nPOST https://<gcs-host>/api/v1/simurgh/mcp\n```\n\nFor the current production-style demo, the API port is `5030`, but production\nclients should use the approved HTTPS hostname or gateway when available. Do not\npublish a field GCS directly to the internet only to make an MCP client work.\n\nRequired runtime posture for this read-only slice:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=true\nMDS_MCP_REQUIRE_AUTH=true\nMDS_MCP_REQUIRED_SCOPES=agent,admin\nMDS_AGENT_ACTION_CIRCUIT_BREAKER=true\nMDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true\n```\n\n`MDS_MODE` remains the canonical real-vs-SITL GCS runtime switch. MCP does not\nhave a separate real/SITL mode. When the circuit breaker is on, action-capable\nfuture tools must dry-run to the last execution layer and report what would have\nbeen executed instead of mutating GCS state.",
+      "text": "## MDS Endpoint\n\nThe Simurgh MCP endpoint is:\n\n```text\nPOST https://<gcs-host>/api/v1/simurgh/mcp\n```\n\nFor the current production-style demo, the API port is `5030`, but production\nclients should use the approved HTTPS hostname or gateway when available. Do not\npublish a field GCS directly to the internet only to make an MCP client work.\nSet `MDS_MCP_RESOURCE_URL` when MDS is behind a reverse proxy or gateway. The\ndashboard assistant and protected-resource metadata use that value as the\ncanonical endpoint; when it is empty, Simurgh derives the endpoint from the\nincoming dashboard/API request and finally falls back to the relative\n`/api/v1/simurgh/mcp` path.\n\nRequired runtime posture for this read-only slice:\n\n```text\nMDS_AGENT_ENABLED=true\nMDS_MCP_ENABLED=true\nMDS_MCP_REQUIRE_AUTH=true\nMDS_MCP_REQUIRED_SCOPES=agent,admin\nMDS_AGENT_ACTION_CIRCUIT_BREAKER=true\nMDS_AGENT_ALWAYS_CONFIRM_BEFORE_ACTION=true\n```\n\n`MDS_MODE` remains the canonical real-vs-SITL GCS runtime switch. MCP does not\nhave a separate real/SITL mode. When the circuit breaker is on, action-capable\nfuture tools must dry-run to the last execution layer and report what would have\nbeen executed instead of mutating GCS state.",
       "title": "Simurgh MCP client recipes"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "156e9283f54f991dbb8f8e4e2943fd539b13fc3a6016f2b2042aea9e639a65dd",
+      "content_hash": "c953664072bf6d0575dfd2cb3058fa1056d564cc304e5413d6bcc8c28a7ae88d",
       "heading": "Current Tool Surface",
       "id": "simurgh.mcp_client_recipes:003-01-current-tool-surface",
       "links": [],
@@ -1005,7 +1005,7 @@
         "clients",
         "integrations"
       ],
-      "text": "## Current Tool Surface\n\n`tools/list` exposes reviewed read-only tools only. The important operator-facing\nentries are:\n\n- `mds.operator.question.answer`\n- `mds.docs.search`\n- `mds.docs.chunk.read`\n- `mds.logs.sessions.read`\n- `mds.logs.session.read`\n- approved read-only fleet, show, runtime, and policy status tools\n\nGenerated OpenAPI candidates are available as a review resource, not as callable\ntools. A new FastAPI route is not executable through MCP until it is promoted\nthrough `config/agent_tools.yaml`, `config/agent_policy.yaml`, typed schemas,\ndocs, tests, and reviewer approval.\n\nFor reviewer/developer review, inspect the generated candidate inventory through:\n\n```http\nGET /api/v1/simurgh/tool-candidates?limit=200\n```\n\nThis endpoint reports generator-inferred eligibility, risk class, sensitivity,\nreview reasons, and existing curated registry matches. It is read-only and does\nnot affect `tools/list`.\n\nThe same response includes `summary.registry_coverage`, which is the review/dev\ncoverage gate for read-only completion. It shows how many generator-eligible\nread-only routes have already been promoted into `config/agent_tools.yaml`, how\nmany are still unpromoted, and a grouped preview of the remaining API areas.\nUnpromoted candidates are discovery/review items only; external MCP clients\ncannot call them until the curated registry and policy promote them.",
+      "text": "## Current Tool Surface\n\n`tools/list` exposes reviewed read-only tools only. The important operator-facing\nentries are:\n\n- `mds.operator.question.answer`\n- `mds.docs.search`\n- `mds.docs.chunk.read`\n- `mds.logs.sessions.read`\n- `mds.logs.session.read`\n- `mds.logs.drone_sessions.read`\n- `mds.logs.drone_session.read`\n- `mds.logs.drone_ulog_files.read`\n- approved read-only fleet, show, runtime, and policy status tools\n\nGenerated OpenAPI candidates are available as a review resource, not as callable\ntools. A new FastAPI route is not executable through MCP until it is promoted\nthrough `config/agent_tools.yaml`, `config/agent_policy.yaml`, typed schemas,\ndocs, tests, and reviewer approval.\n\nFor reviewer/developer review, inspect the generated candidate inventory through:\n\n```http\nGET /api/v1/simurgh/tool-candidates?limit=200\n```\n\nThis endpoint reports generator-inferred eligibility, risk class, sensitivity,\nreview reasons, and existing curated registry matches. It is read-only and does\nnot affect `tools/list`.\n\nThe same response includes `summary.registry_coverage`, which is the review/dev\ncoverage gate for read-only completion. It shows how many generator-eligible\nread-only routes have already been promoted into `config/agent_tools.yaml`, how\nmany are still unpromoted, and a grouped preview of the remaining API areas.\nUnpromoted candidates are discovery/review items only; external MCP clients\ncannot call them until the curated registry and policy promote them.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -1074,7 +1074,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
-      "content_hash": "0ed6458d220f58598088a81c0c4d2bc99dfeec460c061d343339809c5a0896a4",
+      "content_hash": "0867f2826c48197d8b801d04c04888266147e293c467a754eb12a86729106936",
       "heading": "External Client Compatibility Matrix",
       "id": "simurgh.mcp_client_recipes:006-02-external-client-compatibility-matrix",
       "links": [],
@@ -1089,7 +1089,7 @@
         "clients",
         "integrations"
       ],
-      "text": "The MCP layer is deliberately curated, not a raw automatic export of every GCS\nroute. OpenAPI candidates are generated automatically for reviewer visibility;\ncallable tools remain promoted through the registry/policy gate so new APIs can\nbe added quickly without exposing unsafe routes by accident.",
+      "text": "The MCP layer is deliberately curated, not a raw automatic export of every GCS\nroute. OpenAPI candidates are generated automatically for reviewer visibility;\ncallable tools remain promoted through the registry/policy gate so new APIs can\nbe added quickly without exposing unsafe routes by accident.\n\nDrone log and ULog tools are metadata-first. They can list per-drone log\nsessions and onboard PX4 ULog files and inspect bounded session warning/error\nlines through GCS-side routes. They do not download ULog content, parse flight\nduration, erase logs, or expose drone-local APIs directly to external MCP\nclients.",
       "title": "Simurgh MCP client recipes"
     },
     {
@@ -1221,7 +1221,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
-      "content_hash": "29a17a74c1ffbbbdd963af71df7292f9364a2b8e755971e5c2bc1861e5f0c198",
+      "content_hash": "c73127918e9e5dfb2b52bc229d8fdbf473892707fa31f826f47f6476a70de9f4",
       "heading": "Simurgh Read-Only Checkpoint",
       "id": "simurgh.readonly_checkpoint:001-01-simurgh-read-only-checkpoint",
       "links": [],
@@ -1237,13 +1237,13 @@
         "safety",
         "actions"
       ],
-      "text": "# Simurgh Read-Only Checkpoint\n\nStatus: read-only checkpoint before action-enabled Simurgh slices, updated\n2026-06-05.\n\nThis guide is the public-safe handoff for the current Simurgh Operator phase. It\nsummarizes what is intentionally available today, what must remain blocked, how\nfuture MCP/API work should be promoted, and which gates must pass before action\nexecution is added.",
+      "text": "# Simurgh Read-Only Checkpoint\n\nStatus: read-only checkpoint before action-enabled Simurgh slices, updated\n2026-06-06.\n\nThis guide is the public-safe handoff for the current Simurgh Operator phase. It\nsummarizes what is intentionally available today, what must remain blocked, how\nfuture MCP/API work should be promoted, and which gates must pass before action\nexecution is added.",
       "title": "Simurgh read-only checkpoint"
     },
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
-      "content_hash": "957e45fe4c4f1fcb57ca44ee33bb43f95194603cb694d613fb2c3af231fc46ff",
+      "content_hash": "c65a12b5be73a083d8c198a73886792271ad0fa7d5f0ef0223bfb8fb154fe5f8",
       "heading": "Current Scope",
       "id": "simurgh.readonly_checkpoint:002-01-current-scope",
       "links": [],
@@ -1259,7 +1259,29 @@
         "safety",
         "actions"
       ],
-      "text": "## Current Scope\n\nSimurgh is currently a read-only operator assistant and MCP interoperability\nsurface for GCS-side MDS state. It can inspect approved MDS/GCS information,\nanswer operator questions, search public MDS docs, explain setup/workflows, and\nuse optional advisory OpenAI text composition or public web search for safe\ngeneral questions.\n\nThe current scope includes:\n\n- chat-first `/simurgh` dashboard with local chat history, Markdown rendering,\n copy controls, and in-message progress/activity events;\n- sanitized streaming stages for understanding, policy, context, tool use,\n provider/web-search progress, answer deltas, final, and done;\n- shared query adaptation and short session topic memory for typo-heavy,\n follow-up, multilingual, and tone-sensitive operator prompts;\n- curated read-only tool registry in `config/agent_tools.yaml`;\n- policy review in `config/agent_policy.yaml` before any tool is callable;\n- MCP Streamable HTTP endpoint at `POST /api/v1/simurgh/mcp` when enabled;\n- MCP resources and tools backed by the same registry/policy executor used by\n the dashboard assistant;\n- generated OpenAPI candidate inventory for review coverage, not execution;\n- generated public docs index for `mds.docs.search` and `mds.docs.chunk.read`;\n- dashboard/runtime controls for provider, model, API-key file status, MCP,\n circuit breaker, and always-confirm posture.",
+      "text": "## Current Scope\n\nSimurgh is currently a read-only operator assistant and MCP interoperability\nsurface for GCS-side MDS state. It can inspect approved MDS/GCS information,\nanswer operator questions, search public MDS docs, explain setup/workflows, and\nuse optional advisory OpenAI text composition or public web search for safe\ngeneral questions.\n\nThe current scope includes:",
+      "title": "Simurgh read-only checkpoint"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
+      "content_hash": "e863a39e77113119afd6e4a20eeeaed186713607fdeeefa65f0502e4a6f74808",
+      "heading": "Current Scope",
+      "id": "simurgh.readonly_checkpoint:002-02-current-scope",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/simurgh-readonly-checkpoint.md",
+      "resource_id": "simurgh.readonly_checkpoint",
+      "route_hint": null,
+      "summary": "Current read-only Simurgh capabilities, validation gate, MCP/API promotion contract, and action-enabled roadmap.",
+      "tags": [
+        "simurgh",
+        "mcp",
+        "checkpoint",
+        "safety",
+        "actions"
+      ],
+      "text": "- chat-first `/simurgh` dashboard with local chat history, Markdown rendering,\n copy controls, and compact in-message progress/activity events;\n- sanitized streaming stages for understanding, selected evidence, public web\n lookup, provider composition, answer deltas, final, and done. The dashboard\n shows the current activity plus one or two fading previous items, with fuller\n detail collapsed behind a small disclosure;\n- shared query adaptation and short session topic memory for typo-heavy,\n follow-up, multilingual, and tone-sensitive operator prompts;\n- optional public web search for safe current upstream/public facts such as the\n latest PX4 release. Local deployment questions such as installed firmware,\n fleet state, telemetry, logs, IPs, credentials, or actions stay on local MDS\n tools and are not sent to public web search;\n- curated read-only tool registry in `config/agent_tools.yaml`;\n- policy review in `config/agent_policy.yaml` before any tool is callable;\n- MCP Streamable HTTP endpoint at `POST /api/v1/simurgh/mcp` when enabled;\n- MCP resources and tools backed by the same registry/policy executor used by\n the dashboard assistant;\n- deployment-aware MCP setup answers. Simurgh prefers `MDS_MCP_RESOURCE_URL`,\n then the current dashboard/API request origin, then documented path-only\n fallback when no public URL is configured;\n- read-only drone log session and onboard PX4 ULog metadata inspection through\n approved GCS-side log endpoints. This lists session/ULog evidence and recent\n warning/error counts without downloading, parsing, or erasing raw flight logs;\n- generated OpenAPI candidate inventory for review coverage, not execution;\n- generated public docs index for `mds.docs.search` and `mds.docs.chunk.read`;\n- dashboard/runtime controls for provider, model, API-key file status, MCP,\n circuit breaker, and always-confirm posture.",
       "title": "Simurgh read-only checkpoint"
     },
     {
@@ -1331,7 +1353,7 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
-      "content_hash": "8d720439e3123657226b1f47ef889f0552690ec55d7f6fcf4c482038a37f72a4",
+      "content_hash": "9017786e96ff0b92048a393e43b794b5e9624dbdd07b3ab7d93165b6838c0c6c",
       "heading": "PM Review Prompts",
       "id": "simurgh.readonly_checkpoint:006-01-pm-review-prompts",
       "links": [],
@@ -1347,7 +1369,7 @@
         "safety",
         "actions"
       ],
-      "text": "## PM Review Prompts\n\nUse these prompts to confirm the read-only checkpoint feels useful and not like a\nhardcoded chatbot:\n\n- `How many drones do we have configured?`\n- `Which drones are connected now, and what evidence do you have?`\n- `Is there a drone show uploaded and ready? How long is it?`\n- `Check the latest GCS logs. Does anything look operationally important?`\n- `What is the difference between QuickScout and Swarm Trajectory?`\n- `Does MDS support ArduPilot today?`\n- `How do I change the Simurgh OpenAI key safely?`\n- `Can n8n or VS Code use the same MCP tool menu?`\n- `Say that last answer in Persian.`\n- `What is MAVLink?`\n- `What is the lat/lon/elevation of Damavand Peak in WGS84?`\n\nExpected behavior: Simurgh should answer from MDS evidence when the question is\nabout MDS, use public/general knowledge or web search only for safe public\nquestions, remember the previous topic for follow-ups, and avoid repeating an\nunrelated tool summary.",
+      "text": "## PM Review Prompts\n\nUse these prompts to confirm the read-only checkpoint feels useful and not like a\nhardcoded chatbot:\n\n- `How many drones do we have configured?`\n- `Which drones are connected now, and what evidence do you have?`\n- `Is there a drone show uploaded and ready? How long is it?`\n- `Check the latest GCS logs. Does anything look operationally important?`\n- `How many drone log sessions and ULog files do we have? Were any errors seen?`\n- `What is the difference between QuickScout and Swarm Trajectory?`\n- `Does MDS support ArduPilot today?`\n- `What is the latest PX4 stable release version?`\n- `How do I change the Simurgh OpenAI key safely?`\n- `If I want to connect n8n to Simurgh MCP, what address and considerations should I use?`\n- `Can n8n or VS Code use the same MCP tool menu?`\n- `Say that last answer in Persian.`\n- `What is MAVLink?`\n- `What is the lat/lon/elevation of Damavand Peak in WGS84?`\n\nExpected behavior: Simurgh should answer from MDS evidence when the question is\nabout MDS, use public/general knowledge or web search only for safe public\nquestions, remember the previous topic for follow-ups, and avoid repeating an\nunrelated tool summary.",
       "title": "Simurgh read-only checkpoint"
     },
     {
@@ -15163,9 +15185,28 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
+      "content_hash": "6fadbb1b55986a8df6e4b639b44792ad1f1a3fd8339a0e57936b0d2e732ccbf2",
+      "heading": "Simurgh Read-Only Log Use",
+      "id": "mds.logging_system:022-01-simurgh-read-only-log-use",
+      "links": [],
+      "mime_type": "text/markdown",
+      "path": "docs/guides/logging-system.md",
+      "resource_id": "mds.logging_system",
+      "route_hint": "/logs",
+      "summary": "Unified logging system guide.",
+      "tags": [
+        "logs",
+        "diagnostics"
+      ],
+      "text": "### Simurgh Read-Only Log Use\n\nSimurgh may use reviewed read-only log tools to summarize per-drone log session\ncounts, bounded latest-session warning/error lines, and onboard PX4 ULog file\nmetadata. This path is for operator evidence only: it does not download ULog\ncontent, parse exact flight duration, erase logs, expose drone-local APIs to MCP\nclients, or treat backend API warnings as flight-log evidence. Exact flight time\nrequires a separate human-approved ULog download and parsing workflow.",
+      "title": "MDS logging system guide"
+    },
+    {
+      "audience": "operator",
+      "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "53ad22a7a2f38e1dbfe241247df0090893f18bc3fe5588b536acc20ef636273b",
       "heading": "SSE Stream Usage",
-      "id": "mds.logging_system:022-01-sse-stream-usage",
+      "id": "mds.logging_system:023-01-sse-stream-usage",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15184,7 +15225,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "d1bf5d62cdb8c4b26d27e46a9f146fadf21cb224c775fd90db359469d3205146",
       "heading": "Session Export",
-      "id": "mds.logging_system:023-01-session-export",
+      "id": "mds.logging_system:024-01-session-export",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15203,7 +15244,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "c0e496f1b4f527839d784007cf2c0339d0b0e783fdf54f590f1acd71b44537d7",
       "heading": "Single session as JSONL",
-      "id": "mds.logging_system:024-01-single-session-as-jsonl",
+      "id": "mds.logging_system:025-01-single-session-as-jsonl",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15222,7 +15263,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "0c922e407e250cc2891f17cc7334d8abf9c3e01aa2f65a222ef47220f2c95203",
       "heading": "Multiple sessions as ZIP",
-      "id": "mds.logging_system:025-01-multiple-sessions-as-zip",
+      "id": "mds.logging_system:026-01-multiple-sessions-as-zip",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15241,7 +15282,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "1d8966aaf0f7975c7ca45af51f15d5060cdf1280e1c0c832b03f43ded2811ef9",
       "heading": "Background Pull",
-      "id": "mds.logging_system:026-01-background-pull",
+      "id": "mds.logging_system:027-01-background-pull",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15260,7 +15301,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "faca465df0c29736cf655dfda8a9c778b0abb334847676962bf3251ff6ddd4ac",
       "heading": "Troubleshooting",
-      "id": "mds.logging_system:027-01-troubleshooting",
+      "id": "mds.logging_system:028-01-troubleshooting",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15279,7 +15320,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "102cdb591978b305d7ef01ea6e5d40cf60da41ac54a7e71ba8fcb4d12f012ffb",
       "heading": "Log Viewer UI",
-      "id": "mds.logging_system:028-01-log-viewer-ui",
+      "id": "mds.logging_system:029-01-log-viewer-ui",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15298,7 +15339,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "267d630c542b8ef4dbf4349184f07a7be42eaaeeb925343a475a4e87fe24b8d6",
       "heading": "Accessing the Log Viewer",
-      "id": "mds.logging_system:029-01-accessing-the-log-viewer",
+      "id": "mds.logging_system:030-01-accessing-the-log-viewer",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15317,7 +15358,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "930e6023f73a53cca6a0d887b4589193e8c9020119d0ebf49d01b6cc37c14816",
       "heading": "Modes",
-      "id": "mds.logging_system:030-01-modes",
+      "id": "mds.logging_system:031-01-modes",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15336,7 +15377,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "55631aba953cc26d2a62c5bdcd3277fe53cebd283e187689e56bef16b5eda618",
       "heading": "Empty States",
-      "id": "mds.logging_system:031-01-empty-states",
+      "id": "mds.logging_system:032-01-empty-states",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15355,7 +15396,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "f62240ae6ea3bdba46f48698613b56e5289427e3c024109a25a5fd4e860f5451",
       "heading": "Real-Time Streaming",
-      "id": "mds.logging_system:032-01-real-time-streaming",
+      "id": "mds.logging_system:033-01-real-time-streaming",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15374,7 +15415,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "4a5a5af7c7353b6ed243929896f3eb45f108a59bbe57b9553a59a8d86c4a31be",
       "heading": "Export",
-      "id": "mds.logging_system:033-01-export",
+      "id": "mds.logging_system:034-01-export",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15393,7 +15434,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "f2a09e616b267d5abe889f15d1b9bc47fba656829c2a8808b92ae57e02d2a269",
       "heading": "Onboard ULog",
-      "id": "mds.logging_system:034-01-onboard-ulog",
+      "id": "mds.logging_system:035-01-onboard-ulog",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -15412,7 +15453,7 @@
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
       "content_hash": "6e34630f30cdf860fc5bf6a25a581883d751c7ccb59062399ffb5f25e634207b",
       "heading": "Error Boundary",
-      "id": "mds.logging_system:035-01-error-boundary",
+      "id": "mds.logging_system:036-01-error-boundary",
       "links": [],
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",
@@ -16187,7 +16228,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.operator_guide/markdown",
       "chunk_count": 34,
-      "content_hash": "c6e24b79cbac972917e435edca8078b2e18e8f73925a697589476d6a5af864c1",
+      "content_hash": "e018063c8e1d3da6ebcf83dd65d8ecedf48782f56a684414018cdfafa3c2a233",
       "id": "simurgh.operator_guide",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-operator.md",
@@ -16204,7 +16245,7 @@
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.mcp_client_recipes/markdown",
       "chunk_count": 13,
-      "content_hash": "f5526c75e0d06cc9b7421f97c23fbde4149a776090cad32f1cdd669bf82f2469",
+      "content_hash": "0e0e7440b25708096e246301b753312888f7fdc4d5f1dcb4e4f9d38700fb6e5f",
       "id": "simurgh.mcp_client_recipes",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-mcp-clients.md",
@@ -16221,8 +16262,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/simurgh.readonly_checkpoint/markdown",
-      "chunk_count": 8,
-      "content_hash": "b51e265e3a58af92ada373901de9719771076fe50813c1bfde1e2713042ec3e4",
+      "chunk_count": 9,
+      "content_hash": "2ad0d287bcbbf39c34ce707a892fb87d17b0d943172a7a2564ac4173cda927b1",
       "id": "simurgh.readonly_checkpoint",
       "mime_type": "text/markdown",
       "path": "docs/guides/simurgh-readonly-checkpoint.md",
@@ -16446,8 +16487,8 @@
     {
       "audience": "operator",
       "canonical_url": "/api/v1/simurgh/context/mds.logging_system/markdown",
-      "chunk_count": 35,
-      "content_hash": "c71505e15dae273fdf62e4d7dc09466a23282a53f432e175eb64605c1a13e275",
+      "chunk_count": 36,
+      "content_hash": "37caa95dcdf6d204649344bb74b2f00af3a7f0d1777547197a426ae36425a0df",
       "id": "mds.logging_system",
       "mime_type": "text/markdown",
       "path": "docs/guides/logging-system.md",

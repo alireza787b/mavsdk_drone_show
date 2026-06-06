@@ -1,6 +1,6 @@
 # Simurgh MCP Client Recipes
 
-Status: read-only connector guidance, updated 2026-06-05.
+Status: read-only connector guidance, updated 2026-06-06.
 
 This guide explains how external MCP clients should connect to the MDS Simurgh
 MCP endpoint without bypassing the GCS safety boundary.
@@ -16,6 +16,11 @@ POST https://<gcs-host>/api/v1/simurgh/mcp
 For the current production-style demo, the API port is `5030`, but production
 clients should use the approved HTTPS hostname or gateway when available. Do not
 publish a field GCS directly to the internet only to make an MCP client work.
+Set `MDS_MCP_RESOURCE_URL` when MDS is behind a reverse proxy or gateway. The
+dashboard assistant and protected-resource metadata use that value as the
+canonical endpoint; when it is empty, Simurgh derives the endpoint from the
+incoming dashboard/API request and finally falls back to the relative
+`/api/v1/simurgh/mcp` path.
 
 Required runtime posture for this read-only slice:
 
@@ -43,6 +48,9 @@ entries are:
 - `mds.docs.chunk.read`
 - `mds.logs.sessions.read`
 - `mds.logs.session.read`
+- `mds.logs.drone_sessions.read`
+- `mds.logs.drone_session.read`
+- `mds.logs.drone_ulog_files.read`
 - approved read-only fleet, show, runtime, and policy status tools
 
 Generated OpenAPI candidates are available as a review resource, not as callable
@@ -140,6 +148,12 @@ The MCP layer is deliberately curated, not a raw automatic export of every GCS
 route. OpenAPI candidates are generated automatically for reviewer visibility;
 callable tools remain promoted through the registry/policy gate so new APIs can
 be added quickly without exposing unsafe routes by accident.
+
+Drone log and ULog tools are metadata-first. They can list per-drone log
+sessions and onboard PX4 ULog files and inspect bounded session warning/error
+lines through GCS-side routes. They do not download ULog content, parse flight
+duration, erase logs, or expose drone-local APIs directly to external MCP
+clients.
 
 ## n8n
 

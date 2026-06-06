@@ -363,6 +363,8 @@ def _looks_like_general_information_query(normalized: str) -> bool:
 
 
 def _looks_like_external_reference_query(normalized: str) -> bool:
+    if _looks_like_public_upstream_reference_query(normalized):
+        return True
     if _has_any(
         normalized,
         (
@@ -438,6 +440,65 @@ def _looks_like_external_reference_query(normalized: str) -> bool:
             "web search",
             "search the web",
             "search internet",
+        ),
+    )
+
+
+def _looks_like_public_upstream_reference_query(normalized: str) -> bool:
+    if not _has_any(
+        normalized,
+        (
+            "latest",
+            "newest",
+            "upstream",
+            "official release",
+            "release version",
+            "stable version",
+            "current release",
+            "current version",
+            "latest docs",
+            "latest documentation",
+        ),
+    ):
+        return False
+    if _has_any(
+        normalized,
+        (
+            "our drone",
+            "our drones",
+            "this drone",
+            "this gcs",
+            "this mds",
+            "installed",
+            "running on",
+            "configured",
+            "fleet",
+            "telemetry",
+            "heartbeat",
+            "netbird",
+            "ip",
+            "drone 1",
+            "drone 2",
+            "drone 3",
+        ),
+    ):
+        return False
+    return _has_any(
+        normalized,
+        (
+            "px4",
+            "ardupilot",
+            "mavlink",
+            "mavsdk",
+            "qgroundcontrol",
+            "qgc",
+            "gazebo",
+            "ros 2",
+            "ros2",
+            "mapbox",
+            "openai",
+            "n8n",
+            "mcp",
         ),
     )
 

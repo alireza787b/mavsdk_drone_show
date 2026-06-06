@@ -343,6 +343,64 @@ def test_openai_assistant_turn_uses_web_search_only_for_public_general_queries(m
     assert "https://example.com/weather" in record.turn.content
 
 
+def test_openai_assistant_turn_uses_web_search_for_public_px4_release_lookup(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setenv("MDS_AGENT_WEB_SEARCH_ENABLED", "true")
+    captured: dict[str, object] = {}
+
+    def fake_post(self, payload, *, api_key):  # noqa: ANN001
+        captured.update(payload)
+        captured["api_key"] = api_key
+        return {
+            "output": [
+                {"type": "web_search_call", "status": "completed", "action": {"type": "search"}},
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "PX4 current release should be verified from the official PX4 release page before operational planning.",
+                            "annotations": [
+                                {
+                                    "type": "url_citation",
+                                    "url": "https://github.com/PX4/PX4-Autopilot/releases",
+                                    "title": "PX4 Autopilot releases",
+                                }
+                            ],
+                        }
+                    ],
+                },
+            ]
+        }
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fake_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="what is the latest PX4 stable release version?",
+    )
+
+    assert record.turn.provider == "openai"
+    assert captured["api_key"] == "test-openai-key"
+    assert captured["tool_choice"] == "required"
+    assert captured["tools"] == [
+        {
+            "type": "web_search",
+            "search_context_size": "medium",
+            "external_web_access": True,
+        }
+    ]
+    assert "Public web-search source requirements" in captured["input"]
+    assert record.audit_event.metadata["web_search_enabled"] is True
+    assert record.turn.provider_tools["web_search_returned"] is True
+    assert "PX4 Autopilot releases" in record.turn.content
+
+
 def test_openai_web_search_does_not_steal_mds_fleet_queries(monkeypatch, tmp_path):
     api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
     monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
@@ -365,6 +423,30 @@ def test_openai_web_search_does_not_steal_mds_fleet_queries(monkeypatch, tmp_pat
     assert record.turn.provider == "mds-tools"
     assert record.audit_event.metadata["tool_intent"] == "fleet_summary"
     assert record.audit_event.metadata["web_search_enabled"] is False
+
+
+def test_openai_web_search_does_not_answer_local_installed_px4_state(monkeypatch, tmp_path):
+    api_key_file = _write_restricted_key(tmp_path / "openai_api_key")
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_AGENT_OPENAI_API_KEY_FILE", str(api_key_file))
+    monkeypatch.setenv("MDS_AGENT_WEB_SEARCH_ENABLED", "true")
+
+    def fail_post(self, payload, *, api_key):  # noqa: ANN001
+        raise AssertionError("public web/provider should not answer local installed PX4 state")
+
+    monkeypatch.setattr(OpenAIResponsesAssistantAdapter, "_post_response", fail_post)
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="what PX4 version are our drones running on?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert record.audit_event.metadata["web_search_enabled"] is False
+    assert "web-search" not in record.turn.content.lower()
 
 
 def test_assistant_turn_answers_mds_fleet_prompt_with_local_tools(monkeypatch):
@@ -518,6 +600,27 @@ def test_assistant_turn_answers_capability_catalog_from_registry(monkeypatch):
     assert "tools/list" in record.turn.content
     assert "MCP endpoint: disabled" in record.turn.content
     assert "mds.fleet.telemetry.read" in record.turn.content
+    assert record.audit_event.metadata["tool_intent"] == "capability_catalog"
+
+
+def test_assistant_turn_reports_configured_mcp_endpoint_without_placeholder(monkeypatch):
+    monkeypatch.setenv("MDS_AGENT_ENABLED", "true")
+    monkeypatch.setenv("MDS_AGENT_PROVIDER", "openai")
+    monkeypatch.setenv("MDS_MCP_ENABLED", "true")
+    monkeypatch.setenv("MDS_MCP_RESOURCE_URL", "https://gcs.example.test/api/v1/simurgh/mcp")
+
+    record = create_assistant_turn(
+        sessions=AgentSessionStore(),
+        audit=InMemoryAuditSink(),
+        actor="operator",
+        message="If I want to connect n8n to Simurgh MCP what address and considerations should I use?",
+    )
+
+    assert record.turn.provider == "mds-tools"
+    assert "https://gcs.example.test/api/v1/simurgh/mcp" in record.turn.content
+    assert "configured by `MDS_MCP_RESOURCE_URL`" in record.turn.content
+    assert "<gcs-host>" not in record.turn.content
+    assert "never to a drone IP" in record.turn.content
     assert record.audit_event.metadata["tool_intent"] == "capability_catalog"
 
 
@@ -1595,11 +1698,74 @@ def test_read_only_plan_covers_logs_and_docs_workflows():
     assert logs.topic == "logs"
     assert logs.public_metadata()["tool_ids"] == ["mds.logs.sessions.read", "mds.logs.sources.read"]
 
+    drone_logs = build_mds_read_only_plan("how many drone logs do we have and was there any errors logged?")
+    assert drone_logs.intent == "drone_log_summary"
+    assert "mds.logs.drone_sessions.read" in drone_logs.public_metadata()["tool_ids"]
+    assert "mds.logs.drone_ulog_files.read" in drone_logs.public_metadata()["tool_ids"]
+
     docs = build_mds_read_only_plan("can you give me link to read about creating SITL demo?")
     assert docs.intent == "sitl_help"
     assert docs.response_mode == "workflow"
     assert docs.topic == "sitl"
     assert "mds.docs.search" in docs.public_metadata()["tool_ids"]
+
+
+def test_read_tools_answer_drone_log_summary_from_drone_and_ulog_metadata(monkeypatch):
+    from agent_runtime.mds_read_tools import MdsReadOnlyTools, answer_mds_read_only_question, build_mds_read_only_plan
+
+    deps = SimpleNamespace(
+        load_config=lambda: [
+            {
+                "hw_id": 1,
+                "pos_id": 1,
+                "callsign": "SCOUT",
+                "ip": "192.0.2.33",
+                "mavlink_port": 14550,
+            }
+        ],
+    )
+
+    def fake_fetch(self, drone_ip, path, *, params=None, timeout=0):  # noqa: ANN001
+        assert drone_ip == "192.0.2.33"
+        if path == "/api/logs/sessions":
+            return {"sessions": [{"session_id": "s_drone_1", "size_bytes": 1234, "modified": 1780000000.0}]}, ""
+        if path == "/api/logs/sessions/s_drone_1":
+            return {
+                "session_id": "s_drone_1",
+                "count": 2,
+                "lines": [
+                    {"level": "INFO", "message": "boot ok"},
+                    {"level": "ERROR", "message": "example warning-worthy line"},
+                ],
+            }, ""
+        if path == "/api/v1/ulog/files":
+            return {
+                "hw_id": "1",
+                "count": 2,
+                "files": [{"id": 9, "date_utc": "2026-06-05T10:00:00Z", "size_bytes": 2048}],
+            }, ""
+        raise AssertionError(f"unexpected drone log path: {path}")
+
+    monkeypatch.setattr(MdsReadOnlyTools, "_fetch_drone_json", fake_fetch)
+
+    plan = build_mds_read_only_plan(
+        "how about the drones? how many drone logs and what was the flight time and was there any errors logged?"
+    )
+    answer = answer_mds_read_only_question(
+        "how about the drones? how many drone logs and what was the flight time and was there any errors logged?",
+        deps=deps,
+    )
+
+    assert plan.intent == "drone_log_summary"
+    assert answer is not None
+    assert answer.intent == "drone_log_summary"
+    assert "Drone log evidence" in answer.content
+    assert "Drone 1" in answer.content
+    assert "2.0 KB" in answer.content
+    assert "1 in latest session" in answer.content
+    assert "Flight time: not available" in answer.content
+    assert "Backend warning/error" not in answer.content
+    assert "mds.logs.drone_ulog_files.read" in answer.tool_ids
 
 
 def test_assistant_turn_audit_records_read_only_plan_without_prompt_leak(monkeypatch):

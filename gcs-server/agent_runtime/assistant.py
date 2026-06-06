@@ -1495,11 +1495,72 @@ def _should_enable_web_search_for_turn(
     normalized = re.sub(r"\s+", " ", (routing_message or normalized_message).casefold()).strip()
     if not normalized:
         return False
+    if _has_public_upstream_lookup_signal(normalized):
+        return True
     if _has_mds_private_or_state_signal(normalized):
         return False
     if _has_public_current_or_lookup_signal(normalized):
         return True
     return local_intent is None and query_plan.domain == "general" and query_plan.confidence < 0.4
+
+
+def _has_public_upstream_lookup_signal(normalized: str) -> bool:
+    """Allow current public upstream lookups without leaking MDS installation state."""
+
+    if not _has_any_text(
+        normalized,
+        (
+            "latest",
+            "newest",
+            "upstream",
+            "official release",
+            "release version",
+            "stable version",
+            "current release",
+            "current version",
+        ),
+    ):
+        return False
+    if _has_any_text(
+        normalized,
+        (
+            "our drone",
+            "our drones",
+            "this drone",
+            "this gcs",
+            "this mds",
+            "installed",
+            "running on",
+            "configured",
+            "fleet",
+            "telemetry",
+            "heartbeat",
+            "netbird",
+            "ip",
+            "drone 1",
+            "drone 2",
+            "drone 3",
+        ),
+    ):
+        return False
+    return _has_any_text(
+        normalized,
+        (
+            "px4",
+            "ardupilot",
+            "mavlink",
+            "mavsdk",
+            "qgroundcontrol",
+            "qgc",
+            "gazebo",
+            "ros 2",
+            "ros2",
+            "mapbox",
+            "openai",
+            "n8n",
+            "mcp",
+        ),
+    )
 
 
 def _has_mds_private_or_state_signal(normalized: str) -> bool:
@@ -1843,6 +1904,8 @@ def _previous_evidence_open_followup_signal(normalized: str) -> bool:
 def _looks_like_capability_catalog_query(normalized: str) -> bool:
     if _has_any_text(normalized, ("did you use", "exact source", "where did you get", "source link", "show source")):
         return False
+    if _looks_like_mcp_client_setup_query(normalized):
+        return True
     return _has_any_text(
         normalized,
         (
@@ -1863,6 +1926,45 @@ def _looks_like_capability_catalog_query(normalized: str) -> bool:
             "mcp menu",
             "can simurgh use",
             "can you use",
+        ),
+    )
+
+
+def _looks_like_mcp_client_setup_query(normalized: str) -> bool:
+    if not _has_any_text(normalized, ("mcp", "model context protocol")):
+        return False
+    if not _has_any_text(
+        normalized,
+        (
+            "n8n",
+            "claude",
+            "claude desktop",
+            "vs code",
+            "vscode",
+            "custom agent",
+            "custom ai agent",
+            "client",
+            "connector",
+            "external agent",
+        ),
+    ):
+        return False
+    return _has_any_text(
+        normalized,
+        (
+            "connect",
+            "address",
+            "url",
+            "endpoint",
+            "port",
+            "auth",
+            "token",
+            "scope",
+            "consideration",
+            "considerations",
+            "setup",
+            "configure",
+            "use",
         ),
     )
 

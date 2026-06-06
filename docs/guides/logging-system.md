@@ -207,6 +207,15 @@ registry = get_registry()
 | `/api/logs/export` | POST | Export sessions as JSONL or ZIP |
 | `/api/logs/config` | POST | Toggle background pull at runtime |
 
+### Simurgh Read-Only Log Use
+
+Simurgh may use reviewed read-only log tools to summarize per-drone log session
+counts, bounded latest-session warning/error lines, and onboard PX4 ULog file
+metadata. This path is for operator evidence only: it does not download ULog
+content, parse exact flight duration, erase logs, expose drone-local APIs to MCP
+clients, or treat backend API warnings as flight-log evidence. Exact flight time
+requires a separate human-approved ULog download and parsing workflow.
+
 ### SSE Stream Usage
 
 Connect via `EventSource` (browser) or any SSE client:
