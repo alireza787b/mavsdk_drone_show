@@ -1781,8 +1781,8 @@ def _previous_evidence_followup_kind(message: str) -> str | None:
             "handoff instructions",
             "handoff to operator",
             "brief the operator",
-            "brief arnaude",
-            "brief arnaud",
+            "brief the pilot",
+            "brief the field tester",
         ),
     ):
         return "field_brief_previous_evidence"

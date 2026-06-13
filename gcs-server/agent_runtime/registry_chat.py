@@ -219,6 +219,9 @@ _ADVISORY_FIRST_INTENTS = frozenset(
 
 
 _ARGUMENT_TOOL_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...], str], ...] = (
+    (("drone ulog", "drone ulogs", "ulog file", "ulog files", "px4 ulog", ".ulg"), ("mds.logs.drone_ulog_files.read",), "one drone ULog file list"),
+    (("one drone log session", "drone log session", "drone session"), ("mds.logs.drone_session.read",), "one drone log session"),
+    (("drone log sessions", "drone logs", "flight logs", "onboard logs"), ("mds.logs.drone_sessions.read",), "one drone log session list"),
     (("log session", "logs session", "session_id", "session id", "logs/session"), ("mds.logs.session.read",), "one GCS log session"),
     (("command_id", "command id", "command status"), ("mds.commands.status.read",), "one command status"),
     (("position id", "pos_id", "pos id", "launch position"), ("mds.config.position.read",), "one launch position"),
@@ -288,6 +291,9 @@ _TYPED_TOOL_DISCOVERY: Mapping[str, tuple[tuple[str, ...], str]] = {
     "mds.fleet.sidecar.node.read": (("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "Choose both sidecar and hw_id to inspect one node."),
     "mds.fleet.sidecar.read": (("mds.fleet.sidecars.read", "mds.fleet.network_status.read"), "Choose a sidecar name, for example smart-wifi-manager or mavlink-anywhere."),
     "mds.fleet.sidecars.job.read": (("mds.fleet.sidecars.read",), "Choose a sidecar job_id from the relevant sidecar operation result."),
+    "mds.logs.drone_sessions.read": (("mds.config.fleet.read", "mds.fleet.telemetry.read"), "Choose a drone_id from the configured fleet before reading that drone's log sessions."),
+    "mds.logs.drone_session.read": (("mds.logs.drone_sessions.read",), "Choose a drone_id and session_id from the per-drone log session list."),
+    "mds.logs.drone_ulog_files.read": (("mds.config.fleet.read", "mds.fleet.telemetry.read"), "Choose a drone_id from the configured fleet before reading that drone's onboard ULog metadata."),
     "mds.logs.session.read": (("mds.logs.sessions.read",), "Choose a session_id from the log sessions list."),
     "mds.origin.elevation.read": (("mds.origin.read", "mds.navigation.global_origin.read"), "Provide latitude and longitude, or ask for current origin status."),
     "mds.px4_params.patch_job.read": (("mds.px4_params.policy.read", "mds.px4_params.profiles.read"), "Choose a PX4 patch job_id from the patch job that was created earlier."),
@@ -935,7 +941,7 @@ def _required_argument_names(tool_ids: Sequence[str], allowed_by_id: Mapping[str
         if tool is None:
             continue
         for name in _required_args(tool):
-            if tool.id == "mds.logs.session.read" and name == "limit":
+            if tool.id in {"mds.logs.session.read", "mds.logs.drone_session.read"} and name == "limit":
                 continue
             if name not in names:
                 names.append(name)
@@ -954,9 +960,18 @@ def _arguments_for_discovery_tool(tool: ToolDefinition, text: str) -> Mapping[st
 def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, ...], str]:
     selected: list[str] = []
     label = "typed read-only GCS state"
+    drone_log_context = _looks_like_drone_log_context(text)
     for signals, tool_ids, candidate_label in _ARGUMENT_TOOL_HINTS:
         if _has_any(text, signals):
             if "mds.config.position.read" in tool_ids and _has_any(text, ("launch positions", "positions", "deviations")):
+                continue
+            if drone_log_context and "mds.logs.session.read" in tool_ids:
+                continue
+            if (
+                "mds.logs.drone_session.read" in tool_ids
+                and not _extract_log_session_id(text)
+                and _looks_like_drone_log_collection_context(text)
+            ):
                 continue
             selected.extend(tool_ids)
             label = candidate_label
@@ -974,7 +989,18 @@ def _argument_tool_ids_for_query(text: str, *, domain: str) -> tuple[tuple[str, 
             selected.insert(0, "mds.fleet.sidecar.read")
             label = "one fleet sidecar table"
 
-    if _extract_log_session_id(text):
+    log_session_id = _extract_log_session_id(text)
+    if drone_log_context:
+        if _has_any(text, ("ulog", "ulogs", ".ulg")):
+            selected.insert(0, "mds.logs.drone_ulog_files.read")
+            label = "one drone ULog file list"
+        elif log_session_id:
+            selected.insert(0, "mds.logs.drone_session.read")
+            label = "one drone log session"
+        elif _has_any(text, ("log", "logs", "session", "sessions", "flight")):
+            selected.insert(0, "mds.logs.drone_sessions.read")
+            label = "one drone log session list"
+    elif log_session_id:
         selected.insert(0, "mds.logs.session.read")
         label = "one GCS log session"
 
@@ -1027,7 +1053,12 @@ def _arguments_for_tool(tool: ToolDefinition, text: str, *, domain: str) -> Mapp
         if value is not None and _value_matches_schema(value, raw_property_schema):
             arguments[str(name)] = value
 
-    if "limit" in required and "limit" not in arguments and tool.id == "mds.logs.session.read" and "session_id" in arguments:
+    if (
+        "limit" in required
+        and "limit" not in arguments
+        and tool.id in {"mds.logs.session.read", "mds.logs.drone_session.read"}
+        and "session_id" in arguments
+    ):
         arguments["limit"] = 20
 
     if all(name in arguments for name in required):
@@ -1184,7 +1215,46 @@ def _extract_integer_arg(name: str, text: str) -> int | None:
         match = re.search(r"\b(?:position|pos)\s*(?:id|number|#)?\s*([0-9]+)\b", text)
         if match:
             return int(match.group(1))
+    if name == "drone_id":
+        hw_id = _extract_hw_id(text)
+        if hw_id and hw_id.isdigit():
+            return int(hw_id)
     return None
+
+
+def _looks_like_drone_log_context(text: str) -> bool:
+    return _has_any(
+        text,
+        (
+            "drone log",
+            "drone logs",
+            "drone session",
+            "drone sessions",
+            "flight log",
+            "flight logs",
+            "onboard log",
+            "onboard logs",
+            "ulog",
+            "ulogs",
+            ".ulg",
+            "drone_id",
+            "drone id",
+        ),
+    )
+
+
+def _looks_like_drone_log_collection_context(text: str) -> bool:
+    return _has_any(
+        text,
+        (
+            "drone log sessions",
+            "drone logs",
+            "flight logs",
+            "onboard logs",
+            "log sessions",
+            "sessions",
+        ),
+    )
 
 
 def _extract_number_arg(name: str, text: str) -> float | None:

@@ -12,6 +12,7 @@ SAMPLE_ARGUMENTS: Mapping[str, Any] = {
     "candidate_id": "candidate-1",
     "chunk_id": "mds.init_setup:0",
     "command_id": "cmd-1",
+    "drone_id": 2,
     "hw_id": "2",
     "job_id": "job-1",
     "lat": 35.9555,
@@ -106,7 +107,11 @@ def test_registry_planner_generates_missing_argument_discovery_for_typed_read_on
         prompt = f"read details for {tool.title} now"
         plan = plan_registry_read_tool_calls(prompt, allowed_tools=tools, local_intent=None)
         tool_ids = _plan_tool_ids(plan)
-        required = tuple(name for name in _required_args(tool) if not (tool.id == "mds.logs.session.read" and name == "limit"))
+        required = tuple(
+            name
+            for name in _required_args(tool)
+            if not (tool.id in {"mds.logs.session.read", "mds.logs.drone_session.read"} and name == "limit")
+        )
         missing_arguments = tuple(plan.missing_arguments) if plan else ()
         if not plan or not set(required).issubset(set(missing_arguments)) or tool.id in tool_ids:
             failures.append(
